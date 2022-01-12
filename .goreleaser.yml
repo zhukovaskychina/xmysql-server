@@ -1,13 +1,13 @@
 project_name: xmysql-server
 #release:
 #  github:
-#    owner: codeskyblue
-#    name: gohttpserver
+#    owner: zhukovaskychina
+#    name: xmysql-server
 #brew:
 #  github:
-#    owner: codeskyblue
-#    name: homebrew-tap
-#  homepage: https://github.com/codeskyblue/gohttpserver
+#    owner: zhukovaskychina
+#    name: xmysql-server
+#  homepage: https://github.com/zhukovaskychina/xmysql-server
 builds:
   - goos:
       - linux
