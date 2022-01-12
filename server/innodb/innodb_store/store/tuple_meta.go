@@ -2,11 +2,11 @@ package store
 
 import (
 	"strings"
-	"xmysql-server/server/conf"
-	"xmysql-server/server/innodb/innodb_store/store/storebytes/blocks"
-	"xmysql-server/server/innodb/innodb_store/store/storebytes/table"
-	"xmysql-server/server/innodb/tuple"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store/storebytes/blocks"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store/storebytes/table"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/tuple"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 type TableTupleMeta struct {

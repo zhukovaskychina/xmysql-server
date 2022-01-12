@@ -2,8 +2,8 @@ package store
 
 import (
 	"errors"
-	"xmysql-server/server/conf"
-	"xmysql-server/server/innodb/schemas"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
 )
 
 type DataBaseImpl struct {

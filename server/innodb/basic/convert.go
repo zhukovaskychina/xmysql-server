@@ -22,11 +22,11 @@ import (
 	"strconv"
 	"strings"
 	"unsafe"
-	"xmysql-server/server/innodb/basic/json"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic/json"
 
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/sessionctx/variable"
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sessionctx/variable"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 func truncateStr(str string, flen int) string {

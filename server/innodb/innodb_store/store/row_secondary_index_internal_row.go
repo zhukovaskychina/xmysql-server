@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"strings"
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/tuple"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/tuple"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 /***

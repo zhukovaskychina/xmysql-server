@@ -31,13 +31,13 @@ import __yyfmt__ "fmt"
 import (
 	"strings"
 
-	"xmysql-server/server/innodb/ast"
-	types "xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/model"
-	"xmysql-server/server/innodb/parser/opcode"
-	"xmysql-server/server/innodb/util/auth"
-	"xmysql-server/server/innodb/util/charset"
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/parser/opcode"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/auth"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/charset"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 type yySymType struct {

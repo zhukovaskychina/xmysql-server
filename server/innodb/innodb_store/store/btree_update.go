@@ -2,9 +2,9 @@ package store
 
 import (
 	"errors"
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 func (self *BTree) update(n uint32, key basic.Value, value basic.Row) (a, b uint32, err error) {

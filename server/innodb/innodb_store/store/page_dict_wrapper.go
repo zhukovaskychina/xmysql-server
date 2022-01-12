@@ -2,12 +2,12 @@ package store
 
 import (
 	"fmt"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/buffer_pool"
-	"xmysql-server/server/innodb/innodb_store/store/storebytes/pages"
-	"xmysql-server/server/innodb/innodb_store/store/storebytes/segs"
-	"xmysql-server/server/innodb/tuple"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store/storebytes/pages"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store/storebytes/segs"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/tuple"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 type DataDictWrapper struct {

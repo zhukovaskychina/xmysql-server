@@ -20,14 +20,14 @@ import (
 	"net"
 	"strings"
 	"time"
-	"xmysql-server/server/innodb/basic/json"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic/json"
 
 	"github.com/juju/errors"
 	"github.com/twinj/uuid"
-	types "xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/context"
-	"xmysql-server/server/innodb/util/charset"
-	"xmysql-server/server/mysql"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/charset"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 var (

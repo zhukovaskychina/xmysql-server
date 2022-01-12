@@ -16,8 +16,8 @@ package variable
 import (
 	"strconv"
 	"strings"
-	"xmysql-server/server/innodb/terror"
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/terror"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 // ScopeFlag is for system variable whether can be changed in global/session dynamically or not.

@@ -21,16 +21,16 @@ import (
 	log "github.com/sirupsen/logrus"
 	"strings"
 	"unicode/utf8"
-	"xmysql-server/server/innodb/ast"
-	"xmysql-server/server/innodb/basic/json"
-	"xmysql-server/server/innodb/util/hack"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic/json"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/hack"
 
 	"github.com/juju/errors"
-	types "xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/context"
-	"xmysql-server/server/innodb/expression"
-	"xmysql-server/server/innodb/model"
-	"xmysql-server/server/mysql"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 // Column provides meta data describing a table column.

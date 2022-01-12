@@ -1,9 +1,9 @@
 package store
 
 import (
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/buffer_pool"
-	"xmysql-server/server/innodb/tuple"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/tuple"
 )
 
 /////////////////////////////////////////////////////////////

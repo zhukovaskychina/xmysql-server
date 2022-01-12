@@ -17,14 +17,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	types "xmysql-server/server/innodb/basic"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/ast"
-	"xmysql-server/server/innodb/context"
-	"xmysql-server/server/innodb/expression"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression"
 
-	"xmysql-server/server/innodb/util/codec"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/codec"
 )
 
 // UseDAGPlanBuilder checks if we use new DAG planner.

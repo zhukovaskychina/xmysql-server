@@ -15,10 +15,10 @@ package plan
 
 import (
 	log "github.com/sirupsen/logrus"
-	"xmysql-server/server/innodb/ast"
-	"xmysql-server/server/innodb/context"
-	"xmysql-server/server/innodb/expression"
-	"xmysql-server/server/innodb/model"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
 )
 
 type columnPruner struct {

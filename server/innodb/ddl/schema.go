@@ -16,10 +16,10 @@ package ddl
 import (
 	"fmt"
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/meta"
-	"xmysql-server/server/innodb/schemas"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/meta"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
 
-	"xmysql-server/server/innodb/model"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
 )
 
 func (d *ddl) onCreateSchema(t *meta.Meta, job *model.Job) (ver int64, _ error) {

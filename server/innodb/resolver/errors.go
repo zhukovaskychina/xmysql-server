@@ -1,7 +1,7 @@
 package resolver
 
 import (
-	"xmysql-server/server/innodb/terror"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/terror"
 )
 
 // Optimizer error codes.

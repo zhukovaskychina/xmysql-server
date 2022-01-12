@@ -14,9 +14,9 @@
 package schemas
 
 import (
-	"xmysql-server/server/innodb/model"
-	"xmysql-server/server/innodb/terror"
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/terror"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 var (

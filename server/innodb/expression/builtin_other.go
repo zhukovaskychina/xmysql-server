@@ -15,13 +15,13 @@ package expression
 
 import (
 	"strings"
-	"xmysql-server/server/innodb/basic/json"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic/json"
 
 	"github.com/juju/errors"
-	types "xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/context"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
 
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 var (

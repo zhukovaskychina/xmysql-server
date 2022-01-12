@@ -15,14 +15,14 @@ package statistics
 
 import (
 	"math"
-	types "xmysql-server/server/innodb/basic"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/ast"
-	"xmysql-server/server/innodb/context"
-	"xmysql-server/server/innodb/expression"
-	"xmysql-server/server/innodb/util/ranger"
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/ranger"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 // If one condition can't be calculated, we will assume that the selectivity of this condition is 0.8.

@@ -17,9 +17,9 @@ import (
 	"sort"
 
 	log "github.com/sirupsen/logrus"
-	"xmysql-server/server/innodb/ast"
-	"xmysql-server/server/innodb/context"
-	"xmysql-server/server/innodb/expression"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression"
 )
 
 // tryToGetJoinGroup tries to fetch a whole join group, which all joins is cartesian join.

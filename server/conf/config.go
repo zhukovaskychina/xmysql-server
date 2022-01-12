@@ -318,7 +318,7 @@ func (cfg *Cfg) loadConfiguration(args *CommandLineArgs) (*ini.File, error) {
 
 	// check if config file exists
 	if _, err := os.Stat(defaultConfigFile); os.IsNotExist(err) {
-		fmt.Println("xmysql-server加载配置文件失败，请确保文件路径存在")
+		fmt.Println("github.com/zhukovaskychina/xmysql-server加载配置文件失败，请确保文件路径存在")
 		os.Exit(1)
 	}
 

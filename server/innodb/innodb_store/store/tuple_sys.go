@@ -2,8 +2,8 @@ package store
 
 import (
 	"strings"
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/tuple"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/tuple"
 )
 
 type SysTableTuple struct {

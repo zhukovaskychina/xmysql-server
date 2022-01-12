@@ -16,10 +16,10 @@ package cache
 import (
 	"time"
 
-	"xmysql-server/server/innodb/sessionctx/variable"
-	"xmysql-server/server/innodb/util/codec"
-	"xmysql-server/server/innodb/util/hack"
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sessionctx/variable"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/codec"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/hack"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 // Key is the interface that every key in LRU Cache should implement.

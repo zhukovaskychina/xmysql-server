@@ -16,8 +16,8 @@ package parser
 import (
 	"strings"
 
-	"xmysql-server/server/innodb/util/charset"
-	"xmysql-server/server/innodb/util/hack"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/charset"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/hack"
 )
 
 func isLetter(ch rune) bool {

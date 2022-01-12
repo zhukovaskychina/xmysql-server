@@ -16,10 +16,10 @@ package aggregation
 import (
 	"github.com/juju/errors"
 	log "github.com/sirupsen/logrus"
-	types "xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/context"
-	"xmysql-server/server/innodb/expression"
-	"xmysql-server/server/innodb/sessionctx/variable"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sessionctx/variable"
 )
 
 type maxMinFunction struct {

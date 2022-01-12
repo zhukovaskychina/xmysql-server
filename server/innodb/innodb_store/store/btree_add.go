@@ -3,10 +3,10 @@ package store
 import (
 	"errors"
 	"log"
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/buffer_pool"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 func (self *BTree) Add(key basic.Value, value basic.Row) (err error) {

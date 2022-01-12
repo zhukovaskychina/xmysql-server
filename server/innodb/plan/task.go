@@ -16,14 +16,14 @@ package plan
 import (
 	"fmt"
 	"math"
-	types "xmysql-server/server/innodb/basic"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 
-	"xmysql-server/server/innodb/context"
-	"xmysql-server/server/innodb/expression"
-	"xmysql-server/server/innodb/expression/aggregation"
-	"xmysql-server/server/innodb/model"
-	"xmysql-server/server/innodb/util/charset"
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression/aggregation"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/charset"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 // task is a new version of `PhysicalPlanInfo`. It stores cost information for a task.

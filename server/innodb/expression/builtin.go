@@ -18,14 +18,14 @@
 package expression
 
 import (
-	"xmysql-server/server/innodb/ast"
-	types "xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/basic/json"
-	"xmysql-server/server/innodb/context"
-	"xmysql-server/server/innodb/parser/opcode"
-	"xmysql-server/server/innodb/util/charset"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic/json"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/parser/opcode"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/charset"
 
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 // baseBuiltinFunc will be contained in every struct that implement builtinFunc interface.

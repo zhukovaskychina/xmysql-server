@@ -1,11 +1,11 @@
 package store
 
 import (
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/buffer_pool"
-	"xmysql-server/server/innodb/innodb_store/store/storebytes/segs"
-	"xmysql-server/server/innodb/tuple"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store/storebytes/segs"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/tuple"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 //必须先从segment内分配extent和page，创建segment核心是从inode page 中分配空闲的inode

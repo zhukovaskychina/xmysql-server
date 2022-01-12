@@ -20,11 +20,11 @@ import (
 	"unicode"
 
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/ast"
-	types "xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/terror"
-	"xmysql-server/server/innodb/util/hack"
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/terror"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/hack"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 const (

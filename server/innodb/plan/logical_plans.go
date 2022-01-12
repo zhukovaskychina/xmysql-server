@@ -15,14 +15,14 @@ package plan
 
 import (
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/ast"
-	types "xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/expression"
-	"xmysql-server/server/innodb/expression/aggregation"
-	"xmysql-server/server/innodb/model"
-	"xmysql-server/server/innodb/statistics"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression/aggregation"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/statistics"
 
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 var (

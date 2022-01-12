@@ -1,7 +1,7 @@
 package basic
 
 import (
-	"xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
 )
 
 type FileSystem interface {

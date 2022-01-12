@@ -14,8 +14,8 @@
 package plan
 
 import (
-	"xmysql-server/server/innodb/ast"
-	"xmysql-server/server/innodb/expression"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression"
 )
 
 // Cacheable checks whether the input ast is cacheable.

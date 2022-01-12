@@ -3,12 +3,12 @@ package store
 import (
 	"fmt"
 	"github.com/pkg/errors"
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/buffer_pool"
-	"xmysql-server/server/innodb/innodb_store/store/storebytes/blocks"
-	"xmysql-server/server/innodb/tuple"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store/storebytes/blocks"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/tuple"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 // BTree is an implementation of a B-Tree.

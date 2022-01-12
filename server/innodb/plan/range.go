@@ -17,13 +17,13 @@ import (
 	"fmt"
 
 	"sort"
-	types "xmysql-server/server/innodb/basic"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/ast"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
 
-	"xmysql-server/server/innodb/expression"
-	"xmysql-server/server/innodb/sessionctx/variable"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sessionctx/variable"
 )
 
 type rangePoint struct {

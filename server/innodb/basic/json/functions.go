@@ -21,7 +21,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/util/hack"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/hack"
 )
 
 // Type returns type of JSON as string.

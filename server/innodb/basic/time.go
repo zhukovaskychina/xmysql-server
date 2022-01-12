@@ -25,9 +25,9 @@ import (
 
 	"github.com/juju/errors"
 	log "github.com/sirupsen/logrus"
-	"xmysql-server/server/innodb/sessionctx/variable"
-	"xmysql-server/server/innodb/terror"
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sessionctx/variable"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/terror"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 // Portable analogs of some common call errors.

@@ -18,10 +18,10 @@ import (
 	"fmt"
 	"strings"
 
-	"xmysql-server/server/innodb/context"
-	"xmysql-server/server/innodb/model"
-	"xmysql-server/server/innodb/util/auth"
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/auth"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 var (

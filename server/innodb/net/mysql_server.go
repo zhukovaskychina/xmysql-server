@@ -15,8 +15,8 @@ import (
 	"strconv"
 	"syscall"
 	"time"
-	"xmysql-server/server/conf"
-	//"xmysql-server/server/innodb/innodb_store/storebytes"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	//"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/storebytes"
 )
 
 const (

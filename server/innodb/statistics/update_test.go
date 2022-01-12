@@ -16,12 +16,12 @@ package statistics_test
 import (
 	"fmt"
 
-	"xmysql-server/server/innodb/domain"
-	"xmysql-server/server/innodb/kv"
-	"xmysql-server/server/innodb/model"
-	"xmysql-server/server/innodb/util/testkit"
-	"xmysql-server/server/innodb/util/testleak"
-	"xmysql-server/server/innodb/util/types"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/domain"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/kv"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/testkit"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/testleak"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/types"
 )
 
 var _ = Suite(&testStatsUpdateSuite{})

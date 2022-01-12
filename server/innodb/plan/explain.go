@@ -17,8 +17,8 @@ import (
 	"bytes"
 	"fmt"
 
-	"xmysql-server/server/innodb/expression"
-	"xmysql-server/server/innodb/expression/aggregation"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression/aggregation"
 )
 
 func setParents4FinalPlan(plan PhysicalPlan) {

@@ -6,13 +6,13 @@ import (
 	"github.com/smartystreets/assertions"
 	"math"
 	"sort"
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/innodb_store/store/storebytes/pages"
-	"xmysql-server/server/innodb/tuple"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store/storebytes/pages"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/tuple"
 )
 
-import "xmysql-server/util"
+import "github.com/zhukovaskychina/xmysql-server/util"
 
 //数据页面的包装
 type Index struct {

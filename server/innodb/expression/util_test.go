@@ -14,12 +14,12 @@
 package expression
 
 import (
-	"xmysql-server/server/innodb/_vendor/src/github.com/pingcap/check"
-	"xmysql-server/server/innodb/ast"
-	types "xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/util/mock"
-	"xmysql-server/server/innodb/util/testleak"
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/_vendor/src/github.com/pingcap/check"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/mock"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/testleak"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 var _ = check.Suite(&testUtilSuite{})

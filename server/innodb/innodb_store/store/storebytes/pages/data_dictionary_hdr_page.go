@@ -1,10 +1,10 @@
 package pages
 
 import (
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/innodb_store/store/storebytes/segs"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store/storebytes/segs"
 
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 type DataDictHeader struct {

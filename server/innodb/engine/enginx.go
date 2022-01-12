@@ -4,14 +4,14 @@ import (
 	log "github.com/AlexStocks/log4go"
 	"github.com/goioc/di"
 	"time"
-	"xmysql-server/server/conf"
-	"xmysql-server/server/innodb"
-	"xmysql-server/server/innodb/ast"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/buffer_pool"
-	"xmysql-server/server/innodb/innodb_store/store"
-	"xmysql-server/server/innodb/schemas"
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 //SQL执行引擎

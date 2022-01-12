@@ -20,7 +20,7 @@ import (
 	"fmt"
 
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/terror"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/terror"
 )
 
 // UserIdentity represents username and hostname.

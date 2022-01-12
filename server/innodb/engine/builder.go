@@ -1,10 +1,10 @@
 package engine
 
 import (
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/context"
-	"xmysql-server/server/innodb/plan"
-	"xmysql-server/server/innodb/schemas"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
 )
 
 type cursorBuilder struct {

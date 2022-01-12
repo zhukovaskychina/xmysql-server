@@ -27,11 +27,11 @@ import (
 	"io"
 
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/context"
-	"xmysql-server/server/innodb/util/auth"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/auth"
 
-	types "xmysql-server/server/innodb/basic"
-	"xmysql-server/server/mysql"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 var (

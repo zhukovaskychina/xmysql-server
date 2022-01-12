@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/ast"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
 )
 
 // KeyInfo stores the columns of one unique key or primary key.

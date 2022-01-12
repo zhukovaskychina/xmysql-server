@@ -18,8 +18,8 @@ import (
 
 	"github.com/cznic/mathutil"
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/parser/opcode"
-	"xmysql-server/server/innodb/sessionctx/variable"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/parser/opcode"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sessionctx/variable"
 )
 
 // CoerceArithmetic converts datum to appropriate datum for arithmetic computing.

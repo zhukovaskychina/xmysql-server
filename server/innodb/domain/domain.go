@@ -17,10 +17,10 @@ import (
 	"fmt"
 	"github.com/juju/errors"
 	log "github.com/sirupsen/logrus"
-	"xmysql-server/server/innodb/ddl"
-	"xmysql-server/server/innodb/meta"
-	"xmysql-server/server/innodb/model"
-	"xmysql-server/server/innodb/terror"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ddl"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/meta"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/terror"
 
 	"sync"
 )

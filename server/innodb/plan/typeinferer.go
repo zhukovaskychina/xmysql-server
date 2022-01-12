@@ -19,12 +19,12 @@ import (
 	"log"
 
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/ast"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/parser/opcode"
-	"xmysql-server/server/innodb/sessionctx/variable"
-	"xmysql-server/server/innodb/util/charset"
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/parser/opcode"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sessionctx/variable"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/charset"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 // InferType infers result type for ast.ExprNode.

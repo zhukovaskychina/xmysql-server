@@ -14,8 +14,8 @@
 package sqlexec
 
 import (
-	"xmysql-server/server/innodb/ast"
-	"xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
 )
 
 // RestrictedSQLExecutor is an interface provides executing restricted sql statement.

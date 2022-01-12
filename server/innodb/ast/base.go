@@ -13,7 +13,7 @@
 
 package ast
 
-import types "xmysql-server/server/innodb/basic"
+import types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 
 // node is the struct implements node interface except for Accept method.
 // Node implementations should embed it in.

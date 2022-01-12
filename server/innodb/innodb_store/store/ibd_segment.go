@@ -1,8 +1,8 @@
 package store
 
 import (
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/innodb_store/store/storebytes/segs"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store/storebytes/segs"
 )
 
 //段是一个逻辑概念，管理非连续的区和离散页面

@@ -2,7 +2,7 @@ package store
 
 import (
 	"strings"
-	"xmysql-server/server/innodb/tuple"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/tuple"
 )
 
 //cluster 的tuple,用于反序列化

@@ -18,10 +18,10 @@ import (
 	"math"
 
 	"github.com/juju/errors"
-	types "xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/context"
-	"xmysql-server/server/innodb/parser/opcode"
-	"xmysql-server/server/mysql"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/parser/opcode"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 var (

@@ -15,7 +15,7 @@ package statistics
 
 import (
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/schemas"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
 )
 
 func (h *Handle) initStatsMeta(is schemas.InfoSchema) (statsCache, error) {

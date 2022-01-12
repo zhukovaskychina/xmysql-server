@@ -1,8 +1,8 @@
 package ibd
 
 import (
-	"xmysql-server/server/conf"
-	"xmysql-server/server/innodb/innodb_store/store/storebytes/blocks"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store/storebytes/blocks"
 )
 
 //理论上应该是16384的整数倍

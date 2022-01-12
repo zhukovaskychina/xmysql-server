@@ -21,9 +21,9 @@ import (
 	"unsafe"
 
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/terror"
-	"xmysql-server/server/innodb/util/hack"
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/terror"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/hack"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 // TypeCode indicates JSON type.

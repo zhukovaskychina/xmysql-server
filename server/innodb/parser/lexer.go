@@ -20,7 +20,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 var _ = yyLexer(&Scanner{})

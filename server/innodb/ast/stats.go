@@ -13,7 +13,7 @@
 
 package ast
 
-import "xmysql-server/server/innodb/model"
+import "github.com/zhukovaskychina/xmysql-server/server/innodb/model"
 
 var (
 	_ StmtNode = &AnalyzeTableStmt{}

@@ -18,7 +18,7 @@ import (
 	"strconv"
 
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/terror"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/terror"
 )
 
 // RoundMode is the type for round mode.

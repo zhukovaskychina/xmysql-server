@@ -15,8 +15,8 @@ package distinct
 
 import (
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/util/codec"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/codec"
 )
 
 // CreateDistinctChecker creates a new distinct checker.

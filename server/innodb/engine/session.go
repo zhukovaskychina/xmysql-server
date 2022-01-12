@@ -22,15 +22,15 @@ import (
 	"fmt"
 	"sync"
 	"time"
-	"xmysql-server/server/innodb/schemas"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
 
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/ast"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/context"
-	"xmysql-server/server/innodb/parser"
-	"xmysql-server/server/innodb/sessionctx/variable"
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/parser"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sessionctx/variable"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 // Session context

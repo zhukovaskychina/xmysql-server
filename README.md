@@ -3,35 +3,34 @@
 #### 介绍
 
 xmysql-server
+本项目是本人基于现有文档的一个练手项目，加以学习golang,对mysql innodb做一次深入的理解而写的准备。本项目大致分为两个分之
+默认分支是参考了tidb的代码，省去了写优化器的麻烦，优化器涉及到了相关论文。
+#### 参考开源项目
+1，项目参考了tidb，鉴于优化器的涉及繁琐，本人就不写了，非常复杂。另外tidb的早期版本优化器，去掉了分布式数据库计算节点鲜明的代码，做了些变更。</br>
+2，项目参考了<https://github.com/AlexStocks/getty>，做了一些变更</br>
+3，项目参考更改了<https://github.com/timtadh/fs2>,原版的fs2只是利用了varchar作为btree disk存储，对于mysql page16KB显然是不合适的</br>
+4，项目有选择<http://github.com/goioc/di> 作为IOC的框架，减少样板代码的编写</br>
+5，项目涉及etcd,就不手写raft算法了。</br>
 
-#### 软件架构
+#### Roadmap
+-[X] innodb page 页面的设计实现 index fsp dict xdes </br>
+-[X] innodb row的设计实现</br>
+-[ ]  innodb btree的设计实现 （未测试）</br>
+-[ ]  innodb 段的设计实现 (未测试) </br>
+-[ ]  innodb 区的设计实现 (未测试)
+-[X] mysql的服务器端基于getty改造
+-[ ] 基于成本的查询优化器 (基于tidb早期火山模型更改，未完工)
+-[ ] undo 和redo 的设计实现，目前已经实现一部分 
+-[X] BufferPool的设计实现
+-[ ] mysql的协议部分 (未测试)
+-[ ] 子查询，join查询，函数等待完成
+-[ ] 基于CP的高可用
+-[ ] 客户端的设计实现
 
-软件架构说明
 
 #### 安装教程
 
-1. xxxx
-2. xxxx
-3. xxxx
 
-#### 使用说明
 
-1. xxxx
-2. xxxx
-3. xxxx
 
-#### 参与贡献
 
-1. Fork 本仓库
-2. 新建 Feat_xxx 分支
-3. 提交代码
-4. 新建 Pull Request
-
-#### 特技
-
-1. 使用 Readme\_XXX.md 来支持不同的语言，例如 Readme\_en.md, Readme\_zh.md
-2. Gitee 官方博客 [blog.gitee.com](https://blog.gitee.com)
-3. 你可以 [https://gitee.com/explore](https://gitee.com/explore) 这个地址来了解 Gitee 上的优秀开源项目
-4. [GVP](https://gitee.com/gvp) 全称是 Gitee 最有价值开源项目，是综合评定出的优秀开源项目
-5. Gitee 官方提供的使用手册 [https://gitee.com/help](https://gitee.com/help)
-6. Gitee 封面人物是一档用来展示 Gitee 会员风采的栏目 [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)

@@ -22,11 +22,11 @@ import (
 	"time"
 
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/basic/json"
-	"xmysql-server/server/innodb/sessionctx/variable"
-	"xmysql-server/server/innodb/util/charset"
-	"xmysql-server/server/innodb/util/hack"
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic/json"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sessionctx/variable"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/charset"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/hack"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 // Kind constants.

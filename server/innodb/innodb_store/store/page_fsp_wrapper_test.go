@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/smartystreets/assertions"
 	"testing"
-	"xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
 )
 
 //测试256Extent

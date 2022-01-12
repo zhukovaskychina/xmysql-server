@@ -2,7 +2,7 @@ package basic
 
 import (
 	"strconv"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 type IntValue struct {

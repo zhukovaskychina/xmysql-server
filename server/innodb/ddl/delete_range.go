@@ -14,10 +14,10 @@
 package ddl
 
 import (
-	"xmysql-server/server/innodb/context"
-	"xmysql-server/server/innodb/ddl/util"
-	"xmysql-server/server/innodb/model"
-	"xmysql-server/server/innodb/terror"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ddl/util"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/terror"
 
 	"github.com/juju/errors"
 

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"testing"
-	"xmysql-server/server/common"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 func TestNewDataDictHeaderPage(t *testing.T) {

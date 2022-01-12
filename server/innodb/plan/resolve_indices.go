@@ -14,8 +14,8 @@
 package plan
 
 import (
-	"xmysql-server/server/innodb/expression"
-	"xmysql-server/server/innodb/model"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
 )
 
 // ResolveIndices implements Plan interface.

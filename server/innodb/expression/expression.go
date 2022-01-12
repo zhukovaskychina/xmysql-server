@@ -16,17 +16,17 @@ package expression
 import (
 	goJSON "encoding/json"
 	"fmt"
-	types "xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/basic/json"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic/json"
 
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/ast"
-	"xmysql-server/server/innodb/context"
-	"xmysql-server/server/innodb/model"
-	"xmysql-server/server/innodb/sessionctx/variable"
-	"xmysql-server/server/innodb/terror"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sessionctx/variable"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/terror"
 
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 // EvalAstExpr evaluates ast expression directly.

@@ -3,7 +3,7 @@ package net
 import (
 	"bytes"
 	"encoding/binary"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 type MySQLPkgHeader struct {

@@ -17,9 +17,9 @@ import (
 	"fmt"
 
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/meta"
-	"xmysql-server/server/innodb/model"
-	"xmysql-server/server/innodb/schemas"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/meta"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
 )
 
 func (d *ddl) onCreateTable(t *meta.Meta, job *model.Job) (ver int64, _ error) {

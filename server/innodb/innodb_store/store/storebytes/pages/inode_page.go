@@ -1,8 +1,8 @@
 package pages
 
 import (
-	"xmysql-server/server/common"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 //go:generate mockgen -source=inode_page.go -destination ./inode_page_mock.go -package pages

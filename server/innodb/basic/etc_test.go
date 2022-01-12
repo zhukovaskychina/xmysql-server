@@ -17,9 +17,9 @@ import (
 	"io"
 	"testing"
 
-	"xmysql-server/server/innodb/terror"
-	"xmysql-server/server/innodb/util/testleak"
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/terror"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/testleak"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 func TestT(t *testing.T) {

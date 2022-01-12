@@ -6,7 +6,7 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 var KeyNotFoundError = errors.New("Key not found.")

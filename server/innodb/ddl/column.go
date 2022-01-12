@@ -14,17 +14,17 @@
 package ddl
 
 import (
-	types "xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/meta"
-	"xmysql-server/server/innodb/schemas"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/meta"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
 
 	"github.com/juju/errors"
 	_ "github.com/sirupsen/logrus"
-	"xmysql-server/server/innodb/ast"
-	"xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
 
-	"xmysql-server/server/innodb/model"
-	_ "xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
+	_ "github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 // adjustColumnInfoInAddColumn is used to set the correct position of column info when adding column.

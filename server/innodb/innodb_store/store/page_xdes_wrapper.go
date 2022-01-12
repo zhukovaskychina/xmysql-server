@@ -1,8 +1,8 @@
 package store
 
 import (
-	"xmysql-server/server/innodb/innodb_store/store/storebytes/pages"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store/storebytes/pages"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 type XDesPageWrapper struct {

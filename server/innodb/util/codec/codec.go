@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 // First byte in the encoded value which specifies the encoding type.

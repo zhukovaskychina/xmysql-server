@@ -18,10 +18,10 @@
 package schemas
 
 import (
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/model"
-	"xmysql-server/server/innodb/terror"
-	"xmysql-server/server/innodb/tuple"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/terror"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/tuple"
 )
 
 var (

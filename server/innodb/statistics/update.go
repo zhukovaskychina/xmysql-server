@@ -17,13 +17,13 @@ import (
 	"fmt"
 	"sync"
 	"time"
-	"xmysql-server/server/innodb/schemas"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
 
 	"github.com/juju/errors"
 	log "github.com/sirupsen/logrus"
 
-	"xmysql-server/server/innodb/model"
-	"xmysql-server/server/innodb/sessionctx/variable"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sessionctx/variable"
 )
 
 type tableDeltaMap map[int64]variable.TableDelta

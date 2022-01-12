@@ -1,6 +1,6 @@
 package buffer_pool
 
-import "xmysql-server/server/common"
+import "github.com/zhukovaskychina/xmysql-server/server/common"
 
 //TODO 用来实现bufferpool
 /**

@@ -29,13 +29,13 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
-	"xmysql-server/server/innodb/ast"
-	types "xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/context"
-	"xmysql-server/server/innodb/sessionctx/variable"
-	"xmysql-server/server/innodb/util/charset"
-	"xmysql-server/server/innodb/util/hack"
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sessionctx/variable"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/charset"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/hack"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 var (

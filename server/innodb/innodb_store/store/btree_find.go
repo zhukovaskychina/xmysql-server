@@ -1,7 +1,7 @@
 package store
 
 import (
-	"xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 func (self *BTree) Has(key basic.Value) (has bool, err error) {

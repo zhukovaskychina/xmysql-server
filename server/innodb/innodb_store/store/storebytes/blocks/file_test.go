@@ -5,9 +5,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/innodb_store/store/storebytes/pages"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store/storebytes/pages"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 func TestNewBlockFile(t *testing.T) {

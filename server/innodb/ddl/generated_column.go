@@ -15,8 +15,8 @@ package ddl
 
 import (
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/ast"
-	"xmysql-server/server/innodb/schemas"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
 )
 
 // columnGenerationInDDL is a struct for validating generated columns in DDL.

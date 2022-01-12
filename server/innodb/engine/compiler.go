@@ -2,11 +2,11 @@ package engine
 
 import (
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/ast"
-	"xmysql-server/server/innodb/context"
-	"xmysql-server/server/innodb/plan"
-	"xmysql-server/server/innodb/resolver"
-	"xmysql-server/server/innodb/schemas"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/resolver"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
 )
 
 // Compile is safe for concurrent use by multiple goroutines.

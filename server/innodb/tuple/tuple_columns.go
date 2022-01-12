@@ -1,7 +1,7 @@
 package tuple
 
 import (
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 var RefTypeName = map[int32]string{

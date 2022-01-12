@@ -16,8 +16,8 @@ package plan
 import (
 	"math"
 
-	types "xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/model"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
 )
 
 // matchProperty implements PhysicalPlan matchProperty interface.

@@ -18,17 +18,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	types "xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/schemas"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
 
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/ast"
-	"xmysql-server/server/innodb/expression"
-	"xmysql-server/server/innodb/model"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
 
-	"xmysql-server/server/innodb/util/auth"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/auth"
 
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 // ShowDDL is for showing DDL information.

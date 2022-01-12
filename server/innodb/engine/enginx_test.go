@@ -3,13 +3,13 @@ package engine
 import (
 	"fmt"
 	"testing"
-	"xmysql-server/server/conf"
-	"xmysql-server/server/innodb/ast"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/buffer_pool"
-	"xmysql-server/server/innodb/innodb_store/store"
-	"xmysql-server/server/innodb/parser"
-	"xmysql-server/server/innodb/util/charset"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/parser"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/charset"
 )
 
 func TestEngine(t *testing.T) {

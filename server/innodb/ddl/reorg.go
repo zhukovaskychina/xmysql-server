@@ -18,9 +18,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"sync/atomic"
 	"time"
-	"xmysql-server/server/innodb/context"
-	"xmysql-server/server/innodb/meta"
-	"xmysql-server/server/innodb/model"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/meta"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
 )
 
 // reorgCtx is for reorganization.

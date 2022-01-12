@@ -2,10 +2,10 @@ package store
 
 import (
 	"bytes"
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/innodb_store/store/storebytes/pages"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store/storebytes/pages"
 )
-import "xmysql-server/util"
+import "github.com/zhukovaskychina/xmysql-server/util"
 
 type Fsp struct {
 	//	IPageWrapper

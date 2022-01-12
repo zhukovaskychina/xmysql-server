@@ -3,7 +3,7 @@ package basic
 import (
 	"bytes"
 	"strconv"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 type BigIntValue struct {

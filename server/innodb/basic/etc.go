@@ -22,10 +22,10 @@ import (
 	"strings"
 
 	"github.com/juju/errors"
-	"xmysql-server/server/innodb/parser/opcode"
-	"xmysql-server/server/innodb/terror"
-	"xmysql-server/server/innodb/util/charset"
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/parser/opcode"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/terror"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/charset"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 // IsTypeBlob returns a boolean indicating whether the tp is a blob type.

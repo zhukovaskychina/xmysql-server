@@ -1,6 +1,6 @@
 package segs
 
-import "xmysql-server/util"
+import "github.com/zhukovaskychina/xmysql-server/util"
 
 type SegmentHeader struct {
 	INodeEntrySpaceId    []byte // 4 byte  INode Entry 结构所在的表空间

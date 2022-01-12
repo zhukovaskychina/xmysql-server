@@ -16,12 +16,12 @@ package ranger
 import (
 	"github.com/juju/errors"
 	"math"
-	"xmysql-server/server/innodb/ast"
-	types "xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/expression"
-	"xmysql-server/server/innodb/model"
-	"xmysql-server/server/innodb/sessionctx/variable"
-	"xmysql-server/server/mysql"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sessionctx/variable"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 )
 
 // fullRange is (-∞, +∞).
