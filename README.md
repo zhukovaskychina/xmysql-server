@@ -40,7 +40,6 @@ cd xmysql-server&& sh ./build.sh
 ```
 #### 启动效果
 
-
 ![./pics/iShot2022-01-13 00.00.37.png](./pics/iShot2022-01-13 00.00.37.png)
 
 
