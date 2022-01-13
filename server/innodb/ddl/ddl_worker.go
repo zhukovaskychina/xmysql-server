@@ -18,11 +18,11 @@ import (
 
 	"github.com/juju/errors"
 	log "github.com/sirupsen/logrus"
-	goctx "golang.org/x/net/context"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/meta"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/terror"
+	goctx "golang.org/x/net/context"
 )
 
 // RunWorker indicates if this TiDB server starts DDL worker and can run DDL job.

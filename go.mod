@@ -3,9 +3,6 @@ module github.com/zhukovaskychina/xmysql-server
 go 1.13
 
 require (
-	github.com/AlexStocks/getty v1.3.0
-	github.com/AlexStocks/goext v0.3.3
-	github.com/AlexStocks/log4go v1.0.7
 	github.com/OneOfOne/xxhash v1.2.8
 	github.com/cznic/mathutil v0.0.0-20181122101859-297441e03548
 	github.com/dubbogo/gost v1.11.12
@@ -27,5 +24,6 @@ require (
 	golang.org/x/text v0.3.3
 	gopkg.in/ini.v1 v1.51.0
 	gopkg.in/stretchr/testify.v1 v1.2.2 // indirect
+
 
 )

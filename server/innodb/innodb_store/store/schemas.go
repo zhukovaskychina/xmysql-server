@@ -2,9 +2,6 @@ package store
 
 import (
 	"fmt"
-	"io/ioutil"
-	"path"
-	"strings"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
@@ -13,6 +10,9 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/tuple"
 	"github.com/zhukovaskychina/xmysql-server/util"
+	"io/ioutil"
+	"path"
+	"strings"
 )
 
 type InfoSchemaManager struct {

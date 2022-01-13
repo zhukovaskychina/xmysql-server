@@ -16,13 +16,13 @@ package meta
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/terror"
+	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/terror"
-	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 
 	"github.com/juju/errors"
 )

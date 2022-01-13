@@ -2,10 +2,10 @@ package store
 
 import (
 	"fmt"
-	"testing"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
+	"testing"
 )
 
 func TestSchemaInit(t *testing.T) {

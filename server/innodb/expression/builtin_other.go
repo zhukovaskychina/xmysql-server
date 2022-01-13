@@ -14,8 +14,8 @@
 package expression
 
 import (
-	"strings"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic/json"
+	"strings"
 
 	"github.com/juju/errors"
 	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"

@@ -14,8 +14,8 @@
 package ddl
 
 import (
-	goctx "golang.org/x/net/context"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
+	goctx "golang.org/x/net/context"
 )
 
 // Callback is the interface supporting callback function when DDL changed.

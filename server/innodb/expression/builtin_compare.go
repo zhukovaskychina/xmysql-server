@@ -14,9 +14,9 @@
 package expression
 
 import (
-	"math"
 	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic/json"
+	"math"
 
 	"github.com/juju/errors"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"

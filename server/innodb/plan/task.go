@@ -15,8 +15,8 @@ package plan
 
 import (
 	"fmt"
-	"math"
 	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"math"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression"

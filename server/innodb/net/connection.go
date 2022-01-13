@@ -29,9 +29,9 @@ import (
 )
 
 import (
-	log "github.com/AlexStocks/log4go"
 	"github.com/golang/snappy"
 	jerrors "github.com/juju/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 var (

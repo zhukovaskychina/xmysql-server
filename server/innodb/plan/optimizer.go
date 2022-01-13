@@ -14,8 +14,8 @@
 package plan
 
 import (
-	"math"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
+	"math"
 
 	"github.com/juju/errors"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"

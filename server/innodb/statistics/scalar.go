@@ -15,9 +15,9 @@ package statistics
 
 import (
 	"encoding/binary"
-	"math"
 	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/mysql"
+	"math"
 )
 
 // calcFraction is used to calculate the fraction of the interval [lower, upper] that lies within the [lower, value]

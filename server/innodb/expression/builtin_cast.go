@@ -22,11 +22,11 @@
 package expression
 
 import (
+	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic/json"
 	"math"
 	"strconv"
 	"strings"
-	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic/json"
 
 	"github.com/juju/errors"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"

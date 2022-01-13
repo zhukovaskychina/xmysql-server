@@ -3,12 +3,12 @@ package store
 import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
-	"strconv"
-	"testing"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/tuple"
 	"github.com/zhukovaskychina/xmysql-server/util"
+	"strconv"
+	"testing"
 )
 
 func TestIndexAllFuncs(t *testing.T) {

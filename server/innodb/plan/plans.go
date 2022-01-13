@@ -17,9 +17,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"strings"
 	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
+	"strings"
 
 	"github.com/juju/errors"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"

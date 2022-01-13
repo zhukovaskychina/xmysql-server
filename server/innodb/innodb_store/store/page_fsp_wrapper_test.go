@@ -3,8 +3,8 @@ package store
 import (
 	"fmt"
 	"github.com/smartystreets/assertions"
-	"testing"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"testing"
 )
 
 //测试256Extent

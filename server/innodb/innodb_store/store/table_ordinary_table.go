@@ -1,9 +1,9 @@
 package store
 
 import (
-	"strings"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
 	tuple2 "github.com/zhukovaskychina/xmysql-server/server/innodb/tuple"

@@ -14,11 +14,11 @@
 package plan
 
 import (
-	"math"
-	"strings"
 	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/ddl"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
+	"math"
+	"strings"
 
 	"github.com/juju/errors"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"

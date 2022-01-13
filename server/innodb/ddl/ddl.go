@@ -19,8 +19,6 @@ package ddl
 
 import (
 	"fmt"
-	"sync"
-	"time"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
@@ -28,6 +26,8 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sessionctx/variable"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/terror"
 	"github.com/zhukovaskychina/xmysql-server/server/mysql"
+	"sync"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	_ "github.com/twinj/uuid"

@@ -14,8 +14,8 @@
 package statistics
 
 import (
-	"math"
 	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"math"
 
 	"github.com/juju/errors"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"

@@ -15,9 +15,9 @@ package plan
 
 import (
 	"fmt"
-	"math"
 	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/ranger"
+	"math"
 
 	"github.com/juju/errors"
 	log "github.com/sirupsen/logrus"

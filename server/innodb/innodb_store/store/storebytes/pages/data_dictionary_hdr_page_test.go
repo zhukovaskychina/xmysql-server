@@ -3,9 +3,9 @@ package pages
 import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
-	"testing"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/util"
+	"testing"
 )
 
 func TestNewDataDictHeaderPage(t *testing.T) {

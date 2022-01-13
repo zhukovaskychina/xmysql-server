@@ -16,11 +16,11 @@ package plan
 import (
 	"github.com/juju/errors"
 	log "github.com/sirupsen/logrus"
-	"math"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression/aggregation"
+	"math"
 
 	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"

@@ -20,9 +20,9 @@ package engine
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
 	"sync"
 	"time"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
 
 	"github.com/juju/errors"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"

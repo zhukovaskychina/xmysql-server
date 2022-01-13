@@ -19,11 +19,11 @@ package schemas
 
 import (
 	log "github.com/sirupsen/logrus"
-	"strings"
-	"unicode/utf8"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic/json"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/hack"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/juju/errors"
 	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"

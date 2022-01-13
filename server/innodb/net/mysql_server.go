@@ -2,12 +2,10 @@ package net
 
 import (
 	"fmt"
-	"github.com/AlexStocks/getty/transport"
-	gxlog "github.com/AlexStocks/goext/log"
-	gxnet "github.com/AlexStocks/goext/net"
-	log "github.com/AlexStocks/log4go"
 	"github.com/dubbogo/gost/sync"
 	"github.com/goioc/di"
+	log "github.com/sirupsen/logrus"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"net"
 	"net/http"
 	"os"
@@ -15,8 +13,6 @@ import (
 	"strconv"
 	"syscall"
 	"time"
-	"github.com/zhukovaskychina/xmysql-server/server/conf"
-	//"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/storebytes"
 )
 
 const (
@@ -61,13 +57,11 @@ func (srv *MySQLServer) Start() {
 	di.RegisterBeanInstance("globalConfig", srv.conf)
 	srv.taskPool = gxsync.NewTaskPoolSimple(0)
 	srv.initServer(srv.conf)
-
-	gxlog.CInfo(logBanner)
-	gxlog.CInfo("启动成功")
-	gxlog.CInfo("%s starts successfull! its version=%s, its listen ends=%s:%s\n",
-		srv.conf.AppName, getty.Version, srv.conf.BindAddress, srv.conf.Port)
+	log.Println(logBanner)
 	log.Info("%s starts successfull! its version=%s, its listen ends=%s:%s\n",
-		srv.conf.AppName, getty.Version, srv.conf.BindAddress, srv.conf.Port)
+		srv.conf.AppName, Version, srv.conf.BindAddress, srv.conf.Port)
+	log.Info("%s starts successfull! its version=%s, its listen ends=%s:%s\n",
+		srv.conf.AppName, Version, srv.conf.BindAddress, srv.conf.Port)
 	//srv.initPurgeThread()
 	di.InitializeContainer()
 	srv.initSignal()
@@ -79,8 +73,7 @@ func initProfiling(conf *conf.Cfg) {
 		addr string
 	)
 
-	// addr = *host + ":" + "10000"
-	addr = gxnet.HostAddress(conf.BindAddress, conf.ProfilePort)
+	addr = net.JoinHostPort(conf.BindAddress, string(conf.ProfilePort))
 	log.Info("App Profiling startup on address{%v}", addr+pprofPath)
 	go func() {
 		log.Info(http.ListenAndServe(addr, nil))
@@ -100,7 +93,8 @@ func (srv *MySQLServer) initServer(conf *conf.Cfg) {
 		panic("portList is nil")
 	}
 	for _, port := range portList {
-		addr = gxnet.HostAddress2(conf.BindAddress, port)
+		addr = net.JoinHostPort(conf.BindAddress, port)
+
 		serverOpts := []ServerOption{WithLocalAddress(addr)}
 		//serverOpts = append(serverOpts, getty.WithServerTaskPool(srv.taskPool))
 		server = NewTCPServer(serverOpts...)
@@ -111,7 +105,7 @@ func (srv *MySQLServer) initServer(conf *conf.Cfg) {
 				tcpConn *net.TCPConn
 			)
 			if conf.MySQLSessionParam.CompressEncoding {
-				session.SetCompressType(getty.CompressZip)
+				session.SetCompressType(CompressZip)
 			}
 			if tcpConn, ok = session.Conn().(*net.TCPConn); !ok {
 				panic(fmt.Sprintf("%s, session.conn{%#v} is not tcp connection\n", session.Stat(), session.Conn()))
@@ -166,16 +160,16 @@ func (srv *MySQLServer) initSignal() {
 			go time.AfterFunc(srv.conf.FailFastTimeoutDuration, func() {
 				// log.Warn("app exit now by force...")
 				// os.Exit(1)
-				log.Exit("app exit now by force...")
-				log.Close()
+				log.Info("app exit now by force...")
+
 			})
 
 			// 要么fastFailTimeout时间内执行完毕下面的逻辑然后程序退出，要么执行上面的超时函数程序强行退出
 			srv.uninitServer()
 			di.Close()
 			// fmt.Println("app exit now...")
-			log.Exit("app exit now...")
-			log.Close()
+			log.Info("app exit now...")
+
 			return
 		}
 	}

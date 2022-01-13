@@ -14,11 +14,11 @@
 package statistics
 
 import (
-	"sync/atomic"
-	"time"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/ddl"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
+	"sync/atomic"
+	"time"
 )
 
 type statsCache map[int64]*Table

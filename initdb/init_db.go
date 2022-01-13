@@ -1,9 +1,9 @@
 package initdb
 
 import (
-	"os"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store"
+	"os"
 )
 
 func InitDBDir(cfg *conf.Cfg) {

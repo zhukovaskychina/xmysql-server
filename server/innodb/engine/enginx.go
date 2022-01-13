@@ -1,9 +1,8 @@
 package engine
 
 import (
-	log "github.com/AlexStocks/log4go"
 	"github.com/goioc/di"
-	"time"
+	log "github.com/sirupsen/logrus"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
@@ -12,6 +11,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
 	"github.com/zhukovaskychina/xmysql-server/server/mysql"
+	"time"
 )
 
 //SQL执行引擎

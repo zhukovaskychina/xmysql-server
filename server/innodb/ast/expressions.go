@@ -14,8 +14,8 @@
 package ast
 
 import (
-	"regexp"
 	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"regexp"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"

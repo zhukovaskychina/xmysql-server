@@ -2,15 +2,17 @@
 
 #### 介绍
 
-xmysql-server
-本项目是本人基于现有文档的一个练手项目，加以学习golang,对mysql innodb做一次深入的理解而写的准备。本项目大致分为两个分之
+xmysql-server 本项目是本人基于现有文档的一个练手项目，加以学习golang,对mysql innodb做一次深入的理解而写的准备。本项目大致分为两个分之
 默认分支是参考了tidb的代码，省去了写优化器的麻烦，优化器涉及到了相关论文。
+
 #### 特性
+
 1，存储方式参考innodb。与innodb有所不同，page页面虽然大小16KB，但是有所区别，在后面文档给出。</br>
 2, SQL 执行基于火山模型，为什么不是其他？是因为学习的需要。</br>
 3, 尽量还原innodb的特性</br>
 
 ### 参考开源项目
+
 1，项目参考了tidb，鉴于优化器的涉及繁琐，本人就不写了，非常复杂。另外tidb的早期版本优化器，去掉了分布式数据库计算节点鲜明的代码，做了些变更。</br>
 2，项目参考了<https://github.com/AlexStocks/getty>，做了一些变更</br>
 3，项目参考更改了<https://github.com/timtadh/fs2>,原版的fs2只是利用了varchar作为btree disk存储，对于mysql page16KB显然是不合适的</br>
@@ -39,17 +41,17 @@ xmysql-server
 - [ ] 客户端的设计实现</br>
 - [ ] 设计文档说明</br>
 
-
 #### 安装教程
+
 ```
 git clone -b xxx https://github.com/zhukovaskychina/xmysql-server.git
 
 cd xmysql-server&& sh ./build.sh
 ```
+
 #### 启动效果
 
-![./pics/startup.png](./pics/startup.png)
-
+![https://github.com/zhukovaskychina/xmysql-server/blob/main/pics/startup.png?raw=true](https://github.com/zhukovaskychina/xmysql-server/blob/main/pics/startup.png?raw=true)
 
 #### 软件架构（待补充）
 

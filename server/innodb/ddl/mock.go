@@ -14,10 +14,10 @@
 package ddl
 
 import (
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
 	//"github.com/coreos/etcd/clientv3"
 	"sync/atomic"
 	"time"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
 
 	//"github.com/coreos/etcd/clientv3"
 	"github.com/juju/errors"

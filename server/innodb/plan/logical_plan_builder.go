@@ -15,10 +15,10 @@ package plan
 
 import (
 	"fmt"
-	"strings"
-	"unicode"
 	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
+	"strings"
+	"unicode"
 
 	"github.com/cznic/mathutil"
 	"github.com/juju/errors"

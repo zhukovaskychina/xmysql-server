@@ -1,12 +1,12 @@
 package store
 
 import (
-	"strings"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store/storebytes/blocks"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store/storebytes/table"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/tuple"
 	"github.com/zhukovaskychina/xmysql-server/util"
+	"strings"
 )
 
 type TableTupleMeta struct {

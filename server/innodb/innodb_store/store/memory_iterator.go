@@ -2,8 +2,8 @@ package store
 
 import (
 	"errors"
-	"io"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"io"
 )
 
 type MemoryIterator struct {

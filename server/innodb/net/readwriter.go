@@ -23,7 +23,7 @@ import (
 )
 
 import (
-	log "github.com/AlexStocks/log4go"
+	log "github.com/sirupsen/logrus"
 )
 
 type MySQLEchoPkgHandler struct {

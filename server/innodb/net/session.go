@@ -24,13 +24,6 @@ import (
 	"fmt"
 	"github.com/goioc/di"
 	"github.com/pkg/errors"
-	goctx "golang.org/x/net/context"
-	"io"
-	"net"
-	"runtime"
-	"sync"
-	"sync/atomic"
-	"time"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
@@ -40,15 +33,22 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sessionctx/variable"
 	"github.com/zhukovaskychina/xmysql-server/server/mysql"
 	"github.com/zhukovaskychina/xmysql-server/server/protocol"
+	goctx "golang.org/x/net/context"
+	"io"
+	"net"
+	"runtime"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 import (
 	gxbytes "github.com/dubbogo/gost/bytes"
 	jerrors "github.com/juju/errors"
 
-	log "github.com/AlexStocks/log4go"
 	"github.com/dubbogo/gost/context"
 	gxtime "github.com/dubbogo/gost/time"
+	log "github.com/sirupsen/logrus"
 )
 
 const (

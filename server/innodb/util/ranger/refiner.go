@@ -15,13 +15,13 @@ package ranger
 
 import (
 	"github.com/juju/errors"
-	"math"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
 	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sessionctx/variable"
 	"github.com/zhukovaskychina/xmysql-server/server/mysql"
+	"math"
 )
 
 // fullRange is (-∞, +∞).

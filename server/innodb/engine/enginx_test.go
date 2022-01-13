@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"testing"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
@@ -10,6 +9,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/parser"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/charset"
+	"testing"
 )
 
 func TestEngine(t *testing.T) {

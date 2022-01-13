@@ -14,9 +14,9 @@
 package statistics
 
 import (
-	"hash"
 	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/codec"
+	"hash"
 
 	"github.com/juju/errors"
 	"github.com/spaolacci/murmur3"

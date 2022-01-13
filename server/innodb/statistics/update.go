@@ -15,9 +15,9 @@ package statistics
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
 	"sync"
 	"time"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
 
 	"github.com/juju/errors"
 	log "github.com/sirupsen/logrus"

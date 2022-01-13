@@ -22,13 +22,13 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/meta"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
 
-	"math"
-	"sync"
-	"time"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
 	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/model"
 	"github.com/zhukovaskychina/xmysql-server/server/mysql"
+	"math"
+	"sync"
+	"time"
 )
 
 const maxPrefixLength = 3072

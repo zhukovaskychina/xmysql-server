@@ -15,8 +15,8 @@ package expression
 
 import (
 	"fmt"
-	"math"
 	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"math"
 
 	"github.com/cznic/mathutil"
 	"github.com/juju/errors"

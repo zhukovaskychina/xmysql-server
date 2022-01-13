@@ -2,10 +2,9 @@ package initdb
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store/storebytes/table"
 	"strings"
 	"testing"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store/storebytes/table"
-
 
 	"github.com/zhukovaskychina/xmysql-server/util"
 )

@@ -15,8 +15,8 @@ package context
 
 import (
 	"fmt"
-	goctx "golang.org/x/net/context"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	goctx "golang.org/x/net/context"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sessionctx/variable"
 )

@@ -14,9 +14,9 @@
 package model
 
 import (
-	"strings"
 	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/mysql"
+	"strings"
 )
 
 // SchemaState is the state for schema elements.

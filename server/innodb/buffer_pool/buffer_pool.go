@@ -2,8 +2,8 @@ package buffer_pool
 
 import (
 	"container/list"
-	"sync"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"sync"
 
 	"github.com/zhukovaskychina/xmysql-server/util"
 )

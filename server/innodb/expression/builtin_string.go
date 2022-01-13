@@ -24,11 +24,6 @@ import (
 	"fmt"
 	"github.com/juju/errors"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/text/transform"
-	"math"
-	"strconv"
-	"strings"
-	"unicode/utf8"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
 	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
@@ -36,6 +31,11 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/charset"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/util/hack"
 	"github.com/zhukovaskychina/xmysql-server/server/mysql"
+	"golang.org/x/text/transform"
+	"math"
+	"strconv"
+	"strings"
+	"unicode/utf8"
 )
 
 var (

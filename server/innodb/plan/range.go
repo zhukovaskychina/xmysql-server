@@ -16,8 +16,8 @@ package plan
 import (
 	"fmt"
 
-	"sort"
 	types "github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"sort"
 
 	"github.com/juju/errors"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
