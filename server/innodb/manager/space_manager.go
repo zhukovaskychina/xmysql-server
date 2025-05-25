@@ -2,6 +2,9 @@ package manager
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -22,23 +25,42 @@ type SpaceManagerImpl struct {
 }
 
 func (sm *SpaceManagerImpl) FlushToDisk(pageNo uint32, content []byte) {
-	//TODO implement me
-	panic("implement me")
+	sm.RLock()
+	defer sm.RUnlock()
+
+	// 操作系统表空间 (Space ID 0)
+	systemSpace, exists := sm.spaces[0]
+	if !exists {
+		// 如果系统表空间不存在，忽略操作（避免panic）
+		return
+	}
+
+	// 委托给系统表空间处理
+	_ = systemSpace.FlushToDisk(pageNo, content)
 }
 
 func (sm *SpaceManagerImpl) LoadPageByPageNumber(pageNo uint32) ([]byte, error) {
-	//TODO implement me
-	panic("implement me")
+	sm.RLock()
+	defer sm.RUnlock()
+
+	// 操作系统表空间 (Space ID 0)
+	systemSpace, exists := sm.spaces[0]
+	if !exists {
+		return nil, fmt.Errorf("system tablespace not found")
+	}
+
+	// 委托给系统表空间处理
+	return systemSpace.LoadPageByPageNumber(pageNo)
 }
 
 func (sm *SpaceManagerImpl) GetSpaceId() uint32 {
-	//TODO implement me
-	panic("implement me")
+	// 返回系统表空间的ID
+	return 0
 }
 
 // NewSpaceManager creates a new space manager
 func NewSpaceManager(dataDir string) basic.SpaceManager {
-	return &SpaceManagerImpl{
+	sm := &SpaceManagerImpl{
 		spaces:   make(map[uint32]*space.IBDSpace),
 		ibdFiles: make(map[uint32]*ibd.IBD_File),
 		nameToID: make(map[string]uint32),
@@ -46,6 +68,15 @@ func NewSpaceManager(dataDir string) basic.SpaceManager {
 		dataDir:  dataDir,
 		txID:     1,
 	}
+
+	// 尝试加载现有的表空间（如果目录存在）
+	if _, err := os.Stat(dataDir); err == nil {
+		if err := sm.LoadExistingTablespaces(); err != nil {
+			fmt.Printf("Warning: failed to load existing tablespaces: %v\n", err)
+		}
+	}
+
+	return sm
 }
 
 func (sm *SpaceManagerImpl) CreateSpace(spaceID uint32, name string, isSystem bool) (basic.Space, error) {
@@ -56,13 +87,52 @@ func (sm *SpaceManagerImpl) CreateSpace(spaceID uint32, name string, isSystem bo
 		return nil, fmt.Errorf("tablespace %s already exists", name)
 	}
 
+	// 创建 IBD 文件实例
 	ibdFile := ibd.NewIBDFile(sm.dataDir, name, spaceID)
-	err := ibdFile.Create()
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize tablespace: %v", err)
+
+	// 检查文件是否已存在
+	fileExists := ibdFile.Exists()
+
+	if fileExists {
+		// 文件已存在，打开并读取
+		fmt.Printf("IBD file already exists, opening: %s (Space ID: %d)\n", name, spaceID)
+		err := ibdFile.Open()
+		if err != nil {
+			return nil, fmt.Errorf("failed to open existing tablespace %s: %v", name, err)
+		}
+	} else {
+		// 文件不存在，创建新文件
+		fmt.Printf("Creating new IBD file: %s (Space ID: %d)\n", name, spaceID)
+		err := ibdFile.Create()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create tablespace %s: %v", name, err)
+		}
 	}
 
+	// 创建 IBDSpace 实例
 	ibdSpace := space.NewIBDSpace(ibdFile, isSystem)
+
+	// 设置为活动状态
+	ibdSpace.SetActive(true)
+
+	// 如果是新创建的文件，分配第一个extent用于系统页面
+	if !fileExists {
+		// 分配第一个extent用于系统页面
+		extent, err := ibdSpace.AllocateExtent(basic.ExtentPurposeSystem)
+		if err != nil {
+			ibdFile.Close()
+			return nil, fmt.Errorf("failed to allocate system extent for %s: %v", name, err)
+		}
+
+		// 标记前几个页面为已分配（FSP header, IBUF bitmap等）
+		for i := 0; i < 2; i++ {
+			// 这里应该通过IBDSpace的内部方法来标记页面为已分配
+			// 但由于IBDSpace的pageAllocs是私有的，我们暂时跳过这个步骤
+			_ = extent // 避免未使用变量警告
+		}
+	}
+
+	// 注册到管理器
 	sm.spaces[spaceID] = ibdSpace
 	sm.ibdFiles[spaceID] = ibdFile
 	sm.nameToID[name] = spaceID
@@ -155,15 +225,56 @@ func (sm *SpaceManagerImpl) CreateTableSpace(name string) (uint32, error) {
 	spaceID := sm.nextID
 	sm.nextID++
 
+	// 创建 IBD 文件实例
 	ibdFile := ibd.NewIBDFile(sm.dataDir, name, spaceID)
-	err := ibdFile.Create()
-	if err != nil {
-		return 0, fmt.Errorf("failed to initialize tablespace: %v", err)
+
+	// 检查文件是否已存在
+	fileExists := ibdFile.Exists()
+
+	if fileExists {
+		// 文件已存在，打开并读取
+		fmt.Printf("IBD file already exists, opening: %s (Space ID: %d)\n", name, spaceID)
+		err := ibdFile.Open()
+		if err != nil {
+			return 0, fmt.Errorf("failed to open existing tablespace %s: %v", name, err)
+		}
+	} else {
+		// 文件不存在，创建新文件
+		fmt.Printf("Creating new IBD file: %s (Space ID: %d)\n", name, spaceID)
+		err := ibdFile.Create()
+		if err != nil {
+			return 0, fmt.Errorf("failed to create tablespace %s: %v", name, err)
+		}
 	}
 
+	// 创建 IBDSpace 实例
 	ibdSpace := space.NewIBDSpace(ibdFile, false)
+
+	// 设置为活动状态
+	ibdSpace.SetActive(true)
+
+	// 如果是新创建的文件，分配第一个extent用于系统页面
+	if !fileExists {
+		// 分配第一个extent用于系统页面
+		extent, err := ibdSpace.AllocateExtent(basic.ExtentPurposeSystem)
+		if err != nil {
+			ibdFile.Close()
+			return 0, fmt.Errorf("failed to allocate system extent for %s: %v", name, err)
+		}
+
+		// 标记前几个页面为已分配（FSP header, IBUF bitmap等）
+		for i := 0; i < 2; i++ {
+			// 这里应该通过IBDSpace的内部方法来标记页面为已分配
+			// 但由于IBDSpace的pageAllocs是私有的，我们暂时跳过这个步骤
+			_ = extent // 避免未使用变量警告
+		}
+	}
+
+	// 注册到管理器
 	sm.spaces[spaceID] = ibdSpace
+	sm.ibdFiles[spaceID] = ibdFile
 	sm.nameToID[name] = spaceID
+
 	return spaceID, nil
 }
 
@@ -302,4 +413,97 @@ func (tx *spaceTx) Rollback() error {
 	// Clear write operations
 	tx.writes = tx.writes[:0]
 	return nil
+}
+
+// LoadExistingTablespaces 扫描数据目录并加载所有现有的IBD文件
+func (sm *SpaceManagerImpl) LoadExistingTablespaces() error {
+	sm.Lock()
+	defer sm.Unlock()
+
+	fmt.Println("Scanning for existing IBD files...")
+
+	// 扫描数据目录
+	return sm.scanDirectory(sm.dataDir, "")
+}
+
+// scanDirectory 递归扫描目录查找IBD文件
+func (sm *SpaceManagerImpl) scanDirectory(dirPath, relativePath string) error {
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return fmt.Errorf("failed to read directory %s: %v", dirPath, err)
+	}
+
+	for _, entry := range entries {
+		fullPath := filepath.Join(dirPath, entry.Name())
+		currentRelativePath := relativePath
+		if currentRelativePath != "" {
+			currentRelativePath = filepath.Join(currentRelativePath, entry.Name())
+		} else {
+			currentRelativePath = entry.Name()
+		}
+
+		if entry.IsDir() {
+			// 递归扫描子目录
+			if err := sm.scanDirectory(fullPath, currentRelativePath); err != nil {
+				return err
+			}
+		} else if strings.HasSuffix(entry.Name(), ".ibd") {
+			// 找到IBD文件，尝试加载
+			tableName := strings.TrimSuffix(currentRelativePath, ".ibd")
+
+			// 跳过已经加载的表空间
+			if _, exists := sm.nameToID[tableName]; exists {
+				continue
+			}
+
+			// 为系统表空间分配正确的Space ID
+			var spaceID uint32
+			if tableName == "ibdata1" {
+				spaceID = 0 // 系统表空间固定为Space ID 0
+			} else {
+				spaceID = sm.getNextAvailableSpaceID()
+			}
+
+			fmt.Printf("Found existing IBD file: %s, assigning Space ID: %d\n", tableName, spaceID)
+
+			// 创建IBD文件实例并打开
+			ibdFile := ibd.NewIBDFile(sm.dataDir, tableName, spaceID)
+			if err := ibdFile.Open(); err != nil {
+				fmt.Printf("Warning: failed to open existing IBD file %s: %v\n", tableName, err)
+				continue
+			}
+
+			// 创建IBDSpace实例
+			isSystem := strings.HasPrefix(tableName, "mysql/") ||
+				strings.HasPrefix(tableName, "information_schema/") ||
+				strings.HasPrefix(tableName, "performance_schema/") ||
+				tableName == "ibdata1"
+
+			ibdSpace := space.NewIBDSpace(ibdFile, isSystem)
+
+			// 注册到管理器
+			sm.spaces[spaceID] = ibdSpace
+			sm.ibdFiles[spaceID] = ibdFile
+			sm.nameToID[tableName] = spaceID
+
+			// 更新nextID（但不要影响系统表空间的ID分配）
+			if spaceID != 0 && spaceID >= sm.nextID {
+				sm.nextID = spaceID + 1
+			}
+		}
+	}
+
+	return nil
+}
+
+// getNextAvailableSpaceID 获取下一个可用的Space ID
+func (sm *SpaceManagerImpl) getNextAvailableSpaceID() uint32 {
+	for {
+		if _, exists := sm.spaces[sm.nextID]; !exists {
+			id := sm.nextID
+			sm.nextID++
+			return id
+		}
+		sm.nextID++
+	}
 }

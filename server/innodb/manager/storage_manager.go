@@ -280,6 +280,23 @@ func (sm *StorageManager) createSystemTablespace(conf *conf.Cfg) error {
 
 	fileName := parts[0]
 
+	// 检查系统表空间是否已经存在
+	if existingSpace, err := sm.spaceMgr.GetSpace(0); err == nil {
+		// 系统表空间已存在，创建handle
+		handle := &TablespaceHandle{
+			SpaceID:       0,
+			DataSegmentID: 0,
+			Name:          fileName,
+		}
+		sm.tablespaces[fileName] = handle
+
+		// 确保表空间是活动的
+		existingSpace.SetActive(true)
+
+		fmt.Printf("System tablespace already exists: %s (Space ID: 0)\n", fileName)
+		return nil
+	}
+
 	// 创建系统表空间 (Space ID = 0)
 	systemSpace, err := sm.spaceMgr.CreateSpace(0, fileName, true)
 	if err != nil {
@@ -334,6 +351,23 @@ func (sm *StorageManager) createMySQLSystemTablespaces() error {
 
 	for i, tableName := range systemTables {
 		spaceID := uint32(i + 1) // 从Space ID 1开始
+
+		// 检查表空间是否已经存在
+		if existingSpace, err := sm.spaceMgr.GetSpace(spaceID); err == nil {
+			// 表空间已存在，创建handle
+			handle := &TablespaceHandle{
+				SpaceID:       spaceID,
+				DataSegmentID: uint64(spaceID),
+				Name:          tableName,
+			}
+			sm.tablespaces[tableName] = handle
+
+			// 确保表空间是活动的
+			existingSpace.SetActive(true)
+
+			fmt.Printf("System table already exists: %s (Space ID: %d)\n", tableName, spaceID)
+			continue
+		}
 
 		// 创建表空间
 		_, err := sm.spaceMgr.CreateSpace(spaceID, tableName, true)
