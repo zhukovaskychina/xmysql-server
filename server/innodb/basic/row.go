@@ -58,8 +58,6 @@ type Row interface {
 	GetValueByColName(colName string) Value
 
 	ToString() string
-
-	ToDatum() []Datum
 }
 
 type Rows []Row

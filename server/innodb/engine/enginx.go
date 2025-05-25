@@ -1,112 +1,185 @@
+// 优化建议：
+// 1. 架构清晰化（模块分组）
+// 2. 初始化解耦（分模块独立函数）
+// 3. 命名规范统一
+// 4. 错误处理更优雅
+
 package engine
 
 import (
-	"github.com/goioc/di"
-	log "github.com/sirupsen/logrus"
-	"github.com/zhukovaskychina/xmysql-server/server/conf"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/innodb_store/store"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
-	"github.com/zhukovaskychina/xmysql-server/server/mysql"
+	"context"
+	"fmt"
 	"time"
+	"xmysql-server/server/innodb/basic"
+
+	"xmysql-server/server"
+	"xmysql-server/server/conf"
+	"xmysql-server/server/innodb/common"
+	"xmysql-server/server/innodb/manager"
+	"xmysql-server/server/innodb/sqlparser"
 )
 
-//SQL执行引擎
-//默认一个实例
+// XMySQLEngine is the unified SQL engine coordinating all submodules.
 type XMySQLEngine struct {
 	conf *conf.Cfg
-	//定义查询线程
-	//	QueryExecutor *XMySQLExecutor
-	//定义purge线程
-	//定义SchemaManager
-	infoSchemaManager schemas.InfoSchema
 
-	pool *buffer_pool.BufferPool
+	// Core modules
+	QueryExecutor *XMySQLExecutor
+	storageMgr    *manager.StorageManager
+	btreeMgr      basic.BPlusTreeManager
+
+	// Schema & Metadata
+	infoSchemaManager *manager.InfoSchemaManager
+	dictManager       *manager.DictionaryManager
+
+	// Transaction
+	txManager   *manager.TransactionManager
+	mvccManager *manager.MVCCManager
+
+	// Utilities
+	ibufManager     *manager.IBufManager
+	encryptManager  *manager.EncryptionManager
+	compressManager *manager.CompressionManager
+
+	indexManager *manager.IndexManager
 }
 
 func NewXMySQLEngine(conf *conf.Cfg) *XMySQLEngine {
-	var mysqlEngine = new(XMySQLEngine)
-	mysqlEngine.conf = conf
-	var fileSystem = basic.NewFileSystem(conf)
-	fileSystem.AddTableSpace(store.NewSysTableSpace(conf, false))
-	var bufferPool = buffer_pool.NewBufferPool(256*16384,
-		0.75, 0.25,
-		1000, fileSystem)
-	mysqlEngine.pool = bufferPool
-	mysqlEngine.infoSchemaManager = store.NewInfoSchemaManager(conf, bufferPool)
-	mysqlEngine.initPurgeThread()
+	engine := &XMySQLEngine{conf: conf}
 
-	di.RegisterBeanInstance("buffer_pool", bufferPool)
-	di.RegisterBeanInstance("infoSchemanager", mysqlEngine.infoSchemaManager)
-	return mysqlEngine
+	// 初始化各核心模块
+	engine.initStorageLayer()
+	engine.initIndexLayer()
+	engine.initTxnLayer()
+	engine.initMetaLayer()
+	engine.initUtilityManagers()
+	engine.initQueryExecutor()
+
+	return engine
 }
 
-func (srv *XMySQLEngine) initPurgeThread() {
-	go srv.flushToDisk()
+func (e *XMySQLEngine) initStorageLayer() {
+	e.storageMgr = manager.NewStorageManager(e.conf)
 }
 
-func (srv *XMySQLEngine) flushToDisk() {
-	//count := 0
-	timeTicker := time.NewTicker(1 * time.Second)
-	for {
-		<-timeTicker.C
-		blockBuffer := srv.pool.GetFlushDiskList().GetLastBlock()
-		if blockBuffer == nil {
-			log.Info("没有页面可以刷新")
-		} else {
-			log.Info("刷新脏页面")
-			purgeThread(srv.pool.FileSystem, blockBuffer.GetSpaceId(), blockBuffer.GetPageNo(), blockBuffer)
-		}
-
-	}
+func (e *XMySQLEngine) initIndexLayer() {
+	btreeCfg := &manager.BPlusTreeConfig{}
+	e.btreeMgr = manager.NewBPlusTreeManager(e.storageMgr.GetBufferPoolManager(), btreeCfg)
 }
 
-func purgeThread(system basic.FileSystem, spaceId uint32, pageNo uint32, block *buffer_pool.BufferBlock) {
-	ts := system.GetTableSpaceById(spaceId)
-	ts.FlushToDisk(pageNo, *(block.GetFrame()))
-}
+func (e *XMySQLEngine) initTxnLayer() {
+	e.mvccManager = manager.NewMVCCManager(&manager.MVCCConfig{
+		TxTimeout:         time.Minute * 5,
+		MaxActiveTxs:      1000,
+		SnapshotRetention: time.Hour,
+	})
 
-//ast->plan->storebytes->result->net
-func (srv *XMySQLEngine) ExecuteQuery(session innodb.MySQLServerSession, query string) {
-
-	stmt, err := session.ParseOneSQL(query, mysql.UTF8Charset, mysql.UTF8DefaultCollation)
+	txManager, err := manager.NewTransactionManager(
+		e.conf.GetString("innodb.redo_log_dir"),
+		e.conf.GetString("innodb.undo_log_dir"),
+	)
 	if err != nil {
-		session.SendError(mysql.NewErr(mysql.ErrSyntax, err))
-		return
+		panic(fmt.Errorf("failed to init TransactionManager: %w", err))
 	}
-	Compile(session, stmt)
-	switch stmt.(type) {
-	case *ast.SelectStmt:
-		{
+	e.txManager = txManager
+}
 
-		}
-	case *ast.CreateTableStmt:
-		{
+func (e *XMySQLEngine) initMetaLayer() {
 
-		}
-	case *ast.CreateDatabaseStmt:
-		{
+	segManager := e.storageMgr.GetSegmentManager()
+	spaceManager := e.storageMgr.GetSpaceManager()
+	e.indexManager = manager.NewIndexManager(segManager, e.storageMgr.GetBufferPoolManager(), nil)
+	e.dictManager = manager.NewDictionaryManager(segManager)
+	e.infoSchemaManager = manager.NewInfoSchemaManager(
+		e.dictManager,
+		spaceManager,
+		e.indexManager,
+	)
+}
 
-		}
-	case *ast.CreateIndexStmt:
-		{
+func (e *XMySQLEngine) initUtilityManagers() {
+	e.ibufManager = manager.NewIBufManager(
+		e.storageMgr.GetSegmentManager(),
+		e.storageMgr.GetPageManager(),
+	)
 
-		}
-	case *ast.InsertStmt:
-		{
-
-		}
-	case *ast.UpdateStmt:
-		{
-
-		}
-	case *ast.DeleteStmt:
-		{
-
-		}
-
+	encCfg := manager.EncryptionSettings{
+		Method:          manager.ENCRYPTION_METHOD_AES,
+		KeyRotationDays: uint32(e.conf.GetInt("innodb.encryption.key_rotation_days")),
+		ThreadsNum:      uint8(e.conf.GetInt("innodb.encryption.threads")),
+		BufferSize:      uint32(e.conf.GetInt("innodb.encryption.buffer_size")),
 	}
+	masterKey := []byte(e.conf.GetString("innodb.encryption.master_key"))
+	e.encryptManager = manager.NewEncryptionManager(masterKey, encCfg)
+
+	e.compressManager = manager.NewCompressionManager()
+}
+
+func (e *XMySQLEngine) initQueryExecutor() {
+	//e.QueryExecutor = NewXMySQLExecutor(e.infoSchemaManager, e.conf)
+}
+
+func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query string, databaseName string) <-chan *Result {
+	results := make(chan *Result)
+	go func() {
+		defer close(results)
+
+		stmt, err := sqlparser.Parse(query)
+		if err != nil {
+			results <- &Result{Err: fmt.Errorf("parse error: %v", err), ResultType: common.RESULT_TYPE_ERROR}
+			return
+		}
+
+		ctx := &ExecutionContext{
+			Context:     context.Background(),
+			statementId: 0,
+			QueryId:     0,
+			Results:     results,
+			Cfg:         e.conf,
+		}
+
+		switch stmt := stmt.(type) {
+		case *sqlparser.Select:
+			result, err2 := e.QueryExecutor.executeSelectStatement(ctx, stmt, databaseName)
+			if err2 != nil {
+				results <- &Result{Err: nil, ResultType: common.RESULT_TYPE_ERROR}
+			} else {
+				results <- &Result{Data: result, ResultType: common.RESULT_TYPE_SELECT}
+			}
+
+		case *sqlparser.DDL:
+			switch stmt.Action {
+			case "create":
+				e.QueryExecutor.executeCreateTableStatement(ctx, databaseName, stmt)
+			default:
+				results <- &Result{Err: fmt.Errorf("unsupported DDL action: %s", stmt.Action), ResultType: common.RESULT_TYPE_ERROR}
+			}
+
+		case *sqlparser.DBDDL:
+			switch stmt.Action {
+			case "create":
+				e.QueryExecutor.executeCreateDatabaseStatement(ctx, stmt)
+			default:
+				results <- &Result{Err: fmt.Errorf("unsupported DB action: %s", stmt.Action), ResultType: common.RESULT_TYPE_ERROR}
+			}
+
+		case *sqlparser.Show:
+			results <- &Result{Err: fmt.Errorf("SHOW not yet implemented"), ResultType: common.RESULT_TYPE_ERROR}
+
+		case *sqlparser.Set:
+			for _, expr := range stmt.Exprs {
+				fmt.Println(expr)
+				results <- &Result{
+					StatementID: ctx.statementId,
+					ResultType:  common.RESULT_TYPE_SET,
+				}
+				session.SendOK()
+			}
+
+		default:
+			results <- &Result{Err: fmt.Errorf("unsupported statement type"), ResultType: common.RESULT_TYPE_ERROR}
+		}
+	}()
+
+	return results
 }

@@ -233,3 +233,28 @@ func ReadUB8Bytes2Long(buff []byte) int64 {
 	_, rs := ReadUB8Long(buff, 0)
 	return rs
 }
+
+// Add missing functions
+func ReadB8Byte2Int64(buff []byte) int64 {
+	if len(buff) == 6 {
+		buff = append(buff, 0, 0)
+	}
+	_, rs := ReadUB8Long(buff, 0)
+	return rs
+}
+
+func ReadB2Byte2Int32(buff []byte) int32 {
+	if len(buff) == 1 {
+		buff = append(buff, 0)
+	}
+	_, rs := ReadUB2(buff, 0)
+	return int32(rs)
+}
+
+func ReadUB8Byte2UInt64(buff []byte) uint64 {
+	if len(buff) == 6 {
+		buff = append(buff, 0, 0)
+	}
+	_, rs := ReadUB8(buff, 0)
+	return rs
+}

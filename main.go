@@ -1,14 +1,9 @@
 package main
 
 import (
-	_ "context"
 	"flag"
-	"fmt"
-	"github.com/zhukovaskychina/xmysql-server/initdb"
-	"github.com/zhukovaskychina/xmysql-server/server/conf"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/net"
-	"os"
-	"runtime"
+	"xmysql-server/server/conf"
+	"xmysql-server/server/net"
 )
 
 const help = `
@@ -31,30 +26,21 @@ const help = `
 `
 
 func main() {
-	var (
-		configPath = flag.String("configPath", "", "指定配置文件配置路径")
-		initialize = flag.Bool("initialize", false, "初始化數據庫")
-	)
-	flag.Usage = func() {
-		fmt.Print(help)
-	}
-
+	// 解析命令行参数
+	var configPath string
+	flag.StringVar(&configPath, "configPath", "", "配置文件路径")
 	flag.Parse()
 
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
-	if configPath == nil || *configPath == "" {
-		fmt.Println(help)
-		os.Exit(1)
-	}
-	var cfg *conf.Cfg
-	cfg = conf.NewCfg()
-	cfg.Load(&conf.CommandLineArgs{ConfigPath: *configPath})
-	if *initialize == true {
-		initdb.InitDBDir(cfg)
-		os.Exit(1)
+	// 加载配置
+	args := &conf.CommandLineArgs{
+		ConfigPath: configPath,
 	}
 
-	mysqlServer := net.NewMySQLServer(cfg)
+	config := conf.NewCfg().Load(args)
+
+	// 创建并启动MySQL服务器
+	// 使用现有的网络层实现，已经集成了分层架构：
+	// 网络层(net) -> 协议层(protocol) -> SQL分发层(dispatcher) -> 引擎层(innodb/engine)
+	mysqlServer := net.NewMySQLServer(config)
 	mysqlServer.Start()
 }

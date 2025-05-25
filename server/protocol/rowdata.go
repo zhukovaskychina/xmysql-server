@@ -2,7 +2,7 @@ package protocol
 
 import (
 	"container/list"
-	"github.com/zhukovaskychina/xmysql-server/util"
+	"xmysql-server/util"
 )
 
 var (

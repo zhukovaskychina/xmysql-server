@@ -1,43 +1,43 @@
 project_name: xmysql-server
 #release:
 #  github:
-#    owner: zhukovaskychina
-#    name: xmysql-server
+#    owner: codeskyblue
+#    name: gohttpserver
 #brew:
 #  github:
-#    owner: zhukovaskychina
-#    name: xmysql-server
-#  homepage: https://github.com/zhukovaskychina/xmysql-server
+#    owner: codeskyblue
+#    name: homebrew-tap
+#  homepage: https://github.com/codeskyblue/gohttpserver
 builds:
-  - goos:
-      - linux
-      - darwin
-      - windows
-    goarch:
-      - amd64
-      - "386"
-    goarm:
-      - "6"
-    main: .
-    ldflags: -s -w -X main.VERSION={{.Version}}
-    flags: -tags vfs
-    binary: xmysql-server
-    hooks:
-      pre: go generate .
+- goos:
+  - linux
+  - darwin
+  - windows
+  goarch:
+  - amd64
+  - "386"
+  goarm:
+  - "6"
+  main: .
+  ldflags: -s -w -X main.VERSION={{.Version}}
+  flags: -tags vfs
+  binary: xmysql-server
+  hooks:
+    pre: go generate .
 archive:
   format: zip
   name_template: '{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{
     .Arm }}{{ end }}'
   files:
-    - licence*
-    - LICENCE*
-    - license*
-    - LICENSE*
-    - readme*
-    - README*
-    - changelog*
-    - CHANGELOG*
-    - .ghs.yml
+  - licence*
+  - LICENCE*
+  - license*
+  - LICENSE*
+  - readme*
+  - README*
+  - changelog*
+  - CHANGELOG*
+  - .ghs.yml
 snapshot:
   name_template: SNAPSHOT-{{ .Commit }}
 checksum:

@@ -130,9 +130,9 @@ func ConvertULong8Bytes(i uint64) []byte {
 
 func ConvertBool2Byte(boolValue bool) byte {
 	if boolValue {
-		return 1
+		return 0
 	}
-	return 0
+	return 1
 }
 
 func ConvertUInt4Bytes(i uint32) []byte {
@@ -144,5 +144,11 @@ func ConvertUInt4Bytes(i uint32) []byte {
 func ConvertUInt2Bytes(i uint16) []byte {
 	buff := make([]byte, 0)
 	rs := WriteUB2(buff, i)
+	return rs
+}
+
+func ConvertUInt8Bytes(i uint64) []byte {
+	buff := make([]byte, 0)
+	rs := WriteUB8(buff, i)
 	return rs
 }

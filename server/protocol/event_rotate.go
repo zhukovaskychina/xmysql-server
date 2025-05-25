@@ -1,6 +1,6 @@
 package protocol
 
-import "github.com/zhukovaskychina/xmysql-server/util"
+import "xmysql-server/util"
 
 type EventRotateBody struct {
 	Offset         uint64

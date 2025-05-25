@@ -6,31 +6,52 @@ package buffer_pool
 buf_block_t还存储了Unzip LRU List链表的根节点。另外一个比较重要的字段就是block级别的mutex。
 
 **/
+// BufferBlock represents a buffer block in the buffer pool
 type BufferBlock struct {
-	BufferPage *BufferPage
-
-	Frame *[]byte
+	BufferPage *BufferPage // 页面控制信息
 }
 
-func NewBufferBlock(frame *[]byte, spaceId, pageNo uint32) *BufferBlock {
-	var bufferBlock = new(BufferBlock)
-	bufferBlock.Frame = frame
-	var bufferPage = NewBufferPage(spaceId, pageNo)
+// NewBufferBlock creates a new buffer block
+func NewBufferBlock(page *BufferPage) *BufferBlock {
+	if page == nil {
+		page = NewBufferPage(0, 0)
+	}
 
-	bufferPage.spaceId = spaceId
-	bufferPage.pageNo = pageNo
-	bufferBlock.BufferPage = bufferPage
-	return bufferBlock
+	return &BufferBlock{
+		BufferPage: page,
+	}
 }
 
-func (bb BufferBlock) GetFrame() *[]byte {
-	return bb.Frame
+// GetContent returns the page content
+func (bb *BufferBlock) GetContent() []byte {
+	return bb.BufferPage.GetContent()
 }
 
-func (bb BufferBlock) GetSpaceId() uint32 {
-	return bb.BufferPage.spaceId
+// GetSpaceID returns the space ID
+func (bb *BufferBlock) GetSpaceID() uint32 {
+	return bb.BufferPage.GetSpaceID()
 }
 
-func (bb BufferBlock) GetPageNo() uint32 {
-	return bb.BufferPage.pageNo
+// GetPageNo returns the page number
+func (bb *BufferBlock) GetPageNo() uint32 {
+	return bb.BufferPage.GetPageNo()
+}
+
+// IsDirty returns whether the page is dirty
+func (bb *BufferBlock) IsDirty() bool {
+	return bb.BufferPage.IsDirty()
+}
+
+// SetDirty sets the dirty flag
+func (bb *BufferBlock) SetDirty(dirty bool) {
+
+	if dirty {
+		bb.BufferPage.MarkDirty()
+	} else {
+		bb.BufferPage.ClearDirty()
+	}
+}
+
+func (bb *BufferBlock) MarkDirty() {
+
 }

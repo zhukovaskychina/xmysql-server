@@ -1,13 +1,13 @@
 package conf
 
 import (
-	"errors"
 	"fmt"
 	"gopkg.in/ini.v1"
 	"net"
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -17,7 +17,8 @@ type CommandLineArgs struct {
 	ConfigPath string
 }
 
-/**
+/*
+*
 user		= mysql
 pid-file	= /var/run/mysqld/mysqld.pid
 socket		= /var/run/mysqld/mysqld.sock
@@ -46,9 +47,21 @@ type Cfg struct {
 	FailFastTimeout         string `default:"5s" yaml:"fail_fast_timeout" json:"fail_fast_timeout,omitempty"`
 	FailFastTimeoutDuration time.Duration
 
+	// innodb
+	InnodbRedoLogDir string `default:"redo" yaml:"innodb_redo_log_dir" json:"innodb_redo_log_dir,omitempty"`
+	InnodbUndoLogDir string `default:"undo" yaml:"innodb_undo_log_dir" json:"innodb_undo_log_dir,omitempty"`
+	InnodbEncryption InnodbEncryptionConfig
+
 	// session tcp parameters
 	MySQLSessionParam MySQLSessionParam `required:"true" yaml:"getty_session_param" json:"getty_session_param,omitempty"`
 }
+type InnodbEncryptionConfig struct {
+	MasterKey       string `default:"" yaml:"master_key" json:"master_key,omitempty"`
+	KeyRotationDays int    `default:"90" yaml:"key_rotation_days" json:"key_rotation_days,omitempty"`
+	Threads         int    `default:"4" yaml:"threads" json:"threads,omitempty"`
+	BufferSize      int    `default:"8388608" yaml:"buffer_size" json:"buffer_size,omitempty"`
+}
+
 type MySQLSessionParam struct {
 	CompressEncoding        bool   `default:"false" yaml:"compress_encoding" json:"compress_encoding,omitempty"`
 	TcpNoDelay              bool   `default:"true" yaml:"tcp_no_delay" json:"tcp_no_delay,omitempty"`
@@ -71,10 +84,17 @@ type MySQLSessionParam struct {
 
 func NewCfg() *Cfg {
 	return &Cfg{
-		Raw:         ini.Empty(),
-		User:        "mysql",
-		BindAddress: "127.0.0.1",
-		Port:        3308,
+		Raw:              ini.Empty(),
+		User:             "mysql",
+		BindAddress:      "127.0.0.1",
+		Port:             3308,
+		InnodbRedoLogDir: "redo",
+		InnodbUndoLogDir: "undo",
+		InnodbEncryption: InnodbEncryptionConfig{
+			KeyRotationDays: 90,
+			Threads:         4,
+			BufferSize:      8388608,
+		},
 	}
 }
 
@@ -89,8 +109,8 @@ func (cfg *Cfg) Load(args *CommandLineArgs) *Cfg {
 
 	cfg.parseMysqldCfg(cfg.Raw.Section("mysqld"))
 	cfg.parseMysqlSessionCfg(cfg.Raw.Section("session"))
+	cfg.parseInnodbCfg(cfg.Raw.Section("innodb"))
 	return cfg
-
 }
 
 func setHomePath(args *CommandLineArgs) {
@@ -318,7 +338,7 @@ func (cfg *Cfg) loadConfiguration(args *CommandLineArgs) (*ini.File, error) {
 
 	// check if config file exists
 	if _, err := os.Stat(defaultConfigFile); os.IsNotExist(err) {
-		fmt.Println("github.com/zhukovaskychina/xmysql-server加载配置文件失败，请确保文件路径存在")
+		fmt.Println("xmysql-server加载配置文件失败，请确保文件路径存在")
 		os.Exit(1)
 	}
 
@@ -333,11 +353,81 @@ func (cfg *Cfg) loadConfiguration(args *CommandLineArgs) (*ini.File, error) {
 }
 
 func valueAsString(section *ini.Section, keyName string, defaultValue string) (value string, err error) {
-	defer func() {
-		if err_ := recover(); err_ != nil {
-			err = errors.New("Invalid valueImpl for key '" + keyName + "' in configuration file")
-		}
-	}()
+	if section == nil {
+		return defaultValue, nil
+	}
+	value = section.Key(keyName).MustString(defaultValue)
+	if value == "" {
+		value = defaultValue
+	}
+	return value, nil
+}
 
-	return section.Key(keyName).MustString(defaultValue), nil
+// GetString 获取配置项的字符串值
+func (cfg *Cfg) GetString(key string) string {
+	parts := strings.Split(key, ".")
+	if len(parts) < 2 {
+		return ""
+	}
+
+	section := cfg.Raw.Section(parts[0])
+	if section == nil {
+		return ""
+	}
+
+	value, err := valueAsString(section, strings.Join(parts[1:], "."), "")
+	if err != nil {
+		return ""
+	}
+	return value
+}
+
+// GetInt 获取配置项的整数值
+func (cfg *Cfg) GetInt(key string) int {
+	parts := strings.Split(key, ".")
+	if len(parts) < 2 {
+		return 0
+	}
+
+	section := cfg.Raw.Section(parts[0])
+	if section == nil {
+		return 0
+	}
+
+	return section.Key(strings.Join(parts[1:], ".")).MustInt(0)
+}
+
+func (cfg *Cfg) parseInnodbCfg(section *ini.Section) *Cfg {
+	if section == nil {
+		return cfg
+	}
+
+	// Parse redo log directory
+	redoDir, err := valueAsString(section, "redo_log_dir", cfg.InnodbRedoLogDir)
+	if err == nil {
+		cfg.InnodbRedoLogDir = redoDir
+	}
+
+	// Parse undo log directory
+	undoDir, err := valueAsString(section, "undo_log_dir", cfg.InnodbUndoLogDir)
+	if err == nil {
+		cfg.InnodbUndoLogDir = undoDir
+	}
+
+	// Parse encryption settings
+	masterKey, err := valueAsString(section, "encryption.master_key", cfg.InnodbEncryption.MasterKey)
+	if err == nil {
+		cfg.InnodbEncryption.MasterKey = masterKey
+	}
+
+	keyRotationDays := section.Key("encryption.key_rotation_days").MustInt(cfg.InnodbEncryption.KeyRotationDays)
+	cfg.InnodbEncryption.KeyRotationDays = keyRotationDays
+
+	threads := section.Key("encryption.threads").MustInt(cfg.InnodbEncryption.Threads)
+	cfg.InnodbEncryption.Threads = threads
+
+	bufferSize := section.Key("encryption.buffer_size").MustInt(cfg.InnodbEncryption.BufferSize)
+	cfg.InnodbEncryption.BufferSize = bufferSize
+
+	return cfg
 }

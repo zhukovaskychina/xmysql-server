@@ -3,10 +3,10 @@ package buffer_pool
 import (
 	"container/list"
 	"errors"
-	"github.com/zhukovaskychina/xmysql-server/util"
 	"math"
 	"sync"
 	"sync/atomic"
+	"xmysql-server/util"
 )
 
 var KeyNotFoundError = errors.New("Key not found.")
@@ -35,6 +35,8 @@ type LRUCache interface {
 	GetOld(spaceId uint32, pageNo uint32) (*BufferBlock, error)
 
 	Len() uint32
+	Evict() *BufferPage
+	Range(f func(page *BufferPage) bool)
 }
 
 type (
@@ -120,6 +122,16 @@ type LRUCacheImpl struct {
 	youngPercent float64
 }
 
+func (L *LRUCacheImpl) Evict() *BufferPage {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (L *LRUCacheImpl) Range(f func(page *BufferPage) bool) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (L *LRUCacheImpl) Set(spaceId uint32, pageNo uint32, value *BufferBlock) error {
 
 	if L.Len() < 512 {
@@ -203,7 +215,7 @@ func (L *LRUCacheImpl) Has(spaceId uint32, pageNo uint32) bool {
 	panic("implement me")
 }
 
-//TODO 校验这里的hashcode的安全性
+// TODO 校验这里的hashcode的安全性
 func (L LRUCacheImpl) SetYoung(spaceId uint32, pageNo uint32, value *BufferBlock) {
 	L.mu.Lock()
 	defer L.mu.Unlock()

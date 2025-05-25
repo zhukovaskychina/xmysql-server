@@ -1,6 +1,6 @@
 package protocol
 
-import "github.com/zhukovaskychina/xmysql-server/util"
+import "xmysql-server/util"
 
 type EventWriteRowsBody struct {
 	TableID   uint64

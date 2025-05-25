@@ -1,217 +1,218 @@
-// Copyright 2015 PingCAP, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package plan
 
-import (
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/schemas"
-	"math"
+// OptimizeLogicalPlan 优化逻辑计划
+func OptimizeLogicalPlan(plan LogicalPlan) LogicalPlan {
+	// 1. 谓词下推
+	plan = pushDownPredicates(plan)
 
-	"github.com/juju/errors"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/ast"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/context"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/expression"
+	// 2. 列裁剪
+	plan = columnPruning(plan)
 
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/terror"
-	"github.com/zhukovaskychina/xmysql-server/server/mysql"
-)
+	// 3. 聚合消除
+	plan = eliminateAggregation(plan)
 
-// AllowCartesianProduct means whether tidb allows cartesian join without equal conditions.
-var AllowCartesianProduct = true
+	// 4. 子查询优化
+	plan = optimizeSubquery(plan)
 
-const (
-	flagPrunColumns uint64 = 1 << iota
-	flagEliminateProjection
-	flagBuildKeyInfo
-	flagDecorrelate
-	flagPredicatePushDown
-	flagAggregationOptimize
-	flagPushDownTopN
-)
-
-var optRuleList = []logicalOptRule{
-	&columnPruner{},
-	&projectionEliminater{},
-	&buildKeySolver{},
-	&decorrelateSolver{},
-	&ppdSolver{},
-	&aggregationOptimizer{},
-	&pushDownTopNOptimizer{},
+	return plan
 }
 
-// logicalOptRule means a logical optimizing rule, which contains decorrelate, ppd, column pruning, etc.
-type logicalOptRule interface {
-	optimize(LogicalPlan, context.Context, *idAllocator) (LogicalPlan, error)
-}
+// pushDownPredicates 谓词下推优化
+func pushDownPredicates(plan LogicalPlan) LogicalPlan {
+	switch v := plan.(type) {
+	case *LogicalProjection:
+		// 投影算子不能下推谓词
+		child := pushDownPredicates(v.Children()[0])
+		v.SetChildren([]LogicalPlan{child})
+		return v
 
-// Optimize does optimization and creates a Plan.
-// The node must be prepared first.
-func Optimize(ctx context.Context, node ast.Node, is schemas.InfoSchema) (Plan, error) {
-	allocator := new(idAllocator)
-	builder := &planBuilder{
-		ctx:       ctx,
-		is:        is,
-		colMapper: make(map[*ast.ColumnNameExpr]int),
-		allocator: allocator,
-	}
-	p := builder.build(node)
-	if builder.err != nil {
-		return nil, errors.Trace(builder.err)
-	}
+	case *LogicalSelection:
+		// 尝试将选择条件下推到子节点
+		child := v.Children()[0]
+		switch childPlan := child.(type) {
+		case *LogicalTableScan, *LogicalIndexScan:
+			// 可以直接下推到表扫描
+			return mergePredicate(childPlan, v.Conditions)
 
-	if logic, ok := p.(LogicalPlan); ok {
-		return doOptimize(builder.optFlag, logic, ctx, allocator)
-	}
-	return p, nil
-}
+		case *LogicalJoin:
+			// 将连接条件分解为左右表的过滤条件
+			leftConds, rightConds, otherConds := splitJoinCondition(v.Conditions, childPlan)
 
-// BuildLogicalPlan is exported and only used for test.
-func BuildLogicalPlan(ctx context.Context, node ast.Node, is schemas.InfoSchema) (Plan, error) {
-	builder := &planBuilder{
-		ctx:       ctx,
-		is:        is,
-		colMapper: make(map[*ast.ColumnNameExpr]int),
-		allocator: new(idAllocator),
-	}
-	p := builder.build(node)
-	if builder.err != nil {
-		return nil, errors.Trace(builder.err)
-	}
-	return p, nil
-}
+			// 递归下推左右表的过滤条件
+			newLeft := pushDownPredicates(&LogicalSelection{
+				BaseLogicalPlan: BaseLogicalPlan{
+					children: []LogicalPlan{childPlan.Children()[0]},
+				},
+				Conditions: leftConds,
+			})
 
-func doOptimize(flag uint64, logic LogicalPlan, ctx context.Context, allocator *idAllocator) (PhysicalPlan, error) {
-	logic, err := logicalOptimize(flag, logic, ctx, allocator)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	if !AllowCartesianProduct && existsCartesianProduct(logic) {
-		return nil, errors.Trace(ErrCartesianProductUnsupported)
-	}
-	var physical PhysicalPlan
-	if UseDAGPlanBuilder(ctx) {
-		physical, err = dagPhysicalOptimize(logic)
-	} else {
-		physical, err = physicalOptimize(flag, logic, allocator)
-	}
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	finalPlan := eliminatePhysicalProjection(physical)
-	return finalPlan, nil
-}
+			newRight := pushDownPredicates(&LogicalSelection{
+				BaseLogicalPlan: BaseLogicalPlan{
+					children: []LogicalPlan{childPlan.Children()[1]},
+				},
+				Conditions: rightConds,
+			})
 
-func logicalOptimize(flag uint64, logic LogicalPlan, ctx context.Context, alloc *idAllocator) (LogicalPlan, error) {
-	var err error
-	for i, rule := range optRuleList {
-		// The order of flags is same as the order of optRule in the list.
-		// We use a bitmask to record which opt rules should be used. If the i-th bit is 1, it means we should
-		// apply i-th optimizing rule.
-		if flag&(1<<uint(i)) == 0 {
-			continue
+			// 重建连接节点
+			childPlan.SetChildren([]LogicalPlan{newLeft, newRight})
+
+			if len(otherConds) > 0 {
+				// 剩余条件保留在选择算子中
+				v.Conditions = otherConds
+				v.SetChildren([]LogicalPlan{childPlan})
+				return v
+			}
+			return childPlan
 		}
-		logic, err = rule.optimize(logic, ctx, alloc)
-		if err != nil {
-			return nil, errors.Trace(err)
+
+	case *LogicalJoin:
+		// 递归优化左右子树
+		newLeft := pushDownPredicates(v.Children()[0])
+		newRight := pushDownPredicates(v.Children()[1])
+		v.SetChildren([]LogicalPlan{newLeft, newRight})
+		return v
+
+	case *LogicalAggregation:
+		// 聚合前的过滤条件可以下推
+		child := pushDownPredicates(v.Children()[0])
+		v.SetChildren([]LogicalPlan{child})
+		return v
+	}
+
+	return plan
+}
+
+// columnPruning 列裁剪优化
+func columnPruning(plan LogicalPlan) LogicalPlan {
+	switch v := plan.(type) {
+	case *LogicalProjection:
+		// 收集投影中使用的列
+		usedCols := collectUsedColumns(v.Exprs)
+
+		// 递归优化子节点
+		child := columnPruning(v.Children()[0])
+
+		// 更新子节点的输出列
+		updateOutputColumns(child, usedCols)
+
+		v.SetChildren([]LogicalPlan{child})
+		return v
+
+	case *LogicalSelection:
+		// 收集过滤条件中使用的列
+		usedCols := collectUsedColumns(v.Conditions)
+
+		// 递归优化子节点
+		child := columnPruning(v.Children()[0])
+
+		// 更新子节点的输出列
+		updateOutputColumns(child, usedCols)
+
+		v.SetChildren([]LogicalPlan{child})
+		return v
+
+	case *LogicalJoin:
+		// 递归优化左右子树
+		newLeft := columnPruning(v.Children()[0])
+		newRight := columnPruning(v.Children()[1])
+
+		// 收集连接条件中使用的列
+		usedCols := collectUsedColumns(v.Conditions)
+
+		// 更新左右子节点的输出列
+		updateOutputColumns(newLeft, usedCols)
+		updateOutputColumns(newRight, usedCols)
+
+		v.SetChildren([]LogicalPlan{newLeft, newRight})
+		return v
+
+	case *LogicalAggregation:
+		// 收集分组和聚合函数中使用的列
+		usedCols := collectUsedColumns(append(v.GroupByItems, collectAggFuncCols(v.AggFuncs)...))
+
+		// 递归优化子节点
+		child := columnPruning(v.Children()[0])
+
+		// 更新子节点的输出列
+		updateOutputColumns(child, usedCols)
+
+		v.SetChildren([]LogicalPlan{child})
+		return v
+	}
+
+	return plan
+}
+
+// eliminateAggregation 聚合消除优化
+func eliminateAggregation(plan LogicalPlan) LogicalPlan {
+	switch v := plan.(type) {
+	case *LogicalAggregation:
+		child := v.Children()[0]
+
+		// 检查是否可以消除聚合
+		if canEliminateAggregation(v, child) {
+			// 将聚合转换为投影
+			return &LogicalProjection{
+				BaseLogicalPlan: BaseLogicalPlan{
+					children: []LogicalPlan{child},
+				},
+				Exprs: convertAggToProj(v),
+			}
 		}
 	}
-	return logic, errors.Trace(err)
+
+	// 递归优化子节点
+	for i, child := range plan.Children() {
+		newChild := eliminateAggregation(child)
+		children := plan.Children()
+		children[i] = newChild
+		plan.SetChildren(children)
+	}
+
+	return plan
 }
 
-func dagPhysicalOptimize(logic LogicalPlan) (PhysicalPlan, error) {
-	logic.preparePossibleProperties()
-	logic.prepareStatsProfile()
-	t, err := logic.convert2NewPhysicalPlan(&requiredProp{taskTp: rootTaskType, expectedCnt: math.MaxFloat64})
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	p := t.plan()
-	rebuildSchema(p)
-	p.ResolveIndices()
-	return p, nil
+// optimizeSubquery 子查询优化
+func optimizeSubquery(plan LogicalPlan) LogicalPlan {
+	// TODO: 实现子查询优化
+	// 1. 子查询去关联
+	// 2. 子查询展开
+	// 3. 子查询上拉
+	return plan
 }
 
-func physicalOptimize(flag uint64, logic LogicalPlan, allocator *idAllocator) (PhysicalPlan, error) {
-	logic.ResolveIndices()
-	info, err := logic.convert2PhysicalPlan(&requiredProperty{})
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	p := info.p
-	if flag&(flagDecorrelate) > 0 {
-		addCachePlan(p, allocator)
-	}
-	return p, nil
+// 辅助函数
+
+func mergePredicate(plan LogicalPlan, conditions []Expression) LogicalPlan {
+	// TODO: 合并谓词条件
+	return plan
 }
 
-func existsCartesianProduct(p LogicalPlan) bool {
-	if join, ok := p.(*LogicalJoin); ok && len(join.EqualConditions) == 0 {
-		return join.JoinType == InnerJoin || join.JoinType == LeftOuterJoin || join.JoinType == RightOuterJoin
-	}
-	for _, child := range p.Children() {
-		if existsCartesianProduct(child.(LogicalPlan)) {
-			return true
-		}
-	}
-	return false
+func splitJoinCondition(conditions []Expression, join *LogicalJoin) ([]Expression, []Expression, []Expression) {
+	// TODO: 分解连接条件
+	return nil, nil, conditions
 }
 
-// PrepareStmt prepares a raw statement parsed from parser.
-// The statement must be prepared before it can be passed to optimize function.
-// We pass InfoSchema instead of getting from Context in case it is changed after resolving name.
-func PrepareStmt(is schemas.InfoSchema, ctx context.Context, node ast.Node) error {
-	if err := Preprocess(node, is, ctx); err != nil {
-		return errors.Trace(err)
-	}
-	if err := Validate(node, true); err != nil {
-		return errors.Trace(err)
-	}
+func collectUsedColumns(exprs []Expression) []string {
+	// TODO: 收集表达式中使用的列
 	return nil
 }
 
-// Optimizer error codes.
-const (
-	CodeOperandColumns      terror.ErrCode = 1
-	CodeInvalidWildCard     terror.ErrCode = 3
-	CodeUnsupported         terror.ErrCode = 4
-	CodeInvalidGroupFuncUse terror.ErrCode = 5
-	CodeIllegalReference    terror.ErrCode = 6
+func updateOutputColumns(plan LogicalPlan, usedCols []string) {
+	// TODO: 更新计划节点的输出列
+}
 
-	// MySQL error code.
-	CodeNoDB                 terror.ErrCode = mysql.ErrNoDB
-	CodeUnknownExplainFormat terror.ErrCode = mysql.ErrUnknownExplainFormat
-)
+func collectAggFuncCols(funcs []AggregateFunc) []Expression {
+	// TODO: 收集聚合函数中使用的列
+	return nil
+}
 
-// Optimizer base errors.
-var (
-	ErrOperandColumns              = terror.ClassOptimizer.New(CodeOperandColumns, "Operand should contain %d column(s)")
-	ErrInvalidWildCard             = terror.ClassOptimizer.New(CodeInvalidWildCard, "Wildcard fields without any table name appears in wrong place")
-	ErrCartesianProductUnsupported = terror.ClassOptimizer.New(CodeUnsupported, "Cartesian product is unsupported")
-	ErrInvalidGroupFuncUse         = terror.ClassOptimizer.New(CodeInvalidGroupFuncUse, "Invalid use of group function")
-	ErrIllegalReference            = terror.ClassOptimizer.New(CodeIllegalReference, "Illegal reference")
-	ErrNoDB                        = terror.ClassOptimizer.New(CodeNoDB, "No database selected")
-	ErrUnknownExplainFormat        = terror.ClassOptimizer.New(CodeUnknownExplainFormat, mysql.MySQLErrName[mysql.ErrUnknownExplainFormat])
-)
+func canEliminateAggregation(agg *LogicalAggregation, child LogicalPlan) bool {
+	// TODO: 判断是否可以消除聚合
+	return false
+}
 
-func init() {
-	mySQLErrCodes := map[terror.ErrCode]uint16{
-		CodeOperandColumns:       mysql.ErrOperandColumns,
-		CodeInvalidWildCard:      mysql.ErrParse,
-		CodeInvalidGroupFuncUse:  mysql.ErrInvalidGroupFuncUse,
-		CodeIllegalReference:     mysql.ErrIllegalReference,
-		CodeNoDB:                 mysql.ErrNoDB,
-		CodeUnknownExplainFormat: mysql.ErrUnknownExplainFormat,
-	}
-	terror.ErrClassToMySQLCodes[terror.ClassOptimizer] = mySQLErrCodes
-	expression.EvalAstExpr = evalAstExpr
+func convertAggToProj(agg *LogicalAggregation) []Expression {
+	// TODO: 将聚合转换为投影表达式
+	return nil
 }

@@ -445,16 +445,16 @@ const INFORMATION_SCHEMAS = "INFORMATION_SCHEMAS"
 
 type XDES_STATE uint32
 
-//空闲的区
+// 空闲的区
 const XDES_FREE XDES_STATE = 1
 
-//有剩余空闲页面的碎片区
+// 有剩余空闲页面的碎片区
 const XDES_FREE_FRAG XDES_STATE = 2
 
-//没有剩余空闲页面碎片的区
+// 没有剩余空闲页面碎片的区
 const XDES_FULL_FRAG XDES_STATE = 3
 
-//归属某个段的区
+// 归属某个段的区
 const XDES_FSEG XDES_STATE = 4
 
 const RESULT_TYPE_QUERY = "QUERY"
@@ -464,3 +464,15 @@ const RESULT_TYPE_DDL = "DDL"
 const RESULT_TYPE_SET = "SET"
 
 type LSNT uint64
+
+type MaxSlotsPerPage uint16
+
+// Record header bit offsets for bit manipulation
+const (
+	DELETE_OFFSET  = 0 // Delete flag bit offset
+	MIN_REC_OFFSET = 1 // Min record flag bit offset
+	COMMON_FALSE   = 0 // Common false value for bit operations
+)
+
+// InnoDB page size constant
+const UNIV_PAGE_SIZE = 16384 // 16KB default page size
