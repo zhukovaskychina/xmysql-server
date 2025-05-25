@@ -4,7 +4,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/latch"
-	
+	"sync"
 )
 
 // BasePage 基础页面结构
