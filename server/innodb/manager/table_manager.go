@@ -3,8 +3,8 @@ package manager
 import (
 	"context"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"sync"
-	"xmysql-server/server/innodb/metadata"
 )
 
 // TableManager 表管理器

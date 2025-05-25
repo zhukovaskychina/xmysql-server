@@ -18,10 +18,10 @@ package sqlparser
 
 import (
 	"fmt"
+	querypb "github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/querypb"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
 	"reflect"
 	"testing"
-	querypb "xmysql-server/server/innodb/sqlparser/dependency/querypb"
-	"xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
 )
 
 func TestNormalize(t *testing.T) {

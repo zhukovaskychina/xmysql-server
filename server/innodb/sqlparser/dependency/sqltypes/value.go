@@ -23,10 +23,10 @@ import (
 	"fmt"
 	"strconv"
 
-	"xmysql-server/server/innodb/sqlparser/dependency/bytes2"
-	"xmysql-server/server/innodb/sqlparser/dependency/hack"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/bytes2"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/hack"
 
-	querypb "xmysql-server/server/innodb/sqlparser/dependency/querypb"
+	querypb "github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/querypb"
 )
 
 var (

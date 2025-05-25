@@ -31,8 +31,8 @@ package pages
 import (
 	"encoding/binary"
 	"errors"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"time"
-	"xmysql-server/server/common"
 )
 
 // 系统页面常量

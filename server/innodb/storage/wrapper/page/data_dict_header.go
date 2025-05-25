@@ -3,7 +3,7 @@ package page
 import (
 	"encoding/binary"
 
-	"xmysql-server/server/innodb/storage/store/segs"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/segs"
 )
 
 // DataDictionaryHeaderSysPage 数据字典头页

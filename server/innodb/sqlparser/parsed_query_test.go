@@ -20,9 +20,9 @@ import (
 	"reflect"
 	"testing"
 
-	"xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
 
-	querypb "xmysql-server/server/innodb/sqlparser/dependency/querypb"
+	querypb "github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/querypb"
 )
 
 func TestNewParsedQuery(t *testing.T) {

@@ -9,14 +9,14 @@ package engine
 import (
 	"context"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"time"
-	"xmysql-server/server/innodb/basic"
 
-	"xmysql-server/server"
-	"xmysql-server/server/conf"
-	"xmysql-server/server/innodb/common"
-	"xmysql-server/server/innodb/manager"
-	"xmysql-server/server/innodb/sqlparser"
+	"github.com/zhukovaskychina/xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 // XMySQLEngine is the unified SQL engine coordinating all submodules.

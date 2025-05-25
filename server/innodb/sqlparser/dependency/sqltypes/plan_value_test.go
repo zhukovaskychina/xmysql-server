@@ -17,10 +17,10 @@ limitations under the License.
 package sqltypes
 
 import (
+	querypb "github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/querypb"
 	"reflect"
 	"strings"
 	"testing"
-	querypb "xmysql-server/server/innodb/sqlparser/dependency/querypb"
 )
 
 func TestPlanValueIsNull(t *testing.T) {

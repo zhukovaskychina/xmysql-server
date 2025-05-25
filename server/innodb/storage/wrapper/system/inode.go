@@ -1,7 +1,7 @@
 package system
 
 import (
-	"xmysql-server/server/innodb/storage/store/pages"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
 )
 
 // INode represents an InnoDB inode wrapper

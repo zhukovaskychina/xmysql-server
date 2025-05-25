@@ -7,6 +7,7 @@ import (
 	gxnet "github.com/AlexStocks/goext/net"
 	log "github.com/AlexStocks/log4go"
 	"github.com/dubbogo/gost/sync"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"net"
 	"net/http"
 	"os"
@@ -14,8 +15,7 @@ import (
 	"strconv"
 	"syscall"
 	"time"
-	"xmysql-server/server/conf"
-	//"xmysql-server/server/innodb/wrapper/store"
+	//"github.com/zhukovaskychina/xmysql-server/server/innodb/wrapper/store"
 )
 
 const (

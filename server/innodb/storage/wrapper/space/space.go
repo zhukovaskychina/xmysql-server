@@ -2,10 +2,10 @@ package space
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/ibd"
 	"sync"
 	"sync/atomic"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/storage/store/ibd"
 )
 
 type spaceManagerImpl struct {

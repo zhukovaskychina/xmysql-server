@@ -2,7 +2,7 @@ package record
 
 import (
 	"encoding/binary"
-	"xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 // TODO: This file needs complete implementation

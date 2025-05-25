@@ -20,14 +20,14 @@ package net
 import (
 	"errors"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/dispatcher"
+	"github.com/zhukovaskychina/xmysql-server/server/protocol"
 	"sync"
-	"xmysql-server/server"
-	"xmysql-server/server/common"
-	"xmysql-server/server/conf"
-	"xmysql-server/server/dispatcher"
-	"xmysql-server/server/protocol"
 
-	//"xmysql-serverimpl/serverimpl/net/service"
+	//"github.com/zhukovaskychina/xmysql-serverimpl/serverimpl/net/service"
 
 	log "github.com/AlexStocks/log4go"
 )

@@ -2,12 +2,12 @@ package dispatcher
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
 	"strings"
 	"sync"
-	"xmysql-server/server"
-	"xmysql-server/server/conf"
-	"xmysql-server/server/innodb/common"
-	"xmysql-server/server/innodb/engine"
 )
 
 // SQLDispatcher SQL查询分发器，负责将SQL查询路由到合适的引擎

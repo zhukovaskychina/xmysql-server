@@ -3,10 +3,10 @@ package record
 import (
 	"encoding/binary"
 	"github.com/smartystreets/assertions"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/util"
 	"strings"
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/util"
 )
 
 type InfimumRow struct {

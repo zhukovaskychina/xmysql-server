@@ -1,9 +1,9 @@
 package page
 
 import (
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/buffer_pool"
-	"xmysql-server/server/innodb/storage/wrapper/system"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/system"
 )
 
 // NewInodePageWrapper 创建INode页面包装器 - 映射到page_inode_wrapper.go中的INode

@@ -1,8 +1,8 @@
 package wrapper
 
 import (
-	"xmysql-server/server/innodb/storage/store/pages"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 type IPageWrapper interface {

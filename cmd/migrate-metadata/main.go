@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
 func main() {

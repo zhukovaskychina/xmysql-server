@@ -37,8 +37,8 @@ package pages
 
 import (
 	"errors"
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 // Use basic.FIL_PAGE_TYPE_ALLOCATED for allocated page type

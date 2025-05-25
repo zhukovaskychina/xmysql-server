@@ -2,11 +2,11 @@ package manager
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"sync"
 	"sync/atomic"
 	"time"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/buffer_pool"
 )
 
 const (

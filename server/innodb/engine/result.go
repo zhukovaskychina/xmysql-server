@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 type Result struct {

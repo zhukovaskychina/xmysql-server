@@ -19,7 +19,7 @@ package sqlparser
 import (
 	"bytes"
 
-	"xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
 )
 
 // This file contains types that are 'Encodable'.

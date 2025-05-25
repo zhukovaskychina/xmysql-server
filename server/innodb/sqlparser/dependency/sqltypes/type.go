@@ -19,7 +19,7 @@ package sqltypes
 import (
 	"fmt"
 
-	querypb "xmysql-server/server/innodb/sqlparser/dependency/querypb"
+	querypb "github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/querypb"
 )
 
 // This file provides wrappers and support

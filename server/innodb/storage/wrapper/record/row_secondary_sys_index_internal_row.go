@@ -2,8 +2,8 @@ package record
 
 import (
 	"encoding/binary"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
 // SystemSecondaryIndexInternalRow 系统辅助索引内部节点行记录

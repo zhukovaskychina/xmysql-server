@@ -20,8 +20,8 @@ import (
 	"bytes"
 	"fmt"
 
-	querypb "xmysql-server/server/innodb/sqlparser/dependency/querypb"
-	"xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
+	querypb "github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/querypb"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
 )
 
 // ParsedQuery represents a parsed plan where

@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"io"
 
-	"xmysql-server/server/innodb/sqlparser/dependency/bytes2"
-	"xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/bytes2"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
 )
 
 const (

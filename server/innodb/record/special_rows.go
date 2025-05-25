@@ -1,7 +1,7 @@
 package record
 
 import (
-	"xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 // SpecialRow 特殊行实现

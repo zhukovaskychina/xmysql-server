@@ -20,8 +20,8 @@ package segs
 
 import (
 	"errors"
-	"xmysql-server/server/innodb/storage/store/extents"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/extents"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 // Segment类型常量

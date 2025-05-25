@@ -1,8 +1,8 @@
 package page
 
 import (
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/buffer_pool"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 )
 
 // PageWrapper 页面包装器接口

@@ -1,10 +1,10 @@
 package manager
 
 import (
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
+	extent2 "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/extent"
 	"sync"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/buffer_pool"
-	extent2 "xmysql-server/server/innodb/storage/wrapper/extent"
 )
 
 // ExtentManager 区管理器

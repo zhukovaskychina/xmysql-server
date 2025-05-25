@@ -2,8 +2,8 @@ package plan
 
 import (
 	"fmt"
-	"xmysql-server/server/innodb/metadata"
-	"xmysql-server/server/innodb/sqlparser"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 // AggregateFunc represents an aggregate function

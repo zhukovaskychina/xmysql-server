@@ -2,9 +2,9 @@ package protocol
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/session"
 	"net"
-	"xmysql-server/server/common"
-	"xmysql-server/server/session"
 )
 
 // MySQLProtocolHandler 协议处理器

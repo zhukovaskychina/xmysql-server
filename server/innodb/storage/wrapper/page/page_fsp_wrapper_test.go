@@ -6,9 +6,9 @@ package page
 /*
 import (
 	"testing"
-	"xmysql-server/server/conf"
-	"xmysql-server/server/innodb/buffer_pool"
-	"xmysql-server/server/innodb/storage/store"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store"
 )
 
 func TestFspPageWrapper_AllocatePage(t *testing.T) {

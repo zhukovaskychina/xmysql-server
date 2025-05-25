@@ -1,4 +1,4 @@
-module xmysql-server
+module github.com/zhukovaskychina/xmysql-server
 
 go 1.13
 

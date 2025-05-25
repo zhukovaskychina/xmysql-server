@@ -2,8 +2,8 @@ package protocol
 
 import (
 	"fmt"
-	"xmysql-server/server/common"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 func GetCapabilities(hs HandsharkProtocol) uint32 {

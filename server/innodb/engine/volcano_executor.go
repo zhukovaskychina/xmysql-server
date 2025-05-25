@@ -2,8 +2,8 @@ package engine
 
 import (
 	"context"
-	"xmysql-server/server/innodb/metadata"
-	"xmysql-server/server/innodb/plan"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
 )
 
 // Operator 算子接口

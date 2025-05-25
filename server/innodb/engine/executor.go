@@ -3,12 +3,12 @@ package engine
 import (
 	"context"
 	"fmt"
-	"xmysql-server/server"
-	"xmysql-server/server/common"
-	"xmysql-server/server/conf"
-	"xmysql-server/server/innodb/metadata"
-	"xmysql-server/server/innodb/plan"
-	"xmysql-server/server/innodb/sqlparser"
+	"github.com/zhukovaskychina/xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 /*

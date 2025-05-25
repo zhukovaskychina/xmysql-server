@@ -1,8 +1,8 @@
 package types
 
 import (
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/buffer_pool"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 )
 
 // SysTableSpace 系统表空间接口

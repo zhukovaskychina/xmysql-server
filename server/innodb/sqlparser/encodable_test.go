@@ -20,7 +20,7 @@ import (
 	"bytes"
 	"testing"
 
-	"xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
 )
 
 func TestEncodable(t *testing.T) {

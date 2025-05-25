@@ -1,11 +1,11 @@
 package manager
 
 import (
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"sync"
 	"time"
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/buffer_pool"
 )
 
 // DefaultPageManager 默认页面管理器实现

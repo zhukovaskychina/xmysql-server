@@ -3,8 +3,8 @@ package record
 import (
 	"bytes"
 	"encoding/binary"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
 // BaseRecord 基础记录实现

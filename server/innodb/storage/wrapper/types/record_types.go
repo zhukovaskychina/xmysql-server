@@ -1,7 +1,7 @@
 package types
 
 import (
-	"xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 // IRecord 记录接口

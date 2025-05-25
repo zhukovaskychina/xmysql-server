@@ -17,12 +17,12 @@ limitations under the License.
 package sqlparser
 
 import (
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"reflect"
 	"strings"
 	"testing"
-	"xmysql-server/server/innodb/basic"
 
-	"xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
 )
 
 func TestPreview(t *testing.T) {

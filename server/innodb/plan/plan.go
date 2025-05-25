@@ -1,8 +1,8 @@
 package plan
 
 import (
-	"xmysql-server/server"
-	"xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 type Plan interface {

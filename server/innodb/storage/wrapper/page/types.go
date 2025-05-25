@@ -1,10 +1,10 @@
 package page
 
 import (
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/latch"
 	"sync"
 	"sync/atomic"
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/latch"
 )
 
 const (
