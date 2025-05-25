@@ -117,6 +117,12 @@ func (f *IBD_File) Create() error {
 		return fmt.Errorf("file already open: %s", f.filePath)
 	}
 
+	// Create directory if it doesn't exist
+	dir := filepath.Dir(f.filePath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %v", err)
+	}
+
 	// Create new file
 	file, err := os.OpenFile(f.filePath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0666)
 	if err != nil {
@@ -127,7 +133,7 @@ func (f *IBD_File) Create() error {
 	// Initialize FSP header page (page 0)
 	header := make([]byte, PageSize)
 	// Write space ID and other metadata
-	if err := f.WritePage(0, header); err != nil {
+	if err := f.writePageUnsafe(0, header); err != nil {
 		f.file.Close()
 		f.file = nil
 		return fmt.Errorf("failed to write FSP header: %v", err)
@@ -135,10 +141,35 @@ func (f *IBD_File) Create() error {
 
 	// Initialize IBUF bitmap page (page 1)
 	bitmap := make([]byte, PageSize)
-	if err := f.WritePage(1, bitmap); err != nil {
+	if err := f.writePageUnsafe(1, bitmap); err != nil {
 		f.file.Close()
 		f.file = nil
 		return fmt.Errorf("failed to write IBUF bitmap: %v", err)
+	}
+
+	return nil
+}
+
+// writePageUnsafe writes a page to disk without acquiring locks (internal use only)
+func (f *IBD_File) writePageUnsafe(pageNo uint32, page []byte) error {
+	if f.file == nil {
+		return fmt.Errorf("file not open")
+	}
+
+	if len(page) != PageSize {
+		return fmt.Errorf("invalid page size: %d", len(page))
+	}
+
+	// Calculate page offset
+	offset := int64(pageNo) * int64(PageSize)
+
+	// Write page data
+	n, err := f.file.WriteAt(page, offset)
+	if err != nil {
+		return fmt.Errorf("failed to write page: %v", err)
+	}
+	if n != PageSize {
+		return fmt.Errorf("incomplete page write: %d bytes", n)
 	}
 
 	return nil
