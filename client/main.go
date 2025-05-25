@@ -429,7 +429,7 @@ func (c *MySQLClient) showStatus() {
 func parseArgs() (*ClientConfig, bool, bool) {
 	config := &ClientConfig{
 		Host:     "127.0.0.1",
-		Port:     3308, // 默认使用您服务器的端口
+		Port:     3307, // 默认使用您服务器的端口
 		User:     "root",
 		Password: "",
 		Database: "test",

@@ -20,16 +20,13 @@ package net
 import (
 	"errors"
 	"fmt"
+	log "github.com/AlexStocks/log4go"
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/dispatcher"
 	"github.com/zhukovaskychina/xmysql-server/server/protocol"
 	"sync"
-
-	//"github.com/zhukovaskychina/xmysql-serverimpl/serverimpl/net/service"
-
-	log "github.com/AlexStocks/log4go"
 )
 
 const (
