@@ -656,12 +656,13 @@ go tool pprof http://localhost:6060/debug/pprof/profile
 - [MySQL](https://www.mysql.com/) - 参考实现
 - [TiDB](https://github.com/pingcap/tidb) - 架构设计
 - [Getty](https://github.com/AlexStocks/getty) - 网络框架
+- OpenAI
 
 ## 📞 联系我们
 
-- **项目主页**: https://github.com/your-org/xmysql-server
-- **问题反馈**: https://github.com/your-org/xmysql-server/issues
-- **邮箱**: xmysql-dev@example.com
+- **项目主页**: https://github.com/zhukovaskychina/xmysql-server
+- **问题反馈**: https://github.com/zhukovaskychina/xmysql-server/issues
+- **邮箱**: zhukovasky@163.com
 
 ---
 
