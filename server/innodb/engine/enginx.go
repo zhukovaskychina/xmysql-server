@@ -116,7 +116,33 @@ func (e *XMySQLEngine) initUtilityManagers() {
 }
 
 func (e *XMySQLEngine) initQueryExecutor() {
-	//e.QueryExecutor = NewXMySQLExecutor(e.infoSchemaManager, e.conf)
+	e.QueryExecutor = NewXMySQLExecutor(e.infoSchemaManager, e.conf)
+
+	// 设置管理器组件
+	if e.QueryExecutor != nil {
+		// 创建优化器管理器
+		optimizerManager := manager.NewOptimizerManager(e.infoSchemaManager)
+
+		// 创建带存储管理器的表管理器
+		tableManager := manager.NewTableManagerWithStorage(e.infoSchemaManager, e.storageMgr)
+
+		// 从存储管理器获取缓冲池管理器
+		bufferPoolManager := e.storageMgr.GetBufferPoolManager()
+
+		// 将B+树管理器转换为DefaultBPlusTreeManager
+		var btreeManager *manager.DefaultBPlusTreeManager
+		if bm, ok := e.btreeMgr.(*manager.DefaultBPlusTreeManager); ok {
+			btreeManager = bm
+		}
+
+		// 设置管理器
+		e.QueryExecutor.SetManagers(
+			optimizerManager,
+			bufferPoolManager,
+			btreeManager,
+			tableManager,
+		)
+	}
 }
 
 func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query string, databaseName string) <-chan *Result {

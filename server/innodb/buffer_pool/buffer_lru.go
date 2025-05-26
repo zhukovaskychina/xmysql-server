@@ -217,7 +217,7 @@ func (L *LRUCacheImpl) Has(spaceId uint32, pageNo uint32) bool {
 }
 
 // TODO 校验这里的hashcode的安全性
-func (L LRUCacheImpl) SetYoung(spaceId uint32, pageNo uint32, value *BufferBlock) {
+func (L *LRUCacheImpl) SetYoung(spaceId uint32, pageNo uint32, value *BufferBlock) {
 	L.mu.Lock()
 	defer L.mu.Unlock()
 	var buff = append(util.ConvertUInt4Bytes(spaceId), util.ConvertUInt4Bytes(pageNo)...)
@@ -255,9 +255,8 @@ func (L *LRUCacheImpl) evictYoung(count int) {
 func (c *LRUCacheImpl) removeYoungElement(e *list.Element) {
 	c.evictYoungList.Remove(e)
 	entry := e.Value.(*lruItem)
-	delete(c.items, entry.key)
+	delete(c.youngItems, entry.key) // Fixed: should delete from youngItems, not items
 	if c.evictedFunc != nil {
-		entry := e.Value.(*lruItem)
 		c.evictedFunc(entry.key, entry.value)
 	}
 }
@@ -297,9 +296,8 @@ func (L *LRUCacheImpl) evictOld(count int) {
 func (c *LRUCacheImpl) removeOldElement(e *list.Element) {
 	c.evictOldList.Remove(e)
 	entry := e.Value.(*lruItem)
-	delete(c.items, entry.key)
+	delete(c.oldItems, entry.key) // Fixed: should delete from oldItems, not items
 	if c.evictedFunc != nil {
-		entry := e.Value.(*lruItem)
 		c.evictedFunc(entry.key, entry.value)
 	}
 }
@@ -309,27 +307,32 @@ func (L *LRUCacheImpl) GetYoung(spaceId uint32, pageNo uint32) (*BufferBlock, er
 	defer L.mu.Unlock()
 	var buff = append(util.ConvertUInt4Bytes(spaceId), util.ConvertUInt4Bytes(pageNo)...)
 	hashCode := util.HashCode(buff)
-	return L.getYoungValue(hashCode, false)
+	return L.getYoungValueLocked(hashCode, false)
 }
 
-func (L *LRUCacheImpl) getYoungValue(key uint64, onLoad bool) (*BufferBlock, error) {
-	L.mu.Lock()
+func (L *LRUCacheImpl) getYoungValueLocked(key uint64, onLoad bool) (*BufferBlock, error) {
+	// Note: This method assumes the caller already holds the lock
 	item, ok := L.youngItems[key]
 	if ok {
 		it := item.Value.(*lruItem)
 		L.evictYoungList.MoveToFront(item)
 		v := it.value
-		L.mu.Unlock()
 		if !onLoad {
 			L.stats.IncrHitCount()
 		}
 		return v, nil
 	}
-	L.mu.Unlock()
 	if !onLoad {
 		L.stats.IncrMissCount()
 	}
 	return nil, KeyNotFoundError
+}
+
+// Keep the original getYoungValue for backward compatibility if needed elsewhere
+func (L *LRUCacheImpl) getYoungValue(key uint64, onLoad bool) (*BufferBlock, error) {
+	L.mu.Lock()
+	defer L.mu.Unlock()
+	return L.getYoungValueLocked(key, onLoad)
 }
 
 func (L *LRUCacheImpl) SetOld(spaceId uint32, pageNo uint32, value *BufferBlock) {
@@ -345,7 +348,7 @@ func (L *LRUCacheImpl) SetOld(spaceId uint32, pageNo uint32, value *BufferBlock)
 		item.value = value
 	} else {
 		if L.evictOldList.Len() >= int(math.Pow10(L.size)*L.oldPercent) {
-			L.evictYoung(1)
+			L.evictOld(1)
 		}
 		item = &lruItem{
 			key:   hashCode,
@@ -353,8 +356,8 @@ func (L *LRUCacheImpl) SetOld(spaceId uint32, pageNo uint32, value *BufferBlock)
 		}
 		L.oldItems[hashCode] = L.evictOldList.PushFront(item)
 	}
-
 }
+
 func (L *LRUCacheImpl) setOrdinary(spaceId uint32, pageNo uint32, value *BufferBlock) {
 	L.mu.Lock()
 	defer L.mu.Unlock()
@@ -383,27 +386,32 @@ func (L *LRUCacheImpl) getOrdinary(spaceId uint32, pageNo uint32) (*BufferBlock,
 	defer L.mu.Unlock()
 	var buff = append(util.ConvertUInt4Bytes(spaceId), util.ConvertUInt4Bytes(pageNo)...)
 	hashCode := util.HashCode(buff)
-	return L.getOrdinaryValue(hashCode, false)
+	return L.getOrdinaryValueLocked(hashCode, false)
 }
 
-func (L *LRUCacheImpl) getOrdinaryValue(key uint64, onLoad bool) (*BufferBlock, error) {
-	L.mu.Lock()
+func (L *LRUCacheImpl) getOrdinaryValueLocked(key uint64, onLoad bool) (*BufferBlock, error) {
+	// Note: This method assumes the caller already holds the lock
 	item, ok := L.items[key]
 	if ok {
 		it := item.Value.(*lruItem)
 		L.evictList.MoveToFront(item)
 		v := it.value
-		L.mu.Unlock()
 		if !onLoad {
 			L.stats.IncrHitCount()
 		}
 		return v, nil
 	}
-	L.mu.Unlock()
 	if !onLoad {
 		L.stats.IncrMissCount()
 	}
 	return nil, KeyNotFoundError
+}
+
+// Keep the original getOrdinaryValue for backward compatibility
+func (L *LRUCacheImpl) getOrdinaryValue(key uint64, onLoad bool) (*BufferBlock, error) {
+	L.mu.Lock()
+	defer L.mu.Unlock()
+	return L.getOrdinaryValueLocked(key, onLoad)
 }
 
 func (L *LRUCacheImpl) GetOld(spaceId uint32, pageNo uint32) (*BufferBlock, error) {
@@ -411,32 +419,39 @@ func (L *LRUCacheImpl) GetOld(spaceId uint32, pageNo uint32) (*BufferBlock, erro
 	defer L.mu.Unlock()
 	var buff = append(util.ConvertUInt4Bytes(spaceId), util.ConvertUInt4Bytes(pageNo)...)
 	hashCode := util.HashCode(buff)
-	return L.getOldValue(hashCode, false)
+	return L.getOldValueLocked(hashCode, false)
 }
-func (L *LRUCacheImpl) Len() uint32 {
-	if L.evictList.Len() > 0 {
-		return uint32(L.evictList.Len())
-	}
-	return uint32(L.evictOldList.Len() + L.evictYoungList.Len())
-}
-func (L *LRUCacheImpl) getOldValue(key uint64, onLoad bool) (*BufferBlock, error) {
-	L.mu.Lock()
+
+func (L *LRUCacheImpl) getOldValueLocked(key uint64, onLoad bool) (*BufferBlock, error) {
+	// Note: This method assumes the caller already holds the lock
 	item, ok := L.oldItems[key]
 	if ok {
 		it := item.Value.(*lruItem)
 		L.evictOldList.MoveToFront(item)
 		v := it.value
-		L.mu.Unlock()
 		if !onLoad {
 			L.stats.IncrHitCount()
 		}
 		return v, nil
 	}
-	L.mu.Unlock()
 	if !onLoad {
 		L.stats.IncrMissCount()
 	}
 	return nil, KeyNotFoundError
+}
+
+// Keep the original getOldValue for backward compatibility
+func (L *LRUCacheImpl) getOldValue(key uint64, onLoad bool) (*BufferBlock, error) {
+	L.mu.Lock()
+	defer L.mu.Unlock()
+	return L.getOldValueLocked(key, onLoad)
+}
+
+func (L *LRUCacheImpl) Len() uint32 {
+	if L.evictList.Len() > 0 {
+		return uint32(L.evictList.Len())
+	}
+	return uint32(L.evictOldList.Len() + L.evictYoungList.Len())
 }
 func NewLRUCacheImpl(size int, youngPercent float64, oldPercent float64, innodbOldBlocksTime int) LRUCache {
 	var lrucache = new(LRUCacheImpl)
@@ -450,6 +465,8 @@ func NewLRUCacheImpl(size int, youngPercent float64, oldPercent float64, innodbO
 	lrucache.youngPercent = youngPercent
 	lrucache.oldPercent = oldPercent
 	lrucache.innodbOldBlocksTime = innodbOldBlocksTime
+	// Initialize stats - this was missing and caused the nil pointer dereference
+	lrucache.stats = &stats{}
 	return lrucache
 }
 

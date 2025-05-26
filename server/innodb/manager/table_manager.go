@@ -12,6 +12,10 @@ type TableManager struct {
 	mu sync.RWMutex
 	// schema管理器
 	schemaManager metadata.InfoSchemaManager
+	// 存储管理器
+	storageManager *StorageManager
+	// 表存储映射管理器
+	tableStorageManager *TableStorageManager
 	// 缓存表的元数据
 	tableMetaCache map[string]*metadata.TableMeta
 	// 缓存表的统计信息
@@ -28,6 +32,24 @@ func NewTableManager(schemaManager metadata.InfoSchemaManager) *TableManager {
 		tableStatsCache: make(map[string]*metadata.InfoTableStats),
 		tableIndexCache: make(map[string][]*Index),
 	}
+}
+
+// NewTableManagerWithStorage 创建带存储管理器的表管理器
+func NewTableManagerWithStorage(schemaManager metadata.InfoSchemaManager, storageManager *StorageManager) *TableManager {
+	tm := &TableManager{
+		schemaManager:   schemaManager,
+		storageManager:  storageManager,
+		tableMetaCache:  make(map[string]*metadata.TableMeta),
+		tableStatsCache: make(map[string]*metadata.InfoTableStats),
+		tableIndexCache: make(map[string][]*Index),
+	}
+
+	// 创建表存储映射管理器
+	if storageManager != nil {
+		tm.tableStorageManager = NewTableStorageManager(storageManager)
+	}
+
+	return tm
 }
 
 // CreateTable 创建表
@@ -242,4 +264,22 @@ func (tm *TableManager) RefreshTableMetadata(ctx context.Context, schemaName, ta
 // getCacheKey 生成缓存key
 func (tm *TableManager) getCacheKey(schemaName, tableName string) string {
 	return fmt.Sprintf("%s.%s", schemaName, tableName)
+}
+
+// GetTableBTreeManager 为指定表获取B+树管理器
+func (tm *TableManager) GetTableBTreeManager(ctx context.Context, schemaName, tableName string) (*DefaultBPlusTreeManager, error) {
+	if tm.tableStorageManager == nil {
+		return nil, fmt.Errorf("table storage manager not available")
+	}
+
+	return tm.tableStorageManager.CreateBTreeManagerForTable(ctx, schemaName, tableName)
+}
+
+// GetTableStorageInfo 获取表的存储信息
+func (tm *TableManager) GetTableStorageInfo(schemaName, tableName string) (*TableStorageInfo, error) {
+	if tm.tableStorageManager == nil {
+		return nil, fmt.Errorf("table storage manager not available")
+	}
+
+	return tm.tableStorageManager.GetTableStorageInfo(schemaName, tableName)
 }

@@ -22,7 +22,7 @@ type IndexManager struct {
 	btreeManager *DefaultBPlusTreeManager
 
 	// 缓冲池管理器
-	bufferPoolManager *BufferPoolManager
+	bufferPoolManager *OptimizedBufferPoolManager
 
 	// 索引统计信息
 	stats *IndexManagerStats
@@ -106,7 +106,7 @@ type IndexManagerConfig struct {
 }
 
 // NewIndexManager 创建索引管理器
-func NewIndexManager(segmentManager *SegmentManager, bufferPoolManager *BufferPoolManager, config *IndexManagerConfig) *IndexManager {
+func NewIndexManager(segmentManager *SegmentManager, bufferPoolManager *OptimizedBufferPoolManager, config *IndexManagerConfig) *IndexManager {
 	if config == nil {
 		config = &IndexManagerConfig{
 			MaxIndexes:       10000,

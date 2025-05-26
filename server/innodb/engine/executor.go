@@ -7,6 +7,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
@@ -50,6 +51,12 @@ type XMySQLExecutor struct {
 	ctx                *ExecutionContext          // 执行上下文
 	results            chan *Result               // 结果通道
 	rootExecutor       Executor                   // 根算子节点
+
+	// 管理器组件 - 添加这些字段来访问各个管理器
+	optimizerManager  interface{} // 查询优化器管理器
+	bufferPoolManager interface{} // 缓冲池管理器
+	btreeManager      interface{} // B+树管理器
+	tableManager      interface{} // 表管理器
 }
 
 // NewXMySQLExecutor 构造 SQL 执行器实例
@@ -58,6 +65,19 @@ func NewXMySQLExecutor(infosSchemaManager metadata.InfoSchemaManager, conf *conf
 		infosSchemaManager: infosSchemaManager,
 		conf:               conf,
 	}
+}
+
+// SetManagers 设置管理器组件
+func (e *XMySQLExecutor) SetManagers(
+	optimizerManager interface{},
+	bufferPoolManager interface{},
+	btreeManager interface{},
+	tableManager interface{},
+) {
+	e.optimizerManager = optimizerManager
+	e.bufferPoolManager = bufferPoolManager
+	e.btreeManager = btreeManager
+	e.tableManager = tableManager
 }
 
 // ExecuteWithQuery 接收原始 SQL 查询，异步执行并返回结果通道
@@ -89,7 +109,19 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 	// 根据不同语句类型分派执行
 	switch stmt := stmt.(type) {
 	case *sqlparser.Select:
-		results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Message: "SELECT query executed (simplified implementation)"}
+		// 执行SELECT查询
+		selectResult, err := e.executeSelectStatement(ctx, stmt, databaseName)
+		if err != nil {
+			results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY, Message: fmt.Sprintf("SELECT query failed: %v", err)}
+		} else {
+			// 将SelectResult转换为Result
+			result := &Result{
+				ResultType: common.RESULT_TYPE_QUERY,
+				Data:       selectResult,
+				Message:    fmt.Sprintf("SELECT query executed successfully, %d rows returned", selectResult.RowCount),
+			}
+			results <- result
+		}
 	case *sqlparser.DDL:
 		e.executeDDL(stmt, results)
 	case *sqlparser.DBDDL:
@@ -137,9 +169,50 @@ func (e *XMySQLExecutor) recover(query string, results chan *Result) {
 	}
 }
 
-// executeSelectStatement 执行 SELECT 查询（未实现）
-func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sqlparser.Select, name string) (interface{}, interface{}) {
-	return nil, nil
+// executeSelectStatement 执行 SELECT 查询
+func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sqlparser.Select, databaseName string) (*SelectResult, error) {
+	// 类型断言获取具体的管理器类型
+	var optimizerManager *manager.OptimizerManager
+	var bufferPoolManager *manager.OptimizedBufferPoolManager
+	var btreeManager *manager.DefaultBPlusTreeManager
+	var tableManager *manager.TableManager
+
+	if e.optimizerManager != nil {
+		if om, ok := e.optimizerManager.(*manager.OptimizerManager); ok {
+			optimizerManager = om
+		}
+	}
+	if e.bufferPoolManager != nil {
+		if bpm, ok := e.bufferPoolManager.(*manager.OptimizedBufferPoolManager); ok {
+			bufferPoolManager = bpm
+		}
+	}
+	if e.btreeManager != nil {
+		if btm, ok := e.btreeManager.(*manager.DefaultBPlusTreeManager); ok {
+			btreeManager = btm
+		}
+	}
+	if e.tableManager != nil {
+		if tm, ok := e.tableManager.(*manager.TableManager); ok {
+			tableManager = tm
+		}
+	}
+
+	// 创建SELECT执行器
+	selectExecutor := NewSelectExecutor(
+		optimizerManager,
+		bufferPoolManager,
+		btreeManager,
+		tableManager,
+	)
+
+	// 执行SELECT查询
+	result, err := selectExecutor.ExecuteSelect(ctx.Context, stmt, databaseName)
+	if err != nil {
+		return nil, fmt.Errorf("execute SELECT failed: %v", err)
+	}
+
+	return result, nil
 }
 
 // executeCreateDatabaseStatement 执行 CREATE DATABASE（占位）
@@ -163,16 +236,7 @@ func (e *XMySQLExecutor) executeCreateTableStatement(ctx *ExecutionContext, data
 // PhysicalPlan 是逻辑计划转换后的物理执行计划（别名）
 type PhysicalPlan = plan.PhysicalPlan
 
-// InfoSchemaAdapter 是信息模式适配器，实现对表元信息的查询
-type InfoSchemaAdapter struct {
-	manager metadata.InfoSchemaManager
-}
-
-// TableByName 根据表名查找表元信息
-func (a *InfoSchemaAdapter) TableByName(name string) (*metadata.Table, error) {
-	ctx := context.Background()
-	return a.manager.GetTableByName(ctx, "", name)
-}
+// InfoSchemaAdapter在select_executor.go中已定义
 
 // OptimizeLogicalPlan 对逻辑计划进行优化（简化实现）
 func OptimizeLogicalPlan(logicalPlan plan.LogicalPlan) plan.LogicalPlan {
