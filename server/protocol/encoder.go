@@ -2,6 +2,9 @@ package protocol
 
 import (
 	"fmt"
+
+	"github.com/zhukovaskychina/xmysql-server/server/auth"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 )
 
 // ProtocolEncoder MySQL协议编码器接口
@@ -169,7 +172,106 @@ func (e *QueryResponseEncoder) encodeRowData(row []interface{}, sequenceId byte)
 type AuthResponseEncoder struct{}
 
 func (e *AuthResponseEncoder) Encode(msg Message) ([]byte, error) {
+	// 检查认证结果
+	if authResult, ok := msg.Payload().(*auth.AuthResult); ok {
+		if authResult.Success {
+			return e.encodeOKResponse(authResult)
+		} else {
+			return e.encodeErrorResponse(authResult)
+		}
+	}
+
+	// 默认返回OK包
 	return EncodeOKPacket(nil, 0, 0, nil), nil
+}
+
+// encodeOKResponse 编码认证成功响应
+func (e *AuthResponseEncoder) encodeOKResponse(authResult *auth.AuthResult) ([]byte, error) {
+	// MySQL OK包格式:
+	// 1字节: 0x00 (OK标识)
+	// 长度编码整数: affected_rows (通常为0)
+	// 长度编码整数: last_insert_id (通常为0)
+	// 2字节: status_flags
+	// 2字节: warnings
+	// 字符串: info (可选)
+
+	buf := make([]byte, 0, 64)
+
+	// OK标识
+	buf = append(buf, 0x00)
+
+	// affected_rows (0)
+	buf = append(buf, 0x00)
+
+	// last_insert_id (0)
+	buf = append(buf, 0x00)
+
+	// status_flags (SERVER_STATUS_AUTOCOMMIT)
+	buf = append(buf, 0x02, 0x00)
+
+	// warnings (0)
+	buf = append(buf, 0x00, 0x00)
+
+	// 可选的info字符串
+	if authResult.Database != "" {
+		info := fmt.Sprintf("Database changed to '%s'", authResult.Database)
+		buf = append(buf, []byte(info)...)
+	}
+
+	return e.wrapWithHeader(buf), nil
+}
+
+// encodeErrorResponse 编码认证错误响应
+func (e *AuthResponseEncoder) encodeErrorResponse(authResult *auth.AuthResult) ([]byte, error) {
+	// MySQL Error包格式:
+	// 1字节: 0xFF (Error标识)
+	// 2字节: error_code
+	// 1字节: '#' (SQL状态标识符)
+	// 5字节: SQL状态
+	// 字符串: error_message
+
+	buf := make([]byte, 0, 128)
+
+	// Error标识
+	buf = append(buf, 0xFF)
+
+	// Error code (小端序)
+	buf = append(buf, byte(authResult.ErrorCode), byte(authResult.ErrorCode>>8))
+
+	// SQL状态标识符
+	buf = append(buf, '#')
+
+	// SQL状态 (默认为28000 - 认证失败)
+	sqlState := "28000"
+	if authResult.ErrorCode == common.ER_BAD_DB_ERROR {
+		sqlState = "42000"
+	}
+	buf = append(buf, []byte(sqlState)...)
+
+	// Error message
+	buf = append(buf, []byte(authResult.ErrorMessage)...)
+
+	return e.wrapWithHeader(buf), nil
+}
+
+// wrapWithHeader 包装MySQL包头
+func (e *AuthResponseEncoder) wrapWithHeader(payload []byte) []byte {
+	// MySQL包头格式:
+	// 3字节: 包长度 (小端序)
+	// 1字节: 包序号
+
+	header := make([]byte, 4)
+
+	// 包长度 (小端序)
+	length := len(payload)
+	header[0] = byte(length)
+	header[1] = byte(length >> 8)
+	header[2] = byte(length >> 16)
+
+	// 包序号 (认证响应通常是2)
+	header[3] = 0x02
+
+	return append(header, payload...)
 }
 
 // UseDBResponseEncoder 切换数据库响应编码器

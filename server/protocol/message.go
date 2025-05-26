@@ -97,10 +97,14 @@ type ClientInfo struct {
 // AuthMessage 认证消息
 type AuthMessage struct {
 	*BaseMessage
-	User     string
-	Password string
-	Database string
-	Charset  string
+	User          string
+	Password      string
+	Database      string
+	Charset       string
+	ClientFlags   uint32 // 客户端能力标志
+	MaxPacketSize uint32 // 最大包大小
+	AuthResponse  []byte // 认证响应数据
+	AuthPlugin    string // 认证插件名称
 }
 
 // QueryMessage 查询消息

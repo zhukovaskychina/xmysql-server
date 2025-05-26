@@ -9,6 +9,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/dispatcher"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
 	"github.com/zhukovaskychina/xmysql-server/server/protocol"
 )
 
@@ -25,17 +26,24 @@ type DecoupledMySQLMessageHandler struct {
 
 	// 业务层处理器
 	businessHandler protocol.MessageHandler
+
+	// 握手生成器
+	handshakeGenerator *HandshakeGenerator
 }
 
 // NewDecoupledMySQLMessageHandler 创建解耦的MySQL消息处理器
 func NewDecoupledMySQLMessageHandler(cfg *conf.Cfg) *DecoupledMySQLMessageHandler {
+	// 创建XMySQL引擎
+	xmysqlEngine := engine.NewXMySQLEngine(cfg)
+
 	handler := &DecoupledMySQLMessageHandler{
-		sessionMap:      make(map[Session]server.MySQLServerSession),
-		cfg:             cfg,
-		protocolParser:  protocol.NewMySQLProtocolParser(),
-		protocolEncoder: protocol.NewMySQLProtocolEncoder(),
-		messageBus:      protocol.NewDefaultMessageBus(),
-		businessHandler: dispatcher.NewBusinessMessageHandler(cfg),
+		sessionMap:         make(map[Session]server.MySQLServerSession),
+		cfg:                cfg,
+		protocolParser:     protocol.NewMySQLProtocolParser(),
+		protocolEncoder:    protocol.NewMySQLProtocolEncoder(),
+		messageBus:         protocol.NewDefaultMessageBus(),
+		businessHandler:    dispatcher.NewEnhancedBusinessMessageHandler(cfg, xmysqlEngine),
+		handshakeGenerator: NewHandshakeGenerator(),
 	}
 
 	// 注册业务处理器到消息总线
@@ -74,8 +82,23 @@ func (h *DecoupledMySQLMessageHandler) OnOpen(session Session) error {
 	h.sessionMap[session] = NewMySQLServerSession(session)
 	h.rwlock.Unlock()
 
-	// 主动与客户端握手
-	h.sessionMap[session].SendHandleOk()
+	// 生成握手包
+	handshake, err := h.handshakeGenerator.GenerateHandshake()
+	if err != nil {
+		log.Error("Failed to generate handshake: %v", err)
+		return err
+	}
+
+	// 将挑战数据存储到会话中
+	challenge := handshake.GetAuthData()
+	session.SetAttribute("auth_challenge", challenge)
+
+	// 发送握手包
+	handshakeData := handshake.Encode()
+	if err := session.WriteBytes(handshakeData); err != nil {
+		log.Error("Failed to send handshake: %v", err)
+		return err
+	}
 
 	// 发送连接消息到业务层
 	connectMsg := &protocol.ConnectMessage{
