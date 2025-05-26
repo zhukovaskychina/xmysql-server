@@ -21,12 +21,13 @@ package sqlparser
 import (
 	"errors"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+
 	"strconv"
 	"strings"
 	"unicode"
-	"xmysql-server/server/innodb/basic"
 
-	"xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
 )
 
 // These constants are used to identify the SQL statement type.

@@ -2,13 +2,13 @@ package manager
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 	"io/ioutil"
 	"path"
 	"strings"
-	"xmysql-server/server/conf"
-	"xmysql-server/server/innodb/buffer_pool"
-	"xmysql-server/server/innodb/metadata"
-	"xmysql-server/server/innodb/sqlparser"
 )
 
 // Table 定义表接口，用于metadata.Database

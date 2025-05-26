@@ -18,12 +18,12 @@ package sqltypes
 
 import (
 	"bytes"
+	querypb "github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/querypb"
 	"reflect"
 	"strings"
 	"testing"
-	querypb "xmysql-server/server/innodb/sqlparser/dependency/querypb"
 
-	_ "xmysql-server/server/innodb/sqlparser/dependency/querypb"
+	_ "github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/querypb"
 )
 
 const (

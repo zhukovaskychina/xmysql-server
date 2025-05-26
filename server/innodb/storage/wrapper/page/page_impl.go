@@ -1,9 +1,9 @@
 package page
 
 import (
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"sync/atomic"
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/basic"
 )
 
 // PageImpl implements the IPageWrapper interface

@@ -1,8 +1,8 @@
 package basic
 
 import (
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"math"
-	"xmysql-server/server/common"
 )
 
 // ValType specifies the type for SQLVal.

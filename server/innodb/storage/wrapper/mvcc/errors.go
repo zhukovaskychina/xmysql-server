@@ -1,7 +1,7 @@
 package mvcc
 
 import (
-	"xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 // MVCC相关错误的别名，方便使用

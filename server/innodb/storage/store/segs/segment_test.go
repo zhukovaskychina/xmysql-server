@@ -2,8 +2,8 @@ package segs
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/extents"
 	"testing"
-	"xmysql-server/server/innodb/storage/store/extents"
 )
 
 func TestNewSegment(t *testing.T) {

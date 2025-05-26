@@ -1,6 +1,6 @@
 package protocol
 
-import "xmysql-server/util"
+import "github.com/zhukovaskychina/xmysql-server/util"
 
 var (
 	fieldCount = byte(0xFE)

@@ -2,13 +2,14 @@ package conf
 
 import (
 	"fmt"
-	"gopkg.in/ini.v1"
 	"net"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"gopkg.in/ini.v1"
 )
 
 var ConfigPath string
@@ -48,9 +49,20 @@ type Cfg struct {
 	FailFastTimeoutDuration time.Duration
 
 	// innodb
-	InnodbRedoLogDir string `default:"redo" yaml:"innodb_redo_log_dir" json:"innodb_redo_log_dir,omitempty"`
-	InnodbUndoLogDir string `default:"undo" yaml:"innodb_undo_log_dir" json:"innodb_undo_log_dir,omitempty"`
-	InnodbEncryption InnodbEncryptionConfig
+	InnodbDataDir             string `default:"data" yaml:"innodb_data_dir" json:"innodb_data_dir,omitempty"`
+	InnodbDataFilePath        string `default:"ibdata1:100M:autoextend" yaml:"innodb_data_file_path" json:"innodb_data_file_path,omitempty"`
+	InnodbBufferPoolSize      int    `default:"134217728" yaml:"innodb_buffer_pool_size" json:"innodb_buffer_pool_size,omitempty"`
+	InnodbPageSize            int    `default:"16384" yaml:"innodb_page_size" json:"innodb_page_size,omitempty"`
+	InnodbLogFileSize         int    `default:"50331648" yaml:"innodb_log_file_size" json:"innodb_log_file_size,omitempty"`
+	InnodbLogBufferSize       int    `default:"16777216" yaml:"innodb_log_buffer_size" json:"innodb_log_buffer_size,omitempty"`
+	InnodbFlushLogAtTrxCommit int    `default:"1" yaml:"innodb_flush_log_at_trx_commit" json:"innodb_flush_log_at_trx_commit,omitempty"`
+	InnodbFileFormat          string `default:"Barracuda" yaml:"innodb_file_format" json:"innodb_file_format,omitempty"`
+	InnodbDefaultRowFormat    string `default:"DYNAMIC" yaml:"innodb_default_row_format" json:"innodb_default_row_format,omitempty"`
+	InnodbDoublewrite         bool   `default:"true" yaml:"innodb_doublewrite" json:"innodb_doublewrite,omitempty"`
+	InnodbAdaptiveHashIndex   bool   `default:"true" yaml:"innodb_adaptive_hash_index" json:"innodb_adaptive_hash_index,omitempty"`
+	InnodbRedoLogDir          string `default:"redo" yaml:"innodb_redo_log_dir" json:"innodb_redo_log_dir,omitempty"`
+	InnodbUndoLogDir          string `default:"undo" yaml:"innodb_undo_log_dir" json:"innodb_undo_log_dir,omitempty"`
+	InnodbEncryption          InnodbEncryptionConfig
 
 	// session tcp parameters
 	MySQLSessionParam MySQLSessionParam `required:"true" yaml:"getty_session_param" json:"getty_session_param,omitempty"`
@@ -84,12 +96,25 @@ type MySQLSessionParam struct {
 
 func NewCfg() *Cfg {
 	return &Cfg{
-		Raw:              ini.Empty(),
-		User:             "mysql",
-		BindAddress:      "127.0.0.1",
-		Port:             3308,
-		InnodbRedoLogDir: "redo",
-		InnodbUndoLogDir: "undo",
+		Raw:         ini.Empty(),
+		User:        "mysql",
+		BindAddress: "127.0.0.1",
+		Port:        3308,
+		DataDir:     "data",
+		// InnoDB 默认配置
+		InnodbDataDir:             "data",
+		InnodbDataFilePath:        "ibdata1:100M:autoextend",
+		InnodbBufferPoolSize:      134217728, // 128MB
+		InnodbPageSize:            16384,     // 16KB
+		InnodbLogFileSize:         50331648,  // 48MB
+		InnodbLogBufferSize:       16777216,  // 16MB
+		InnodbFlushLogAtTrxCommit: 1,
+		InnodbFileFormat:          "Barracuda",
+		InnodbDefaultRowFormat:    "DYNAMIC",
+		InnodbDoublewrite:         true,
+		InnodbAdaptiveHashIndex:   true,
+		InnodbRedoLogDir:          "redo",
+		InnodbUndoLogDir:          "undo",
 		InnodbEncryption: InnodbEncryptionConfig{
 			KeyRotationDays: 90,
 			Threads:         4,
@@ -338,7 +363,7 @@ func (cfg *Cfg) loadConfiguration(args *CommandLineArgs) (*ini.File, error) {
 
 	// check if config file exists
 	if _, err := os.Stat(defaultConfigFile); os.IsNotExist(err) {
-		fmt.Println("xmysql-server加载配置文件失败，请确保文件路径存在")
+		fmt.Println("github.com/zhukovaskychina/xmysql-server加载配置文件失败，请确保文件路径存在")
 		os.Exit(1)
 	}
 
@@ -401,6 +426,58 @@ func (cfg *Cfg) parseInnodbCfg(section *ini.Section) *Cfg {
 	if section == nil {
 		return cfg
 	}
+
+	// Parse data directory
+	dataDir, err := valueAsString(section, "data_dir", cfg.InnodbDataDir)
+	if err == nil {
+		cfg.InnodbDataDir = dataDir
+	}
+
+	// Parse data file path
+	dataFilePath, err := valueAsString(section, "data_file_path", cfg.InnodbDataFilePath)
+	if err == nil {
+		cfg.InnodbDataFilePath = dataFilePath
+	}
+
+	// Parse buffer pool size
+	bufferPoolSize := section.Key("buffer_pool_size").MustInt(cfg.InnodbBufferPoolSize)
+	cfg.InnodbBufferPoolSize = bufferPoolSize
+
+	// Parse page size
+	pageSize := section.Key("page_size").MustInt(cfg.InnodbPageSize)
+	cfg.InnodbPageSize = pageSize
+
+	// Parse log file size
+	logFileSize := section.Key("log_file_size").MustInt(cfg.InnodbLogFileSize)
+	cfg.InnodbLogFileSize = logFileSize
+
+	// Parse log buffer size
+	logBufferSize := section.Key("log_buffer_size").MustInt(cfg.InnodbLogBufferSize)
+	cfg.InnodbLogBufferSize = logBufferSize
+
+	// Parse flush log at trx commit
+	flushLogAtTrxCommit := section.Key("flush_log_at_trx_commit").MustInt(cfg.InnodbFlushLogAtTrxCommit)
+	cfg.InnodbFlushLogAtTrxCommit = flushLogAtTrxCommit
+
+	// Parse file format
+	fileFormat, err := valueAsString(section, "file_format", cfg.InnodbFileFormat)
+	if err == nil {
+		cfg.InnodbFileFormat = fileFormat
+	}
+
+	// Parse default row format
+	defaultRowFormat, err := valueAsString(section, "default_row_format", cfg.InnodbDefaultRowFormat)
+	if err == nil {
+		cfg.InnodbDefaultRowFormat = defaultRowFormat
+	}
+
+	// Parse doublewrite
+	doublewrite := section.Key("doublewrite").MustBool(cfg.InnodbDoublewrite)
+	cfg.InnodbDoublewrite = doublewrite
+
+	// Parse adaptive hash index
+	adaptiveHashIndex := section.Key("adaptive_hash_index").MustBool(cfg.InnodbAdaptiveHashIndex)
+	cfg.InnodbAdaptiveHashIndex = adaptiveHashIndex
 
 	// Parse redo log directory
 	redoDir, err := valueAsString(section, "redo_log_dir", cfg.InnodbRedoLogDir)

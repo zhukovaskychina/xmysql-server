@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"strings"
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/basic"
 
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 /***

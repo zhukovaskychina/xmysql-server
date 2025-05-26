@@ -1,8 +1,8 @@
 package record
 
 import (
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
 // SystemSecondaryIndexLeafRow 系统辅助索引叶子节点行记录

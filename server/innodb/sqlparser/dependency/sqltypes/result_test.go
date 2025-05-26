@@ -5,9 +5,9 @@
 package sqltypes
 
 import (
+	"github.com/zhukovaskychina/xmysql-server/server/sqlparser/dependency/querypb"
 	"reflect"
 	"testing"
-	"xmysql-server/server/sqlparser/dependency/querypb"
 )
 
 func TestRepair(t *testing.T) {

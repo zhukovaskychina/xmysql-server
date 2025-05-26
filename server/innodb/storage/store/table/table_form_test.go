@@ -2,8 +2,8 @@ package table
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 	"testing"
-	"xmysql-server/server/innodb/sqlparser"
 )
 
 func TestDDL(t *testing.T) {

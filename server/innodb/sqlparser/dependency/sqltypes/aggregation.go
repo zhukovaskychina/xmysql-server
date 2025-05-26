@@ -9,8 +9,8 @@
 package sqltypes
 
 import (
-	querypb "xmysql-server/server/innodb/sqlparser/dependency/querypb"
-	"xmysql-server/server/innodb/util"
+	querypb "github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/querypb"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util"
 )
 
 // AggrType type.

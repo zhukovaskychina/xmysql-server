@@ -3,11 +3,11 @@ package record
 import (
 	"bytes"
 	"encoding/binary"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/util"
 	"strings"
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/metadata"
-	"xmysql-server/util"
 )
 
 // TODO: This file needs complete implementation

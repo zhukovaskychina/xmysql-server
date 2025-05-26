@@ -2,10 +2,10 @@ package page
 
 import (
 	"errors"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
 	"sync"
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/buffer_pool"
-	"xmysql-server/server/innodb/storage/store/pages"
 )
 
 var (

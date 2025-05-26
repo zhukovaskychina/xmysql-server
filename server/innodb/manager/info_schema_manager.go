@@ -3,10 +3,10 @@ package manager
 import (
 	"context"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"sync"
 	"time"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/metadata"
 )
 
 // InfoSchemaManager 管理INFORMATION_SCHEMA数据库

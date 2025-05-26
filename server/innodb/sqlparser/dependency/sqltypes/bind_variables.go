@@ -22,7 +22,7 @@ import (
 
 	"strconv"
 
-	querypb "xmysql-server/server/innodb/sqlparser/dependency/querypb"
+	querypb "github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/querypb"
 )
 
 // NullBindVariable is a bindvar with NULL valueImpl.

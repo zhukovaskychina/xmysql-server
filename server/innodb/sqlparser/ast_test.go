@@ -19,7 +19,7 @@ package sqlparser
 import (
 	"bytes"
 	"fmt"
-	"xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 
 	"encoding/json"
 
@@ -28,7 +28,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
 )
 
 func TestAppend(t *testing.T) {

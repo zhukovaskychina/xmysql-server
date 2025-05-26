@@ -1,7 +1,7 @@
 package metadata
 
 import (
-	"xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 // ColumnMeta contains metadata for a single column

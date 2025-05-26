@@ -14,8 +14,8 @@ Package page 提供了InnoDB存储引擎中各种页面类型的接口定义和�
 package page
 
 import (
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/storage/wrapper/segment"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/segment"
 )
 
 // ========================================

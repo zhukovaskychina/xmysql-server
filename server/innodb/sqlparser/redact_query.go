@@ -1,6 +1,6 @@
 package sqlparser
 
-import querypb "xmysql-server/server/innodb/sqlparser/dependency/querypb"
+import querypb "github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/querypb"
 
 // RedactSQLQuery returns a sql string with the params stripped out for display
 func RedactSQLQuery(sql string) (string, error) {

@@ -21,7 +21,7 @@ import (
 	"strings"
 	"testing"
 
-	"xmysql-server/server/sqlparser/dependency/querypb"
+	"github.com/zhukovaskychina/xmysql-server/server/sqlparser/dependency/querypb"
 )
 
 func TestProtoConversions(t *testing.T) {

@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
-	"xmysql-server/server/conf"
-	"xmysql-server/server/net"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/net"
 )
 
 const help = `

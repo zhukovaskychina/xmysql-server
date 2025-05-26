@@ -2,8 +2,8 @@ package protocol
 
 import (
 	"fmt"
-	"xmysql-server/server/common"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 func GetCapabilities(hs HandsharkProtocol) uint32 {
@@ -86,22 +86,17 @@ type AuthPacket struct {
 }
 
 func (ap *AuthPacket) DecodeAuth(buff []byte) *AuthPacket {
-
 	//解析packetLength
-
 	var cursor = 0
 	var database = ""
 	cursor, packetLength := util.ReadUB3(buff, cursor)
-
 	if packetLength <= 32 {
 		cursor, packetId := util.ReadByte(buff, cursor)
 		fmt.Println(packetId)
 		cursor, maxPacketSize := util.ReadUB4(buff, cursor)
-
 		cursor, charsetIndex := util.ReadByte(buff, cursor)
 		fmt.Println(maxPacketSize, charsetIndex)
 		cursor, user := util.ReadStringWithNull(buff, cursor)
-
 		cursor, password := util.ReadBytesWithNull(buff, cursor-1)
 		cursor, database = util.ReadStringWithNull(buff, cursor-1)
 		fmt.Println(user)
@@ -110,11 +105,8 @@ func (ap *AuthPacket) DecodeAuth(buff []byte) *AuthPacket {
 		return ap
 	}
 	cursor = 4
-
 	cursor, clientFlag := util.ReadUB4(buff, cursor)
-
 	cursor, maxPacketSize := util.ReadUB4(buff, cursor)
-
 	cursor, charsetIndex := util.ReadByte(buff, cursor)
 	var currentCursor = cursor
 	cursor, length := util.ReadLength(buff, cursor)
@@ -124,7 +116,6 @@ func (ap *AuthPacket) DecodeAuth(buff []byte) *AuthPacket {
 	cursor = cursor + 22
 	cursor, user := util.ReadStringWithNull(buff, cursor)
 	cursor, password := util.ReadBytesWithNull(buff, cursor)
-
 	if (len(buff) > cursor) && (int32(clientFlag)&int32(common.CLIENT_CONNECT_WITH_DB)) != 0 {
 		_, database = util.ReadStringWithNull(buff, cursor)
 	}

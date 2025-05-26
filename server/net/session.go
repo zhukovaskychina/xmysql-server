@@ -21,14 +21,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server/protocol"
 	"io"
 	"net"
 	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
-	"xmysql-server/server"
-	"xmysql-server/server/protocol"
 )
 
 import (

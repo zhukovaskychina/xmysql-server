@@ -2,10 +2,10 @@ package segment
 
 import (
 	"errors"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	extent3 "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/extent"
 	"sync"
 	"time"
-	"xmysql-server/server/innodb/basic"
-	extent3 "xmysql-server/server/innodb/storage/wrapper/extent"
 )
 
 var (

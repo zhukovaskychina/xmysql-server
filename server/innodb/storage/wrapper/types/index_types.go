@@ -1,7 +1,7 @@
 package types
 
 import (
-	"xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
 // IIndexPage defines the interface for index pages

@@ -1,6 +1,6 @@
 package basic
 
-import "xmysql-server/server/common"
+import "github.com/zhukovaskychina/xmysql-server/server/common"
 
 // Key represents a key in an index
 type Key interface{}

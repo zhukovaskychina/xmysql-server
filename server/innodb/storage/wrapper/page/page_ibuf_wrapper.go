@@ -1,8 +1,8 @@
 package page
 
 import (
-	pages2 "xmysql-server/server/innodb/storage/store/pages"
-	"xmysql-server/server/innodb/storage/wrapper"
+	pages2 "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper"
 )
 
 type IBuf struct {

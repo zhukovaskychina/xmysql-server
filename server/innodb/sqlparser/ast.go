@@ -21,11 +21,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	querypb "github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/querypb"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
 	"io"
 	"log"
 	"strings"
-	querypb "xmysql-server/server/innodb/sqlparser/dependency/querypb"
-	"xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
 )
 
 // Instructions for creating new types: If a type

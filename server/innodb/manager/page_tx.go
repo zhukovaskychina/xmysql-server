@@ -1,9 +1,9 @@
 package manager
 
 import (
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"sync"
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/basic"
 )
 
 // pageTx 页面事务实现

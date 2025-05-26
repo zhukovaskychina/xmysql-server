@@ -10,9 +10,9 @@ package sqltypes
 
 import (
 	"errors"
+	querypb "github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/querypb"
 	"strconv"
 	"strings"
-	querypb "xmysql-server/server/innodb/sqlparser/dependency/querypb"
 )
 
 // timeToNumeric used to cast time type to numeric.

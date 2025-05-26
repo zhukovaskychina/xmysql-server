@@ -2,7 +2,7 @@ package protocol
 
 import (
 	"fmt"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 const (

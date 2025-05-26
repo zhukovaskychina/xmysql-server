@@ -1,7 +1,7 @@
 package pages
 
 import (
-	"xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 )
 
 // Page types - using basic package types

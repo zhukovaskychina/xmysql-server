@@ -1,7 +1,7 @@
 package basic
 
 import (
-	"xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server"
 )
 
 //本index需要实现trx 目前暂时不操作

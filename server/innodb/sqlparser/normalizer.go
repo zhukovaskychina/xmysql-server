@@ -18,11 +18,11 @@ package sqlparser
 
 import (
 	"fmt"
-	"xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 
-	"xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
 
-	querypb "xmysql-server/server/innodb/sqlparser/dependency/querypb"
+	querypb "github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/querypb"
 )
 
 // Normalize changes the statement to use bind values, and

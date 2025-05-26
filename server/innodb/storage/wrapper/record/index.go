@@ -2,8 +2,8 @@ package record
 
 import (
 	"bytes"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
 // IndexRecord 索引记录

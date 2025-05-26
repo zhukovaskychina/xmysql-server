@@ -3,11 +3,11 @@ package types
 import (
 	"encoding/binary"
 	"errors"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"sync"
 	"sync/atomic"
 	"time"
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/basic"
 )
 
 // PageType represents the type of a page

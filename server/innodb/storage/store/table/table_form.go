@@ -1,6 +1,6 @@
 package table
 
-import "xmysql-server/util"
+import "github.com/zhukovaskychina/xmysql-server/util"
 
 var RefTypeName = map[int]string{
 	0:     "NULL_TYPE",

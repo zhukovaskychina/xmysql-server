@@ -37,9 +37,9 @@ package space
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/ibd"
 	"sync"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/storage/store/ibd"
 )
 
 // IBDSpace represents a tablespace in the storage engine

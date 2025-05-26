@@ -2,7 +2,7 @@ package manager
 
 import (
 	"context"
-	"xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 // TestBPlusTreeManagerInterface 测试B+树管理器是否实现了basic.BPlusTreeManager接口

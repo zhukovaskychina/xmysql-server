@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/pelletier/go-toml/query"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"sync"
-	"xmysql-server/server/conf"
 )
 
-//定义查询上下文环境，
+// 定义查询上下文环境，
 type ExecutionContext struct {
 	context.Context
 

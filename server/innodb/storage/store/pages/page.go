@@ -5,7 +5,7 @@ package pages
 
 import (
 	"errors"
-	"xmysql-server/util"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 // Common page size constants

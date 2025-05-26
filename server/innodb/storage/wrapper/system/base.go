@@ -3,9 +3,9 @@ package system
 import (
 	"encoding/binary"
 	"errors"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper"
 	"time"
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/storage/wrapper"
 )
 
 var (

@@ -34,7 +34,7 @@ package pages
 import (
 	"encoding/binary"
 	"errors"
-	"xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 )
 
 // BLOB页面常量

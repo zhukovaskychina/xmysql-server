@@ -2,13 +2,14 @@ package manager
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
-	"xmysql-server/server/common"
-	"xmysql-server/server/conf"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/buffer_pool"
-	"xmysql-server/server/innodb/storage/wrapper/space"
+
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 )
 
 // TablespaceHandle represents a handle to a tablespace
@@ -179,8 +180,24 @@ func (sm *StorageManager) Sync(spaceID uint32) error {
 
 // NewStorageManager creates a new StorageManager instance with conf
 func NewStorageManager(conf *conf.Cfg) *StorageManager {
-	dataDir := conf.GetString("innodb.data_dir")
-	bufferPoolSize := conf.GetInt("innodb.buffer_pool_size")
+	// 获取配置参数
+	dataDir := conf.InnodbDataDir
+	if dataDir == "" {
+		dataDir = conf.DataDir // 回退到主数据目录
+	}
+	if dataDir == "" {
+		dataDir = "data" // 默认数据目录
+	}
+
+	bufferPoolSize := conf.InnodbBufferPoolSize
+	if bufferPoolSize <= 0 {
+		bufferPoolSize = 134217728 // 默认128MB
+	}
+
+	pageSize := conf.InnodbPageSize
+	if pageSize <= 0 {
+		pageSize = 16384 // 默认16KB
+	}
 
 	// Create storage manager instance
 	sm := &StorageManager{
@@ -188,13 +205,13 @@ func NewStorageManager(conf *conf.Cfg) *StorageManager {
 		nextTxID:    1,
 	}
 
-	// Initialize space manager
-	sm.spaceMgr = space.NewSpaceManager(dataDir)
+	// Initialize space manager with data directory
+	sm.spaceMgr = NewSpaceManager(dataDir)
 
 	// Initialize buffer pool
 	bufferPoolConfig := &buffer_pool.BufferPoolConfig{
-		TotalPages:     uint32(bufferPoolSize / 16384), // 16KB per page
-		PageSize:       16384,
+		TotalPages:     uint32(bufferPoolSize / pageSize),
+		PageSize:       uint32(pageSize),
 		BufferPoolSize: uint64(bufferPoolSize),
 		StorageManager: sm.spaceMgr,
 	}
@@ -211,7 +228,278 @@ func NewStorageManager(conf *conf.Cfg) *StorageManager {
 	// Initialize segment manager
 	sm.segmentMgr = NewSegmentManager(sm.bufferPool)
 
+	// 初始化系统表空间和文件，就像MySQL一样
+	if err := sm.initializeSystemTablespaces(conf); err != nil {
+		panic(fmt.Sprintf("Failed to initialize system tablespaces: %v", err))
+	}
+
 	return sm
+}
+
+// initializeSystemTablespaces 初始化系统表空间，创建必要的系统ibd文件
+func (sm *StorageManager) initializeSystemTablespaces(conf *conf.Cfg) error {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	// 1. 创建系统表空间 (ibdata1)
+	if err := sm.createSystemTablespace(conf); err != nil {
+		return fmt.Errorf("failed to create system tablespace: %v", err)
+	}
+
+	// 2. 创建MySQL系统数据库表空间
+	if err := sm.createMySQLSystemTablespaces(); err != nil {
+		return fmt.Errorf("failed to create MySQL system tablespaces: %v", err)
+	}
+
+	// 3. 创建information_schema表空间
+	if err := sm.createInformationSchemaTablespaces(); err != nil {
+		return fmt.Errorf("failed to create information_schema tablespaces: %v", err)
+	}
+
+	// 4. 创建performance_schema表空间
+	if err := sm.createPerformanceSchemaTablespaces(); err != nil {
+		return fmt.Errorf("failed to create performance_schema tablespaces: %v", err)
+	}
+
+	return nil
+}
+
+// createSystemTablespace 创建系统表空间 (ibdata1)
+func (sm *StorageManager) createSystemTablespace(conf *conf.Cfg) error {
+	// 解析数据文件路径配置 (例如: ibdata1:100M:autoextend)
+	dataFilePath := conf.InnodbDataFilePath
+	if dataFilePath == "" {
+		dataFilePath = "ibdata1:100M:autoextend"
+	}
+
+	// 解析文件名和大小
+	parts := strings.Split(dataFilePath, ":")
+	if len(parts) < 2 {
+		return fmt.Errorf("invalid data file path format: %s", dataFilePath)
+	}
+
+	fileName := parts[0]
+
+	// 检查系统表空间是否已经存在
+	if existingSpace, err := sm.spaceMgr.GetSpace(0); err == nil {
+		// 系统表空间已存在，创建handle
+		handle := &TablespaceHandle{
+			SpaceID:       0,
+			DataSegmentID: 0,
+			Name:          fileName,
+		}
+		sm.tablespaces[fileName] = handle
+
+		// 确保表空间是活动的
+		existingSpace.SetActive(true)
+
+		fmt.Printf("System tablespace already exists: %s (Space ID: 0)\n", fileName)
+		return nil
+	}
+
+	// 创建系统表空间 (Space ID = 0)
+	systemSpace, err := sm.spaceMgr.CreateSpace(0, fileName, true)
+	if err != nil {
+		return fmt.Errorf("failed to create system space: %v", err)
+	}
+
+	// 创建系统表空间的handle
+	handle := &TablespaceHandle{
+		SpaceID:       0,
+		DataSegmentID: 0,
+		Name:          fileName,
+	}
+	sm.tablespaces[fileName] = handle
+
+	// 激活系统表空间
+	systemSpace.SetActive(true)
+
+	fmt.Printf("Created system tablespace: %s (Space ID: 0)\n", fileName)
+	return nil
+}
+
+// createMySQLSystemTablespaces 创建MySQL系统数据库的表空间
+func (sm *StorageManager) createMySQLSystemTablespaces() error {
+	systemTables := []string{
+		"mysql/user",                      // 用户表
+		"mysql/db",                        // 数据库权限表
+		"mysql/tables_priv",               // 表权限表
+		"mysql/columns_priv",              // 列权限表
+		"mysql/procs_priv",                // 存储过程权限表
+		"mysql/proxies_priv",              // 代理权限表
+		"mysql/role_edges",                // 角色边表
+		"mysql/default_roles",             // 默认角色表
+		"mysql/global_grants",             // 全局授权表
+		"mysql/password_history",          // 密码历史表
+		"mysql/component",                 // 组件表
+		"mysql/server_cost",               // 服务器成本表
+		"mysql/engine_cost",               // 引擎成本表
+		"mysql/time_zone",                 // 时区表
+		"mysql/time_zone_name",            // 时区名称表
+		"mysql/time_zone_transition",      // 时区转换表
+		"mysql/time_zone_transition_type", // 时区转换类型表
+		"mysql/help_topic",                // 帮助主题表
+		"mysql/help_category",             // 帮助分类表
+		"mysql/help_relation",             // 帮助关系表
+		"mysql/help_keyword",              // 帮助关键字表
+		"mysql/plugin",                    // 插件表
+		"mysql/servers",                   // 服务器表
+		"mysql/func",                      // 函数表
+		"mysql/general_log",               // 通用日志表
+		"mysql/slow_log",                  // 慢查询日志表
+	}
+
+	for i, tableName := range systemTables {
+		spaceID := uint32(i + 1) // 从Space ID 1开始
+
+		// 检查表空间是否已经存在
+		if existingSpace, err := sm.spaceMgr.GetSpace(spaceID); err == nil {
+			// 表空间已存在，创建handle
+			handle := &TablespaceHandle{
+				SpaceID:       spaceID,
+				DataSegmentID: uint64(spaceID),
+				Name:          tableName,
+			}
+			sm.tablespaces[tableName] = handle
+
+			// 确保表空间是活动的
+			existingSpace.SetActive(true)
+
+			fmt.Printf("System table already exists: %s (Space ID: %d)\n", tableName, spaceID)
+			continue
+		}
+
+		// 创建表空间
+		_, err := sm.spaceMgr.CreateSpace(spaceID, tableName, true)
+		if err != nil {
+			return fmt.Errorf("failed to create system table %s: %v", tableName, err)
+		}
+
+		// 创建handle
+		handle := &TablespaceHandle{
+			SpaceID:       spaceID,
+			DataSegmentID: uint64(spaceID),
+			Name:          tableName,
+		}
+		sm.tablespaces[tableName] = handle
+
+		fmt.Printf("Created system table: %s (Space ID: %d)\n", tableName, spaceID)
+	}
+
+	return nil
+}
+
+// createInformationSchemaTablespaces 创建information_schema表空间
+func (sm *StorageManager) createInformationSchemaTablespaces() error {
+	infoSchemaTables := []string{
+		"information_schema/schemata",
+		"information_schema/tables",
+		"information_schema/columns",
+		"information_schema/statistics",
+		"information_schema/key_column_usage",
+		"information_schema/table_constraints",
+		"information_schema/referential_constraints",
+		"information_schema/views",
+		"information_schema/triggers",
+		"information_schema/routines",
+		"information_schema/parameters",
+		"information_schema/events",
+		"information_schema/partitions",
+		"information_schema/engines",
+		"information_schema/plugins",
+		"information_schema/processlist",
+		"information_schema/user_privileges",
+		"information_schema/schema_privileges",
+		"information_schema/table_privileges",
+		"information_schema/column_privileges",
+	}
+
+	baseSpaceID := uint32(100) // information_schema从Space ID 100开始
+
+	for i, tableName := range infoSchemaTables {
+		spaceID := baseSpaceID + uint32(i)
+
+		// 创建表空间
+		_, err := sm.spaceMgr.CreateSpace(spaceID, tableName, true)
+		if err != nil {
+			return fmt.Errorf("failed to create information_schema table %s: %v", tableName, err)
+		}
+
+		// 创建handle
+		handle := &TablespaceHandle{
+			SpaceID:       spaceID,
+			DataSegmentID: uint64(spaceID),
+			Name:          tableName,
+		}
+		sm.tablespaces[tableName] = handle
+
+		fmt.Printf("Created information_schema table: %s (Space ID: %d)\n", tableName, spaceID)
+	}
+
+	return nil
+}
+
+// createPerformanceSchemaTablespaces 创建performance_schema表空间
+func (sm *StorageManager) createPerformanceSchemaTablespaces() error {
+	perfSchemaTables := []string{
+		"performance_schema/accounts",
+		"performance_schema/cond_instances",
+		"performance_schema/events_stages_current",
+		"performance_schema/events_stages_history",
+		"performance_schema/events_stages_history_long",
+		"performance_schema/events_statements_current",
+		"performance_schema/events_statements_history",
+		"performance_schema/events_statements_history_long",
+		"performance_schema/events_waits_current",
+		"performance_schema/events_waits_history",
+		"performance_schema/events_waits_history_long",
+		"performance_schema/file_instances",
+		"performance_schema/file_summary_by_event_name",
+		"performance_schema/file_summary_by_instance",
+		"performance_schema/host_cache",
+		"performance_schema/hosts",
+		"performance_schema/mutex_instances",
+		"performance_schema/objects_summary_global_by_type",
+		"performance_schema/performance_timers",
+		"performance_schema/rwlock_instances",
+		"performance_schema/setup_actors",
+		"performance_schema/setup_consumers",
+		"performance_schema/setup_instruments",
+		"performance_schema/setup_objects",
+		"performance_schema/setup_timers",
+		"performance_schema/socket_instances",
+		"performance_schema/socket_summary_by_event_name",
+		"performance_schema/socket_summary_by_instance",
+		"performance_schema/table_io_waits_summary_by_index_usage",
+		"performance_schema/table_io_waits_summary_by_table",
+		"performance_schema/table_lock_waits_summary_by_table",
+		"performance_schema/threads",
+		"performance_schema/users",
+	}
+
+	baseSpaceID := uint32(200) // performance_schema从Space ID 200开始
+
+	for i, tableName := range perfSchemaTables {
+		spaceID := baseSpaceID + uint32(i)
+
+		// 创建表空间
+		_, err := sm.spaceMgr.CreateSpace(spaceID, tableName, true)
+		if err != nil {
+			return fmt.Errorf("failed to create performance_schema table %s: %v", tableName, err)
+		}
+
+		// 创建handle
+		handle := &TablespaceHandle{
+			SpaceID:       spaceID,
+			DataSegmentID: uint64(spaceID),
+			Name:          tableName,
+		}
+		sm.tablespaces[tableName] = handle
+
+		fmt.Printf("Created performance_schema table: %s (Space ID: %d)\n", tableName, spaceID)
+	}
+
+	return nil
 }
 
 // CreateSegment creates a new segment

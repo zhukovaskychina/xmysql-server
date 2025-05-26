@@ -2,11 +2,6 @@ package net
 
 import (
 	"fmt"
-	"github.com/AlexStocks/getty/transport"
-	gxlog "github.com/AlexStocks/goext/log"
-	gxnet "github.com/AlexStocks/goext/net"
-	log "github.com/AlexStocks/log4go"
-	"github.com/dubbogo/gost/sync"
 	"net"
 	"net/http"
 	"os"
@@ -14,8 +9,14 @@ import (
 	"strconv"
 	"syscall"
 	"time"
-	"xmysql-server/server/conf"
-	//"xmysql-server/server/innodb/wrapper/store"
+
+	getty "github.com/AlexStocks/getty/transport"
+	gxlog "github.com/AlexStocks/goext/log"
+	gxnet "github.com/AlexStocks/goext/net"
+	log "github.com/AlexStocks/log4go"
+	gxsync "github.com/dubbogo/gost/sync"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	//"github.com/zhukovaskychina/xmysql-server/server/innodb/wrapper/store"
 )
 
 const (
@@ -88,7 +89,8 @@ func (srv *MySQLServer) initServer(conf *conf.Cfg) {
 		portList []string
 		server   Server
 	)
-	mysqlMsgHandler := NewMySQLMessageHandler(conf)
+	// 使用解耦的消息处理器替代原来的MySQLMessageHandler
+	mysqlMsgHandler := NewDecoupledMySQLMessageHandler(conf)
 	portList = append(portList, strconv.Itoa(conf.Port))
 	if len(portList) == 0 {
 		panic("portList is nil")

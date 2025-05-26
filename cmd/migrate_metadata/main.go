@@ -4,8 +4,8 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"log"
-	"xmysql-server/server/innodb/metadata"
 )
 
 func main() {

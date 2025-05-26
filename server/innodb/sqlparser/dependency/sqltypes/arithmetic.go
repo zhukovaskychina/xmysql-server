@@ -8,11 +8,11 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/shopspring/decimal"
-	"xmysql-server/server/innodb/sqlparser/dependency/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/common"
 
+	querypb "github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/querypb"
 	"math"
 	"strconv"
-	querypb "xmysql-server/server/innodb/sqlparser/dependency/querypb"
 )
 
 // numeric represents a numeric valueImpl extracted from

@@ -1,6 +1,6 @@
 package protocol
 
-import "xmysql-server/util"
+import "github.com/zhukovaskychina/xmysql-server/util"
 
 type EventHeader struct {
 	MySQLPacket

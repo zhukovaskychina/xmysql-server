@@ -1,8 +1,8 @@
 package manager
 
 import (
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"testing"
-	"xmysql-server/server/innodb/basic"
 )
 
 // TestStorageManagerInterface 测试StorageManager是否正确实现了basic.StorageManager接口

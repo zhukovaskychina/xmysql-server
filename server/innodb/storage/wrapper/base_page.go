@@ -1,10 +1,10 @@
 package wrapper
 
 import (
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/latch"
 	"sync"
-	"xmysql-server/server/common"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/latch"
 )
 
 // BasePage 基础页面结构

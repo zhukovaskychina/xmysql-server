@@ -2,8 +2,8 @@ package manager
 
 import (
 	"context"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
 	"testing"
-	"xmysql-server/server/innodb/plan"
 )
 
 func TestOptimizerManager_GeneratePhysicalPlan(t *testing.T) {

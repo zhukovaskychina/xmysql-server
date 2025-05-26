@@ -1,10 +1,10 @@
 package manager
 
 import (
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/extent"
 	"sync"
-	"xmysql-server/server/innodb/basic"
-	"xmysql-server/server/innodb/buffer_pool"
-	"xmysql-server/server/innodb/storage/wrapper/extent"
 )
 
 // SegmentManager 管理表空间中的段

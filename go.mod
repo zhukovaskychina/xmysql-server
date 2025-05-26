@@ -1,4 +1,4 @@
-module xmysql-server
+module github.com/zhukovaskychina/xmysql-server
 
 go 1.13
 
@@ -9,6 +9,7 @@ require (
 	github.com/OneOfOne/xxhash v1.2.8
 	github.com/dubbogo/gost v1.11.12
 	github.com/gizak/termui/v3 v3.1.0
+	github.com/go-sql-driver/mysql v1.6.0
 	//github.com/AlexStocks/getty v1.3.0
 	//github.com/golang/mock v1.6.0
 	github.com/golang/snappy v0.0.4

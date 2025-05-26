@@ -3,10 +3,11 @@ package buffer_pool
 import (
 	"container/list"
 	"errors"
+	"github.com/zhukovaskychina/xmysql-server/util"
+
 	"math"
 	"sync"
 	"sync/atomic"
-	"xmysql-server/util"
 )
 
 var KeyNotFoundError = errors.New("Key not found.")

@@ -2,7 +2,7 @@ package record
 
 import (
 	"encoding/binary"
-	"xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 // SystemClusterLeafRow 系统聚簇索引叶子节点行记录
