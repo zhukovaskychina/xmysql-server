@@ -7,6 +7,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
@@ -174,7 +175,7 @@ func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sql
 	// 类型断言获取具体的管理器类型
 	var optimizerManager *manager.OptimizerManager
 	var bufferPoolManager *manager.OptimizedBufferPoolManager
-	var btreeManager *manager.DefaultBPlusTreeManager
+	var btreeManager basic.BPlusTreeManager // 使用接口类型
 	var tableManager *manager.TableManager
 
 	if e.optimizerManager != nil {
@@ -188,7 +189,11 @@ func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sql
 		}
 	}
 	if e.btreeManager != nil {
-		if btm, ok := e.btreeManager.(*manager.DefaultBPlusTreeManager); ok {
+		// 尝试断言为 basic.BPlusTreeManager 接口
+		if btm, ok := e.btreeManager.(basic.BPlusTreeManager); ok {
+			btreeManager = btm
+		} else if btm, ok := e.btreeManager.(*manager.DefaultBPlusTreeManager); ok {
+			// 向后兼容：如果是 DefaultBPlusTreeManager，也接受
 			btreeManager = btm
 		}
 	}

@@ -15,7 +15,7 @@ func main() {
 	// 创建配置并加载配置文件
 	cfg := conf.NewCfg()
 	args := &conf.CommandLineArgs{
-		ConfigPath: "./my.ini",
+		ConfigPath: "D:\\GolangProjects\\github\\xmysql-server\\cmd\\demo_executor\\my.ini",
 	}
 	cfg = cfg.Load(args)
 

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 )
@@ -18,8 +19,8 @@ func main() {
 	// 创建模拟存储提供者
 	storageProvider := &MockStorageProvider{}
 
-	// 创建配置
-	config := &manager.BufferPoolConfig{
+	// 创建缓冲池配置
+	bufferPoolConfig := &manager.BufferPoolConfig{
 		PoolSize:        100,
 		PageSize:        16384,
 		FlushInterval:   time.Second,
@@ -32,14 +33,45 @@ func main() {
 	}
 
 	// 创建缓冲池管理器
-	bpm, err := manager.NewOptimizedBufferPoolManager(config)
+	bpm, err := manager.NewOptimizedBufferPoolManager(bufferPoolConfig)
 	if err != nil {
 		log.Fatalf("创建缓冲池管理器失败: %v", err)
 	}
 	defer bpm.Close()
 
 	// 创建B+树管理器
-	btm := manager.NewBPlusTreeManager(bpm, nil)
+	fmt.Println("2. 创建增强版B+树管理器...")
+
+	// 创建存储管理器配置
+	storageConfig := &conf.Cfg{
+		DataDir:              "test_data",
+		InnodbDataDir:        "test_data/innodb",
+		InnodbDataFilePath:   "ibdata1:100M:autoextend",
+		InnodbBufferPoolSize: 134217728, // 128MB
+		InnodbPageSize:       16384,     // 16KB
+	}
+
+	// 创建存储管理器
+	storageManager := manager.NewStorageManager(storageConfig)
+
+	// 创建增强版B+树管理器配置
+	btreeConfig := &manager.BTreeConfig{
+		MaxCacheSize:   1000,
+		CachePolicy:    "LRU",
+		PrefetchSize:   4,
+		PageSize:       16384,
+		FillFactor:     0.8,
+		MinFillFactor:  0.4,
+		SplitThreshold: 0.9,
+		MergeThreshold: 0.3,
+		AsyncIO:        true,
+		EnableStats:    true,
+		StatsInterval:  time.Minute * 5,
+		EnableLogging:  true,
+		LogLevel:       "INFO",
+	}
+
+	btm := manager.NewEnhancedBTreeAdapter(storageManager, btreeConfig)
 
 	// 初始化B+树
 	ctx := context.Background()

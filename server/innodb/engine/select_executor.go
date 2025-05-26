@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
@@ -19,7 +20,7 @@ type SelectExecutor struct {
 	// 管理器组件
 	optimizerManager  *manager.OptimizerManager
 	bufferPoolManager *manager.OptimizedBufferPoolManager
-	btreeManager      *manager.DefaultBPlusTreeManager
+	btreeManager      basic.BPlusTreeManager
 	tableManager      *manager.TableManager
 
 	// 查询相关
@@ -43,7 +44,7 @@ type SelectExecutor struct {
 func NewSelectExecutor(
 	optimizerManager *manager.OptimizerManager,
 	bufferPoolManager *manager.OptimizedBufferPoolManager,
-	btreeManager *manager.DefaultBPlusTreeManager,
+	btreeManager basic.BPlusTreeManager,
 	tableManager *manager.TableManager,
 ) *SelectExecutor {
 	return &SelectExecutor{

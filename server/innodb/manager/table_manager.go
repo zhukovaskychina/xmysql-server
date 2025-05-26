@@ -3,8 +3,10 @@ package manager
 import (
 	"context"
 	"fmt"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"sync"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
 // TableManager 表管理器
@@ -267,7 +269,7 @@ func (tm *TableManager) getCacheKey(schemaName, tableName string) string {
 }
 
 // GetTableBTreeManager 为指定表获取B+树管理器
-func (tm *TableManager) GetTableBTreeManager(ctx context.Context, schemaName, tableName string) (*DefaultBPlusTreeManager, error) {
+func (tm *TableManager) GetTableBTreeManager(ctx context.Context, schemaName, tableName string) (basic.BPlusTreeManager, error) {
 	if tm.tableStorageManager == nil {
 		return nil, fmt.Errorf("table storage manager not available")
 	}

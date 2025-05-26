@@ -9,8 +9,9 @@ package engine
 import (
 	"context"
 	"fmt"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
@@ -63,8 +64,23 @@ func (e *XMySQLEngine) initStorageLayer() {
 }
 
 func (e *XMySQLEngine) initIndexLayer() {
-	btreeCfg := &manager.BPlusTreeConfig{}
-	e.btreeMgr = manager.NewBPlusTreeManager(e.storageMgr.GetBufferPoolManager(), btreeCfg)
+	btreeCfg := &manager.BTreeConfig{
+		MaxCacheSize:   1000,
+		CachePolicy:    "LRU",
+		PrefetchSize:   4,
+		PageSize:       16384,
+		FillFactor:     0.8,
+		MinFillFactor:  0.4,
+		SplitThreshold: 0.9,
+		MergeThreshold: 0.3,
+		AsyncIO:        true,
+		EnableStats:    true,
+		StatsInterval:  time.Minute * 5,
+		EnableLogging:  true,
+		LogLevel:       "INFO",
+	}
+	// 使用增强版B+树管理器适配器
+	e.btreeMgr = manager.NewEnhancedBTreeAdapter(e.storageMgr, btreeCfg)
 }
 
 func (e *XMySQLEngine) initTxnLayer() {
@@ -88,7 +104,8 @@ func (e *XMySQLEngine) initMetaLayer() {
 
 	segManager := e.storageMgr.GetSegmentManager()
 	spaceManager := e.storageMgr.GetSpaceManager()
-	e.indexManager = manager.NewIndexManager(segManager, e.storageMgr.GetBufferPoolManager(), nil)
+	// 使用带存储管理器的索引管理器构造函数，以支持增强版B+树
+	e.indexManager = manager.NewIndexManagerWithStorage(segManager, e.storageMgr.GetBufferPoolManager(), e.storageMgr, nil)
 	e.dictManager = manager.NewDictionaryManager(segManager)
 	e.infoSchemaManager = manager.NewInfoSchemaManager(
 		e.dictManager,
@@ -129,17 +146,15 @@ func (e *XMySQLEngine) initQueryExecutor() {
 		// 从存储管理器获取缓冲池管理器
 		bufferPoolManager := e.storageMgr.GetBufferPoolManager()
 
-		// 将B+树管理器转换为DefaultBPlusTreeManager
-		var btreeManager *manager.DefaultBPlusTreeManager
-		if bm, ok := e.btreeMgr.(*manager.DefaultBPlusTreeManager); ok {
-			btreeManager = bm
-		}
+		// 直接使用 btreeManager 接口，无需类型转换
+		// 因为 e.btreeMgr 已经是 basic.BPlusTreeManager 接口类型
+		btreeManager := e.btreeMgr
 
 		// 设置管理器
 		e.QueryExecutor.SetManagers(
 			optimizerManager,
 			bufferPoolManager,
-			btreeManager,
+			btreeManager, // 直接传递接口
 			tableManager,
 		)
 	}

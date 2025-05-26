@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 // TableStorageInfo 表的存储信息
@@ -172,28 +175,32 @@ func (tsm *TableStorageManager) GetTableBySpaceID(spaceID uint32) (*TableStorage
 }
 
 // CreateBTreeManagerForTable 为指定表创建B+树管理器
-func (tsm *TableStorageManager) CreateBTreeManagerForTable(ctx context.Context, schemaName, tableName string) (*DefaultBPlusTreeManager, error) {
+func (tsm *TableStorageManager) CreateBTreeManagerForTable(ctx context.Context, schemaName, tableName string) (basic.BPlusTreeManager, error) {
 	// 获取表的存储信息
 	info, err := tsm.GetTableStorageInfo(schemaName, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("get table storage info failed: %v", err)
 	}
 
-	// 获取缓冲池管理器
-	bufferPoolManager := tsm.storageManager.GetBufferPoolManager()
-	if bufferPoolManager == nil {
-		return nil, fmt.Errorf("buffer pool manager not available")
-	}
-
-	// 创建B+树管理器配置
-	btreeConfig := &BPlusTreeConfig{
+	// 创建增强版B+树管理器配置
+	btreeConfig := &BTreeConfig{
 		MaxCacheSize:   1000,
-		DirtyThreshold: 0.7,
-		EvictionPolicy: "LRU",
+		CachePolicy:    "LRU",
+		PrefetchSize:   4,
+		PageSize:       16384,
+		FillFactor:     0.8,
+		MinFillFactor:  0.4,
+		SplitThreshold: 0.9,
+		MergeThreshold: 0.3,
+		AsyncIO:        true,
+		EnableStats:    true,
+		StatsInterval:  time.Minute * 5,
+		EnableLogging:  true,
+		LogLevel:       "INFO",
 	}
 
-	// 创建B+树管理器
-	btreeManager := NewBPlusTreeManager(bufferPoolManager, btreeConfig)
+	// 创建增强版B+树管理器适配器
+	btreeManager := NewEnhancedBTreeAdapter(tsm.storageManager, btreeConfig)
 
 	// 初始化B+树管理器，指定表空间和根页面
 	err = btreeManager.Init(ctx, info.SpaceID, info.RootPageNo)
@@ -201,7 +208,7 @@ func (tsm *TableStorageManager) CreateBTreeManagerForTable(ctx context.Context, 
 		return nil, fmt.Errorf("init btree manager failed: %v", err)
 	}
 
-	fmt.Printf("Created BTreeManager for table %s.%s (Space: %d, Root: %d)\n",
+	fmt.Printf("Created Enhanced BTreeManager for table %s.%s (Space: %d, Root: %d)\n",
 		schemaName, tableName, info.SpaceID, info.RootPageNo)
 
 	return btreeManager, nil
