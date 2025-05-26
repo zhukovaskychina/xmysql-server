@@ -3,10 +3,12 @@ package manager
 import (
 	"context"
 	"fmt"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
 // InfoSchemaManager 管理INFORMATION_SCHEMA数据库
@@ -23,12 +25,22 @@ type InfoSchemaManager struct {
 	dictManager  *DictionaryManager
 	spaceManager basic.SpaceManager
 	indexManager *IndexManager
+
+	// Schema缓存
+	schemaCache map[string]metadata.Schema
+
+	// 表元数据缓存
+	tableMetaCache map[string]*metadata.TableMeta
+
+	// 表统计信息缓存
+	tableStatsCache map[string]*metadata.InfoTableStats
 }
 
 // SimpleSchema 简单的Schema实现
 type SimpleSchema struct {
 	name        string
 	description string
+	tables      []*metadata.Table
 }
 
 func (s *SimpleSchema) GetName() string {
@@ -44,10 +56,13 @@ func (s *SimpleSchema) GetCollation() string {
 }
 
 func (s *SimpleSchema) GetTables() []*metadata.Table {
-	return nil
+	return s.tables
 }
 
 func (im *InfoSchemaManager) GetSchemaByName(ctx context.Context, name string) (metadata.Schema, error) {
+	im.mu.RLock()
+	defer im.mu.RUnlock()
+
 	// INFORMATION_SCHEMA是一个虚拟数据库，不存储真实的用户schema
 	if name == "INFORMATION_SCHEMA" {
 		return &SimpleSchema{
@@ -56,7 +71,41 @@ func (im *InfoSchemaManager) GetSchemaByName(ctx context.Context, name string) (
 		}, nil
 	}
 
-	// TODO: 实现从字典管理器获取schema
+	// 检查缓存
+	if schema, exists := im.schemaCache[name]; exists {
+		return schema, nil
+	}
+
+	// 从字典管理器获取schema
+	if im.dictManager != nil {
+		// 查找所有表，按schema分组
+		tables := im.getAllTablesFromDict()
+		schemaMap := make(map[string][]*metadata.Table)
+
+		for _, table := range tables {
+			// 假设表名格式为 "schema.table" 或者有其他方式确定schema
+			// 这里简化处理，假设所有表都属于默认schema
+			schemaName := "default"
+			if strings.Contains(table.Name, ".") {
+				parts := strings.Split(table.Name, ".")
+				if len(parts) >= 2 {
+					schemaName = parts[0]
+					table.Name = parts[1]
+				}
+			}
+			schemaMap[schemaName] = append(schemaMap[schemaName], table)
+		}
+
+		if schemaTables, exists := schemaMap[name]; exists {
+			schema := &SimpleSchema{
+				name:   name,
+				tables: schemaTables,
+			}
+			im.schemaCache[name] = schema
+			return schema, nil
+		}
+	}
+
 	return nil, fmt.Errorf("schema '%s' not found", name)
 }
 
@@ -64,13 +113,56 @@ func (im *InfoSchemaManager) HasSchema(ctx context.Context, name string) bool {
 	if name == "INFORMATION_SCHEMA" {
 		return true
 	}
-	// TODO: 实现检查schema是否存在
+
+	// 检查缓存
+	im.mu.RLock()
+	_, exists := im.schemaCache[name]
+	im.mu.RUnlock()
+
+	if exists {
+		return true
+	}
+
+	// 从字典管理器检查
+	if im.dictManager != nil {
+		tables := im.getAllTablesFromDict()
+		for _, table := range tables {
+			if strings.Contains(table.Name, ".") {
+				parts := strings.Split(table.Name, ".")
+				if len(parts) >= 2 && parts[0] == name {
+					return true
+				}
+			}
+		}
+	}
+
 	return false
 }
 
 func (im *InfoSchemaManager) GetAllSchemaNames(ctx context.Context) ([]string, error) {
 	schemas := []string{"INFORMATION_SCHEMA"}
-	// TODO: 添加用户schema
+
+	// 从字典管理器获取用户schema
+	if im.dictManager != nil {
+		tables := im.getAllTablesFromDict()
+		schemaSet := make(map[string]bool)
+
+		for _, table := range tables {
+			schemaName := "default"
+			if strings.Contains(table.Name, ".") {
+				parts := strings.Split(table.Name, ".")
+				if len(parts) >= 2 {
+					schemaName = parts[0]
+				}
+			}
+			schemaSet[schemaName] = true
+		}
+
+		for schemaName := range schemaSet {
+			schemas = append(schemas, schemaName)
+		}
+	}
+
 	return schemas, nil
 }
 
@@ -81,77 +173,626 @@ func (im *InfoSchemaManager) GetAllSchemas(ctx context.Context) ([]metadata.Sche
 			description: "Information Schema Virtual Database",
 		},
 	}
-	// TODO: 添加用户schema
+
+	// 从字典管理器获取用户schema
+	if im.dictManager != nil {
+		tables := im.getAllTablesFromDict()
+		schemaMap := make(map[string][]*metadata.Table)
+
+		for _, table := range tables {
+			schemaName := "default"
+			if strings.Contains(table.Name, ".") {
+				parts := strings.Split(table.Name, ".")
+				if len(parts) >= 2 {
+					schemaName = parts[0]
+					table.Name = parts[1]
+				}
+			}
+			schemaMap[schemaName] = append(schemaMap[schemaName], table)
+		}
+
+		for schemaName, schemaTables := range schemaMap {
+			schema := &SimpleSchema{
+				name:   schemaName,
+				tables: schemaTables,
+			}
+			schemas = append(schemas, schema)
+		}
+	}
+
 	return schemas, nil
 }
 
 func (im *InfoSchemaManager) CreateSchema(ctx context.Context, schema metadata.Schema) error {
-	// TODO: 实现创建schema
-	return fmt.Errorf("schema creation not implemented")
+	// 实现创建schema
+	if schema.GetName() == "INFORMATION_SCHEMA" {
+		return fmt.Errorf("cannot create INFORMATION_SCHEMA")
+	}
+
+	im.mu.Lock()
+	defer im.mu.Unlock()
+
+	// 检查schema是否已存在
+	if _, exists := im.schemaCache[schema.GetName()]; exists {
+		return fmt.Errorf("schema '%s' already exists", schema.GetName())
+	}
+
+	// 添加到缓存
+	im.schemaCache[schema.GetName()] = schema
+
+	return nil
 }
 
 func (im *InfoSchemaManager) DropSchema(ctx context.Context, name string) error {
-	// INFORMATION_SCHEMA不允许删除schema
+	// INFORMATION_SCHEMA不允许删除
 	if name == "INFORMATION_SCHEMA" {
 		return fmt.Errorf("cannot drop INFORMATION_SCHEMA")
 	}
-	// TODO: 实现删除schema
-	return fmt.Errorf("schema deletion not implemented")
+
+	im.mu.Lock()
+	defer im.mu.Unlock()
+
+	// 检查schema是否存在
+	if _, exists := im.schemaCache[name]; !exists {
+		return fmt.Errorf("schema '%s' not found", name)
+	}
+
+	// 从缓存中删除
+	delete(im.schemaCache, name)
+
+	// 清理相关的表缓存
+	for key := range im.tableMetaCache {
+		if strings.HasPrefix(key, name+".") {
+			delete(im.tableMetaCache, key)
+		}
+	}
+
+	for key := range im.tableStatsCache {
+		if strings.HasPrefix(key, name+".") {
+			delete(im.tableStatsCache, key)
+		}
+	}
+
+	return nil
 }
 
 func (im *InfoSchemaManager) GetTableByName(ctx context.Context, schemaName, tableName string) (*metadata.Table, error) {
-	// TODO: 实现获取表
+	// 从字典管理器获取表
+	if im.dictManager != nil {
+		// 构造完整表名
+		fullTableName := tableName
+		if schemaName != "default" && schemaName != "" {
+			fullTableName = schemaName + "." + tableName
+		}
+
+		// 查找表定义
+		tableDef := im.dictManager.GetTableByName(fullTableName)
+		if tableDef == nil {
+			// 尝试直接用表名查找
+			tableDef = im.dictManager.GetTableByName(tableName)
+		}
+
+		if tableDef != nil {
+			return im.convertTableDefToMetadataTable(tableDef), nil
+		}
+	}
+
 	return nil, fmt.Errorf("table '%s.%s' not found", schemaName, tableName)
 }
 
 func (im *InfoSchemaManager) HasTable(ctx context.Context, schemaName, tableName string) bool {
-	// TODO: 实现表存在检查
-	return false
+	table, err := im.GetTableByName(ctx, schemaName, tableName)
+	return err == nil && table != nil
 }
 
 func (im *InfoSchemaManager) GetAllTables(ctx context.Context, schemaName string) ([]*metadata.Table, error) {
-	// TODO: 实现获取所有表
-	return nil, fmt.Errorf("get all tables not implemented")
+	var tables []*metadata.Table
+
+	if im.dictManager != nil {
+		allTables := im.getAllTablesFromDict()
+
+		for _, table := range allTables {
+			tableSchemaName := "default"
+			tableName := table.Name
+
+			if strings.Contains(table.Name, ".") {
+				parts := strings.Split(table.Name, ".")
+				if len(parts) >= 2 {
+					tableSchemaName = parts[0]
+					tableName = parts[1]
+				}
+			}
+
+			if tableSchemaName == schemaName {
+				table.Name = tableName
+				tables = append(tables, table)
+			}
+		}
+	}
+
+	return tables, nil
 }
 
 func (im *InfoSchemaManager) CreateTable(ctx context.Context, schemaName string, table *metadata.Table) error {
-	// TODO: 实现创建表
-	return fmt.Errorf("create table not implemented")
+	if im.dictManager == nil {
+		return fmt.Errorf("dictionary manager not available")
+	}
+
+	// 转换metadata.Table到TableDef
+	columns := make([]ColumnDef, len(table.Columns))
+	for i, col := range table.Columns {
+		columns[i] = ColumnDef{
+			Name:         col.Name,
+			Type:         im.convertDataTypeToMySQLType(col.DataType),
+			Length:       uint16(col.CharMaxLength),
+			Nullable:     col.IsNullable,
+			DefaultValue: im.convertDefaultValue(col.DefaultValue),
+			Comment:      col.Comment,
+		}
+	}
+
+	// 创建表
+	spaceID := uint32(1) // 默认表空间ID
+	tableDef, err := im.dictManager.CreateTable(table.Name, spaceID, columns)
+	if err != nil {
+		return fmt.Errorf("create table failed: %v", err)
+	}
+
+	// 添加索引
+	for _, index := range table.Indices {
+		indexDef := IndexDef{
+			IndexID:   uint64(len(tableDef.Indexes) + 1),
+			Name:      index.Name,
+			Type:      0, // BTREE
+			Columns:   index.Columns,
+			IsUnique:  index.IsUnique,
+			IsPrimary: index.IsPrimary,
+			Comment:   index.Comment,
+		}
+
+		if err := im.dictManager.AddIndex(tableDef.TableID, indexDef); err != nil {
+			return fmt.Errorf("add index failed: %v", err)
+		}
+	}
+
+	return nil
 }
 
 func (im *InfoSchemaManager) DropTable(ctx context.Context, schemaName, tableName string) error {
-	// TODO: 实现删除表
-	return fmt.Errorf("drop table not implemented")
+	if im.dictManager == nil {
+		return fmt.Errorf("dictionary manager not available")
+	}
+
+	// 查找表
+	fullTableName := tableName
+	if schemaName != "default" && schemaName != "" {
+		fullTableName = schemaName + "." + tableName
+	}
+
+	tableDef := im.dictManager.GetTableByName(fullTableName)
+	if tableDef == nil {
+		tableDef = im.dictManager.GetTableByName(tableName)
+	}
+
+	if tableDef == nil {
+		return fmt.Errorf("table '%s.%s' not found", schemaName, tableName)
+	}
+
+	// 删除表
+	if err := im.dictManager.DropTable(tableDef.TableID); err != nil {
+		return fmt.Errorf("drop table failed: %v", err)
+	}
+
+	// 清理缓存
+	cacheKey := fmt.Sprintf("%s.%s", schemaName, tableName)
+	im.mu.Lock()
+	delete(im.tableMetaCache, cacheKey)
+	delete(im.tableStatsCache, cacheKey)
+	im.mu.Unlock()
+
+	return nil
 }
 
 func (im *InfoSchemaManager) RefreshMetadata(ctx context.Context, schemaName string) error {
-	// TODO: 实现刷新元数据
-	return fmt.Errorf("refresh metadata not implemented")
+	im.mu.Lock()
+	defer im.mu.Unlock()
+
+	// 清理指定schema的缓存
+	if schemaName == "" {
+		// 清理所有缓存
+		im.schemaCache = make(map[string]metadata.Schema)
+		im.tableMetaCache = make(map[string]*metadata.TableMeta)
+		im.tableStatsCache = make(map[string]*metadata.InfoTableStats)
+	} else {
+		// 清理指定schema的缓存
+		delete(im.schemaCache, schemaName)
+
+		for key := range im.tableMetaCache {
+			if strings.HasPrefix(key, schemaName+".") {
+				delete(im.tableMetaCache, key)
+			}
+		}
+
+		for key := range im.tableStatsCache {
+			if strings.HasPrefix(key, schemaName+".") {
+				delete(im.tableStatsCache, key)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (im *InfoSchemaManager) GetTableMetadata(ctx context.Context, schemaName, tableName string) (*metadata.TableMeta, error) {
-	// TODO: 实现获取表元数据
-	return nil, fmt.Errorf("get table metadata not implemented")
+	cacheKey := fmt.Sprintf("%s.%s", schemaName, tableName)
+
+	// 检查缓存
+	im.mu.RLock()
+	if meta, exists := im.tableMetaCache[cacheKey]; exists {
+		im.mu.RUnlock()
+		return meta, nil
+	}
+	im.mu.RUnlock()
+
+	// 从字典管理器获取表元数据
+	table, err := im.GetTableByName(ctx, schemaName, tableName)
+	if err != nil {
+		return nil, err
+	}
+
+	// 转换为TableMeta
+	meta := &metadata.TableMeta{
+		Name:      table.Name,
+		Engine:    table.Engine,
+		Charset:   table.Charset,
+		Collation: table.Collation,
+		RowFormat: table.RowFormat,
+		Comment:   table.Comment,
+	}
+
+	// 转换列信息
+	for _, col := range table.Columns {
+		colMeta := &metadata.ColumnMeta{
+			Name:            col.Name,
+			Type:            col.DataType,
+			Length:          col.CharMaxLength,
+			IsNullable:      col.IsNullable,
+			IsPrimary:       false, // 需要从索引信息中确定
+			IsUnique:        false, // 需要从索引信息中确定
+			IsAutoIncrement: col.IsAutoIncrement,
+			DefaultValue:    col.DefaultValue,
+			Charset:         col.Charset,
+			Collation:       col.Collation,
+			Comment:         col.Comment,
+		}
+		meta.Columns = append(meta.Columns, colMeta)
+	}
+
+	// 转换索引信息并设置列的主键和唯一性标志
+	for _, index := range table.Indices {
+		indexMeta := metadata.IndexMeta{
+			Name:    index.Name,
+			Columns: index.Columns,
+			Unique:  index.IsUnique,
+		}
+		meta.Indices = append(meta.Indices, indexMeta)
+
+		// 设置列的主键和唯一性标志
+		for _, colName := range index.Columns {
+			for _, colMeta := range meta.Columns {
+				if colMeta.Name == colName {
+					if index.IsPrimary {
+						colMeta.IsPrimary = true
+					}
+					if index.IsUnique {
+						colMeta.IsUnique = true
+					}
+					break
+				}
+			}
+		}
+	}
+
+	// 设置主键
+	if table.PrimaryKey != nil {
+		meta.PrimaryKey = table.PrimaryKey.Columns
+	}
+
+	// 缓存结果
+	im.mu.Lock()
+	im.tableMetaCache[cacheKey] = meta
+	im.mu.Unlock()
+
+	return meta, nil
 }
 
 func (im *InfoSchemaManager) GetTableStats(ctx context.Context, schemaName, tableName string) (*metadata.InfoTableStats, error) {
-	// TODO: 实现获取表统计信息
-	return nil, fmt.Errorf("get table stats not implemented")
+	cacheKey := fmt.Sprintf("%s.%s", schemaName, tableName)
+
+	// 检查缓存
+	im.mu.RLock()
+	if stats, exists := im.tableStatsCache[cacheKey]; exists {
+		im.mu.RUnlock()
+		return stats, nil
+	}
+	im.mu.RUnlock()
+
+	// 获取表定义
+	table, err := im.GetTableByName(ctx, schemaName, tableName)
+	if err != nil {
+		return nil, err
+	}
+
+	// 创建默认统计信息
+	stats := &metadata.InfoTableStats{
+		RowCount:    0,
+		AvgRowSize:  0,
+		DataSize:    0,
+		IndexSize:   0,
+		ColumnStats: make(map[string]metadata.Stats),
+		IndexStats:  make(map[string]metadata.Stats),
+	}
+
+	// 如果有表统计信息，使用实际值
+	if table.Stats != nil {
+		stats.RowCount = uint64(table.Stats.RowCount)
+		stats.DataSize = uint64(table.Stats.DataLength)
+		stats.IndexSize = uint64(table.Stats.IndexLength)
+		if stats.RowCount > 0 {
+			stats.AvgRowSize = uint32(stats.DataSize / stats.RowCount)
+		}
+	}
+
+	// 缓存结果
+	im.mu.Lock()
+	im.tableStatsCache[cacheKey] = stats
+	im.mu.Unlock()
+
+	return stats, nil
 }
 
 func (im *InfoSchemaManager) UpdateTableStats(ctx context.Context, schemaName, tableName string, stats *metadata.InfoTableStats) error {
-	// TODO: 实现更新表统计信息
-	return fmt.Errorf("update table stats not implemented")
+	cacheKey := fmt.Sprintf("%s.%s", schemaName, tableName)
+
+	// 更新缓存
+	im.mu.Lock()
+	im.tableStatsCache[cacheKey] = stats
+	im.mu.Unlock()
+
+	// TODO: 将统计信息持久化到存储层
+
+	return nil
 }
 
 func (im *InfoSchemaManager) DatabaseExists(name string) (bool, error) {
-	// TODO: 实现数据库存在检查
-	return false, fmt.Errorf("database exists check not implemented")
+	// 检查数据库是否存在
+	if name == "INFORMATION_SCHEMA" {
+		return true, nil
+	}
+
+	// 从字典管理器检查
+	if im.dictManager != nil {
+		tables := im.getAllTablesFromDict()
+		for _, table := range tables {
+			if strings.Contains(table.Name, ".") {
+				parts := strings.Split(table.Name, ".")
+				if len(parts) >= 2 && parts[0] == name {
+					return true, nil
+				}
+			}
+		}
+	}
+
+	return false, nil
 }
 
 func (im *InfoSchemaManager) DropDatabase(name string) bool {
-	// TODO: 实现删除数据库
-	return false
+	if name == "INFORMATION_SCHEMA" {
+		return false
+	}
+
+	// 删除数据库下的所有表
+	if im.dictManager != nil {
+		tables := im.getAllTablesFromDict()
+		for _, table := range tables {
+			if strings.Contains(table.Name, ".") {
+				parts := strings.Split(table.Name, ".")
+				if len(parts) >= 2 && parts[0] == name {
+					// 删除表
+					if tableDef := im.dictManager.GetTableByName(table.Name); tableDef != nil {
+						im.dictManager.DropTable(tableDef.TableID)
+					}
+				}
+			}
+		}
+	}
+
+	// 清理缓存
+	im.mu.Lock()
+	delete(im.schemaCache, name)
+	for key := range im.tableMetaCache {
+		if strings.HasPrefix(key, name+".") {
+			delete(im.tableMetaCache, key)
+		}
+	}
+	for key := range im.tableStatsCache {
+		if strings.HasPrefix(key, name+".") {
+			delete(im.tableStatsCache, key)
+		}
+	}
+	im.mu.Unlock()
+
+	return true
+}
+
+// 辅助方法
+
+// getAllTablesFromDict 从字典管理器获取所有表
+func (im *InfoSchemaManager) getAllTablesFromDict() []*metadata.Table {
+	var tables []*metadata.Table
+
+	if im.dictManager != nil {
+		im.dictManager.mu.RLock()
+		for _, tableDef := range im.dictManager.tables {
+			table := im.convertTableDefToMetadataTable(tableDef)
+			tables = append(tables, table)
+		}
+		im.dictManager.mu.RUnlock()
+	}
+
+	return tables
+}
+
+// convertTableDefToMetadataTable 转换TableDef到metadata.Table
+func (im *InfoSchemaManager) convertTableDefToMetadataTable(tableDef *TableDef) *metadata.Table {
+	table := metadata.NewTable(tableDef.Name)
+	table.Engine = "InnoDB"
+	table.Charset = "utf8mb4"
+	table.Collation = "utf8mb4_general_ci"
+	table.RowFormat = "Dynamic"
+
+	// 转换列
+	for _, colDef := range tableDef.Columns {
+		col := &metadata.Column{
+			Name:          colDef.Name,
+			DataType:      im.convertMySQLTypeToDataType(colDef.Type),
+			CharMaxLength: int(colDef.Length),
+			IsNullable:    colDef.Nullable,
+			DefaultValue:  colDef.DefaultValue,
+			Comment:       colDef.Comment,
+		}
+		table.AddColumn(col)
+	}
+
+	// 转换索引
+	for _, indexDef := range tableDef.Indexes {
+		index := &metadata.Index{
+			Name:      indexDef.Name,
+			Columns:   indexDef.Columns,
+			IsUnique:  indexDef.IsUnique,
+			IsPrimary: indexDef.IsPrimary,
+			IndexType: "BTREE",
+			Comment:   indexDef.Comment,
+		}
+		table.AddIndex(index)
+
+		if indexDef.IsPrimary {
+			table.PrimaryKey = index
+		}
+	}
+
+	// 设置统计信息
+	table.Stats = &metadata.TableStatistics{
+		RowCount:      0,
+		DataLength:    16384, // 默认页大小
+		IndexLength:   0,
+		TotalSize:     16384,
+		AutoIncrement: int64(tableDef.AutoIncr),
+		CreateTime:    time.Unix(tableDef.CreateTime, 0).Format("2006-01-02 15:04:05"),
+		UpdateTime:    time.Unix(tableDef.UpdateTime, 0).Format("2006-01-02 15:04:05"),
+	}
+
+	return table
+}
+
+// convertDataTypeToMySQLType 转换DataType到MySQL类型
+func (im *InfoSchemaManager) convertDataTypeToMySQLType(dataType metadata.DataType) uint8 {
+	switch dataType {
+	case metadata.TypeTinyInt:
+		return MYSQL_TYPE_TINY
+	case metadata.TypeSmallInt:
+		return MYSQL_TYPE_SHORT
+	case metadata.TypeInt:
+		return MYSQL_TYPE_LONG
+	case metadata.TypeBigInt:
+		return MYSQL_TYPE_LONGLONG
+	case metadata.TypeFloat:
+		return MYSQL_TYPE_FLOAT
+	case metadata.TypeDouble:
+		return MYSQL_TYPE_DOUBLE
+	case metadata.TypeDecimal:
+		return MYSQL_TYPE_NEWDECIMAL
+	case metadata.TypeDate:
+		return MYSQL_TYPE_DATE
+	case metadata.TypeTime:
+		return MYSQL_TYPE_TIME
+	case metadata.TypeDateTime:
+		return MYSQL_TYPE_DATETIME
+	case metadata.TypeTimestamp:
+		return MYSQL_TYPE_TIMESTAMP
+	case metadata.TypeYear:
+		return MYSQL_TYPE_YEAR
+	case metadata.TypeChar:
+		return MYSQL_TYPE_STRING
+	case metadata.TypeVarchar:
+		return MYSQL_TYPE_VARCHAR
+	case metadata.TypeText:
+		return MYSQL_TYPE_BLOB
+	case metadata.TypeJSON:
+		return MYSQL_TYPE_JSON
+	default:
+		return MYSQL_TYPE_VARCHAR
+	}
+}
+
+// convertMySQLTypeToDataType 转换MySQL类型到DataType
+func (im *InfoSchemaManager) convertMySQLTypeToDataType(mysqlType uint8) metadata.DataType {
+	switch mysqlType {
+	case MYSQL_TYPE_TINY:
+		return metadata.TypeTinyInt
+	case MYSQL_TYPE_SHORT:
+		return metadata.TypeSmallInt
+	case MYSQL_TYPE_LONG:
+		return metadata.TypeInt
+	case MYSQL_TYPE_LONGLONG:
+		return metadata.TypeBigInt
+	case MYSQL_TYPE_FLOAT:
+		return metadata.TypeFloat
+	case MYSQL_TYPE_DOUBLE:
+		return metadata.TypeDouble
+	case MYSQL_TYPE_NEWDECIMAL:
+		return metadata.TypeDecimal
+	case MYSQL_TYPE_DATE:
+		return metadata.TypeDate
+	case MYSQL_TYPE_TIME:
+		return metadata.TypeTime
+	case MYSQL_TYPE_DATETIME:
+		return metadata.TypeDateTime
+	case MYSQL_TYPE_TIMESTAMP:
+		return metadata.TypeTimestamp
+	case MYSQL_TYPE_YEAR:
+		return metadata.TypeYear
+	case MYSQL_TYPE_STRING:
+		return metadata.TypeChar
+	case MYSQL_TYPE_VARCHAR:
+		return metadata.TypeVarchar
+	case MYSQL_TYPE_BLOB: // MYSQL_TYPE_BLOB 和 MYSQL_TYPE_LONGTEXT 都是 252
+		return metadata.TypeText
+	case MYSQL_TYPE_JSON:
+		return metadata.TypeJSON
+	default:
+		return metadata.TypeVarchar
+	}
+}
+
+// convertDefaultValue 转换默认值
+func (im *InfoSchemaManager) convertDefaultValue(value interface{}) []byte {
+	if value == nil {
+		return nil
+	}
+
+	switch v := value.(type) {
+	case string:
+		return []byte(v)
+	case []byte:
+		return v
+	case int, int32, int64:
+		return []byte(fmt.Sprintf("%v", v))
+	case float32, float64:
+		return []byte(fmt.Sprintf("%v", v))
+	default:
+		return []byte(fmt.Sprintf("%v", v))
+	}
 }
 
 // InfoSchemaTable INFORMATION_SCHEMA表定义
@@ -188,10 +829,13 @@ type InfoSchemaGenerator interface {
 // NewInfoSchemaManager 创建INFORMATION_SCHEMA管理器
 func NewInfoSchemaManager(dictManager *DictionaryManager, spaceManager basic.SpaceManager, indexManager *IndexManager) *InfoSchemaManager {
 	return &InfoSchemaManager{
-		tables:       make(map[string]*InfoSchemaTable),
-		dictManager:  dictManager,
-		spaceManager: spaceManager,
-		indexManager: indexManager,
+		tables:          make(map[string]*InfoSchemaTable),
+		dictManager:     dictManager,
+		spaceManager:    spaceManager,
+		indexManager:    indexManager,
+		schemaCache:     make(map[string]metadata.Schema),
+		tableMetaCache:  make(map[string]*metadata.TableMeta),
+		tableStatsCache: make(map[string]*metadata.InfoTableStats),
 	}
 }
 
