@@ -93,7 +93,7 @@ func (aggr *Aggregation) InitEvalCtx(x []Value) *AggEvaluateContext {
 	}
 }
 
-// FixField used to fix querypb.Field lenght and decimal.
+// FixField used to fix querypb.Field length and decimal.
 func (aggr *Aggregation) FixField(field *querypb.Field) {
 	if !aggr.isPushDown || aggr.aggrTyp == AggrTypeAvg {
 		switch aggr.aggrTyp {

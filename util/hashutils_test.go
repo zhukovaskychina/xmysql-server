@@ -1,25 +1,19 @@
 package util
 
-import (
-	"fmt"
-	"testing"
-)
-import (
-	"github.com/piex/transcode"
-)
+import "testing"
 
-func TestHash(t *testing.T) {
-	fmt.Println(HashCode([]byte("788788")))
-
-	a := ConvertInt4Bytes(2)
-	b := ConvertInt4Bytes(1)
-	fmt.Println(0 < 1)
-	fmt.Println(HashCode(a) < HashCode(b))
+func TestHashConsistency(t *testing.T) {
+	data := []byte("788788")
+	if HashCode(data) != HashCode(data) {
+		t.Errorf("hash should be deterministic")
+	}
 }
 
-func TestCode(t *testing.T) {
-	gbkString := "1"
-	s := transcode.FromString(gbkString).Decode("GBK").ToString()
-	transcode.FromByteArray(nil).Decode("")
-	fmt.Println(s)
+func TestConvertInt4BytesRoundTrip(t *testing.T) {
+	val := int32(2)
+	buf := ConvertInt4Bytes(val)
+	got := ReadUB4Byte2UInt32(buf)
+	if uint32(val) != got {
+		t.Fatalf("expected %d, got %d", val, got)
+	}
 }
