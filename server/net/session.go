@@ -252,7 +252,7 @@ func (s *session) SetWriter(writer Writer) {
 	s.writer = writer
 }
 
-// period is in millisecond. Websocket session will send ping frame automatically every peroid.
+// period is in millisecond. Websocket session will send ping frame automatically every period.
 func (s *session) SetCronPeriod(period int) {
 	if period < 1 {
 		panic("@period < 1")

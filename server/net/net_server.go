@@ -164,7 +164,7 @@ func (s *serverimpl) accept(newSession NewSessionCallback) (Session, error) {
 		return nil, jerrors.Trace(err)
 	}
 	if gxnet.IsSameAddr(conn.RemoteAddr(), conn.LocalAddr()) {
-		log.Warn("conn.localAddr{%s} == conn.RemoteAddr", conn.LocalAddr().String(), conn.RemoteAddr().String())
+		log.Warn("conn.localAddr{%s} == conn.RemoteAddr{%s}", conn.LocalAddr().String(), conn.RemoteAddr().String())
 		return nil, jerrors.Trace(errSelfConnect)
 	}
 

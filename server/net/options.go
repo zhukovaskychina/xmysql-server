@@ -88,7 +88,7 @@ func WithServerSslEnabled(sslEnabled bool) ServerOption {
 	}
 }
 
-// @WithServerKeyCertChainPath sslConfig is tls config
+// WithServerTlsConfigBuilder sets the TLS configuration builder
 func WithServerTlsConfigBuilder(tlsConfigBuilder TlsConfigBuilder) ServerOption {
 	return func(o *ServerOptions) {
 		o.tlsConfigBuilder = tlsConfigBuilder
@@ -164,7 +164,7 @@ func WithClientSslEnabled(sslEnabled bool) ClientOption {
 	}
 }
 
-// @WithClientKeyCertChainPath sslConfig is tls config
+// WithClientTlsConfigBuilder sets the TLS configuration builder for the client
 func WithClientTlsConfigBuilder(tlsConfigBuilder TlsConfigBuilder) ClientOption {
 	return func(o *ClientOptions) {
 		o.tlsConfigBuilder = tlsConfigBuilder
