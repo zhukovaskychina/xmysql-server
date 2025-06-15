@@ -2,6 +2,7 @@ package manager
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"sync"
@@ -246,7 +247,7 @@ func (bpm *BufferPoolManager) backgroundFlush() {
 	for _, page := range dirtyPages {
 		if err := bpm.FlushPage(page.GetSpaceID(), page.GetPageNo()); err != nil {
 			// Log error but continue with other pages
-			fmt.Printf("Error flushing page %d: %v\n", page.GetPageNo(), err)
+			logger.Debugf("Error flushing page %d: %v", page.GetPageNo(), err)
 		}
 	}
 }

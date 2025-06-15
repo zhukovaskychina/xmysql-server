@@ -102,6 +102,40 @@ func (pm *DefaultPageManager) CreatePage(typ common.PageType) (basic.IPage, erro
 	return p, nil
 }
 
+// CreatePageWithData 创建带有初始数据的新页面
+func (pm *DefaultPageManager) CreatePageWithData(data []byte) (basic.IPage, error) {
+	pm.Lock()
+	defer pm.Unlock()
+
+	// 获取空闲页面
+	block, err := pm.bufferPool.GetPageBlock(0, 0) // 使用GetPageBlock获取新页面
+	if err != nil || block == nil {
+		return nil, ErrNoFreePages
+	}
+
+	// 创建页面
+	p := newPage(basic.PageTypeAllocated, block.GetPageNo())
+	if err := p.Init(); err != nil {
+		return nil, err
+	}
+
+	// 设置页面数据
+	if err := p.SetData(data); err != nil {
+		return nil, err
+	}
+
+	// 更新缓冲块
+	copy(block.GetContent(), p.GetData())
+	pm.bufferPool.UpdateBlock(0, block.GetPageNo(), block) // 更新块状态
+
+	// 加入缓存
+	if err := pm.cache.Put(p); err != nil {
+		return nil, err
+	}
+
+	return p, nil
+}
+
 // GetPage 获取页面
 func (pm *DefaultPageManager) GetPage(spaceID, pageNo uint32) (basic.IPage, error) {
 	pm.RLock()

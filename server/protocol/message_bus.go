@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"sync"
 	"time"
 )
@@ -172,7 +173,7 @@ func (bus *AsyncMessageBus) processMessage(msg Message) {
 			_, err := handler.HandleMessage(msg)
 			if err != nil {
 				// 记录错误日志
-				fmt.Printf("Error processing message: %v\n", err)
+				logger.Debugf("Error processing message: %v\n", err)
 			}
 		}
 	}

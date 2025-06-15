@@ -558,11 +558,19 @@ create_statement:
   }
 | CREATE DATABASE not_exists_opt ID ddl_force_eof
   {
-    $$ = &DBDDL{Action: CreateStr, DBName: string($4)}
+    ifNotExists := false
+    if $3 != nil {
+      ifNotExists = true
+    }
+    $$ = &DBDDL{Action: CreateStr, DBName: string($4), IfExists: ifNotExists}
   }
 | CREATE SCHEMA not_exists_opt ID ddl_force_eof
   {
-    $$ = &DBDDL{Action: CreateStr, DBName: string($4)}
+    ifNotExists := false
+    if $3 != nil {
+      ifNotExists = true
+    }
+    $$ = &DBDDL{Action: CreateStr, DBName: string($4), IfExists: ifNotExists}
   }
 
 vindex_type_opt:
@@ -2825,7 +2833,7 @@ exists_opt:
   { $$ = 1 }
 
 not_exists_opt:
-  { $$ = struct{}{} }
+  { $$ = nil }
 | IF NOT EXISTS
   { $$ = struct{}{} }
 

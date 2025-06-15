@@ -92,7 +92,7 @@ All errors are defined in the `errors` package. Common errors include:
 Run the tests with:
 
 ```bash
-go test -v ./...
+go test_simple_protocol -v ./...
 ```
 
 ## Future Improvements

@@ -37,7 +37,7 @@ func TestAppend(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	fmt.Println(reflect.TypeOf(tree))
+	util.Debug(reflect.TypeOf(tree))
 	var b bytes.Buffer
 	Append(&b, tree)
 	got := b.String()
@@ -58,7 +58,7 @@ func TestSelect(t *testing.T) {
 	tree, err := Parse(" from t where a = (1+2) and b=sin(30) and cc=aa")
 	if err != nil {
 		t.Error(err)
-		fmt.Println(common.NewErr(common.ErrSyntax, err.Error(), sql))
+		util.Debug(common.NewErr(common.ErrSyntax, err.Error(), sql))
 		return
 	}
 	expr := tree.(*Select).Where.Expr

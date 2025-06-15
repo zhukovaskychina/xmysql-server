@@ -18,14 +18,24 @@ func EncodeOKPacket(info []byte, affectedRows, lastInsertId uint64, warnings []b
 	// 最后插入的ID (length-encoded integer)
 	payload = appendLengthEncodedInt(payload, lastInsertId)
 
-	// 服务器状态标志
-	payload = append(payload, 0x02, 0x00) // SERVER_STATUS_AUTOCOMMIT
+	// 服务器状态标志 (2字节，小端序)
+	// SERVER_STATUS_AUTOCOMMIT = 0x0002
+	payload = append(payload, 0x02, 0x00)
 
-	// 警告数量
-	payload = append(payload, 0x00, 0x00)
+	// 警告数量 (2字节，小端序)
+	warningCount := uint16(0)
+	if warnings != nil && len(warnings) > 0 {
+		warningCount = uint16(len(warnings))
+	}
+	payload = append(payload, byte(warningCount), byte(warningCount>>8))
 
-	// 添加包头
-	return addPacketHeader(payload, 0)
+	// 可选的info字符串
+	if info != nil && len(info) > 0 {
+		payload = append(payload, info...)
+	}
+
+	// 添加包头，序列号为1（响应客户端的查询）
+	return addPacketHeader(payload, 1)
 }
 
 // EncodeErrorPacket 编码错误包
@@ -112,6 +122,16 @@ func EncodeEOFPacket(warnings, statusFlags uint16) []byte {
 	binary.LittleEndian.PutUint16(payload[3:5], statusFlags)
 
 	return addPacketHeader(payload, 0)
+}
+
+// EncodeEOFPacketWithSeq 编码EOF包（带序列号）
+func EncodeEOFPacketWithSeq(warnings, statusFlags uint16, sequenceId byte) []byte {
+	payload := make([]byte, 5)
+	payload[0] = 0xFE // EOF标识符
+	binary.LittleEndian.PutUint16(payload[1:3], warnings)
+	binary.LittleEndian.PutUint16(payload[3:5], statusFlags)
+
+	return addPacketHeader(payload, sequenceId)
 }
 
 // addPacketHeader 添加MySQL包头

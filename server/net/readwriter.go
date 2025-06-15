@@ -20,9 +20,7 @@ import (
 	"bytes"
 	"errors"
 	"time"
-)
 
-import (
 	log "github.com/AlexStocks/log4go"
 )
 
@@ -35,23 +33,34 @@ func NewMySQLEchoPkgHandler() *MySQLEchoPkgHandler {
 
 func (h *MySQLEchoPkgHandler) Read(ss Session, data []byte) (interface{}, int, error) {
 	var (
-		err error
-		len int
-		pkg MySQLPackage
-		buf *bytes.Buffer
+		err       error
+		packetLen int
+		pkg       MySQLPackage
+		buf       *bytes.Buffer
 	)
 
+	log.Info("[MySQLEchoPkgHandler.Read] 收到原始数据，长度: %d, 内容: %v", len(data), data)
+
 	buf = bytes.NewBuffer(data)
-	len, err = pkg.Unmarshal(buf)
+	packetLen, err = pkg.Unmarshal(buf)
 	if err != nil {
 		if err == ErrNotEnoughStream {
+			log.Info("[MySQLEchoPkgHandler.Read] 数据流不足，等待更多数据")
 			return nil, 0, nil
 		}
 
+		log.Error("[MySQLEchoPkgHandler.Read] 解析包失败: %v", err)
 		return nil, 0, err
 	}
 
-	return &pkg, len, nil
+	log.Info("[MySQLEchoPkgHandler.Read] 包解析成功:")
+	log.Info("   - 包长度: %v", pkg.Header.PacketLength)
+	log.Info("   - 包序号: %d", pkg.Header.PacketId)
+	log.Info("   - 包体长度: %d", len(pkg.Body))
+	log.Info("   - 包体内容: %v", pkg.Body)
+	log.Info("   - 返回解析长度: %d", packetLen)
+
+	return &pkg, packetLen, nil
 }
 
 func (h *MySQLEchoPkgHandler) Write(ss Session, pkg interface{}) ([]byte, error) {
@@ -65,7 +74,7 @@ func (h *MySQLEchoPkgHandler) Write(ss Session, pkg interface{}) ([]byte, error)
 
 	startTime = time.Now()
 	if echoPkg, ok = pkg.(*MySQLPackage); !ok {
-		log.Error("illegal pkg:%+v\n", pkg)
+		log.Error("illegal pkg:%+v", pkg)
 		return nil, errors.New("invalid echo package!")
 	}
 

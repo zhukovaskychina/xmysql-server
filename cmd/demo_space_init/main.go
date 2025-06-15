@@ -35,7 +35,7 @@ func main() {
 	// 第一次创建 StorageManager
 	sm1 := manager.NewStorageManager(cfg)
 	if sm1 == nil {
-		fmt.Println("❌ 第一次 StorageManager 初始化失败")
+		fmt.Println(" 第一次 StorageManager 初始化失败")
 		return
 	}
 
@@ -49,9 +49,9 @@ func main() {
 	for _, tableName := range testSpaces {
 		spaceID, err := spaceManager.CreateTableSpace(tableName)
 		if err != nil {
-			fmt.Printf("❌ 创建表空间 %s 失败: %v\n", tableName, err)
+			util.Debugf(" 创建表空间 %s 失败: %v\n", tableName, err)
 		} else {
-			fmt.Printf("✅ 创建表空间: %s (Space ID: %d)\n", tableName, spaceID)
+			util.Debugf(" 创建表空间: %s (Space ID: %d)\n", tableName, spaceID)
 			createdSpaceIDs = append(createdSpaceIDs, spaceID)
 		}
 	}
@@ -66,7 +66,7 @@ func main() {
 	// 第二次创建 StorageManager（应该加载现有文件）
 	sm2 := manager.NewStorageManager(cfg)
 	if sm2 == nil {
-		fmt.Println("❌ 第二次 StorageManager 初始化失败")
+		fmt.Println(" 第二次 StorageManager 初始化失败")
 		return
 	}
 
@@ -77,33 +77,33 @@ func main() {
 	for i, tableName := range testSpaces {
 		space, err := spaceManager2.GetTableSpaceByName(tableName)
 		if err != nil {
-			fmt.Printf("❌ 表空间 %s 未找到: %v\n", tableName, err)
+			util.Debugf(" 表空间 %s 未找到: %v\n", tableName, err)
 		} else {
-			fmt.Printf("✅ 表空间 %s 已加载 (Space ID: %d)\n", tableName, space.GetSpaceId())
+			util.Debugf(" 表空间 %s 已加载 (Space ID: %d)\n", tableName, space.GetSpaceId())
 		}
 
 		// 验证文件是否存在
 		filePath := filepath.Join(testDir, tableName+".ibd")
 		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			fmt.Printf("❌ 文件不存在: %s\n", filePath)
+			util.Debugf(" 文件不存在: %s\n", filePath)
 		} else {
-			fmt.Printf("✅ 文件存在: %s\n", filePath)
+			util.Debugf(" 文件存在: %s\n", filePath)
 		}
 
 		// 尝试再次创建同名表空间（应该失败）
 		_, err = spaceManager2.CreateTableSpace(tableName)
 		if err != nil {
-			fmt.Printf("✅ 正确阻止重复创建: %s (%v)\n", tableName, err)
+			util.Debugf(" 正确阻止重复创建: %s (%v)\n", tableName, err)
 		} else {
-			fmt.Printf("❌ 应该阻止重复创建但没有: %s\n", tableName)
+			util.Debugf(" 应该阻止重复创建但没有: %s\n", tableName)
 		}
 
 		if i < len(createdSpaceIDs) && space != nil {
 			// 验证Space ID是否一致
 			if space.GetSpaceId() == createdSpaceIDs[i] {
-				fmt.Printf("✅ Space ID 一致: %d\n", space.GetSpaceId())
+				util.Debugf(" Space ID 一致: %d\n", space.GetSpaceId())
 			} else {
-				fmt.Printf("❌ Space ID 不一致: 期望 %d, 实际 %d\n", createdSpaceIDs[i], space.GetSpaceId())
+				util.Debugf(" Space ID 不一致: 期望 %d, 实际 %d\n", createdSpaceIDs[i], space.GetSpaceId())
 			}
 		}
 		fmt.Println()
@@ -114,7 +114,7 @@ func main() {
 	sm2.Close()
 
 	fmt.Println("\n=== 测试完成 ===")
-	fmt.Println("✅ SpaceManager 优化功能测试成功！")
+	fmt.Println(" SpaceManager 优化功能测试成功！")
 	fmt.Println("   - 新文件创建正常")
 	fmt.Println("   - 现有文件加载正常")
 	fmt.Println("   - 重复创建检查正常")

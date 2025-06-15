@@ -3,9 +3,11 @@ package manager
 import (
 	"context"
 	"fmt"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"sync"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 // IndexManager 管理表的索引
@@ -18,11 +20,11 @@ type IndexManager struct {
 	// 段管理器
 	segmentManager *SegmentManager
 
-	// B+树管理器
-	btreeManager *DefaultBPlusTreeManager
+	// B+树管理器 - 使用接口类型以支持增强版
+	btreeManager basic.BPlusTreeManager
 
 	// 缓冲池管理器
-	bufferPoolManager *BufferPoolManager
+	bufferPoolManager *OptimizedBufferPoolManager
 
 	// 索引统计信息
 	stats *IndexManagerStats
@@ -106,7 +108,7 @@ type IndexManagerConfig struct {
 }
 
 // NewIndexManager 创建索引管理器
-func NewIndexManager(segmentManager *SegmentManager, bufferPoolManager *BufferPoolManager, config *IndexManagerConfig) *IndexManager {
+func NewIndexManager(segmentManager *SegmentManager, bufferPoolManager *OptimizedBufferPoolManager, config *IndexManagerConfig) *IndexManager {
 	if config == nil {
 		config = &IndexManagerConfig{
 			MaxIndexes:       10000,
@@ -125,8 +127,56 @@ func NewIndexManager(segmentManager *SegmentManager, bufferPoolManager *BufferPo
 		stats:             &IndexManagerStats{},
 	}
 
-	// 创建B+树管理器
-	im.btreeManager = NewBPlusTreeManager(bufferPoolManager, nil)
+	// 暂时使用传统的B+树管理器，等待重构
+	// TODO: 需要重构以正确传递 StorageManager
+	im.btreeManager = NewBPlusTreeManager(bufferPoolManager, &BPlusTreeConfig{
+		MaxCacheSize:   config.CacheSize,
+		DirtyThreshold: 0.7,
+		EvictionPolicy: "LRU",
+	})
+
+	return im
+}
+
+// NewIndexManagerWithStorage 创建带存储管理器的索引管理器
+func NewIndexManagerWithStorage(segmentManager *SegmentManager, bufferPoolManager *OptimizedBufferPoolManager, storageManager *StorageManager, config *IndexManagerConfig) *IndexManager {
+	if config == nil {
+		config = &IndexManagerConfig{
+			MaxIndexes:       10000,
+			CacheSize:        1000,
+			FlushInterval:    time.Second * 30,
+			StatsInterval:    time.Minute * 5,
+			EnableStatistics: true,
+		}
+	}
+
+	im := &IndexManager{
+		indexes:           make(map[uint64]*Index),
+		segmentManager:    segmentManager,
+		bufferPoolManager: bufferPoolManager,
+		config:            config,
+		stats:             &IndexManagerStats{},
+	}
+
+	// 创建增强版B+树管理器适配器
+	btreeConfig := &BTreeConfig{
+		MaxCacheSize:   config.CacheSize,
+		CachePolicy:    "LRU",
+		PrefetchSize:   4,
+		PageSize:       16384,
+		FillFactor:     0.8,
+		MinFillFactor:  0.4,
+		SplitThreshold: 0.9,
+		MergeThreshold: 0.3,
+		AsyncIO:        true,
+		EnableStats:    config.EnableStatistics,
+		StatsInterval:  config.StatsInterval,
+		EnableLogging:  true,
+		LogLevel:       "INFO",
+	}
+
+	// 使用增强版B+树管理器适配器
+	im.btreeManager = NewEnhancedBTreeAdapter(storageManager, btreeConfig)
 
 	return im
 }
@@ -382,7 +432,7 @@ func (im *IndexManager) DropIndex(indexID uint64) error {
 	for pageNo := uint32(0); pageNo < idx.PageCount; pageNo++ {
 		if err := im.segmentManager.FreePage(idx.SegmentID, pageNo); err != nil {
 			// 记录错误但继续处理
-			fmt.Printf("Warning: failed to free page %d in segment %d: %v\n", pageNo, idx.SegmentID, err)
+			logger.Debugf("Warning: failed to free page %d in segment %d: %v", pageNo, idx.SegmentID, err)
 		}
 	}
 

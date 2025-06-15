@@ -133,7 +133,7 @@ func TestAuthServiceWithPasswordValidator(t *testing.T) {
 
 	// 测试挑战生成
 	t.Run("TestChallengeGeneration", func(t *testing.T) {
-		sessionID := "test-session-123"
+		sessionID := "test_simple_protocol-session-123"
 		challenge, err := authService.GenerateChallenge(sessionID)
 		if err != nil {
 			t.Errorf("Failed to generate challenge: %v", err)
@@ -158,7 +158,7 @@ func TestAuthServiceWithPasswordValidator(t *testing.T) {
 
 	// 测试认证流程
 	t.Run("TestAuthenticationFlow", func(t *testing.T) {
-		sessionID := "test-session-456"
+		sessionID := "test_simple_protocol-session-456"
 		user := "root"
 		host := "localhost"
 		password := ""

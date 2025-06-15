@@ -66,7 +66,7 @@ func TestToJSONString(t *testing.T) {
 	}{
 		{
 			in:  &input{A: "a>1", B: 1},
-			out: "{\n\t\"A\": \"a>1\",\n\t\"B\": 1\n}",
+			out: "{\t\"A\": \"a>1\",\t\"B\": 1}",
 		},
 	}
 

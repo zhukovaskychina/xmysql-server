@@ -21,28 +21,31 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/zhukovaskychina/xmysql-server/server"
-	"github.com/zhukovaskychina/xmysql-server/server/protocol"
 	"io"
 	"net"
 	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
-)
 
-import (
+	"github.com/zhukovaskychina/xmysql-server/logger"
+	"github.com/zhukovaskychina/xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server/protocol"
+
 	gxbytes "github.com/dubbogo/gost/bytes"
+
 	jerrors "github.com/juju/errors"
 
 	log "github.com/AlexStocks/log4go"
-	"github.com/dubbogo/gost/context"
+
+	gxcontext "github.com/dubbogo/gost/context"
+
 	gxtime "github.com/dubbogo/gost/time"
 )
 
 const (
 	maxReadBufLen    = 4 * 1024
-	netIOTimeout     = 1e9      // 1s
+	netIOTimeout     = 30e9     // 30s (原来是1s，太短了)
 	period           = 60 * 1e9 // 1 minute
 	pendingDuration  = 3e9
 	defaultQLen      = 1024
@@ -343,7 +346,7 @@ func (s *session) WritePkg(pkg interface{}, timeout time.Duration) error {
 			const size = 64 << 10
 			rBuf := make([]byte, size)
 			rBuf = rBuf[:runtime.Stack(rBuf, false)]
-			log.Error("[session.WritePkg] panic session %s: err=%s\n%s", s.sessionToken(), r, rBuf)
+			log.Error("[session.WritePkg] panic session %s: err=%s%s", s.sessionToken(), r, rBuf)
 		}
 	}()
 
@@ -491,7 +494,7 @@ func (s *session) handleLoop() {
 			const size = 64 << 10
 			rBuf := make([]byte, size)
 			rBuf = rBuf[:runtime.Stack(rBuf, false)]
-			log.Error("[session.handleLoop] panic session %s: err=%s\n%s", s.sessionToken(), r, rBuf)
+			log.Error("[session.handleLoop] panic session %s: err=%s%s", s.sessionToken(), r, rBuf)
 		}
 
 		grNum := atomic.AddInt32(&(s.grNum), -1)
@@ -613,7 +616,7 @@ func (s *session) handlePackage() {
 			const size = 64 << 10
 			rBuf := make([]byte, size)
 			rBuf = rBuf[:runtime.Stack(rBuf, false)]
-			log.Error("[session.handlePackage] panic session %s: err=%s\n%s", s.sessionToken(), r, rBuf)
+			log.Error("[session.handlePackage] panic session %s: err=%s%s", s.sessionToken(), r, rBuf)
 		}
 
 		close(s.rDone)
@@ -657,11 +660,9 @@ func (s *session) handleTCPPackage() error {
 		pkg      interface{}
 	)
 
-	// buf = make([]byte, maxReadBufLen)
 	bufp = gxbytes.GetBytes(maxReadBufLen)
 	buf = *bufp
 
-	// pktBuf = new(bytes.Buffer)
 	pktBuf = gxbytes.GetBytesBuffer()
 
 	defer func() {
@@ -704,11 +705,17 @@ func (s *session) handleTCPPackage() error {
 		if 0 == bufLen {
 			continue // just continue if session can not read no more stream bytes.
 		}
+
+		logger.Printf("[session.handleTCPPackage] 收到数据，长度: %d, 内容: %v\n", bufLen, buf[:bufLen])
+
 		pktBuf.Write(buf[:bufLen])
 		for {
 			if pktBuf.Len() <= 0 {
 				break
 			}
+
+			logger.Debugf("[session.handleTCPPackage] 尝试解析包，缓冲区长度: %d\n", pktBuf.Len())
+
 			pkg, pkgLen, err = s.reader.Read(s, pktBuf.Bytes())
 			// for case 3/case 4
 			if err == nil && s.maxMsgLen > 0 && pkgLen > int(s.maxMsgLen) {
@@ -723,9 +730,11 @@ func (s *session) handleTCPPackage() error {
 			}
 			// handle case 2/case 3
 			if pkg == nil {
+				logger.Debugf("[session.handleTCPPackage] 解析返回nil包，等待更多数据\n")
 				break
 			}
 			// handle case 4
+			logger.Debugf("[session.handleTCPPackage] 包解析成功，长度: %d，调用addTask\n", pkgLen)
 			s.UpdateActive()
 			s.addTask(pkg)
 			pktBuf.Next(pkgLen)
@@ -740,11 +749,15 @@ func (s *session) handleTCPPackage() error {
 }
 
 func (s *session) stop() {
+	logger.Debugf("[session.stop] Session即将停止: %s\n", s.sessionToken())
+
 	select {
 	case <-s.done: // s.done is a blocked channel. if it has not been closed, the default branch will be invoked.
+		logger.Debugf("[session.stop] Session已经停止: %s\n", s.sessionToken())
 		return
 
 	default:
+		logger.Debugf("[session.stop] 执行停止操作: %s\n", s.sessionToken())
 		s.once.Do(func() {
 			// let read/Write timeout asap
 			now := time.Now()
@@ -789,6 +802,7 @@ func (s *session) gc() {
 // Close will be invoked by NewSessionCallback(if return error is not nil)
 // or (session)handleLoop automatically. It's thread safe.
 func (s *session) Close() {
+	logger.Debugf("[session.Close] 关闭Session: %s\n", s.sessionToken())
 	s.stop()
 	log.Info("%s closed now. its current gr num is %d",
 		s.sessionToken(), atomic.LoadInt32(&(s.grNum)))

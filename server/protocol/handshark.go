@@ -1,7 +1,7 @@
 package protocol
 
 import (
-	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
@@ -56,7 +56,7 @@ func DecodeHandshake(buff []byte) HandsharkProtocol {
 	cursor, tmp = util.ReadWithNull(buff, cursor)
 	hs.Auth_plugin_name = string(tmp)
 
-	fmt.Printf("DecodeHanshark: %+v\n", hs)
+	logger.Debugf("DecodeHanshark: %+v\n", hs)
 
 	return *hs
 }

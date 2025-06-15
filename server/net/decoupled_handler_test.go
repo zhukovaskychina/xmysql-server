@@ -87,7 +87,7 @@ func TestDecoupledMySQLMessageHandler(t *testing.T) {
 	handler := NewDecoupledMySQLMessageHandler(config)
 
 	// 创建模拟会话
-	session := NewMockSession("test-session-1")
+	session := NewMockSession("test_simple_protocol-session-1")
 
 	// 测试连接打开
 	err := handler.OnOpen(session)
@@ -131,9 +131,9 @@ func TestMessageBusIntegration(t *testing.T) {
 
 	// 创建测试消息
 	testMsg := &protocol.QueryMessage{
-		BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_REQUEST, "test-session", "SELECT 1"),
+		BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_REQUEST, "test_simple_protocol-session", "SELECT 1"),
 		SQL:         "SELECT 1",
-		Database:    "test",
+		Database:    "test_simple_protocol",
 	}
 
 	// 测试消息总线是否能正确处理消息
@@ -167,7 +167,7 @@ func TestProtocolParserIntegration(t *testing.T) {
 	// 测试查询包解析
 	queryPacket := []byte{0x03, 'S', 'E', 'L', 'E', 'C', 'T', ' ', '1'}
 
-	message, err := handler.protocolParser.ParsePacket(queryPacket, "test-session")
+	message, err := handler.protocolParser.ParsePacket(queryPacket, "test_simple_protocol-session")
 	if err != nil {
 		t.Fatalf("Failed to parse query packet: %v", err)
 	}
@@ -205,7 +205,7 @@ func TestProtocolEncoderIntegration(t *testing.T) {
 	}
 
 	responseMsg := &protocol.ResponseMessage{
-		BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_RESPONSE, "test-session", result),
+		BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_RESPONSE, "test_simple_protocol-session", result),
 		Result:      result,
 	}
 
@@ -230,7 +230,7 @@ func BenchmarkDecoupledHandler(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		message, err := handler.protocolParser.ParsePacket(queryPacket, "test-session")
+		message, err := handler.protocolParser.ParsePacket(queryPacket, "test_simple_protocol-session")
 		if err != nil {
 			b.Fatalf("Parse failed: %v", err)
 		}

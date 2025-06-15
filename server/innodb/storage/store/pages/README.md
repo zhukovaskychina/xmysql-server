@@ -229,19 +229,19 @@ decryptedData, err := encryptedPage.DecryptData(key)
 
 | 页面类型 | 编码 | 实现文件 | 状态 |
 |---------|------|----------|------|
-| FIL_PAGE_INDEX | 0x0000 | cluster_index_page.go | ✅ 完整 |
-| FIL_PAGE_UNDO_LOG | 0x0002 | undo_log_page.go | ✅ 完整 |
-| FIL_PAGE_INODE | 0x0003 | inode_page.go | ✅ 完整 |
-| FIL_PAGE_IBUF_FREE_LIST | 0x0004 | ibuf_free_list_page.go | ✅ 新增 |
-| FIL_PAGE_IBUF_BITMAP | 0x0005 | ibuf_bitmap_page.go | ✅ 完整 |
-| FIL_PAGE_TYPE_SYS | 0x0006 | file_page_type_sys_page.go | ✅ 完善 |
-| FIL_PAGE_TYPE_TRX_SYS | 0x0007 | sys_trx_sys_page.go | ✅ 完整 |
-| FIL_PAGE_TYPE_FSP_HDR | 0x0008 | fsp_hrd_page.go | ✅ 完整 |
-| FIL_PAGE_TYPE_XDES | 0x0009 | xdes_page.go | ✅ 完整 |
-| FIL_PAGE_TYPE_BLOB | 0x000A | blob_page.go | ✅ 新增 |
-| FIL_PAGE_TYPE_COMPRESSED | 0x000B | compressed_page.go | ✅ 新增 |
-| FIL_PAGE_TYPE_ENCRYPTED | 0x000C | encrypted_page.go | ✅ 新增 |
-| FIL_PAGE_TYPE_ALLOCATED | 0x000F | allocated_page.go | ✅ 完整 |
+| FIL_PAGE_INDEX | 0x0000 | cluster_index_page.go |  完整 |
+| FIL_PAGE_UNDO_LOG | 0x0002 | undo_log_page.go |  完整 |
+| FIL_PAGE_INODE | 0x0003 | inode_page.go |  完整 |
+| FIL_PAGE_IBUF_FREE_LIST | 0x0004 | ibuf_free_list_page.go |  新增 |
+| FIL_PAGE_IBUF_BITMAP | 0x0005 | ibuf_bitmap_page.go |  完整 |
+| FIL_PAGE_TYPE_SYS | 0x0006 | file_page_type_sys_page.go |  完善 |
+| FIL_PAGE_TYPE_TRX_SYS | 0x0007 | sys_trx_sys_page.go |  完整 |
+| FIL_PAGE_TYPE_FSP_HDR | 0x0008 | fsp_hrd_page.go |  完整 |
+| FIL_PAGE_TYPE_XDES | 0x0009 | xdes_page.go |  完整 |
+| FIL_PAGE_TYPE_BLOB | 0x000A | blob_page.go |  新增 |
+| FIL_PAGE_TYPE_COMPRESSED | 0x000B | compressed_page.go |  新增 |
+| FIL_PAGE_TYPE_ENCRYPTED | 0x000C | encrypted_page.go |  新增 |
+| FIL_PAGE_TYPE_ALLOCATED | 0x000F | allocated_page.go |  完整 |
 
 ## 注意事项
 
@@ -256,13 +256,13 @@ decryptedData, err := encryptedPage.DecryptData(key)
 ## 更新日志
 
 ### 最新更新
-- ✅ 新增 BLOB页面实现 (`blob_page.go`)
-- ✅ 新增 压缩页面实现 (`compressed_page.go`)
-- ✅ 新增 加密页面实现 (`encrypted_page.go`)
-- ✅ 新增 插入缓冲空闲列表页面实现 (`ibuf_free_list_page.go`)
-- ✅ 完善 系统页面实现 (`file_page_type_sys_page.go`)
+-  新增 BLOB页面实现 (`blob_page.go`)
+-  新增 压缩页面实现 (`compressed_page.go`)
+-  新增 加密页面实现 (`encrypted_page.go`)
+-  新增 插入缓冲空闲列表页面实现 (`ibuf_free_list_page.go`)
+-  完善 系统页面实现 (`file_page_type_sys_page.go`)
 - 🗑️ 删除重复页面：`ibuf_buffer_sys_page.go`, `ibuf_root_page.go`, `first_roll_seg_page.go`
-- 📝 更新文档，包含所有页面类型的详细说明
+-  更新文档，包含所有页面类型的详细说明
 
 ### 技术特性
 - 支持多种压缩算法（ZLIB、LZ4、Snappy）

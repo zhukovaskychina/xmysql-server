@@ -4,7 +4,7 @@ import (
 	_ "github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 	"github.com/zhukovaskychina/xmysql-server/util"
-	
+	"strings"
 )
 
 const (

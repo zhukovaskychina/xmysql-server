@@ -125,13 +125,13 @@ func TestSplitComments(t *testing.T) {
 		gotLeadingComments, gotTrailingComments := gotComments.Leading, gotComments.Trailing
 
 		if gotSQL != testCase.outSQL {
-			t.Errorf("test input: '%s', got SQL\n%+v, want\n%+v", testCase.input, gotSQL, testCase.outSQL)
+			t.Errorf("test_simple_protocol input: '%s', got SQL%+v, want%+v", testCase.input, gotSQL, testCase.outSQL)
 		}
 		if gotLeadingComments != testCase.outLeadingComments {
-			t.Errorf("test input: '%s', got LeadingComments\n%+v, want\n%+v", testCase.input, gotLeadingComments, testCase.outLeadingComments)
+			t.Errorf("test_simple_protocol input: '%s', got LeadingComments%+v, want%+v", testCase.input, gotLeadingComments, testCase.outLeadingComments)
 		}
 		if gotTrailingComments != testCase.outTrailingComments {
-			t.Errorf("test input: '%s', got TrailingComments\n%+v, want\n%+v", testCase.input, gotTrailingComments, testCase.outTrailingComments)
+			t.Errorf("test_simple_protocol input: '%s', got TrailingComments%+v, want%+v", testCase.input, gotTrailingComments, testCase.outTrailingComments)
 		}
 	}
 }
@@ -207,7 +207,7 @@ a`,
 		gotSQL := StripLeadingComments(testCase.input)
 
 		if gotSQL != testCase.outSQL {
-			t.Errorf("test input: '%s', got SQL\n%+v, want\n%+v", testCase.input, gotSQL, testCase.outSQL)
+			t.Errorf("test_simple_protocol input: '%s', got SQL%+v, want%+v", testCase.input, gotSQL, testCase.outSQL)
 		}
 	}
 }
@@ -236,10 +236,10 @@ func TestExtractMysqlComment(t *testing.T) {
 		gotVersion, gotSQL := ExtractMysqlComment(testCase.input)
 
 		if gotVersion != testCase.outVersion {
-			t.Errorf("test input: '%s', got version\n%+v, want\n%+v", testCase.input, gotVersion, testCase.outVersion)
+			t.Errorf("test_simple_protocol input: '%s', got version%+v, want%+v", testCase.input, gotVersion, testCase.outVersion)
 		}
 		if gotSQL != testCase.outSQL {
-			t.Errorf("test input: '%s', got SQL\n%+v, want\n%+v", testCase.input, gotSQL, testCase.outSQL)
+			t.Errorf("test_simple_protocol input: '%s', got SQL%+v, want\n%+v", testCase.input, gotSQL, testCase.outSQL)
 		}
 	}
 }
@@ -309,7 +309,7 @@ func TestExtractCommentDirectives(t *testing.T) {
 		vals := ExtractCommentDirectives(comments)
 
 		if !reflect.DeepEqual(vals, testCase.vals) {
-			t.Errorf("test input: '%v', got vals:\n%+v, want\n%+v", testCase.input, vals, testCase.vals)
+			t.Errorf("test_simple_protocol input: '%v', got vals:\n%+v, want\n%+v", testCase.input, vals, testCase.vals)
 		}
 	}
 

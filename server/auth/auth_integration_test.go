@@ -33,7 +33,7 @@ func TestAuthServiceIntegration(t *testing.T) {
 		// 测试成功认证
 		result, err := authService.AuthenticateUser(ctx, "root", "", "localhost", "")
 		if err != nil {
-			t.Logf("Authentication error (expected in test environment): %v", err)
+			t.Logf("Authentication error (expected in test_simple_protocol environment): %v", err)
 		}
 		if result != nil {
 			t.Logf("Authentication result: Success=%v, User=%s, Host=%s",
@@ -55,7 +55,7 @@ func TestAuthServiceIntegration(t *testing.T) {
 		// 测试系统数据库
 		err := authService.ValidateDatabase(ctx, "mysql")
 		if err != nil {
-			t.Logf("Database validation error (expected in test environment): %v", err)
+			t.Logf("Database validation error (expected in test_simple_protocol environment): %v", err)
 		}
 
 		// 测试不存在的数据库
@@ -70,7 +70,7 @@ func TestAuthServiceIntegration(t *testing.T) {
 		// 测试SELECT权限
 		err := authService.CheckPrivilege(ctx, "root", "localhost", "mysql", "", common.SelectPriv)
 		if err != nil {
-			t.Logf("Privilege check error (expected in test environment): %v", err)
+			t.Logf("Privilege check error (expected in test_simple_protocol environment): %v", err)
 		}
 
 		// 测试不存在用户的权限
@@ -100,7 +100,7 @@ func TestEngineAccess(t *testing.T) {
 	t.Run("TestQueryUser", func(t *testing.T) {
 		userInfo, err := engineAccess.QueryUser(ctx, "root", "localhost")
 		if err != nil {
-			t.Logf("Query user error (expected in test environment): %v", err)
+			t.Logf("Query user error (expected in test_simple_protocol environment): %v", err)
 		}
 		if userInfo != nil {
 			t.Logf("User info: User=%s, Host=%s", userInfo.User, userInfo.Host)
@@ -111,7 +111,7 @@ func TestEngineAccess(t *testing.T) {
 	t.Run("TestQueryDatabase", func(t *testing.T) {
 		dbInfo, err := engineAccess.QueryDatabase(ctx, "mysql")
 		if err != nil {
-			t.Logf("Query database error (expected in test environment): %v", err)
+			t.Logf("Query database error (expected in test_simple_protocol environment): %v", err)
 		}
 		if dbInfo != nil {
 			t.Logf("Database info: Name=%s, Exists=%v", dbInfo.Name, dbInfo.Exists)
@@ -122,7 +122,7 @@ func TestEngineAccess(t *testing.T) {
 	t.Run("TestQueryPrivileges", func(t *testing.T) {
 		privs, err := engineAccess.QueryUserPrivileges(ctx, "root", "localhost")
 		if err != nil {
-			t.Logf("Query privileges error (expected in test environment): %v", err)
+			t.Logf("Query privileges error (expected in test_simple_protocol environment): %v", err)
 		}
 		if privs != nil {
 			t.Logf("User privileges count: %d", len(privs))

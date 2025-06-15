@@ -227,15 +227,15 @@ func TestStatsBuilder(t *testing.T) {
 				maxSamples: tt.maxSamples,
 			}
 
-			stats := builder.BuildColumnStats("test", tt.data)
+			stats := builder.BuildColumnStats("test_simple_protocol", tt.data)
 			if (stats == nil) != tt.wantErr {
 				t.Errorf("BuildColumnStats() error = %v, wantErr %v", stats == nil, tt.wantErr)
 				return
 			}
 
 			if !tt.wantErr {
-				if stats.ColumnName != "test" {
-					t.Errorf("ColumnName = %v, want %v", stats.ColumnName, "test")
+				if stats.ColumnName != "test_simple_protocol" {
+					t.Errorf("ColumnName = %v, want %v", stats.ColumnName, "test_simple_protocol")
 				}
 				if len(tt.data) > 0 && stats.Histogram == nil {
 					t.Error("Histogram is nil for non-empty data")

@@ -2,8 +2,8 @@ package engine
 
 import (
 	"context"
-	"fmt"
 	"github.com/pelletier/go-toml/query"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"sync"
 )
@@ -109,7 +109,7 @@ func (ctx *ExecutionContext) Send(result *Result) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case ctx.Results <- result:
-		fmt.Println("成功了！！！！")
+		logger.Debug("成功了！！！！")
 	}
 	return nil
 }

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"io"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
@@ -86,7 +87,7 @@ func (e *SimpleAggregateExecutor) Init() error {
 		return fmt.Errorf("failed to compute aggregates: %v", err)
 	}
 
-	fmt.Printf("Initialized aggregate executor with %d functions\n", len(e.functions))
+	logger.Debugf("Initialized aggregate executor with %d functions", len(e.functions))
 	return nil
 }
 

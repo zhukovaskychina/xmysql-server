@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
@@ -10,8 +11,8 @@ func TestBPlusTreeManagerInterface() {
 	// 创建一个B+树管理器实例
 	var btreeManager basic.BPlusTreeManager
 
-	// 尝试将DefaultBPlusTreeManager赋值给接口
-	btreeManager = NewBPlusTreeManager(nil, nil)
+	// 尝试将EnhancedBTreeAdapter赋值给接口
+	btreeManager = NewEnhancedBTreeAdapter(nil, nil)
 
 	// 测试RangeSearch方法是否返回正确类型
 	ctx := context.Background()

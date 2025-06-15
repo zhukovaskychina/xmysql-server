@@ -161,7 +161,7 @@ const (
 	mysqlSet      = 2048
 )
 
-// If you add to this map, make sure you add a test case
+// If you add to this map, make sure you add a test_simple_protocol case
 // in tabletserver/endtoend.
 var mysqlToType = map[int64]querypb.Type{
 	1:   Int8,

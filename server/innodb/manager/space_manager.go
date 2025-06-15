@@ -2,6 +2,7 @@ package manager
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"os"
 	"path/filepath"
 	"strings"
@@ -72,7 +73,7 @@ func NewSpaceManager(dataDir string) basic.SpaceManager {
 	// 尝试加载现有的表空间（如果目录存在）
 	if _, err := os.Stat(dataDir); err == nil {
 		if err := sm.LoadExistingTablespaces(); err != nil {
-			fmt.Printf("Warning: failed to load existing tablespaces: %v\n", err)
+			logger.Debugf("Warning: failed to load existing tablespaces: %v", err)
 		}
 	}
 
@@ -95,14 +96,14 @@ func (sm *SpaceManagerImpl) CreateSpace(spaceID uint32, name string, isSystem bo
 
 	if fileExists {
 		// 文件已存在，打开并读取
-		fmt.Printf("IBD file already exists, opening: %s (Space ID: %d)\n", name, spaceID)
+		logger.Debugf("IBD file already exists, opening: %s (Space ID: %d)", name, spaceID)
 		err := ibdFile.Open()
 		if err != nil {
 			return nil, fmt.Errorf("failed to open existing tablespace %s: %v", name, err)
 		}
 	} else {
 		// 文件不存在，创建新文件
-		fmt.Printf("Creating new IBD file: %s (Space ID: %d)\n", name, spaceID)
+		logger.Debugf("Creating new IBD file: %s (Space ID: %d)", name, spaceID)
 		err := ibdFile.Create()
 		if err != nil {
 			return nil, fmt.Errorf("failed to create tablespace %s: %v", name, err)
@@ -233,14 +234,14 @@ func (sm *SpaceManagerImpl) CreateTableSpace(name string) (uint32, error) {
 
 	if fileExists {
 		// 文件已存在，打开并读取
-		fmt.Printf("IBD file already exists, opening: %s (Space ID: %d)\n", name, spaceID)
+		logger.Debugf("IBD file already exists, opening: %s (Space ID: %d)", name, spaceID)
 		err := ibdFile.Open()
 		if err != nil {
 			return 0, fmt.Errorf("failed to open existing tablespace %s: %v", name, err)
 		}
 	} else {
 		// 文件不存在，创建新文件
-		fmt.Printf("Creating new IBD file: %s (Space ID: %d)\n", name, spaceID)
+		logger.Debugf("Creating new IBD file: %s (Space ID: %d)", name, spaceID)
 		err := ibdFile.Create()
 		if err != nil {
 			return 0, fmt.Errorf("failed to create tablespace %s: %v", name, err)
@@ -420,7 +421,7 @@ func (sm *SpaceManagerImpl) LoadExistingTablespaces() error {
 	sm.Lock()
 	defer sm.Unlock()
 
-	fmt.Println("Scanning for existing IBD files...")
+	logger.Debug("Scanning for existing IBD files...")
 
 	// 扫描数据目录
 	return sm.scanDirectory(sm.dataDir, "")
@@ -464,12 +465,12 @@ func (sm *SpaceManagerImpl) scanDirectory(dirPath, relativePath string) error {
 				spaceID = sm.getNextAvailableSpaceID()
 			}
 
-			fmt.Printf("Found existing IBD file: %s, assigning Space ID: %d\n", tableName, spaceID)
+			logger.Debugf("Found existing IBD file: %s, assigning Space ID: %d", tableName, spaceID)
 
 			// 创建IBD文件实例并打开
 			ibdFile := ibd.NewIBDFile(sm.dataDir, tableName, spaceID)
 			if err := ibdFile.Open(); err != nil {
-				fmt.Printf("Warning: failed to open existing IBD file %s: %v\n", tableName, err)
+				logger.Debugf("Warning: failed to open existing IBD file %s: %v", tableName, err)
 				continue
 			}
 

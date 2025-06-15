@@ -103,7 +103,7 @@ func (e *ShowExecutor) showDatabases() ([][]interface{}, error) {
 	return [][]interface{}{
 		{"information_schema"},
 		{"mysql"},
-		{"test"},
+		{"test_simple_protocol"},
 	}, nil
 }
 

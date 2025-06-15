@@ -2,6 +2,8 @@ package engine
 
 import (
 	"context"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
 )
@@ -11,7 +13,7 @@ type Operator interface {
 	// Open 初始化算子
 	Open(ctx context.Context) error
 	// Next 获取下一条记录
-	Next(ctx context.Context) (*Record, error)
+	Next(ctx context.Context) (Record, error)
 	// Close 关闭算子并释放资源
 	Close() error
 }
@@ -62,30 +64,30 @@ func (t *TableScanOperator) Open(ctx context.Context) error {
 	return nil
 }
 
-func (t *TableScanOperator) Next(ctx context.Context) (*Record, error) {
+func (t *TableScanOperator) Next(ctx context.Context) (Record, error) {
 	if t.cursor >= 100 { // 简化实现，使用固定值
 		return nil, nil // EOF
 	}
 
 	// TODO: 实现实际的记录获取逻辑
 	t.cursor++
-	return &Record{}, nil
+	return NewExecutorRecordFromInterface([]interface{}{}, nil), nil
 }
 
 // FilterOperator 过滤算子
 type FilterOperator struct {
 	BaseOperator
-	condition func(*Record) bool
+	condition func(Record) bool
 }
 
-func NewFilterOperator(child Operator, condition func(*Record) bool) *FilterOperator {
+func NewFilterOperator(child Operator, condition func(Record) bool) *FilterOperator {
 	return &FilterOperator{
 		BaseOperator: BaseOperator{children: []Operator{child}},
 		condition:    condition,
 	}
 }
 
-func (f *FilterOperator) Next(ctx context.Context) (*Record, error) {
+func (f *FilterOperator) Next(ctx context.Context) (Record, error) {
 	for {
 		record, err := f.children[0].Next(ctx)
 		if err != nil {
@@ -113,7 +115,7 @@ func NewProjectionOperator(child Operator, projections []string) *ProjectionOper
 	}
 }
 
-func (p *ProjectionOperator) Next(ctx context.Context) (*Record, error) {
+func (p *ProjectionOperator) Next(ctx context.Context) (Record, error) {
 	record, err := p.children[0].Next(ctx)
 	if err != nil {
 		return nil, err
@@ -123,14 +125,17 @@ func (p *ProjectionOperator) Next(ctx context.Context) (*Record, error) {
 	}
 
 	// 只保留投影列
-	newValues := make([]interface{}, len(p.projections))
+	values := record.GetValues()
+	newValues := make([]basic.Value, len(p.projections))
 	for i := range p.projections {
 		// TODO: 根据列名获取对应值
-		if i < len(record.Values) {
-			newValues[i] = record.Values[i]
+		if i < len(values) {
+			newValues[i] = values[i]
+		} else {
+			newValues[i] = basic.NewNull()
 		}
 	}
-	record.Values = newValues
+	record.SetValues(newValues)
 	return record, nil
 }
 
@@ -151,13 +156,13 @@ func (v *VolcanoExecutor) BuildPlan(ctx context.Context, plan plan.Plan) error {
 }
 
 // Execute 执行查询
-func (v *VolcanoExecutor) Execute(ctx context.Context) ([]*Record, error) {
+func (v *VolcanoExecutor) Execute(ctx context.Context) ([]Record, error) {
 	if err := v.root.Open(ctx); err != nil {
 		return nil, err
 	}
 	defer v.root.Close()
 
-	var results []*Record
+	var results []Record
 	for {
 		record, err := v.root.Next(ctx)
 		if err != nil {

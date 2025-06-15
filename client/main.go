@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	ui "github.com/gizak/termui/v3"
+	ui "1/gizak/termui/v3"
+	_ "1/go-sql-driver/mysql"
 	"github.com/gizak/termui/v3/widgets"
-	_ "github.com/go-sql-driver/mysql"
 )
 
 // ClientConfig 客户端配置
@@ -187,11 +187,11 @@ func (c *MySQLClient) executeNonSelect(query string) (*QueryResult, error) {
 
 // StartCLI 启动命令行界面
 func (c *MySQLClient) StartCLI() {
-	fmt.Printf("欢迎使用 XMySQL 客户端!\n")
-	fmt.Printf("连接到: %s:%d\n", c.config.Host, c.config.Port)
-	fmt.Printf("用户: %s\n", c.config.User)
-	fmt.Printf("数据库: %s\n\n", c.config.Database)
-	fmt.Printf("输入 'help' 查看帮助，输入 'quit' 或 'exit' 退出。\n\n")
+	util.Debugf("欢迎使用 XMySQL 客户端!\n")
+	util.Debugf("连接到: %s:%d\n", c.config.Host, c.config.Port)
+	util.Debugf("用户: %s\n", c.config.User)
+	util.Debugf("数据库: %s\n\n", c.config.Database)
+	util.Debugf("输入 'help' 查看帮助，输入 'quit' 或 'exit' 退出。\n\n")
 
 	scanner := bufio.NewScanner(os.Stdin)
 
@@ -227,7 +227,7 @@ func (c *MySQLClient) StartCLI() {
 		// 执行SQL查询
 		result, err := c.ExecuteQuery(input)
 		if err != nil {
-			fmt.Printf("错误: %v\n\n", err)
+			util.Debugf("错误: %v\n\n", err)
 			continue
 		}
 
@@ -313,7 +313,7 @@ func (c *MySQLClient) displayResult(result *QueryResult) {
 		c.printTable(result.Columns, result.Rows)
 	}
 
-	fmt.Printf("%s\n\n", result.Message)
+	util.Debugf("%s\n\n", result.Message)
 }
 
 // displayGUIResult 显示查询结果（GUI模式）
@@ -358,7 +358,7 @@ func (c *MySQLClient) printTable(columns []string, rows [][]string) {
 	// 打印表头
 	fmt.Print("|")
 	for i, col := range columns {
-		fmt.Printf(" %-*s |", colWidths[i], col)
+		util.Debugf(" %-*s |", colWidths[i], col)
 	}
 	fmt.Println()
 
@@ -369,7 +369,7 @@ func (c *MySQLClient) printTable(columns []string, rows [][]string) {
 		fmt.Print("|")
 		for i, cell := range row {
 			if i < len(colWidths) {
-				fmt.Printf(" %-*s |", colWidths[i], cell)
+				util.Debugf(" %-*s |", colWidths[i], cell)
 			}
 		}
 		fmt.Println()
@@ -408,19 +408,19 @@ func (c *MySQLClient) showHelp() {
 
 // showStatus 显示连接状态
 func (c *MySQLClient) showStatus() {
-	fmt.Printf("连接状态:\n")
-	fmt.Printf("  服务器: %s:%d\n", c.config.Host, c.config.Port)
-	fmt.Printf("  用户: %s\n", c.config.User)
-	fmt.Printf("  数据库: %s\n", c.config.Database)
+	util.Debugf("连接状态:\n")
+	util.Debugf("  服务器: %s:%d\n", c.config.Host, c.config.Port)
+	util.Debugf("  用户: %s\n", c.config.User)
+	util.Debugf("  数据库: %s\n", c.config.Database)
 
 	if c.db != nil {
 		if err := c.db.Ping(); err == nil {
-			fmt.Printf("  状态: 已连接\n")
+			util.Debugf("  状态: 已连接\n")
 		} else {
-			fmt.Printf("  状态: 连接断开 (%v)\n", err)
+			util.Debugf("  状态: 连接断开 (%v)\n", err)
 		}
 	} else {
-		fmt.Printf("  状态: 未连接\n")
+		util.Debugf("  状态: 未连接\n")
 	}
 	fmt.Println()
 }
@@ -432,7 +432,7 @@ func parseArgs() (*ClientConfig, bool, bool) {
 		Port:     3307, // 默认使用您服务器的端口
 		User:     "root",
 		Password: "",
-		Database: "test",
+		Database: "test_simple_protocol",
 	}
 
 	isGUI := false
@@ -490,7 +490,7 @@ func printUsage() {
 	fmt.Println("  -P, --port PORT      端口号 (默认: 3308)")
 	fmt.Println("  -u, --user USER      用户名 (默认: root)")
 	fmt.Println("  -p, --password PASS  密码")
-	fmt.Println("  -D, --database DB    数据库名 (默认: test)")
+	fmt.Println("  -D, --database DB    数据库名 (默认: test_simple_protocol)")
 	fmt.Println("  --gui                启用图形界面")
 	fmt.Println("  --help               显示此帮助")
 	fmt.Println()
@@ -512,7 +512,7 @@ func main() {
 	client := NewMySQLClient(config, isGUI)
 
 	// 连接到服务器
-	fmt.Printf("正在连接到 %s:%d...\n", config.Host, config.Port)
+	util.Debugf("正在连接到 %s:%d...\n", config.Host, config.Port)
 	if err := client.Connect(); err != nil {
 		log.Fatalf("连接失败: %v", err)
 	}

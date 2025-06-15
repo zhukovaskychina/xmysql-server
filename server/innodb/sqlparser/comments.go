@@ -143,7 +143,7 @@ func StripLeadingComments(sql string) string {
 			sql = sql[index+2:]
 		case '-':
 			// Single line comment
-			index := strings.Index(sql, "\n")
+			index := strings.Index(sql, "")
 			if index == -1 {
 				return sql
 			}
@@ -185,7 +185,7 @@ type CommentDirectives map[string]interface{}
 // ExtractCommentDirectives parses the comment list for any execution directives
 // of the form:
 //
-//     /*vt+ OPTION_ONE=1 OPTION_TWO OPTION_THREE=abcd */
+//	/*vt+ OPTION_ONE=1 OPTION_TWO OPTION_THREE=abcd */
 //
 // It returns the map of the directive values or nil if there aren't any.
 func ExtractCommentDirectives(comments Comments) CommentDirectives {

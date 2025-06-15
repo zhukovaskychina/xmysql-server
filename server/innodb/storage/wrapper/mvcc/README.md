@@ -113,7 +113,7 @@ readView := NewReadView(100, activeTxIDs)
 
 运行测试：
 ```bash
-go test -v .
+go test_simple_protocol -v .
 ```
 
 测试覆盖了所有主要功能：

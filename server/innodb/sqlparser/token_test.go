@@ -92,13 +92,13 @@ func TestString(t *testing.T) {
 		id:   STRING,
 		want: "hello",
 	}, {
-		in:   "'\\n'",
+		in:   "'\'",
 		id:   STRING,
-		want: "\n",
+		want: "",
 	}, {
-		in:   "'\\nhello\\n'",
+		in:   "'\hello\'",
 		id:   STRING,
-		want: "\nhello\n",
+		want: "hello",
 	}, {
 		in:   "'a''b'",
 		id:   STRING,

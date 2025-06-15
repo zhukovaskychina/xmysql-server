@@ -48,19 +48,19 @@ var (
 		input:  "select - -1 from t",
 		output: "select 1 from t",
 	}, {
-		input:  "select 1 from t // aa\n",
+		input:  "select 1 from t // aa",
 		output: "select 1 from t",
 	}, {
-		input:  "select 1 from t -- aa\n",
+		input:  "select 1 from t -- aa",
 		output: "select 1 from t",
 	}, {
-		input:  "select 1 from t # aa\n",
+		input:  "select 1 from t # aa",
 		output: "select 1 from t",
 	}, {
-		input:  "select 1 --aa\nfrom t",
+		input:  "select 1 --aafrom t",
 		output: "select 1 from t",
 	}, {
-		input:  "select 1 #aa\nfrom t",
+		input:  "select 1 #aafrom t",
 		output: "select 1 from t",
 	}, {
 		input: "select /* simplest */ 1 from t",
@@ -453,14 +453,14 @@ var (
 	}, {
 		input: "select /* backslash quote in string */ 'a\\'a' from t",
 	}, {
-		input: "select /* literal backslash in string */ 'a\\\\na' from t",
+		input: "select /* literal backslash in string */ 'a\\\a' from t",
 	}, {
-		input: "select /* all escapes */ '\\0\\'\\\"\\b\\n\\r\\t\\Z\\\\' from t",
+		input: "select /* all escapes */ '\\0\\'\\\"\\b\\\r\\t\\Z\\\\' from t",
 	}, {
 		input:  "select /* non-escape */ '\\x' from t",
 		output: "select /* non-escape */ 'x' from t",
 	}, {
-		input: "select /* unescaped backslash */ '\\n' from t",
+		input: "select /* unescaped backslash */ '\' from t",
 	}, {
 		input: "select /* valueImpl argument */ :a from t",
 	}, {
@@ -650,11 +650,11 @@ var (
 		input:  "update (select id from foo) subqalias set id = 4",
 		output: "update (select id from foo) as subqalias set id = 4",
 	}, {
-		input:  "update foo f, bar b set f.id = b.id where b.name = 'test'",
-		output: "update foo as f, bar as b set f.id = b.id where b.name = 'test'",
+		input:  "update foo f, bar b set f.id = b.id where b.name = 'test_simple_protocol'",
+		output: "update foo as f, bar as b set f.id = b.id where b.name = 'test_simple_protocol'",
 	}, {
-		input:  "update foo f join bar b on f.name = b.name set f.id = b.id where b.name = 'test'",
-		output: "update foo as f join bar as b on f.name = b.name set f.id = b.id where b.name = 'test'",
+		input:  "update foo f join bar b on f.name = b.name set f.id = b.id where b.name = 'test_simple_protocol'",
+		output: "update foo as f join bar as b on f.name = b.name set f.id = b.id where b.name = 'test_simple_protocol'",
 	}, {
 		input: "delete /* simple */ from a",
 	}, {
@@ -666,16 +666,16 @@ var (
 	}, {
 		input: "delete /* limit */ from a limit b",
 	}, {
-		input: "delete a from a join b on a.id = b.id where b.name = 'test'",
+		input: "delete a from a join b on a.id = b.id where b.name = 'test_simple_protocol'",
 	}, {
-		input: "delete a, b from a, b where a.id = b.id and b.name = 'test'",
+		input: "delete a, b from a, b where a.id = b.id and b.name = 'test_simple_protocol'",
 	}, {
 		input:  "delete from a1, a2 using t1 as a1 inner join t2 as a2 where a1.id=a2.id",
 		output: "delete a1, a2 from t1 as a1 join t2 as a2 where a1.id = a2.id",
 	}, {
 		input: "set /* simple */ a = 3",
 	}, {
-		input: "set #simple\n b = 4",
+		input: "set #simple b = 4",
 	}, {
 		input: "set character_set_results = utf8",
 	}, {
@@ -1325,7 +1325,7 @@ func TestValid(t *testing.T) {
 		if out != tcase.output {
 			t.Errorf("Parse(%q) = %q, want: %q", tcase.input, out, tcase.output)
 		}
-		// This test just exercises the tree walking functionality.
+		// This test_simple_protocol just exercises the tree walking functionality.
 		// There's no way automated way to verify that a node calls
 		// all its children. But we can examine code coverage and
 		// ensure that all walkSubtree functions were called.
@@ -1485,7 +1485,7 @@ func TestKeywords(t *testing.T) {
 	}, {
 		input: "insert into t(a, b) values (left('foo', 1), 'b')",
 	}, {
-		input: "insert /* qualified function */ into t(a, b) values (test.PI(), 'b')",
+		input: "insert /* qualified function */ into t(a, b) values (test_simple_protocol.PI(), 'b')",
 	}, {
 		input:  "select /* keyword in qualified id */ * from t join z on t.key = z.key",
 		output: "select /* keyword in qualified id */ * from t join z on t.`key` = z.`key`",
@@ -1663,7 +1663,7 @@ func TestSubStr(t *testing.T) {
 
 func TestCreateTable(t *testing.T) {
 	validSQL := []string{
-		// test all the data types and options
+		// test_simple_protocol all the data types and options
 		"create table t (\n" +
 			"	col_bit bit,\n" +
 			"	col_tinyint tinyint auto_increment,\n" +
@@ -1740,7 +1740,7 @@ func TestCreateTable(t *testing.T) {
 			"	col_multipolygon2 multipolygon not null\n" +
 			")",
 
-		// test defaults
+		// test_simple_protocol defaults
 		"create table t (\n" +
 			"	i1 int default 1,\n" +
 			"	i2 int default null,\n" +
@@ -1752,7 +1752,7 @@ func TestCreateTable(t *testing.T) {
 			"	s5 bit(1) default B'0'\n" +
 			")",
 
-		// test key field options
+		// test_simple_protocol key field options
 		"create table t (\n" +
 			"	id int auto_increment primary key,\n" +
 			"	username varchar unique key,\n" +
@@ -1762,7 +1762,7 @@ func TestCreateTable(t *testing.T) {
 			"	time2 timestamp default current_timestamp on update current_timestamp\n" +
 			")",
 
-		// test defining indexes separately
+		// test_simple_protocol defining indexes separately
 		"create table t (\n" +
 			"	id int auto_increment,\n" +
 			"	username varchar,\n" +
@@ -1779,7 +1779,7 @@ func TestCreateTable(t *testing.T) {
 			"	key by_full_name (full_name)\n" +
 			")",
 
-		// test that indexes support USING <id>
+		// test_simple_protocol that indexes support USING <id>
 		"create table t (\n" +
 			"	id int auto_increment,\n" +
 			"	username varchar,\n" +
@@ -1793,7 +1793,7 @@ func TestCreateTable(t *testing.T) {
 			"	index by_status (status_nonkeyword) using PDQ,\n" +
 			"	key by_full_name (full_name) using OTHER\n" +
 			")",
-		// test other index options
+		// test_simple_protocol other index options
 		"create table t (\n" +
 			"	id int auto_increment,\n" +
 			"	username varchar,\n" +
@@ -1878,7 +1878,7 @@ func TestCreateTable(t *testing.T) {
 		input  string
 		output string
 	}{{
-		// test key_block_size
+		// test_simple_protocol key_block_size
 		input: "create table t (\n" +
 			"	id int auto_increment,\n" +
 			"	username varchar,\n" +
@@ -2029,10 +2029,10 @@ var (
 		input:  "select match(a1, a2) against ('foo' in boolean mode with plan expansion) from t",
 		output: "syntax error at position 57 near 'with'",
 	}, {
-		input:  "select /* reserved keyword as unqualified column */ * from t where key = 'test'",
+		input:  "select /* reserved keyword as unqualified column */ * from t where key = 'test_simple_protocol'",
 		output: "syntax error at position 71 near 'key'",
 	}, {
-		input:  "select /* vitess-reserved keyword as unqualified column */ * from t where escape = 'test'",
+		input:  "select /* vitess-reserved keyword as unqualified column */ * from t where escape = 'test_simple_protocol'",
 		output: "syntax error at position 81 near 'escape'",
 	}, {
 		input:  "(select /* parenthesized select */ * from t)",

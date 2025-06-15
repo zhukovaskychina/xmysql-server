@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"io"
 	_ "io"
 	"io/ioutil"
@@ -84,7 +85,7 @@ func WriteToFileByAppendBytes(filepath string, fileName string, content []byte) 
 		fmt.Println(err.Error())
 	} else {
 		_, err = f.Write(content)
-		LogErr(err)
+		logger.LogErr(err)
 	}
 }
 

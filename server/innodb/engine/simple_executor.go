@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"io"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
@@ -58,7 +59,7 @@ func (e *SimpleTableScanExecutor) Init() error {
 		{5, "Eve", 32},
 	}
 
-	fmt.Printf("Initialized table scan for table: %s with %d rows\n", e.tableName, len(e.rows))
+	logger.Debugf("Initialized table scan for table: %s with %d rows", e.tableName, len(e.rows))
 	return nil
 }
 
@@ -91,7 +92,7 @@ func (e *SimpleTableScanExecutor) Close() error {
 	}
 
 	e.closed = true
-	fmt.Printf("Closed table scan executor for table: %s\n", e.tableName)
+	logger.Debugf("Closed table scan executor for table: %s", e.tableName)
 	return nil
 }
 
@@ -149,7 +150,7 @@ func (e *SimpleProjectionExecutor) Init() error {
 		}
 	}
 
-	fmt.Printf("Initialized projection executor with columns: %v\n", e.columnIdxs)
+	logger.Debugf("Initialized projection executor with columns: %v", e.columnIdxs)
 	return nil
 }
 
@@ -259,7 +260,7 @@ func (e *SimpleFilterExecutor) Init() error {
 		}
 	}
 
-	fmt.Println("Initialized filter executor")
+	logger.Debug("Initialized filter executor")
 	return nil
 }
 

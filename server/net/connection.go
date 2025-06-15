@@ -26,18 +26,19 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-)
 
-import (
+	"github.com/zhukovaskychina/xmysql-server/logger"
+
 	log "github.com/AlexStocks/log4go"
 	"github.com/golang/snappy"
+
 	jerrors "github.com/juju/errors"
 )
 
 var (
 	launchTime = time.Now()
 
-// ErrInvalidConnection = errors.New("connection has been closed.")
+	// ErrInvalidConnection = errors.New("connection has been closed.")
 )
 
 /////////////////////////////////////////
@@ -241,6 +242,8 @@ func (t *MysqlTCPConn) recv(p []byte) (int, error) {
 		length      int
 	)
 
+	logger.Debugf("[MysqlTCPConn.recv] 开始接收数据，缓冲区大小: %d\n", len(p))
+
 	// set read timeout deadline
 	if t.compress == CompressNone && t.rTimeout > 0 {
 		// Optimization: update read deadline only if more than 25%
@@ -250,6 +253,7 @@ func (t *MysqlTCPConn) recv(p []byte) (int, error) {
 		if currentTime.Sub(t.rLastDeadline) > (t.rTimeout >> 2) {
 			if err = t.conn.SetReadDeadline(currentTime.Add(t.rTimeout)); err != nil {
 				// just a timeout error
+				logger.Debugf("[MysqlTCPConn.recv] 设置读取超时失败: %v\n", err)
 				return 0, jerrors.Trace(err)
 			}
 			t.rLastDeadline = currentTime
@@ -257,6 +261,13 @@ func (t *MysqlTCPConn) recv(p []byte) (int, error) {
 	}
 
 	length, err = t.reader.Read(p)
+
+	if err != nil {
+		logger.Debugf("[MysqlTCPConn.recv] 读取数据失败: %v, 长度: %d\n", err, length)
+	} else {
+		logger.Debugf("[MysqlTCPConn.recv] 读取数据成功，长度: %d, 内容: %v\n", length, p[:length])
+	}
+
 	// log.Debug("now:%s, length:%d, err:%s", currentTime, length, err)
 	atomic.AddUint32(&t.readBytes, uint32(length))
 	return length, jerrors.Trace(err)
@@ -311,6 +322,9 @@ func (t *MysqlTCPConn) send(pkg interface{}) (int, error) {
 
 // close tcp connection
 func (t *MysqlTCPConn) close(waitSec int) {
+	logger.Debugf("[MysqlTCPConn.close] 连接即将关闭，waitSec: %d\n", waitSec)
+	logger.Debugf("[MysqlTCPConn.close] 连接地址: local=%s, remote=%s\n", t.local, t.peer)
+
 	//if tcpConn, ok := t.conn.(*net.TCPConn); ok {
 	//tcpConn.SetLinger(0)
 	//}
@@ -322,12 +336,17 @@ func (t *MysqlTCPConn) close(waitSec int) {
 			}
 		}
 		if conn, ok := t.conn.(*net.TCPConn); ok {
+			logger.Debugf("[MysqlTCPConn.close] 关闭TCP连接\n")
 			_ = conn.SetLinger(waitSec)
 			_ = conn.Close()
 		} else {
+			logger.Debugf("[MysqlTCPConn.close] 关闭TLS连接\n")
 			_ = t.conn.(*tls.Conn).Close()
 
 		}
 		t.conn = nil
+		logger.Debugf("[MysqlTCPConn.close] 连接已关闭\n")
+	} else {
+		logger.Debugf("[MysqlTCPConn.close] 连接已经为nil，无需关闭\n")
 	}
 }

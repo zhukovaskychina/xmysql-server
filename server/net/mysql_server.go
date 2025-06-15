@@ -10,6 +10,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/zhukovaskychina/xmysql-server/logger"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
+
 	getty "github.com/AlexStocks/getty/transport"
 	gxlog "github.com/AlexStocks/goext/log"
 	gxnet "github.com/AlexStocks/goext/net"
@@ -41,17 +44,26 @@ var (
 )
 
 type MySQLServer struct {
-	conf       *conf.Cfg
-	serverList []Server
-	taskPool   gxsync.GenericTaskPool
+	conf           *conf.Cfg
+	serverList     []Server
+	taskPool       gxsync.GenericTaskPool
+	messageHandler *DecoupledMySQLMessageHandler // 新增：共享的消息处理器
+	xmysqlEngine   *engine.XMySQLEngine          // 新增 xmysqlEngine 字段
 }
 
 func NewMySQLServer(conf *conf.Cfg) *MySQLServer {
+	// 在服务器创建时就初始化XMySQL引擎，整个服务器生命周期只创建一次
+	xmysqlEngine := engine.NewXMySQLEngine(conf)
+
+	// 使用已初始化的引擎创建消息处理器
+	messageHandler := NewDecoupledMySQLMessageHandlerWithEngine(conf, xmysqlEngine)
 
 	return &MySQLServer{
-		conf:       conf,
-		serverList: nil,
-		taskPool:   gxsync.NewTaskPoolSimple(0),
+		conf:           conf,
+		serverList:     nil,
+		taskPool:       gxsync.NewTaskPoolSimple(0),
+		messageHandler: messageHandler,
+		xmysqlEngine:   xmysqlEngine,
 	}
 }
 
@@ -62,9 +74,9 @@ func (srv *MySQLServer) Start() {
 
 	gxlog.CInfo(logBanner)
 	gxlog.CInfo("启动成功")
-	gxlog.CInfo("%s starts successfull! its version=%s, its listen ends=%s:%s\n",
+	gxlog.CInfo("%s starts successfull! its version=%s, its listen ends=%s:%s",
 		srv.conf.AppName, getty.Version, srv.conf.BindAddress, srv.conf.Port)
-	log.Info("%s starts successfull! its version=%s, its listen ends=%s:%s\n",
+	log.Info("%s starts successfull! its version=%s, its listen ends=%s:%s",
 		srv.conf.AppName, getty.Version, srv.conf.BindAddress, srv.conf.Port)
 	//srv.initPurgeThread()
 
@@ -84,58 +96,55 @@ func initProfiling(conf *conf.Cfg) {
 }
 
 func (srv *MySQLServer) initServer(conf *conf.Cfg) {
-	var (
-		addr     string
-		portList []string
-		server   Server
-	)
-	// 使用解耦的消息处理器替代原来的MySQLMessageHandler
-	mysqlMsgHandler := NewDecoupledMySQLMessageHandler(conf)
-	portList = append(portList, strconv.Itoa(conf.Port))
-	if len(portList) == 0 {
-		panic("portList is nil")
-	}
-	for _, port := range portList {
-		addr = gxnet.HostAddress2(conf.BindAddress, port)
-		serverOpts := []ServerOption{WithLocalAddress(addr)}
-		//serverOpts = append(serverOpts, getty.WithServerTaskPool(srv.taskPool))
-		server = NewTCPServer(serverOpts...)
-		// run serverimpl
-		server.RunEventLoop(func(session Session) error {
-			var (
-				ok      bool
-				tcpConn *net.TCPConn
-			)
-			if conf.MySQLSessionParam.CompressEncoding {
-				session.SetCompressType(getty.CompressZip)
-			}
-			if tcpConn, ok = session.Conn().(*net.TCPConn); !ok {
-				panic(fmt.Sprintf("%s, session.conn{%#v} is not tcp connection\n", session.Stat(), session.Conn()))
-			}
-			tcpConn.SetNoDelay(conf.MySQLSessionParam.TcpNoDelay)
-			tcpConn.SetKeepAlive(conf.MySQLSessionParam.TcpKeepAlive)
-			if conf.MySQLSessionParam.TcpKeepAlive {
-				tcpConn.SetKeepAlivePeriod(conf.MySQLSessionParam.KeepAlivePeriodDuration)
-			}
-			tcpConn.SetReadBuffer(conf.MySQLSessionParam.TcpRBufSize)
-			tcpConn.SetWriteBuffer(conf.MySQLSessionParam.TcpWBufSize)
+	fmt.Println("MySQL服务器正在初始化...")
 
-			session.SetName(conf.MySQLSessionParam.SessionName)
-			session.SetMaxMsgLen(conf.MySQLSessionParam.MaxMsgLen)
-			session.SetPkgHandler(mysqlPkgHandler)
-			session.SetEventListener(mysqlMsgHandler)
-			session.SetWQLen(conf.MySQLSessionParam.PkgWQSize)
-			session.SetReadTimeout(conf.MySQLSessionParam.TcpReadTimeoutDuration)
-			session.SetWriteTimeout(conf.MySQLSessionParam.TcpWriteTimeoutDuration)
-			session.SetCronPeriod((int)(conf.SessionTimeoutDuration / 1e6))
-			session.SetWaitTime(conf.MySQLSessionParam.WaitTimeoutDuration)
-			//session.SetTaskPool(taskPool)
-			log.Debug("app accepts new session:%s\n", session.Stat())
-			return nil
-		})
-		log.Debug("serverimpl bind addr{%s} ok!", addr)
-		srv.serverList = append(srv.serverList, server)
-	}
+	var (
+		addr   string
+		server Server
+	)
+
+	addr = gxnet.HostAddress2(conf.BindAddress, strconv.Itoa(conf.Port))
+	server = NewTCPServer(
+		WithLocalAddress(addr),
+		WithServerTaskPool(gxsync.NewTaskPoolSimple(0)),
+	)
+
+	logger.Debugf("TCP服务器创建成功，地址: %s\n", addr)
+
+	server.RunEventLoop(func(session Session) error {
+		logger.Debugf("新连接建立: %s\n", session.Stat())
+
+		if conf.MySQLSessionParam.CompressEncoding {
+			session.SetCompressType(getty.CompressZip)
+		}
+		tcpConn, ok := session.Conn().(*net.TCPConn)
+		if !ok {
+			panic(fmt.Sprintf("%s, session.conn{%#v} is not tcp connection", session.Stat(), session.Conn()))
+		}
+		tcpConn.SetNoDelay(conf.MySQLSessionParam.TcpNoDelay)
+		tcpConn.SetKeepAlive(conf.MySQLSessionParam.TcpKeepAlive)
+		if conf.MySQLSessionParam.TcpKeepAlive {
+			tcpConn.SetKeepAlivePeriod(conf.MySQLSessionParam.KeepAlivePeriodDuration)
+		}
+		tcpConn.SetReadBuffer(conf.MySQLSessionParam.TcpRBufSize)
+		tcpConn.SetWriteBuffer(conf.MySQLSessionParam.TcpWBufSize)
+
+		session.SetName(conf.MySQLSessionParam.SessionName)
+		session.SetMaxMsgLen(conf.MySQLSessionParam.MaxMsgLen)
+		session.SetPkgHandler(mysqlPkgHandler)
+		session.SetEventListener(srv.messageHandler)
+		session.SetWQLen(conf.MySQLSessionParam.PkgWQSize)
+		session.SetReadTimeout(conf.MySQLSessionParam.TcpReadTimeoutDuration)
+		session.SetWriteTimeout(conf.MySQLSessionParam.TcpWriteTimeoutDuration)
+		session.SetCronPeriod((int)(conf.SessionTimeoutDuration / 1e6))
+		session.SetWaitTime(conf.MySQLSessionParam.WaitTimeoutDuration)
+
+		logger.Debugf("会话配置完成: %s\n", session.Stat())
+		return nil
+	})
+
+	srv.serverList = append(srv.serverList, server)
+	fmt.Println("MySQL服务器初始化完成！")
 }
 
 func (srv *MySQLServer) uninitServer() {
@@ -144,6 +153,12 @@ func (srv *MySQLServer) uninitServer() {
 	}
 	if srv.taskPool != nil {
 		srv.taskPool.Close()
+	}
+
+	// 清理XMySQL引擎资源
+	if srv.xmysqlEngine != nil {
+		// 如果 XMySQLEngine 有 Close 方法，调用它
+		// srv.xmysqlEngine.Close()
 	}
 }
 

@@ -23,7 +23,7 @@ import (
 	"testing"
 )
 
-// TestParseNextValid concatenates all the valid SQL test cases and check it can read
+// TestParseNextValid concatenates all the valid SQL test_simple_protocol cases and check it can read
 // them as one long string.
 func TestParseNextValid(t *testing.T) {
 	var sql bytes.Buffer
