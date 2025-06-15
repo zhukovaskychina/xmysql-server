@@ -26,7 +26,7 @@ func main() {
 	fmt.Println("2. 获取缓冲池管理器...")
 	bufferPoolManager := storageManager.GetBufferPoolManager()
 	if bufferPoolManager == nil {
-		fmt.Println("❌ 缓冲池管理器为空")
+		fmt.Println(" 缓冲池管理器为空")
 		return
 	}
 
@@ -36,18 +36,18 @@ func main() {
 	fmt.Println("4. 测试获取表信息...")
 	userTableInfo, err := tableStorageManager.GetTableStorageInfo("mysql", "user")
 	if err != nil {
-		fmt.Printf("❌ 获取mysql.user表存储信息失败: %v\n", err)
+		util.Debugf(" 获取mysql.user表存储信息失败: %v\n", err)
 		return
 	}
 
-	fmt.Printf("✓ mysql.user表存储信息: SpaceID=%d, RootPage=%d\n",
+	util.Debugf("✓ mysql.user表存储信息: SpaceID=%d, RootPage=%d\n",
 		userTableInfo.SpaceID, userTableInfo.RootPageNo)
 
 	fmt.Println("5. 测试创建B+树管理器...")
 	ctx := context.Background()
 	userBTreeManager, err := tableStorageManager.CreateBTreeManagerForTable(ctx, "mysql", "user")
 	if err != nil {
-		fmt.Printf("❌ 创建mysql.user表B+树管理器失败: %v\n", err)
+		util.Debugf(" 创建mysql.user表B+树管理器失败: %v\n", err)
 		return
 	}
 
@@ -59,20 +59,20 @@ func main() {
 	fmt.Println("  测试GetFirstLeafPage...")
 	firstLeafPage, err := userBTreeManager.GetFirstLeafPage(ctx)
 	if err != nil {
-		fmt.Printf("⚠️ 获取第一个叶子页面失败（可能是预期的）: %v\n", err)
+		util.Debugf(" 获取第一个叶子页面失败（可能是预期的）: %v\n", err)
 	} else {
-		fmt.Printf("✓ 第一个叶子页面: %d\n", firstLeafPage)
+		util.Debugf("✓ 第一个叶子页面: %d\n", firstLeafPage)
 	}
 
 	// 测试获取所有叶子页面
 	fmt.Println("  测试GetAllLeafPages...")
 	leafPages, err := userBTreeManager.GetAllLeafPages(ctx)
 	if err != nil {
-		fmt.Printf("⚠️ 获取所有叶子页面失败（可能是预期的）: %v\n", err)
+		util.Debugf(" 获取所有叶子页面失败（可能是预期的）: %v\n", err)
 	} else {
-		fmt.Printf("✓ 总共有 %d 个叶子页面\n", len(leafPages))
+		util.Debugf("✓ 总共有 %d 个叶子页面\n", len(leafPages))
 		if len(leafPages) > 0 && len(leafPages) <= 5 {
-			fmt.Printf("  叶子页面: %v\n", leafPages)
+			util.Debugf("  叶子页面: %v\n", leafPages)
 		}
 	}
 
@@ -80,9 +80,9 @@ func main() {
 	fmt.Println("  测试Search...")
 	pageNum, slot, err := userBTreeManager.Search(ctx, "root")
 	if err != nil {
-		fmt.Printf("⚠️ 搜索失败（可能是预期的）: %v\n", err)
+		util.Debugf(" 搜索失败（可能是预期的）: %v\n", err)
 	} else {
-		fmt.Printf("✓ 找到记录: PageNum=%d, Slot=%d\n", pageNum, slot)
+		util.Debugf("✓ 找到记录: PageNum=%d, Slot=%d\n", pageNum, slot)
 	}
 
 	fmt.Println("\n=== 锁修复测试完成 ===")

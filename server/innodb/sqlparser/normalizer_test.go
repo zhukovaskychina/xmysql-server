@@ -178,10 +178,10 @@ func TestNormalize(t *testing.T) {
 		Normalize(stmt, bv, prefix)
 		outstmt := String(stmt)
 		if outstmt != tc.outstmt {
-			t.Errorf("Query:\n%s:\n%s, want\n%s", tc.in, outstmt, tc.outstmt)
+			t.Errorf("Query:%s:%s, want%s", tc.in, outstmt, tc.outstmt)
 		}
 		if !reflect.DeepEqual(tc.outbv, bv) {
-			t.Errorf("Query:\n%s:\n%v, want\n%v", tc.in, bv, tc.outbv)
+			t.Errorf("Query:%s:%v, want%v", tc.in, bv, tc.outbv)
 		}
 	}
 }

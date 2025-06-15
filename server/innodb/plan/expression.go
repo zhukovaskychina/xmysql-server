@@ -155,6 +155,45 @@ func (b *BinaryOperation) Eval(ctx *EvalContext) (interface{}, error) {
 	}
 }
 
+func (b *BinaryOperation) String() string {
+	return fmt.Sprintf("(%s %s %s)", b.Left.String(), b.convertOperatorToString(), b.Right.String())
+}
+
+func (b *BinaryOperation) convertOperatorToString() string {
+	switch b.Op {
+	case OpAdd:
+		return "+"
+	case OpSub:
+		return "-"
+	case OpMul:
+		return "*"
+	case OpDiv:
+		return "/"
+	case OpEQ:
+		return "="
+	case OpNE:
+		return "!="
+	case OpLT:
+		return "<"
+	case OpLE:
+		return "<="
+	case OpGT:
+		return ">"
+	case OpGE:
+		return ">="
+	case OpAnd:
+		return "AND"
+	case OpOr:
+		return "OR"
+	case OpLike:
+		return "LIKE"
+	case OpIn:
+		return "IN"
+	default:
+		return "UNKNOWN"
+	}
+}
+
 // Function 函数表达式
 type Function struct {
 	BaseExpression
@@ -192,6 +231,14 @@ func (f *Function) Eval(ctx *EvalContext) (interface{}, error) {
 	default:
 		return nil, fmt.Errorf("unknown function: %s", f.Name)
 	}
+}
+
+func (f *Function) String() string {
+	args := make([]string, len(f.Args))
+	for i, arg := range f.Args {
+		args[i] = arg.String()
+	}
+	return fmt.Sprintf("%s(%s)", f.Name, strings.Join(args, ", "))
 }
 
 // 运算符求值函数

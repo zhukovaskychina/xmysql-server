@@ -2,6 +2,7 @@ package dispatcher
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
@@ -71,6 +72,7 @@ func (h *BusinessMessageHandler) handleQueryMessage(msg protocol.Message) (proto
 		database:  queryMsg.Database,
 	}
 
+	logger.Error(queryMsg.SQL)
 	// 分发SQL查询
 	resultChan := h.sqlDispatcher.Dispatch(session, queryMsg.SQL, queryMsg.Database)
 
@@ -153,7 +155,7 @@ func (h *BusinessMessageHandler) handleConnectMessage(msg protocol.Message) (pro
 	}
 
 	// 记录连接信息
-	fmt.Printf("Client connected: %s:%d, User: %s, Database: %s\n",
+	logger.Debugf("Client connected: %s:%d, User: %s, Database: %s\n",
 		connectMsg.ClientInfo.Host,
 		connectMsg.ClientInfo.Port,
 		connectMsg.ClientInfo.User,
@@ -166,7 +168,7 @@ func (h *BusinessMessageHandler) handleConnectMessage(msg protocol.Message) (pro
 // handleDisconnectMessage 处理断开连接消息
 func (h *BusinessMessageHandler) handleDisconnectMessage(msg protocol.Message) (protocol.Message, error) {
 	// 记录断开连接信息
-	fmt.Printf("Client disconnected: %s\n", msg.SessionID())
+	logger.Debugf("Client disconnected: %s\n", msg.SessionID())
 
 	// 清理会话相关资源（如果需要的话）
 	// 这里可以添加清理逻辑，比如关闭数据库连接、清理缓存等

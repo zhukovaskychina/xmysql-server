@@ -267,6 +267,19 @@ func (bpm *OptimizedBufferPoolManager) MarkDirty(spaceID, pageNo uint32) error {
 	return nil
 }
 
+// GetDirtyPages 获取所有脏页
+func (bpm *OptimizedBufferPoolManager) GetDirtyPages() []*buffer_pool.BufferPage {
+	bpm.dirtyMutex.RLock()
+	defer bpm.dirtyMutex.RUnlock()
+
+	dirtyPages := make([]*buffer_pool.BufferPage, 0, len(bpm.dirtyPageList))
+	for _, page := range bpm.dirtyPageList {
+		dirtyPages = append(dirtyPages, page)
+	}
+
+	return dirtyPages
+}
+
 // FlushAllPages 刷新所有脏页
 func (bpm *OptimizedBufferPoolManager) FlushAllPages() error {
 	// 获取所有脏页

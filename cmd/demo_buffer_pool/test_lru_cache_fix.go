@@ -43,11 +43,11 @@ func testBasicFunctionality() {
 	cache.SetYoung(1, 1, mockBlock)
 	result, err := cache.GetYoung(1, 1)
 	if err != nil {
-		fmt.Printf("ERROR: GetYoung failed: %v\n", err)
+		util.Debugf("ERROR: GetYoung failed: %v\n", err)
 		return
 	}
 	if result != mockBlock {
-		fmt.Printf("ERROR: GetYoung returned wrong value\n")
+		util.Debugf("ERROR: GetYoung returned wrong value\n")
 		return
 	}
 
@@ -55,15 +55,15 @@ func testBasicFunctionality() {
 	cache.SetOld(2, 2, mockBlock)
 	result, err = cache.GetOld(2, 2)
 	if err != nil {
-		fmt.Printf("ERROR: GetOld failed: %v\n", err)
+		util.Debugf("ERROR: GetOld failed: %v\n", err)
 		return
 	}
 	if result != mockBlock {
-		fmt.Printf("ERROR: GetOld returned wrong value\n")
+		util.Debugf("ERROR: GetOld returned wrong value\n")
 		return
 	}
 
-	fmt.Println("✓ Basic functionality test passed")
+	fmt.Println("✓ Basic functionality test_simple_protocol passed")
 }
 
 func testConcurrentAccess() {
@@ -94,7 +94,7 @@ func testConcurrentAccess() {
 				cache.SetYoung(spaceID, pageNo, mockBlocks[j%len(mockBlocks)])
 				_, _ = cache.GetYoung(spaceID, pageNo)
 
-				// Also test old operations
+				// Also test_simple_protocol old operations
 				cache.SetOld(spaceID+10000, pageNo, mockBlocks[j%len(mockBlocks)])
 				_, _ = cache.GetOld(spaceID+10000, pageNo)
 			}
@@ -111,13 +111,13 @@ func testConcurrentAccess() {
 	// Wait with timeout to detect deadlocks
 	select {
 	case <-done:
-		fmt.Println("✓ Concurrent access test passed (no deadlocks)")
+		fmt.Println("✓ Concurrent access test_simple_protocol passed (no deadlocks)")
 	case <-time.After(10 * time.Second):
-		fmt.Println("✗ Concurrent access test FAILED (possible deadlock)")
+		fmt.Println("✗ Concurrent access test_simple_protocol FAILED (possible deadlock)")
 		// Print goroutine stack traces to help debug
 		buf := make([]byte, 1<<16)
 		stackSize := runtime.Stack(buf, true)
-		fmt.Printf("Goroutine stack traces:\n%s\n", buf[:stackSize])
+		util.Debugf("Goroutine stack traces:\n%s\n", buf[:stackSize])
 		return
 	}
 }
@@ -167,9 +167,9 @@ func testMixedOperations() {
 
 	select {
 	case <-done:
-		fmt.Println("✓ Mixed operations test passed")
+		fmt.Println("✓ Mixed operations test_simple_protocol passed")
 	case <-time.After(5 * time.Second):
-		fmt.Println("✗ Mixed operations test FAILED (timeout)")
+		fmt.Println("✗ Mixed operations test_simple_protocol FAILED (timeout)")
 		return
 	}
 }
@@ -183,7 +183,7 @@ func testPerformance() {
 		cache.Set(uint32(i), uint32(i), mockBlock)
 	}
 
-	// Performance test
+	// Performance test_simple_protocol
 	numOperations := 10000
 	start := time.Now()
 
@@ -201,10 +201,10 @@ func testPerformance() {
 	duration := time.Since(start)
 	opsPerSecond := float64(numOperations) / duration.Seconds()
 
-	fmt.Printf("✓ Performance test: %.0f operations/second\n", opsPerSecond)
+	util.Debugf("✓ Performance test_simple_protocol: %.0f operations/second\n", opsPerSecond)
 
 	// Print cache statistics
 	if len := cache.Len(); len > 0 {
-		fmt.Printf("  Cache length: %d\n", len)
+		util.Debugf("  Cache length: %d\n", len)
 	}
 }

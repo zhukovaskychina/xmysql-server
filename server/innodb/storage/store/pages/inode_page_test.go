@@ -2,6 +2,7 @@ package pages
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"testing"
 	"unsafe"
 )
@@ -23,16 +24,16 @@ func TestINodePoint(t *testing.T) {
 	      是一个占位符,表示输出一个十六进制地址格式。
 	  %d:
 	      是一个占位符，表示输出一个整型。
-	  \n:
+	  :
 	      表示换行符。
 	  *:
 	      取值运算符，可以将指针变量中的保存的数据取出来。换句话说，可以将一段内存地址保存的值取出来。
 	*/
-	fmt.Printf("age的内存地址是:%p,age的值是:%d\n", p1, *p1)
+	logger.Debugf("age的内存地址是:%p,age的值是:%d", p1, *p1)
 
 	//我们可以通过指针间接修改变量的值
 	*p1 = 27
-	fmt.Printf("age的内存地址是:%p,age的值是:%d\n", p1, age)
+	logger.Debugf("age的内存地址是:%p,age的值是:%d", p1, age)
 	fmt.Println(0xc000122240)
 	var b uint16
 	b = 2550

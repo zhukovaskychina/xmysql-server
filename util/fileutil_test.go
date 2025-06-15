@@ -11,8 +11,8 @@ import (
 func TestWriteFileBySeekStart(t *testing.T) {
 
 	buff := []byte{'A', 'B'}
-	WriteFileBySeekStart("/home/zhukovasky/xmysql/test.ibd", 38, buff)
-	result := ReadFileBySeekStartWithSize("/home/zhukovasky/xmysql/test.ibd", 38, 2)
+	WriteFileBySeekStart("/home/zhukovasky/xmysql/test_simple_protocol.ibd", 38, buff)
+	result := ReadFileBySeekStartWithSize("/home/zhukovasky/xmysql/test_simple_protocol.ibd", 38, 2)
 	assertions.ShouldEqual(buff, result)
 }
 

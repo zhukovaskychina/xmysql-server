@@ -185,79 +185,96 @@ func (m *MySQLMessageHandler) handleQuery(session Session, currentMysqlSession *
 	query := string(recMySQLPkg.Body[1:])
 	dbName, ok := (*currentMysqlSession).GetParamByName("database").(string)
 	if !ok {
-		dbName = "test" // 默认数据库
+		dbName = "test_simple_protocol" // 默认数据库
 	}
 
 	// 分发SQL查询到SQL分发器
 	resultChan := m.sqlDispatcher.Dispatch(*currentMysqlSession, query, dbName)
 
-	// 异步处理结果
-	go m.handleQueryResults(session, resultChan)
-
-	return nil
+	// 同步处理结果，避免连接状态混乱
+	return m.handleQueryResults(session, resultChan)
 }
 
-func (m *MySQLMessageHandler) handleQueryResults(session Session, resultChan <-chan *dispatcher.SQLResult) {
+func (m *MySQLMessageHandler) handleQueryResults(session Session, resultChan <-chan *dispatcher.SQLResult) error {
 	for result := range resultChan {
 		if result.Err != nil {
 			// 发送错误响应
 			errPacket := protocol.EncodeErrorPacket(1064, "42000", result.Err.Error())
-			session.WriteBytes(errPacket)
-			continue
+			return session.WriteBytes(errPacket)
 		}
 
 		switch result.ResultType {
 		case "select", "query":
 			// 发送查询结果
-			m.sendQueryResult(session, result)
+			return m.sendQueryResult(session, result)
 		case "ddl":
 			// 发送DDL成功响应
 			okPacket := protocol.EncodeOK(nil, 0, 1, nil)
-			session.WriteBytes(okPacket)
+			return session.WriteBytes(okPacket)
 		case "insert", "update", "delete":
 			// 发送DML成功响应
 			okPacket := protocol.EncodeOK(nil, 1, 0, nil) // 假设影响1行
-			session.WriteBytes(okPacket)
+			return session.WriteBytes(okPacket)
 		case "set":
 			// 发送SET成功响应
 			okPacket := protocol.EncodeOK(nil, 0, 0, nil)
-			session.WriteBytes(okPacket)
+			return session.WriteBytes(okPacket)
 		default:
 			// 发送通用成功响应
 			okPacket := protocol.EncodeOK(nil, 0, 0, nil)
-			session.WriteBytes(okPacket)
+			return session.WriteBytes(okPacket)
 		}
 	}
+	return nil
 }
 
-func (m *MySQLMessageHandler) sendQueryResult(session Session, result *dispatcher.SQLResult) {
-	// 发送列数量
-	if len(result.Columns) > 0 {
-		columnCountPacket := m.encodeColumnCount(len(result.Columns))
-		session.WriteBytes(columnCountPacket)
-
-		// 发送列定义
-		for _, column := range result.Columns {
-			columnPacket := m.encodeColumnDefinition(column)
-			session.WriteBytes(columnPacket)
-		}
-
-		// 发送EOF包（列定义结束）
-		eofPacket := protocol.EncodeEOFPacket(0, 0)
-		session.WriteBytes(eofPacket)
+func (m *MySQLMessageHandler) sendQueryResult(session Session, result *dispatcher.SQLResult) error {
+	// 确保有列信息才发送查询结果
+	if len(result.Columns) == 0 {
+		// 如果没有列信息，发送OK包而不是结果集
+		okPacket := protocol.EncodeOK(nil, 0, 0, nil)
+		return session.WriteBytes(okPacket)
 	}
+
+	sequenceId := byte(1) // 从1开始的序列号
+
+	// 发送列数量
+	columnCountPacket := m.encodeColumnCountWithSeq(len(result.Columns), sequenceId)
+	if err := session.WriteBytes(columnCountPacket); err != nil {
+		return err
+	}
+	sequenceId++
+
+	// 发送列定义
+	for _, column := range result.Columns {
+		columnPacket := m.encodeColumnDefinitionWithSeq(column, sequenceId)
+		if err := session.WriteBytes(columnPacket); err != nil {
+			return err
+		}
+		sequenceId++
+	}
+
+	// 发送EOF包（列定义结束）
+	eofPacket := protocol.EncodeEOFPacketWithSeq(0, 0, sequenceId)
+	if err := session.WriteBytes(eofPacket); err != nil {
+		return err
+	}
+	sequenceId++
 
 	// 发送行数据
 	if len(result.Rows) > 0 {
 		for _, row := range result.Rows {
-			rowPacket := m.encodeRowData(row)
-			session.WriteBytes(rowPacket)
+			rowPacket := m.encodeRowDataWithSeq(row, sequenceId)
+			if err := session.WriteBytes(rowPacket); err != nil {
+				return err
+			}
+			sequenceId++
 		}
 	}
 
 	// 发送EOF包（数据结束）
-	eofPacket := protocol.EncodeEOFPacket(0, 0)
-	session.WriteBytes(eofPacket)
+	eofPacket = protocol.EncodeEOFPacketWithSeq(0, 0, sequenceId)
+	return session.WriteBytes(eofPacket)
 }
 
 func (m *MySQLMessageHandler) handleQuit(session Session, currentMysqlSession *server.MySQLServerSession, recMySQLPkg *MySQLPackage) error {
@@ -290,15 +307,15 @@ func (m *MySQLMessageHandler) handleSleep(session Session, currentMysqlSession *
 
 // 协议编码辅助方法
 
-// encodeColumnCount 编码列数量包
-func (m *MySQLMessageHandler) encodeColumnCount(count int) []byte {
-	// 简化实现，实际应该使用length-encoded integer
-	payload := []byte{byte(count)}
-	return m.addPacketHeader(payload, 1)
+// encodeColumnCountWithSeq 编码列数量包（带序列号）
+func (m *MySQLMessageHandler) encodeColumnCountWithSeq(count int, sequenceId byte) []byte {
+	// 使用length-encoded integer编码列数量
+	payload := m.encodeLengthEncodedInt(uint64(count))
+	return m.addPacketHeader(payload, sequenceId)
 }
 
-// encodeColumnDefinition 编码列定义包
-func (m *MySQLMessageHandler) encodeColumnDefinition(columnName string) []byte {
+// encodeColumnDefinitionWithSeq 编码列定义包（带序列号）
+func (m *MySQLMessageHandler) encodeColumnDefinitionWithSeq(columnName string, sequenceId byte) []byte {
 	payload := make([]byte, 0, 64+len(columnName))
 
 	// 简化的列定义
@@ -318,11 +335,11 @@ func (m *MySQLMessageHandler) encodeColumnDefinition(columnName string) []byte {
 	payload = append(payload, 0x00)                   // decimals
 	payload = append(payload, 0x00, 0x00)             // filler
 
-	return m.addPacketHeader(payload, 2)
+	return m.addPacketHeader(payload, sequenceId)
 }
 
-// encodeRowData 编码行数据包
-func (m *MySQLMessageHandler) encodeRowData(row []interface{}) []byte {
+// encodeRowDataWithSeq 编码行数据包（带序列号）
+func (m *MySQLMessageHandler) encodeRowDataWithSeq(row []interface{}, sequenceId byte) []byte {
 	payload := make([]byte, 0, 256)
 
 	for _, value := range row {
@@ -334,7 +351,50 @@ func (m *MySQLMessageHandler) encodeRowData(row []interface{}) []byte {
 		}
 	}
 
-	return m.addPacketHeader(payload, 3)
+	return m.addPacketHeader(payload, sequenceId)
+}
+
+// encodeLengthEncodedInt 编码length-encoded integer
+func (m *MySQLMessageHandler) encodeLengthEncodedInt(value uint64) []byte {
+	if value < 251 {
+		return []byte{byte(value)}
+	} else if value < 65536 {
+		result := make([]byte, 3)
+		result[0] = 0xFC
+		result[1] = byte(value)
+		result[2] = byte(value >> 8)
+		return result
+	} else if value < 16777216 {
+		result := make([]byte, 4)
+		result[0] = 0xFD
+		result[1] = byte(value)
+		result[2] = byte(value >> 8)
+		result[3] = byte(value >> 16)
+		return result
+	} else {
+		result := make([]byte, 9)
+		result[0] = 0xFE
+		for i := 1; i < 9; i++ {
+			result[i] = byte(value >> ((i - 1) * 8))
+		}
+		return result
+	}
+}
+
+// 保留旧方法以兼容其他地方的调用
+// encodeColumnCount 编码列数量包
+func (m *MySQLMessageHandler) encodeColumnCount(count int) []byte {
+	return m.encodeColumnCountWithSeq(count, 1)
+}
+
+// encodeColumnDefinition 编码列定义包
+func (m *MySQLMessageHandler) encodeColumnDefinition(columnName string) []byte {
+	return m.encodeColumnDefinitionWithSeq(columnName, 2)
+}
+
+// encodeRowData 编码行数据包
+func (m *MySQLMessageHandler) encodeRowData(row []interface{}) []byte {
+	return m.encodeRowDataWithSeq(row, 3)
 }
 
 // addPacketHeader 添加MySQL包头

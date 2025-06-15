@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"log"
 
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
@@ -15,7 +16,7 @@ func main() {
 	// 创建配置并加载配置文件
 	cfg := conf.NewCfg()
 	args := &conf.CommandLineArgs{
-		ConfigPath: "D:\\GolangProjects\\github\\xmysql-server\\cmd\\demo_executor\\my.ini",
+		ConfigPath: "/Users/zhukovasky/GolandProjects/xmysql-server-engine/cmd/demo_executor/my.ini",
 	}
 	cfg = cfg.Load(args)
 
@@ -32,7 +33,7 @@ func main() {
 	}
 
 	for i, query := range testQueries {
-		fmt.Printf("\n=== 测试查询 %d: %s ===\n", i+1, query)
+		logger.Debugf("\n=== 测试查询 %d: %s ===\n", i+1, query)
 
 		// 解析SQL
 		_, err := sqlparser.Parse(query)
@@ -58,26 +59,26 @@ func main() {
 			continue
 		}
 
-		fmt.Printf("✓ 查询执行成功，结果类型: %s\n", result.ResultType)
+		logger.Debugf("✓ 查询执行成功，结果类型: %s\n", result.ResultType)
 
 		// 检查结果数据类型
 		if selectResult, ok := result.Data.(*engine.SelectResult); ok {
-			fmt.Printf("✓ 返回行数: %d\n", selectResult.RowCount)
-			fmt.Printf("✓ 列信息: %v\n", selectResult.Columns)
+			logger.Debugf("✓ 返回行数: %d\n", selectResult.RowCount)
+			logger.Debugf("✓ 列信息: %v\n", selectResult.Columns)
 
 			// 打印前几行数据
 			for i, record := range selectResult.Records {
 				if i >= 3 { // 只显示前3行
 					break
 				}
-				fmt.Printf("  行 %d: %v\n", i+1, record.Values)
+				logger.Debugf("  行 %d: %v\n", i+1, record.GetValues())
 			}
 
 			if len(selectResult.Records) > 3 {
-				fmt.Printf("  ... 还有 %d 行数据\n", len(selectResult.Records)-3)
+				logger.Debugf("  ... 还有 %d 行数据\n", len(selectResult.Records)-3)
 			}
 		} else {
-			fmt.Printf("结果数据类型: %T\n", result.Data)
+			logger.Debugf("结果数据类型: %T\n", result.Data)
 		}
 	}
 

@@ -47,9 +47,9 @@ func TestClientOptions(t *testing.T) {
 
 func TestServerOptions(t *testing.T) {
 	addr := "127.0.0.1:0"
-	path := "/test"
+	path := "/test_simple_protocol"
 	cert := ""
-	key := "test"
+	key := "test_simple_protocol"
 	srv := newServer(TCP_SERVER,
 		WithLocalAddress(addr),
 		WithWebsocketServerPath(path),

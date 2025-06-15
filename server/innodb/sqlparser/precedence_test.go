@@ -55,7 +55,7 @@ func TestAndOrPrecedence(t *testing.T) {
 		}
 		expr := readable(tree.(*Select).Where.Expr)
 		if expr != tcase.output {
-			t.Errorf("Parse: \n%s, want: \n%s", expr, tcase.output)
+			t.Errorf("Parse: %s, want: %s", expr, tcase.output)
 		}
 	}
 }
@@ -79,7 +79,7 @@ func TestPlusStarPrecedence(t *testing.T) {
 		}
 		expr := readable(tree.(*Select).SelectExprs[0].(*AliasedExpr).Expr)
 		if expr != tcase.output {
-			t.Errorf("Parse: \n%s, want: \n%s", expr, tcase.output)
+			t.Errorf("Parse: %s, want: %s", expr, tcase.output)
 		}
 	}
 }
@@ -106,7 +106,7 @@ func TestIsPrecedence(t *testing.T) {
 		}
 		expr := readable(tree.(*Select).Where.Expr)
 		if expr != tcase.output {
-			t.Errorf("Parse: \n%s, want: \n%s", expr, tcase.output)
+			t.Errorf("Parse: %s, want: %s", expr, tcase.output)
 		}
 	}
 }

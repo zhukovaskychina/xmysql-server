@@ -51,7 +51,7 @@ func testOriginalLRU() {
 	}
 
 	elapsed := time.Since(start)
-	fmt.Printf("原始LRU缓存操作耗时: %v\n", elapsed)
+	util.Debugf("原始LRU缓存操作耗时: %v\n", elapsed)
 
 	// 显示统计信息
 	if stats, ok := cache.(interface {
@@ -59,7 +59,7 @@ func testOriginalLRU() {
 		MissCount() uint64
 		HitRate() float64
 	}); ok {
-		fmt.Printf("命中次数: %d, 未命中次数: %d, 命中率: %.2f%%\n",
+		util.Debugf("命中次数: %d, 未命中次数: %d, 命中率: %.2f%%\n",
 			stats.HitCount(), stats.MissCount(), stats.HitRate()*100)
 	}
 }
@@ -84,10 +84,10 @@ func testOptimizedLRU() {
 	}
 
 	elapsed := time.Since(start)
-	fmt.Printf("优化LRU缓存操作耗时: %v\n", elapsed)
+	util.Debugf("优化LRU缓存操作耗时: %v\n", elapsed)
 
 	// 显示统计信息
-	fmt.Printf("命中次数: %d, 未命中次数: %d, 命中率: %.2f%%\n",
+	util.Debugf("命中次数: %d, 未命中次数: %d, 命中率: %.2f%%\n",
 		cache.HitCount(), cache.MissCount(), cache.HitRate()*100)
 }
 
@@ -136,9 +136,9 @@ func testConcurrentOriginal(numGoroutines, operationsPerGoroutine int) {
 	wg.Wait()
 	elapsed := time.Since(start)
 
-	fmt.Printf("  %d个goroutine，每个%d次操作\n", numGoroutines, operationsPerGoroutine)
-	fmt.Printf("  总耗时: %v\n", elapsed)
-	fmt.Printf("  平均每次操作: %v\n", elapsed/time.Duration(numGoroutines*operationsPerGoroutine))
+	util.Debugf("  %d个goroutine，每个%d次操作\n", numGoroutines, operationsPerGoroutine)
+	util.Debugf("  总耗时: %v\n", elapsed)
+	util.Debugf("  平均每次操作: %v\n", elapsed/time.Duration(numGoroutines*operationsPerGoroutine))
 }
 
 func testConcurrentOptimized(numGoroutines, operationsPerGoroutine int) {
@@ -173,13 +173,13 @@ func testConcurrentOptimized(numGoroutines, operationsPerGoroutine int) {
 	wg.Wait()
 	elapsed := time.Since(start)
 
-	fmt.Printf("  %d个goroutine，每个%d次操作\n", numGoroutines, operationsPerGoroutine)
-	fmt.Printf("  总耗时: %v\n", elapsed)
-	fmt.Printf("  平均每次操作: %v\n", elapsed/time.Duration(numGoroutines*operationsPerGoroutine))
+	util.Debugf("  %d个goroutine，每个%d次操作\n", numGoroutines, operationsPerGoroutine)
+	util.Debugf("  总耗时: %v\n", elapsed)
+	util.Debugf("  平均每次操作: %v\n", elapsed/time.Duration(numGoroutines*operationsPerGoroutine))
 
 	// 显示优化缓存的统计信息
-	fmt.Printf("  命中率: %.2f%%\n", cache.HitRate()*100)
-	fmt.Printf("  缓存大小: %d\n", cache.Len())
+	util.Debugf("  命中率: %.2f%%\n", cache.HitRate()*100)
+	util.Debugf("  缓存大小: %d\n", cache.Len())
 }
 
 func testOptimizedBufferPoolManager() {
@@ -202,7 +202,7 @@ func testOptimizedBufferPoolManager() {
 	// 创建优化的BufferPoolManager
 	bpm, err := manager.NewOptimizedBufferPoolManager(config)
 	if err != nil {
-		fmt.Printf("创建OptimizedBufferPoolManager失败: %v\n", err)
+		util.Debugf("创建OptimizedBufferPoolManager失败: %v\n", err)
 		return
 	}
 	defer bpm.Close()
@@ -216,7 +216,7 @@ func testOptimizedBufferPoolManager() {
 	for i := uint32(0); i < 50; i++ {
 		page, err := bpm.GetPage(1, i)
 		if err != nil {
-			fmt.Printf("获取页面失败: %v\n", err)
+			util.Debugf("获取页面失败: %v\n", err)
 			continue
 		}
 
@@ -231,23 +231,23 @@ func testOptimizedBufferPoolManager() {
 
 	// 刷新所有脏页
 	if err := bpm.FlushAllPages(); err != nil {
-		fmt.Printf("刷新脏页失败: %v\n", err)
+		util.Debugf("刷新脏页失败: %v\n", err)
 	}
 
 	elapsed := time.Since(start)
-	fmt.Printf("BufferPoolManager操作耗时: %v\n", elapsed)
+	util.Debugf("BufferPoolManager操作耗时: %v\n", elapsed)
 
 	// 显示统计信息
 	stats := bpm.GetStats()
-	fmt.Printf("统计信息:\n")
+	util.Debugf("统计信息:\n")
 	for key, value := range stats {
-		fmt.Printf("  %s: %v\n", key, value)
+		util.Debugf("  %s: %v\n", key, value)
 	}
 
 	// 内存使用情况
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	fmt.Printf("内存使用: %.2f MB\n", float64(m.Alloc)/1024/1024)
+	util.Debugf("内存使用: %.2f MB\n", float64(m.Alloc)/1024/1024)
 }
 
 // MockStorageProvider 模拟存储提供者

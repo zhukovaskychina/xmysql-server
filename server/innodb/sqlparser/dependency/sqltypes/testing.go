@@ -21,7 +21,7 @@ import (
 )
 
 // Functions in this file should only be used for testing.
-// This is an experiment to see if test code bloat can be
+// This is an experiment to see if test_simple_protocol code bloat can be
 // reduced and readability improved.
 
 /*

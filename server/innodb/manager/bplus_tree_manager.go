@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/page"
@@ -138,7 +139,7 @@ func (m *DefaultBPlusTreeManager) flushDirtyNodes() {
 		if node.isDirty {
 			if err := m.flushNode(node); err != nil {
 				// 记录错误但继续处理其他节点
-				fmt.Printf("Error flushing node %d: %v\n", node.PageNum, err)
+				logger.Debugf("Error flushing node %d: %v", node.PageNum, err)
 			}
 		}
 	}
@@ -149,7 +150,7 @@ func (m *DefaultBPlusTreeManager) flushDirtyNodesAsync(dirtyNodes []*BPlusTreeNo
 	for _, node := range dirtyNodes {
 		if err := m.flushNode(node); err != nil {
 			// 记录错误但继续处理其他节点
-			fmt.Printf("Error flushing node %d: %v\n", node.PageNum, err)
+			logger.Debugf("Error flushing node %d: %v", node.PageNum, err)
 		} else {
 			// 刷新成功后，在锁内更新节点状态
 			m.mutex.Lock()
@@ -440,7 +441,7 @@ func (m *DefaultBPlusTreeManager) Insert(ctx context.Context, key interface{}, v
 			return fmt.Errorf("failed to store record: %v", err)
 		}
 
-		fmt.Printf("    ✓ Inserted key '%v' into leaf node (page %d)\n", key, rootNode.PageNum)
+		logger.Debugf("    ✓ Inserted key '%v' into leaf node (page %d)", key, rootNode.PageNum)
 		return nil
 	}
 
@@ -459,7 +460,7 @@ func (m *DefaultBPlusTreeManager) Insert(ctx context.Context, key interface{}, v
 
 				err = m.storeRecordInPage(ctx, childNode.PageNum, key, value)
 				if err == nil {
-					fmt.Printf("    ✓ Inserted key '%v' into child leaf node (page %d)\n", key, childNode.PageNum)
+					logger.Debugf("    ✓ Inserted key '%v' into child leaf node (page %d)", key, childNode.PageNum)
 					return nil
 				}
 			}
@@ -918,6 +919,6 @@ func (m *DefaultBPlusTreeManager) insertIntoNewLeafNode(ctx context.Context, key
 		return fmt.Errorf("failed to store record in new leaf: %v", err)
 	}
 
-	fmt.Printf("    ✓ Created new leaf node (page %d) and inserted key '%v'\n", newPageNum, key)
+	logger.Debugf("    ✓ Created new leaf node (page %d) and inserted key '%v'", newPageNum, key)
 	return nil
 }

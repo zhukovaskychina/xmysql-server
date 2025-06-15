@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
@@ -285,19 +286,39 @@ func (ea *InnoDBEngineAccess) QueryTablePrivileges(ctx context.Context, user, ho
 
 // executeQuery 执行查询
 func (ea *InnoDBEngineAccess) executeQuery(ctx context.Context, sql, database string) (*QueryResult, error) {
+	logger.Debugf(" [executeQuery] 开始执行SQL: %s", sql)
+	logger.Debugf(" [executeQuery] 目标数据库: %s", database)
+
 	// 创建临时会话
 	session := &MockEngineSession{
 		sessionID: "auth-query",
 		database:  database,
 	}
 
+	logger.Debugf(" [executeQuery] 创建临时会话: %s", session.sessionID)
+
 	// 执行查询
+	logger.Debugf(" [executeQuery] 调用 engine.ExecuteQuery...")
 	resultChan := ea.engine.ExecuteQuery(session, sql, database)
 
+	logger.Debugf(" [executeQuery] 等待查询结果...")
+
 	// 等待结果
+	resultCount := 0
 	for result := range resultChan {
+		resultCount++
+		logger.Debugf("[executeQuery] 收到结果 #%d: error=%v, resultType=%s", resultCount, result.Err, result.ResultType)
+
 		if result.Err != nil {
+			logger.Errorf(" [executeQuery] SQL执行失败: %v", result.Err)
 			return nil, result.Err
+		}
+
+		logger.Debugf("[executeQuery] 结果详细信息:")
+		logger.Debugf("  - ResultType: %s", result.ResultType)
+		logger.Debugf("  - Data: %+v", result.Data)
+		if result.Rows != nil {
+			logger.Debugf("  - Rows count: %d", len(result.Rows))
 		}
 
 		// 转换结果格式
@@ -306,38 +327,102 @@ func (ea *InnoDBEngineAccess) executeQuery(ctx context.Context, sql, database st
 			Rows:    [][]interface{}{},
 		}
 
-		// 从Rows中提取数据
-		if result.Rows != nil {
-			for _, row := range result.Rows {
+		//  改进的结果处理逻辑
+		if result.Data != nil {
+			logger.Debugf(" [executeQuery] 处理结果数据...")
+
+			// 尝试从SelectResult中提取数据
+			if selectResult, ok := result.Data.(*engine.SelectResult); ok {
+				logger.Debugf(" [executeQuery] 识别为 SelectResult")
+				logger.Debugf("  - RowCount: %d", selectResult.RowCount)
+				logger.Debugf("  - Columns: %v", selectResult.Columns)
+
+				queryResult.Columns = selectResult.Columns
+
+				// 从Records中提取行数据
+				for i, record := range selectResult.Records {
+					logger.Debugf("  - 处理记录 %d", i)
+
+					rowData := make([]interface{}, len(selectResult.Columns))
+					for j, columnName := range selectResult.Columns {
+						// 从记录中获取字段值
+						if value, err := record.GetValueByName(columnName); err == nil {
+							rowData[j] = value.Raw()
+							logger.Debugf("    - %s: %v", columnName, value.Raw())
+						} else {
+							rowData[j] = nil
+							logger.Debugf("    - %s: NULL (error: %v)", columnName, err)
+						}
+					}
+					queryResult.Rows = append(queryResult.Rows, rowData)
+				}
+
+				logger.Debugf(" [executeQuery] 成功提取 %d 行数据", len(queryResult.Rows))
+				return queryResult, nil
+			}
+
+			// 尝试从Data map中提取
+			if dataMap, ok := result.Data.(map[string]interface{}); ok {
+				logger.Debugf(" [executeQuery] 识别为 Data map")
+
+				if columns, exists := dataMap["columns"]; exists {
+					if colSlice, ok := columns.([]string); ok {
+						queryResult.Columns = colSlice
+						logger.Debugf("  - 提取到列: %v", colSlice)
+					}
+				}
+
+				if rows, exists := dataMap["rows"]; exists {
+					if rowSlice, ok := rows.([][]interface{}); ok {
+						queryResult.Rows = rowSlice
+						logger.Debugf("  - 提取到 %d 行数据", len(rowSlice))
+					}
+				}
+			}
+		}
+
+		// 从Rows中提取数据（备用方案）
+		if result.Rows != nil && len(queryResult.Rows) == 0 {
+			logger.Debugf(" [executeQuery] 从 result.Rows 提取数据...")
+
+			for i, row := range result.Rows {
+				logger.Debugf("  - 处理行 %d", i)
 				var rowData []interface{}
+
 				// 获取行的字段数量
 				fieldCount := row.GetFieldLength()
-				for i := 0; i < fieldCount; i++ {
-					value := row.ReadValueByIndex(i)
+				logger.Debugf("    - 字段数量: %d", fieldCount)
+
+				for j := 0; j < fieldCount; j++ {
+					value := row.ReadValueByIndex(j)
 					if value != nil {
 						rowData = append(rowData, value.Raw())
+						logger.Debugf("    - 字段 %d: %v", j, value.Raw())
 					} else {
 						rowData = append(rowData, nil)
+						logger.Debugf("    - 字段 %d: NULL", j)
 					}
 				}
 				queryResult.Rows = append(queryResult.Rows, rowData)
 			}
 		}
 
-		// 如果有Data字段，尝试从中提取列信息
-		if result.Data != nil {
-			if dataMap, ok := result.Data.(map[string]interface{}); ok {
-				if columns, exists := dataMap["columns"]; exists {
-					if colSlice, ok := columns.([]string); ok {
-						queryResult.Columns = colSlice
-					}
-				}
+		// 如果仍然没有列信息，创建默认列
+		if len(queryResult.Columns) == 0 && len(queryResult.Rows) > 0 {
+			columnCount := len(queryResult.Rows[0])
+			queryResult.Columns = make([]string, columnCount)
+			for i := 0; i < columnCount; i++ {
+				queryResult.Columns[i] = fmt.Sprintf("column_%d", i+1)
 			}
+			logger.Debugf(" [executeQuery] 创建默认列名: %v", queryResult.Columns)
 		}
 
+		logger.Debugf(" [executeQuery] SQL执行成功，返回结果: columns=%v, rows=%d",
+			queryResult.Columns, len(queryResult.Rows))
 		return queryResult, nil
 	}
 
+	logger.Errorf(" [executeQuery] 未收到查询结果，结果数量: %d", resultCount)
 	return nil, fmt.Errorf("no result received")
 }
 

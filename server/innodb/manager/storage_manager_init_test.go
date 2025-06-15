@@ -217,7 +217,7 @@ func TestStorageManagerErrorHandling(t *testing.T) {
 	// 测试只读目录
 	t.Run("ReadOnlyDirectory", func(t *testing.T) {
 		if os.Getuid() == 0 {
-			t.Skip("Skipping read-only test when running as root")
+			t.Skip("Skipping read-only test_simple_protocol when running as root")
 		}
 
 		tempDir, err := os.MkdirTemp("", "xmysql_readonly_test_*")

@@ -1,16 +1,16 @@
 package page
 
-// TODO: This test file has been temporarily disabled due to missing dependencies
+// TODO: This test_simple_protocol file has been temporarily disabled due to missing dependencies
 
 /*
 import (
 	"fmt"
 	"testing"
-	"github.com/zhukovaskychina/xmysql-server/server/conf"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
+	"1/zhukovaskychina/xmysql-server/server/conf"
+	"1/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 )
 
 func TestNewDataDictWrapper(t *testing.T) {
-	// All test implementations disabled due to missing dependencies
+	// All test_simple_protocol implementations disabled due to missing dependencies
 }
 */

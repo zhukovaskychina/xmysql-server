@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"sync"
 	"time"
 
@@ -431,7 +432,7 @@ func (im *IndexManager) DropIndex(indexID uint64) error {
 	for pageNo := uint32(0); pageNo < idx.PageCount; pageNo++ {
 		if err := im.segmentManager.FreePage(idx.SegmentID, pageNo); err != nil {
 			// 记录错误但继续处理
-			fmt.Printf("Warning: failed to free page %d in segment %d: %v\n", pageNo, idx.SegmentID, err)
+			logger.Debugf("Warning: failed to free page %d in segment %d: %v", pageNo, idx.SegmentID, err)
 		}
 	}
 

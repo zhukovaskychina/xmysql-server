@@ -5,7 +5,7 @@ package metadata
 
 /*
 import (
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"1/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 type TableInterface interface {

@@ -151,7 +151,7 @@ func TestGenerateQuery(t *testing.T) {
 			got = string(bytes)
 		}
 		if got != tcase.output {
-			t.Errorf("for test case: %s, got: '%s', want '%s'", tcase.desc, got, tcase.output)
+			t.Errorf("for test_simple_protocol case: %s, got: '%s', want '%s'", tcase.desc, got, tcase.output)
 		}
 	}
 }

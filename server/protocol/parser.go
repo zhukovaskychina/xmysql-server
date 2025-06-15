@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"github.com/zhukovaskychina/xmysql-server/logger"
+
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 )
 
@@ -123,14 +125,24 @@ type AuthPacketParser struct{}
 
 // Parse 解析认证包
 func (p *AuthPacketParser) Parse(data []byte, sessionID string) (Message, error) {
+	logger.Debugf(" [AuthPacketParser.Parse] 开始解析认证包\n")
+	logger.Debugf(" [AuthPacketParser.Parse] 完整数据包长度: %d\n", len(data))
+	logger.Debugf(" [AuthPacketParser.Parse] 完整数据包内容: %v\n", data)
+
 	if len(data) < 4 {
+		logger.Debugf(" [AuthPacketParser.Parse] 数据包太短，需要至少4字节，只有%d字节\n", len(data))
 		return nil, fmt.Errorf("auth packet too short")
 	}
 
 	// 跳过包头（3字节长度 + 1字节序号）
 	payload := data[4:]
 
+	logger.Debugf(" [AuthPacketParser.Parse] 包头: %v\n", data[:4])
+	logger.Debugf(" [AuthPacketParser.Parse] 载荷长度: %d\n", len(payload))
+	logger.Debugf(" [AuthPacketParser.Parse] 载荷内容: %v\n", payload)
+
 	if len(payload) == 0 {
+		logger.Debugf(" [AuthPacketParser.Parse] 载荷为空\n")
 		return nil, fmt.Errorf("empty auth payload")
 	}
 
@@ -140,7 +152,10 @@ func (p *AuthPacketParser) Parse(data []byte, sessionID string) (Message, error)
 
 // parseClientAuthResponse 解析客户端认证响应
 func (p *AuthPacketParser) parseClientAuthResponse(payload []byte, sessionID string) (Message, error) {
-	if len(payload) < 32 {
+	logger.Debugf(" [AuthPacketParser] 解析认证响应，payload长度: %d\n", len(payload))
+	logger.Debugf(" [AuthPacketParser] payload内容(前64字节): %v\n", payload[:min(len(payload), 64)])
+
+	if len(payload) < 4 {
 		return nil, fmt.Errorf("auth response too short")
 	}
 
@@ -173,6 +188,8 @@ func (p *AuthPacketParser) parseClientAuthResponse(payload []byte, sessionID str
 	}
 	offset += 23
 
+	logger.Debugf("[AuthPacketParser] 客户端能力标志: 0x%08X, 当前偏移: %d\n", clientFlags, offset)
+
 	// 5. 用户名（以null结尾的字符串）
 	userEnd := offset
 	for userEnd < len(payload) && payload[userEnd] != 0 {
@@ -183,6 +200,8 @@ func (p *AuthPacketParser) parseClientAuthResponse(payload []byte, sessionID str
 	}
 	username := string(payload[offset:userEnd])
 	offset = userEnd + 1
+
+	logger.Debugf("[AuthPacketParser] 用户名: %s, 当前偏移: %d\n", username, offset)
 
 	// 6. 认证响应长度和数据
 	var authResponse []byte
@@ -221,6 +240,8 @@ func (p *AuthPacketParser) parseClientAuthResponse(payload []byte, sessionID str
 		}
 	}
 
+	logger.Debugf("[AuthPacketParser] 认证响应长度: %d, 数据: %x, 当前偏移: %d\n", len(authResponse), authResponse, offset)
+
 	// 7. 数据库名（如果指定）
 	if offset < len(payload) && clientFlags&CLIENT_CONNECT_WITH_DB != 0 {
 		dbEnd := offset
@@ -231,6 +252,8 @@ func (p *AuthPacketParser) parseClientAuthResponse(payload []byte, sessionID str
 			database = string(payload[offset:dbEnd])
 		}
 	}
+
+	logger.Debugf("[AuthPacketParser] 数据库: %s, 最终偏移: %d\n", database, offset)
 
 	// 解析密码（简化处理）
 	password := ""
@@ -310,3 +333,11 @@ const (
 	CLIENT_SESSION_TRACK                  = 0x00800000
 	CLIENT_DEPRECATE_EOF                  = 0x01000000
 )
+
+// min 返回两个整数中的较小值
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}

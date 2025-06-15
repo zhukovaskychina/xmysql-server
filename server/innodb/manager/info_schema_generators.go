@@ -1,5 +1,9 @@
 package manager
 
+import (
+	"strconv"
+)
+
 // TablesGenerator 生成TABLES表数据
 type TablesGenerator struct {
 	dictManager *DictionaryManager
@@ -11,27 +15,27 @@ func (g *TablesGenerator) Generate() ([][]interface{}, error) {
 	// 遍历所有表定义
 	for _, table := range g.dictManager.tables {
 		row := make([]interface{}, 21)
-		row[0] = "def"                 // TABLE_CATALOG
-		row[1] = "test"                // TABLE_SCHEMA
-		row[2] = table.Name            // TABLE_NAME
-		row[3] = "BASE TABLE"          // TABLE_TYPE
-		row[4] = "InnoDB"              // ENGINE
-		row[5] = uint64(10)            // VERSION
-		row[6] = "Dynamic"             // ROW_FORMAT
-		row[7] = uint64(0)             // TABLE_ROWS
-		row[8] = uint64(0)             // AVG_ROW_LENGTH
-		row[9] = uint64(16384)         // DATA_LENGTH
-		row[10] = uint64(0)            // MAX_DATA_LENGTH
-		row[11] = uint64(0)            // INDEX_LENGTH
-		row[12] = uint64(0)            // DATA_FREE
-		row[13] = table.AutoIncr       // AUTO_INCREMENT
-		row[14] = table.CreateTime     // CREATE_TIME
-		row[15] = table.UpdateTime     // UPDATE_TIME
-		row[16] = nil                  // CHECK_TIME
-		row[17] = "utf8mb4_general_ci" // TABLE_COLLATION
-		row[18] = nil                  // CHECKSUM
-		row[19] = ""                   // CREATE_OPTIONS
-		row[20] = ""                   // TABLE_COMMENT
+		row[0] = "def"                  // TABLE_CATALOG
+		row[1] = "test_simple_protocol" // TABLE_SCHEMA
+		row[2] = table.Name             // TABLE_NAME
+		row[3] = "BASE TABLE"           // TABLE_TYPE
+		row[4] = "InnoDB"               // ENGINE
+		row[5] = uint64(10)             // VERSION
+		row[6] = "Dynamic"              // ROW_FORMAT
+		row[7] = uint64(0)              // TABLE_ROWS
+		row[8] = uint64(0)              // AVG_ROW_LENGTH
+		row[9] = uint64(16384)          // DATA_LENGTH
+		row[10] = uint64(0)             // MAX_DATA_LENGTH
+		row[11] = uint64(0)             // INDEX_LENGTH
+		row[12] = uint64(0)             // DATA_FREE
+		row[13] = table.AutoIncr        // AUTO_INCREMENT
+		row[14] = table.CreateTime      // CREATE_TIME
+		row[15] = table.UpdateTime      // UPDATE_TIME
+		row[16] = nil                   // CHECK_TIME
+		row[17] = "utf8mb4_general_ci"  // TABLE_COLLATION
+		row[18] = nil                   // CHECKSUM
+		row[19] = ""                    // CREATE_OPTIONS
+		row[20] = ""                    // TABLE_COMMENT
 		rows = append(rows, row)
 	}
 
@@ -51,7 +55,7 @@ func (g *ColumnsGenerator) Generate() ([][]interface{}, error) {
 		for i, col := range table.Columns {
 			row := make([]interface{}, 20)
 			row[0] = "def"                              // TABLE_CATALOG
-			row[1] = "test"                             // TABLE_SCHEMA
+			row[1] = "test_simple_protocol"             // TABLE_SCHEMA
 			row[2] = table.Name                         // TABLE_NAME
 			row[3] = col.Name                           // COLUMN_NAME
 			row[4] = uint64(i + 1)                      // ORDINAL_POSITION
@@ -90,10 +94,10 @@ func (g *StatisticsGenerator) Generate() ([][]interface{}, error) {
 		for i, col := range index.Columns {
 			row := make([]interface{}, 16)
 			row[0] = "def"                          // TABLE_CATALOG
-			row[1] = "test"                         // TABLE_SCHEMA
+			row[1] = "test_simple_protocol"         // TABLE_SCHEMA
 			row[2] = g.getTableName(index.TableID)  // TABLE_NAME
 			row[3] = g.getNonUnique(index.IsUnique) // NON_UNIQUE
-			row[4] = "test"                         // INDEX_SCHEMA
+			row[4] = "test_simple_protocol"         // INDEX_SCHEMA
 			row[5] = index.Name                     // INDEX_NAME
 			row[6] = uint64(i + 1)                  // SEQ_IN_INDEX
 			row[7] = col.Name                       // COLUMN_NAME
@@ -168,7 +172,7 @@ func (g *ColumnsGenerator) getDataType(typ uint8) string {
 func (g *ColumnsGenerator) getColumnType(col ColumnDef) string {
 	typ := g.getDataType(col.Type)
 	if col.Length > 0 {
-		return typ + "(" + string(col.Length) + ")"
+		return typ + "(" + strconv.Itoa(int(col.Length)) + ")"
 	}
 	return typ
 }
@@ -195,4 +199,70 @@ func (g *StatisticsGenerator) getTableName(tableID uint64) string {
 
 func (g *StatisticsGenerator) getNullable(nullable bool) interface{} {
 	return nil
+}
+
+// SchemataGenerator 生成SCHEMATA表数据
+type SchemataGenerator struct {
+	infoSchemaManager *InfoSchemaManager
+}
+
+func (g *SchemataGenerator) Generate() ([][]interface{}, error) {
+	var rows [][]interface{}
+
+	// 添加系统数据库
+	systemSchemas := []struct {
+		name      string
+		charset   string
+		collation string
+	}{
+		{"information_schema", "utf8", "utf8_general_ci"},
+		{"mysql", "utf8mb4", "utf8mb4_0900_ai_ci"},
+		{"performance_schema", "utf8mb4", "utf8mb4_0900_ai_ci"},
+		{"sys", "utf8mb4", "utf8mb4_0900_ai_ci"},
+		{"demo_db", "utf8mb4", "utf8mb4_general_ci"}, // 添加demo_db
+	}
+
+	for _, schema := range systemSchemas {
+		row := make([]interface{}, 5)
+		row[0] = "def"            // CATALOG_NAME
+		row[1] = schema.name      // SCHEMA_NAME
+		row[2] = schema.charset   // DEFAULT_CHARACTER_SET_NAME
+		row[3] = schema.collation // DEFAULT_COLLATION_NAME
+		row[4] = nil              // SQL_PATH
+		rows = append(rows, row)
+	}
+
+	// 如果有字典管理器，添加用户定义的数据库
+	if g.infoSchemaManager != nil && g.infoSchemaManager.dictManager != nil {
+		// 从字典管理器获取用户数据库
+		tables := g.infoSchemaManager.getAllTablesFromDict()
+		schemaSet := make(map[string]bool)
+
+		for _, table := range tables {
+			schemaName := "default"
+			if len(table.Name) > 0 && table.Name != "information_schema" &&
+				table.Name != "mysql" && table.Name != "performance_schema" &&
+				table.Name != "sys" && table.Name != "demo_db" {
+				// 如果表名包含点，提取schema名
+				if dotIndex := len(table.Name); dotIndex > 0 {
+					// 简化处理：假设所有用户表都属于用户定义的schema
+					schemaName = "user_db"
+				}
+				schemaSet[schemaName] = true
+			}
+		}
+
+		// 添加用户定义的schema
+		for schemaName := range schemaSet {
+			row := make([]interface{}, 5)
+			row[0] = "def"                // CATALOG_NAME
+			row[1] = schemaName           // SCHEMA_NAME
+			row[2] = "utf8mb4"            // DEFAULT_CHARACTER_SET_NAME
+			row[3] = "utf8mb4_general_ci" // DEFAULT_COLLATION_NAME
+			row[4] = nil                  // SQL_PATH
+			rows = append(rows, row)
+		}
+	}
+
+	return rows, nil
 }

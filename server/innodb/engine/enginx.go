@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/zhukovaskychina/xmysql-server/logger"
+
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
@@ -106,7 +108,7 @@ func (e *XMySQLEngine) initMetaLayer() {
 	spaceManager := e.storageMgr.GetSpaceManager()
 	// 使用带存储管理器的索引管理器构造函数，以支持增强版B+树
 	e.indexManager = manager.NewIndexManagerWithStorage(segManager, e.storageMgr.GetBufferPoolManager(), e.storageMgr, nil)
-	e.dictManager = manager.NewDictionaryManager(segManager)
+	e.dictManager = manager.NewDictionaryManager(segManager, e.storageMgr.GetBufferPoolManager())
 	e.infoSchemaManager = manager.NewInfoSchemaManager(
 		e.dictManager,
 		spaceManager,
@@ -150,14 +152,29 @@ func (e *XMySQLEngine) initQueryExecutor() {
 		// 因为 e.btreeMgr 已经是 basic.BPlusTreeManager 接口类型
 		btreeManager := e.btreeMgr
 
-		// 设置管理器
+		// 设置基础管理器
 		e.QueryExecutor.SetManagers(
 			optimizerManager,
 			bufferPoolManager,
 			btreeManager, // 直接传递接口
 			tableManager,
 		)
+
+		// 设置存储引擎相关的管理器 - 新增
+		tableStorageManager := manager.NewTableStorageManager(e.storageMgr)
+		e.QueryExecutor.SetAdditionalManagers(
+			e.indexManager,
+			e.storageMgr,
+			tableStorageManager, // 创建新的表存储映射管理器
+		)
+
+		logger.Debugf(" QueryExecutor initialized with all managers")
 	}
+}
+
+// GetStorageManager 获取存储管理器
+func (e *XMySQLEngine) GetStorageManager() *manager.StorageManager {
+	return e.storageMgr
 }
 
 func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query string, databaseName string) <-chan *Result {
@@ -165,11 +182,18 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 	go func() {
 		defer close(results)
 
+		logger.Debugf(" [XMySQLEngine.ExecuteQuery] 开始执行查询: %s", query)
+		logger.Debugf(" [XMySQLEngine.ExecuteQuery] 数据库名称: %s", databaseName)
+		logger.Debugf(" [XMySQLEngine.ExecuteQuery] 会话对象: %v", session != nil)
+
 		stmt, err := sqlparser.Parse(query)
 		if err != nil {
+			logger.Errorf(" [XMySQLEngine.ExecuteQuery] SQL解析错误: %v", err)
 			results <- &Result{Err: fmt.Errorf("parse error: %v", err), ResultType: common.RESULT_TYPE_ERROR}
 			return
 		}
+
+		logger.Debugf(" [XMySQLEngine.ExecuteQuery] SQL解析成功，语句类型: %T", stmt)
 
 		ctx := &ExecutionContext{
 			Context:     context.Background(),
@@ -191,7 +215,29 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 		case *sqlparser.DDL:
 			switch stmt.Action {
 			case "create":
-				e.QueryExecutor.executeCreateTableStatement(ctx, databaseName, stmt)
+				// 从会话中获取当前数据库
+				currentDB := databaseName
+				if currentDB == "" {
+					if dbParam := session.GetParamByName("database"); dbParam != nil {
+						if db, ok := dbParam.(string); ok {
+							currentDB = db
+						}
+					}
+				}
+				logger.Debugf(" CREATE TABLE使用数据库: %s", currentDB)
+				e.QueryExecutor.executeCreateTableStatement(ctx, currentDB, stmt)
+			case "drop":
+				// 从会话中获取当前数据库
+				currentDB := databaseName
+				if currentDB == "" {
+					if dbParam := session.GetParamByName("database"); dbParam != nil {
+						if db, ok := dbParam.(string); ok {
+							currentDB = db
+						}
+					}
+				}
+				logger.Debugf("🗑️ DROP TABLE使用数据库: %s", currentDB)
+				e.QueryExecutor.executeDropTableStatement(ctx, stmt)
 			default:
 				results <- &Result{Err: fmt.Errorf("unsupported DDL action: %s", stmt.Action), ResultType: common.RESULT_TYPE_ERROR}
 			}
@@ -209,12 +255,73 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 
 		case *sqlparser.Set:
 			for _, expr := range stmt.Exprs {
-				fmt.Println(expr)
+				logger.Error(expr)
 				results <- &Result{
 					StatementID: ctx.statementId,
 					ResultType:  common.RESULT_TYPE_SET,
 				}
 				session.SendOK()
+			}
+
+		case *sqlparser.Use:
+			// 处理USE语句
+			dbName := stmt.DBName.String()
+			logger.Debugf(" [XMySQLEngine.ExecuteQuery] 处理USE语句: %s", dbName)
+			logger.Debugf(" [XMySQLEngine.ExecuteQuery] USE语句类型: %T", stmt)
+			logger.Debugf(" [XMySQLEngine.ExecuteQuery] 会话对象: %v", session != nil)
+
+			// 设置会话的数据库上下文
+			session.SetParamByName("database", dbName)
+			logger.Debugf(" [XMySQLEngine.ExecuteQuery] 会话数据库上下文已设置为: %s", dbName)
+
+			// USE语句处理 - 返回OK响应
+			results <- &Result{
+				StatementID: ctx.statementId,
+				ResultType:  common.RESULT_TYPE_QUERY,
+				Message:     fmt.Sprintf("Database changed to '%s'", dbName),
+			}
+			logger.Debugf(" [XMySQLEngine.ExecuteQuery] USE语句处理完成，返回OK结果")
+
+		case *sqlparser.Insert:
+			// 处理INSERT语句
+			logger.Debugf(" 处理INSERT语句")
+			result, err := e.QueryExecutor.executeInsertStatement(ctx, stmt, databaseName)
+			if err != nil {
+				results <- &Result{Err: err, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("INSERT failed: %v", err)}
+			} else {
+				results <- &Result{
+					Data:       result,
+					ResultType: common.RESULT_TYPE_QUERY,
+					Message:    result.Message,
+				}
+			}
+
+		case *sqlparser.Update:
+			// 处理UPDATE语句
+			logger.Debugf("✏️ 处理UPDATE语句")
+			result, err := e.QueryExecutor.executeUpdateStatement(ctx, stmt, databaseName)
+			if err != nil {
+				results <- &Result{Err: err, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("UPDATE failed: %v", err)}
+			} else {
+				results <- &Result{
+					Data:       result,
+					ResultType: common.RESULT_TYPE_QUERY,
+					Message:    result.Message,
+				}
+			}
+
+		case *sqlparser.Delete:
+			// 处理DELETE语句
+			logger.Debugf("🗑️ 处理DELETE语句")
+			result, err := e.QueryExecutor.executeDeleteStatement(ctx, stmt, databaseName)
+			if err != nil {
+				results <- &Result{Err: err, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("DELETE failed: %v", err)}
+			} else {
+				results <- &Result{
+					Data:       result,
+					ResultType: common.RESULT_TYPE_QUERY,
+					Message:    result.Message,
+				}
 			}
 
 		default:

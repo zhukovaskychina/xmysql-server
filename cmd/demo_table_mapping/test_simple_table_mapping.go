@@ -43,7 +43,7 @@ func testSystemTableMapping(tsm *manager.TableStorageManager) {
 
 	// 获取所有系统表信息
 	systemTables := tsm.GetSystemTableInfo()
-	fmt.Printf("✓ 初始化了 %d 个系统表的存储映射\n", len(systemTables))
+	util.Debugf("✓ 初始化了 %d 个系统表的存储映射\n", len(systemTables))
 
 	// 显示前10个系统表
 	fmt.Println("系统表列表（前10个）:")
@@ -51,13 +51,13 @@ func testSystemTableMapping(tsm *manager.TableStorageManager) {
 		if i >= 10 {
 			break
 		}
-		fmt.Printf("  %d. %s.%s: SpaceID=%d, RootPage=%d, Type=%v\n",
+		util.Debugf("  %d. %s.%s: SpaceID=%d, RootPage=%d, Type=%v\n",
 			i+1, table.SchemaName, table.TableName, table.SpaceID, table.RootPageNo, table.Type)
 	}
 
 	// 列出所有注册的表
 	allTables := tsm.ListAllTables()
-	fmt.Printf("✓ 总共注册了 %d 个表\n", len(allTables))
+	util.Debugf("✓ 总共注册了 %d 个表\n", len(allTables))
 }
 
 func testSpecificTableInfo(tsm *manager.TableStorageManager) {
@@ -75,27 +75,27 @@ func testSpecificTableInfo(tsm *manager.TableStorageManager) {
 	}
 
 	for _, tt := range testTables {
-		fmt.Printf("\n测试表: %s.%s\n", tt.schema, tt.table)
+		util.Debugf("\n测试表: %s.%s\n", tt.schema, tt.table)
 
 		info, err := tsm.GetTableStorageInfo(tt.schema, tt.table)
 		if err != nil {
-			fmt.Printf("❌ 获取失败: %v\n", err)
+			util.Debugf(" 获取失败: %v\n", err)
 			continue
 		}
 
-		fmt.Printf("✓ 获取成功:\n")
-		fmt.Printf("  - SpaceID: %d\n", info.SpaceID)
-		fmt.Printf("  - RootPage: %d\n", info.RootPageNo)
-		fmt.Printf("  - IndexPage: %d\n", info.IndexPageNo)
-		fmt.Printf("  - DataSegmentID: %d\n", info.DataSegmentID)
-		fmt.Printf("  - Type: %v\n", info.Type)
+		util.Debugf("✓ 获取成功:\n")
+		util.Debugf("  - SpaceID: %d\n", info.SpaceID)
+		util.Debugf("  - RootPage: %d\n", info.RootPageNo)
+		util.Debugf("  - IndexPage: %d\n", info.IndexPageNo)
+		util.Debugf("  - DataSegmentID: %d\n", info.DataSegmentID)
+		util.Debugf("  - Type: %v\n", info.Type)
 
 		// 测试根据SpaceID反向查找
 		tableBySpace, err := tsm.GetTableBySpaceID(info.SpaceID)
 		if err != nil {
-			fmt.Printf("❌ 根据SpaceID反向查找失败: %v\n", err)
+			util.Debugf(" 根据SpaceID反向查找失败: %v\n", err)
 		} else {
-			fmt.Printf("✓ 反向查找成功: %s.%s\n", tableBySpace.SchemaName, tableBySpace.TableName)
+			util.Debugf("✓ 反向查找成功: %s.%s\n", tableBySpace.SchemaName, tableBySpace.TableName)
 		}
 	}
 }
@@ -112,33 +112,33 @@ func testSQLParsingAndTableMapping() {
 	}
 
 	for _, sql := range testSQLs {
-		fmt.Printf("\n测试SQL: %s\n", sql)
+		util.Debugf("\n测试SQL: %s\n", sql)
 
 		stmt, err := sqlparser.Parse(sql)
 		if err != nil {
-			fmt.Printf("❌ SQL解析失败: %v\n", err)
+			util.Debugf(" SQL解析失败: %v\n", err)
 			continue
 		}
 
 		selectStmt, ok := stmt.(*sqlparser.Select)
 		if !ok {
-			fmt.Printf("❌ 不是SELECT语句\n")
+			util.Debugf(" 不是SELECT语句\n")
 			continue
 		}
 
-		fmt.Printf("✓ SQL解析成功\n")
+		util.Debugf("✓ SQL解析成功\n")
 
 		// 提取表名
 		tableName, schemaName := extractTableNameFromSelect(selectStmt)
-		fmt.Printf("  提取的表名: %s\n", tableName)
-		fmt.Printf("  提取的数据库名: %s\n", schemaName)
+		util.Debugf("  提取的表名: %s\n", tableName)
+		util.Debugf("  提取的数据库名: %s\n", schemaName)
 
 		// 模拟查找表的存储信息
 		if tableName != "" {
 			if schemaName == "" {
 				schemaName = "mysql" // 默认数据库
 			}
-			fmt.Printf("  → 将查找表: %s.%s 的存储信息\n", schemaName, tableName)
+			util.Debugf("  → 将查找表: %s.%s 的存储信息\n", schemaName, tableName)
 		}
 	}
 }

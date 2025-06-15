@@ -26,6 +26,6 @@ func DecodeEventWriteRows(buf []byte) EventWriteRows {
 	cursor, e.Body.ColumnNum = util.ReadLength(buf, cursor)
 	cursor, e.Body.BitSet = util.ReadBitSet(buf, cursor, int(e.Body.ColumnNum), true)
 
-	//fmt.Printf("=====================%+v\n", e)
+	//util.Debugf("=====================%+v\n", e)
 	return EventWriteRows{}
 }

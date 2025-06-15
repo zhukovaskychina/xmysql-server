@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"sync"
 	"time"
 
@@ -112,7 +113,7 @@ func (tsm *TableStorageManager) initializeSystemTablesMapping() {
 		tsm.spaceToTableMap[table.spaceID] = key
 	}
 
-	fmt.Printf("Initialized storage mapping for %d system tables\n", len(systemTables))
+	logger.Debugf("Initialized storage mapping for %d system tables\n", len(systemTables))
 }
 
 // RegisterTable 注册表的存储信息
@@ -136,7 +137,7 @@ func (tsm *TableStorageManager) RegisterTable(ctx context.Context, info *TableSt
 	tsm.tableStorageMap[key] = info
 	tsm.spaceToTableMap[info.SpaceID] = key
 
-	fmt.Printf("Registered table storage: %s (Space ID: %d, Root Page: %d)\n",
+	logger.Debugf("Registered table storage: %s (Space ID: %d, Root Page: %d)\n",
 		key, info.SpaceID, info.RootPageNo)
 
 	return nil
@@ -208,7 +209,7 @@ func (tsm *TableStorageManager) CreateBTreeManagerForTable(ctx context.Context, 
 		return nil, fmt.Errorf("init btree manager failed: %v", err)
 	}
 
-	fmt.Printf("Created Enhanced BTreeManager for table %s.%s (Space: %d, Root: %d)\n",
+	logger.Debugf("Created Enhanced BTreeManager for table %s.%s (Space: %d, Root: %d)\n",
 		schemaName, tableName, info.SpaceID, info.RootPageNo)
 
 	return btreeManager, nil
@@ -251,7 +252,7 @@ func (tsm *TableStorageManager) UnregisterTable(schemaName, tableName string) er
 	delete(tsm.tableStorageMap, key)
 	delete(tsm.spaceToTableMap, info.SpaceID)
 
-	fmt.Printf("Unregistered table storage: %s\n", key)
+	logger.Debugf("Unregistered table storage: %s\n", key)
 	return nil
 }
 

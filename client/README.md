@@ -7,7 +7,7 @@
 - 🔗 **连接管理**: 支持连接到 XMySQL 服务器
 - 💻 **命令行界面**: 类似 MySQL 官方客户端的交互式命令行
 - 🖥️ **图形界面**: 基于终端的图形用户界面
-- 📊 **结果显示**: 美观的表格形式显示查询结果
+-  **结果显示**: 美观的表格形式显示查询结果
 - ⚡ **性能统计**: 显示查询执行时间
 - 🛠️ **内置命令**: 支持 help、status、quit 等内置命令
 
@@ -72,10 +72,10 @@ SHOW TABLES;
 SELECT * FROM users LIMIT 10;
 
 -- 插入数据
-INSERT INTO users (name, email) VALUES ('张三', 'zhangsan@example.com');
+INSERT INTO users (name, email) VALUES ('张三', 'zhangsan@example.com.xmysql.server');
 
 -- 更新数据
-UPDATE users SET email = 'newemail@example.com' WHERE id = 1;
+UPDATE users SET email = 'newemail@example.com.xmysql.server' WHERE id = 1;
 
 -- 删除数据
 DELETE FROM users WHERE id = 1;

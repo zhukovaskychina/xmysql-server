@@ -44,11 +44,11 @@ func main() {
 	os.MkdirAll(cfg.InnodbRedoLogDir, 0755)
 	os.MkdirAll(cfg.InnodbUndoLogDir, 0755)
 
-	fmt.Printf("数据目录: %s\n", demoDir)
-	fmt.Printf("配置信息:\n")
-	fmt.Printf("  - 缓冲池大小: %d MB\n", cfg.InnodbBufferPoolSize/1024/1024)
-	fmt.Printf("  - 页面大小: %d KB\n", cfg.InnodbPageSize/1024)
-	fmt.Printf("  - 系统表空间: %s\n", cfg.InnodbDataFilePath)
+	util.Info("数据目录: %s\n", demoDir)
+	util.Info("配置信息:\n")
+	util.Info("  - 缓冲池大小: %d MB\n", cfg.InnodbBufferPoolSize/1024/1024)
+	util.Info("  - 页面大小: %d KB\n", cfg.InnodbPageSize/1024)
+	util.Info("  - 系统表空间: %s\n", cfg.InnodbDataFilePath)
 	fmt.Println()
 
 	// 初始化 StorageManager
@@ -58,11 +58,11 @@ func main() {
 
 	sm := manager.NewStorageManager(cfg)
 	if sm == nil {
-		fmt.Println("❌ StorageManager 初始化失败")
+		fmt.Println(" StorageManager 初始化失败")
 		return
 	}
 
-	fmt.Println("✅ StorageManager 初始化成功!")
+	fmt.Println(" StorageManager 初始化成功!")
 	fmt.Println()
 
 	// 验证系统表空间
@@ -72,12 +72,12 @@ func main() {
 	fmt.Println("1. 系统表空间 (ibdata1):")
 	systemSpace, err := sm.GetSpaceInfo(0)
 	if err != nil {
-		fmt.Printf("   ❌ 获取失败: %v\n", err)
+		util.Info("    获取失败: %v\n", err)
 	} else {
-		fmt.Printf("   ✅ Space ID: %d\n", systemSpace.SpaceID)
-		fmt.Printf("   ✅ 名称: %s\n", systemSpace.Name)
-		fmt.Printf("   ✅ 页面大小: %d bytes\n", systemSpace.PageSize)
-		fmt.Printf("   ✅ 状态: %s\n", systemSpace.State)
+		util.Info("    Space ID: %d\n", systemSpace.SpaceID)
+		util.Info("    名称: %s\n", systemSpace.Name)
+		util.Info("    页面大小: %d bytes\n", systemSpace.PageSize)
+		util.Info("    状态: %s\n", systemSpace.State)
 	}
 	fmt.Println()
 
@@ -97,9 +97,9 @@ func main() {
 	for _, table := range systemTables {
 		space, err := sm.GetSpaceInfo(table.spaceID)
 		if err != nil {
-			fmt.Printf("   ❌ %s (Space ID %d): %v\n", table.name, table.spaceID, err)
+			util.Info("    %s (Space ID %d): %v\n", table.name, table.spaceID, err)
 		} else {
-			fmt.Printf("   ✅ %s (Space ID %d)\n", table.name, space.SpaceID)
+			util.Info("    %s (Space ID %d)\n", table.name, space.SpaceID)
 		}
 	}
 	fmt.Println()
@@ -108,18 +108,18 @@ func main() {
 	fmt.Println("3. information_schema 表:")
 	infoSpace, err := sm.GetSpaceInfo(100)
 	if err != nil {
-		fmt.Printf("   ❌ 获取失败: %v\n", err)
+		util.Info("    获取失败: %v\n", err)
 	} else {
-		fmt.Printf("   ✅ information_schema/schemata (Space ID %d)\n", infoSpace.SpaceID)
+		util.Info("    information_schema/schemata (Space ID %d)\n", infoSpace.SpaceID)
 	}
 
 	// 4. 验证 performance_schema 表
 	fmt.Println("4. performance_schema 表:")
 	perfSpace, err := sm.GetSpaceInfo(200)
 	if err != nil {
-		fmt.Printf("   ❌ 获取失败: %v\n", err)
+		util.Info("    获取失败: %v\n", err)
 	} else {
-		fmt.Printf("   ✅ performance_schema/accounts (Space ID %d)\n", perfSpace.SpaceID)
+		util.Info("    performance_schema/accounts (Space ID %d)\n", perfSpace.SpaceID)
 	}
 	fmt.Println()
 
@@ -127,17 +127,17 @@ func main() {
 	fmt.Println("=== 所有表空间列表 ===")
 	spaces, err := sm.ListSpaces()
 	if err != nil {
-		fmt.Printf("❌ 获取表空间列表失败: %v\n", err)
+		util.Info(" 获取表空间列表失败: %v\n", err)
 	} else {
-		fmt.Printf("总共创建了 %d 个表空间:\n", len(spaces))
+		util.Info("总共创建了 %d 个表空间:\n", len(spaces))
 		for i, space := range spaces {
 			if i < 10 { // 只显示前10个
-				fmt.Printf("  %d. Space ID %d: %s (%s)\n",
+				util.Debugf("  %d. Space ID %d: %s (%s)\n",
 					i+1, space.SpaceID, space.Name, space.State)
 			}
 		}
 		if len(spaces) > 10 {
-			fmt.Printf("  ... 还有 %d 个表空间\n", len(spaces)-10)
+			util.Debugf("  ... 还有 %d 个表空间\n", len(spaces)-10)
 		}
 	}
 	fmt.Println()
@@ -154,9 +154,9 @@ func main() {
 	for _, file := range files {
 		fullPath := filepath.Join(demoDir, file)
 		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-			fmt.Printf("❌ 文件未创建: %s\n", file)
+			util.Debugf(" 文件未创建: %s\n", file)
 		} else {
-			fmt.Printf("✅ 文件已创建: %s\n", file)
+			util.Debugf(" 文件已创建: %s\n", file)
 		}
 	}
 	fmt.Println()
@@ -170,9 +170,9 @@ func main() {
 	fmt.Println("正在关闭 StorageManager...")
 	err = sm.Close()
 	if err != nil {
-		fmt.Printf("❌ 关闭失败: %v\n", err)
+		util.Debugf(" 关闭失败: %v\n", err)
 	} else {
-		fmt.Println("✅ StorageManager 已成功关闭")
+		fmt.Println(" StorageManager 已成功关闭")
 	}
 
 	fmt.Println()
@@ -199,12 +199,12 @@ func showDirectoryStructure(dir string, level int, maxLevel int) {
 		}
 
 		if entry.IsDir() {
-			fmt.Printf("%s📁 %s/\n", indent, entry.Name())
+			util.Debugf("%s📁 %s/\n", indent, entry.Name())
 			if level < maxLevel {
 				showDirectoryStructure(filepath.Join(dir, entry.Name()), level+1, maxLevel)
 			}
 		} else {
-			fmt.Printf("%s📄 %s\n", indent, entry.Name())
+			util.Debugf("%s📄 %s\n", indent, entry.Name())
 		}
 	}
 }

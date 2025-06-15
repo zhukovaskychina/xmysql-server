@@ -3,6 +3,7 @@ package buffer_pool
 import (
 	"container/list"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"sync"
 	"sync/atomic"
@@ -210,7 +211,7 @@ func (bp *BufferPool) evictPage() *BufferPage {
 	if victim.IsDirty() {
 		if err := bp.writeToDisk(victim); err != nil {
 			// Log error but continue, as we need to evict the page
-			fmt.Printf("failed to write dirty page to disk: %v\n", err)
+			logger.Debugf("failed to write dirty page to disk: %v\n", err)
 		}
 	}
 
@@ -222,6 +223,7 @@ func (bp *BufferPool) evictPage() *BufferPage {
 
 // writeToDisk writes a page back to disk
 func (bp *BufferPool) writeToDisk(page *BufferPage) error {
+	logger.Debugf("buffer pool affected writing page: %v\n", page)
 	// Get space from storage manager
 	space, err := bp.storageManager.GetSpace(page.GetSpaceID())
 	if err != nil {
@@ -501,14 +503,14 @@ func (fbl *FreeBlockList) GetPage(spaceID uint32, pageNo uint32) *BufferBlock {
 	// Get space from storage manager
 	space, err := fbl.storageManager.GetSpace(spaceID)
 	if err != nil {
-		fmt.Printf("failed to get space %d: %v\n", spaceID, err)
+		logger.Debugf("failed to get space %d: %v\n", spaceID, err)
 		return nil
 	}
 
 	// Load page content through space
 	content, err := space.LoadPageByPageNumber(pageNo)
 	if err != nil {
-		fmt.Printf("failed to read page %d: %v\n", pageNo, err)
+		logger.Debugf("failed to read page %d: %v\n", pageNo, err)
 		return nil
 	}
 

@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/logger"
 
 	"gopkg.in/ini.v1"
 )
@@ -47,6 +48,11 @@ type Cfg struct {
 	// app
 	FailFastTimeout         string `default:"5s" yaml:"fail_fast_timeout" json:"fail_fast_timeout,omitempty"`
 	FailFastTimeoutDuration time.Duration
+
+	// logs
+	LogError string `default:"/var/log/mysql/error.log" yaml:"log_error" json:"log_error,omitempty"`
+	LogInfos string `default:"/var/log/mysql/mysql.log" yaml:"log_infos" json:"log_infos,omitempty"`
+	LogLevel string `default:"info" yaml:"log_level" json:"log_level,omitempty"`
 
 	// innodb
 	InnodbDataDir             string `default:"data" yaml:"innodb_data_dir" json:"innodb_data_dir,omitempty"`
@@ -101,6 +107,9 @@ func NewCfg() *Cfg {
 		BindAddress: "127.0.0.1",
 		Port:        3308,
 		DataDir:     "data",
+		// Logs 默认配置
+		LogError: "/var/log/mysql/error.log",
+		LogInfos: "/var/log/mysql/mysql.log",
 		// InnoDB 默认配置
 		InnodbDataDir:             "data",
 		InnodbDataFilePath:        "ibdata1:100M:autoextend",
@@ -127,7 +136,7 @@ func (cfg *Cfg) Load(args *CommandLineArgs) *Cfg {
 	setHomePath(args)
 	iniFile, err := cfg.loadConfiguration(args)
 	if err != nil {
-		fmt.Println("加载配置文件时有异常", err)
+		logger.Debugf("加载配置文件时有异常: %v\n", err)
 		os.Exit(1)
 	}
 	cfg.Raw = iniFile
@@ -135,6 +144,7 @@ func (cfg *Cfg) Load(args *CommandLineArgs) *Cfg {
 	cfg.parseMysqldCfg(cfg.Raw.Section("mysqld"))
 	cfg.parseMysqlSessionCfg(cfg.Raw.Section("session"))
 	cfg.parseInnodbCfg(cfg.Raw.Section("innodb"))
+	cfg.parseLogsCfg(cfg.Raw.Section("logs"))
 	return cfg
 }
 
@@ -156,41 +166,41 @@ func (cfg *Cfg) parseMysqlSessionCfg(section *ini.Section) *Cfg {
 	compressEncoding, err := section.GetKey("compress_encoding")
 
 	if err != nil {
-		fmt.Println("compress_encoding异常", err)
+		logger.Error("compress_encoding异常", err)
 		os.Exit(1)
 	}
 	tcpNoDelay, err := section.GetKey("tcp_no_delay")
 	if err != nil {
-		fmt.Println("compress_encoding异常", err)
+		logger.Error("compress_encoding异常", err)
 		os.Exit(1)
 	}
 
 	tcpKeepAlive, err := section.GetKey("tcp_keep_alive")
 	if err != nil {
-		fmt.Println("compress_encoding异常", err)
+		logger.Error("compress_encoding异常", err)
 		os.Exit(1)
 	}
 
 	keepAlivePeriod, err := section.GetKey("keep_alive_period")
 	if err != nil {
-		fmt.Println("compress_encoding异常", err)
+		logger.Error("compress_encoding异常", err)
 		os.Exit(1)
 	}
 
 	tcpRBufSize, err := section.GetKey("tcp_r_buf_size")
 	if err != nil {
-		fmt.Println("compress_encoding异常", err)
+		logger.Error("compress_encoding异常", err)
 		os.Exit(1)
 	}
 	tcpWBufSize, err := section.GetKey("tcp_w_buf_size")
 	if err != nil {
-		fmt.Println("compress_encoding异常", err)
+		logger.Error("compress_encoding异常", err)
 		os.Exit(1)
 	}
 
 	pkgRqSize, err := section.GetKey("pkg_rq_size")
 	if err != nil {
-		fmt.Println("compress_encoding异常", err)
+		logger.Error("compress_encoding异常", err)
 		os.Exit(1)
 	}
 
@@ -201,27 +211,27 @@ func (cfg *Cfg) parseMysqlSessionCfg(section *ini.Section) *Cfg {
 
 	tcpReadTimeout, err := section.GetKey("tcp_read_timeout")
 	if err != nil {
-		fmt.Println("compress_encoding异常", err)
+		logger.Error("compress_encoding异常", err)
 		os.Exit(1)
 	}
 	tcpWriteTimeout, err := section.GetKey("tcp_write_timeout")
 	if err != nil {
-		fmt.Println("compress_encoding异常", err)
+		logger.Error("compress_encoding异常", err)
 		os.Exit(1)
 	}
 	waitTimeout, err := section.GetKey("wait_timeout")
 	if err != nil {
-		fmt.Println("compress_encoding异常", err)
+		logger.Error("compress_encoding异常", err)
 		os.Exit(1)
 	}
 	maxMsgLen, err := section.GetKey("max_msg_len")
 	if err != nil {
-		fmt.Println("compress_encoding异常", err)
+		logger.Error("compress_encoding异常", err)
 		os.Exit(1)
 	}
 	sessionName, err := section.GetKey("session_name")
 	if err != nil {
-		fmt.Println("compress_encoding异常", err)
+		logger.Error("compress_encoding异常", err)
 		os.Exit(1)
 	}
 
@@ -231,28 +241,28 @@ func (cfg *Cfg) parseMysqlSessionCfg(section *ini.Section) *Cfg {
 	cfg.MySQLSessionParam.KeepAlivePeriod = keepAlivePeriod.Value()
 	cfg.MySQLSessionParam.KeepAlivePeriodDuration, err = time.ParseDuration(keepAlivePeriod.Value())
 	if err != nil {
-		fmt.Println(fmt.Sprintf("time.ParseDuration(KeepAlivePeriod{%#v}) = error{%v}", cfg.MySQLSessionParam.KeepAlivePeriod, err))
+		logger.Error(fmt.Sprintf("time.ParseDuration(KeepAlivePeriod{%#v}) = error{%v}", cfg.MySQLSessionParam.KeepAlivePeriod, err))
 		os.Exit(1)
 	}
 	cfg.MySQLSessionParam.TcpRBufSize, err = tcpRBufSize.Int()
 	if err != nil {
-		fmt.Println(fmt.Sprintf("(TcpRBufSize{%#v}) = error{%v}", cfg.MySQLSessionParam.TcpRBufSize, err))
+		logger.Error(fmt.Sprintf("(TcpRBufSize{%#v}) = error{%v}", cfg.MySQLSessionParam.TcpRBufSize, err))
 		os.Exit(1)
 	}
 	cfg.MySQLSessionParam.TcpWBufSize, err = tcpWBufSize.Int()
 	if err != nil {
-		fmt.Println(fmt.Sprintf("(TcpWBufSize{%#v}) = error{%v}", cfg.MySQLSessionParam.TcpWBufSize, err))
+		logger.Error(fmt.Sprintf("(TcpWBufSize{%#v}) = error{%v}", cfg.MySQLSessionParam.TcpWBufSize, err))
 		os.Exit(1)
 	}
 
 	cfg.MySQLSessionParam.PkgRQSize, err = pkgRqSize.Int()
 	if err != nil {
-		fmt.Println(fmt.Sprintf("(TcpRBufSize{%#v}) = error{%v}", cfg.MySQLSessionParam.TcpRBufSize, err))
+		logger.Error(fmt.Sprintf("(TcpRBufSize{%#v}) = error{%v}", cfg.MySQLSessionParam.TcpRBufSize, err))
 		os.Exit(1)
 	}
 	cfg.MySQLSessionParam.PkgWQSize, err = pkgWqSize.Int()
 	if err != nil {
-		fmt.Println(fmt.Sprintf("(TcpWBufSize{%#v}) = error{%v}", cfg.MySQLSessionParam.TcpWBufSize, err))
+		logger.Error(fmt.Sprintf("(TcpWBufSize{%#v}) = error{%v}", cfg.MySQLSessionParam.TcpWBufSize, err))
 		os.Exit(1)
 	}
 
@@ -268,14 +278,14 @@ func (cfg *Cfg) parseMysqlSessionCfg(section *ini.Section) *Cfg {
 	}
 	cfg.MySQLSessionParam.WaitTimeoutDuration, err = time.ParseDuration(waitTimeout.Value())
 	if err != nil {
-		fmt.Println(fmt.Sprintf("(WaitTimeout{%#v}) = error{%v}", cfg.MySQLSessionParam.WaitTimeoutDuration, err))
+		logger.Error(fmt.Sprintf("(WaitTimeout{%#v}) = error{%v}", cfg.MySQLSessionParam.WaitTimeoutDuration, err))
 		os.Exit(1)
 
 	}
 
 	cfg.MySQLSessionParam.MaxMsgLen, err = maxMsgLen.Int()
 	if err != nil {
-		fmt.Println(fmt.Sprintf("(MaxMsgLen{%#v}) = error{%v}", cfg.MySQLSessionParam.MaxMsgLen, err))
+		logger.Error(fmt.Sprintf("(MaxMsgLen{%#v}) = error{%v}", cfg.MySQLSessionParam.MaxMsgLen, err))
 		os.Exit(1)
 	}
 	cfg.MySQLSessionParam.SessionName = sessionName.Value()
@@ -286,47 +296,47 @@ func (cfg *Cfg) parseMysqldCfg(section *ini.Section) *Cfg {
 	var err error
 	bindAdress, err := valueAsString(section, "bind-address", "localhost")
 	if err != nil {
-		fmt.Println("读取地址异常", err)
+		logger.Error("读取地址异常", err)
 		os.Exit(1)
 	}
 	ip := net.ParseIP(bindAdress)
 	if ip == nil {
-		fmt.Println("IP地址异常", err)
+		logger.Error("IP地址异常", err)
 		os.Exit(1)
 	}
 	portValue, err := section.GetKey("port")
 	if err != nil {
-		fmt.Println("IP地址配置异常", err)
+		logger.Error("IP地址配置异常", err)
 		os.Exit(1)
 	}
 	intPort := portValue.MustInt(3307)
 
 	baseDirValue, err := section.GetKey("basedir")
 	if err != nil {
-		fmt.Println("IP地址配置异常", err)
+		logger.Error("IP地址配置异常", err)
 		os.Exit(1)
 	}
 	dataDirValue, err := section.GetKey("datadir")
 	if err != nil {
-		fmt.Println("IP地址配置异常", err)
+		logger.Error("IP地址配置异常", err)
 		os.Exit(1)
 	}
 
 	maxSessionNumber, err := section.GetKey("max_session_number")
 
 	if err != nil {
-		fmt.Println("最大数值异常", err)
+		logger.Error("最大数值异常", err)
 		os.Exit(1)
 	}
 	cfg.SessionNumber, err = maxSessionNumber.Int()
 	if err != nil {
-		fmt.Println("最大数值异常", err)
+		logger.Error("最大数值异常", err)
 		os.Exit(1)
 	}
 	sessionTimeout, err := section.GetKey("session_timeout")
 	cfg.SessionTimeoutDuration, err = time.ParseDuration(sessionTimeout.Value())
 	if err != nil {
-		fmt.Println("超时配置异常")
+		logger.Error("超时配置异常")
 		panic(fmt.Sprintf("time.ParseDuration(SessionTimeout{%#v}) = error{%v}", cfg.SessionTimeout, err))
 	}
 
@@ -359,22 +369,29 @@ func (cfg *Cfg) parseMysqldCfg(section *ini.Section) *Cfg {
 func (cfg *Cfg) loadConfiguration(args *CommandLineArgs) (*ini.File, error) {
 	var err error
 
-	defaultConfigFile := path.Join(args.ConfigPath, "")
+	// 如果没有指定配置文件路径，使用默认的conf/my.ini
+	configFile := "conf/my.ini"
+	if args.ConfigPath != "" {
+		configFile = args.ConfigPath
+	}
 
 	// check if config file exists
-	if _, err := os.Stat(defaultConfigFile); os.IsNotExist(err) {
-		fmt.Println("github.com/zhukovaskychina/xmysql-server加载配置文件失败，请确保文件路径存在")
-		os.Exit(1)
+	if _, err := os.Stat(configFile); os.IsNotExist(err) {
+		logger.Debugf("配置文件不存在: %s，使用默认配置\n", configFile)
+		// 如果配置文件不存在，返回一个空的ini文件，使用默认配置
+		return ini.Empty(), nil
 	}
 
-	// load defaults
-	parsedFile, err := ini.Load(defaultConfigFile)
+	// load configuration file
+	parsedFile, err := ini.Load(configFile)
 	if err != nil {
-		fmt.Println(fmt.Sprintf("Failed to parse defaults.ini, %v", err))
-		os.Exit(1)
-		return nil, err
+		logger.Debugf("解析配置文件失败: %v，使用默认配置\n", err)
+		// 如果解析失败，返回一个空的ini文件，使用默认配置
+		return ini.Empty(), nil
 	}
-	return parsedFile, err
+
+	logger.Debugf("成功加载配置文件: %s\n", configFile)
+	return parsedFile, nil
 }
 
 func valueAsString(section *ini.Section, keyName string, defaultValue string) (value string, err error) {
@@ -505,6 +522,45 @@ func (cfg *Cfg) parseInnodbCfg(section *ini.Section) *Cfg {
 
 	bufferSize := section.Key("encryption.buffer_size").MustInt(cfg.InnodbEncryption.BufferSize)
 	cfg.InnodbEncryption.BufferSize = bufferSize
+
+	return cfg
+}
+
+func (cfg *Cfg) parseLogsCfg(section *ini.Section) *Cfg {
+	if section == nil {
+		return cfg
+	}
+
+	// Parse log error
+	logError, err := valueAsString(section, "log_error", cfg.LogError)
+	if err == nil {
+		cfg.LogError = logError
+	}
+
+	// Parse log infos
+	logInfos, err := valueAsString(section, "log_infos", cfg.LogInfos)
+	if err == nil {
+		cfg.LogInfos = logInfos
+	}
+
+	// Parse log level
+	logLevel, err := valueAsString(section, "log_level", cfg.LogLevel)
+	if err == nil {
+		cfg.LogLevel = strings.ToLower(logLevel)
+		// 验证日志级别是否有效
+		validLevels := []string{"debug", "info", "warn", "error", "fatal", "panic"}
+		isValid := false
+		for _, level := range validLevels {
+			if cfg.LogLevel == level {
+				isValid = true
+				break
+			}
+		}
+		if !isValid {
+			logger.Debugf("警告: 无效的日志级别 '%s', 使用默认级别 'info'\n", logLevel)
+			cfg.LogLevel = "info"
+		}
+	}
 
 	return cfg
 }

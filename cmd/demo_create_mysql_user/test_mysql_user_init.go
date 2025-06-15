@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"os"
 
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
@@ -22,7 +23,7 @@ func main() {
 
 	// 确保测试目录存在
 	if err := os.MkdirAll(config.InnodbDataDir, 0755); err != nil {
-		fmt.Printf("Failed to create test directory: %v\n", err)
+		logger.Debugf("Failed to create test_simple_protocol directory: %v\n", err)
 		return
 	}
 
@@ -43,7 +44,7 @@ func main() {
 	// 清理测试数据
 	defer func() {
 		if err := os.RemoveAll("test_data"); err != nil {
-			fmt.Printf("Warning: Failed to clean up test data: %v\n", err)
+			logger.Debugf("Warning: Failed to clean up test_simple_protocol data: %v\n", err)
 		}
 	}()
 }
@@ -71,10 +72,10 @@ func testUserAuthentication(sm *manager.StorageManager) {
 		if result == test.expected {
 			status = "✓ PASS"
 		}
-		fmt.Printf("    %s: %s\n", status, test.desc)
+		logger.Debugf("    %s: %s\n", status, test.desc)
 
 		if result != test.expected {
-			fmt.Printf("      Expected: %t, Got: %t\n", test.expected, result)
+			logger.Debugf("      Expected: %t, Got: %t\n", test.expected, result)
 		}
 	}
 }
@@ -98,31 +99,31 @@ func testUserQueries(sm *manager.StorageManager) {
 
 		if userTest.shouldExist {
 			if err != nil {
-				fmt.Printf("    ✗ FAIL: Expected user %s@%s to exist, but got error: %v\n",
+				logger.Debugf("    ✗ FAIL: Expected user %s@%s to exist, but got error: %v\n",
 					userTest.username, userTest.host, err)
 			} else {
-				fmt.Printf("    ✓ PASS: Found user %s@%s\n", userTest.username, userTest.host)
+				logger.Debugf("    ✓ PASS: Found user %s@%s\n", userTest.username, userTest.host)
 
 				// 验证用户权限
 				if user.SelectPriv == "Y" && user.InsertPriv == "Y" && user.SuperPriv == "Y" {
-					fmt.Printf("      ✓ User has correct privileges (SELECT, INSERT, SUPER)\n")
+					logger.Debugf("      ✓ User has correct privileges (SELECT, INSERT, SUPER)\n")
 				} else {
-					fmt.Printf("      ✗ User privileges incorrect: SELECT=%s, INSERT=%s, SUPER=%s\n",
+					logger.Debugf("      ✗ User privileges incorrect: SELECT=%s, INSERT=%s, SUPER=%s\n",
 						user.SelectPriv, user.InsertPriv, user.SuperPriv)
 				}
 
 				// 验证密码哈希不为空
 				if user.AuthenticationString != "" {
-					fmt.Printf("      ✓ User has password hash: %s\n", user.AuthenticationString[:20]+"...")
+					logger.Debugf("      ✓ User has password hash: %s\n", user.AuthenticationString[:20]+"...")
 				} else {
-					fmt.Printf("      ✗ User missing password hash\n")
+					logger.Debugf("      ✗ User missing password hash\n")
 				}
 			}
 		} else {
 			if err != nil {
-				fmt.Printf("    ✓ PASS: User %s@%s correctly does not exist\n", userTest.username, userTest.host)
+				logger.Debugf("    ✓ PASS: User %s@%s correctly does not exist\n", userTest.username, userTest.host)
 			} else {
-				fmt.Printf("    ✗ FAIL: User %s@%s should not exist but was found\n", userTest.username, userTest.host)
+				logger.Debugf("    ✗ FAIL: User %s@%s should not exist but was found\n", userTest.username, userTest.host)
 			}
 		}
 	}

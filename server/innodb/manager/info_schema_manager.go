@@ -844,6 +844,19 @@ func (im *InfoSchemaManager) InitializeTables() error {
 	im.mu.Lock()
 	defer im.mu.Unlock()
 
+	// SCHEMATA表
+	im.tables["SCHEMATA"] = &InfoSchemaTable{
+		Name: "SCHEMATA",
+		Columns: []InfoSchemaColumn{
+			{Name: "CATALOG_NAME", Type: MYSQL_TYPE_VARCHAR, Length: 512, Nullable: true},
+			{Name: "SCHEMA_NAME", Type: MYSQL_TYPE_VARCHAR, Length: 64, Nullable: false},
+			{Name: "DEFAULT_CHARACTER_SET_NAME", Type: MYSQL_TYPE_VARCHAR, Length: 32, Nullable: false},
+			{Name: "DEFAULT_COLLATION_NAME", Type: MYSQL_TYPE_VARCHAR, Length: 32, Nullable: false},
+			{Name: "SQL_PATH", Type: MYSQL_TYPE_VARCHAR, Length: 512, Nullable: true},
+		},
+		Generator: &SchemataGenerator{infoSchemaManager: im},
+	}
+
 	// TABLES表
 	im.tables["TABLES"] = &InfoSchemaTable{
 		Name: "TABLES",

@@ -58,8 +58,8 @@ func NewDataDictionaryPageWrapper(id, spaceID uint32, bp *buffer_pool.BufferPool
 
 // ParseFromBytes 从字节数据解析数据字典页面
 func (dw *DataDictionaryPageWrapper) ParseFromBytes(data []byte) error {
-	dw.Lock()
-	defer dw.Unlock()
+	//dw.Lock()
+	//defer dw.Unlock()
 
 	if err := dw.BasePageWrapper.ParseFromBytes(data); err != nil {
 		return err

@@ -78,11 +78,11 @@ func main() {
 	spaceId := uint32(1)
 	rootPage := uint32(1)
 
-	fmt.Println("📝 初始化B+树...")
+	fmt.Println(" 初始化B+树...")
 	if err := btm.Init(ctx, spaceId, rootPage); err != nil {
-		log.Printf("❌ Init failed: %v", err)
+		log.Printf(" Init failed: %v", err)
 	} else {
-		fmt.Println("✅ Init成功")
+		fmt.Println(" Init成功")
 	}
 
 	// 创建高并发测试场景
@@ -135,12 +135,12 @@ func main() {
 				}
 			}
 
-			fmt.Printf("✅ Goroutine %d 完成 %d 次操作\n", id, operationsPerGoroutine)
+			util.Debugf(" Goroutine %d 完成 %d 次操作\n", id, operationsPerGoroutine)
 		}(i)
 	}
 
 	// 启动额外的后台压力测试
-	fmt.Println("🔧 启动后台压力测试...")
+	fmt.Println(" 启动后台压力测试...")
 	stopPressure := make(chan bool)
 
 	// 持续的Init调用
@@ -169,11 +169,11 @@ func main() {
 				return
 			case <-ticker.C:
 				numGoroutines := runtime.NumGoroutine()
-				fmt.Printf("📊 当前goroutine数量: %d\n", numGoroutines)
+				util.Debugf(" 当前goroutine数量: %d\n", numGoroutines)
 
 				// 如果goroutine数量异常增长，可能存在死锁
 				if numGoroutines > 200 {
-					fmt.Printf("⚠️  警告: goroutine数量异常高: %d\n", numGoroutines)
+					util.Debugf("  警告: goroutine数量异常高: %d\n", numGoroutines)
 				}
 			}
 		}
@@ -190,19 +190,19 @@ func main() {
 	fmt.Println("🎉 所有测试完成！")
 
 	finalGoroutines := runtime.NumGoroutine()
-	fmt.Printf("📈 最终goroutine数量: %d\n", finalGoroutines)
+	util.Debugf("📈 最终goroutine数量: %d\n", finalGoroutines)
 
 	if finalGoroutines < 20 { // 正常情况下应该很少
-		fmt.Println("✅ 死锁修复测试通过 - 没有检测到死锁!")
+		fmt.Println(" 死锁修复测试通过 - 没有检测到死锁!")
 	} else {
-		fmt.Printf("⚠️  可能存在goroutine泄漏或死锁: %d\n", finalGoroutines)
+		util.Debugf("  可能存在goroutine泄漏或死锁: %d\n", finalGoroutines)
 	}
 
-	fmt.Println("🔍 测试总结:")
-	fmt.Printf("  - 总操作数: %d\n", goroutineCount*operationsPerGoroutine)
-	fmt.Printf("  - 并发goroutine数: %d\n", goroutineCount)
-	fmt.Printf("  - 最终goroutine数: %d\n", finalGoroutines)
-	fmt.Println("✅ 测试完成")
+	fmt.Println(" 测试总结:")
+	util.Debugf("  - 总操作数: %d\n", goroutineCount*operationsPerGoroutine)
+	util.Debugf("  - 并发goroutine数: %d\n", goroutineCount)
+	util.Debugf("  - 最终goroutine数: %d\n", finalGoroutines)
+	fmt.Println(" 测试完成")
 }
 
 // MockStorageProvider 模拟存储提供者

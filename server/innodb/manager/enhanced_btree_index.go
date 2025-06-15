@@ -2,10 +2,17 @@ package manager
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/page"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/record"
 )
 
 // EnhancedBTreeIndex 增强版B+树索引实例
@@ -495,28 +502,371 @@ func (idx *EnhancedBTreeIndex) LoadFromStorage(ctx context.Context) error {
 
 // 内部方法
 
-// insertIntoPage 向页面插入记录
+// insertIntoPage 向页面插入记录 (使用简化的页面初始化)
 func (idx *EnhancedBTreeIndex) insertIntoPage(ctx context.Context, page *BTreePage, key []byte, value []byte) error {
-	// 简化实现：直接插入到页面
-	record := IndexRecord{
-		Key:        make([]byte, len(key)),
-		Value:      make([]byte, len(value)),
-		PageNo:     page.PageNo,
-		SlotNo:     page.RecordCount,
-		TxnID:      0, // TODO: 获取事务ID
-		DeleteMark: false,
+	logger.Debugf(" Inserting record into page %d (key: %s, value size: %d bytes)\n", page.PageNo, string(key), len(value))
+
+	// 1. 确保页面有有效内容
+	bufferPage, err := idx.EnsurePageHasValidContent(ctx, idx.metadata.SpaceID, page.PageNo)
+	if err != nil {
+		return fmt.Errorf("failed to ensure page has valid content: %v", err)
 	}
 
-	copy(record.Key, key)
-	copy(record.Value, value)
+	// 2. 验证页面内容
+	if err := idx.VerifyPageContent(idx.metadata.SpaceID, page.PageNo); err != nil {
+		logger.Debugf("  Page verification warning: %v\n", err)
+	}
 
-	page.Records = append(page.Records, record)
+	// 3. 创建标准的InnoDB记录
+	record, err := idx.createInnoDBRecord(key, value)
+	if err != nil {
+		return fmt.Errorf("failed to create InnoDB record: %v", err)
+	}
+
+	logger.Debugf(" Created InnoDB record: %d bytes\n", len(record.ToByte()))
+
+	// 4. 使用页面包装器插入记录
+	err = idx.insertRecordToPage(bufferPage, record)
+	if err != nil {
+		return fmt.Errorf("failed to insert record to page: %v", err)
+	}
+
+	// 5. 更新页面状态
+	bufferPage.MarkDirty()
 	page.RecordCount++
 	page.IsDirty = true
 	page.LastAccess = time.Now()
 
+	logger.Debugf(" Record inserted successfully, page now has %d records\n", page.RecordCount)
+
+	// 6. 强制刷新到磁盘以确保持久化
+	if err := idx.storageManager.GetBufferPoolManager().FlushPage(idx.metadata.SpaceID, page.PageNo); err != nil {
+		logger.Debugf("  Warning: Failed to flush page to disk: %v\n", err)
+	} else {
+		logger.Debugf("💾 Page %d flushed to disk successfully\n", page.PageNo)
+	}
+
+	// 7. 更新内存中的记录信息（为了兼容现有逻辑）
+	indexRecord := IndexRecord{
+		Key:        make([]byte, len(key)),
+		Value:      make([]byte, len(value)),
+		PageNo:     page.PageNo,
+		SlotNo:     page.RecordCount - 1, // 使用真实的记录数量
+		TxnID:      0,                    // TODO: 获取事务ID
+		DeleteMark: false,
+	}
+	copy(indexRecord.Key, key)
+	copy(indexRecord.Value, value)
+	page.Records = append(page.Records, indexRecord)
+
+	// 8. 再次验证页面内容以确保插入成功
+	content := bufferPage.GetContent()
+	logger.Debugf(" Post-insertion page stats:\n")
+	logger.Debugf("   - Page size: %d bytes\n", len(content))
+	logger.Debugf("   - Non-zero bytes in first 200: %d\n", idx.countNonZeroBytes(content[:200]))
+	logger.Debugf("   - Record count in page header: %d\n", idx.getRecordCountFromPage(content))
+
 	return nil
 }
+
+// createInnoDBRecord 创建标准的InnoDB记录
+func (idx *EnhancedBTreeIndex) createInnoDBRecord(key []byte, value []byte) (basic.Row, error) {
+	// 创建表元组（TableRowTuple）
+	tableTuple := idx.createTableRowTuple()
+	if tableTuple == nil {
+		return nil, fmt.Errorf("failed to create table row tuple")
+	}
+
+	// 准备记录数据：[头部信息] + [key] + [value]
+	recordData := idx.serializeRecordData(key, value)
+
+	// 创建聚簇索引叶子节点记录
+	record := record.NewClusterLeafRow(recordData, tableTuple)
+
+	return record, nil
+}
+
+// createTableRowTuple 创建表行元组
+func (idx *EnhancedBTreeIndex) createTableRowTuple() metadata.RecordTableRowTuple {
+	// 根据索引元信息创建表行元组
+	tableMeta := metadata.CreateTableMeta(fmt.Sprintf("index_%d", idx.metadata.IndexID))
+
+	// 添加索引键列
+	for i, col := range idx.metadata.Columns {
+		columnMeta := &metadata.ColumnMeta{
+			Name:       col.ColumnName,
+			Type:       "VARCHAR", // 简化处理，实际应该根据列类型设置
+			Length:     int(col.KeyLength),
+			IsNullable: false,
+			IsPrimary:  i == 0, // 第一列作为主键
+		}
+		tableMeta.AddColumn(columnMeta)
+	}
+
+	// 添加值列
+	valueColumnMeta := &metadata.ColumnMeta{
+		Name:       "record_value",
+		Type:       "BLOB",
+		Length:     0,
+		IsNullable: true,
+		IsPrimary:  false,
+	}
+	tableMeta.AddColumn(valueColumnMeta)
+
+	// 创建适配器来解决接口不匹配问题
+	defaultTableRow := metadata.NewDefaultTableRow(tableMeta)
+	adapter := &RecordTableRowTupleAdapter{TableRowTuple: defaultTableRow}
+	return adapter
+}
+
+// serializeRecordData 序列化记录数据
+func (idx *EnhancedBTreeIndex) serializeRecordData(key []byte, value []byte) []byte {
+	// 计算需要的缓冲区大小
+	keyLength := len(key)
+	valueLength := len(value)
+
+	// 记录格式：[变长字段长度列表] + [NULL标志位] + [记录头] + [实际数据]
+	var buffer []byte
+
+	// 1. 变长字段长度列表（2字节，倒序）
+	// key长度
+	buffer = append(buffer, byte(keyLength), byte(keyLength>>8))
+	// value长度
+	buffer = append(buffer, byte(valueLength), byte(valueLength>>8))
+
+	// 2. NULL标志位（1字节，假设都不为空）
+	buffer = append(buffer, 0x00)
+
+	// 3. 记录头（5字节）
+	recordHeader := make([]byte, 5)
+	// 简化的记录头：[删除标志+最小记录标志+拥有记录数+堆序号+记录类型+下一记录偏移]
+	recordHeader[0] = 0x00 // 删除标志=0, 最小记录标志=0, 拥有记录数=0
+	recordHeader[1] = 0x00 // 堆序号低8位
+	recordHeader[2] = 0x00 // 堆序号高5位 + 记录类型（0=普通记录）
+	recordHeader[3] = 0x00 // 下一记录偏移低8位
+	recordHeader[4] = 0x00 // 下一记录偏移高8位
+	buffer = append(buffer, recordHeader...)
+
+	// 4. 实际数据
+	buffer = append(buffer, key...)
+	buffer = append(buffer, value...)
+
+	return buffer
+}
+
+// insertRecordToPage 将记录插入到页面
+func (idx *EnhancedBTreeIndex) insertRecordToPage(bufferPage interface{}, record basic.Row) error {
+	// 获取页面内容
+	var pageContent []byte
+	switch bp := bufferPage.(type) {
+	case interface{ GetContent() []byte }:
+		pageContent = bp.GetContent()
+	case interface{ GetPageData() []byte }:
+		pageContent = bp.GetPageData()
+	default:
+		return fmt.Errorf("unsupported buffer page type: %T", bufferPage)
+	}
+
+	// 如果页面为空，初始化为标准InnoDB页面格式
+	if len(pageContent) == 0 {
+		pageContent = idx.initializeEmptyPage()
+	}
+
+	// 使用页面包装器来插入记录
+	indexPage, err := idx.parseOrCreateIndexPage(pageContent)
+	if err != nil {
+		return fmt.Errorf("failed to parse index page: %v", err)
+	}
+
+	// 获取记录的序列化数据
+	recordBytes := record.ToByte()
+
+	// 将记录添加到页面
+	err = idx.addRecordToIndexPage(indexPage, recordBytes)
+	if err != nil {
+		return fmt.Errorf("failed to add record to index page: %v", err)
+	}
+
+	// 序列化更新后的页面
+	var updatedPageContent []byte
+	if serializable, ok := indexPage.(interface{ ToByte() []byte }); ok {
+		updatedPageContent = serializable.ToByte()
+	} else if serializable, ok := indexPage.(interface{ GetSerializeBytes() []byte }); ok {
+		updatedPageContent = serializable.GetSerializeBytes()
+	} else {
+		return fmt.Errorf("index page does not support serialization")
+	}
+
+	// 更新缓冲页面内容
+	switch bp := bufferPage.(type) {
+	case interface{ SetContent([]byte) }:
+		bp.SetContent(updatedPageContent)
+	case interface{ SetPageData([]byte) error }:
+		if err := bp.SetPageData(updatedPageContent); err != nil {
+			return fmt.Errorf("failed to set page data: %v", err)
+		}
+	default:
+		return fmt.Errorf("buffer page does not support content update")
+	}
+
+	return nil
+}
+
+// initializeEmptyPage 初始化空页面
+func (idx *EnhancedBTreeIndex) initializeEmptyPage() []byte {
+	pageSize := 16384 // 标准InnoDB页面大小
+	pageContent := make([]byte, pageSize)
+
+	// 文件头（38字节）
+	// [4字节校验和] + [4字节页号] + [4字节前一页] + [4字节后一页] + [8字节LSN] + [2字节页类型] + ...
+	binary.LittleEndian.PutUint32(pageContent[4:8], idx.metadata.RootPageNo) // 页号
+	binary.LittleEndian.PutUint16(pageContent[24:26], 17855)                 // 页面类型：INDEX页面
+	binary.LittleEndian.PutUint32(pageContent[34:38], idx.metadata.SpaceID)  // 表空间ID
+
+	// 页面头（56字节，从偏移38开始）
+	pageHeaderOffset := 38
+	binary.LittleEndian.PutUint16(pageContent[pageHeaderOffset+2:pageHeaderOffset+4], 2)                      // 记录数（infimum+supremum）
+	binary.LittleEndian.PutUint16(pageContent[pageHeaderOffset+4:pageHeaderOffset+6], 112)                    // 堆顶指针
+	binary.LittleEndian.PutUint16(pageContent[pageHeaderOffset+6:pageHeaderOffset+8], 2)                      // 堆中记录数
+	binary.LittleEndian.PutUint16(pageContent[pageHeaderOffset+20:pageHeaderOffset+22], 0)                    // 页面级别
+	binary.LittleEndian.PutUint64(pageContent[pageHeaderOffset+22:pageHeaderOffset+30], idx.metadata.IndexID) // 索引ID
+
+	// Infimum和Supremum记录（26字节，从偏移94开始）
+	infimumSupremumOffset := 94
+	// Infimum记录（13字节）
+	copy(pageContent[infimumSupremumOffset:infimumSupremumOffset+8], []byte("infimum\x00"))
+	pageContent[infimumSupremumOffset+8] = 0x01                                                       // 记录头信息
+	pageContent[infimumSupremumOffset+9] = 0x00                                                       // 记录头信息
+	pageContent[infimumSupremumOffset+10] = 0x02                                                      // 记录类型：infimum
+	binary.LittleEndian.PutUint16(pageContent[infimumSupremumOffset+11:infimumSupremumOffset+13], 13) // 下一记录偏移
+
+	// Supremum记录（13字节）
+	supremumOffset := infimumSupremumOffset + 13
+	copy(pageContent[supremumOffset:supremumOffset+8], []byte("supremum"))
+	pageContent[supremumOffset+8] = 0x01                                               // 记录头信息
+	pageContent[supremumOffset+9] = 0x00                                               // 记录头信息
+	pageContent[supremumOffset+10] = 0x03                                              // 记录类型：supremum
+	binary.LittleEndian.PutUint16(pageContent[supremumOffset+11:supremumOffset+13], 0) // 下一记录偏移（最后一条）
+
+	// 页面目录（最后8字节保留给文件尾）
+	directoryOffset := pageSize - 8 - 4                                                                          // 页面目录在文件尾之前
+	binary.LittleEndian.PutUint16(pageContent[directoryOffset:directoryOffset+2], uint16(infimumSupremumOffset)) // infimum位置
+	binary.LittleEndian.PutUint16(pageContent[directoryOffset+2:directoryOffset+4], uint16(supremumOffset))      // supremum位置
+
+	// 文件尾（8字节）
+	trailerOffset := pageSize - 8
+	binary.LittleEndian.PutUint32(pageContent[trailerOffset+4:trailerOffset+8], 0) // LSN低32位
+
+	return pageContent
+}
+
+// parseOrCreateIndexPage 解析或创建索引页面
+func (idx *EnhancedBTreeIndex) parseOrCreateIndexPage(pageContent []byte) (basic.IIndexPage, error) {
+	// 使用现有的页面包装器解析页面
+	if len(pageContent) < 100 {
+		// 页面太小，重新初始化
+		pageContent = idx.initializeEmptyPage()
+	}
+
+	// 尝试使用标准的页面包装器
+	indexPage := page.NewPageIndexByLoadBytes(pageContent)
+	if indexPage == nil {
+		return nil, fmt.Errorf("failed to create index page from content")
+	}
+
+	return indexPage, nil
+}
+
+// addRecordToIndexPage 向索引页面添加记录
+func (idx *EnhancedBTreeIndex) addRecordToIndexPage(indexPage basic.IIndexPage, recordBytes []byte) error {
+	// 这里需要调用页面的插入方法
+	// 由于IIndexPage接口可能不包含插入方法，我们需要类型断言到具体实现
+
+	switch page := indexPage.(type) {
+	case interface{ InsertRecord([]byte) error }:
+		return page.InsertRecord(recordBytes)
+	case interface{ InsertRow(basic.Row) error }:
+		// 创建一个临时的Row实现
+		row := &SimpleRow{data: recordBytes}
+		return page.InsertRow(row)
+	case interface{ AddUserRecord([]byte) error }:
+		return page.AddUserRecord(recordBytes)
+	default:
+		// 如果页面没有提供插入方法，我们直接操作页面内容
+		return idx.insertRecordDirectly(indexPage, recordBytes)
+	}
+}
+
+// insertRecordDirectly 直接插入记录到页面
+func (idx *EnhancedBTreeIndex) insertRecordDirectly(indexPage basic.IIndexPage, recordBytes []byte) error {
+	// 获取页面的字节表示
+	var pageBytes []byte
+	if serializable, ok := indexPage.(interface{ ToByte() []byte }); ok {
+		pageBytes = serializable.ToByte()
+	} else if serializable, ok := indexPage.(interface{ GetSerializeBytes() []byte }); ok {
+		pageBytes = serializable.GetSerializeBytes()
+	} else {
+		return fmt.Errorf("index page does not support byte serialization")
+	}
+
+	// 找到用户记录区域的位置（在infimum/supremum之后）
+	userRecordOffset := 120 // infimum(13) + supremum(13) + 页面头(94) = 120
+
+	// 在用户记录区域插入新记录
+	// 这是一个简化的实现，实际的InnoDB会维护更复杂的记录链表和页面目录
+
+	// 计算新记录应该插入的位置
+	insertOffset := userRecordOffset
+
+	// 检查是否有足够的空间
+	freeSpaceStart := insertOffset + len(recordBytes)
+	directoryStart := len(pageBytes) - 8 - 4 // 文件尾(8) + 页面目录起始
+
+	if freeSpaceStart >= directoryStart {
+		return fmt.Errorf("not enough space in page for new record")
+	}
+
+	// 插入记录（简化实现）
+	copy(pageBytes[insertOffset:insertOffset+len(recordBytes)], recordBytes)
+
+	// 更新页面头中的记录数
+	pageHeaderOffset := 38
+	currentRecordCount := binary.LittleEndian.Uint16(pageBytes[pageHeaderOffset+2 : pageHeaderOffset+4])
+	binary.LittleEndian.PutUint16(pageBytes[pageHeaderOffset+2:pageHeaderOffset+4], currentRecordCount+1)
+
+	// 更新堆顶指针
+	newHeapTop := insertOffset + len(recordBytes)
+	binary.LittleEndian.PutUint16(pageBytes[pageHeaderOffset+4:pageHeaderOffset+6], uint16(newHeapTop))
+
+	return nil
+}
+
+// SimpleRow 简单的Row实现，用于接口适配
+type SimpleRow struct {
+	data []byte
+}
+
+func (r *SimpleRow) Less(than basic.Row) bool                              { return false }
+func (r *SimpleRow) ToByte() []byte                                        { return r.data }
+func (r *SimpleRow) IsInfimumRow() bool                                    { return false }
+func (r *SimpleRow) IsSupremumRow() bool                                   { return false }
+func (r *SimpleRow) GetPageNumber() uint32                                 { return 0 }
+func (r *SimpleRow) WriteWithNull(content []byte)                          {}
+func (r *SimpleRow) GetRowLength() uint16                                  { return uint16(len(r.data)) }
+func (r *SimpleRow) GetHeaderLength() uint16                               { return 5 } // 简化的头部长度
+func (r *SimpleRow) GetPrimaryKey() basic.Value                            { return basic.NewStringValue("") }
+func (r *SimpleRow) ReadValueByIndex(index int) basic.Value                { return basic.NewStringValue("") }
+func (r *SimpleRow) GetFieldLength() int                                   { return 1 }                        // 简化实现
+func (r *SimpleRow) GetHeapNo() uint16                                     { return 0 }                        // 简化实现
+func (r *SimpleRow) GetNOwned() byte                                       { return 0 }                        // 简化实现
+func (r *SimpleRow) GetNextRowOffset() uint16                              { return 0 }                        // 简化实现
+func (r *SimpleRow) SetNextRowOffset(offset uint16)                        {}                                  // 简化实现
+func (r *SimpleRow) SetHeapNo(heapNo uint16)                               {}                                  // 简化实现
+func (r *SimpleRow) SetTransactionId(trxId uint64)                         {}                                  // 简化实现
+func (r *SimpleRow) GetValueByColName(colName string) basic.Value          { return basic.NewStringValue("") } // 简化实现
+func (r *SimpleRow) WriteBytesWithNullWithsPos(content []byte, index byte) {}                                  // 简化实现
+func (r *SimpleRow) SetNOwned(cnt byte)                                    {}                                  // 简化实现
+func (r *SimpleRow) ToString() string                                      { return "SimpleRow{}" }            // 简化实现
 
 // deleteFromPage 从页面删除记录
 func (idx *EnhancedBTreeIndex) deleteFromPage(ctx context.Context, page *BTreePage, key []byte) error {
@@ -674,4 +1024,24 @@ func (idx *EnhancedBTreeIndex) getFirstChildPageNo(page *BTreePage) uint32 {
 		return page.PageNo + 1 // 简化逻辑
 	}
 	return 0
+}
+
+// countNonZeroBytes 统计非零字节数量
+func (idx *EnhancedBTreeIndex) countNonZeroBytes(data []byte) int {
+	count := 0
+	for _, b := range data {
+		if b != 0 {
+			count++
+		}
+	}
+	return count
+}
+
+// getRecordCountFromPage 从页面头部获取记录数量
+func (idx *EnhancedBTreeIndex) getRecordCountFromPage(content []byte) uint16 {
+	if len(content) < 42 {
+		return 0
+	}
+	// 页面头部偏移38，记录数量在偏移40-42
+	return binary.LittleEndian.Uint16(content[40:42])
 }

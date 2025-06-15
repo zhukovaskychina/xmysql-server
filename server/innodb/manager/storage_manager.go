@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/zhukovaskychina/xmysql-server/logger"
+
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
@@ -111,13 +113,35 @@ type TablespaceHandle struct {
 
 // StorageManager implements the storage management interface
 type StorageManager struct {
-	spaceMgr    basic.SpaceManager
-	segmentMgr  *SegmentManager
-	bufferPool  *buffer_pool.BufferPool
-	pageMgr     *DefaultPageManager
+	mu sync.RWMutex
+
+	// 配置信息
+	config *conf.Cfg
+
+	// 基础管理器
+	spaceMgr      basic.SpaceManager
+	segmentMgr    *SegmentManager
+	bufferPool    *buffer_pool.BufferPool
+	bufferPoolMgr *OptimizedBufferPoolManager
+	pageMgr       *DefaultPageManager
+
+	// 系统表空间管理器 - 新增
+	systemSpaceMgr *SystemSpaceManager
+
+	// 数据字典管理器 - 新增
+	dictManager *DictionaryManager
+
+	// 系统变量管理器 - 新增
+	sysVarManager *SystemVariablesManager
+
+	// 系统变量分析器 - 新增
+	sysVarAnalyzer *SystemVariableAnalyzer
+
+	// 表空间缓存
 	tablespaces map[string]*TablespaceHandle
-	nextTxID    uint64
-	mu          sync.RWMutex
+
+	// 事务管理
+	nextTxID uint64
 }
 
 func (sm *StorageManager) Init() {
@@ -131,31 +155,43 @@ func (sm *StorageManager) Init() {
 	}
 }
 
+// GetSystemSpaceManager 获取系统表空间管理器
+func (sm *StorageManager) GetSystemSpaceManager() *SystemSpaceManager {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	return sm.systemSpaceMgr
+}
+
+// GetDictionaryManager 获取数据字典管理器
+func (sm *StorageManager) GetDictionaryManager() *DictionaryManager {
+	//sm.mu.RLock()
+	//defer sm.mu.RUnlock()
+	return sm.dictManager
+}
+
 func (sm *StorageManager) GetBufferPoolManager() *OptimizedBufferPoolManager {
-	// 创建优化的BufferPoolManager的配置
-	config := &BufferPoolConfig{
-		PoolSize:        16384,       // 默认缓冲池大小
-		PageSize:        16384,       // 页面大小
-		FlushInterval:   time.Second, // 刷新间隔
-		YoungListRatio:  0.75,        // young区比例
-		OldListRatio:    0.25,        // old区比例
-		OldBlockTime:    1000,        // old区块时间（毫秒）
-		PrefetchWorkers: 2,           // 预读工作线程数
-		MaxQueueSize:    1000,        // 最大队列大小
-		StorageProvider: &StorageProviderAdapter{
-			spaceManager: sm.spaceMgr,
-			sm:           sm,
-		},
-	}
+	//sm.mu.RLock()
+	//defer sm.mu.RUnlock()
+	return sm.bufferPoolMgr
+}
 
-	// 尝试创建优化的BufferPoolManager
-	optimizedBpm, err := NewOptimizedBufferPoolManager(config)
-	if err == nil {
-		// 成功创建优化版本，直接返回
-		return optimizedBpm
-	}
+// getBufferPoolManagerInternal 内部方法，不加锁，用于避免死锁
+func (sm *StorageManager) getBufferPoolManagerInternal() *OptimizedBufferPoolManager {
+	return sm.bufferPoolMgr
+}
 
-	return nil
+// GetSystemVariablesManager 获取系统变量管理器
+func (sm *StorageManager) GetSystemVariablesManager() *SystemVariablesManager {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	return sm.sysVarManager
+}
+
+// GetSystemVariableAnalyzer 获取系统变量分析器
+func (sm *StorageManager) GetSystemVariableAnalyzer() *SystemVariableAnalyzer {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	return sm.sysVarAnalyzer
 }
 
 func (sm *StorageManager) OpenSpace(spaceID uint32) error {
@@ -291,71 +327,177 @@ func (sm *StorageManager) Sync(spaceID uint32) error {
 	return sm.Flush()
 }
 
-// NewStorageManager creates a new StorageManager instance with conf
-func NewStorageManager(conf *conf.Cfg) *StorageManager {
-	// 获取配置参数
-	dataDir := conf.InnodbDataDir
-	if dataDir == "" {
-		dataDir = conf.DataDir // 回退到主数据目录
-	}
-	if dataDir == "" {
-		dataDir = "data" // 默认数据目录
+// NewStorageManager creates a new storage manager instance
+func NewStorageManager(cfg *conf.Cfg) *StorageManager {
+	if cfg == nil {
+		return nil
 	}
 
-	bufferPoolSize := conf.InnodbBufferPoolSize
-	if bufferPoolSize <= 0 {
-		bufferPoolSize = 134217728 // 默认128MB
+	// Create buffer pool configuration
+	bufferPoolSize := cfg.InnodbBufferPoolSize
+	if bufferPoolSize == 0 {
+		bufferPoolSize = 16 * 1024 * 1024 // 16MB default
+	}
+	pageSize := cfg.InnodbPageSize
+	if pageSize == 0 {
+		pageSize = 16384 // 16KB default
 	}
 
-	pageSize := conf.InnodbPageSize
-	if pageSize <= 0 {
-		pageSize = 16384 // 默认16KB
+	// Create buffer pool with proper configuration
+	bpConfig := &buffer_pool.BufferPoolConfig{
+		TotalPages:     uint32(bufferPoolSize / pageSize),
+		PageSize:       uint32(pageSize),
+		BufferPoolSize: uint64(bufferPoolSize),
+	}
+	bufferPool := buffer_pool.NewBufferPool(bpConfig)
+
+	// Create space manager first
+	dataDir := cfg.InnodbDataDir
+	if dataDir == "" {
+		dataDir = cfg.DataDir
+	}
+	if dataDir == "" {
+		dataDir = "data"
+	}
+	spaceMgr := NewSpaceManager(dataDir)
+
+	// Create optimized buffer pool manager with storage provider
+	bufferPoolConfig := &BufferPoolConfig{
+		PoolSize:        uint32(bufferPoolSize / pageSize),
+		PageSize:        uint32(pageSize),
+		FlushInterval:   time.Second,
+		StorageProvider: &StorageProviderAdapter{spaceManager: spaceMgr}, // 提供StorageProvider
+	}
+	bufferPoolMgr, err := NewOptimizedBufferPoolManager(bufferPoolConfig)
+	if err != nil {
+		logger.Debugf("Warning: Failed to create optimized buffer pool manager: %v", err)
+		bufferPoolMgr = nil
 	}
 
 	// Create storage manager instance
 	sm := &StorageManager{
-		tablespaces: make(map[string]*TablespaceHandle),
-		nextTxID:    1,
+		config:        cfg,
+		spaceMgr:      spaceMgr,
+		bufferPool:    bufferPool,
+		bufferPoolMgr: bufferPoolMgr,
+		tablespaces:   make(map[string]*TablespaceHandle),
+		nextTxID:      1,
 	}
 
-	// Initialize space manager with data directory
-	sm.spaceMgr = NewSpaceManager(dataDir)
-
-	// Initialize buffer pool
-	bufferPoolConfig := &buffer_pool.BufferPoolConfig{
-		TotalPages:     uint32(bufferPoolSize / pageSize),
-		PageSize:       uint32(pageSize),
-		BufferPoolSize: uint64(bufferPoolSize),
-		StorageManager: sm.spaceMgr,
+	// Set the storage provider's StorageManager reference
+	if bufferPoolMgr != nil {
+		if adapter, ok := bufferPoolConfig.StorageProvider.(*StorageProviderAdapter); ok {
+			adapter.sm = sm
+		}
 	}
-	sm.bufferPool = buffer_pool.NewBufferPool(bufferPoolConfig)
 
-	// Initialize page manager
-	pageConfig := &PageConfig{
-		CacheSize:      1000,
-		DirtyThreshold: 0.7,
-		EvictionPolicy: "LRU",
-	}
-	sm.pageMgr = NewPageManager(sm.bufferPool, pageConfig)
-
-	// Initialize segment manager
-	sm.segmentMgr = NewSegmentManager(sm.bufferPool)
-
-	// 初始化系统表空间和文件，就像MySQL一样
-	if err := sm.initializeSystemTablespaces(conf); err != nil {
-		panic(fmt.Sprintf("Failed to initialize system tablespaces: %v", err))
+	// Initialize components
+	if err := sm.initialize(); err != nil {
+		logger.Debugf("  StorageManager initialization warning: %v", err)
+		// Continue despite warnings to allow partial functionality
 	}
 
 	return sm
 }
 
+// initialize initializes all storage components
+func (sm *StorageManager) initialize() error {
+	logger.Debug("🚀 初始化 StorageManager...")
+
+	// 1. Initialize page manager
+	pageConfig := &PageConfig{
+		CacheSize:      1000,
+		DirtyThreshold: 0.7,
+		EvictionPolicy: "LRU",
+	}
+
+	// 检查 bufferPool 是否有效
+	if sm.bufferPool == nil {
+		return fmt.Errorf("buffer pool is nil, cannot initialize page manager")
+	}
+
+	sm.pageMgr = NewPageManager(sm.bufferPool, pageConfig)
+	if sm.pageMgr == nil {
+		return fmt.Errorf("failed to create page manager")
+	}
+	logger.Debug(" Page manager initialized")
+
+	// 2. Initialize segment manager
+	sm.segmentMgr = NewSegmentManager(sm.bufferPool)
+	if sm.segmentMgr == nil {
+		return fmt.Errorf("failed to create segment manager")
+	}
+	logger.Debug(" Segment manager initialized")
+
+	// 3. Initialize system space manager
+	sm.systemSpaceMgr = NewSystemSpaceManager(sm.config, sm.spaceMgr, sm.bufferPool)
+	if sm.systemSpaceMgr == nil {
+		return fmt.Errorf("failed to create system space manager")
+	}
+	logger.Debug(" System space manager initialized")
+
+	// 4. Initialize dictionary manager
+	sm.dictManager = NewDictionaryManager(sm.segmentMgr, sm.bufferPoolMgr)
+	if sm.dictManager == nil {
+		return fmt.Errorf("failed to create dictionary manager")
+	}
+	logger.Debug(" Dictionary manager initialized")
+
+	// 5. Initialize system variables manager
+	sm.sysVarManager = NewSystemVariablesManager()
+	if sm.sysVarManager == nil {
+		return fmt.Errorf("failed to create system variables manager")
+	}
+	logger.Debug(" System variables manager initialized")
+
+	// 6. Initialize system variable analyzer
+	sm.sysVarAnalyzer = NewSystemVariableAnalyzer(sm.sysVarManager)
+	if sm.sysVarAnalyzer == nil {
+		return fmt.Errorf("failed to create system variable analyzer")
+	}
+	logger.Debug(" System variable analyzer initialized")
+
+	// 7. Update server information in system variables
+	hostname := "localhost"
+	port := int64(sm.config.Port)
+	datadir := sm.config.InnodbDataDir
+	basedir := sm.config.BaseDir
+	if basedir == "" {
+		basedir = "/usr/local/mysql/"
+	}
+	sm.sysVarManager.UpdateServerInfo(hostname, port, datadir, basedir)
+
+	// 8. Initialize system tablespaces
+	if err := sm.initializeSystemTablespaces(); err != nil {
+		return fmt.Errorf("failed to initialize system tablespaces: %v", err)
+	}
+
+	// 9. Initialize MySQL system tablespaces
+	if err := sm.createMySQLSystemTablespaces(); err != nil {
+		return fmt.Errorf("failed to create MySQL system tablespaces: %v", err)
+	}
+
+	// 10. Initialize information_schema tablespaces
+	if err := sm.createInformationSchemaTablespaces(); err != nil {
+		return fmt.Errorf("failed to create information_schema tablespaces: %v", err)
+	}
+
+	// 11. Initialize performance_schema tablespaces
+	if err := sm.createPerformanceSchemaTablespaces(); err != nil {
+		return fmt.Errorf("failed to create performance_schema tablespaces: %v", err)
+	}
+
+	logger.Debug("StorageManager 初始化完成")
+	return nil
+}
+
 // initializeSystemTablespaces 初始化系统表空间，创建必要的系统ibd文件
-func (sm *StorageManager) initializeSystemTablespaces(conf *conf.Cfg) error {
+func (sm *StorageManager) initializeSystemTablespaces() error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
 	// 1. 创建系统表空间 (ibdata1)
-	if err := sm.createSystemTablespace(conf); err != nil {
+	if err := sm.createSystemTablespace(); err != nil {
 		return fmt.Errorf("failed to create system tablespace: %v", err)
 	}
 
@@ -375,7 +517,7 @@ func (sm *StorageManager) initializeSystemTablespaces(conf *conf.Cfg) error {
 	}
 
 	// 5. 初始化mysql.user表的默认数据
-	if err := sm.initializeMySQLUserData(); err != nil {
+	if err := sm.InitializeMySQLUserData(); err != nil {
 		return fmt.Errorf("failed to initialize MySQL user data: %v", err)
 	}
 
@@ -383,9 +525,9 @@ func (sm *StorageManager) initializeSystemTablespaces(conf *conf.Cfg) error {
 }
 
 // createSystemTablespace 创建系统表空间 (ibdata1)
-func (sm *StorageManager) createSystemTablespace(conf *conf.Cfg) error {
+func (sm *StorageManager) createSystemTablespace() error {
 	// 解析数据文件路径配置 (例如: ibdata1:100M:autoextend)
-	dataFilePath := conf.InnodbDataFilePath
+	dataFilePath := sm.config.InnodbDataFilePath
 	if dataFilePath == "" {
 		dataFilePath = "ibdata1:100M:autoextend"
 	}
@@ -411,7 +553,7 @@ func (sm *StorageManager) createSystemTablespace(conf *conf.Cfg) error {
 		// 确保表空间是活动的
 		existingSpace.SetActive(true)
 
-		fmt.Printf("System tablespace already exists: %s (Space ID: 0)\n", fileName)
+		logger.Debugf("System tablespace already exists: %s (Space ID: 0)", fileName)
 		return nil
 	}
 
@@ -432,7 +574,7 @@ func (sm *StorageManager) createSystemTablespace(conf *conf.Cfg) error {
 	// 激活系统表空间
 	systemSpace.SetActive(true)
 
-	fmt.Printf("Created system tablespace: %s (Space ID: 0)\n", fileName)
+	logger.Debugf("Created system tablespace: %s (Space ID: 0)", fileName)
 	return nil
 }
 
@@ -472,7 +614,7 @@ func (sm *StorageManager) createMySQLSystemTablespaces() error {
 
 		// 检查表空间是否已经存在（先检查我们的 tablespaces map）
 		if existingHandle, exists := sm.tablespaces[tableName]; exists {
-			fmt.Printf("System table already exists in map: %s (Space ID: %d)\n", tableName, existingHandle.SpaceID)
+			logger.Debugf("System table already exists in map: %s (Space ID: %d)", tableName, existingHandle.SpaceID)
 			continue
 		}
 
@@ -489,7 +631,7 @@ func (sm *StorageManager) createMySQLSystemTablespaces() error {
 			// 确保表空间是活动的
 			existingSpace.SetActive(true)
 
-			fmt.Printf("System table already exists in space manager: %s (Space ID: %d)\n", tableName, spaceID)
+			logger.Debugf("System table already exists in space manager: %s (Space ID: %d)", tableName, spaceID)
 			continue
 		}
 
@@ -498,7 +640,7 @@ func (sm *StorageManager) createMySQLSystemTablespaces() error {
 		if err != nil {
 			// 如果创建失败但是错误是已存在，则尝试获取已存在的表空间
 			if strings.Contains(err.Error(), "already exists") {
-				fmt.Printf("System table already exists (caught in CreateSpace): %s (Space ID: %d)\n", tableName, spaceID)
+				logger.Debugf("System table already exists (caught in CreateSpace): %s (Space ID: %d)", tableName, spaceID)
 				// 创建handle
 				handle := &TablespaceHandle{
 					SpaceID:       spaceID,
@@ -519,7 +661,7 @@ func (sm *StorageManager) createMySQLSystemTablespaces() error {
 		}
 		sm.tablespaces[tableName] = handle
 
-		fmt.Printf("Created system table: %s (Space ID: %d)\n", tableName, spaceID)
+		logger.Debugf("Created system table: %s (Space ID: %d)", tableName, spaceID)
 	}
 
 	return nil
@@ -557,7 +699,7 @@ func (sm *StorageManager) createInformationSchemaTablespaces() error {
 
 		// 检查表空间是否已经存在（先检查我们的 tablespaces map）
 		if existingHandle, exists := sm.tablespaces[tableName]; exists {
-			fmt.Printf("Information_schema table already exists in map: %s (Space ID: %d)\n", tableName, existingHandle.SpaceID)
+			logger.Debugf("Information_schema table already exists in map: %s (Space ID: %d)", tableName, existingHandle.SpaceID)
 			continue
 		}
 
@@ -574,7 +716,7 @@ func (sm *StorageManager) createInformationSchemaTablespaces() error {
 			// 确保表空间是活动的
 			existingSpace.SetActive(true)
 
-			fmt.Printf("Information_schema table already exists in space manager: %s (Space ID: %d)\n", tableName, spaceID)
+			logger.Debugf("Information_schema table already exists in space manager: %s (Space ID: %d)", tableName, spaceID)
 			continue
 		}
 
@@ -583,7 +725,7 @@ func (sm *StorageManager) createInformationSchemaTablespaces() error {
 		if err != nil {
 			// 如果创建失败但是错误是已存在，则尝试获取已存在的表空间
 			if strings.Contains(err.Error(), "already exists") {
-				fmt.Printf("Information_schema table already exists (caught in CreateSpace): %s (Space ID: %d)\n", tableName, spaceID)
+				logger.Debugf("Information_schema table already exists (caught in CreateSpace): %s (Space ID: %d)", tableName, spaceID)
 				// 创建handle
 				handle := &TablespaceHandle{
 					SpaceID:       spaceID,
@@ -604,7 +746,7 @@ func (sm *StorageManager) createInformationSchemaTablespaces() error {
 		}
 		sm.tablespaces[tableName] = handle
 
-		fmt.Printf("Created information_schema table: %s (Space ID: %d)\n", tableName, spaceID)
+		logger.Debugf("Created information_schema table: %s (Space ID: %d)", tableName, spaceID)
 	}
 
 	return nil
@@ -655,7 +797,7 @@ func (sm *StorageManager) createPerformanceSchemaTablespaces() error {
 
 		// 检查表空间是否已经存在（先检查我们的 tablespaces map）
 		if existingHandle, exists := sm.tablespaces[tableName]; exists {
-			fmt.Printf("Performance_schema table already exists in map: %s (Space ID: %d)\n", tableName, existingHandle.SpaceID)
+			logger.Debugf("Performance_schema table already exists in map: %s (Space ID: %d)", tableName, existingHandle.SpaceID)
 			continue
 		}
 
@@ -672,7 +814,7 @@ func (sm *StorageManager) createPerformanceSchemaTablespaces() error {
 			// 确保表空间是活动的
 			existingSpace.SetActive(true)
 
-			fmt.Printf("Performance_schema table already exists in space manager: %s (Space ID: %d)\n", tableName, spaceID)
+			logger.Debugf("Performance_schema table already exists in space manager: %s (Space ID: %d)", tableName, spaceID)
 			continue
 		}
 
@@ -681,7 +823,7 @@ func (sm *StorageManager) createPerformanceSchemaTablespaces() error {
 		if err != nil {
 			// 如果创建失败但是错误是已存在，则尝试获取已存在的表空间
 			if strings.Contains(err.Error(), "already exists") {
-				fmt.Printf("Performance_schema table already exists (caught in CreateSpace): %s (Space ID: %d)\n", tableName, spaceID)
+				logger.Debugf("Performance_schema table already exists (caught in CreateSpace): %s (Space ID: %d)", tableName, spaceID)
 				// 创建handle
 				handle := &TablespaceHandle{
 					SpaceID:       spaceID,
@@ -702,7 +844,7 @@ func (sm *StorageManager) createPerformanceSchemaTablespaces() error {
 		}
 		sm.tablespaces[tableName] = handle
 
-		fmt.Printf("Created performance_schema table: %s (Space ID: %d)\n", tableName, spaceID)
+		logger.Debugf("Created performance_schema table: %s (Space ID: %d)", tableName, spaceID)
 	}
 
 	return nil
@@ -713,6 +855,11 @@ func (sm *StorageManager) CreateSegment(spaceID uint32, purpose basic.SegmentPur
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
+	return sm.createSegmentInternal(spaceID, purpose)
+}
+
+// createSegmentInternal creates a new segment without locking (internal use)
+func (sm *StorageManager) createSegmentInternal(spaceID uint32, purpose basic.SegmentPurpose) (basic.Segment, error) {
 	// 根据purpose选择合适的segment类型
 	segType := SEGMENT_TYPE_DATA
 	if purpose == basic.SegmentPurposeNonLeaf {
@@ -841,7 +988,7 @@ func (sm *StorageManager) CreateTablespace(name string) (*TablespaceHandle, erro
 	}
 
 	// 创建数据段
-	_, err = sm.CreateSegment(spaceID, basic.SegmentPurposeLeaf)
+	_, err = sm.createSegmentInternal(spaceID, basic.SegmentPurposeLeaf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create data segment: %v", err)
 	}

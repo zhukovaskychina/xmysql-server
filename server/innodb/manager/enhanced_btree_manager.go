@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -130,7 +131,7 @@ func (m *EnhancedBTreeManager) CreateIndex(ctx context.Context, metadata *IndexM
 	atomic.AddUint64(&m.stats.IndexLoadCount, 1)
 	atomic.AddUint64(&m.stats.IndexesLoaded, 1)
 
-	fmt.Printf("✅ Created index %d '%s' for table %d\n",
+	logger.Debugf(" Created index %d '%s' for table %d\n",
 		metadata.IndexID, metadata.IndexName, metadata.TableID)
 
 	return index, nil
@@ -312,7 +313,7 @@ func (m *EnhancedBTreeManager) UnloadIndex(indexID uint64) error {
 	atomic.AddUint64(&m.stats.IndexUnloadCount, 1)
 	atomic.AddUint64(&m.stats.IndexesLoaded, ^uint64(0)) // 原子减1
 
-	fmt.Printf("📤 Unloaded index %d from memory\n", indexID)
+	logger.Debugf(" Unloaded index %d from memory\n", indexID)
 	return nil
 }
 
@@ -371,7 +372,7 @@ func (m *EnhancedBTreeManager) DropIndex(ctx context.Context, indexID uint64) er
 		return fmt.Errorf("failed to remove index metadata: %v", err)
 	}
 
-	fmt.Printf("🗑️  Dropped index %d '%s'\n", indexID, metadata.IndexName)
+	logger.Debugf("🗑️  Dropped index %d '%s'\n", indexID, metadata.IndexName)
 	return nil
 }
 
@@ -397,11 +398,11 @@ func (m *EnhancedBTreeManager) Close() error {
 
 	for _, indexID := range indexIDs {
 		if err := m.UnloadIndex(indexID); err != nil {
-			fmt.Printf("⚠️  Failed to unload index %d: %v\n", indexID, err)
+			logger.Debugf("  Failed to unload index %d: %v\n", indexID, err)
 		}
 	}
 
-	fmt.Println("🔒 BTree Manager closed")
+	logger.Debug("🔒 BTree Manager closed")
 	return nil
 }
 
@@ -441,7 +442,7 @@ func (m *EnhancedBTreeManager) loadIndex(ctx context.Context, metadata *IndexMet
 	atomic.AddUint64(&m.stats.IndexLoadCount, 1)
 	atomic.AddUint64(&m.stats.IndexesLoaded, 1)
 
-	fmt.Printf("📥 Loaded index %d '%s' into memory\n", metadata.IndexID, metadata.IndexName)
+	logger.Debugf(" Loaded index %d '%s' into memory\n", metadata.IndexID, metadata.IndexName)
 
 	return index, nil
 }
@@ -600,12 +601,12 @@ func (m *EnhancedBTreeManager) cleanupUnusedIndexes() {
 	// 卸载候选索引
 	for _, indexID := range candidatesForUnload {
 		if err := m.UnloadIndex(indexID); err != nil {
-			fmt.Printf("⚠️  Failed to unload unused index %d: %v\n", indexID, err)
+			logger.Debugf("  Failed to unload unused index %d: %v\n", indexID, err)
 		}
 	}
 
 	if len(candidatesForUnload) > 0 {
-		fmt.Printf("🧹 Cleaned up %d unused indexes\n", len(candidatesForUnload))
+		logger.Debugf("🧹 Cleaned up %d unused indexes\n", len(candidatesForUnload))
 	}
 }
 
