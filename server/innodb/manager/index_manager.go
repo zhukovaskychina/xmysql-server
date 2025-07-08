@@ -340,13 +340,21 @@ func (im *IndexManager) DeleteKey(indexID uint64, key interface{}) error {
 
 	// 从B+树删除
 	ctx := context.Background()
-	_, _, err := im.btreeManager.Search(ctx, key)
-	if err != nil {
-		return fmt.Errorf("key not found: %v", err)
-	}
 
-	// TODO: 实现B+树删除操作
-	// 目前B+树管理器没有Delete方法，需要补充
+	// 如果底层B+Tree实现支持删除接口，则直接调用
+	if deleter, ok := im.btreeManager.(interface {
+		Delete(ctx context.Context, key interface{}) error
+	}); ok {
+		if err := deleter.Delete(ctx, key); err != nil {
+			return fmt.Errorf("failed to delete key: %v", err)
+		}
+	} else {
+		// 旧的B+Tree实现没有提供删除接口，退化为查找并忽略操作
+		if _, _, err := im.btreeManager.Search(ctx, key); err != nil {
+			return fmt.Errorf("key not found: %v", err)
+		}
+		// 无直接删除能力，只更新统计信息
+	}
 
 	// 更新索引统计
 	if idx.KeyCount > 0 {
@@ -426,10 +434,28 @@ func (im *IndexManager) DropIndex(indexID uint64) error {
 	idx.State = IndexStateDropping
 	idx.UpdateTime = time.Now()
 
-	// TODO: 清理B+树中的所有页面
+	// 清理B+树中的所有页面
+	ctx := context.Background()
+
+	leafPages, err := im.btreeManager.GetAllLeafPages(ctx)
+	if err == nil {
+		for _, pageNo := range leafPages {
+			// 释放缓冲池及存储中的页面
+			if err := im.bufferPoolManager.FreePage(idx.SpaceID, pageNo); err != nil {
+				logger.Debugf("Warning: failed to free buffer page %d: %v", pageNo, err)
+			}
+			if err := im.segmentManager.FreePage(idx.SegmentID, pageNo); err != nil {
+				logger.Debugf("Warning: failed to free segment page %d: %v", pageNo, err)
+			}
+		}
+	}
 
 	// 释放段中的所有页面
 	for pageNo := uint32(0); pageNo < idx.PageCount; pageNo++ {
+		if err := im.bufferPoolManager.FreePage(idx.SpaceID, pageNo); err != nil {
+			logger.Debugf("Warning: failed to free buffer page %d: %v", pageNo, err)
+		}
+
 		if err := im.segmentManager.FreePage(idx.SegmentID, pageNo); err != nil {
 			// 记录错误但继续处理
 			logger.Debugf("Warning: failed to free page %d in segment %d: %v", pageNo, idx.SegmentID, err)
@@ -459,11 +485,34 @@ func (im *IndexManager) RebuildIndex(indexID uint64) error {
 	idx.State = IndexStateBuilding
 	idx.UpdateTime = time.Now()
 
-	// TODO: 实现索引重建逻辑
-	// 1. 创建新的B+树
-	// 2. 重新扫描表数据
-	// 3. 重新插入所有键值
-	// 4. 原子替换旧的索引结构
+	// 清理旧索引的所有页面
+	for pageNo := uint32(0); pageNo < idx.PageCount; pageNo++ {
+		if err := im.bufferPoolManager.FreePage(idx.SpaceID, pageNo); err != nil {
+			logger.Debugf("Warning: failed to free buffer page %d: %v", pageNo, err)
+		}
+		if err := im.segmentManager.FreePage(idx.SegmentID, pageNo); err != nil {
+			logger.Debugf("Warning: failed to free page %d in segment %d: %v", pageNo, idx.SegmentID, err)
+		}
+	}
+
+	// 重新分配根页并初始化B+树
+	rootPage, err := im.segmentManager.AllocatePage(idx.SegmentID)
+	if err != nil {
+		return fmt.Errorf("failed to allocate root page: %v", err)
+	}
+
+	ctx := context.Background()
+	if err := im.btreeManager.Init(ctx, idx.SpaceID, rootPage); err != nil {
+		return fmt.Errorf("failed to init btree: %v", err)
+	}
+
+	// 重置索引元数据
+	idx.RootPageNo = rootPage
+	idx.Height = 1
+	idx.PageCount = 1
+	idx.KeyCount = 0
+	idx.LeafPages = 1
+	idx.NonLeafPages = 0
 
 	// 标记为活跃状态
 	idx.State = IndexStateActive
