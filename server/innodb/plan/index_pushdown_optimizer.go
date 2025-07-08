@@ -58,7 +58,11 @@ func (opt *IndexPushdownOptimizer) OptimizeIndexAccess(
 	// 2. 获取所有可用索引
 	candidates := opt.generateIndexCandidates(table, conditions, selectColumns)
 
-	// 3. 选择最优索引
+	// 2.1 合并索引候选
+	merged := opt.mergeCandidates(candidates)
+	candidates = append(candidates, merged...)
+
+	// 3. 选择最优索引或索引合并方案
 	bestCandidate := opt.selectBestIndex(candidates)
 
 	return bestCandidate, nil
@@ -248,6 +252,36 @@ func (opt *IndexPushdownOptimizer) evaluateIndex(
 	candidate.Cost = opt.calculateIndexCost(index, candidate)
 
 	return candidate
+}
+
+// mergeCandidates 生成合并索引候选
+func (opt *IndexPushdownOptimizer) mergeCandidates(candidates []*IndexCandidate) []*IndexCandidate {
+	var merged []*IndexCandidate
+	for i := 0; i < len(candidates); i++ {
+		for j := i + 1; j < len(candidates); j++ {
+			c1 := candidates[i]
+			c2 := candidates[j]
+			if c1 == nil || c2 == nil {
+				continue
+			}
+			// 简单合并，不考虑覆盖列冲突等
+			conds := append([]*IndexCondition{}, c1.Conditions...)
+			conds = append(conds, c2.Conditions...)
+			sel := c1.Selectivity * c2.Selectivity
+			mergedCandidate := &IndexCandidate{
+				Index: &metadata.Index{
+					Name: c1.Index.Name + "+" + c2.Index.Name,
+				},
+				Conditions:  conds,
+				CoverIndex:  c1.CoverIndex && c2.CoverIndex,
+				Cost:        c1.Cost + c2.Cost,
+				Selectivity: sel,
+				KeyLength:   c1.KeyLength + c2.KeyLength,
+			}
+			merged = append(merged, mergedCandidate)
+		}
+	}
+	return merged
 }
 
 // isCoveringIndex 检查是否为覆盖索引
