@@ -15,6 +15,12 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/record"
 )
 
+// ctxKey is the type used for context keys in this package.
+type ctxKey string
+
+// ctxTxnIDKey is the context key used to store the current transaction ID.
+const ctxTxnIDKey ctxKey = "txn_id"
+
 // EnhancedBTreeIndex 增强版B+树索引实例
 type EnhancedBTreeIndex struct {
 	// 基本信息
@@ -572,12 +578,26 @@ func (idx *EnhancedBTreeIndex) insertIntoPage(ctx context.Context, page *BTreePa
 	}
 
 	// 7. 更新内存中的记录信息（为了兼容现有逻辑）
+	txnID := uint64(0)
+	if ctx != nil {
+		if v := ctx.Value(ctxTxnIDKey); v != nil {
+			switch t := v.(type) {
+			case uint64:
+				txnID = t
+			case int64:
+				txnID = uint64(t)
+			case *Transaction:
+				txnID = uint64(t.ID)
+			}
+		}
+	}
+
 	indexRecord := IndexRecord{
 		Key:        make([]byte, len(key)),
 		Value:      make([]byte, len(value)),
 		PageNo:     page.PageNo,
 		SlotNo:     page.RecordCount - 1, // 使用真实的记录数量
-		TxnID:      0,                    // TODO: 获取事务ID
+		TxnID:      txnID,
 		DeleteMark: false,
 	}
 	copy(indexRecord.Key, key)
