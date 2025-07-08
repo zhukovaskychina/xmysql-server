@@ -2,6 +2,7 @@ package plan
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
@@ -295,7 +296,7 @@ func collectUsedColumns(exprs []Expression) []string {
 			collect(v.Left)
 			collect(v.Right)
 		case *Function:
-			for _, arg := range v.Args {
+			for _, arg := range v.Args() {
 				collect(arg)
 			}
 		default:
@@ -391,16 +392,16 @@ func canEliminateAggregation(agg *LogicalAggregation, child LogicalPlan) bool {
 		return false
 	}
 
-	name := strings.ToUpper(fn.Name)
+	name := strings.ToUpper(fn.Name())
 	if name != "MIN" && name != "MAX" {
 		return false
 	}
 
-	if len(fn.Args) != 1 {
+	if len(fn.Args()) != 1 {
 		return false
 	}
 
-	if _, ok := fn.Args[0].(*Column); !ok {
+	if _, ok := fn.Args()[0].(*Column); !ok {
 		return false
 	}
 
@@ -417,8 +418,8 @@ func convertAggToProj(agg *LogicalAggregation) []Expression {
 		return nil
 	}
 	fn, ok := agg.AggFuncs[0].(*Function)
-	if !ok || len(fn.Args) != 1 {
+	if !ok || len(fn.Args()) != 1 {
 		return nil
 	}
-	return []Expression{fn.Args[0]}
+	return []Expression{fn.Args()[0]}
 }

@@ -19,14 +19,14 @@ func TestEliminateAggregationSimpleMax(t *testing.T) {
 		BaseLogicalPlan: BaseLogicalPlan{children: []LogicalPlan{scan}},
 		GroupByItems:    nil,
 		AggFuncs: []AggregateFunc{&Function{
-			Name: "MAX",
-			Args: []Expression{&Column{Name: "id"}},
+			FuncName: "MAX",
+			FuncArgs: []Expression{&Column{Name: "id"}},
 		}},
 	}
 
 	proj := &LogicalProjection{
 		BaseLogicalPlan: BaseLogicalPlan{children: []LogicalPlan{agg}},
-		Exprs:           []Expression{&Function{Name: "MAX", Args: []Expression{&Column{Name: "id"}}}},
+		Exprs:           []Expression{&Function{FuncName: "MAX", FuncArgs: []Expression{&Column{Name: "id"}}}},
 	}
 
 	optimized := OptimizeLogicalPlan(proj)
@@ -63,14 +63,14 @@ func TestEliminateAggregationSimpleMin(t *testing.T) {
 		BaseLogicalPlan: BaseLogicalPlan{children: []LogicalPlan{scan}},
 		GroupByItems:    nil,
 		AggFuncs: []AggregateFunc{&Function{
-			Name: "MIN",
-			Args: []Expression{&Column{Name: "id"}},
+			FuncName: "MIN",
+			FuncArgs: []Expression{&Column{Name: "id"}},
 		}},
 	}
 
 	proj := &LogicalProjection{
 		BaseLogicalPlan: BaseLogicalPlan{children: []LogicalPlan{agg}},
-		Exprs:           []Expression{&Function{Name: "MIN", Args: []Expression{&Column{Name: "id"}}}},
+		Exprs:           []Expression{&Function{FuncName: "MIN", FuncArgs: []Expression{&Column{Name: "id"}}}},
 	}
 
 	optimized := OptimizeLogicalPlan(proj)

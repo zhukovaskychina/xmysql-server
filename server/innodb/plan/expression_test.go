@@ -210,8 +210,8 @@ func TestFunction(t *testing.T) {
 
 			expr := &Function{
 				BaseExpression: BaseExpression{},
-				Name:           tt.fn,
-				Args:           args,
+				FuncName:       tt.fn,
+				FuncArgs:       args,
 			}
 
 			ctx := &EvalContext{}
@@ -255,8 +255,8 @@ func TestExpressionString(t *testing.T) {
 		{
 			name: "Function",
 			expr: &Function{
-				Name: "COUNT",
-				Args: []Expression{&Column{Name: "id"}},
+				FuncName: "COUNT",
+				FuncArgs: []Expression{&Column{Name: "id"}},
 			},
 			want: "COUNT(id)",
 		},
