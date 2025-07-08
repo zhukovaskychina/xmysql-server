@@ -381,11 +381,44 @@ func buildPrunedSchema(schema *metadata.DatabaseSchema, cols []string) *metadata
 }
 
 func canEliminateAggregation(agg *LogicalAggregation, child LogicalPlan) bool {
-	// TODO: 判断是否可以消除聚合
+	// Only consider MIN/MAX without GROUP BY
+	if len(agg.GroupByItems) > 0 || len(agg.AggFuncs) != 1 {
+		return false
+	}
+
+	fn, ok := agg.AggFuncs[0].(*Function)
+	if !ok {
+		return false
+	}
+
+	name := strings.ToUpper(fn.Name)
+	if name != "MIN" && name != "MAX" {
+		return false
+	}
+
+	if len(fn.Args) != 1 {
+		return false
+	}
+
+	if _, ok := fn.Args[0].(*Column); !ok {
+		return false
+	}
+
+	switch child.(type) {
+	case *LogicalTableScan, *LogicalIndexScan:
+		return true
+	}
+
 	return false
 }
 
 func convertAggToProj(agg *LogicalAggregation) []Expression {
-	// TODO: 将聚合转换为投影表达式
-	return nil
+	if len(agg.AggFuncs) != 1 {
+		return nil
+	}
+	fn, ok := agg.AggFuncs[0].(*Function)
+	if !ok || len(fn.Args) != 1 {
+		return nil
+	}
+	return []Expression{fn.Args[0]}
 }
