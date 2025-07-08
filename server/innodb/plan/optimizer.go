@@ -2,6 +2,7 @@ package plan
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
@@ -295,7 +296,7 @@ func collectUsedColumns(exprs []Expression) []string {
 			collect(v.Left)
 			collect(v.Right)
 		case *Function:
-			for _, arg := range v.Args {
+			for _, arg := range v.Args() {
 				collect(arg)
 			}
 		default:

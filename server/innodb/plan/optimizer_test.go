@@ -19,8 +19,8 @@ func TestEliminateAggregationSimpleMax(t *testing.T) {
 		BaseLogicalPlan: BaseLogicalPlan{children: []LogicalPlan{scan}},
 		GroupByItems:    nil,
 		AggFuncs: []AggregateFunc{&Function{
-			Name: "MAX",
-			Args: []Expression{&Column{Name: "id"}},
+			FuncName: "MAX",
+			FuncArgs: []Expression{&Column{Name: "id"}},
 		}},
 	}
 
