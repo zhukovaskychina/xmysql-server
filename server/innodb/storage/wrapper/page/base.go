@@ -6,6 +6,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
+	pageTypes "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/types"
 	"sync/atomic"
 	"time"
 )
@@ -36,11 +37,20 @@ const (
 // BasePage 基础页面实现
 type BasePage struct {
 	ConcurrentWrapper
-	rawPage  *PageHeader // 使用原始页面结构
+
+	// 原始页面数据，包含文件头、页面体和文件尾
+	rawPage *pageTypes.PageHeader
+
+	// 关联的缓冲池，可为空
+	bufferPool basic.IBufferPool
+
 	state    atomic.Uint32
 	stats    basic.PageStats
 	pinCount atomic.Int32
 	dirty    atomic.Bool
+
+	// 缓存的完整页面内容
+	content []byte
 }
 
 // Ensure BasePage implements IPageWrapper
@@ -49,19 +59,23 @@ var _ IPageWrapper = (*BasePage)(nil)
 // NewBasePage 创建基础页面
 func NewBasePage(spaceID, pageNo uint32, pageType common.PageType) *BasePage {
 	bp := &BasePage{
-		rawPage: NewPageHeader(),
+		rawPage: pageTypes.NewPageHeader(common.PageSize),
+		content: make([]byte, common.PageSize),
 	}
 
-	// 初始化页面头
-	header := make([]byte, 38)
-	binary.LittleEndian.PutUint32(header[FHeaderSpaceID:], spaceID)
-	binary.LittleEndian.PutUint32(header[FHeaderPageNo:], pageNo)
-	binary.LittleEndian.PutUint16(header[FHeaderPageType:], uint16(pageType))
+	// 初始化文件头信息
+	binary.BigEndian.PutUint32(bp.rawPage.FileHeader[FHeaderSpaceID:], spaceID)
+	binary.BigEndian.PutUint32(bp.rawPage.FileHeader[FHeaderPageNo:], pageNo)
+	binary.BigEndian.PutUint16(bp.rawPage.FileHeader[FHeaderPageType:], uint16(pageType))
 
 	// 初始化状态
 	bp.state.Store(uint32(common.PageStateInit))
 	bp.dirty.Store(false)
 	bp.pinCount.Store(0)
+
+	copy(bp.content[:common.FileHeaderSize], bp.rawPage.FileHeader)
+	copy(bp.content[common.FileHeaderSize:common.PageSize-common.FileTrailerSize], bp.rawPage.FileBody)
+	copy(bp.content[common.PageSize-common.FileTrailerSize:], bp.rawPage.FileTrailer)
 
 	return bp
 }
@@ -73,31 +87,27 @@ func (bp *BasePage) GetPageID() uint32 {
 
 // GetSpaceID 实现IPageWrapper接口
 func (bp *BasePage) GetSpaceID() uint32 {
-	// TODO: 从rawPage中读取
-	return 0
+	return binary.BigEndian.Uint32(bp.rawPage.FileHeader[FHeaderSpaceID:])
 }
 
 // GetPageNo 实现IPageWrapper接口
 func (bp *BasePage) GetPageNo() uint32 {
-	// TODO: 从rawPage中读取
-	return 0
+	return binary.BigEndian.Uint32(bp.rawPage.FileHeader[FHeaderPageNo:])
 }
 
 // GetPageType 实现IPageWrapper接口
 func (bp *BasePage) GetPageType() common.PageType {
-	// TODO: 从rawPage中读取
-	return common.FIL_PAGE_TYPE_ALLOCATED
+	return common.PageType(binary.BigEndian.Uint16(bp.rawPage.FileHeader[FHeaderPageType:]))
 }
 
 // GetLSN 实现Page接口
 func (bp *BasePage) GetLSN() uint64 {
-	// TODO: 从rawPage中读取
-	return 0
+	return binary.BigEndian.Uint64(bp.rawPage.FileHeader[FHeaderLSN:])
 }
 
 // SetLSN 实现Page接口
 func (bp *BasePage) SetLSN(lsn uint64) {
-	// TODO: 写入rawPage
+	binary.BigEndian.PutUint64(bp.rawPage.FileHeader[FHeaderLSN:], lsn)
 	bp.MarkDirty()
 }
 
@@ -162,7 +172,12 @@ func (bp *BasePage) Read() error {
 	bp.stats.ReadCount++
 	bp.stats.AccessTime = uint64(time.Now().UnixNano())
 
-	// TODO: 实现从磁盘读取页面
+	if bp.bufferPool != nil {
+		if page, err := bp.bufferPool.GetPage(bp.GetSpaceID(), bp.GetPageNo()); err == nil && page != nil {
+			return bp.ParseFromBytes(page.GetData())
+		}
+	}
+
 	return nil
 }
 
@@ -174,61 +189,101 @@ func (bp *BasePage) Write() error {
 	bp.stats.WriteCount++
 	bp.stats.AccessTime = uint64(time.Now().UnixNano())
 
-	// TODO: 实现写入磁盘
+	data, err := bp.ToBytes()
+	if err != nil {
+		return err
+	}
+
+	if bp.bufferPool != nil {
+		bufPage, err := bp.bufferPool.GetPage(bp.GetSpaceID(), bp.GetPageNo())
+		if err != nil || bufPage == nil {
+			bufPage, err = bp.bufferPool.NewPage(bp.GetSpaceID(), bp.GetPageNo(), basic.PageType(bp.GetPageType()))
+			if err != nil {
+				return err
+			}
+		}
+		if err := bufPage.SetData(data); err == nil {
+			bufPage.SetDirty(true)
+		}
+	}
+
+	bp.dirty.Store(false)
 	return nil
 }
 
 // GetContent 获取页面内容
 func (bp *BasePage) GetContent() []byte {
-	// TODO: 返回rawPage的内容
-	return make([]byte, 16384)
+	result := make([]byte, len(bp.content))
+	copy(result, bp.content)
+	return result
 }
 
 // SetContent 设置页面内容
 func (bp *BasePage) SetContent(content []byte) error {
-	// TODO: 设置rawPage的内容
+	if len(content) != int(bp.Size()) {
+		return ErrInvalidPage
+	}
+	copy(bp.content, content)
+	copy(bp.rawPage.FileHeader, content[:common.FileHeaderSize])
+	copy(bp.rawPage.FileBody, content[common.FileHeaderSize:len(content)-common.FileTrailerSize])
+	copy(bp.rawPage.FileTrailer, content[len(content)-common.FileTrailerSize:])
 	bp.MarkDirty()
 	return nil
 }
 
 // ParseFromBytes 从字节解析页面
 func (bp *BasePage) ParseFromBytes(data []byte) error {
-	// TODO: 解析页面数据到rawPage
+	if err := bp.SetContent(data); err != nil {
+		return err
+	}
 	return nil
 }
 
 // ToBytes 序列化为字节
 func (bp *BasePage) ToBytes() ([]byte, error) {
-	// TODO: 序列化rawPage为字节
-	return make([]byte, 16384), nil
+	copy(bp.content[:common.FileHeaderSize], bp.rawPage.FileHeader)
+	copy(bp.content[common.FileHeaderSize:common.PageSize-common.FileTrailerSize], bp.rawPage.FileBody)
+	copy(bp.content[common.PageSize-common.FileTrailerSize:], bp.rawPage.FileTrailer)
+	result := make([]byte, len(bp.content))
+	copy(result, bp.content)
+	return result, nil
 }
 
 // GetFileHeader 获取文件头
 func (bp *BasePage) GetFileHeader() *pages.FileHeader {
-	// TODO: 返回rawPage的FileHeader
 	header := pages.NewFileHeader()
+	header.ParseFileHeader(bp.rawPage.FileHeader)
 	return &header
 }
 
 // GetFileTrailer 获取文件尾
 func (bp *BasePage) GetFileTrailer() *pages.FileTrailer {
-	// TODO: 返回rawPage的FileTrailer
 	trailer := pages.NewFileTrailer()
+	copy(trailer.FileTrailer[:], bp.rawPage.FileTrailer)
 	return &trailer
 }
 
 // Size 获取页面大小
 func (bp *BasePage) Size() uint32 {
-	return 16384
+	return common.PageSize
 }
 
 // UpdateChecksum 更新校验和
 func (bp *BasePage) UpdateChecksum() {
-	// TODO: 实现校验和更新
+	var sum uint64
+	for _, b := range bp.content[:len(bp.content)-common.FileTrailerSize] {
+		sum += uint64(b)
+	}
+	binary.BigEndian.PutUint64(bp.rawPage.FileTrailer[FTrailerChecksum:], sum)
+	copy(bp.content[len(bp.content)-common.FileTrailerSize:], bp.rawPage.FileTrailer)
 }
 
 // ValidateChecksum 验证校验和
 func (bp *BasePage) ValidateChecksum() bool {
-	// TODO: 实现校验和验证
-	return true
+	var sum uint64
+	for _, b := range bp.content[:len(bp.content)-common.FileTrailerSize] {
+		sum += uint64(b)
+	}
+	stored := binary.BigEndian.Uint64(bp.rawPage.FileTrailer[FTrailerChecksum:])
+	return sum == stored
 }
