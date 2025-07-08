@@ -43,6 +43,7 @@ type BufferPoolConfig struct {
 	PrefetchSize    uint32 // 预读大小
 	MaxQueueSize    uint32 // 最大队列大小
 	PrefetchWorkers uint32 // 预读工作线程数
+	ReadAheadPages  uint32 // 预读页面数
 	poolSize        uint32
 }
 

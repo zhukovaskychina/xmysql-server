@@ -562,5 +562,7 @@ func (sa *StorageAccessor) GetBufferPoolStatistics() *manager.BufferPoolStatisti
 
 // GetBTreeStatistics 获取B+树统计信息
 func (sa *StorageAccessor) GetBTreeStatistics() *basic.BTreeStatistics {
-	return sa.btreeManager.GetStatistics()
+	// The underlying B+Tree manager in this demo does not expose
+	// statistics. Return an empty struct for compilation.
+	return &basic.BTreeStatistics{}
 }
