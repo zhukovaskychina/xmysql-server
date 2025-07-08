@@ -194,6 +194,31 @@ func (sm *StorageManager) GetSystemVariableAnalyzer() *SystemVariableAnalyzer {
 	return sm.sysVarAnalyzer
 }
 
+// GetBTreeManager returns the B+Tree manager if available.
+func (sm *StorageManager) GetBTreeManager() basic.BPlusTreeManager {
+	return nil
+}
+
+// GetTableManager returns the table manager if available.
+func (sm *StorageManager) GetTableManager() *TableManager {
+	return nil
+}
+
+// GetIndexManager returns the index manager if available.
+func (sm *StorageManager) GetIndexManager() *IndexManager {
+	return nil
+}
+
+// GetTransactionManager returns the transaction manager if available.
+func (sm *StorageManager) GetTransactionManager() *TransactionManager {
+	return nil
+}
+
+// GetTableStorageManager returns the table storage manager if available.
+func (sm *StorageManager) GetTableStorageManager() *TableStorageManager {
+	return nil
+}
+
 func (sm *StorageManager) OpenSpace(spaceID uint32) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
