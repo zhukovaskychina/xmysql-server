@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 // EnhancedBTreeAdapter 适配器，让 EnhancedBTreeManager 兼容 basic.BPlusTreeManager 接口
@@ -212,11 +213,17 @@ func (r *IndexRecordRowAdapter) GetPageNumber() uint32 {
 }
 
 func (r *IndexRecordRowAdapter) WriteWithNull(content []byte) {
-	// TODO: 实现
+	if r.record == nil {
+		return
+	}
+	r.record.Value = util.WriteWithNull(r.record.Value, content)
 }
 
 func (r *IndexRecordRowAdapter) WriteBytesWithNullWithsPos(content []byte, index byte) {
-	// TODO: 实现
+	if r.record == nil {
+		return
+	}
+	r.record.Value = util.WriteWithNull(r.record.Value, content)
 }
 
 func (r *IndexRecordRowAdapter) GetRowLength() uint16 {
@@ -227,11 +234,15 @@ func (r *IndexRecordRowAdapter) GetRowLength() uint16 {
 }
 
 func (r *IndexRecordRowAdapter) GetHeaderLength() uint16 {
-	return 0 // TODO: 实现
+	// IndexRecord 没有单独的头部信息
+	return 0
 }
 
 func (r *IndexRecordRowAdapter) GetPrimaryKey() basic.Value {
-	return nil // TODO: 实现
+	if r.record == nil {
+		return basic.NewNull()
+	}
+	return basic.NewBytes(r.record.Key)
 }
 
 func (r *IndexRecordRowAdapter) GetFieldLength() int {
@@ -239,11 +250,17 @@ func (r *IndexRecordRowAdapter) GetFieldLength() int {
 }
 
 func (r *IndexRecordRowAdapter) ReadValueByIndex(index int) basic.Value {
-	return nil // TODO: 实现
+	if r.record == nil {
+		return basic.NewNull()
+	}
+	if index == 0 {
+		return basic.NewBytes(r.record.Value)
+	}
+	return basic.NewNull()
 }
 
 func (r *IndexRecordRowAdapter) SetNOwned(cnt byte) {
-	// TODO: 实现
+	// IndexRecord 不维护该信息，忽略
 }
 
 func (r *IndexRecordRowAdapter) GetNOwned() byte {
@@ -255,7 +272,7 @@ func (r *IndexRecordRowAdapter) GetNextRowOffset() uint16 {
 }
 
 func (r *IndexRecordRowAdapter) SetNextRowOffset(offset uint16) {
-	// TODO: 实现
+	// IndexRecord 不维护该信息，忽略
 }
 
 func (r *IndexRecordRowAdapter) GetHeapNo() uint16 {
@@ -263,15 +280,27 @@ func (r *IndexRecordRowAdapter) GetHeapNo() uint16 {
 }
 
 func (r *IndexRecordRowAdapter) SetHeapNo(heapNo uint16) {
-	// TODO: 实现
+	// IndexRecord 不维护该信息，忽略
 }
 
 func (r *IndexRecordRowAdapter) SetTransactionId(trxId uint64) {
-	// TODO: 实现
+	if r.record != nil {
+		r.record.TxnID = trxId
+	}
 }
 
 func (r *IndexRecordRowAdapter) GetValueByColName(colName string) basic.Value {
-	return nil // TODO: 实现
+	if r.record == nil {
+		return basic.NewNull()
+	}
+	switch colName {
+	case "key", "KEY":
+		return basic.NewBytes(r.record.Key)
+	case "value", "VALUE":
+		return basic.NewBytes(r.record.Value)
+	default:
+		return basic.NewNull()
+	}
 }
 
 func (r *IndexRecordRowAdapter) ToString() string {
