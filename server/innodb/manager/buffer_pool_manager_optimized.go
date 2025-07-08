@@ -175,6 +175,34 @@ func (bpm *OptimizedBufferPoolManager) loadPageFromStorage(spaceID, pageNo uint3
 	return page, nil
 }
 
+// AllocatePage 从存储分配新页面并放入缓冲池
+func (bpm *OptimizedBufferPoolManager) AllocatePage(spaceID uint32) (*buffer_pool.BufferPage, error) {
+	pageNo, err := bpm.storage.AllocatePage(spaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	page := buffer_pool.NewBufferPage(spaceID, pageNo)
+	block := buffer_pool.NewBufferBlock(page)
+	if err := bpm.lruCache.Set(spaceID, pageNo, block); err != nil {
+		return nil, err
+	}
+
+	atomic.AddUint64(&bpm.stats.totalPages, 1)
+	return page, nil
+}
+
+// FreePage 释放页面并从缓冲池移除
+func (bpm *OptimizedBufferPoolManager) FreePage(spaceID, pageNo uint32) error {
+	if err := bpm.storage.FreePage(spaceID, pageNo); err != nil {
+		return err
+	}
+
+	bpm.lruCache.Remove(spaceID, pageNo)
+	atomic.AddUint64(&bpm.stats.totalPages, ^uint64(0))
+	return nil
+}
+
 // GetDirtyPage 获取页面并标记为脏页
 func (bpm *OptimizedBufferPoolManager) GetDirtyPage(spaceID, pageNo uint32) (*buffer_pool.BufferPage, error) {
 	page, err := bpm.GetPage(spaceID, pageNo)
