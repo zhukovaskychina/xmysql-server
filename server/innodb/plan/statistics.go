@@ -1,8 +1,11 @@
 package plan
 
 import (
+	"fmt"
 	_ "math"
 	"sort"
+	"strings"
+	"time"
 )
 
 // Statistics 统计信息
@@ -176,7 +179,7 @@ func (b *StatsBuilder) BuildIndexStats(indexName string, keys [][]interface{}) *
 // 辅助函数
 
 func getCurrentTime() int64 {
-	return 0 // TODO: 实现
+	return time.Now().Unix()
 }
 
 func calculateRowSize(row []interface{}) int64 {
@@ -188,7 +191,26 @@ func calculateRowSize(row []interface{}) int64 {
 }
 
 func calculateValueSize(v interface{}) int64 {
-	return 0 // TODO: 实现
+	switch val := v.(type) {
+	case nil:
+		return 0
+	case int8, uint8, bool:
+		return 1
+	case int16, uint16:
+		return 2
+	case int32, uint32, float32:
+		return 4
+	case int, int64, uint64, float64:
+		return 8
+	case string:
+		return int64(len(val))
+	case []byte:
+		return int64(len(val))
+	case time.Time:
+		return 8
+	default:
+		return 8
+	}
 }
 
 func buildTopN(freq map[interface{}]int64, n int) []ValueFreq {
@@ -286,11 +308,26 @@ func findMinMax(values []interface{}) (max, min interface{}) {
 }
 
 func buildIndexKey(key []interface{}) string {
-	return "" // TODO: 实现
+	parts := make([]string, len(key))
+	for i, v := range key {
+		parts[i] = fmt.Sprintf("%v", v)
+	}
+	return strings.Join(parts, "|")
 }
 
 func calculateClusterFactor(keys [][]interface{}) float64 {
-	return 0 // TODO: 实现
+	if len(keys) == 0 {
+		return 0
+	}
+
+	distinct := make(map[string]struct{})
+	for _, k := range keys {
+		distinct[buildIndexKey(k)] = struct{}{}
+	}
+	if len(distinct) == 0 {
+		return 0
+	}
+	return float64(len(keys)) / float64(len(distinct))
 }
 
 func calculateNDV(values []interface{}) int64 {
@@ -304,6 +341,114 @@ func calculateNDV(values []interface{}) int64 {
 }
 
 func less(a, b interface{}) bool {
-	// TODO: 实现值比较
+	switch va := a.(type) {
+	case int, int8, int16, int32, int64:
+		return toInt64(va) < toInt64(b)
+	case uint, uint8, uint16, uint32, uint64:
+		return toUint64(va) < toUint64(b)
+	case float32, float64:
+		return toFloat64(va) < toFloat64(b)
+	case string:
+		if vb, ok := b.(string); ok {
+			return va < vb
+		}
+	case time.Time:
+		if vb, ok := b.(time.Time); ok {
+			return va.Before(vb)
+		}
+	}
 	return false
+}
+
+func toInt64(v interface{}) int64 {
+	switch t := v.(type) {
+	case int:
+		return int64(t)
+	case int8:
+		return int64(t)
+	case int16:
+		return int64(t)
+	case int32:
+		return int64(t)
+	case int64:
+		return t
+	case uint:
+		return int64(t)
+	case uint8:
+		return int64(t)
+	case uint16:
+		return int64(t)
+	case uint32:
+		return int64(t)
+	case uint64:
+		return int64(t)
+	case float32:
+		return int64(t)
+	case float64:
+		return int64(t)
+	default:
+		return 0
+	}
+}
+
+func toUint64(v interface{}) uint64 {
+	switch t := v.(type) {
+	case uint:
+		return uint64(t)
+	case uint8:
+		return uint64(t)
+	case uint16:
+		return uint64(t)
+	case uint32:
+		return uint64(t)
+	case uint64:
+		return t
+	case int:
+		return uint64(t)
+	case int8:
+		return uint64(t)
+	case int16:
+		return uint64(t)
+	case int32:
+		return uint64(t)
+	case int64:
+		return uint64(t)
+	case float32:
+		return uint64(t)
+	case float64:
+		return uint64(t)
+	default:
+		return 0
+	}
+}
+
+func toFloat64(v interface{}) float64 {
+	switch t := v.(type) {
+	case float32:
+		return float64(t)
+	case float64:
+		return t
+	case int:
+		return float64(t)
+	case int8:
+		return float64(t)
+	case int16:
+		return float64(t)
+	case int32:
+		return float64(t)
+	case int64:
+		return float64(t)
+	case uint:
+		return float64(t)
+	case uint8:
+		return float64(t)
+	case uint16:
+		return float64(t)
+	case uint32:
+		return float64(t)
+	case uint64:
+		return float64(t)
+	default:
+		return 0
+	}
 }

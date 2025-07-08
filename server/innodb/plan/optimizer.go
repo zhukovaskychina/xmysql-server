@@ -1,5 +1,11 @@
 package plan
 
+import (
+	"sort"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+)
+
 // OptimizeLogicalPlan 优化逻辑计划
 func OptimizeLogicalPlan(plan LogicalPlan) LogicalPlan {
 	// 1. 谓词下推
@@ -13,6 +19,10 @@ func OptimizeLogicalPlan(plan LogicalPlan) LogicalPlan {
 
 	// 4. 子查询优化
 	plan = optimizeSubquery(plan)
+
+	// 5. 索引访问优化
+	opt := NewIndexPushdownOptimizer()
+	plan = optimizeIndexAccess(plan, opt)
 
 	return plan
 }
@@ -174,37 +184,200 @@ func eliminateAggregation(plan LogicalPlan) LogicalPlan {
 
 // optimizeSubquery 子查询优化
 func optimizeSubquery(plan LogicalPlan) LogicalPlan {
-	// TODO: 实现子查询优化
-	// 1. 子查询去关联
-	// 2. 子查询展开
-	// 3. 子查询上拉
+	// 当前代码库尚未实现完整的子查询算子，这里仅递归处理子计划。
+	// 若将来增加了子查询相关的逻辑计划节点，可在此处实现去关联、
+	// 展开以及上拉等优化。
+
+	for i, child := range plan.Children() {
+		newChild := optimizeSubquery(child)
+		children := plan.Children()
+		children[i] = newChild
+		plan.SetChildren(children)
+	}
+
+	return plan
+}
+
+// optimizeIndexAccess 使用索引下推优化器选择索引
+func optimizeIndexAccess(plan LogicalPlan, optimizer *IndexPushdownOptimizer) LogicalPlan {
+	switch v := plan.(type) {
+	case *LogicalSelection:
+		child := v.Children()[0]
+		if ts, ok := child.(*LogicalTableScan); ok {
+			cand, err := optimizer.OptimizeIndexAccess(ts.Table, v.Conditions, []string{})
+			if err == nil && cand != nil {
+				newScan := &LogicalIndexScan{
+					BaseLogicalPlan: BaseLogicalPlan{schema: ts.Schema()},
+					Table:           ts.Table,
+					Index: &Index{
+						Name:    cand.Index.Name,
+						Columns: cand.Index.Columns,
+						Unique:  cand.Index.IsUnique,
+					},
+				}
+				return newScan
+			}
+		}
+	}
+
+	for i, child := range plan.Children() {
+		newChild := optimizeIndexAccess(child, optimizer)
+		children := plan.Children()
+		children[i] = newChild
+		plan.SetChildren(children)
+	}
 	return plan
 }
 
 // 辅助函数
 
+// mergePredicate merges predicate conditions into an existing selection node or
+// creates a new one on top of the given plan. It is used by predicate push down
+// to combine multiple filters.
 func mergePredicate(plan LogicalPlan, conditions []Expression) LogicalPlan {
-	// TODO: 合并谓词条件
-	return plan
+	if sel, ok := plan.(*LogicalSelection); ok {
+		sel.Conditions = append(sel.Conditions, conditions...)
+		return sel
+	}
+
+	return &LogicalSelection{
+		BaseLogicalPlan: BaseLogicalPlan{children: []LogicalPlan{plan}},
+		Conditions:      conditions,
+	}
 }
 
 func splitJoinCondition(conditions []Expression, join *LogicalJoin) ([]Expression, []Expression, []Expression) {
-	// TODO: 分解连接条件
-	return nil, nil, conditions
+	var leftConds, rightConds, otherConds []Expression
+
+	for _, cond := range conditions {
+		cols := collectUsedColumns([]Expression{cond})
+		if len(cols) == 0 {
+			otherConds = append(otherConds, cond)
+			continue
+		}
+
+		allLeft := true
+		allRight := true
+		for _, c := range cols {
+			if join.LeftSchema == nil || !columnInSchema(join.LeftSchema, c) {
+				allLeft = false
+			}
+			if join.RightSchema == nil || !columnInSchema(join.RightSchema, c) {
+				allRight = false
+			}
+		}
+
+		switch {
+		case allLeft && !allRight:
+			leftConds = append(leftConds, cond)
+		case allRight && !allLeft:
+			rightConds = append(rightConds, cond)
+		default:
+			otherConds = append(otherConds, cond)
+		}
+	}
+
+	return leftConds, rightConds, otherConds
 }
 
 func collectUsedColumns(exprs []Expression) []string {
-	// TODO: 收集表达式中使用的列
-	return nil
+	colSet := make(map[string]struct{})
+	var collect func(Expression)
+
+	collect = func(e Expression) {
+		if e == nil {
+			return
+		}
+		switch v := e.(type) {
+		case *Column:
+			colSet[v.Name] = struct{}{}
+		case *BinaryOperation:
+			collect(v.Left)
+			collect(v.Right)
+		case *Function:
+			for _, arg := range v.Args {
+				collect(arg)
+			}
+		default:
+			for _, c := range e.Children() {
+				collect(c)
+			}
+		}
+	}
+
+	for _, expr := range exprs {
+		collect(expr)
+	}
+
+	cols := make([]string, 0, len(colSet))
+	for c := range colSet {
+		cols = append(cols, c)
+	}
+	sort.Strings(cols)
+	return cols
 }
 
 func updateOutputColumns(plan LogicalPlan, usedCols []string) {
-	// TODO: 更新计划节点的输出列
+	if len(usedCols) == 0 {
+		return
+	}
+
+	switch p := plan.(type) {
+	case *LogicalTableScan:
+		p.BaseLogicalPlan.schema = buildPrunedSchema(p.Table.Schema, usedCols)
+	case *LogicalIndexScan:
+		p.BaseLogicalPlan.schema = buildPrunedSchema(p.Table.Schema, usedCols)
+	case *LogicalSelection, *LogicalProjection, *LogicalAggregation:
+		if len(p.Children()) > 0 {
+			updateOutputColumns(p.Children()[0], usedCols)
+		}
+	case *LogicalJoin:
+		if len(p.Children()) >= 2 {
+			updateOutputColumns(p.Children()[0], usedCols)
+			updateOutputColumns(p.Children()[1], usedCols)
+		}
+	}
 }
 
 func collectAggFuncCols(funcs []AggregateFunc) []Expression {
-	// TODO: 收集聚合函数中使用的列
-	return nil
+	var exprs []Expression
+	for _, f := range funcs {
+		exprs = append(exprs, f.Args()...)
+	}
+	return exprs
+}
+
+// columnInSchema checks whether the given column exists in any table of the schema.
+func columnInSchema(schema *metadata.DatabaseSchema, col string) bool {
+	if schema == nil {
+		return false
+	}
+	for _, tbl := range schema.Tables {
+		if _, ok := tbl.GetColumn(col); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// buildPrunedSchema creates a new schema containing only the specified columns.
+// Columns that do not exist in the original schema are ignored.
+func buildPrunedSchema(schema *metadata.DatabaseSchema, cols []string) *metadata.DatabaseSchema {
+	if schema == nil {
+		return nil
+	}
+	newSchema := metadata.NewSchema(schema.Name)
+	for _, tbl := range schema.Tables {
+		newTbl := &metadata.Table{Name: tbl.Name, Indices: tbl.Indices, Stats: tbl.Stats}
+		for _, colName := range cols {
+			if col, ok := tbl.GetColumn(colName); ok {
+				cp := *col
+				newTbl.Columns = append(newTbl.Columns, &cp)
+			}
+		}
+		_ = newSchema.AddTable(newTbl)
+	}
+	return newSchema
 }
 
 func canEliminateAggregation(agg *LogicalAggregation, child LogicalPlan) bool {
