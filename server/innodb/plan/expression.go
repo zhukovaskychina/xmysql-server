@@ -201,6 +201,14 @@ type Function struct {
 	Args []Expression
 }
 
+func (f *Function) Name() string {
+	return f.Name
+}
+
+func (f *Function) Args() []Expression {
+	return f.Args
+}
+
 func (f *Function) Eval(ctx *EvalContext) (interface{}, error) {
 	args := make([]interface{}, len(f.Args))
 	for i, arg := range f.Args {
