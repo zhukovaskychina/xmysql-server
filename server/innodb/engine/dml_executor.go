@@ -2,8 +2,11 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
@@ -437,53 +440,265 @@ func (dml *DMLExecutor) parseUpdateExpressions(exprs sqlparser.UpdateExprs, tabl
 // 事务相关方法 - 简化实现
 func (dml *DMLExecutor) beginTransaction(ctx context.Context) (interface{}, error) {
 	logger.Debugf("🔄 开始事务")
-	// TODO: 实现真正的事务开始逻辑
-	return "dummy_transaction", nil
+
+	if dml.txManager == nil {
+		return nil, fmt.Errorf("transaction manager not initialized")
+	}
+
+	tx, err := dml.txManager.Begin(false, manager.TRX_ISO_REPEATABLE_READ)
+	if err != nil {
+		return nil, err
+	}
+
+	return tx, nil
 }
 
 func (dml *DMLExecutor) commitTransaction(ctx context.Context, txn interface{}) error {
 	logger.Debugf(" 提交事务")
-	// TODO: 实现真正的事务提交逻辑
-	return nil
+
+	if txn == nil {
+		return fmt.Errorf("nil transaction")
+	}
+
+	t, ok := txn.(*manager.Transaction)
+	if !ok {
+		return fmt.Errorf("invalid transaction type")
+	}
+
+	if dml.txManager == nil {
+		return fmt.Errorf("transaction manager not initialized")
+	}
+
+	return dml.txManager.Commit(t)
 }
 
 func (dml *DMLExecutor) rollbackTransaction(ctx context.Context, txn interface{}) error {
 	logger.Debugf("🔄 回滚事务")
-	// TODO: 实现真正的事务回滚逻辑
-	return nil
+
+	if txn == nil {
+		return fmt.Errorf("nil transaction")
+	}
+
+	t, ok := txn.(*manager.Transaction)
+	if !ok {
+		return fmt.Errorf("invalid transaction type")
+	}
+
+	if dml.txManager == nil {
+		return fmt.Errorf("transaction manager not initialized")
+	}
+
+	return dml.txManager.Rollback(t)
 }
 
 // 数据操作方法 - 简化实现
 func (dml *DMLExecutor) insertRow(ctx context.Context, txn interface{}, row *InsertRowData, tableMeta *metadata.TableMeta) (uint64, error) {
 	logger.Debugf(" 插入行数据: %+v", row.ColumnValues)
-	// TODO: 实现真正的行插入逻辑，包括：
-	// 1. 分配新的行ID
-	// 2. 写入页面
-	// 3. 更新索引
-	// 4. 记录redo日志
-	return 1, nil // 返回模拟的插入ID
+
+	if tableMeta == nil {
+		return 0, fmt.Errorf("table metadata is nil")
+	}
+
+	// 确定主键列
+	pkCol := "id"
+	if len(tableMeta.PrimaryKey) > 0 {
+		pkCol = tableMeta.PrimaryKey[0]
+	}
+
+	pkVal, ok := row.ColumnValues[pkCol]
+	if !ok {
+		pkVal = time.Now().UnixNano()
+		row.ColumnValues[pkCol] = pkVal
+	}
+
+	// 类型验证
+	for _, col := range tableMeta.Columns {
+		if val, exists := row.ColumnValues[col.Name]; exists {
+			if !dml.validateValueType(val, col.Type) {
+				return 0, fmt.Errorf("column %s type mismatch", col.Name)
+			}
+		}
+	}
+
+	// 序列化行数据（使用简单JSON表示）
+	bytes, err := json.Marshal(row.ColumnValues)
+	if err != nil {
+		return 0, fmt.Errorf("serialize row failed: %v", err)
+	}
+
+	// 写入B+树索引
+	if dml.btreeManager != nil {
+		if err := dml.btreeManager.Insert(ctx, pkVal, bytes); err != nil {
+			return 0, err
+		}
+	}
+
+	return dml.convertPrimaryKeyToUint64(pkVal), nil
 }
 
 func (dml *DMLExecutor) findRowsToUpdate(ctx context.Context, txn interface{}, whereConditions []string, tableMeta *metadata.TableMeta) ([]*RowUpdateInfo, error) {
 	logger.Debugf(" 查找待更新行，条件: %v", whereConditions)
-	// TODO: 实现真正的行查找逻辑
-	return []*RowUpdateInfo{}, nil
+
+	var rows []*RowUpdateInfo
+
+	for _, cond := range whereConditions {
+		key := dml.extractPrimaryKeyFromCondition(cond)
+		if key == nil {
+			continue
+		}
+
+		if dml.btreeManager != nil {
+			pageNo, slot, err := dml.btreeManager.Search(ctx, key)
+			if err != nil {
+				logger.Debugf(" search failed: %v", err)
+				continue
+			}
+
+			rows = append(rows, &RowUpdateInfo{
+				RowId:     dml.convertPrimaryKeyToUint64(key),
+				PageNum:   pageNo,
+				SlotIndex: slot,
+				OldValues: map[string]interface{}{},
+			})
+		}
+	}
+
+	return rows, nil
 }
 
 func (dml *DMLExecutor) updateRow(ctx context.Context, txn interface{}, rowInfo *RowUpdateInfo, updateExprs []*UpdateExpression, tableMeta *metadata.TableMeta) error {
 	logger.Debugf(" 更新行数据: RowID=%d", rowInfo.RowId)
-	// TODO: 实现真正的行更新逻辑
+
+	data := make(map[string]interface{})
+	for k, v := range rowInfo.OldValues {
+		data[k] = v
+	}
+
+	for _, expr := range updateExprs {
+		if !dml.validateValueType(expr.NewValue, expr.ColumnType) {
+			return fmt.Errorf("column %s type mismatch", expr.ColumnName)
+		}
+		data[expr.ColumnName] = expr.NewValue
+	}
+
+	bytes, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("serialize row failed: %v", err)
+	}
+
+	if dml.btreeManager != nil {
+		if err := dml.btreeManager.Insert(ctx, rowInfo.RowId, bytes); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
 func (dml *DMLExecutor) findRowsToDelete(ctx context.Context, txn interface{}, whereConditions []string, tableMeta *metadata.TableMeta) ([]*RowUpdateInfo, error) {
 	logger.Debugf(" 查找待删除行，条件: %v", whereConditions)
-	// TODO: 实现真正的行查找逻辑
-	return []*RowUpdateInfo{}, nil
+
+	var rows []*RowUpdateInfo
+
+	for _, cond := range whereConditions {
+		key := dml.extractPrimaryKeyFromCondition(cond)
+		if key == nil {
+			continue
+		}
+
+		if dml.btreeManager != nil {
+			pageNo, slot, err := dml.btreeManager.Search(ctx, key)
+			if err != nil {
+				logger.Debugf(" search failed: %v", err)
+				continue
+			}
+
+			rows = append(rows, &RowUpdateInfo{
+				RowId:     dml.convertPrimaryKeyToUint64(key),
+				PageNum:   pageNo,
+				SlotIndex: slot,
+				OldValues: map[string]interface{}{},
+			})
+		}
+	}
+
+	return rows, nil
 }
 
 func (dml *DMLExecutor) deleteRow(ctx context.Context, txn interface{}, rowInfo *RowUpdateInfo, tableMeta *metadata.TableMeta) error {
 	logger.Debugf("🗑️ 删除行数据: RowID=%d", rowInfo.RowId)
-	// TODO: 实现真正的行删除逻辑
+
+	if dml.btreeManager == nil {
+		return fmt.Errorf("btree manager not initialized")
+	}
+
+	if deleter, ok := interface{}(dml.btreeManager).(interface {
+		Delete(ctx context.Context, key interface{}) error
+	}); ok {
+		return deleter.Delete(ctx, rowInfo.RowId)
+	}
+
+	// 如果不支持删除，尝试插入空值标记覆盖
+	empty := []byte("DELETED")
+	return dml.btreeManager.Insert(ctx, rowInfo.RowId, empty)
+}
+
+// ===== 辅助方法 =====
+
+func (dml *DMLExecutor) convertPrimaryKeyToUint64(key interface{}) uint64 {
+	switch v := key.(type) {
+	case int64:
+		return uint64(v)
+	case uint64:
+		return v
+	case int:
+		return uint64(v)
+	case string:
+		if id, err := strconv.ParseUint(v, 10, 64); err == nil {
+			return id
+		}
+		return 0
+	default:
+		return 0
+	}
+}
+
+func (dml *DMLExecutor) extractPrimaryKeyFromCondition(condition string) interface{} {
+	if strings.Contains(condition, "=") {
+		parts := strings.Split(condition, "=")
+		if len(parts) == 2 {
+			left := strings.TrimSpace(parts[0])
+			right := strings.TrimSpace(parts[1])
+			if strings.Contains(strings.ToLower(left), "id") {
+				if id, err := strconv.ParseInt(right, 10, 64); err == nil {
+					return id
+				}
+				if strings.HasPrefix(right, "'") && strings.HasSuffix(right, "'") {
+					return right[1 : len(right)-1]
+				}
+				return right
+			}
+		}
+	}
 	return nil
+}
+
+func (dml *DMLExecutor) validateValueType(val interface{}, colType metadata.DataType) bool {
+	switch colType {
+	case metadata.TypeInt, metadata.TypeBigInt, metadata.TypeMediumInt, metadata.TypeSmallInt, metadata.TypeTinyInt:
+		switch val.(type) {
+		case int, int32, int64, uint, uint32, uint64:
+			return true
+		default:
+			return false
+		}
+	case metadata.TypeBool, metadata.TypeBoolean:
+		_, ok := val.(bool)
+		return ok
+	case metadata.TypeChar, metadata.TypeVarchar, metadata.TypeText, metadata.TypeLongText, metadata.TypeMediumText, metadata.TypeTinyText:
+		_, ok := val.(string)
+		return ok
+	default:
+		return true
+	}
 }
