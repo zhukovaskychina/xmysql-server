@@ -145,16 +145,16 @@ func (opt *IndexPushdownOptimizer) extractBinaryCondition(expr *BinaryOperation)
 func (opt *IndexPushdownOptimizer) extractFunctionConditions(expr *Function) ([]*IndexCondition, error) {
 	var conditions []*IndexCondition
 
-	switch strings.ToUpper(expr.Name) {
+	switch strings.ToUpper(expr.Name()) {
 	case "IN":
 		// 处理 IN 条件
-		if len(expr.Args) >= 2 {
-			if col, ok := expr.Args[0].(*Column); ok {
-				selectivity := opt.estimateInSelectivity(col.Name, expr.Args[1:])
+		if len(expr.Args()) >= 2 {
+			if col, ok := expr.Args()[0].(*Column); ok {
+				selectivity := opt.estimateInSelectivity(col.Name, expr.Args()[1:])
 				conditions = append(conditions, &IndexCondition{
 					Column:      col.Name,
 					Operator:    "IN",
-					Value:       expr.Args[1:],
+					Value:       expr.Args()[1:],
 					CanPush:     true,
 					Selectivity: selectivity,
 				})
@@ -163,9 +163,9 @@ func (opt *IndexPushdownOptimizer) extractFunctionConditions(expr *Function) ([]
 
 	case "LIKE":
 		// 处理 LIKE 条件
-		if len(expr.Args) == 2 {
-			if col, ok := expr.Args[0].(*Column); ok {
-				if pattern, ok := expr.Args[1].(*Constant); ok {
+		if len(expr.Args()) == 2 {
+			if col, ok := expr.Args()[0].(*Column); ok {
+				if pattern, ok := expr.Args()[1].(*Constant); ok {
 					canPush := opt.canPushLikeCondition(pattern.Value)
 					selectivity := opt.estimateLikeSelectivity(col.Name, pattern.Value)
 					conditions = append(conditions, &IndexCondition{

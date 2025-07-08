@@ -309,7 +309,7 @@ func (b *PlanBuilder) buildExpr(expr sqlparser.Expr) Expression {
 				args = append(args, b.buildExpr(ae.Expr))
 			}
 		}
-		return &Function{Name: v.Name.String(), Args: args}
+		return &Function{FuncName: v.Name.String(), FuncArgs: args}
 	case sqlparser.ValTuple:
 		var vals []interface{}
 		for _, e := range v {
@@ -351,7 +351,7 @@ func (b *PlanBuilder) buildAggFuncs(selectExprs sqlparser.SelectExprs) []Aggrega
 				args = append(args, b.buildExpr(ae2.Expr))
 			}
 		}
-		funcs = append(funcs, &Function{Name: fe.Name.String(), Args: args})
+		funcs = append(funcs, &Function{FuncName: fe.Name.String(), FuncArgs: args})
 	}
 	return funcs
 }

@@ -111,7 +111,7 @@ func TestHashAggCost(t *testing.T) {
 			},
 		},
 		GroupByItems: []Expression{&Column{Name: "id"}},
-		AggFuncs:     []AggregateFunc{&Function{Name: "COUNT"}},
+		AggFuncs:     []AggregateFunc{&Function{FuncName: "COUNT"}},
 	}
 
 	cost := model.hashAggCost(plan)
@@ -248,7 +248,7 @@ func TestCompositePlanCost(t *testing.T) {
 						},
 					},
 					GroupByItems: []Expression{&Column{Name: "id"}},
-					AggFuncs:     []AggregateFunc{&Function{Name: "COUNT"}},
+					AggFuncs:     []AggregateFunc{&Function{FuncName: "COUNT"}},
 				},
 			},
 		},
