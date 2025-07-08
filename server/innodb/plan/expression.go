@@ -197,21 +197,21 @@ func (b *BinaryOperation) convertOperatorToString() string {
 // Function 函数表达式
 type Function struct {
 	BaseExpression
-	Name string
-	Args []Expression
+	FuncName string
+	FuncArgs []Expression
 }
 
 func (f *Function) Name() string {
-	return f.Name
+	return f.FuncName
 }
 
 func (f *Function) Args() []Expression {
-	return f.Args
+	return f.FuncArgs
 }
 
 func (f *Function) Eval(ctx *EvalContext) (interface{}, error) {
-	args := make([]interface{}, len(f.Args))
-	for i, arg := range f.Args {
+	args := make([]interface{}, len(f.FuncArgs))
+	for i, arg := range f.FuncArgs {
 		val, err := arg.Eval(ctx)
 		if err != nil {
 			return nil, err
@@ -219,7 +219,7 @@ func (f *Function) Eval(ctx *EvalContext) (interface{}, error) {
 		args[i] = val
 	}
 
-	switch f.Name {
+	switch f.FuncName {
 	case "COUNT":
 		return evalCount(args)
 	case "SUM":
@@ -237,16 +237,16 @@ func (f *Function) Eval(ctx *EvalContext) (interface{}, error) {
 	case "NOW":
 		return time.Now(), nil
 	default:
-		return nil, fmt.Errorf("unknown function: %s", f.Name)
+		return nil, fmt.Errorf("unknown function: %s", f.FuncName)
 	}
 }
 
 func (f *Function) String() string {
-	args := make([]string, len(f.Args))
-	for i, arg := range f.Args {
+	args := make([]string, len(f.FuncArgs))
+	for i, arg := range f.FuncArgs {
 		args[i] = arg.String()
 	}
-	return fmt.Sprintf("%s(%s)", f.Name, strings.Join(args, ", "))
+	return fmt.Sprintf("%s(%s)", f.FuncName, strings.Join(args, ", "))
 }
 
 // 运算符求值函数
