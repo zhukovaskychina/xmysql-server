@@ -124,13 +124,78 @@ type LRUCacheImpl struct {
 }
 
 func (L *LRUCacheImpl) Evict() *BufferPage {
-	//TODO implement me
-	panic("implement me")
+	L.mu.Lock()
+	defer L.mu.Unlock()
+
+	// Prefer evicting from the old list
+	if L.evictOldList.Len() > 0 {
+		ent := L.evictOldList.Back()
+		if ent != nil {
+			item := ent.Value.(*lruItem)
+			L.evictOldList.Remove(ent)
+			delete(L.oldItems, item.key)
+			if L.evictedFunc != nil {
+				L.evictedFunc(item.key, item.value)
+			}
+			return item.value.BufferPage
+		}
+	}
+
+	// Fall back to the ordinary list
+	if L.evictList.Len() > 0 {
+		ent := L.evictList.Back()
+		if ent != nil {
+			item := ent.Value.(*lruItem)
+			L.evictList.Remove(ent)
+			delete(L.items, item.key)
+			if L.evictedFunc != nil {
+				L.evictedFunc(item.key, item.value)
+			}
+			return item.value.BufferPage
+		}
+	}
+
+	// Finally evict from the young list if needed
+	if L.evictYoungList.Len() > 0 {
+		ent := L.evictYoungList.Back()
+		if ent != nil {
+			item := ent.Value.(*lruItem)
+			L.evictYoungList.Remove(ent)
+			delete(L.youngItems, item.key)
+			if L.evictedFunc != nil {
+				L.evictedFunc(item.key, item.value)
+			}
+			return item.value.BufferPage
+		}
+	}
+
+	return nil
 }
 
 func (L *LRUCacheImpl) Range(f func(page *BufferPage) bool) {
-	//TODO implement me
-	panic("implement me")
+	L.mu.RLock()
+	defer L.mu.RUnlock()
+
+	for _, elem := range L.youngItems {
+		item := elem.Value.(*lruItem)
+		if !f(item.value.BufferPage) {
+			return
+		}
+	}
+
+	for _, elem := range L.oldItems {
+		item := elem.Value.(*lruItem)
+		if !f(item.value.BufferPage) {
+			return
+		}
+	}
+
+	for _, elem := range L.items {
+		item := elem.Value.(*lruItem)
+		if !f(item.value.BufferPage) {
+			return
+		}
+	}
 }
 
 func (L *LRUCacheImpl) Set(spaceId uint32, pageNo uint32, value *BufferBlock) error {
