@@ -394,6 +394,7 @@ func (bpm *OptimizedBufferPoolManager) GetStatistics() *BufferPoolStatistics {
 	}
 }
 
+
 // ApplyHint applies a buffer pool tuning hint. The current implementation is a
 // no-op used to satisfy integration code expectations.
 func (bpm *OptimizedBufferPoolManager) ApplyHint(hint string) error {
@@ -412,6 +413,7 @@ func (bpm *OptimizedBufferPoolManager) SetReadAheadPages(pages int) error {
 	}
 	return nil
 }
+
 
 // calculateHitRate 计算缓存命中率
 func (bpm *OptimizedBufferPoolManager) calculateHitRate() float64 {

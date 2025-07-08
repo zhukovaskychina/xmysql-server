@@ -15,4 +15,5 @@ type BufferPoolStatistics struct {
 	BackgroundOps uint64
 	HitRate       float64
 	CacheSize     uint32
+
 }
