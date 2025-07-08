@@ -19,9 +19,6 @@ import (
 type SQLParserIntegrator struct {
 	sync.RWMutex
 
-	// 解析器组件
-	parser *sqlparser.Parser
-
 	// 优化器组件
 	optimizerManager    *manager.OptimizerManager
 	storageIntegrator   *StorageEngineIntegrator
@@ -73,8 +70,7 @@ func NewSQLParserIntegrator(
 
 // initializeIntegration 初始化集成组件
 func (spi *SQLParserIntegrator) initializeIntegration() {
-	// 初始化解析器
-	spi.parser = &sqlparser.Parser{}
+	// 初始化解析器 (使用sqlparser包提供的全局解析函数)
 
 	// 获取优化器组件
 	spi.statisticsCollector = spi.storageIntegrator.statisticsCollector
@@ -415,7 +411,7 @@ func (spi *SQLParserIntegrator) convertValueExpression(
 }
 
 // convertOperator 转换操作符
-func (spi *SQLParserIntegrator) convertOperator(operator string) (plan.Operator, error) {
+func (spi *SQLParserIntegrator) convertOperator(operator string) (plan.BinaryOp, error) {
 	switch operator {
 	case "=":
 		return plan.OpEQ, nil
