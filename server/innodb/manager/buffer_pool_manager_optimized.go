@@ -375,6 +375,25 @@ func (bpm *OptimizedBufferPoolManager) GetStats() map[string]interface{} {
 	}
 }
 
+// GetStatistics returns BufferPoolStatistics in a structured form.
+func (bpm *OptimizedBufferPoolManager) GetStatistics() *BufferPoolStatistics {
+	return &BufferPoolStatistics{
+		Hits:          atomic.LoadUint64(&bpm.stats.hits),
+		Misses:        atomic.LoadUint64(&bpm.stats.misses),
+		Evictions:     atomic.LoadUint64(&bpm.stats.evictions),
+		Flushes:       atomic.LoadUint64(&bpm.stats.flushes),
+		PageReads:     atomic.LoadUint64(&bpm.stats.pageReads),
+		PageWrites:    atomic.LoadUint64(&bpm.stats.pageWrites),
+		YoungHits:     atomic.LoadUint64(&bpm.stats.youngHits),
+		OldHits:       atomic.LoadUint64(&bpm.stats.oldHits),
+		DirtyPages:    atomic.LoadUint64(&bpm.stats.dirtyPages),
+		TotalPages:    atomic.LoadUint64(&bpm.stats.totalPages),
+		BackgroundOps: atomic.LoadUint64(&bpm.stats.backgroundOps),
+		HitRate:       bpm.calculateHitRate(),
+		CacheSize:     bpm.lruCache.Len(),
+	}
+}
+
 // calculateHitRate 计算缓存命中率
 func (bpm *OptimizedBufferPoolManager) calculateHitRate() float64 {
 	hits := atomic.LoadUint64(&bpm.stats.hits)
