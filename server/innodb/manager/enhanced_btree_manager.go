@@ -516,15 +516,13 @@ func (m *EnhancedBTreeManager) validateIndexMetadata(metadata *IndexMetadata) er
 
 // allocateRootPage 分配根页面
 func (m *EnhancedBTreeManager) allocateRootPage(ctx context.Context, spaceID uint32) (uint32, error) {
-	// 简化实现：使用时间戳作为页号
-	// 实际应该从存储管理器分配页面
-	rootPageNo := uint32(time.Now().Unix())%100000 + 1000
+	// 使用缓冲池管理器分配页面
+	bufferPage, err := m.storageManager.GetBufferPoolManager().AllocatePage(spaceID)
+	if err != nil {
+		return 0, err
+	}
 
-	// TODO: 真正的页面分配逻辑
-	// bufferPage, err := m.storageManager.GetBufferPoolManager().AllocatePage(spaceID)
-	// return bufferPage.GetPageNo(), err
-
-	return rootPageNo, nil
+	return bufferPage.GetPageNo(), nil
 }
 
 // startBackgroundTasks 启动后台任务
