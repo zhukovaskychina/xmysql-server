@@ -1,5 +1,9 @@
 package plan
 
+import (
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+)
+
 // OptimizeLogicalPlan 优化逻辑计划
 func OptimizeLogicalPlan(plan LogicalPlan) LogicalPlan {
 	// 1. 谓词下推
@@ -13,6 +17,10 @@ func OptimizeLogicalPlan(plan LogicalPlan) LogicalPlan {
 
 	// 4. 子查询优化
 	plan = optimizeSubquery(plan)
+
+	// 5. 索引访问优化
+	opt := NewIndexPushdownOptimizer()
+	plan = optimizeIndexAccess(plan, opt)
 
 	return plan
 }
@@ -178,6 +186,37 @@ func optimizeSubquery(plan LogicalPlan) LogicalPlan {
 	// 1. 子查询去关联
 	// 2. 子查询展开
 	// 3. 子查询上拉
+	return plan
+}
+
+// optimizeIndexAccess 使用索引下推优化器选择索引
+func optimizeIndexAccess(plan LogicalPlan, optimizer *IndexPushdownOptimizer) LogicalPlan {
+	switch v := plan.(type) {
+	case *LogicalSelection:
+		child := v.Children()[0]
+		if ts, ok := child.(*LogicalTableScan); ok {
+			cand, err := optimizer.OptimizeIndexAccess(ts.Table, v.Conditions, []string{})
+			if err == nil && cand != nil {
+				newScan := &LogicalIndexScan{
+					BaseLogicalPlan: BaseLogicalPlan{schema: ts.Schema()},
+					Table:           ts.Table,
+					Index: &Index{
+						Name:    cand.Index.Name,
+						Columns: cand.Index.Columns,
+						Unique:  cand.Index.IsUnique,
+					},
+				}
+				return newScan
+			}
+		}
+	}
+
+	for i, child := range plan.Children() {
+		newChild := optimizeIndexAccess(child, optimizer)
+		children := plan.Children()
+		children[i] = newChild
+		plan.SetChildren(children)
+	}
 	return plan
 }
 
