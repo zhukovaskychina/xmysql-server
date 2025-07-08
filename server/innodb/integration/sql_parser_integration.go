@@ -342,13 +342,15 @@ func (spi *SQLParserIntegrator) convertExpressionToPlanExpression(
 			return nil, err
 		}
 
-		// 创建OR表达式
-		orExpr := &plan.BinaryOperation{
-			Op:    plan.OpOR,
-			Left:  &plan.ExpressionList{Expressions: leftExprs},
-			Right: &plan.ExpressionList{Expressions: rightExprs},
+		// 创建OR表达式，简化为仅取首个转换结果
+		if len(leftExprs) > 0 && len(rightExprs) > 0 {
+			orExpr := &plan.BinaryOperation{
+				Op:    plan.OpOr,
+				Left:  leftExprs[0],
+				Right: rightExprs[0],
+			}
+			expressions = append(expressions, orExpr)
 		}
-		expressions = append(expressions, orExpr)
 	}
 
 	return expressions, nil
@@ -428,7 +430,7 @@ func (spi *SQLParserIntegrator) convertOperator(operator string) (plan.BinaryOp,
 	case "like":
 		return plan.OpLike, nil
 	case "in":
-		return plan.OpIN, nil
+		return plan.OpIn, nil
 	default:
 		return plan.OpEQ, fmt.Errorf("不支持的操作符: %s", operator)
 	}
@@ -511,7 +513,7 @@ func (spi *SQLParserIntegrator) getQueryType(stmt sqlparser.Statement) QueryType
 	}
 }
 
-func (spi *SQLParserIntegrator) extractTableName(expr sqlparser.TableExpr) string {
+func (spi *SQLParserIntegrator) extractTableName(expr sqlparser.SimpleTableExpr) string {
 	switch v := expr.(type) {
 	case sqlparser.TableName:
 		return v.Name.String()

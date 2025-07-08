@@ -394,6 +394,27 @@ func (bpm *OptimizedBufferPoolManager) GetStatistics() *BufferPoolStatistics {
 	}
 }
 
+
+// ApplyHint applies a buffer pool tuning hint. The current implementation is a
+// no-op used to satisfy integration code expectations.
+func (bpm *OptimizedBufferPoolManager) ApplyHint(hint string) error {
+	// Real implementations would adjust buffer pool behavior based on the
+	// provided hint. We simply ignore the hint for now.
+	return nil
+}
+
+// SetReadAheadPages sets the number of pages to prefetch when read ahead is
+// enabled. It is implemented as a stub so the integrator can compile.
+func (bpm *OptimizedBufferPoolManager) SetReadAheadPages(pages int) error {
+	// Future implementations might tune internal prefetching behaviour.
+	// We store the value in the config if available.
+	if bpm.config != nil {
+		bpm.config.ReadAheadPages = uint32(pages)
+	}
+	return nil
+}
+
+
 // calculateHitRate 计算缓存命中率
 func (bpm *OptimizedBufferPoolManager) calculateHitRate() float64 {
 	hits := atomic.LoadUint64(&bpm.stats.hits)

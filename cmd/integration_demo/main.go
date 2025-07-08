@@ -174,9 +174,6 @@ func demonstrateQueryExecution(manager *integration.IntegrationManager) {
 			logger.Debugf("   ✓ 执行成功 (耗时: %v)\n", duration)
 			logger.Debugf("   查询类型: %v\n", result.QueryType)
 			logger.Debugf("   影响行数: %d\n", result.RowsAffected)
-			if result.OptimizationInfo != nil {
-				logger.Debugf("   优化信息: %s\n", result.OptimizationInfo.Description)
-			}
 		} else {
 			logger.Debugf("    执行完成但无结果\n")
 		}

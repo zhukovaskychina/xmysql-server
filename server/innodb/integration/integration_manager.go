@@ -183,14 +183,14 @@ func (im *IntegrationManager) Initialize() error {
 	im.storageIntegrator = NewStorageEngineIntegrator(
 		im.storageManager,
 		im.optimizerManager,
-		im.config.StorageConfig,
 	)
 
 	// 2. 初始化SQL解析器集成器
 	im.parserIntegrator = NewSQLParserIntegrator(
-		im.storageIntegrator,
 		im.optimizerManager,
-		im.config.ParserConfig,
+		im.storageIntegrator,
+		nil,
+		nil,
 	)
 
 	// 3. 初始化执行引擎集成器
