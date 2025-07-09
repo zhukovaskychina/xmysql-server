@@ -285,3 +285,11 @@ func (tm *TableManager) GetTableStorageInfo(schemaName, tableName string) (*Tabl
 
 	return tm.tableStorageManager.GetTableStorageInfo(schemaName, tableName)
 }
+
+// GetTable 获取表结构信息
+func (tm *TableManager) GetTable(ctx context.Context, schemaName, tableName string) (*metadata.Table, error) {
+	if tm.schemaManager == nil {
+		return nil, fmt.Errorf("schema manager not available")
+	}
+	return tm.schemaManager.GetTableByName(ctx, schemaName, tableName)
+}
