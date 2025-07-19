@@ -4,15 +4,17 @@ import (
 	"bufio"
 	"database/sql"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/logger"
+
 	"log"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	ui "1/gizak/termui/v3"
-	_ "1/go-sql-driver/mysql"
+	ui "github.com/gizak/termui/v3"
 	"github.com/gizak/termui/v3/widgets"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 // ClientConfig 客户端配置
@@ -313,7 +315,6 @@ func (c *MySQLClient) displayResult(result *QueryResult) {
 		c.printTable(result.Columns, result.Rows)
 	}
 
-	util.Debugf("%s\n\n", result.Message)
 }
 
 // displayGUIResult 显示查询结果（GUI模式）
@@ -408,10 +409,10 @@ func (c *MySQLClient) showHelp() {
 
 // showStatus 显示连接状态
 func (c *MySQLClient) showStatus() {
-	util.Debugf("连接状态:\n")
-	util.Debugf("  服务器: %s:%d\n", c.config.Host, c.config.Port)
-	util.Debugf("  用户: %s\n", c.config.User)
-	util.Debugf("  数据库: %s\n", c.config.Database)
+	logger.Debugf("连接状态:\n")
+	logger.Debugf("  服务器: %s:%d\n", c.config.Host, c.config.Port)
+	logger.Debugf("  用户: %s\n", c.config.User)
+	logger.Debugf("  数据库: %s\n", c.config.Database)
 
 	if c.db != nil {
 		if err := c.db.Ping(); err == nil {
