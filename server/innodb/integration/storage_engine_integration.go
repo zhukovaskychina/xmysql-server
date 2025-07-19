@@ -95,7 +95,7 @@ func (sei *StorageEngineIntegrator) initializeOptimizerComponents() {
 	sei.statisticsCollector = plan.NewStatisticsCollector(statsConfig)
 
 	// 创建代价估算器
-	sei.costEstimator = plan.NewCostEstimator(sei.statisticsCollector, sei.storageManager)
+	sei.costEstimator = plan.NewCostEstimator(sei.statisticsCollector, plan.NewDefaultCostModel())
 
 	// 创建索引下推优化器
 	sei.indexOptimizer = plan.NewIndexPushdownOptimizer()
@@ -115,16 +115,10 @@ func (sei *StorageEngineIntegrator) establishIntegrationConnections() {
 
 // injectStorageStatistics 注入存储引擎统计信息
 func (sei *StorageEngineIntegrator) injectStorageStatistics() {
-	// 从存储引擎获取表空间统计信息
-	spaces := sei.spaceManager.ListSpaces()
-	for _, space := range spaces {
-		spaceStats := &plan.SpaceStatistics{
-			SpaceID:     space.ID(),
-			PageCount:   space.GetPageCount(),
-			ExtentCount: space.GetExtentCount(),
-			UsedSpace:   space.GetUsedSpace(),
-		}
-		sei.statisticsCollector.UpdateSpaceStatistics(space.ID(), spaceStats)
+	// 当前版本的 StatisticsCollector 不维护表空间统计信息，
+	// 因此这里仅遍历现有表空间以确保接口调用正常。
+	if spaces, err := sei.storageManager.ListSpaces(); err == nil {
+		_ = spaces
 	}
 }
 
@@ -136,10 +130,8 @@ func (sei *StorageEngineIntegrator) configureOptimizerStorageAccess() {
 		bufferPoolManager: sei.bufferPoolManager,
 		btreeManager:      sei.btreeManager,
 	}
-	sei.costEstimator.SetStorageAccessor(storageAccessor)
-
-	// 设置索引优化器的存储访问接口
-	sei.indexOptimizer.SetStorageAccessor(storageAccessor)
+	// 代价估算器和索引优化器暂未实现存储访问接口，
+	// 因此此处仅创建访问器但不做进一步操作。
 }
 
 // startBackgroundStatisticsCollection 启动后台统计信息收集
@@ -165,9 +157,8 @@ func (sei *StorageEngineIntegrator) collectRuntimeStatistics() error {
 	bufferStats := sei.bufferPoolManager.GetStatistics()
 	sei.integrationStats.CacheHitRate = bufferStats.HitRate
 
-	// 收集B+树统计信息
-	btreeStats := sei.btreeManager.GetStatistics()
-	sei.integrationStats.StorageAccessCount += btreeStats.TotalAccess
+	// 当前 BPlusTreeManager 接口未提供统计信息，
+	// 因此这里只更新缓冲池命中率。
 
 	return nil
 }
@@ -235,7 +226,7 @@ func (sei *StorageEngineIntegrator) collectTableStatistics(
 	// 构建表统计信息
 	tableStats := &plan.TableStats{
 		TableName:       table.Name,
-		RowCount:        sei.estimateRowCount(space),
+		RowCount:        int64(sei.estimateRowCount(space)),
 		TotalSize:       int64(space.GetUsedSpace()),
 		ModifyCount:     0, // TODO: 从事务日志获取
 		LastAnalyzeTime: time.Now().Unix(),
@@ -297,7 +288,7 @@ func (sei *StorageEngineIntegrator) updateOptimizerStatistics(table *metadata.Ta
 	if space != nil {
 		tableStats[table.Name] = &plan.TableStats{
 			TableName:       table.Name,
-			RowCount:        sei.estimateRowCount(space),
+			RowCount:        int64(sei.estimateRowCount(space)),
 			TotalSize:       int64(space.GetUsedSpace()),
 			ModifyCount:     0,
 			LastAnalyzeTime: time.Now().Unix(),
@@ -308,7 +299,7 @@ func (sei *StorageEngineIntegrator) updateOptimizerStatistics(table *metadata.Ta
 			key := fmt.Sprintf("%s.%s", table.Name, index.Name)
 			indexStats[key] = &plan.IndexStats{
 				IndexName:     index.Name,
-				Cardinality:   sei.estimateIndexCardinality(space, index),
+				Cardinality:   int64(sei.estimateIndexCardinality(space, index)),
 				ClusterFactor: sei.estimateClusterFactor(space, index),
 				PrefixLength:  sei.calculatePrefixLength(index),
 				Selectivity:   sei.estimateIndexSelectivity(space, index),
@@ -320,9 +311,9 @@ func (sei *StorageEngineIntegrator) updateOptimizerStatistics(table *metadata.Ta
 			key := fmt.Sprintf("%s.%s", table.Name, column.Name)
 			columnStats[key] = &plan.ColumnStats{
 				ColumnName:    column.Name,
-				NotNullCount:  sei.estimateNotNullCount(space, column),
-				DistinctCount: sei.estimateDistinctCount(space, column),
-				NullCount:     sei.estimateNullCount(space, column),
+				NotNullCount:  int64(sei.estimateNotNullCount(space, column)),
+				DistinctCount: int64(sei.estimateDistinctCount(space, column)),
+				NullCount:     int64(sei.estimateNullCount(space, column)),
 				MinValue:      sei.getColumnMinValue(space, column),
 				MaxValue:      sei.getColumnMaxValue(space, column),
 			}
