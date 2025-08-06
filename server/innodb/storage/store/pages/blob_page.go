@@ -297,3 +297,38 @@ func (bp *BlobPage) LoadFileHeader(content []byte) {
 func (bp *BlobPage) LoadFileTrailer(content []byte) {
 	bp.deserializeFileTrailer(content)
 }
+
+// GetPageType 获取页面类型
+func (bp *BlobPage) GetPageType() uint16 {
+	return uint16(bp.FileHeader.GetPageType())
+}
+
+// ValidateChecksum 验证校验和
+func (bp *BlobPage) ValidateChecksum() error {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := bp.GetSerializeBytes()
+	if data == nil {
+		return ErrPageCorrupted
+	}
+	return checker.ValidateChecksum(data)
+}
+
+// CalculateChecksum 计算校验和
+func (bp *BlobPage) CalculateChecksum() uint32 {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := bp.GetSerializeBytes()
+	if data == nil {
+		return 0
+	}
+	return checker.CalculateChecksum(data)
+}
+
+// IsCorrupted 检查页面是否损坏
+func (bp *BlobPage) IsCorrupted() bool {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := bp.GetSerializeBytes()
+	if data == nil {
+		return true
+	}
+	return checker.IsPageCorrupted(data)
+}

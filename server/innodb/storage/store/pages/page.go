@@ -23,8 +23,12 @@ const (
 
 // Common errors
 var (
-	ErrInvalidHeaderSize = errors.New("invalid header size")
-	ErrInvalidChecksum   = errors.New("invalid page checksum")
+	ErrInvalidHeaderSize  = errors.New("invalid header size")
+	ErrInvalidChecksum    = errors.New("invalid page checksum")
+	ErrInvalidPageSize    = errors.New("invalid page size")
+	ErrPageCorrupted      = errors.New("page is corrupted")
+	ErrPageAlreadyInited  = errors.New("page already initialized")
+	ErrInvalidPageContent = errors.New("invalid page content")
 )
 
 // FileHeader represents the header structure of an InnoDB page
@@ -218,6 +222,12 @@ type IPage interface {
 	LoadFileHeader(content []byte)
 
 	LoadFileTrailer(content []byte)
+
+	// 新增方法
+	GetPageType() uint16
+	ValidateChecksum() error
+	CalculateChecksum() uint32
+	IsCorrupted() bool
 }
 type AbstractPage struct {
 	IPage
@@ -253,4 +263,39 @@ func (a *AbstractPage) LoadFileTrailer(content []byte) {
 // 获得Bytes
 func (a *AbstractPage) SerializeBytes() []byte {
 	return nil
+}
+
+// GetPageType 获取页面类型
+func (a *AbstractPage) GetPageType() uint16 {
+	return uint16(a.FileHeader.GetPageType())
+}
+
+// ValidateChecksum 验证校验和
+func (a *AbstractPage) ValidateChecksum() error {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := a.GetSerializeBytes()
+	if data == nil {
+		return ErrPageCorrupted
+	}
+	return checker.ValidateChecksum(data)
+}
+
+// CalculateChecksum 计算校验和
+func (a *AbstractPage) CalculateChecksum() uint32 {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := a.GetSerializeBytes()
+	if data == nil {
+		return 0
+	}
+	return checker.CalculateChecksum(data)
+}
+
+// IsCorrupted 检查页面是否损坏
+func (a *AbstractPage) IsCorrupted() bool {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := a.GetSerializeBytes()
+	if data == nil {
+		return true
+	}
+	return checker.IsPageCorrupted(data)
 }

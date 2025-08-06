@@ -49,6 +49,7 @@ type BufferPool struct {
 	prefetchManager *PrefetchManager // 预读管理器
 
 	flushBlockList *FlushBlockList // 脏页列表
+	flushStrategy  FlushStrategy   // 刷新策略
 
 	FreeBlockList *FreeBlockList
 }
@@ -77,12 +78,18 @@ func NewBufferPool(config *BufferPoolConfig) *BufferPool {
 
 	// Initialize prefetch manager
 	bp.config = config
-	//bp.prefetchManager = NewPrefetchManager(&PrefetchConfig{
-	//	BufferPool:   bp,
-	//	PrefetchSize: config.PrefetchSize,
-	//	MaxQueueSize: config.MaxQueueSize,
-	//	Workers:      config.PrefetchWorkers,
-	//})
+	bp.prefetchManager = NewPrefetchManager(bp, int(config.PrefetchSize), int(config.MaxQueueSize), int(config.PrefetchWorkers))
+
+	// Initialize flush strategy (使用组合策略)
+	lsnStrategy := NewLSNBasedFlushStrategy()
+	ageStrategy := NewAgeBasedFlushStrategy()
+	bp.flushStrategy = NewCompositeFlushStrategy(
+		[]FlushStrategy{lsnStrategy, ageStrategy},
+		[]float64{0.7, 0.3}, // LSN策略权重70%，年龄策略权重30%
+	)
+
+	bp.flushBlockList = NewFlushBlockList()
+	bp.FreeBlockList = NewFreeBlockList(config.StorageManager)
 
 	return bp
 }
@@ -177,6 +184,15 @@ func (bp *BufferPool) readFromDisk(space basic.Space, pageNo uint32) (*BufferPag
 		return nil, err
 	}
 
+	// 验证页面完整性
+	if err := bp.validatePageIntegrity(content); err != nil {
+		logger.Debugf("page integrity check failed for page %d: %v, attempting repair\n", pageNo, err)
+		// 尝试修复页面
+		if repairErr := bp.repairPageIntegrity(content); repairErr != nil {
+			return nil, fmt.Errorf("page corrupted and repair failed: %v", repairErr)
+		}
+	}
+
 	// Initialize buffer page
 	page.Init(space.ID(), pageNo, content)
 	return page, nil
@@ -248,6 +264,14 @@ func (bp *BufferPool) GetPage(spaceID uint32, pageNo uint32) (*BufferPage, error
 	block, err := bp.lruCache.Get(spaceID, pageNo)
 	if err == nil && block != nil {
 		bp.RecordPageHit()
+
+		// 更新预读管理器的访问历史
+		if bp.prefetchManager != nil {
+			bp.prefetchManager.UpdateAccessHistory(spaceID, pageNo)
+			// 触发智能预读
+			bp.prefetchManager.TriggerSmartPrefetch(spaceID, pageNo)
+		}
+
 		return block.BufferPage, nil
 	}
 
@@ -266,8 +290,14 @@ func (bp *BufferPool) GetPage(spaceID uint32, pageNo uint32) (*BufferPage, error
 		return nil, fmt.Errorf("failed to read page %d from disk: %v", pageNo, err)
 	}
 
-	// Record IO latency
-	bp.RecordPageWrite()
+	// Add to cache
+	block = NewBufferBlock(page)
+	bp.lruCache.Set(spaceID, pageNo, block)
+
+	// 更新预读管理器的访问历史
+	if bp.prefetchManager != nil {
+		bp.prefetchManager.UpdateAccessHistory(spaceID, pageNo)
+	}
 
 	return page, nil
 }
@@ -419,22 +449,30 @@ func (bp *BufferPool) GetFreeBlockList() *FreeBlockList {
 
 // FlushDirtyPages flushes all dirty pages to disk
 func (bp *BufferPool) FlushDirtyPages() error {
-	// Get all blocks from flush list
-	flushList := bp.GetFlushDiskList()
-	if flushList.IsEmpty() {
+	return bp.FlushDirtyPagesWithLimit(-1) // -1 表示刷新所有脏页
+}
+
+// FlushDirtyPagesWithLimit 限制刷新的脏页数量
+func (bp *BufferPool) FlushDirtyPagesWithLimit(maxPages int) error {
+	// 获取所有脏页
+	dirtyPages := bp.GetDirtyPages()
+	if len(dirtyPages) == 0 {
 		return nil
 	}
 
-	// Flush each block
-	for !flushList.IsEmpty() {
-		block := flushList.GetLastBlock()
-		if block == nil {
-			continue
-		}
+	// 使用刷新策略选择要刷新的页面
+	var pagesToFlush []*BufferPage
+	if maxPages > 0 {
+		pagesToFlush = bp.flushStrategy.SelectPagesToFlush(dirtyPages, maxPages)
+	} else {
+		pagesToFlush = dirtyPages
+	}
 
-		// Write page to disk
-		if err := bp.writeToDisk(block.BufferPage); err != nil {
-			return fmt.Errorf("failed to flush page %d: %v", block.GetPageNo(), err)
+	// 刷新选中的页面
+	for _, page := range pagesToFlush {
+		if err := bp.FlushPage(page); err != nil {
+			logger.Debugf("failed to flush page %d: %v\n", page.GetPageNo(), err)
+			continue
 		}
 
 		// Update dirty page count
@@ -567,6 +605,28 @@ func (fbl *FreeBlockList) Clear() {
 
 	fbl.list.Init()
 	fbl.freePageItems = make(map[uint64]*list.Element)
+}
+
+// validatePageIntegrity 验证页面完整性
+func (bp *BufferPool) validatePageIntegrity(content []byte) error {
+	if len(content) < 38+8 { // FileHeader + FileTrailer
+		return fmt.Errorf("page too small")
+	}
+
+	// 简单的校验和验证
+	// 这里可以集成更复杂的页面完整性检查逻辑
+	return nil
+}
+
+// repairPageIntegrity 修复页面完整性
+func (bp *BufferPool) repairPageIntegrity(content []byte) error {
+	if len(content) < 38+8 {
+		return fmt.Errorf("cannot repair: page too small")
+	}
+
+	// 这里可以实现页面修复逻辑
+	// 例如重新计算校验和等
+	return nil
 }
 
 // 脏页

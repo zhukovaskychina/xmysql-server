@@ -276,6 +276,41 @@ func (ip *IndexPage) SerializeBytes() []byte {
 	return buff
 }
 
+// GetPageType 获取页面类型
+func (ip *IndexPage) GetPageType() uint16 {
+	return uint16(ip.FileHeader.GetPageType())
+}
+
+// ValidateChecksum 验证校验和
+func (ip *IndexPage) ValidateChecksum() error {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := ip.GetSerializeBytes()
+	if data == nil {
+		return ErrPageCorrupted
+	}
+	return checker.ValidateChecksum(data)
+}
+
+// CalculateChecksum 计算校验和
+func (ip *IndexPage) CalculateChecksum() uint32 {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := ip.GetSerializeBytes()
+	if data == nil {
+		return 0
+	}
+	return checker.CalculateChecksum(data)
+}
+
+// IsCorrupted 检查页面是否损坏
+func (ip *IndexPage) IsCorrupted() bool {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := ip.GetSerializeBytes()
+	if data == nil {
+		return true
+	}
+	return checker.IsPageCorrupted(data)
+}
+
 func (ip *IndexPage) GetSerializeBytes() []byte {
 	return ip.SerializeBytes()
 }
