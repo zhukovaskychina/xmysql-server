@@ -2,7 +2,6 @@ package plan
 
 import (
 	"testing"
-	"time"
 )
 
 func TestTableStats(t *testing.T) {

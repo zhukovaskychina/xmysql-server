@@ -19,6 +19,18 @@ type UndoLogManager struct {
 	// 事务状态跟踪
 	activeTxns    map[int64]bool // 活跃事务集合
 	oldestTxnTime time.Time      // 最老事务开始时间
+
+	// Purge相关
+	purgeQueue     []int64       // 待清理事务队列
+	purgeThreshold time.Duration // Purge阈值（事务提交后多久可清理）
+	purgeChan      chan int64    // Purge通知通道
+	shutdown       chan struct{} // 关闭信号
+
+	// 回滚执行器
+	rollbackExecutor RollbackExecutor // 回滚操作执行器
+
+	// 格式化器
+	formatter *UndoLogFormatter // Undo日志格式化器
 }
 
 // NewUndoLogManager 创建新的撤销日志管理器
@@ -36,12 +48,29 @@ func NewUndoLogManager(undoDir string) (*UndoLogManager, error) {
 		return nil, err
 	}
 
-	return &UndoLogManager{
-		logs:       make(map[int64][]UndoLogEntry),
-		activeTxns: make(map[int64]bool),
-		undoDir:    undoDir,
-		undoFile:   undoFile,
-	}, nil
+	manager := &UndoLogManager{
+		logs:           make(map[int64][]UndoLogEntry),
+		activeTxns:     make(map[int64]bool),
+		undoDir:        undoDir,
+		undoFile:       undoFile,
+		purgeQueue:     make([]int64, 0),
+		purgeThreshold: 5 * time.Minute, // 默认5分钟后清理
+		purgeChan:      make(chan int64, 100),
+		shutdown:       make(chan struct{}),
+		formatter:      NewUndoLogFormatter(),
+	}
+
+	// 启动Purge协程
+	go manager.purgeWorker()
+
+	return manager, nil
+}
+
+// SetRollbackExecutor 设置回滚执行器
+func (u *UndoLogManager) SetRollbackExecutor(executor RollbackExecutor) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.rollbackExecutor = executor
 }
 
 // Append 追加一条撤销日志
@@ -111,25 +140,100 @@ func (u *UndoLogManager) Rollback(txID int64) error {
 		return errors.New("transaction not found")
 	}
 
+	if u.rollbackExecutor == nil {
+		return errors.New("rollback executor not set")
+	}
+
 	// 从后向前回滚
 	for i := len(entries) - 1; i >= 0; i-- {
 		entry := entries[i]
-		// TODO: 应用回滚操作
-		// 这里需要调用缓冲池管理器来恢复旧值
-		_ = entry // 临时使用以避免编译器警告
+		if err := u.executeRollback(&entry); err != nil {
+			return fmt.Errorf("rollback entry %d failed: %v", i, err)
+		}
 	}
 
 	// 清理事务记录
-	u.Cleanup(txID)
+	u.cleanupLocked(txID)
 
 	return nil
+}
+
+// PartialRollback 部分回滚（回滚到指定保存点）
+func (u *UndoLogManager) PartialRollback(txID int64, savepointLSN uint64) error {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	entries, exists := u.logs[txID]
+	if !exists {
+		return errors.New("transaction not found")
+	}
+
+	if u.rollbackExecutor == nil {
+		return errors.New("rollback executor not set")
+	}
+
+	// 找到保存点位置
+	savepointIdx := -1
+	for i, entry := range entries {
+		if entry.LSN == savepointLSN {
+			savepointIdx = i
+			break
+		}
+	}
+
+	if savepointIdx == -1 {
+		return fmt.Errorf("savepoint LSN %d not found", savepointLSN)
+	}
+
+	// 回滚保存点之后的操作
+	for i := len(entries) - 1; i > savepointIdx; i-- {
+		entry := entries[i]
+		if err := u.executeRollback(&entry); err != nil {
+			return fmt.Errorf("rollback entry %d failed: %v", i, err)
+		}
+	}
+
+	// 截断日志列表
+	u.logs[txID] = entries[:savepointIdx+1]
+
+	return nil
+}
+
+// executeRollback 执行单条Undo日志的回滚
+func (u *UndoLogManager) executeRollback(entry *UndoLogEntry) error {
+	switch entry.Type {
+	case LOG_TYPE_INSERT:
+		// INSERT的回滚：删除记录
+		// entry.Data包含主键数据
+		return u.rollbackExecutor.DeleteRecord(entry.TableID, 0, entry.Data)
+
+	case LOG_TYPE_UPDATE:
+		// UPDATE的回滚：恢复旧值
+		bitmap, oldData, err := u.formatter.ParseUpdateUndo(entry.Data)
+		if err != nil {
+			return err
+		}
+		return u.rollbackExecutor.UpdateRecord(entry.TableID, 0, oldData, bitmap)
+
+	case LOG_TYPE_DELETE:
+		// DELETE的回滚：重新插入
+		// entry.Data包含完整记录
+		return u.rollbackExecutor.InsertRecord(entry.TableID, 0, entry.Data)
+
+	default:
+		return fmt.Errorf("unknown undo log type: %d", entry.Type)
+	}
 }
 
 // Cleanup 清理事务的Undo日志
 func (u *UndoLogManager) Cleanup(txID int64) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
+	u.cleanupLocked(txID)
+}
 
+// cleanupLocked 清理事务（已加锁）
+func (u *UndoLogManager) cleanupLocked(txID int64) {
 	delete(u.logs, txID)
 	delete(u.activeTxns, txID)
 
@@ -147,6 +251,77 @@ func (u *UndoLogManager) Cleanup(txID int64) {
 		}
 		u.oldestTxnTime = oldestTime
 	}
+}
+
+// SchedulePurge 计划清理已提交事务的Undo日志
+func (u *UndoLogManager) SchedulePurge(txID int64) {
+	select {
+	case u.purgeChan <- txID:
+		// 成功加入队列
+	default:
+		// 队列满，直接清理
+		u.Cleanup(txID)
+	}
+}
+
+// purgeWorker Purge工作协程
+func (u *UndoLogManager) purgeWorker() {
+	ticker := time.NewTicker(1 * time.Minute) // 每分钟检查一次
+	defer ticker.Stop()
+
+	for {
+		select {
+		case txID := <-u.purgeChan:
+			// 延迟清理
+			time.AfterFunc(u.purgeThreshold, func() {
+				u.Cleanup(txID)
+			})
+
+		case <-ticker.C:
+			// 定期清理超时事务
+			u.purgeExpiredTransactions()
+
+		case <-u.shutdown:
+			return
+		}
+	}
+}
+
+// purgeExpiredTransactions 清理超时事务
+func (u *UndoLogManager) purgeExpiredTransactions() {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	expiredTxns := make([]int64, 0)
+	threshold := time.Now().Add(-u.purgeThreshold)
+
+	for txID, entries := range u.logs {
+		if len(entries) > 0 && entries[0].Timestamp.Before(threshold) {
+			// 检查是否还是活跃事务
+			if !u.activeTxns[txID] {
+				expiredTxns = append(expiredTxns, txID)
+			}
+		}
+	}
+
+	// 清理超时事务
+	for _, txID := range expiredTxns {
+		u.cleanupLocked(txID)
+	}
+}
+
+// SetPurgeThreshold 设置Purge阈值
+func (u *UndoLogManager) SetPurgeThreshold(threshold time.Duration) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.purgeThreshold = threshold
+}
+
+// GetPurgeThreshold 获取Purge阈值
+func (u *UndoLogManager) GetPurgeThreshold() time.Duration {
+	u.mu.RLock()
+	defer u.mu.RUnlock()
+	return u.purgeThreshold
 }
 
 // GetActiveTxns 获取活跃事务列表
@@ -170,8 +345,39 @@ func (u *UndoLogManager) GetOldestTxnTime() time.Time {
 
 // Close 关闭Undo日志管理器
 func (u *UndoLogManager) Close() error {
+	// 发送关闭信号
+	close(u.shutdown)
+
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
 	return u.undoFile.Close()
+}
+
+// GetStats 获取Undo Log统计信息
+func (u *UndoLogManager) GetStats() *UndoLogStats {
+	u.mu.RLock()
+	defer u.mu.RUnlock()
+
+	totalLogs := 0
+	for _, entries := range u.logs {
+		totalLogs += len(entries)
+	}
+
+	return &UndoLogStats{
+		ActiveTxns:     len(u.activeTxns),
+		TotalLogs:      totalLogs,
+		PendingPurge:   len(u.purgeChan),
+		PurgeThreshold: u.purgeThreshold,
+		OldestTxnTime:  u.oldestTxnTime,
+	}
+}
+
+// UndoLogStats Undo日志统计信息
+type UndoLogStats struct {
+	ActiveTxns     int           `json:"active_txns"`
+	TotalLogs      int           `json:"total_logs"`
+	PendingPurge   int           `json:"pending_purge"`
+	PurgeThreshold time.Duration `json:"purge_threshold"`
+	OldestTxnTime  time.Time     `json:"oldest_txn_time"`
 }

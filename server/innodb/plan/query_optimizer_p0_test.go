@@ -12,7 +12,7 @@ import (
 // TestIndexPushdownOptimizer 测试索引下推优化器
 func TestIndexPushdownOptimizer(t *testing.T) {
 	// 创建测试表
-	table := createTestTable()
+	table := createTestTableForP0()
 
 	// 创建索引下推优化器
 	optimizer := NewIndexPushdownOptimizer()
@@ -112,7 +112,7 @@ func TestStatisticsCollector(t *testing.T) {
 	defer collector.Stop()
 
 	// 创建测试表和列
-	table := createTestTable()
+	table := createTestTableForP0()
 	column := table.Columns[0] // id列
 	index := table.Indices[0]  // 主键索引
 
@@ -190,7 +190,7 @@ func TestCostEstimator(t *testing.T) {
 	estimator := NewCostEstimator(collector, nil)
 
 	// 创建测试表
-	table := createTestTable()
+	table := createTestTableForP0()
 	index := table.Indices[0]
 
 	ctx := context.Background()
@@ -288,7 +288,7 @@ func TestIntegratedP0Features(t *testing.T) {
 	optimizer := NewIndexPushdownOptimizer()
 
 	// 创建测试表
-	table := createTestTable()
+	table := createTestTableForP0()
 	ctx := context.Background()
 
 	// 1. 收集统计信息
@@ -374,7 +374,7 @@ func TestIntegratedP0Features(t *testing.T) {
 }
 
 // createTestTable 创建测试表
-func createTestTable() *metadata.Table {
+func createTestTableForP0() *metadata.Table {
 	table := &metadata.Table{
 		Name: "users",
 		Columns: []*metadata.Column{

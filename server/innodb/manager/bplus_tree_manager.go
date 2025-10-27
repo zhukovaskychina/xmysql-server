@@ -337,6 +337,23 @@ func (m *DefaultBPlusTreeManager) writeNodeToPage(node *BPlusTreeNode, bufferPag
 	return nil
 }
 
+// allocateNewPage 分配新页面
+func (m *DefaultBPlusTreeManager) allocateNewPage(ctx context.Context) (uint32, error) {
+	// 使用原子递增生成新页号
+	// 在实际实现中，应该从段管理器获取
+	static pageCounter uint32 = 1000 // 起始页号
+	newPageNo := atomic.AddUint32(&pageCounter, 1)
+	
+	// 从缓冲池分配页面
+	_, err := m.bufferPoolManager.GetPage(m.spaceId, newPageNo)
+	if err != nil {
+		return 0, fmt.Errorf("failed to allocate page %d: %v", newPageNo, err)
+	}
+	
+	logger.Debugf("🆕 Allocated new page: %d", newPageNo)
+	return newPageNo, nil
+}
+
 func (m *DefaultBPlusTreeManager) Init(ctx context.Context, spaceId uint32, rootPage uint32) error {
 	// 只在设置基本参数时使用锁，避免在持有锁时调用其他方法
 	m.mutex.Lock()

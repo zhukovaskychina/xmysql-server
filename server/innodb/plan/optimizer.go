@@ -9,6 +9,9 @@ import (
 
 // OptimizeLogicalPlan 优化逻辑计划
 func OptimizeLogicalPlan(plan LogicalPlan) LogicalPlan {
+	// 0. 表达式规范化（新增）
+	plan = normalizeExpressions(plan)
+
 	// 1. 谓词下推
 	plan = pushDownPredicates(plan)
 
@@ -28,6 +31,74 @@ func OptimizeLogicalPlan(plan LogicalPlan) LogicalPlan {
 	return plan
 }
 
+// normalizeExpressions 规范化表达式（新增）
+func normalizeExpressions(plan LogicalPlan) LogicalPlan {
+	normalizer := NewExpressionNormalizer()
+
+	switch v := plan.(type) {
+	case *LogicalSelection:
+		// 规范化过滤条件
+		for i, cond := range v.Conditions {
+			v.Conditions[i] = normalizer.Normalize(cond)
+		}
+		// 递归处理子节点
+		for i, child := range v.Children() {
+			children := v.Children()
+			children[i] = normalizeExpressions(child)
+			v.SetChildren(children)
+		}
+		return v
+
+	case *LogicalProjection:
+		// 规范化投影表达式
+		for i, expr := range v.Exprs {
+			v.Exprs[i] = normalizer.Normalize(expr)
+		}
+		// 递归处理子节点
+		for i, child := range v.Children() {
+			children := v.Children()
+			children[i] = normalizeExpressions(child)
+			v.SetChildren(children)
+		}
+		return v
+
+	case *LogicalJoin:
+		// 规范化连接条件
+		for i, cond := range v.Conditions {
+			v.Conditions[i] = normalizer.Normalize(cond)
+		}
+		// 递归处理子节点
+		for i, child := range v.Children() {
+			children := v.Children()
+			children[i] = normalizeExpressions(child)
+			v.SetChildren(children)
+		}
+		return v
+
+	case *LogicalAggregation:
+		// 规范化分组表达式
+		for i, expr := range v.GroupByItems {
+			v.GroupByItems[i] = normalizer.Normalize(expr)
+		}
+		// 递归处理子节点
+		for i, child := range v.Children() {
+			children := v.Children()
+			children[i] = normalizeExpressions(child)
+			v.SetChildren(children)
+		}
+		return v
+
+	default:
+		// 递归处理子节点
+		for i, child := range plan.Children() {
+			children := plan.Children()
+			children[i] = normalizeExpressions(child)
+			plan.SetChildren(children)
+		}
+		return plan
+	}
+}
+
 // pushDownPredicates 谓词下推优化
 func pushDownPredicates(plan LogicalPlan) LogicalPlan {
 	switch v := plan.(type) {
@@ -38,6 +109,25 @@ func pushDownPredicates(plan LogicalPlan) LogicalPlan {
 		return v
 
 	case *LogicalSelection:
+		// 创建CNF转换器
+		cnfConverter := NewCNFConverter()
+
+		// 将过滤条件转换为CNF形式
+		normalizedConds := make([]Expression, len(v.Conditions))
+		for i, cond := range v.Conditions {
+			normalizedConds[i] = cnfConverter.ConvertToCNF(cond)
+		}
+
+		// 提取CNF中的合取子句
+		var allConjuncts []Expression
+		for _, cond := range normalizedConds {
+			conjuncts := cnfConverter.ExtractConjuncts(cond)
+			allConjuncts = append(allConjuncts, conjuncts...)
+		}
+
+		// 使用CNF子句进行谓词下推
+		v.Conditions = allConjuncts
+
 		// 尝试将选择条件下推到子节点
 		child := v.Children()[0]
 		switch childPlan := child.(type) {
@@ -46,23 +136,39 @@ func pushDownPredicates(plan LogicalPlan) LogicalPlan {
 			return mergePredicate(childPlan, v.Conditions)
 
 		case *LogicalJoin:
+			// 判断连接类型，外连接需要特殊处理
+			if !isSafeForPredicatePushdown(childPlan) {
+				// 不安全下推，保持原有结构
+				v.SetChildren([]LogicalPlan{pushDownPredicates(childPlan)})
+				return v
+			}
+
 			// 将连接条件分解为左右表的过滤条件
 			leftConds, rightConds, otherConds := splitJoinCondition(v.Conditions, childPlan)
 
 			// 递归下推左右表的过滤条件
-			newLeft := pushDownPredicates(&LogicalSelection{
-				BaseLogicalPlan: BaseLogicalPlan{
-					children: []LogicalPlan{childPlan.Children()[0]},
-				},
-				Conditions: leftConds,
-			})
+			var newLeft, newRight LogicalPlan
+			if len(leftConds) > 0 {
+				newLeft = pushDownPredicates(&LogicalSelection{
+					BaseLogicalPlan: BaseLogicalPlan{
+						children: []LogicalPlan{childPlan.Children()[0]},
+					},
+					Conditions: leftConds,
+				})
+			} else {
+				newLeft = pushDownPredicates(childPlan.Children()[0])
+			}
 
-			newRight := pushDownPredicates(&LogicalSelection{
-				BaseLogicalPlan: BaseLogicalPlan{
-					children: []LogicalPlan{childPlan.Children()[1]},
-				},
-				Conditions: rightConds,
-			})
+			if len(rightConds) > 0 {
+				newRight = pushDownPredicates(&LogicalSelection{
+					BaseLogicalPlan: BaseLogicalPlan{
+						children: []LogicalPlan{childPlan.Children()[1]},
+					},
+					Conditions: rightConds,
+				})
+			} else {
+				newRight = pushDownPredicates(childPlan.Children()[1])
+			}
 
 			// 重建连接节点
 			childPlan.SetChildren([]LogicalPlan{newLeft, newRight})
@@ -70,6 +176,33 @@ func pushDownPredicates(plan LogicalPlan) LogicalPlan {
 			if len(otherConds) > 0 {
 				// 剩余条件保留在选择算子中
 				v.Conditions = otherConds
+				v.SetChildren([]LogicalPlan{childPlan})
+				return v
+			}
+			return childPlan
+
+		case *LogicalAggregation:
+			// 检查条件是否可以下推到聚合之前
+			pushable, nonPushable := splitAggregatePredicate(v.Conditions, childPlan)
+
+			var newChild LogicalPlan
+			if len(pushable) > 0 {
+				// 下推可下推的条件
+				newChild = pushDownPredicates(&LogicalSelection{
+					BaseLogicalPlan: BaseLogicalPlan{
+						children: []LogicalPlan{childPlan.Children()[0]},
+					},
+					Conditions: pushable,
+				})
+			} else {
+				newChild = pushDownPredicates(childPlan.Children()[0])
+			}
+
+			childPlan.SetChildren([]LogicalPlan{newChild})
+
+			if len(nonPushable) > 0 {
+				// 不可下推的条件保留在HAVING中
+				v.Conditions = nonPushable
 				v.SetChildren([]LogicalPlan{childPlan})
 				return v
 			}
@@ -279,6 +412,87 @@ func splitJoinCondition(conditions []Expression, join *LogicalJoin) ([]Expressio
 	}
 
 	return leftConds, rightConds, otherConds
+}
+
+// isSafeForPredicatePushdown 检查是否可以安全地下推谓词
+func isSafeForPredicatePushdown(join *LogicalJoin) bool {
+	// 外连接的ON条件不能下推，因为会影响连接语义
+	// 只有INNER JOIN可以安全下推
+	if join.JoinType == "INNER" || join.JoinType == "" {
+		return true
+	}
+	return false
+}
+
+// splitAggregatePredicate 分离聚合条件：可下推和不可下推
+func splitAggregatePredicate(conditions []Expression, agg *LogicalAggregation) ([]Expression, []Expression) {
+	var pushable []Expression
+	var nonPushable []Expression
+
+	for _, cond := range conditions {
+		if canPushThroughAggregate(cond, agg) {
+			pushable = append(pushable, cond)
+		} else {
+			nonPushable = append(nonPushable, cond)
+		}
+	}
+
+	return pushable, nonPushable
+}
+
+// canPushThroughAggregate 检查条件是否可以下推到聚合之前
+func canPushThroughAggregate(cond Expression, agg *LogicalAggregation) bool {
+	// 检查条件中是否包含聚合函数
+	if containsAggregateFunction(cond) {
+		return false // HAVING条件，不可下推
+	}
+
+	// 检查条件中的列是否都在GROUP BY中
+	// 如果条件只涉及GROUP BY列，可以下推
+	cols := collectUsedColumns([]Expression{cond})
+	groupByCols := collectUsedColumns(agg.GroupByItems)
+
+	groupBySet := make(map[string]bool)
+	for _, col := range groupByCols {
+		groupBySet[col] = true
+	}
+
+	for _, col := range cols {
+		if !groupBySet[col] {
+			return false // 条件涉及非GROUP BY列，不可下推
+		}
+	}
+
+	return true
+}
+
+// containsAggregateFunction 检查表达式中是否包含聚合函数
+func containsAggregateFunction(expr Expression) bool {
+	switch e := expr.(type) {
+	case *Function:
+		// 检查是否为聚合函数
+		funcName := strings.ToUpper(e.FuncName)
+		if funcName == "COUNT" || funcName == "SUM" || funcName == "AVG" ||
+			funcName == "MAX" || funcName == "MIN" {
+			return true
+		}
+		// 递归检查参数
+		for _, arg := range e.FuncArgs {
+			if containsAggregateFunction(arg) {
+				return true
+			}
+		}
+		return false
+
+	case *BinaryOperation:
+		return containsAggregateFunction(e.Left) || containsAggregateFunction(e.Right)
+
+	case *NotExpression:
+		return containsAggregateFunction(e.Operand)
+
+	default:
+		return false
+	}
 }
 
 func collectUsedColumns(exprs []Expression) []string {

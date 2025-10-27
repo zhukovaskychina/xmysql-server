@@ -24,6 +24,24 @@ type CheckpointRecord struct {
 	TableSpaces     []TableSpaceCheckpoint `json:"table_spaces"`      // 表空间信息
 	ActiveTxns      []uint64               `json:"active_txns"`       // 活跃事务
 	Checksum        uint32                 `json:"checksum"`          // 校验和
+
+	// 增强字段
+	MinLSN         uint64          `json:"min_lsn"`         // 最小LSN（最老活跃事务的LSN）
+	MaxLSN         uint64          `json:"max_lsn"`         // 最大LSN
+	DirtyPages     []DirtyPageInfo `json:"dirty_pages"`     // 脏页列表
+	CheckpointType string          `json:"checkpoint_type"` // 检查点类型：Sharp/Fuzzy
+	PrevCheckpoint uint64          `json:"prev_checkpoint"` // 上一个检查点LSN
+	RedoLogFile    string          `json:"redo_log_file"`   // Redo日志文件名
+	UndoLogFile    string          `json:"undo_log_file"`   // Undo日志文件名
+}
+
+// DirtyPageInfo 脏页信息
+type DirtyPageInfo struct {
+	PageID      uint64 `json:"page_id"`      // 页面ID
+	SpaceID     uint32 `json:"space_id"`     // 表空间ID
+	OldestLSN   uint64 `json:"oldest_lsn"`   // 页面上最老的修改LSN
+	LatestLSN   uint64 `json:"latest_lsn"`   // 页面上最新的修改LSN
+	ModifyCount uint32 `json:"modify_count"` // 修改次数
 }
 
 // TableSpaceCheckpoint 表空间检查点信息
@@ -130,13 +148,23 @@ func (cm *CheckpointManager) WriteCheckpoint(checkpoint *CheckpointRecord) error
 		return fmt.Errorf("检查点管理器未运行")
 	}
 
-	logger.Infof(" 写入检查点: LSN=%d", checkpoint.LSN)
+	logger.Infof("💾 写入检查点: LSN=%d, Type=%s", checkpoint.LSN, checkpoint.CheckpointType)
 
 	// 收集表空间信息
 	checkpoint.TableSpaces = cm.collectTableSpaceInfo()
 
 	// 收集活跃事务信息
 	checkpoint.ActiveTxns = cm.collectActiveTxns()
+
+	// 收集脏页信息（用于增量Checkpoint）
+	if checkpoint.CheckpointType == "Fuzzy" {
+		checkpoint.DirtyPages = cm.collectDirtyPages()
+	}
+
+	// 设置上一个检查点LSN
+	if cm.lastCheckpoint != nil {
+		checkpoint.PrevCheckpoint = cm.lastCheckpoint.LSN
+	}
 
 	// 计算校验和
 	checkpoint.Checksum = cm.calculateChecksum(checkpoint)
@@ -419,6 +447,62 @@ func (cm *CheckpointManager) collectActiveTxns() []uint64 {
 	// 简化实现：返回空列表
 	// 在实际实现中，应该从事务管理器获取活跃事务
 	return []uint64{}
+}
+
+// collectDirtyPages 收集脏页信息
+func (cm *CheckpointManager) collectDirtyPages() []DirtyPageInfo {
+	// 简化实现：返回空列表
+	// 在实际实现中，应该从缓冲池管理器获取脏页信息
+	return []DirtyPageInfo{}
+}
+
+// WriteSharpCheckpoint 写入Sharp Checkpoint（全量检查点）
+// Sharp Checkpoint会阻塞所有写操作，将所有脏页刷新到磁盘
+func (cm *CheckpointManager) WriteSharpCheckpoint(lsn uint64) error {
+	checkpoint := &CheckpointRecord{
+		LSN:            lsn,
+		Timestamp:      time.Now(),
+		CheckpointType: "Sharp",
+		DirtyPages:     []DirtyPageInfo{}, // Sharp检查点后没有脏页
+	}
+
+	// TODO: 阻塞写操作，刷新所有脏页
+
+	return cm.WriteCheckpoint(checkpoint)
+}
+
+// WriteFuzzyCheckpoint 写入Fuzzy Checkpoint（增量检查点）
+// Fuzzy Checkpoint不阻塞写操作，只记录脏页列表
+func (cm *CheckpointManager) WriteFuzzyCheckpoint(lsn, minLSN, maxLSN uint64) error {
+	checkpoint := &CheckpointRecord{
+		LSN:            lsn,
+		Timestamp:      time.Now(),
+		CheckpointType: "Fuzzy",
+		MinLSN:         minLSN,
+		MaxLSN:         maxLSN,
+	}
+
+	return cm.WriteCheckpoint(checkpoint)
+}
+
+// IncrementalFlush 增量刷新脏页
+// 每次只刷新一部分脏页，避免全量刷盘导致的性能影响
+func (cm *CheckpointManager) IncrementalFlush(maxPages int) (int, error) {
+	cm.mutex.Lock()
+	defer cm.mutex.Unlock()
+
+	if !cm.isRunning {
+		return 0, fmt.Errorf("检查点管理器未运行")
+	}
+
+	// TODO: 从缓冲池管理器获取脏页列表
+	// TODO: 按LRU或其他策略选择maxPages个页面
+	// TODO: 刷新选中的页面
+
+	flushedPages := 0 // 实际刷新的页面数
+
+	logger.Debugf("💧 增量刷新: 刷新了 %d 个页面", flushedPages)
+	return flushedPages, nil
 }
 
 // calculateChecksum 计算检查点校验和

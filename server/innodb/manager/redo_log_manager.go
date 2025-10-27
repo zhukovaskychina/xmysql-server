@@ -12,15 +12,21 @@ import (
 type RedoLogManager struct {
 	mu            sync.RWMutex
 	logFile       *os.File       // 日志文件
-	nextLSN       int64          // 下一个LSN
+	lsnManager    *LSNManager    // LSN管理器
 	logBufferSize int            // 日志缓冲区大小
 	logBuffer     []RedoLogEntry // 日志缓冲区
 	logDir        string         // 日志目录
 	flushInterval time.Duration  // 刷新间隔
 
 	// 检查点相关
-	lastCheckpoint int64     // 最后一次检查点LSN
+	lastCheckpoint uint64    // 最后一次检查点LSN
 	checkpointTime time.Time // 最后一次检查点时间
+
+	// 组提交相关
+	groupCommit       *GroupCommit        // 组提交管理器
+	groupCommitWindow time.Duration       // 组提交窗口期
+	pendingCommits    chan *CommitRequest // 待提交请求队列
+	shutdown          chan struct{}       // 关闭信号
 }
 
 // NewRedoLogManager 创建新的重做日志管理器
@@ -39,28 +45,36 @@ func NewRedoLogManager(logDir string, bufferSize int) (*RedoLogManager, error) {
 	}
 
 	manager := &RedoLogManager{
-		logFile:       logFile,
-		nextLSN:       1,
-		logBufferSize: bufferSize,
-		logBuffer:     make([]RedoLogEntry, 0, bufferSize),
-		logDir:        logDir,
-		flushInterval: 1 * time.Second,
+		logFile:           logFile,
+		lsnManager:        NewLSNManager(1),
+		logBufferSize:     bufferSize,
+		logBuffer:         make([]RedoLogEntry, 0, bufferSize),
+		logDir:            logDir,
+		flushInterval:     1 * time.Second,
+		groupCommitWindow: 10 * time.Millisecond, // 10ms组提交窗口
+		pendingCommits:    make(chan *CommitRequest, 1000),
+		shutdown:          make(chan struct{}),
 	}
+
+	// 创建组提交管理器
+	manager.groupCommit = NewGroupCommit(manager.groupCommitWindow, 100)
 
 	// 启动异步刷新协程
 	go manager.backgroundFlush()
+
+	// 启动组提交协程
+	go manager.groupCommitWorker()
 
 	return manager, nil
 }
 
 // Append 追加一条重做日志
-func (r *RedoLogManager) Append(entry *RedoLogEntry) (int64, error) {
+func (r *RedoLogManager) Append(entry *RedoLogEntry) (uint64, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// 分配LSN
-	entry.LSN = uint64(r.nextLSN)
-	r.nextLSN++
+	// 使用LSN管理器分配LSN
+	entry.LSN = uint64(r.lsnManager.AllocateLSN())
 	entry.Timestamp = time.Now()
 
 	// 添加到缓冲区
@@ -73,15 +87,35 @@ func (r *RedoLogManager) Append(entry *RedoLogEntry) (int64, error) {
 		}
 	}
 
-	return int64(entry.LSN), nil
+	return entry.LSN, nil
 }
 
 // Flush 将日志刷新到磁盘
-func (r *RedoLogManager) Flush(untilLSN int64) error {
+func (r *RedoLogManager) Flush(untilLSN uint64) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	return r.flushBuffer()
+}
+
+// FlushAsync 异步刷新日志（使用组提交）
+func (r *RedoLogManager) FlushAsync(untilLSN uint64, callback func(error)) {
+	req := &CommitRequest{
+		LSN:      untilLSN,
+		Callback: callback,
+		Done:     make(chan error, 1),
+	}
+
+	select {
+	case r.pendingCommits <- req:
+		// 请求已加入队列
+	default:
+		// 队列满，同步刷新
+		err := r.Flush(untilLSN)
+		if callback != nil {
+			callback(err)
+		}
+	}
 }
 
 // flushBuffer 将缓冲区中的日志写入文件
@@ -134,8 +168,74 @@ func (r *RedoLogManager) backgroundFlush() {
 	ticker := time.NewTicker(r.flushInterval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		r.Flush(r.nextLSN)
+	for {
+		select {
+		case <-ticker.C:
+			r.Flush(uint64(r.lsnManager.GetCurrentLSN()))
+		case <-r.shutdown:
+			return
+		}
+	}
+}
+
+// groupCommitWorker 组提交工作协程
+func (r *RedoLogManager) groupCommitWorker() {
+	for {
+		select {
+		case req := <-r.pendingCommits:
+			// 收集一批请求
+			batch := []*CommitRequest{req}
+			timeout := time.After(r.groupCommitWindow)
+
+			// 收集更多请求或超时
+			collecting := true
+			for collecting {
+				select {
+				case req := <-r.pendingCommits:
+					batch = append(batch, req)
+					if len(batch) >= 100 { // 批次大小限制
+						collecting = false
+					}
+				case <-timeout:
+					collecting = false
+				}
+			}
+
+			// 执行组提交
+			r.executeGroupCommit(batch)
+
+		case <-r.shutdown:
+			return
+		}
+	}
+}
+
+// executeGroupCommit 执行组提交
+func (r *RedoLogManager) executeGroupCommit(batch []*CommitRequest) {
+	if len(batch) == 0 {
+		return
+	}
+
+	// 找到最大LSN
+	var maxLSN uint64
+	for _, req := range batch {
+		if req.LSN > maxLSN {
+			maxLSN = req.LSN
+		}
+	}
+
+	// 一次性刷新到最大LSN
+	err := r.Flush(maxLSN)
+
+	// 通知所有请求
+	for _, req := range batch {
+		if req.Callback != nil {
+			req.Callback(err)
+		}
+		select {
+		case req.Done <- err:
+		default:
+		}
 	}
 }
 
@@ -202,7 +302,7 @@ func (r *RedoLogManager) Checkpoint() error {
 	}
 
 	// 更新检查点信息
-	r.lastCheckpoint = r.nextLSN - 1
+	r.lastCheckpoint = uint64(r.lsnManager.GetCurrentLSN())
 	r.checkpointTime = time.Now()
 
 	// 写入检查点文件
@@ -223,6 +323,9 @@ func (r *RedoLogManager) Checkpoint() error {
 
 // Close 关闭日志管理器
 func (r *RedoLogManager) Close() error {
+	// 发送关闭信号
+	close(r.shutdown)
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -233,4 +336,39 @@ func (r *RedoLogManager) Close() error {
 
 	// 关闭文件
 	return r.logFile.Close()
+}
+
+// GetLSNManager 获取LSN管理器
+func (r *RedoLogManager) GetLSNManager() *LSNManager {
+	return r.lsnManager
+}
+
+// GetStats 获取Redo Log统计信息
+func (r *RedoLogManager) GetStats() *RedoLogStats {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return &RedoLogStats{
+		CurrentLSN:     uint64(r.lsnManager.GetCurrentLSN()),
+		LastCheckpoint: r.lastCheckpoint,
+		BufferSize:     r.logBufferSize,
+		BufferedLogs:   len(r.logBuffer),
+		PendingCommits: len(r.pendingCommits),
+	}
+}
+
+// RedoLogStats Redo日志统计信息
+type RedoLogStats struct {
+	CurrentLSN     uint64 `json:"current_lsn"`
+	LastCheckpoint uint64 `json:"last_checkpoint"`
+	BufferSize     int    `json:"buffer_size"`
+	BufferedLogs   int    `json:"buffered_logs"`
+	PendingCommits int    `json:"pending_commits"`
+}
+
+// CommitRequest 提交请求
+type CommitRequest struct {
+	LSN      uint64      // 需要提交到的LSN
+	Callback func(error) // 完成回调
+	Done     chan error  // 完成通知
 }
