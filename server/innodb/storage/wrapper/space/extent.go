@@ -280,13 +280,13 @@ func (e *ExtentImpl) GetStats() *basic.ExtentStats {
 
 	// 转换为basic.ExtentStats
 	basicStats := &basic.ExtentStats{
+		TotalPages:    PagesPerExtent,
+		FreePages:     e.stats.FreePages,
+		FragPages:     e.stats.FragmentCount,
 		LastAllocated: e.stats.LastAllocTime.Unix(),
 		LastFreed:     e.stats.LastFreeTime.Unix(),
 		LastDefragged: 0,
 	}
-	basicStats.TotalPages.Store(PagesPerExtent)
-	basicStats.FreePages.Store(e.stats.FreePages)
-	basicStats.FragPages.Store(e.stats.FragmentCount)
 
 	return basicStats
 }

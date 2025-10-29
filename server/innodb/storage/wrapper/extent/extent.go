@@ -103,8 +103,8 @@ func (be *BaseExtent) AllocatePage() (uint32, error) {
 
 			// 更新统计信息
 			be.stats.LastAllocated = time.Now().UnixNano()
-			be.stats.TotalPages.Add(1)
-			be.stats.FreePages.Add(^uint32(0))
+			be.stats.TotalPages++
+			be.stats.FreePages--
 
 			return pageNo + i, nil
 		}
@@ -149,8 +149,8 @@ func (be *BaseExtent) FreePage(pageNo uint32) error {
 
 	// 更新统计信息
 	be.stats.LastFreed = time.Now().UnixNano()
-	be.stats.TotalPages.Add(^uint32(0))
-	be.stats.FreePages.Add(1)
+	be.stats.TotalPages--
+	be.stats.FreePages++
 
 	return nil
 }

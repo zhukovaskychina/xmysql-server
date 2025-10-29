@@ -37,11 +37,11 @@ type EnhancedBTreeIndex struct {
 	statistics *EnhancedIndexStatistics // 索引统计
 
 	// 引用计数
-	refCount atomic.Int32 // 引用计数
+	refCount int32 // 引用计数，使用atomic操作
 
 	// 状态管理
-	isLoaded  atomic.Bool // 是否已加载
-	lastFlush time.Time   // 最后刷新时间
+	isLoaded  uint32    // 是否已加载，使用atomic操作（0=false, 1=true）
+	lastFlush time.Time // 最后刷新时间
 }
 
 // NewEnhancedBTreeIndex 创建增强版B+树索引实例
@@ -97,7 +97,7 @@ func (idx *EnhancedBTreeIndex) GetMetadata() *IndexMetadata {
 
 // Insert 插入记录
 func (idx *EnhancedBTreeIndex) Insert(ctx context.Context, key []byte, value []byte) error {
-	if !idx.isLoaded.Load() {
+	if !atomic.LoadUint32(&idx.isLoaded) == 1 {
 		return fmt.Errorf("index %d is not loaded", idx.metadata.IndexID)
 	}
 
@@ -126,7 +126,7 @@ func (idx *EnhancedBTreeIndex) Insert(ctx context.Context, key []byte, value []b
 
 // Delete 删除记录
 func (idx *EnhancedBTreeIndex) Delete(ctx context.Context, key []byte) error {
-	if !idx.isLoaded.Load() {
+	if !atomic.LoadUint32(&idx.isLoaded) == 1 {
 		return fmt.Errorf("index %d is not loaded", idx.metadata.IndexID)
 	}
 
@@ -163,7 +163,7 @@ func (idx *EnhancedBTreeIndex) Delete(ctx context.Context, key []byte) error {
 
 // Search 搜索记录
 func (idx *EnhancedBTreeIndex) Search(ctx context.Context, key []byte) (*IndexRecord, error) {
-	if !idx.isLoaded.Load() {
+	if !atomic.LoadUint32(&idx.isLoaded) == 1 {
 		return nil, fmt.Errorf("index %d is not loaded", idx.metadata.IndexID)
 	}
 
@@ -206,7 +206,7 @@ func (idx *EnhancedBTreeIndex) Search(ctx context.Context, key []byte) (*IndexRe
 
 // RangeSearch 范围搜索
 func (idx *EnhancedBTreeIndex) RangeSearch(ctx context.Context, startKey, endKey []byte) ([]IndexRecord, error) {
-	if !idx.isLoaded.Load() {
+	if !atomic.LoadUint32(&idx.isLoaded) == 1 {
 		return nil, fmt.Errorf("index %d is not loaded", idx.metadata.IndexID)
 	}
 
@@ -461,7 +461,7 @@ func (idx *EnhancedBTreeIndex) Flush(ctx context.Context) error {
 
 // IsLoaded 检查是否已加载
 func (idx *EnhancedBTreeIndex) IsLoaded() bool {
-	return idx.isLoaded.Load()
+	return atomic.LoadUint32(&idx.isLoaded) == 1
 }
 
 // GetRefCount 获取引用计数
@@ -471,12 +471,12 @@ func (idx *EnhancedBTreeIndex) GetRefCount() int32 {
 
 // AddRef 增加引用计数
 func (idx *EnhancedBTreeIndex) AddRef() int32 {
-	return idx.refCount.Add(1)
+	return atomic.AddInt32(&idx.refCount, 1)
 }
 
 // Release 释放引用
 func (idx *EnhancedBTreeIndex) Release() int32 {
-	return idx.refCount.Add(-1)
+	return atomic.AddInt32(&idx.refCount, -1)
 }
 
 // 索引生命周期方法
@@ -515,7 +515,7 @@ func (idx *EnhancedBTreeIndex) InitializeEmptyIndex(ctx context.Context) error {
 	idx.metadata.PageCount = 1
 	idx.metadata.RecordCount = 0
 
-	idx.isLoaded.Store(true)
+	atomic.StoreUint32(&idx.isLoaded, 1)
 	return nil
 }
 
@@ -527,7 +527,7 @@ func (idx *EnhancedBTreeIndex) LoadFromStorage(ctx context.Context) error {
 		return fmt.Errorf("failed to load root page: %v", err)
 	}
 
-	idx.isLoaded.Store(true)
+	atomic.StoreUint32(&idx.isLoaded, 1)
 	return nil
 }
 

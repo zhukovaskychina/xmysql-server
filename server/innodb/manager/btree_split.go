@@ -9,20 +9,40 @@ import (
 // SplitNode B+树节点分裂操作
 // 当节点满时，将节点分裂为两个节点，保持B+树平衡性
 type NodeSplitter struct {
-	manager    *DefaultBPlusTreeManager
-	minKeys    int     // 节点最小键数（通常为度数-1）
-	maxKeys    int     // 节点最大键数（通常为2*度数-1）
-	splitRatio float64 // 分裂比例（左节点占比）
+	manager           *DefaultBPlusTreeManager
+	minKeys           int     // 节点最小键数（通常为度数-1）
+	maxKeys           int     // 节点最大键数（通常为2*度数-1）
+	splitRatio        float64 // 分裂比例（左节点占比）
+	maxRecursionDepth int     // 最大递归深度限制
 }
 
 // NewNodeSplitter 创建节点分裂器
 func NewNodeSplitter(manager *DefaultBPlusTreeManager, degree int) *NodeSplitter {
 	return &NodeSplitter{
-		manager:    manager,
-		minKeys:    degree - 1,
-		maxKeys:    2*degree - 1,
-		splitRatio: 0.5, // 默认50/50分裂
+		manager:           manager,
+		minKeys:           degree - 1,
+		maxKeys:           2*degree - 1,
+		splitRatio:        0.5, // 默认50/50分裂
+		maxRecursionDepth: 10,  // 最大递归深度10层
 	}
+}
+
+// SetSplitRatio 设置分裂比例
+// ratio: 左节点占比，范围[0.4, 0.6]
+// 返回: 是否设置成功
+func (s *NodeSplitter) SetSplitRatio(ratio float64) bool {
+	if ratio < 0.4 || ratio > 0.6 {
+		logger.Debugf("⚠️ Invalid split ratio %.2f, must be in [0.4, 0.6]", ratio)
+		return false
+	}
+	s.splitRatio = ratio
+	logger.Debugf("✅ Split ratio set to %.2f", ratio)
+	return true
+}
+
+// GetSplitRatio 获取当前分裂比例
+func (s *NodeSplitter) GetSplitRatio() float64 {
+	return s.splitRatio
 }
 
 // SplitLeafNode 分裂叶子节点
@@ -82,6 +102,11 @@ func (s *NodeSplitter) SplitLeafNode(ctx context.Context, node *BPlusTreeNode) (
 	s.manager.nodeCache[newPageNo] = newNode
 	s.manager.mutex.Unlock()
 
+	// 标记脏页并立即刷新（保证持久化）
+	if err := s.flushDirtyPages(ctx, []uint32{node.PageNum, newPageNo}); err != nil {
+		logger.Warnf("⚠️ Failed to flush dirty pages after leaf split: %v", err)
+	}
+
 	logger.Debugf("✅ Leaf split complete: left_node=%d (%d keys), right_node=%d (%d keys), middle_key=%v",
 		node.PageNum, len(node.Keys), newPageNo, len(newNode.Keys), middleKey)
 
@@ -137,6 +162,11 @@ func (s *NodeSplitter) SplitNonLeafNode(ctx context.Context, node *BPlusTreeNode
 	s.manager.nodeCache[newPageNo] = newNode
 	s.manager.mutex.Unlock()
 
+	// 标记脏页并立即刷新（保证持久化）
+	if err := s.flushDirtyPages(ctx, []uint32{node.PageNum, newPageNo}); err != nil {
+		logger.Warnf("⚠️ Failed to flush dirty pages after non-leaf split: %v", err)
+	}
+
 	logger.Debugf("✅ Non-leaf split complete: left_node=%d (%d keys), right_node=%d (%d keys), middle_key=%v",
 		node.PageNum, len(node.Keys), newPageNo, len(newNode.Keys), middleKey)
 
@@ -145,10 +175,21 @@ func (s *NodeSplitter) SplitNonLeafNode(ctx context.Context, node *BPlusTreeNode
 
 // InsertIntoParent 将分裂产生的新键插入父节点
 func (s *NodeSplitter) InsertIntoParent(ctx context.Context, leftPage, rightPage uint32, middleKey interface{}) error {
-	logger.Debugf("📌 Inserting middle_key=%v into parent (left=%d, right=%d)", middleKey, leftPage, rightPage)
+	return s.insertIntoParentWithDepth(ctx, leftPage, rightPage, middleKey, 0)
+}
+
+// insertIntoParentWithDepth 带递归深度的插入父节点方法
+func (s *NodeSplitter) insertIntoParentWithDepth(ctx context.Context, leftPage, rightPage uint32, middleKey interface{}, depth int) error {
+	logger.Debugf("📌 [Depth %d] Inserting middle_key=%v into parent (left=%d, right=%d)", depth, middleKey, leftPage, rightPage)
+
+	// 检查递归深度限制
+	if depth >= s.maxRecursionDepth {
+		return fmt.Errorf("maximum recursion depth %d exceeded", s.maxRecursionDepth)
+	}
 
 	// 如果分裂的是根节点，创建新根
 	if leftPage == s.manager.rootPage {
+		logger.Debugf("🌲 [Depth %d] Splitting root node, creating new root", depth)
 		return s.createNewRoot(ctx, leftPage, rightPage, middleKey)
 	}
 
@@ -157,6 +198,8 @@ func (s *NodeSplitter) InsertIntoParent(ctx context.Context, leftPage, rightPage
 	if err != nil {
 		return fmt.Errorf("failed to find parent node: %v", err)
 	}
+
+	logger.Debugf("🔍 [Depth %d] Found parent node %d with %d keys", depth, parentNode.PageNum, len(parentNode.Keys))
 
 	// 在父节点中插入新键和子节点指针
 	insertPos := s.findInsertPosition(parentNode.Keys, middleKey)
@@ -170,16 +213,20 @@ func (s *NodeSplitter) InsertIntoParent(ctx context.Context, leftPage, rightPage
 
 	// 检查父节点是否需要分裂
 	if len(parentNode.Keys) > s.maxKeys {
-		logger.Debugf("⚠️ Parent node %d is full (%d keys), needs splitting", parentNode.PageNum, len(parentNode.Keys))
+		logger.Debugf("⚠️ [Depth %d] Parent node %d is full (%d keys > %d), needs splitting",
+			depth, parentNode.PageNum, len(parentNode.Keys), s.maxKeys)
+
 		newParentPage, newMiddleKey, err := s.SplitNonLeafNode(ctx, parentNode)
 		if err != nil {
 			return fmt.Errorf("failed to split parent node: %v", err)
 		}
-		// 递归向上插入
-		return s.InsertIntoParent(ctx, parentNode.PageNum, newParentPage, newMiddleKey)
+
+		logger.Debugf("➡️ [Depth %d] Recursively inserting into grandparent (depth %d)", depth, depth+1)
+		// 递归向上插入（增加深度）
+		return s.insertIntoParentWithDepth(ctx, parentNode.PageNum, newParentPage, newMiddleKey, depth+1)
 	}
 
-	logger.Debugf("✅ Inserted into parent node %d successfully", parentNode.PageNum)
+	logger.Debugf("✅ [Depth %d] Inserted into parent node %d successfully", depth, parentNode.PageNum)
 	return nil
 }
 
@@ -205,11 +252,20 @@ func (s *NodeSplitter) createNewRoot(ctx context.Context, leftPage, rightPage ui
 	// 更新缓存和根页号
 	s.manager.mutex.Lock()
 	s.manager.nodeCache[newRootPage] = newRoot
+	oldRootPage := s.manager.rootPage
 	s.manager.rootPage = newRootPage
 	s.manager.mutex.Unlock()
 
-	logger.Debugf("✅ New root created: page=%d, left_child=%d, right_child=%d",
-		newRootPage, leftPage, rightPage)
+	// 增加树高度
+	s.manager.incrementTreeHeight()
+
+	// 刷新新根节点
+	if err := s.flushDirtyPages(ctx, []uint32{newRootPage}); err != nil {
+		logger.Warnf("⚠️ Failed to flush new root page: %v", err)
+	}
+
+	logger.Debugf("✅ New root created: page=%d (old_root=%d), left_child=%d, right_child=%d, tree_height=%d",
+		newRootPage, oldRootPage, leftPage, rightPage, s.manager.GetTreeHeight())
 
 	return nil
 }
@@ -294,4 +350,44 @@ var DefaultSplitConfig = &SplitConfig{
 	MinKeysRatio:    0.5,
 	SplitRatio:      0.5,
 	AllowUnbalanced: false,
+}
+
+// flushDirtyPages 批量刷新脏页到磁盘
+func (s *NodeSplitter) flushDirtyPages(ctx context.Context, pageNums []uint32) error {
+	if s.manager.bufferPoolManager == nil {
+		return fmt.Errorf("buffer pool manager is nil")
+	}
+
+	logger.Debugf("💾 Flushing %d dirty pages to disk", len(pageNums))
+
+	for _, pageNum := range pageNums {
+		if err := s.manager.bufferPoolManager.FlushPage(s.manager.spaceId, pageNum); err != nil {
+			logger.Errorf("❌ Failed to flush page %d: %v", pageNum, err)
+			return fmt.Errorf("failed to flush page %d: %v", pageNum, err)
+		}
+		logger.Debugf("✅ Page %d flushed successfully", pageNum)
+	}
+
+	logger.Debugf("💾 All %d pages flushed successfully", len(pageNums))
+	return nil
+}
+
+// FlushAllDirtyPages 刷新所有脏页（用于批量操作后）
+func (s *NodeSplitter) FlushAllDirtyPages(ctx context.Context) error {
+	s.manager.mutex.RLock()
+	var dirtyPages []uint32
+	for pageNum, node := range s.manager.nodeCache {
+		if node.isDirty {
+			dirtyPages = append(dirtyPages, pageNum)
+		}
+	}
+	s.manager.mutex.RUnlock()
+
+	if len(dirtyPages) == 0 {
+		logger.Debugf("💾 No dirty pages to flush")
+		return nil
+	}
+
+	logger.Debugf("💾 Flushing %d dirty pages in batch", len(dirtyPages))
+	return s.flushDirtyPages(ctx, dirtyPages)
 }

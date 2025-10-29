@@ -5,6 +5,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	extent3 "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/extent"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -75,8 +76,8 @@ func (bs *BaseSegment) AllocatePage() (uint32, error) {
 	// 先从空闲页面列表中分配
 	for pageNo := range bs.freePages {
 		delete(bs.freePages, pageNo)
-		bs.stats.FreePages.Add(^uint32(0))
-		bs.stats.TotalPages.Add(1)
+		atomic.AddUint32(&bs.stats.FreePages, ^uint32(0)) // 原子减1
+		atomic.AddUint32(&bs.stats.TotalPages, 1)
 		return pageNo, nil
 	}
 
@@ -87,7 +88,7 @@ func (bs *BaseSegment) AllocatePage() (uint32, error) {
 		if !ext.IsFull() {
 			pageNo, err := ext.AllocatePage()
 			if err == nil {
-				bs.stats.TotalPages.Add(1)
+				atomic.AddUint32(&bs.stats.TotalPages, 1)
 				return pageNo, nil
 			}
 		}
@@ -105,7 +106,7 @@ func (bs *BaseSegment) AllocatePage() (uint32, error) {
 		return 0, err
 	}
 
-	bs.stats.TotalPages.Add(1)
+	atomic.AddUint32(&bs.stats.TotalPages, 1)
 	return pageNo, nil
 }
 
@@ -123,8 +124,8 @@ func (bs *BaseSegment) FreePage(pageNo uint32) error {
 				return err
 			}
 			bs.freePages[pageNo] = true
-			bs.stats.FreePages.Add(1)
-			bs.stats.TotalPages.Add(^uint32(0))
+			atomic.AddUint32(&bs.stats.FreePages, 1)
+			atomic.AddUint32(&bs.stats.TotalPages, ^uint32(0)) // 原子减1
 
 			// 如果区变空了，考虑释放它
 			if ext.IsEmpty() {
@@ -142,7 +143,7 @@ func (bs *BaseSegment) FreePage(pageNo uint32) error {
 func (bs *BaseSegment) GetPageCount() uint32 {
 	bs.mu.RLock()
 	defer bs.mu.RUnlock()
-	return bs.stats.TotalPages.Load()
+	return atomic.LoadUint32(&bs.stats.TotalPages)
 }
 
 // GetFreePages 获取空闲页面列表
@@ -171,7 +172,7 @@ func (bs *BaseSegment) AllocateExtent() (basic.Extent, error) {
 	}
 
 	bs.header.ExtentCount++
-	bs.stats.ExtentCount.Add(1)
+	atomic.AddUint32(&bs.stats.ExtentCount, 1)
 
 	return ext, nil
 }
@@ -186,7 +187,7 @@ func (bs *BaseSegment) FreeExtent(extentID uint32) error {
 		return err
 	}
 
-	bs.stats.ExtentCount.Add(^uint32(0))
+	atomic.AddUint32(&bs.stats.ExtentCount, ^uint32(0)) // 原子减1
 
 	return nil
 }
@@ -195,7 +196,7 @@ func (bs *BaseSegment) FreeExtent(extentID uint32) error {
 func (bs *BaseSegment) GetExtentCount() uint32 {
 	bs.mu.RLock()
 	defer bs.mu.RUnlock()
-	return bs.stats.ExtentCount.Load()
+	return atomic.LoadUint32(&bs.stats.ExtentCount)
 }
 
 // GetExtents 获取所有区
@@ -260,7 +261,7 @@ func (bs *BaseSegment) Truncate(pages uint32) error {
 	bs.mu.Lock()
 	defer bs.mu.Unlock()
 
-	currentPages := bs.stats.TotalPages.Load()
+	currentPages := atomic.LoadUint32(&bs.stats.TotalPages)
 	if pages >= currentPages {
 		return nil
 	}

@@ -3,6 +3,7 @@ package system
 import (
 	"encoding/binary"
 	"errors"
+	"sync/atomic"
 	"time"
 )
 
@@ -194,7 +195,7 @@ func (dp *DictPage) Read() error {
 
 	// 更新统计信息
 	dp.stats.LastModified = time.Now().UnixNano()
-	dp.stats.Reads.Add(1)
+	atomic.AddUint64(&dp.stats.Reads, 1)
 
 	return nil
 }
@@ -227,7 +228,7 @@ func (dp *DictPage) Write() error {
 
 	// 更新统计信息
 	dp.stats.LastModified = time.Now().UnixNano()
-	dp.stats.Writes.Add(1)
+	atomic.AddUint64(&dp.stats.Writes, 1)
 
 	return dp.BaseSystemPage.Write()
 }

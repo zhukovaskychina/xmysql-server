@@ -8,6 +8,18 @@ import (
 	"time"
 )
 
+// HistogramType 直方图类型
+type HistogramType int
+
+const (
+	// HistogramEquiWidth 等宽直方图 (数值型)
+	HistogramEquiWidth HistogramType = iota
+	// HistogramEquiDepth 等深直方图 (字符串型)
+	HistogramEquiDepth
+	// HistogramFrequency 频率直方图 (其他类型)
+	HistogramFrequency
+)
+
 // Statistics 统计信息
 type Statistics struct {
 	// 表级统计信息
@@ -30,6 +42,20 @@ type TableStats struct {
 	ModifyCount int64
 	// 上次分析时间
 	LastAnalyzeTime int64
+
+	// 扩展字段 (OPT-016)
+	// 平均行长度(字节)
+	AvgRowLength int64
+	// 数据占用空间(字节)
+	DataLength int64
+	// 索引占用空间(字节)
+	IndexLength int64
+	// 空闲空间(字节)
+	DataFree int64
+	// 当前自增值
+	AutoIncrement uint64
+	// 统计时采样行数
+	SampleSize int64
 }
 
 // ColumnStats 列统计信息
@@ -50,6 +76,16 @@ type ColumnStats struct {
 	Histogram *Histogram
 	// 常用值及其频率
 	TopN []ValueFreq
+
+	// 扩展字段 (OPT-016)
+	// 直方图类型 (EQUI_WIDTH/EQUI_DEPTH/FREQUENCY)
+	HistogramType string
+	// 实际桶数量
+	BucketCount int
+	// 采样百分比
+	SamplingPercent float64
+	// 最后更新时间戳
+	LastUpdated int64
 }
 
 // IndexStats 索引统计信息
@@ -64,6 +100,18 @@ type IndexStats struct {
 	PrefixLength int
 	// 选择性
 	Selectivity float64
+
+	// 扩展字段 (OPT-016)
+	// B+树深度
+	TreeDepth int
+	// 叶子页面数
+	LeafPages int64
+	// 非叶子页面数
+	NonLeafPages int64
+	// 平均每页键数
+	KeysPerPage float64
+	// 最后更新时间戳
+	LastUpdated int64
 }
 
 // Histogram 直方图
@@ -76,6 +124,12 @@ type Histogram struct {
 	TotalCount int64
 	// NDV (Number of Distinct Values)
 	NDV int64
+
+	// 扩展字段 (OPT-016)
+	// 直方图类型
+	HistogramType HistogramType
+	// 采样行数
+	SampleRows int64
 }
 
 // Bucket 直方图桶
@@ -417,37 +471,6 @@ func toUint64(v interface{}) uint64 {
 		return uint64(t)
 	case float64:
 		return uint64(t)
-	default:
-		return 0
-	}
-}
-
-func toFloat64(v interface{}) float64 {
-	switch t := v.(type) {
-	case float32:
-		return float64(t)
-	case float64:
-		return t
-	case int:
-		return float64(t)
-	case int8:
-		return float64(t)
-	case int16:
-		return float64(t)
-	case int32:
-		return float64(t)
-	case int64:
-		return float64(t)
-	case uint:
-		return float64(t)
-	case uint8:
-		return float64(t)
-	case uint16:
-		return float64(t)
-	case uint32:
-		return float64(t)
-	case uint64:
-		return float64(t)
 	default:
 		return 0
 	}

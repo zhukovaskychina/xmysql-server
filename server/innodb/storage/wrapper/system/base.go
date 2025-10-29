@@ -3,9 +3,11 @@ package system
 import (
 	"encoding/binary"
 	"errors"
+	"sync/atomic"
+	"time"
+
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper"
-	"time"
 )
 
 var (
@@ -83,7 +85,7 @@ func (sp *BaseSystemPage) Recover() error {
 
 	// 设置恢复状态
 	sp.header.SystemState = SystemPageStateRecovering
-	sp.stats.Recoveries.Add(1)
+	atomic.AddUint32(&sp.stats.Recoveries, 1)
 	sp.stats.LastRecovered = time.Now().UnixNano()
 
 	// 标记页面为脏
@@ -104,7 +106,7 @@ func (sp *BaseSystemPage) Validate() error {
 
 	// 验证校验和
 	if !sp.validateChecksum() {
-		sp.stats.Corruptions.Add(1)
+		atomic.AddUint32(&sp.stats.Corruptions, 1)
 		return ErrCorruptedPage
 	}
 
@@ -155,7 +157,7 @@ func (sp *BaseSystemPage) Read() error {
 	sp.header.LastModified = int64(binary.LittleEndian.Uint64(sp.Content[79:]))
 
 	// 更新统计信息
-	sp.stats.Reads.Add(1)
+	atomic.AddUint64(&sp.stats.Reads, 1)
 	sp.stats.LastModified = time.Now().UnixNano()
 
 	return nil
@@ -174,7 +176,7 @@ func (sp *BaseSystemPage) Write() error {
 	binary.LittleEndian.PutUint64(sp.Content[79:], uint64(sp.header.LastModified))
 
 	// 更新统计信息
-	sp.stats.Writes.Add(1)
+	atomic.AddUint64(&sp.stats.Writes, 1)
 	sp.stats.LastModified = time.Now().UnixNano()
 
 	return sp.BasePage.Write()

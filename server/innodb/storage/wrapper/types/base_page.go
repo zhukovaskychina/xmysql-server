@@ -21,10 +21,10 @@ var (
 // BasePage 基础页面实现
 type BasePage struct {
 	rawPage  *PageHeader // 使用原始页面结构
-	state    atomic.Uint32
+	state    uint32      // 使用atomic操作
 	stats    basic.PageStats
-	pinCount atomic.Int32
-	dirty    atomic.Bool
+	pinCount int32  // 使用atomic操作
+	dirty    uint32 // 使用atomic操作，0=false, 1=true
 	lock     sync.RWMutex
 }
 
@@ -90,22 +90,22 @@ func (p *BasePage) SetLSN(lsn uint64) {
 
 // IsDirty 是否脏页
 func (p *BasePage) IsDirty() bool {
-	return p.dirty.Load()
+	return atomic.LoadUint32(&p.dirty) == 1
 }
 
 // MarkDirty 标记为脏页
 func (p *BasePage) MarkDirty() {
-	p.dirty.Store(true)
+	atomic.StoreUint32(&p.dirty, 1)
 }
 
 // GetState 获取页面状态
 func (p *BasePage) GetState() basic.PageState {
-	return basic.PageState(p.state.Load())
+	return basic.PageState(atomic.LoadUint32(&p.state))
 }
 
 // SetState 设置页面状态
 func (p *BasePage) SetState(state basic.PageState) {
-	p.state.Store(uint32(state))
+	atomic.StoreUint32(&p.state, uint32(state))
 }
 
 // GetStats 获取统计信息
@@ -115,12 +115,12 @@ func (p *BasePage) GetStats() *basic.PageStats {
 
 // Pin 固定页面
 func (p *BasePage) Pin() {
-	p.pinCount.Add(1)
+	atomic.AddInt32(&p.pinCount, 1)
 }
 
 // Unpin 解除固定
 func (p *BasePage) Unpin() {
-	p.pinCount.Add(-1)
+	atomic.AddInt32(&p.pinCount, -1)
 }
 
 // Read 读取页面

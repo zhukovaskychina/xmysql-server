@@ -44,10 +44,10 @@ type BasePage struct {
 	// 关联的缓冲池，可为空
 	bufferPool basic.IBufferPool
 
-	state    atomic.Uint32
+	state    uint32 // 使用atomic操作
 	stats    basic.PageStats
-	pinCount atomic.Int32
-	dirty    atomic.Bool
+	pinCount int32  // 使用atomic操作
+	dirty    uint32 // 使用atomic操作，0=false, 1=true
 
 	// 缓存的完整页面内容
 	content []byte
@@ -69,9 +69,9 @@ func NewBasePage(spaceID, pageNo uint32, pageType common.PageType) *BasePage {
 	binary.BigEndian.PutUint16(bp.rawPage.FileHeader[FHeaderPageType:], uint16(pageType))
 
 	// 初始化状态
-	bp.state.Store(uint32(common.PageStateInit))
-	bp.dirty.Store(false)
-	bp.pinCount.Store(0)
+	atomic.StoreUint32(&bp.state, uint32(common.PageStateInit))
+	atomic.StoreUint32(&bp.dirty, 0)
+	atomic.StoreInt32(&bp.pinCount, 0)
 
 	copy(bp.content[:common.FileHeaderSize], bp.rawPage.FileHeader)
 	copy(bp.content[common.FileHeaderSize:common.PageSize-common.FileTrailerSize], bp.rawPage.FileBody)
@@ -113,26 +113,26 @@ func (bp *BasePage) SetLSN(lsn uint64) {
 
 // IsDirty 实现Page接口
 func (bp *BasePage) IsDirty() bool {
-	return bp.dirty.Load()
+	return atomic.LoadUint32(&bp.dirty) == 1
 }
 
 // MarkDirty 实现Page接口
 func (bp *BasePage) MarkDirty() {
-	bp.dirty.Store(true)
+	atomic.StoreUint32(&bp.dirty, 1)
 	bp.stats.DirtyCount++
-	bp.state.Store(uint32(common.PageStateModified))
+	atomic.StoreUint32(&bp.state, uint32(common.PageStateModified))
 }
 
 // GetState 实现Page接口
 func (bp *BasePage) GetState() basic.PageState {
-	return basic.PageState(bp.state.Load())
+	return basic.PageState(atomic.LoadUint32(&bp.state))
 }
 
 // SetState 实现Page接口
 func (bp *BasePage) SetState(state basic.PageState) {
-	bp.state.Store(uint32(state))
+	atomic.StoreUint32(&bp.state, uint32(state))
 	if state == common.PageStateFlushed {
-		bp.dirty.Store(false)
+		atomic.StoreUint32(&bp.dirty, 0)
 		bp.stats.WriteCount++
 	}
 }
@@ -144,22 +144,22 @@ func (bp *BasePage) GetStats() *basic.PageStats {
 
 // Pin 实现Page接口
 func (bp *BasePage) Pin() {
-	bp.pinCount.Add(1)
-	bp.stats.PinCount = uint64(bp.pinCount.Load())
-	bp.state.Store(uint32(common.PageStatePinned))
+	atomic.AddInt32(&bp.pinCount, 1)
+	bp.stats.PinCount = uint64(atomic.LoadInt32(&bp.pinCount))
+	atomic.StoreUint32(&bp.state, uint32(common.PageStatePinned))
 }
 
 // Unpin 实现Page接口
 func (bp *BasePage) Unpin() {
-	if bp.pinCount.Load() > 0 {
-		bp.pinCount.Add(-1)
-		bp.stats.PinCount = uint64(bp.pinCount.Load())
+	if atomic.LoadInt32(&bp.pinCount) > 0 {
+		atomic.AddInt32(&bp.pinCount, -1)
+		bp.stats.PinCount = uint64(atomic.LoadInt32(&bp.pinCount))
 	}
-	if bp.pinCount.Load() == 0 {
+	if atomic.LoadInt32(&bp.pinCount) == 0 {
 		if bp.IsDirty() {
-			bp.state.Store(uint32(common.PageStateDirty))
+			atomic.StoreUint32(&bp.state, uint32(common.PageStateDirty))
 		} else {
-			bp.state.Store(uint32(common.PageStateClean))
+			atomic.StoreUint32(&bp.state, uint32(common.PageStateClean))
 		}
 	}
 }
@@ -207,7 +207,7 @@ func (bp *BasePage) Write() error {
 		}
 	}
 
-	bp.dirty.Store(false)
+	atomic.StoreUint32(&bp.dirty, 0)
 	return nil
 }
 

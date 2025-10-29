@@ -9,17 +9,19 @@ import (
 // NodeMerger B+树节点合并操作
 // 当节点的键数少于最小值时，与兄弟节点合并或从兄弟节点借键
 type NodeMerger struct {
-	manager *DefaultBPlusTreeManager
-	minKeys int // 节点最小键数
-	maxKeys int // 节点最大键数
+	manager           *DefaultBPlusTreeManager
+	minKeys           int // 节点最小键数
+	maxKeys           int // 节点最大键数
+	maxRecursionDepth int // 最大递归深度限制
 }
 
 // NewNodeMerger 创建节点合并器
 func NewNodeMerger(manager *DefaultBPlusTreeManager, degree int) *NodeMerger {
 	return &NodeMerger{
-		manager: manager,
-		minKeys: degree - 1,
-		maxKeys: 2*degree - 1,
+		manager:           manager,
+		minKeys:           degree - 1,
+		maxKeys:           2*degree - 1,
+		maxRecursionDepth: 10, // 最大递归深度10层
 	}
 }
 
@@ -177,7 +179,17 @@ func (m *NodeMerger) BorrowFromRightSibling(ctx context.Context, node, rightSibl
 
 // DeleteFromParent 从父节点删除键
 func (m *NodeMerger) DeleteFromParent(ctx context.Context, parentNode *BPlusTreeNode, childPage uint32) error {
-	logger.Debugf("🗑️ Deleting child %d from parent %d", childPage, parentNode.PageNum)
+	return m.deleteFromParentWithDepth(ctx, parentNode, childPage, 0)
+}
+
+// deleteFromParentWithDepth 带递归深度的删除父节点方法
+func (m *NodeMerger) deleteFromParentWithDepth(ctx context.Context, parentNode *BPlusTreeNode, childPage uint32, depth int) error {
+	logger.Debugf("🗑️ [Depth %d] Deleting child %d from parent %d", depth, childPage, parentNode.PageNum)
+
+	// 检查递归深度限制
+	if depth >= m.maxRecursionDepth {
+		return fmt.Errorf("maximum recursion depth %d exceeded", m.maxRecursionDepth)
+	}
 
 	// 找到子节点在父节点中的位置
 	deletePos := -1
@@ -205,25 +217,115 @@ func (m *NodeMerger) DeleteFromParent(ctx context.Context, parentNode *BPlusTree
 	parentNode.Children = append(parentNode.Children[:deletePos], parentNode.Children[deletePos+1:]...)
 	parentNode.isDirty = true
 
-	logger.Debugf("✅ Deleted from parent, remaining keys=%d, children=%d",
-		len(parentNode.Keys), len(parentNode.Children))
-
-	// 检查父节点是否需要合并
-	if len(parentNode.Keys) < m.minKeys && parentNode.PageNum != m.manager.rootPage {
-		logger.Debugf("⚠️ Parent node %d has too few keys (%d < %d), needs rebalancing",
-			parentNode.PageNum, len(parentNode.Keys), m.minKeys)
-		// 这里可以递归调用重平衡逻辑
-	}
+	logger.Debugf("✅ [Depth %d] Deleted from parent, remaining keys=%d, children=%d",
+		depth, len(parentNode.Keys), len(parentNode.Children))
 
 	// 如果是根节点且只有一个子节点，降低树高
-	if parentNode.PageNum == m.manager.rootPage && len(parentNode.Children) == 1 {
-		newRoot := parentNode.Children[0]
-		m.manager.mutex.Lock()
-		m.manager.rootPage = newRoot
-		m.manager.mutex.Unlock()
-		logger.Debugf("🌲 Tree height reduced, new root=%d", newRoot)
+	if parentNode.PageNum == m.manager.rootPage {
+		if len(parentNode.Children) == 1 {
+			newRoot := parentNode.Children[0]
+			m.manager.mutex.Lock()
+			m.manager.rootPage = newRoot
+			m.manager.mutex.Unlock()
+
+			// 降低树高度
+			m.manager.decrementTreeHeight()
+
+			logger.Debugf("🌲 [Depth %d] Tree height reduced, new root=%d, tree_height=%d",
+				depth, newRoot, m.manager.GetTreeHeight())
+		}
+		return nil
 	}
 
+	// 检查父节点是否需要重平衡
+	if len(parentNode.Keys) < m.minKeys {
+		logger.Debugf("⚠️ [Depth %d] Parent node %d has too few keys (%d < %d), needs rebalancing",
+			depth, parentNode.PageNum, len(parentNode.Keys), m.minKeys)
+
+		// 递归重平衡父节点
+		return m.rebalanceAfterMerge(ctx, parentNode, depth+1)
+	}
+
+	return nil
+}
+
+// rebalanceAfterMerge 合并后的重平衡操作
+func (m *NodeMerger) rebalanceAfterMerge(ctx context.Context, node *BPlusTreeNode, depth int) error {
+	logger.Debugf("⚖️ [Depth %d] Rebalancing node %d after merge", depth, node.PageNum)
+
+	// 检查递归深度限制
+	if depth >= m.maxRecursionDepth {
+		return fmt.Errorf("maximum recursion depth %d exceeded", m.maxRecursionDepth)
+	}
+
+	// 查找兄弟节点
+	leftSibling, rightSibling, err := m.FindSiblings(ctx, node)
+	if err != nil {
+		return fmt.Errorf("failed to find siblings: %v", err)
+	}
+
+	// 获取父节点信息
+	parentNode, childIndex, err := m.findParentWithPath(ctx, node.PageNum)
+	if err != nil {
+		return fmt.Errorf("failed to find parent: %v", err)
+	}
+
+	// 先尝试从左兄弟借键
+	if leftSibling != nil && len(leftSibling.Keys) > m.minKeys {
+		logger.Debugf("⬅️ [Depth %d] Attempting to borrow from left sibling", depth)
+		parentKey := parentNode.Keys[childIndex-1]
+		newParentKey, err := m.BorrowFromLeftSibling(ctx, node, leftSibling, parentKey)
+		if err == nil {
+			parentNode.Keys[childIndex-1] = newParentKey
+			parentNode.isDirty = true
+			logger.Debugf("✅ [Depth %d] Successfully borrowed from left sibling", depth)
+			return nil
+		}
+	}
+
+	// 尝试从右兄弟借键
+	if rightSibling != nil && len(rightSibling.Keys) > m.minKeys {
+		logger.Debugf("➡️ [Depth %d] Attempting to borrow from right sibling", depth)
+		parentKey := parentNode.Keys[childIndex]
+		newParentKey, err := m.BorrowFromRightSibling(ctx, node, rightSibling, parentKey)
+		if err == nil {
+			parentNode.Keys[childIndex] = newParentKey
+			parentNode.isDirty = true
+			logger.Debugf("✅ [Depth %d] Successfully borrowed from right sibling", depth)
+			return nil
+		}
+	}
+
+	// 无法借键，尝试合并
+	var mergedWith uint32
+	if leftSibling != nil && m.CanMerge(node, leftSibling) {
+		logger.Debugf("🔗 [Depth %d] Merging with left sibling", depth)
+		if node.IsLeaf {
+			mergedWith, err = m.MergeLeafNodes(ctx, leftSibling, node)
+		} else {
+			middleKey := parentNode.Keys[childIndex-1]
+			mergedWith, err = m.MergeNonLeafNodes(ctx, leftSibling, node, middleKey)
+		}
+		if err == nil {
+			// 从父节点删除被合并的节点
+			return m.deleteFromParentWithDepth(ctx, parentNode, node.PageNum, depth)
+		}
+	} else if rightSibling != nil && m.CanMerge(node, rightSibling) {
+		logger.Debugf("🔗 [Depth %d] Merging with right sibling", depth)
+		if node.IsLeaf {
+			mergedWith, err = m.MergeLeafNodes(ctx, node, rightSibling)
+		} else {
+			middleKey := parentNode.Keys[childIndex]
+			mergedWith, err = m.MergeNonLeafNodes(ctx, node, rightSibling, middleKey)
+		}
+		if err == nil {
+			// 从父节点删除被合并的节点
+			return m.deleteFromParentWithDepth(ctx, parentNode, rightSibling.PageNum, depth)
+		}
+	}
+
+	// 如果无法重平衡，记录警告但不失败
+	logger.Warnf("⚠️ [Depth %d] Unable to rebalance node %d, but continuing", depth, node.PageNum)
 	return nil
 }
 
@@ -249,13 +351,84 @@ func (m *NodeMerger) CanMerge(node1, node2 *BPlusTreeNode) bool {
 
 // FindSiblings 查找节点的兄弟节点
 func (m *NodeMerger) FindSiblings(ctx context.Context, node *BPlusTreeNode) (leftSibling, rightSibling *BPlusTreeNode, err error) {
-	// 需要从父节点中找到当前节点的位置
-	// 然后获取其左右兄弟
+	logger.Debugf("🔍 Finding siblings for node %d", node.PageNum)
 
-	// 简化实现：这里需要实现完整的父节点查找逻辑
-	// 实际应该在B+树中维护父节点指针或使用栈记录路径
+	// 如果是根节点，没有兄弟
+	if node.PageNum == m.manager.rootPage {
+		logger.Debugf("⚠️ Node %d is root, no siblings", node.PageNum)
+		return nil, nil, nil
+	}
 
-	return nil, nil, fmt.Errorf("not implemented: sibling lookup requires parent tracking")
+	// 查找父节点和当前节点的位置
+	parentNode, childIndex, err := m.findParentWithPath(ctx, node.PageNum)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to find parent: %v", err)
+	}
+
+	logger.Debugf("🔍 Found parent node %d, child_index=%d", parentNode.PageNum, childIndex)
+
+	// 获取左兄弟
+	if childIndex > 0 {
+		leftPage := parentNode.Children[childIndex-1]
+		leftSibling, err = m.manager.getNode(ctx, leftPage)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get left sibling: %v", err)
+		}
+		logger.Debugf("⬅️ Found left sibling: page=%d, keys=%d", leftSibling.PageNum, len(leftSibling.Keys))
+	}
+
+	// 获取右兄弟
+	if childIndex < len(parentNode.Children)-1 {
+		rightPage := parentNode.Children[childIndex+1]
+		rightSibling, err = m.manager.getNode(ctx, rightPage)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get right sibling: %v", err)
+		}
+		logger.Debugf("➡️ Found right sibling: page=%d, keys=%d", rightSibling.PageNum, len(rightSibling.Keys))
+	}
+
+	return leftSibling, rightSibling, nil
+}
+
+// findParentWithPath 查找父节点并返回子节点在父节点中的索引
+func (m *NodeMerger) findParentWithPath(ctx context.Context, childPage uint32) (*BPlusTreeNode, int, error) {
+	// 从根节点开始搜索
+	return m.findParentRecursive(ctx, m.manager.rootPage, childPage, 0)
+}
+
+// findParentRecursive 递归查找父节点
+func (m *NodeMerger) findParentRecursive(ctx context.Context, currentPage, targetPage uint32, depth int) (*BPlusTreeNode, int, error) {
+	// 检查递归深度限制
+	if depth >= m.maxRecursionDepth {
+		return nil, -1, fmt.Errorf("maximum recursion depth %d exceeded", m.maxRecursionDepth)
+	}
+
+	node, err := m.manager.getNode(ctx, currentPage)
+	if err != nil {
+		return nil, -1, err
+	}
+
+	if node.IsLeaf {
+		return nil, -1, fmt.Errorf("target page %d not found", targetPage)
+	}
+
+	// 在子节点中查找目标
+	for i, childPage := range node.Children {
+		if childPage == targetPage {
+			// 找到目标节点，返回父节点和索引
+			return node, i, nil
+		}
+	}
+
+	// 在子树中递归查找
+	for _, childPage := range node.Children {
+		result, index, err := m.findParentRecursive(ctx, childPage, targetPage, depth+1)
+		if err == nil {
+			return result, index, nil
+		}
+	}
+
+	return nil, -1, fmt.Errorf("parent of page %d not found", targetPage)
 }
 
 // MergeConfig 合并配置
@@ -270,4 +443,27 @@ var DefaultMergeConfig = &MergeConfig{
 	MinFillFactor:   0.4,
 	BorrowThreshold: 0.5,
 	MergeThreshold:  0.3,
+}
+
+// shouldBorrow 判断是否应该借键
+func (m *NodeMerger) shouldBorrow(node *BPlusTreeNode, config *MergeConfig) bool {
+	if config == nil {
+		config = DefaultMergeConfig
+	}
+	fillFactor := float64(len(node.Keys)) / float64(m.maxKeys)
+	return fillFactor < config.BorrowThreshold && len(node.Keys) >= m.minKeys
+}
+
+// shouldMerge 判断是否应该合并
+func (m *NodeMerger) shouldMerge(node *BPlusTreeNode, config *MergeConfig) bool {
+	if config == nil {
+		config = DefaultMergeConfig
+	}
+	fillFactor := float64(len(node.Keys)) / float64(m.maxKeys)
+	return fillFactor < config.MergeThreshold || len(node.Keys) < m.minKeys
+}
+
+// Rebalance 重平衡节点（公开API）
+func (m *NodeMerger) Rebalance(ctx context.Context, node *BPlusTreeNode) error {
+	return m.rebalanceAfterMerge(ctx, node, 0)
 }

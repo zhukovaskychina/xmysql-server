@@ -9,6 +9,7 @@ import (
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
@@ -829,27 +830,22 @@ func (e *SystemVariableEngine) evaluateSetValue(expr sqlparser.Expr) (interface{
 }
 
 // buildSystemVariableExecutor 构建系统变量执行器
-func (e *SystemVariableEngine) buildSystemVariableExecutor(sessionID string, varQuery *manager.SystemVariableQuery, stmt sqlparser.Statement) engine.Executor {
-	// 创建执行上下文
-	ctx := &engine.ExecutionContext{
-		Context: context.Background(),
-	}
-
+func (e *SystemVariableEngine) buildSystemVariableExecutor(sessionID string, varQuery *manager.SystemVariableQuery, stmt sqlparser.Statement) engine.Operator {
 	// 创建系统变量扫描执行器
-	scanExecutor := NewSystemVariableScanExecutor(ctx, e.sysVarManager, sessionID, varQuery)
+	scanOperator := NewSystemVariableScanOperator(e.sysVarManager, sessionID, varQuery)
 
 	// 如果是SELECT语句，可能需要投影
 	if selectStmt, ok := stmt.(*sqlparser.Select); ok {
 		// 分析SELECT表达式，构建投影执行器
-		projectionExecutor := e.buildProjectionExecutor(ctx, scanExecutor, selectStmt, varQuery)
-		return projectionExecutor
+		projectionOperator := e.buildProjectionOperator(scanOperator, selectStmt, varQuery)
+		return projectionOperator
 	}
 
-	return scanExecutor
+	return scanOperator
 }
 
-// buildProjectionExecutor 构建投影执行器
-func (e *SystemVariableEngine) buildProjectionExecutor(ctx *engine.ExecutionContext, child engine.Executor, selectStmt *sqlparser.Select, varQuery *manager.SystemVariableQuery) engine.Executor {
+// buildProjectionOperator 构建投影执行器
+func (e *SystemVariableEngine) buildProjectionOperator(child engine.Operator, selectStmt *sqlparser.Select, varQuery *manager.SystemVariableQuery) engine.Operator {
 	// 获取要投影的列
 	columns := make([]string, len(varQuery.Variables))
 	for i, varInfo := range varQuery.Variables {
@@ -857,28 +853,29 @@ func (e *SystemVariableEngine) buildProjectionExecutor(ctx *engine.ExecutionCont
 	}
 
 	// 创建投影执行器
-	return NewSystemVariableProjectionExecutor(ctx, child, columns, varQuery)
+	return NewSystemVariableProjectionOperator(child, columns, varQuery)
 }
 
 // executeWithVolcanoModel 使用火山模型执行查询
-func (e *SystemVariableEngine) executeWithVolcanoModel(executor engine.Executor) (*SQLResult, error) {
+func (e *SystemVariableEngine) executeWithVolcanoModel(operator engine.Operator) (*SQLResult, error) {
 	logger.Debugf("🌋 开始火山模型执行")
 
+	ctx := context.Background()
+
 	// 1. 初始化执行器
-	if err := executor.Init(); err != nil {
-		return nil, fmt.Errorf("failed to initialize executor: %v", err)
+	if err := operator.Open(ctx); err != nil {
+		return nil, fmt.Errorf("failed to open operator: %v", err)
 	}
-	defer executor.Close()
+	defer operator.Close()
 
 	// 2. 获取结果集
 	var rows [][]interface{}
 	var columns []string
 
 	// 获取schema信息作为列名
-	schema := executor.Schema()
+	schema := operator.Schema()
 	if schema != nil {
-		// Schema是指向接口的指针，需要解引用
-		if tables := (*schema).GetTables(); len(tables) > 0 && len(tables[0].Columns) > 0 {
+		if tables := schema.GetTables(); len(tables) > 0 && len(tables[0].Columns) > 0 {
 			columns = make([]string, len(tables[0].Columns))
 			for i, col := range tables[0].Columns {
 				columns[i] = col.Name
@@ -888,33 +885,35 @@ func (e *SystemVariableEngine) executeWithVolcanoModel(executor engine.Executor)
 
 	// 如果从schema获取不到列信息，尝试从执行器获取
 	if len(columns) == 0 {
-		if scanExecutor, ok := executor.(*SystemVariableScanExecutor); ok {
-			columns = make([]string, len(scanExecutor.varQuery.Variables))
-			for i, varInfo := range scanExecutor.varQuery.Variables {
+		if scanOp, ok := operator.(*SystemVariableScanOperator); ok {
+			columns = make([]string, len(scanOp.varQuery.Variables))
+			for i, varInfo := range scanOp.varQuery.Variables {
 				columns[i] = varInfo.Alias
 			}
-			logger.Debugf(" 从扫描执行器获取列信息: %v", columns)
-		} else if projExecutor, ok := executor.(*SystemVariableProjectionExecutor); ok {
-			columns = projExecutor.columns
-			logger.Debugf(" 从投影执行器获取列信息: %v", columns)
+			logger.Debugf("✅ 从扫描算子获取列信息: %v", columns)
+		} else if projOp, ok := operator.(*SystemVariableProjectionOperator); ok {
+			columns = projOp.columns
+			logger.Debugf("✅ 从投影算子获取列信息: %v", columns)
 		}
 	}
 
 	// 3. 火山模型迭代执行
 	for {
-		err := executor.Next()
-		if err == io.EOF {
+		record, err := operator.Next(ctx)
+		if err == io.EOF || record == nil {
 			break // 正常结束
 		}
 		if err != nil {
-			return nil, fmt.Errorf("executor next error: %v", err)
+			return nil, fmt.Errorf("operator next error: %v", err)
 		}
 
 		// 获取当前行数据
-		row := executor.GetRow()
-		if row != nil {
-			rows = append(rows, row)
+		values := record.GetValues()
+		row := make([]interface{}, len(values))
+		for i, v := range values {
+			row[i] = convertValueToInterface(v)
 		}
+		rows = append(rows, row)
 	}
 
 	logger.Debugf("🌋 火山模型执行完成，获得 %d 行数据，列: %v", len(rows), columns)
@@ -929,6 +928,25 @@ func (e *SystemVariableEngine) executeWithVolcanoModel(executor engine.Executor)
 	}
 
 	return result, nil
+}
+
+// convertValueToInterface 将basic.Value转换为interface{}
+func convertValueToInterface(value basic.Value) interface{} {
+	if value.IsNull() {
+		return nil
+	}
+	switch value.GetType() {
+	case basic.TypeInt64:
+		return value.ToInt64()
+	case basic.TypeFloat64:
+		return value.ToFloat64()
+	case basic.TypeString:
+		return value.ToString()
+	case basic.TypeBool:
+		return value.ToBool()
+	default:
+		return value.ToString()
+	}
 }
 
 // SystemVariableSchema 系统变量查询的Schema实现
@@ -981,143 +999,112 @@ func NewSystemVariableSchema(varQuery *manager.SystemVariableQuery) *SystemVaria
 	}
 }
 
-// SystemVariableScanExecutor 系统变量扫描执行器
-type SystemVariableScanExecutor struct {
-	engine.BaseExecutor
+// SystemVariableScanOperator 系统变量扫描算子
+type SystemVariableScanOperator struct {
+	engine.BaseOperator
 	sysVarManager *manager.SystemVariablesManager
 	sessionID     string
 	varQuery      *manager.SystemVariableQuery
-	currentRow    []interface{}
+	currentRecord engine.Record
 	finished      bool
-	schema        *metadata.Schema // 明确定义schema字段
+	schema        *metadata.Schema
 }
 
-// NewSystemVariableScanExecutor 创建系统变量扫描执行器
-func NewSystemVariableScanExecutor(ctx *engine.ExecutionContext, sysVarManager *manager.SystemVariablesManager, sessionID string, varQuery *manager.SystemVariableQuery) *SystemVariableScanExecutor {
-	// 创建Schema实现的指针
+// NewSystemVariableScanOperator 创建系统变量扫描算子
+func NewSystemVariableScanOperator(sysVarManager *manager.SystemVariablesManager, sessionID string, varQuery *manager.SystemVariableQuery) *SystemVariableScanOperator {
 	schemaImpl := NewSystemVariableSchema(varQuery)
-	// 将接口实现转换为指向接口的指针
-	var schema metadata.Schema = schemaImpl
-
-	return &SystemVariableScanExecutor{
-		BaseExecutor:  engine.BaseExecutor{},
+	return &SystemVariableScanOperator{
 		sysVarManager: sysVarManager,
 		sessionID:     sessionID,
 		varQuery:      varQuery,
 		finished:      false,
-		schema:        &schema, // 指向接口的指针
+		schema:        schemaImpl,
 	}
 }
 
-// Init 初始化系统变量扫描
-func (s *SystemVariableScanExecutor) Init() error {
-	logger.Debugf(" 初始化系统变量扫描执行器，会话: %s", s.sessionID)
+// Open 初始化系统变量扫描
+func (s *SystemVariableScanOperator) Open(ctx context.Context) error {
+	logger.Debugf("✅ 初始化系统变量扫描算子，会话: %s", s.sessionID)
 	s.finished = false
 	return nil
 }
 
-// Next 获取下一行数据（系统变量查询只返回一行）
-func (s *SystemVariableScanExecutor) Next() error {
+// Next 获取下一条记录
+func (s *SystemVariableScanOperator) Next(ctx context.Context) (engine.Record, error) {
 	if s.finished {
-		return io.EOF
+		return nil, nil // EOF
 	}
 
-	// 从缓存获取系统变量值
-	row := make([]interface{}, len(s.varQuery.Variables))
+	values := make([]basic.Value, len(s.varQuery.Variables))
 	for i, varInfo := range s.varQuery.Variables {
 		value, err := s.sysVarManager.GetVariable(s.sessionID, varInfo.Name, varInfo.Scope)
 		if err != nil {
-			logger.Warnf(" 获取系统变量 %s 失败: %v", varInfo.Name, err)
-			value = nil // 使用 nil 表示未知变量
+			logger.Warnf("⚠️ 获取系统变量 %s 失败: %v", varInfo.Name, err)
+			values[i] = basic.NewNull()
+		} else if value == nil {
+			values[i] = basic.NewNull()
+		} else {
+			values[i] = convertInterfaceToValue(value)
 		}
-		row[i] = value
-		logger.Debugf(" 从缓存获取变量 %s = %v", varInfo.Name, value)
+		logger.Debugf("📊 从缓存获取变量 %s = %v", varInfo.Name, value)
 	}
 
-	s.currentRow = row
+	s.currentRecord = engine.NewExecutorRecordFromValues(values, s.schema)
 	s.finished = true
-	return nil
-}
-
-// GetRow 获取当前行数据
-func (s *SystemVariableScanExecutor) GetRow() []interface{} {
-	return s.currentRow
+	return s.currentRecord, nil
 }
 
 // Close 关闭扫描器
-func (s *SystemVariableScanExecutor) Close() error {
-	logger.Debugf("🔚 关闭系统变量扫描执行器")
+func (s *SystemVariableScanOperator) Close() error {
+	logger.Debugf("🔒 关闭系统变量扫描算子")
 	return nil
 }
 
 // Schema 返回扫描器的schema
-func (s *SystemVariableScanExecutor) Schema() *metadata.Schema {
+func (s *SystemVariableScanOperator) Schema() *metadata.Schema {
 	return s.schema
 }
 
-// Children 返回子执行器（扫描器没有子执行器）
-func (s *SystemVariableScanExecutor) Children() []engine.Executor {
-	return nil
-}
-
-// SetChildren 设置子执行器
-func (s *SystemVariableScanExecutor) SetChildren(children []engine.Executor) {
-	// 扫描器不需要子执行器
-}
-
-// SystemVariableProjectionExecutor 系统变量投影执行器
-type SystemVariableProjectionExecutor struct {
-	engine.BaseExecutor
-	child    engine.Executor
+// SystemVariableProjectionOperator 系统变量投影算子
+type SystemVariableProjectionOperator struct {
+	engine.BaseOperator
+	child    engine.Operator
 	columns  []string
 	varQuery *manager.SystemVariableQuery
-	schema   *metadata.Schema // 明确定义schema字段
+	schema   *metadata.Schema
 }
 
-// NewSystemVariableProjectionExecutor 创建系统变量投影执行器
-func NewSystemVariableProjectionExecutor(ctx *engine.ExecutionContext, child engine.Executor, columns []string, varQuery *manager.SystemVariableQuery) *SystemVariableProjectionExecutor {
-	// 创建Schema实现的指针
+// NewSystemVariableProjectionOperator 创建系统变量投影算子
+func NewSystemVariableProjectionOperator(child engine.Operator, columns []string, varQuery *manager.SystemVariableQuery) *SystemVariableProjectionOperator {
 	schemaImpl := NewSystemVariableSchema(varQuery)
-	// 将接口实现转换为指向接口的指针
-	var schema metadata.Schema = schemaImpl
-
-	return &SystemVariableProjectionExecutor{
-		BaseExecutor: engine.BaseExecutor{},
-		child:        child,
-		columns:      columns,
-		varQuery:     varQuery,
-		schema:       &schema, // 指向接口的指针
+	return &SystemVariableProjectionOperator{
+		child:    child,
+		columns:  columns,
+		varQuery: varQuery,
+		schema:   schemaImpl,
 	}
 }
 
-// Init 初始化投影执行器
-func (p *SystemVariableProjectionExecutor) Init() error {
-	logger.Debugf(" 初始化系统变量投影执行器")
+// Open 初始化投影算子
+func (p *SystemVariableProjectionOperator) Open(ctx context.Context) error {
+	logger.Debugf("✅ 初始化系统变量投影算子")
 	if p.child != nil {
-		return p.child.Init()
+		return p.child.Open(ctx)
 	}
 	return nil
 }
 
-// Next 获取下一行投影数据
-func (p *SystemVariableProjectionExecutor) Next() error {
+// Next 获取下一条投影记录
+func (p *SystemVariableProjectionOperator) Next(ctx context.Context) (engine.Record, error) {
 	if p.child != nil {
-		return p.child.Next()
+		return p.child.Next(ctx)
 	}
-	return io.EOF
+	return nil, nil
 }
 
-// GetRow 获取当前投影行数据
-func (p *SystemVariableProjectionExecutor) GetRow() []interface{} {
-	if p.child != nil {
-		return p.child.GetRow()
-	}
-	return nil
-}
-
-// Close 关闭投影执行器
-func (p *SystemVariableProjectionExecutor) Close() error {
-	logger.Debugf("🔚 关闭系统变量投影执行器")
+// Close 关闭投影算子
+func (p *SystemVariableProjectionOperator) Close() error {
+	logger.Debugf("🔒 关闭系统变量投影算子")
 	if p.child != nil {
 		return p.child.Close()
 	}
@@ -1125,22 +1112,32 @@ func (p *SystemVariableProjectionExecutor) Close() error {
 }
 
 // Schema 返回投影器的schema
-func (p *SystemVariableProjectionExecutor) Schema() *metadata.Schema {
+func (p *SystemVariableProjectionOperator) Schema() *metadata.Schema {
 	return p.schema
 }
 
-// Children 返回子执行器
-func (p *SystemVariableProjectionExecutor) Children() []engine.Executor {
-	if p.child != nil {
-		return []engine.Executor{p.child}
+// convertInterfaceToValue 将interface{}转换为basic.Value
+func convertInterfaceToValue(val interface{}) basic.Value {
+	if val == nil {
+		return basic.NewNull()
 	}
-	return nil
-}
-
-// SetChildren 设置子执行器
-func (p *SystemVariableProjectionExecutor) SetChildren(children []engine.Executor) {
-	if len(children) > 0 {
-		p.child = children[0]
+	switch v := val.(type) {
+	case string:
+		return basic.NewString(v)
+	case int:
+		return basic.NewInt64(int64(v))
+	case int32:
+		return basic.NewInt64(int64(v))
+	case int64:
+		return basic.NewInt64(v)
+	case float32:
+		return basic.NewFloat64(float64(v))
+	case float64:
+		return basic.NewFloat64(v)
+	case bool:
+		return basic.NewBool(v)
+	default:
+		return basic.NewString(fmt.Sprintf("%v", v))
 	}
 }
 

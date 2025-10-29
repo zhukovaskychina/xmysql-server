@@ -1,9 +1,5 @@
 package segment
 
-import (
-	"sync/atomic"
-)
-
 // SegmentType 段类型
 type SegmentType uint8
 
@@ -26,11 +22,11 @@ const (
 
 // SegmentStats 段统计信息
 type SegmentStats struct {
-	TotalPages    atomic.Uint32
-	FreePages     atomic.Uint32
-	FragPages     atomic.Uint32
-	FullPages     atomic.Uint32
-	ExtentCount   atomic.Uint32
+	TotalPages    uint32 // 使用atomic操作
+	FreePages     uint32 // 使用atomic操作
+	FragPages     uint32 // 使用atomic操作
+	FullPages     uint32 // 使用atomic操作
+	ExtentCount   uint32 // 使用atomic操作
 	LastModified  int64
 	LastExtended  int64
 	LastDefragged int64
@@ -108,12 +104,12 @@ type SegmentManager interface {
 
 // SegmentManagerStats 段管理器统计信息
 type SegmentManagerStats struct {
-	TotalSegments   atomic.Uint32
-	ActiveSegments  atomic.Uint32
-	DeletedSegments atomic.Uint32
-	TotalPages      atomic.Uint64
-	FreePages       atomic.Uint64
-	AllocOperations atomic.Uint64
-	FreeOperations  atomic.Uint64
+	TotalSegments   uint32 // 使用atomic操作
+	ActiveSegments  uint32 // 使用atomic操作
+	DeletedSegments uint32 // 使用atomic操作
+	TotalPages      uint64 // 使用atomic操作
+	FreePages       uint64 // 使用atomic操作
+	AllocOperations uint64 // 使用atomic操作
+	FreeOperations  uint64 // 使用atomic操作
 	LastDefragTime  int64
 }

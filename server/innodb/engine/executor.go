@@ -21,32 +21,6 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
-// Iterator 火山模型中的迭代器接口，每个算子实现该接口用于迭代数据
-type Iterator interface {
-	Init() error           // 初始化迭代器
-	Next() error           // 获取下一行数据，若无更多数据返回 io.EOF
-	GetRow() []interface{} // 获取当前行数据
-	Close() error          // 释放资源
-}
-
-// Executor 是算子接口，继承自 Iterator
-// 每个执行算子如 TableScan、Join 等都要实现该接口
-type Executor interface {
-	Iterator
-	Schema() *metadata.Schema        // 返回输出的字段结构
-	Children() []Executor            // 返回子节点
-	SetChildren(children []Executor) // 设置子节点
-}
-
-// BaseExecutor 所有执行器的基础结构
-// 提供公共字段如 schema、子节点、执行上下文等
-type BaseExecutor struct {
-	schema   *metadata.Schema
-	children []Executor
-	ctx      *ExecutionContext
-	closed   bool
-}
-
 // XMySQLExecutor 是 SQL 执行器的核心结构，负责整个 SQL 的解析与执行
 // 支持解析 SELECT、DDL、SHOW 等语句，并调用相应执行逻辑
 // 执行流程：解析 -> 生成逻辑计划 -> 转物理计划 -> 构造执行器 -> 流式迭代执行
@@ -58,7 +32,6 @@ type XMySQLExecutor struct {
 	conf               *conf.Cfg                  // 配置项
 	ctx                *ExecutionContext          // 执行上下文
 	results            chan *Result               // 结果通道
-	rootExecutor       Executor                   // 根算子节点
 
 	// 管理器组件 - 添加这些字段来访问各个管理器
 	optimizerManager  interface{} // 查询优化器管理器
@@ -257,9 +230,50 @@ func (e *XMySQLExecutor) executeDBDDL(stmt *sqlparser.DBDDL, results chan *Resul
 	}
 }
 
-// buildExecutorTree 构造物理计划对应的算子执行树
-func (e *XMySQLExecutor) buildExecutorTree(plan PhysicalPlan) Executor {
-	return nil // TODO: 实现基于计划节点的执行器构建
+// buildExecutorTree 从物理计划构建VolcanoExecutor
+func (e *XMySQLExecutor) buildExecutorTree(ctx context.Context, physicalPlan plan.PhysicalPlan) (*VolcanoExecutor, error) {
+	// 验证管理器实例有效性
+	var tableManager *manager.TableManager
+	var bufferPoolManager *manager.OptimizedBufferPoolManager
+	var storageManager *manager.StorageManager
+	var indexManager *manager.IndexManager
+
+	// 类型断言获取管理器
+	if e.tableManager != nil {
+		if tm, ok := e.tableManager.(*manager.TableManager); ok {
+			tableManager = tm
+		}
+	}
+	if e.bufferPoolManager != nil {
+		if bpm, ok := e.bufferPoolManager.(*manager.OptimizedBufferPoolManager); ok {
+			bufferPoolManager = bpm
+		}
+	}
+	storageManager = e.storageManager
+	indexManager = e.indexManager
+
+	// 验证必需的管理器
+	if tableManager == nil {
+		return nil, fmt.Errorf("tableManager is nil, cannot build executor tree")
+	}
+	if bufferPoolManager == nil {
+		return nil, fmt.Errorf("bufferPoolManager is nil, cannot build executor tree")
+	}
+
+	// 创建VolcanoExecutor实例
+	volcanoExec := NewVolcanoExecutor(
+		tableManager,
+		bufferPoolManager,
+		storageManager,
+		indexManager,
+	)
+
+	// 构建算子树
+	if err := volcanoExec.BuildFromPhysicalPlan(ctx, physicalPlan); err != nil {
+		return nil, fmt.Errorf("failed to build operator tree: %w", err)
+	}
+
+	return volcanoExec, nil
 }
 
 // recover 用于捕获 panic，避免系统崩溃
@@ -317,6 +331,105 @@ func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sql
 	}
 
 	return result, nil
+}
+
+// generateLogicalPlan 从SQL生成逻辑计划
+func (e *XMySQLExecutor) generateLogicalPlan(stmt *sqlparser.Select, databaseName string) (plan.LogicalPlan, error) {
+	// 获取优化器管理器
+	var optimizerManager *manager.OptimizerManager
+	if e.optimizerManager != nil {
+		if om, ok := e.optimizerManager.(*manager.OptimizerManager); ok {
+			optimizerManager = om
+		}
+	}
+
+	if optimizerManager == nil {
+		return nil, fmt.Errorf("optimizerManager is nil, cannot generate logical plan")
+	}
+
+	// TODO: 实现逻辑计划生成
+	// 这里需要调用优化器管理器的方法来生成逻辑计划
+	return nil, fmt.Errorf("logical plan generation not yet implemented")
+}
+
+// optimizeToPhysicalPlan 逻辑计划优化为物理计划
+func (e *XMySQLExecutor) optimizeToPhysicalPlan(logicalPlan plan.LogicalPlan) (plan.PhysicalPlan, error) {
+	// 获取优化器管理器
+	var optimizerManager *manager.OptimizerManager
+	if e.optimizerManager != nil {
+		if om, ok := e.optimizerManager.(*manager.OptimizerManager); ok {
+			optimizerManager = om
+		}
+	}
+
+	if optimizerManager == nil {
+		return nil, fmt.Errorf("optimizerManager is nil, cannot optimize to physical plan")
+	}
+
+	// TODO: 实现物理计划优化
+	// 这里需要调用优化器管理器的优化方法
+	return nil, fmt.Errorf("physical plan optimization not yet implemented")
+}
+
+// convertToSelectResult 将Record数组转换为SelectResult
+func (e *XMySQLExecutor) convertToSelectResult(records []Record, schema *metadata.Schema) (*SelectResult, error) {
+	if schema == nil {
+		return nil, fmt.Errorf("schema is nil")
+	}
+
+	// 构建列名和类型
+	columnNames := make([]string, 0, len(schema.Columns))
+	columnTypes := make([]string, 0, len(schema.Columns))
+	for _, col := range schema.Columns {
+		columnNames = append(columnNames, col.Name)
+		columnTypes = append(columnTypes, col.DataType)
+	}
+
+	// 转换记录为行数据
+	rows := make([][]interface{}, 0, len(records))
+	for _, record := range records {
+		values := record.GetValues()
+		row := make([]interface{}, len(values))
+		for i, v := range values {
+			row[i] = e.convertValueToInterface(v)
+		}
+		rows = append(rows, row)
+	}
+
+	return &SelectResult{
+		ColumnNames: columnNames,
+		ColumnTypes: columnTypes,
+		Rows:        rows,
+		RowCount:    len(rows),
+	}, nil
+}
+
+// convertValueToInterface 将basic.Value转换为interface{}
+func (e *XMySQLExecutor) convertValueToInterface(value basic.Value) interface{} {
+	if value.IsNull() {
+		return nil
+	}
+
+	switch value.GetType() {
+	case basic.TypeInt64:
+		return value.ToInt64()
+	case basic.TypeFloat64:
+		return value.ToFloat64()
+	case basic.TypeString:
+		return value.ToString()
+	case basic.TypeBool:
+		return value.ToBool()
+	case basic.TypeBytes:
+		return value.ToBytes()
+	case basic.TypeDecimal:
+		return value.ToDecimal()
+	case basic.TypeDate:
+		return value.ToDate()
+	case basic.TypeTimestamp:
+		return value.ToTimestamp()
+	default:
+		return value.ToString()
+	}
 }
 
 // executeInsertStatement 执行 INSERT 语句

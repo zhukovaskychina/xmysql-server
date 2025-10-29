@@ -29,7 +29,7 @@ type EnhancedBTreeManager struct {
 	backgroundWG sync.WaitGroup // 后台任务等待组
 
 	// 资源管理
-	isShutdown atomic.Bool // 是否已关闭
+	isShutdown uint32 // 是否已关闭，使用atomic操作（0=false, 1=true）
 }
 
 // BTreeManagerStats B+树管理器统计信息
@@ -82,7 +82,7 @@ func NewEnhancedBTreeManager(storageManager *StorageManager, config *BTreeConfig
 
 // CreateIndex 创建新索引
 func (m *EnhancedBTreeManager) CreateIndex(ctx context.Context, metadata *IndexMetadata) (BTreeIndex, error) {
-	if m.isShutdown.Load() {
+	if atomic.LoadUint32(&m.isShutdown) == 1 {
 		return nil, fmt.Errorf("btree manager is shutdown")
 	}
 
@@ -139,7 +139,7 @@ func (m *EnhancedBTreeManager) CreateIndex(ctx context.Context, metadata *IndexM
 
 // GetIndex 获取索引实例
 func (m *EnhancedBTreeManager) GetIndex(indexID uint64) (BTreeIndex, error) {
-	if m.isShutdown.Load() {
+	if atomic.LoadUint32(&m.isShutdown) == 1 {
 		return nil, fmt.Errorf("btree manager is shutdown")
 	}
 

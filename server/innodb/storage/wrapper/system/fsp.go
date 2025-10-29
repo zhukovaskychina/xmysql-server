@@ -3,6 +3,7 @@ package system
 import (
 	"encoding/binary"
 	"errors"
+	"sync/atomic"
 	"time"
 )
 
@@ -173,7 +174,7 @@ func (fp *FSPPage) Read() error {
 
 	// 更新统计信息
 	fp.stats.LastModified = time.Now().UnixNano()
-	fp.stats.Reads.Add(1)
+	atomic.AddUint64(&fp.stats.Reads, 1)
 
 	return nil
 }
@@ -191,7 +192,7 @@ func (fp *FSPPage) Write() error {
 
 	// 更新统计信息
 	fp.stats.LastModified = time.Now().UnixNano()
-	fp.stats.Writes.Add(1)
+	atomic.AddUint64(&fp.stats.Writes, 1)
 
 	return fp.BaseSystemPage.Write()
 }

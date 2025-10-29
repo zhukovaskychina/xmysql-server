@@ -110,38 +110,26 @@ type TableScanOperator struct {
 	schemaName string
 	tableName  string
 
-	// 存储引擎相关
-	tableManager      *manager.TableManager
-	bufferPoolManager *manager.OptimizedBufferPoolManager
-	storageManager    *manager.StorageManager
+	// 存储适配器
+	storageAdapter *StorageAdapter
 
 	// 扫描状态
-	cursor     int64
-	pageNo     uint32
-	slotIdx    int
-	totalRows  int64
+	iterator   *TablePageIterator
 	currentRow Record
 }
 
 func NewTableScanOperator(
 	schemaName, tableName string,
-	tableManager *manager.TableManager,
-	bufferPoolManager *manager.OptimizedBufferPoolManager,
-	storageManager *manager.StorageManager,
+	storageAdapter *StorageAdapter,
 ) *TableScanOperator {
 	return &TableScanOperator{
 		BaseOperator: BaseOperator{
 			children: nil,
 			schema:   nil, // 将在Open时设置
 		},
-		schemaName:        schemaName,
-		tableName:         tableName,
-		tableManager:      tableManager,
-		bufferPoolManager: bufferPoolManager,
-		storageManager:    storageManager,
-		cursor:            0,
-		pageNo:            0,
-		slotIdx:           0,
+		schemaName:     schemaName,
+		tableName:      tableName,
+		storageAdapter: storageAdapter,
 	}
 }
 
@@ -150,23 +138,25 @@ func (t *TableScanOperator) Open(ctx context.Context) error {
 		return err
 	}
 
-	// 获取表的schema信息
-	if t.tableManager != nil {
-		table, err := t.tableManager.GetTable(ctx, t.schemaName, t.tableName)
-		if err != nil {
-			return fmt.Errorf("failed to get table schema: %w", err)
-		}
-		t.schema = &metadata.Schema{
-			Columns: table.Columns,
-		}
+	// 获取表的元数据
+	metadata, err := t.storageAdapter.GetTableMetadata(ctx, t.schemaName, t.tableName)
+	if err != nil {
+		return fmt.Errorf("failed to get table metadata: %w", err)
 	}
 
-	// 初始化扫描位置
-	t.pageNo = 3 // InnoDB默认从第3页开始存储数据
-	t.slotIdx = 0
-	t.cursor = 0
+	// 设置schema
+	t.schema = &metadata.Schema{
+		Columns: metadata.Schema.Columns,
+	}
 
-	logger.Debugf("TableScanOperator opened for table %s.%s", t.schemaName, t.tableName)
+	// 创建表页面迭代器
+	t.iterator, err = t.storageAdapter.ScanTable(ctx, metadata)
+	if err != nil {
+		return fmt.Errorf("failed to create table iterator: %w", err)
+	}
+
+	logger.Debugf("TableScanOperator opened for table %s.%s, spaceID=%d",
+		t.schemaName, t.tableName, metadata.SpaceID)
 	return nil
 }
 
@@ -175,26 +165,14 @@ func (t *TableScanOperator) Next(ctx context.Context) (Record, error) {
 		return nil, fmt.Errorf("operator not opened")
 	}
 
-	// TODO: 实现实际的页面扫描逻辑
-	// 这里需要：
-	// 1. 从bufferPoolManager获取页面
-	// 2. 解析页面中的记录
-	// 3. 返回下一条记录
-
-	// 临时实现：返回模拟数据
-	if t.cursor >= 100 {
-		return nil, nil // EOF
+	// 从迭代器获取下一条记录
+	record, err := t.iterator.Next()
+	if err != nil {
+		return nil, err
 	}
 
-	t.cursor++
-
-	// 创建模拟记录
-	values := []basic.Value{
-		basic.NewInt64(t.cursor),
-		basic.NewString(fmt.Sprintf("row_%d", t.cursor)),
-	}
-
-	return NewExecutorRecordFromValues(values, t.schema), nil
+	// nil表示EOF
+	return record, nil
 }
 
 // ========================================
@@ -208,32 +186,49 @@ type IndexScanOperator struct {
 	tableName  string
 	indexName  string
 
-	// 索引管理器
-	indexManager *manager.IndexManager
+	// 适配器
+	storageAdapter *StorageAdapter
+	indexAdapter   *IndexAdapter
 
 	// 扫描范围
 	startKey basic.Value
 	endKey   basic.Value
 
-	// 迭代器
-	iterator manager.IndexIterator
+	// 查询需要的列
+	requiredColumns []string
+	// 是否覆盖索引（不需要回表）
+	isCoveringIndex bool
+
+	// 索引元数据
+	indexMetadata *IndexMetadata
+
+	// 主键列表（用于回表）
+	primaryKeys [][]byte
+	keyIndex    int
 }
 
 func NewIndexScanOperator(
 	schemaName, tableName, indexName string,
-	indexManager *manager.IndexManager,
+	storageAdapter *StorageAdapter,
+	indexAdapter *IndexAdapter,
 	startKey, endKey basic.Value,
+	requiredColumns []string,
 ) *IndexScanOperator {
 	return &IndexScanOperator{
 		BaseOperator: BaseOperator{
 			children: nil,
 		},
-		schemaName:   schemaName,
-		tableName:    tableName,
-		indexName:    indexName,
-		indexManager: indexManager,
-		startKey:     startKey,
-		endKey:       endKey,
+		schemaName:      schemaName,
+		tableName:       tableName,
+		indexName:       indexName,
+		storageAdapter:  storageAdapter,
+		indexAdapter:    indexAdapter,
+		startKey:        startKey,
+		endKey:          endKey,
+		requiredColumns: requiredColumns,
+		isCoveringIndex: false,
+		primaryKeys:     [][]byte{},
+		keyIndex:        0,
 	}
 }
 
@@ -242,11 +237,32 @@ func (i *IndexScanOperator) Open(ctx context.Context) error {
 		return err
 	}
 
-	// 创建索引迭代器
-	if i.indexManager != nil {
-		// TODO: 实现索引迭代器的创建
-		logger.Debugf("IndexScanOperator opened for index %s on table %s.%s",
-			i.indexName, i.schemaName, i.tableName)
+	// 获取表的schema信息
+	tableMetadata, err := i.storageAdapter.GetTableMetadata(ctx, i.schemaName, i.tableName)
+	if err != nil {
+		return fmt.Errorf("failed to get table schema: %w", err)
+	}
+	i.schema = &metadata.Schema{
+		Columns: tableMetadata.Schema.Columns,
+	}
+
+	// 获取索引元数据
+	i.indexMetadata, err = i.indexAdapter.GetIndexMetadata(ctx, i.schemaName, i.tableName, i.indexName)
+	if err != nil {
+		return fmt.Errorf("failed to get index metadata: %w", err)
+	}
+
+	// 检查是否为覆盖索引
+	i.isCoveringIndex = i.indexMetadata.IsCoveringIndex(i.requiredColumns)
+
+	logger.Debugf("IndexScanOperator opened for index %s on table %s.%s, isCoveringIndex=%v",
+		i.indexName, i.schemaName, i.tableName, i.isCoveringIndex)
+
+	// 如果不是覆盖索引，需要预先扫描索引获取主键列表
+	if !i.isCoveringIndex {
+		if err := i.fetchPrimaryKeys(ctx); err != nil {
+			return fmt.Errorf("failed to fetch primary keys: %w", err)
+		}
 	}
 
 	return nil
@@ -257,13 +273,70 @@ func (i *IndexScanOperator) Next(ctx context.Context) (Record, error) {
 		return nil, fmt.Errorf("operator not opened")
 	}
 
-	// TODO: 使用索引迭代器获取下一条记录
-	// 1. 从索引中获取主键
-	// 2. 回表获取完整记录
+	// 如果是覆盖索引，直接从索引返回数据，不需要回表
+	if i.isCoveringIndex {
+		return i.nextFromIndex(ctx)
+	}
 
-	return nil, nil // EOF
+	// 非覆盖索引，需要回表获取完整记录
+	return i.nextWithLookup(ctx)
 }
 
+// fetchPrimaryKeys 预先扫描索引获取所有主键（用于批量回表优化）
+func (i *IndexScanOperator) fetchPrimaryKeys(ctx context.Context) error {
+	// 将startKey和endKey转换为字节数组
+	startKeyBytes := []byte{} // TODO: 实现Value到bytes的转换
+	endKeyBytes := []byte{}   // TODO: 实现Value到bytes的转换
+
+	// 调用索引适配器进行范围扫描
+	primaryKeys, err := i.indexAdapter.RangeScan(ctx, i.indexMetadata.IndexID, startKeyBytes, endKeyBytes)
+	if err != nil {
+		return fmt.Errorf("index range scan failed: %w", err)
+	}
+
+	i.primaryKeys = primaryKeys
+	i.keyIndex = 0
+
+	logger.Debugf("Fetched %d primary keys from index %s", len(primaryKeys), i.indexName)
+	return nil
+}
+
+// nextFromIndex 从索引直接读取数据（覆盖索引）
+func (i *IndexScanOperator) nextFromIndex(ctx context.Context) (Record, error) {
+	// TODO: 实现从索引直接读取逻辑
+	logger.Debugf("nextFromIndex: using covering index %s", i.indexName)
+	return nil, nil // EOF - 临时实现
+}
+
+// nextWithLookup 通过回表获取完整记录（非覆盖索引）
+func (i *IndexScanOperator) nextWithLookup(ctx context.Context) (Record, error) {
+	// 检查是否还有主键需要回表
+	if i.keyIndex >= len(i.primaryKeys) {
+		return nil, nil // EOF
+	}
+
+	// 获取当前主键
+	primaryKey := i.primaryKeys[i.keyIndex]
+	i.keyIndex++
+
+	// 通过主键回表查找完整记录
+	// TODO: 实现实际的回表逻辑
+	// 这里需要：
+	// 1. 使用primaryKey在聚簇索引中查找
+	// 2. 读取完整记录
+	// 3. 转换为Record并返回
+
+	logger.Debugf("nextWithLookup: lookup primaryKey for index %s", i.indexName)
+
+	// 临时返回模拟数据
+	values := []basic.Value{
+		basic.NewInt64(int64(i.keyIndex)),
+		basic.NewString(fmt.Sprintf("row_%d", i.keyIndex)),
+	}
+	return NewExecutorRecordFromValues(values, i.schema), nil
+}
+
+// fetchBatchFromIndex 批量从索引读取记录
 // ========================================
 // FilterOperator - 过滤算子
 // ========================================
@@ -675,6 +748,91 @@ func (s *SumAgg) Update(value basic.Value) {
 }
 func (s *SumAgg) Result() basic.Value { return basic.NewFloat64(s.sum) }
 
+// AvgAgg AVG聚合
+type AvgAgg struct {
+	sum   float64
+	count int64
+}
+
+func (a *AvgAgg) Init() {
+	a.sum = 0
+	a.count = 0
+}
+
+func (a *AvgAgg) Update(value basic.Value) {
+	if !value.IsNull() {
+		a.sum += value.ToFloat64()
+		a.count++
+	}
+}
+
+func (a *AvgAgg) Result() basic.Value {
+	if a.count == 0 {
+		return basic.NewNull()
+	}
+	return basic.NewFloat64(a.sum / float64(a.count))
+}
+
+// MinAgg MIN聚合
+type MinAgg struct {
+	min         basic.Value
+	initialized bool
+}
+
+func (m *MinAgg) Init() {
+	m.initialized = false
+	m.min = basic.NewNull()
+}
+
+func (m *MinAgg) Update(value basic.Value) {
+	if value.IsNull() {
+		return
+	}
+	if !m.initialized {
+		m.min = value
+		m.initialized = true
+		return
+	}
+	// 比较大小
+	if value.ToFloat64() < m.min.ToFloat64() {
+		m.min = value
+	}
+}
+
+func (m *MinAgg) Result() basic.Value {
+	return m.min
+}
+
+// MaxAgg MAX聚合
+type MaxAgg struct {
+	max         basic.Value
+	initialized bool
+}
+
+func (m *MaxAgg) Init() {
+	m.initialized = false
+	m.max = basic.NewNull()
+}
+
+func (m *MaxAgg) Update(value basic.Value) {
+	if value.IsNull() {
+		return
+	}
+	if !m.initialized {
+		m.max = value
+		m.initialized = true
+		return
+	}
+	// 比较大小
+	if value.ToFloat64() > m.max.ToFloat64() {
+		m.max = value
+	}
+}
+
+func (m *MaxAgg) Result() basic.Value {
+	return m.max
+}
+
 // HashAggregateOperator 哈希聚合算子
 type HashAggregateOperator struct {
 	BaseOperator
@@ -710,8 +868,32 @@ func (h *HashAggregateOperator) Open(ctx context.Context) error {
 		return err
 	}
 
-	// TODO: 构建输出schema
-	h.schema = &metadata.Schema{}
+	// 构建输出schema：分组列 + 聚合列
+	childSchema := h.child.Schema()
+	if childSchema != nil {
+		columns := make([]*metadata.Column, 0, len(h.groupByExprs)+len(h.aggFuncs))
+
+		// 添加分组列
+		for _, idx := range h.groupByExprs {
+			if idx < len(childSchema.Columns) {
+				columns = append(columns, childSchema.Columns[idx])
+			}
+		}
+
+		// 添加聚合列（使用默认名称）
+		for i := range h.aggFuncs {
+			aggCol := &metadata.Column{
+				Name:  fmt.Sprintf("agg_%d", i),
+				Type:  metadata.TypeDouble,
+				Table: "",
+			}
+			columns = append(columns, aggCol)
+		}
+
+		h.schema = &metadata.Schema{Columns: columns}
+	} else {
+		h.schema = &metadata.Schema{}
+	}
 
 	return nil
 }
@@ -764,6 +946,12 @@ func (h *HashAggregateOperator) computeAggregates(ctx context.Context) error {
 					aggStates[i] = &CountAgg{}
 				case *SumAgg:
 					aggStates[i] = &SumAgg{}
+				case *AvgAgg:
+					aggStates[i] = &AvgAgg{}
+				case *MinAgg:
+					aggStates[i] = &MinAgg{}
+				case *MaxAgg:
+					aggStates[i] = &MaxAgg{}
 				}
 				aggStates[i].Init()
 			}

@@ -3,6 +3,7 @@ package system
 import (
 	"encoding/binary"
 	"errors"
+	"sync/atomic"
 	"time"
 )
 
@@ -256,7 +257,7 @@ func (xp *XDESPage) Read() error {
 
 	// 更新统计信息
 	xp.stats.LastModified = time.Now().UnixNano()
-	xp.stats.Reads.Add(1)
+	atomic.AddUint64(&xp.stats.Reads, 1)
 
 	return nil
 }
@@ -280,7 +281,7 @@ func (xp *XDESPage) Write() error {
 
 	// 更新统计信息
 	xp.stats.LastModified = time.Now().UnixNano()
-	xp.stats.Writes.Add(1)
+	atomic.AddUint64(&xp.stats.Writes, 1)
 
 	return xp.BaseSystemPage.Write()
 }

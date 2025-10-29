@@ -3,6 +3,7 @@ package system
 import (
 	"encoding/binary"
 	"errors"
+	"sync/atomic"
 	"time"
 )
 
@@ -217,7 +218,7 @@ func (tp *TrxPage) Read() error {
 
 	// 更新统计信息
 	tp.stats.LastModified = time.Now().UnixNano()
-	tp.stats.Reads.Add(1)
+	atomic.AddUint64(&tp.stats.Reads, 1)
 
 	return nil
 }
@@ -247,7 +248,7 @@ func (tp *TrxPage) Write() error {
 
 	// 更新统计信息
 	tp.stats.LastModified = time.Now().UnixNano()
-	tp.stats.Writes.Add(1)
+	atomic.AddUint64(&tp.stats.Writes, 1)
 
 	return tp.BaseSystemPage.Write()
 }

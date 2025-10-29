@@ -3,6 +3,7 @@ package system
 import (
 	"encoding/binary"
 	"errors"
+	"sync/atomic"
 	"time"
 )
 
@@ -188,7 +189,7 @@ func (ip *IBufPage) Read() error {
 
 	// 更新统计信息
 	ip.stats.LastModified = time.Now().UnixNano()
-	ip.stats.Reads.Add(1)
+	atomic.AddUint64(&ip.stats.Reads, 1)
 
 	return nil
 }
@@ -221,7 +222,7 @@ func (ip *IBufPage) Write() error {
 
 	// 更新统计信息
 	ip.stats.LastModified = time.Now().UnixNano()
-	ip.stats.Writes.Add(1)
+	atomic.AddUint64(&ip.stats.Writes, 1)
 
 	return ip.BaseSystemPage.Write()
 }

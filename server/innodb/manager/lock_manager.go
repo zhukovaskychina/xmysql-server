@@ -45,6 +45,13 @@ type LockManager struct {
 	waitGraph map[uint64][]uint64  // 等待图
 	txnLocks  map[uint64][]string  // 事务持有的锁
 	stopChan  chan struct{}        // 停止信号
+
+	// TXN-012: Gap锁和Next-Key锁支持
+	gapLocks        map[string][]*GapLockInfo             // Gap锁表 (key: tableID_indexID)
+	nextKeyLocks    map[string][]*NextKeyLockInfo         // Next-Key锁表 (key: tableID_indexID)
+	insertIntLocks  map[string][]*InsertIntentionLockInfo // 插入意向锁表
+	txnGapLocks     map[uint64][]string                   // 事务持有的Gap锁
+	txnNextKeyLocks map[uint64][]string                   // 事务持有的Next-Key锁
 }
 
 // NewLockManager 创建锁管理器
@@ -54,6 +61,12 @@ func NewLockManager() *LockManager {
 		waitGraph: make(map[uint64][]uint64),
 		txnLocks:  make(map[uint64][]string),
 		stopChan:  make(chan struct{}),
+		// TXN-012: 初始化Gap锁和Next-Key锁相关映射
+		gapLocks:        make(map[string][]*GapLockInfo),
+		nextKeyLocks:    make(map[string][]*NextKeyLockInfo),
+		insertIntLocks:  make(map[string][]*InsertIntentionLockInfo),
+		txnGapLocks:     make(map[uint64][]string),
+		txnNextKeyLocks: make(map[uint64][]string),
 	}
 	// 启动死锁检测
 	go lm.deadlockDetection()
@@ -248,6 +261,7 @@ func (lm *LockManager) ReleaseLocks(txID uint64) {
 	lm.mu.Lock()
 	defer lm.mu.Unlock()
 
+	// 1. 释放Record Lock
 	// 获取事务持有的所有资源ID
 	resourceIDs := lm.txnLocks[txID]
 	delete(lm.txnLocks, txID)
@@ -275,6 +289,51 @@ func (lm *LockManager) ReleaseLocks(txID uint64) {
 			// 尝试授予等待的锁
 			lm.grantWaitingLocks(info)
 		}
+	}
+
+	// 2. TXN-012: 释放Gap锁
+	gapKeys := lm.txnGapLocks[txID]
+	delete(lm.txnGapLocks, txID)
+	for _, key := range gapKeys {
+		locks := lm.gapLocks[key]
+		if locks == nil {
+			continue
+		}
+		var newLocks []*GapLockInfo
+		for _, lock := range locks {
+			if lock.TxID != txID {
+				newLocks = append(newLocks, lock)
+			}
+		}
+		if len(newLocks) == 0 {
+			delete(lm.gapLocks, key)
+		} else {
+			lm.gapLocks[key] = newLocks
+		}
+		// 尝试授予等待的插入意向锁
+		lm.grantWaitingInsertIntentionLocks(key)
+	}
+
+	// 3. TXN-013: 释放Next-Key锁
+	nextKeyKeys := lm.txnNextKeyLocks[txID]
+	delete(lm.txnNextKeyLocks, txID)
+	for _, key := range nextKeyKeys {
+		locks := lm.nextKeyLocks[key]
+		if locks == nil {
+			continue
+		}
+		var newLocks []*NextKeyLockInfo
+		for _, lock := range locks {
+			if lock.TxID != txID {
+				newLocks = append(newLocks, lock)
+			}
+		}
+		if len(newLocks) == 0 {
+			delete(lm.nextKeyLocks, key)
+		} else {
+			lm.nextKeyLocks[key] = newLocks
+		}
+		lm.grantWaitingNextKeyLocks(key)
 	}
 
 	// 从等待图中移除事务
