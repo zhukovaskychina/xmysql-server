@@ -318,18 +318,18 @@ func eliminateAggregation(plan LogicalPlan) LogicalPlan {
 
 // optimizeSubquery 子查询优化
 func optimizeSubquery(plan LogicalPlan) LogicalPlan {
-	// 当前代码库尚未实现完整的子查询算子，这里仅递归处理子计划。
-	// 若将来增加了子查询相关的逻辑计划节点，可在此处实现去关联、
-	// 展开以及上拉等优化。
+	// 使用子查询优化器进行优化
+	optimizer := NewSubqueryOptimizer()
+	optimized := optimizer.Optimize(plan)
 
-	for i, child := range plan.Children() {
-		newChild := optimizeSubquery(child)
-		children := plan.Children()
-		children[i] = newChild
-		plan.SetChildren(children)
+	// 打印优化统计信息（可选，用于调试）
+	stats := optimizer.GetStats()
+	if stats.TotalSubqueries > 0 {
+		// 可以在这里记录日志或统计信息
+		_ = stats // 避免未使用变量警告
 	}
 
-	return plan
+	return optimized
 }
 
 // optimizeIndexAccess 使用索引下推优化器选择索引

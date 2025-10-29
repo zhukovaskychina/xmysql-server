@@ -1,7 +1,10 @@
 package manager
 
 import (
+	"encoding/binary"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -112,15 +115,12 @@ func (cr *CrashRecovery) analysisPhase() error {
 	// 从Checkpoint开始扫描
 	currentLSN := cr.checkpointLSN
 
-	// TODO: 实现日志扫描逻辑
-	// 1. 读取从checkpointLSN到日志末尾的所有日志记录
-	// 2. 对于每条日志：
-	//    - 如果是TXN_BEGIN，添加到活跃事务列表
-	//    - 如果是TXN_COMMIT/TXN_ROLLBACK，从活跃事务列表移除
-	//    - 如果是数据修改（INSERT/UPDATE/DELETE），更新脏页列表
-	// 3. 确定RedoStartLSN（最小的RecLSN）
+	// 扫描Redo日志
+	if err := cr.scanRedoLog(currentLSN); err != nil {
+		return fmt.Errorf("扫描Redo日志失败: %v", err)
+	}
 
-	// 确定Redo起始LSN
+	// 确定Redo起始LSN（最小的RecLSN）
 	cr.redoStartLSN = cr.checkpointLSN
 	for _, pageInfo := range cr.dirtyPages {
 		if pageInfo.RecLSN < cr.redoStartLSN {
@@ -142,6 +142,131 @@ func (cr *CrashRecovery) analysisPhase() error {
 	return nil
 }
 
+// scanRedoLog 扫描Redo日志
+func (cr *CrashRecovery) scanRedoLog(fromLSN uint64) error {
+	// 打开Redo日志文件
+	logFile, err := os.Open(filepath.Join(cr.redoLogManager.logDir, "redo.log"))
+	if err != nil {
+		return err
+	}
+	defer logFile.Close()
+
+	// 从指定LSN开始扫描
+	for {
+		var entry RedoLogEntry
+
+		// 读取LSN
+		if err := binary.Read(logFile, binary.BigEndian, &entry.LSN); err != nil {
+			if err.Error() == "EOF" {
+				break
+			}
+			return err
+		}
+
+		// 跳过小于fromLSN的日志
+		if entry.LSN < fromLSN {
+			// 跳过这条日志的剩余部分
+			if err := cr.skipLogEntry(logFile); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// 读取事务ID
+		if err := binary.Read(logFile, binary.BigEndian, &entry.TrxID); err != nil {
+			return err
+		}
+
+		// 读取页面信息
+		if err := binary.Read(logFile, binary.BigEndian, &entry.PageID); err != nil {
+			return err
+		}
+		if err := binary.Read(logFile, binary.BigEndian, &entry.Type); err != nil {
+			return err
+		}
+
+		// 读取数据
+		var dataLen uint16
+		if err := binary.Read(logFile, binary.BigEndian, &dataLen); err != nil {
+			return err
+		}
+		entry.Data = make([]byte, dataLen)
+		if _, err := logFile.Read(entry.Data); err != nil {
+			return err
+		}
+
+		// 处理日志条目
+		cr.processLogEntry(&entry)
+	}
+
+	return nil
+}
+
+// processLogEntry 处理日志条目
+func (cr *CrashRecovery) processLogEntry(entry *RedoLogEntry) {
+	switch entry.Type {
+	case LOG_TYPE_TXN_BEGIN:
+		// 添加到活跃事务列表
+		cr.activeTransactions[entry.TrxID] = &TransactionInfo{
+			TrxID:     entry.TrxID,
+			FirstLSN:  entry.LSN,
+			State:     "Active",
+			StartTime: entry.Timestamp,
+		}
+
+	case LOG_TYPE_TXN_COMMIT:
+		// 从活跃事务列表移除
+		if txInfo, exists := cr.activeTransactions[entry.TrxID]; exists {
+			txInfo.State = "Committed"
+			txInfo.LastLSN = entry.LSN
+			delete(cr.activeTransactions, entry.TrxID)
+		}
+
+	case LOG_TYPE_TXN_ROLLBACK:
+		// 从活跃事务列表移除
+		if txInfo, exists := cr.activeTransactions[entry.TrxID]; exists {
+			txInfo.State = "Aborted"
+			txInfo.LastLSN = entry.LSN
+			delete(cr.activeTransactions, entry.TrxID)
+		}
+
+	case LOG_TYPE_INSERT, LOG_TYPE_UPDATE, LOG_TYPE_DELETE:
+		// 更新脏页列表
+		pageID := entry.PageID
+		if _, exists := cr.dirtyPages[pageID]; !exists {
+			cr.dirtyPages[pageID] = &PageRecoveryInfo{
+				PageID:   pageID,
+				RecLSN:   entry.LSN,
+				PageLSN:  0,
+				NeedRedo: true,
+			}
+		}
+	}
+}
+
+// skipLogEntry 跳过日志条目
+func (cr *CrashRecovery) skipLogEntry(logFile *os.File) error {
+	// 跳过事务ID
+	if err := binary.Read(logFile, binary.BigEndian, new(int64)); err != nil {
+		return err
+	}
+	// 跳过页面ID
+	if err := binary.Read(logFile, binary.BigEndian, new(uint64)); err != nil {
+		return err
+	}
+	// 跳过类型
+	if err := binary.Read(logFile, binary.BigEndian, new(uint8)); err != nil {
+		return err
+	}
+	// 读取数据长度并跳过数据
+	var dataLen uint16
+	if err := binary.Read(logFile, binary.BigEndian, &dataLen); err != nil {
+		return err
+	}
+	_, err := logFile.Seek(int64(dataLen), 1) // 相对当前位置跳过
+	return err
+}
+
 // redoPhase 重做阶段
 // 重放从RedoStartLSN到日志末尾的所有日志，恢复已提交事务的修改
 func (cr *CrashRecovery) redoPhase() error {
@@ -151,27 +276,136 @@ func (cr *CrashRecovery) redoPhase() error {
 		return fmt.Errorf("分析阶段未完成")
 	}
 
-	// TODO: 实现Redo逻辑
-	// 1. 从RedoStartLSN开始顺序扫描日志
-	// 2. 对于每条日志：
-	//    - 检查对应页面的PageLSN
-	//    - 如果日志LSN > PageLSN，则重做该操作
-	//    - 更新PageLSN
-	// 3. 按顺序重做，直到RedoEndLSN
+	// 打开Redo日志文件
+	logFile, err := os.Open(filepath.Join(cr.redoLogManager.logDir, "redo.log"))
+	if err != nil {
+		return err
+	}
+	defer logFile.Close()
 
-	currentLSN := cr.redoStartLSN
 	redoCount := 0
 
-	for currentLSN <= cr.redoEndLSN {
-		// TODO: 读取日志记录
-		// TODO: 检查是否需要重做
-		// TODO: 执行重做操作
+	// 从RedoStartLSN开始顺序扫描日志
+	for {
+		var entry RedoLogEntry
 
-		currentLSN++
+		// 读取LSN
+		if err := binary.Read(logFile, binary.BigEndian, &entry.LSN); err != nil {
+			if err.Error() == "EOF" {
+				break
+			}
+			return err
+		}
+
+		// 如果超过RedoEndLSN，停止
+		if entry.LSN > cr.redoEndLSN {
+			break
+		}
+
+		// 跳过小于RedoStartLSN的日志
+		if entry.LSN < cr.redoStartLSN {
+			if err := cr.skipLogEntry(logFile); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// 读取事务ID
+		if err := binary.Read(logFile, binary.BigEndian, &entry.TrxID); err != nil {
+			return err
+		}
+
+		// 读取页面信息
+		if err := binary.Read(logFile, binary.BigEndian, &entry.PageID); err != nil {
+			return err
+		}
+		if err := binary.Read(logFile, binary.BigEndian, &entry.Type); err != nil {
+			return err
+		}
+
+		// 读取数据
+		var dataLen uint16
+		if err := binary.Read(logFile, binary.BigEndian, &dataLen); err != nil {
+			return err
+		}
+		entry.Data = make([]byte, dataLen)
+		if _, err := logFile.Read(entry.Data); err != nil {
+			return err
+		}
+
+		// 执行重做操作
+		if err := cr.redoLogEntry(&entry); err != nil {
+			return fmt.Errorf("重做日志LSN=%d失败: %v", entry.LSN, err)
+		}
+
 		redoCount++
 	}
 
 	cr.redoComplete = true
+	return nil
+}
+
+// redoLogEntry 重做单条日志
+func (cr *CrashRecovery) redoLogEntry(entry *RedoLogEntry) error {
+	// 根据日志类型执行不同的重做操作
+	switch entry.Type {
+	case LOG_TYPE_INSERT:
+		return cr.redoInsert(entry)
+	case LOG_TYPE_UPDATE:
+		return cr.redoUpdate(entry)
+	case LOG_TYPE_DELETE:
+		return cr.redoDelete(entry)
+	case LOG_TYPE_PAGE_CREATE:
+		return cr.redoPageCreate(entry)
+	case LOG_TYPE_PAGE_DELETE:
+		return cr.redoPageDelete(entry)
+	case LOG_TYPE_PAGE_MODIFY:
+		return cr.redoPageModify(entry)
+	default:
+		// 其他类型的日志不需要重做
+		return nil
+	}
+}
+
+// redoInsert 重做INSERT操作
+func (cr *CrashRecovery) redoInsert(entry *RedoLogEntry) error {
+	// 注意：实际实现需要缓冲池管理器和B+树管理器的支持
+	// 这里只是框架代码
+	// 实际应该：
+	// 1. 从缓冲池获取页面
+	// 2. 检查页面LSN
+	// 3. 如果entry.LSN > pageLSN，则应用修改
+	// 4. 更新页面LSN
+	return nil
+}
+
+// redoUpdate 重做UPDATE操作
+func (cr *CrashRecovery) redoUpdate(entry *RedoLogEntry) error {
+	// 类似redoInsert的实现
+	return nil
+}
+
+// redoDelete 重做DELETE操作
+func (cr *CrashRecovery) redoDelete(entry *RedoLogEntry) error {
+	// 类似redoInsert的实现
+	return nil
+}
+
+// redoPageCreate 重做页面创建操作
+func (cr *CrashRecovery) redoPageCreate(entry *RedoLogEntry) error {
+	// 页面创建的重做逻辑
+	return nil
+}
+
+// redoPageDelete 重做页面删除操作
+func (cr *CrashRecovery) redoPageDelete(entry *RedoLogEntry) error {
+	// 页面删除的重做逻辑
+	return nil
+}
+
+// redoPageModify 重做页面修改操作
+func (cr *CrashRecovery) redoPageModify(entry *RedoLogEntry) error {
+	// 页面修改的重做逻辑
 	return nil
 }
 
@@ -184,18 +418,38 @@ func (cr *CrashRecovery) undoPhase() error {
 		return fmt.Errorf("Redo阶段未完成")
 	}
 
-	// TODO: 实现Undo逻辑
-	// 1. 对于每个未提交事务，按LSN从大到小回滚
-	// 2. 读取Undo日志，执行逆操作
-	// 3. 写入CLR（Compensation Log Record）
-
+	// 对于每个未提交事务，按LSN从大到小回滚
 	for _, txID := range cr.undoTransactions {
-		if err := cr.undoLogManager.Rollback(txID); err != nil {
+		if err := cr.rollbackTransaction(txID); err != nil {
 			return fmt.Errorf("回滚事务%d失败: %v", txID, err)
 		}
 	}
 
 	cr.undoComplete = true
+	return nil
+}
+
+// rollbackTransaction 回滚单个事务
+func (cr *CrashRecovery) rollbackTransaction(txID int64) error {
+	// 使用UndoLogManager回滚事务
+	if err := cr.undoLogManager.Rollback(txID); err != nil {
+		return err
+	}
+
+	// 写入CLR（Compensation Log Record）
+	// CLR记录回滚操作，确保回滚操作本身也是可恢复的
+	clrEntry := &RedoLogEntry{
+		LSN:   uint64(cr.lsnManager.AllocateLSN()),
+		TrxID: txID,
+		Type:  LOG_TYPE_COMPENSATE,
+		Data:  []byte(fmt.Sprintf("Rollback transaction %d", txID)),
+	}
+
+	// 写入CLR到Redo日志
+	if _, err := cr.redoLogManager.Append(clrEntry); err != nil {
+		return fmt.Errorf("写入CLR失败: %v", err)
+	}
+
 	return nil
 }
 

@@ -3,6 +3,7 @@ package manager
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -341,6 +342,71 @@ func (u *UndoLogManager) GetOldestTxnTime() time.Time {
 	u.mu.RLock()
 	defer u.mu.RUnlock()
 	return u.oldestTxnTime
+}
+
+// Recover 从Undo日志文件恢复
+func (u *UndoLogManager) Recover() error {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	// 定位到文件开始
+	if _, err := u.undoFile.Seek(0, 0); err != nil {
+		return err
+	}
+
+	// 读取并加载Undo日志
+	for {
+		var entry UndoLogEntry
+
+		// 读取LSN
+		if err := binary.Read(u.undoFile, binary.BigEndian, &entry.LSN); err != nil {
+			if err.Error() == "EOF" {
+				break
+			}
+			return err
+		}
+
+		// 读取事务ID
+		if err := binary.Read(u.undoFile, binary.BigEndian, &entry.TrxID); err != nil {
+			return err
+		}
+
+		// 读取表ID
+		if err := binary.Read(u.undoFile, binary.BigEndian, &entry.TableID); err != nil {
+			return err
+		}
+
+		// 读取操作类型
+		if err := binary.Read(u.undoFile, binary.BigEndian, &entry.Type); err != nil {
+			return err
+		}
+
+		// 读取数据
+		var dataLen uint16
+		if err := binary.Read(u.undoFile, binary.BigEndian, &dataLen); err != nil {
+			return err
+		}
+		entry.Data = make([]byte, dataLen)
+		if _, err := u.undoFile.Read(entry.Data); err != nil {
+			return err
+		}
+
+		// 设置时间戳
+		entry.Timestamp = time.Now()
+
+		// 添加到内存中
+		u.logs[entry.TrxID] = append(u.logs[entry.TrxID], entry)
+
+		// 更新活跃事务集合
+		if !u.activeTxns[entry.TrxID] {
+			u.activeTxns[entry.TrxID] = true
+			if u.oldestTxnTime.IsZero() || entry.Timestamp.Before(u.oldestTxnTime) {
+				u.oldestTxnTime = entry.Timestamp
+			}
+		}
+	}
+
+	return nil
 }
 
 // Close 关闭Undo日志管理器

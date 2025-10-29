@@ -97,6 +97,23 @@ type LogicalAggregation struct {
 	AggFuncs     []AggregateFunc
 }
 
+// LogicalSubquery 子查询逻辑计划
+type LogicalSubquery struct {
+	BaseLogicalPlan
+	SubqueryType string      // "SCALAR", "IN", "EXISTS", "ANY", "ALL"
+	Correlated   bool        // 是否为关联子查询
+	OuterRefs    []string    // 外部引用的列
+	Subplan      LogicalPlan // 子查询的逻辑计划
+}
+
+// LogicalApply Apply算子（用于关联子查询）
+type LogicalApply struct {
+	BaseLogicalPlan
+	ApplyType  string       // "INNER", "LEFT", "SEMI", "ANTI"
+	Correlated bool         // 是否为关联
+	JoinConds  []Expression // 关联条件
+}
+
 func (p *LogicalTableScan) String() string {
 	return fmt.Sprintf("TableScan(%s)", p.Table.Name)
 }
@@ -119,6 +136,14 @@ func (p *LogicalJoin) String() string {
 
 func (p *LogicalAggregation) String() string {
 	return "Aggregation"
+}
+
+func (p *LogicalSubquery) String() string {
+	return fmt.Sprintf("Subquery(%s, correlated=%v)", p.SubqueryType, p.Correlated)
+}
+
+func (p *LogicalApply) String() string {
+	return fmt.Sprintf("Apply(%s, correlated=%v)", p.ApplyType, p.Correlated)
 }
 
 // BuildLogicalPlan 构建逻辑计划
