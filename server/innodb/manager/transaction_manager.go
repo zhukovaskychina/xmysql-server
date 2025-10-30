@@ -195,14 +195,37 @@ func (tm *TransactionManager) GetTransaction(trxID int64) *Transaction {
 
 // IsVisible 判断数据版本是否对事务可见
 func (tm *TransactionManager) IsVisible(trx *Transaction, version int64) bool {
+	// 读未提交：总是可见
 	if trx.IsolationLevel == TRX_ISO_READ_UNCOMMITTED {
 		return true
 	}
 
+	// 读已提交：每次可见性判断时创建新的ReadView（语句级快照）
+	if trx.IsolationLevel == TRX_ISO_READ_COMMITTED {
+		// 使用读锁快照当前活跃事务，避免与Begin时的写锁冲突
+		tm.mu.RLock()
+		activeIDs := make([]int64, 0, len(tm.activeTransactions))
+		minTrxID := int64(^uint64(0) >> 1)
+		for id, t := range tm.activeTransactions {
+			if t.State == TRX_STATE_ACTIVE && id != trx.ID {
+				activeIDs = append(activeIDs, id)
+				if id < minTrxID {
+					minTrxID = id
+				}
+			}
+		}
+		maxTrxID := tm.nextTrxID
+		tm.mu.RUnlock()
+
+		// 临时ReadView用于本次判断
+		rv := mvcc.NewReadView(activeIDs, minTrxID, maxTrxID, trx.ID)
+		return rv.IsVisible(version)
+	}
+
+	// 可重复读/串行化：使用事务开始时创建的ReadView
 	if trx.ReadView == nil {
 		return true
 	}
-
 	return trx.ReadView.IsVisible(version)
 }
 

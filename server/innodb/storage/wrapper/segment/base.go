@@ -163,8 +163,18 @@ func (bs *BaseSegment) AllocateExtent() (basic.Extent, error) {
 	bs.mu.Lock()
 	defer bs.mu.Unlock()
 
-	// 创建新区
-	ext := extent3.NewBaseExtent(bs.header.SpaceID, bs.header.ExtentCount, basic.ExtentType(bs.header.SegmentType))
+	// 创建新区 - 使用 UnifiedExtent
+	// NewUnifiedExtent(id, spaceID, startPage, extType, purpose)
+	extentID := bs.header.ExtentCount
+	startPage := extentID * 64 // 每个区64页
+	ext := extent3.NewUnifiedExtent(
+		extentID,
+		bs.header.SpaceID,
+		startPage,
+		basic.ExtentType(bs.header.SegmentType),
+		basic.ExtentPurposeData, // 默认用途为数据
+	)
+	ext.SetSegmentID(bs.header.SegmentID)
 
 	// 添加到区列表
 	if err := bs.extents.Add(ext); err != nil {

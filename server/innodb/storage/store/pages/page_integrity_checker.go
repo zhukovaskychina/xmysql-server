@@ -2,6 +2,7 @@ package pages
 
 import (
 	"errors"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"hash/crc32"
 )
 
@@ -132,13 +133,24 @@ func (pic *PageIntegrityChecker) validatePageHeader(page []byte) error {
 
 // isValidPageType 检查页面类型是否有效
 func (pic *PageIntegrityChecker) isValidPageType(pageType int16) bool {
-	validTypes := []int16{0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 17, 18, 19}
-	for _, validType := range validTypes {
-		if pageType == validType {
-			return true
-		}
+	valid := map[int16]bool{
+		int16(common.FIL_PAGE_INDEX):                         true,
+		int16(common.FIL_PAGE_UNDO_LOG):                      true,
+		int16(common.FIL_PAGE_INODE):                         true,
+		int16(common.FIL_PAGE_IBUF_FREE_LIST):                true,
+		int16(common.FIL_PAGE_IBUF_BITMAP):                   true,
+		int16(common.FIL_PAGE_TYPE_SYS):                      true,
+		int16(common.FIL_PAGE_TYPE_TRX_SYS):                  true,
+		int16(common.FIL_PAGE_TYPE_FSP_HDR):                  true,
+		int16(common.FIL_PAGE_TYPE_XDES):                     true,
+		int16(common.FIL_PAGE_TYPE_BLOB):                     true,
+		int16(common.FIL_PAGE_TYPE_COMPRESSED):               true,
+		int16(common.FIL_PAGE_TYPE_ENCRYPTED):                true,
+		int16(common.FIL_PAGE_TYPE_COMPRESSED_AND_ENCRYPTED): true,
+		int16(common.FIL_PAGE_TYPE_ENCRYPTED_RTREE):          true,
+		int16(common.FIL_PAGE_TYPE_ALLOCATED):                true,
 	}
-	return false
+	return valid[pageType]
 }
 
 // IsPageCorrupted 检查页面是否损坏

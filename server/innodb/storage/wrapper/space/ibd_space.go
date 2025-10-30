@@ -39,6 +39,7 @@ import (
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/ibd"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/extent"
 	"sync"
 )
 
@@ -56,10 +57,10 @@ type IBDSpace struct {
 	active   bool   // 活动状态
 
 	// Space management
-	nextExtent uint32                 // 下一个可用的区ID
-	nextPage   uint32                 // 下一个可用的页号
-	extents    map[uint32]*ExtentImpl // 区管理器
-	pageAllocs map[uint32]bool        // 页面分配表
+	nextExtent uint32                           // 下一个可用的区ID
+	nextPage   uint32                           // 下一个可用的页号
+	extents    map[uint32]*extent.UnifiedExtent // 区管理器 (使用 UnifiedExtent)
+	pageAllocs map[uint32]bool                  // 页面分配表
 
 	// Statistics
 	pageCount     uint32 // 已分配的页面数
@@ -119,7 +120,7 @@ func NewIBDSpace(ibdFile *ibd.IBD_File, isSystem bool) *IBDSpace {
 		active:     true,
 		nextExtent: 0,
 		nextPage:   0,
-		extents:    make(map[uint32]*ExtentImpl),
+		extents:    make(map[uint32]*extent.UnifiedExtent),
 		pageAllocs: make(map[uint32]bool),
 		// Statistics
 		pageCount:     0,
@@ -157,16 +158,23 @@ func (s *IBDSpace) AllocateExtent(purpose basic.ExtentPurpose) (basic.Extent, er
 	s.nextExtent++
 
 	// Create new extent starting at current next page
-	extent := NewExtent(extentID, s.id, s.nextPage, purpose)
+	// Use UnifiedExtent instead of old ExtentImpl
+	newExtent := extent.NewUnifiedExtent(
+		extentID,
+		s.id,
+		s.nextPage,
+		basic.ExtentTypeData, // Default to data extent
+		purpose,
+	)
 
 	// Update next page number (each extent has 64 pages)
 	s.nextPage += PagesPerExtent
 
 	// Save extent
-	s.extents[extentID] = extent
+	s.extents[extentID] = newExtent
 	s.extentCount++
 
-	return extent, nil
+	return newExtent, nil
 }
 
 // FreeExtent frees an extent
@@ -323,7 +331,7 @@ func (s *IBDSpace) DropTable() error {
 	s.active = false
 
 	// Clear all allocations and statistics
-	s.extents = make(map[uint32]*ExtentImpl)
+	s.extents = make(map[uint32]*extent.UnifiedExtent)
 	s.pageAllocs = make(map[uint32]bool)
 	s.pageCount = 0
 	s.extentCount = 0
@@ -346,7 +354,7 @@ func (s *IBDSpace) Close() error {
 	s.active = false
 
 	// Clear all allocations and statistics
-	s.extents = make(map[uint32]*ExtentImpl)
+	s.extents = make(map[uint32]*extent.UnifiedExtent)
 	s.pageAllocs = make(map[uint32]bool)
 	s.pageCount = 0
 	s.extentCount = 0

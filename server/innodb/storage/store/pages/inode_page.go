@@ -1,7 +1,6 @@
 package pages
 
 import (
-	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/util"
 )
@@ -143,7 +142,6 @@ func (ibuf *INodePage) SerializeBytes() []byte {
 	}
 	buff = append(buff, ibuf.EmptySpace...)
 	buff = append(buff, ibuf.FileTrailer.FileTrailer[:]...)
-	fmt.Println(len(buff))
 	return buff
 }
 
@@ -152,8 +150,8 @@ func NewINodeByParseBytes(content []byte) *INodePage {
 	inodePage.FileHeader = NewFileHeader()
 	inodePage.FileTrailer = NewFileTrailer()
 
-	inodePage.LoadFileHeader(content[0:38])
-	inodePage.LoadFileTrailer(content[16384-8 : 16384])
+	inodePage.LoadFileHeader(content[0:common.FileHeaderSize])
+	inodePage.LoadFileTrailer(content[common.PageSize-common.FileTrailerSize : common.PageSize])
 
 	//PreNodePageNumber  []byte //4个字节	表示指向前一个INode页面号
 	//PreNodeOffset      []byte //2个字节 65536-1
@@ -164,7 +162,7 @@ func NewINodeByParseBytes(content []byte) *INodePage {
 	inodePage.INodePageList.NextNodePageNumber = content[44:48]
 	inodePage.INodePageList.NextNodeOffSet = content[48:50]
 
-	inodePage.EmptySpace = content[16384-8-6 : 16384-8]
+	inodePage.EmptySpace = content[common.PageSize-common.FileTrailerSize-6 : common.PageSize-common.FileTrailerSize]
 
 	inodePage.INodeEntries = make([]*INodeEntry, 85)
 

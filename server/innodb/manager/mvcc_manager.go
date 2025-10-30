@@ -82,8 +82,19 @@ func (m *MVCCManager) BeginTransaction() (uint64, error) {
 	m.nextTxID++
 	txID := m.nextTxID
 
-	// 创建ReadView
-	view, _ := m.mvcc.CreateView()
+	// 基于当前活跃事务创建 ReadView（与 TransactionManager 对齐）
+	activeIDs := make([]int64, 0, len(m.activeTxs))
+	minTrxID := int64(^uint64(0) >> 1)
+	for id, tx := range m.activeTxs {
+		if tx.State == TxStateActive && uint64(id) != txID {
+			activeIDs = append(activeIDs, int64(id))
+			if int64(id) < minTrxID {
+				minTrxID = int64(id)
+			}
+		}
+	}
+	maxTrxID := int64(m.nextTxID)
+	view := mvcc2.NewReadView(activeIDs, minTrxID, maxTrxID, int64(txID))
 
 	// 记录事务信息
 	m.activeTxs[txID] = &TransactionInfo{
@@ -155,15 +166,15 @@ func (m *MVCCManager) GetTransactionReadView(txID uint64) (*mvcc2.ReadView, erro
 
 // IsVisible 判断某个版本是否对事务可见
 func (m *MVCCManager) IsVisible(txID uint64, version uint64) (bool, error) {
-	_, err := m.GetTransactionReadView(txID)
+	rv, err := m.GetTransactionReadView(txID)
 	if err != nil {
 		return false, err
 	}
-
-	// 使用ReadView判断可见性
-	// TODO: 实现ReadView的可见性判断逻辑
-
-	return true, nil
+	if rv == nil {
+		// 没有ReadView则默认为可见（例如RU或管理器尚未初始化）
+		return true, nil
+	}
+	return rv.IsVisible(int64(version)), nil
 }
 
 // CleanupExpiredTransactions 清理过期事务

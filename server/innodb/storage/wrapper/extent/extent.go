@@ -17,6 +17,21 @@ var (
 )
 
 // BaseExtent 基础区实现
+//
+// Deprecated: BaseExtent is deprecated and will be removed in a future version.
+// Use UnifiedExtent instead, which provides:
+//   - Hybrid bitmap/map page tracking for better performance
+//   - Full serialization support via ExtentEntry
+//   - Complete basic.Extent interface implementation
+//   - Better concurrency control and statistics
+//
+// Migration example:
+//
+//	// Old code:
+//	ext := NewBaseExtent(spaceID, extentID, extType)
+//
+//	// New code:
+//	ext := NewUnifiedExtent(extentID, spaceID, startPage, extType, purpose)
 type BaseExtent struct {
 	basic.Extent
 	mu       sync.RWMutex
@@ -27,6 +42,9 @@ type BaseExtent struct {
 }
 
 // NewBaseExtent 创建基础区
+//
+// Deprecated: Use NewUnifiedExtent instead.
+// NewUnifiedExtent provides better performance and more features.
 func NewBaseExtent(spaceID, extentID uint32, extType basic.ExtentType) *BaseExtent {
 	be := &BaseExtent{
 		pages: make(map[uint32]bool),

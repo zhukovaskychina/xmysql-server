@@ -58,13 +58,34 @@ func (dd *DeadlockDetector) RemoveTransaction(txnID uint64) {
 	}
 }
 
-// WouldCauseCycle 检查添加新的等待关系是否会导致死锁
-func (dd *DeadlockDetector) WouldCauseCycle(waiter uint64, resourceID string) bool {
+// WouldCauseCycle 检查添加 waiter->holder 的等待关系是否会导致死锁
+// 思路：如果当前图中存在从 holder 到 waiter 的路径，则新增边 waiter->holder 将形成环
+func (dd *DeadlockDetector) WouldCauseCycle(waiter, holder uint64) bool {
 	dd.mu.RLock()
 	defer dd.mu.RUnlock()
 
+	if holder == 0 {
+		return false
+	}
 	visited := make(map[uint64]bool)
-	return dd.dfs(waiter, visited)
+	return dd.hasPath(holder, waiter, visited)
+}
+
+// hasPath 判断从 from 是否可以到达 to
+func (dd *DeadlockDetector) hasPath(from, to uint64, visited map[uint64]bool) bool {
+	if from == to {
+		return true
+	}
+	if visited[from] {
+		return false
+	}
+	visited[from] = true
+	for next := range dd.waitForGraph[from] {
+		if dd.hasPath(next, to, visited) {
+			return true
+		}
+	}
+	return false
 }
 
 // dfs 深度优先搜索检测环

@@ -1,21 +1,22 @@
 package pages
 
 import (
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewAllocatedPage(t *testing.T) {
+	spaceID := uint32(2)
 	pageNo := uint32(1)
-	spaceId := uint32(2)
-	page := NewAllocatedPage(pageNo, spaceId)
+	page := NewAllocatedPage(spaceID, pageNo)
 
 	assert.NotNil(t, page)
 	assert.False(t, page.IsInitialized())
-	assert.Equal(t, pageNo, page.FileHeader.GetCurrentPageOffset())
-	assert.Equal(t, spaceId, page.FileHeader.GetFilePageArch())
-	assert.Equal(t, int16(FIL_PAGE_TYPE_ALLOCATED), page.FileHeader.GetPageType())
+	assert.Equal(t, spaceID, page.GetSpaceID())
+	assert.Equal(t, pageNo, page.GetPageNo())
+	assert.Equal(t, common.FIL_PAGE_TYPE_ALLOCATED, page.GetPageType())
 }
 
 func TestAllocatedPage_Initialize(t *testing.T) {
@@ -34,7 +35,8 @@ func TestAllocatedPage_Initialize(t *testing.T) {
 
 	// Second initialization should fail
 	err = page.Initialize()
-	assert.Equal(t, ErrPageAlreadyInited, err)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "already initialized")
 }
 
 func TestAllocatedPage_LoadPageBody(t *testing.T) {
@@ -42,10 +44,11 @@ func TestAllocatedPage_LoadPageBody(t *testing.T) {
 
 	// Test with invalid size
 	err := page.LoadPageBody(make([]byte, 100))
-	assert.Equal(t, ErrInvalidPageSize, err)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid page data size")
 
 	// Test with correct size
-	content := make([]byte, 16384)
+	content := make([]byte, common.PageSize)
 	for i := range content {
 		content[i] = byte(i % 256)
 	}
@@ -62,8 +65,7 @@ func TestAllocatedPage_GetSerializeBytes(t *testing.T) {
 	page.Initialize()
 
 	bytes := page.GetSerializeBytes()
-	expectedSize := 38 + 16384 + 8 // FileHeader + PageBody + FileTrailer
-	assert.Equal(t, expectedSize, len(bytes))
+	assert.Equal(t, common.PageSize, len(bytes))
 }
 
 func TestAllocatedPage_ValidatePageContent(t *testing.T) {
@@ -73,19 +75,18 @@ func TestAllocatedPage_ValidatePageContent(t *testing.T) {
 	err := page.ValidatePageContent()
 	assert.NoError(t, err)
 
-	// Change page type to invalid value
-	page.FileHeader.WritePageFileType(999)
+	// Test with invalid page size
+	page.data = make([]byte, 100)
 	err = page.ValidatePageContent()
-	assert.Equal(t, ErrInvalidPageContent, err)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid page size")
 }
 
 func TestAllocatedPage_SetChecksum(t *testing.T) {
 	page := NewAllocatedPage(1, 1)
-	page.SetChecksum()
 
 	// For now, just verify that checksum can be set without error
 	// TODO: Add proper checksum verification once implemented
-	checksum := make([]byte, 4)
 	assert.NotPanics(t, func() {
 		page.SetChecksum()
 	})

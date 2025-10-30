@@ -82,8 +82,14 @@ func (s *DefaultPageSerializer) Deserialize(data []byte) (IPage, error) {
 		return s.deserializeFSPPage(data)
 	case int16(common.FIL_PAGE_INODE):
 		return s.deserializeInodePage(data)
+	case int16(common.FIL_PAGE_TYPE_SYS):
+		return s.deserializeSystemPage(data)
 	case int16(common.FIL_PAGE_TYPE_BLOB):
-		return s.deserializeBlobPage(data)
+		return s.deserializeBlobConcrete(data)
+	case int16(common.FIL_PAGE_TYPE_COMPRESSED):
+		return s.deserializeCompressedPage(data)
+	case int16(common.FIL_PAGE_TYPE_ENCRYPTED):
+		return s.deserializeEncryptedPage(data)
 	default:
 		// 对于未知类型，创建基础页面
 		return s.deserializeBasePage(data)
@@ -119,23 +125,127 @@ func (s *DefaultPageSerializer) deserializeIndexPage(data []byte) (IPage, error)
 	return page, nil
 }
 
-// deserializeFSPPage 反序列化文件空间头页面
+// deserializeFSPPage 反序列化文件空间头页面（返回具体类型 FspHrdBinaryPage）
 func (s *DefaultPageSerializer) deserializeFSPPage(data []byte) (IPage, error) {
-	page := &AbstractPage{}
-	page.LoadFileHeader(data[:FileHeaderSize])
-	page.LoadFileTrailer(data[len(data)-8:])
-	return page, nil
+	if len(data) != int(common.PageSize) {
+		return nil, errors.New("invalid FSP_HDR page size")
+	}
+
+	const xdesEntrySize = 40
+	const xdesEntryCount = 256
+	const fspHdrStructSize = 4 + 4 + 4 + 4 + 4 + 4 + 16 + 16 + 16 + 8 + 16 + 16 // 112 bytes
+
+	hdrOff := int(common.FileHeaderSize)
+	trailerLen := int(common.FileTrailerSize)
+
+	fsp := &FspHrdBinaryPage{FileSpaceHeader: &FileSpaceHeader{}}
+	// 文件头
+	fsp.LoadFileHeader(data[:hdrOff])
+
+	// FileSpaceHeader
+	base := hdrOff
+	// 按字段切片
+	fsp.FileSpaceHeader.SpaceId = data[base : base+4]
+	base += 4
+	fsp.FileSpaceHeader.NotUsed = data[base : base+4]
+	base += 4
+	fsp.FileSpaceHeader.Size = data[base : base+4]
+	base += 4
+	fsp.FileSpaceHeader.FreeLimit = data[base : base+4]
+	base += 4
+	fsp.FileSpaceHeader.SpaceFlags = data[base : base+4]
+	base += 4
+	fsp.FileSpaceHeader.FragNUsed = data[base : base+4]
+	base += 4
+	fsp.FileSpaceHeader.BaseNodeForFreeList = data[base : base+16]
+	base += 16
+	fsp.FileSpaceHeader.BaseNodeForFragFreeList = data[base : base+16]
+	base += 16
+	fsp.FileSpaceHeader.BaseNodeForFullFragList = data[base : base+16]
+	base += 16
+	fsp.FileSpaceHeader.NextUnusedSegmentId = data[base : base+8]
+	base += 8
+	fsp.FileSpaceHeader.SegFullINodesList = data[base : base+16]
+	base += 16
+	fsp.FileSpaceHeader.SegFreeINodesList = data[base : base+16]
+	base += 16
+
+	// XDES entries
+	xdesTotal := xdesEntrySize * xdesEntryCount
+	startXdes := hdrOff + fspHdrStructSize
+	endXdes := startXdes + xdesTotal
+	if endXdes > len(data) {
+		return nil, errors.New("invalid XDES area")
+	}
+	entries := make([]XDESEntry, xdesEntryCount)
+	for i := 0; i < xdesEntryCount; i++ {
+		o := startXdes + i*xdesEntrySize
+		entries[i] = ParseXDesEntry(data[o : o+xdesEntrySize])
+	}
+	fsp.XDESEntrys = entries
+
+	// Empty space
+	emptyStart := endXdes
+	emptyEnd := len(data) - trailerLen
+	if emptyStart > emptyEnd {
+		return nil, errors.New("invalid empty space range")
+	}
+	fsp.EmptySpace = data[emptyStart:emptyEnd]
+
+	// 文件尾
+	fsp.LoadFileTrailer(data[len(data)-trailerLen:])
+
+	return fsp, nil
 }
 
-// deserializeInodePage 反序列化inode页面
+// deserializeInodePage 反序列化inode页面（返回具体类型 INodePage）
 func (s *DefaultPageSerializer) deserializeInodePage(data []byte) (IPage, error) {
-	page := &AbstractPage{}
-	page.LoadFileHeader(data[:FileHeaderSize])
-	page.LoadFileTrailer(data[len(data)-8:])
-	return page, nil
+	if len(data) != int(common.PageSize) {
+		return nil, errors.New("invalid INODE page size")
+	}
+	return NewINodeByParseBytes(data), nil
 }
 
 // deserializeBlobPage 反序列化BLOB页面
+
+// deserializeSystemPage 反序列化系统页面
+func (s *DefaultPageSerializer) deserializeSystemPage(data []byte) (IPage, error) {
+	sp := &SystemPage{}
+	// 确保内部缓冲分配
+	sp.SystemData = make([]byte, SystemDataSize)
+	if err := sp.Deserialize(data); err != nil {
+		return nil, err
+	}
+	return sp, nil
+}
+
+// deserializeBlobConcrete 反序列化BLOB页面（具体类型）
+func (s *DefaultPageSerializer) deserializeBlobConcrete(data []byte) (IPage, error) {
+	bp := &BlobPage{Data: make([]byte, BlobDataSize)}
+	if err := bp.Deserialize(data); err != nil {
+		return nil, err
+	}
+	return bp, nil
+}
+
+// deserializeCompressedPage 反序列化压缩页面
+func (s *DefaultPageSerializer) deserializeCompressedPage(data []byte) (IPage, error) {
+	cp := &CompressedPage{}
+	if err := cp.Deserialize(data); err != nil {
+		return nil, err
+	}
+	return cp, nil
+}
+
+// deserializeEncryptedPage 反序列化加密页面
+func (s *DefaultPageSerializer) deserializeEncryptedPage(data []byte) (IPage, error) {
+	ep := &EncryptedPage{EncryptedData: make([]byte, MaxEncryptedDataSize)}
+	if err := ep.Deserialize(data); err != nil {
+		return nil, err
+	}
+	return ep, nil
+}
+
 func (s *DefaultPageSerializer) deserializeBlobPage(data []byte) (IPage, error) {
 	page := &AbstractPage{}
 	page.LoadFileHeader(data[:FileHeaderSize])

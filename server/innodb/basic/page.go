@@ -1,5 +1,8 @@
 package basic
 
+// IPageWrapper 空接口，用于类型标记
+// 实际的页面包装器接口定义在 server/innodb/storage/wrapper/types.IPageWrapper
+// 保持此接口为空以避免循环依赖
 type IPageWrapper interface{}
 
 // IIndexPage defines the interface for index pages

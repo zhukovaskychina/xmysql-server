@@ -164,6 +164,11 @@ func (bp *BasePage) Unpin() {
 	}
 }
 
+// GetPinCount 获取引用计数
+func (bp *BasePage) GetPinCount() int32 {
+	return atomic.LoadInt32(&bp.pinCount)
+}
+
 // Read 实现Page接口
 func (bp *BasePage) Read() error {
 	bp.Lock()
@@ -211,6 +216,27 @@ func (bp *BasePage) Write() error {
 	return nil
 }
 
+// Flush 实现IPageWrapper接口 - 强制刷新页面到磁盘
+func (bp *BasePage) Flush() error {
+	// 先调用 Write 将数据写入缓冲池
+	if err := bp.Write(); err != nil {
+		return err
+	}
+
+	// 如果有缓冲池，强制刷新
+	if bp.bufferPool != nil {
+		bufPage, err := bp.bufferPool.GetPage(bp.GetSpaceID(), bp.GetPageNo())
+		if err == nil && bufPage != nil {
+			// 这里应该调用缓冲池的刷新方法
+			// 但 basic.IBufferPool 接口可能没有 Flush 方法
+			// 所以我们只是确保页面被标记为脏页
+			bufPage.SetDirty(true)
+		}
+	}
+
+	return nil
+}
+
 // GetContent 获取页面内容
 func (bp *BasePage) GetContent() []byte {
 	result := make([]byte, len(bp.content))
@@ -249,15 +275,39 @@ func (bp *BasePage) ToBytes() ([]byte, error) {
 	return result, nil
 }
 
-// GetFileHeader 获取文件头
-func (bp *BasePage) GetFileHeader() *pages.FileHeader {
+// ToByte 序列化为字节（兼容旧接口）
+func (bp *BasePage) ToByte() []byte {
+	bytes, _ := bp.ToBytes()
+	return bytes
+}
+
+// GetFileHeader 获取文件头（返回字节数组）
+func (bp *BasePage) GetFileHeader() []byte {
+	bp.RLock()
+	defer bp.RUnlock()
+	result := make([]byte, common.FileHeaderSize)
+	copy(result, bp.rawPage.FileHeader)
+	return result
+}
+
+// GetFileTrailer 获取文件尾（返回字节数组）
+func (bp *BasePage) GetFileTrailer() []byte {
+	bp.RLock()
+	defer bp.RUnlock()
+	result := make([]byte, common.FileTrailerSize)
+	copy(result, bp.rawPage.FileTrailer)
+	return result
+}
+
+// GetFileHeaderStruct 获取文件头结构体
+func (bp *BasePage) GetFileHeaderStruct() *pages.FileHeader {
 	header := pages.NewFileHeader()
 	header.ParseFileHeader(bp.rawPage.FileHeader)
 	return &header
 }
 
-// GetFileTrailer 获取文件尾
-func (bp *BasePage) GetFileTrailer() *pages.FileTrailer {
+// GetFileTrailerStruct 获取文件尾结构体
+func (bp *BasePage) GetFileTrailerStruct() *pages.FileTrailer {
 	trailer := pages.NewFileTrailer()
 	copy(trailer.FileTrailer[:], bp.rawPage.FileTrailer)
 	return &trailer

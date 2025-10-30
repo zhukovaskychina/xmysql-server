@@ -11,6 +11,12 @@ type SegmentManager interface {
 	// DropSegment drops a segment
 	DropSegment(spaceID uint32, segmentID uint32) error
 
+	// AllocatePage allocates a single page in a segment
+	AllocatePage(segmentID uint32) (uint32, error)
+
+	// FreePage frees a single page in a segment
+	FreePage(segmentID uint32, pageNo uint32) error
+
 	// AllocatePages allocates pages in a segment
 	AllocatePages(spaceID uint32, segmentID uint32, numPages uint32) ([]uint32, error)
 

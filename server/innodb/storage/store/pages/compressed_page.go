@@ -326,10 +326,7 @@ func (cp *CompressedPage) Deserialize(data []byte) error {
 
 // serializeFileHeader 序列化文件头部
 func (cp *CompressedPage) serializeFileHeader() []byte {
-	// 实现文件头部序列化逻辑
-	data := make([]byte, FileHeaderSize)
-	// 这里应该包含具体的序列化逻辑
-	return data
+	return cp.FileHeader.GetSerialBytes()
 }
 
 // serializeCompressionHeader 序列化压缩头部
@@ -347,16 +344,12 @@ func (cp *CompressedPage) serializeCompressionHeader() []byte {
 
 // serializeFileTrailer 序列化文件尾部
 func (cp *CompressedPage) serializeFileTrailer() []byte {
-	// 实现文件尾部序列化逻辑
-	data := make([]byte, FileTrailerSize)
-	// 这里应该包含具体的序列化逻辑
-	return data
+	return cp.FileTrailer.FileTrailer[:]
 }
 
 // deserializeFileHeader 反序列化文件头部
 func (cp *CompressedPage) deserializeFileHeader(data []byte) error {
-	// 实现文件头部反序列化逻辑
-	return nil
+	return cp.FileHeader.ParseFileHeader(data)
 }
 
 // deserializeCompressionHeader 反序列化压缩头部
@@ -376,7 +369,7 @@ func (cp *CompressedPage) deserializeCompressionHeader(data []byte) error {
 
 // deserializeFileTrailer 反序列化文件尾部
 func (cp *CompressedPage) deserializeFileTrailer(data []byte) error {
-	// 实现文件尾部反序列化逻辑
+	copy(cp.FileTrailer.FileTrailer[:], data)
 	return nil
 }
 
@@ -427,4 +420,39 @@ func (cp *CompressedPage) LoadFileHeader(content []byte) {
 // LoadFileTrailer 加载文件尾部
 func (cp *CompressedPage) LoadFileTrailer(content []byte) {
 	cp.deserializeFileTrailer(content)
+}
+
+// GetPageType 获取页面类型
+func (cp *CompressedPage) GetPageType() uint16 {
+	return uint16(cp.FileHeader.GetPageType())
+}
+
+// ValidateChecksum 验证校验和
+func (cp *CompressedPage) ValidateChecksum() error {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := cp.GetSerializeBytes()
+	if data == nil {
+		return ErrPageCorrupted
+	}
+	return checker.ValidateChecksum(data)
+}
+
+// CalculateChecksum 计算校验和
+func (cp *CompressedPage) CalculateChecksum() uint32 {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := cp.GetSerializeBytes()
+	if data == nil {
+		return 0
+	}
+	return checker.CalculateChecksum(data)
+}
+
+// IsCorrupted 检查页面是否损坏
+func (cp *CompressedPage) IsCorrupted() bool {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := cp.GetSerializeBytes()
+	if data == nil {
+		return true
+	}
+	return checker.IsPageCorrupted(data)
 }

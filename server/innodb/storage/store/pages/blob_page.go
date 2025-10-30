@@ -201,10 +201,7 @@ func (bp *BlobPage) Deserialize(data []byte) error {
 
 // serializeFileHeader 序列化文件头部
 func (bp *BlobPage) serializeFileHeader() []byte {
-	// 实现文件头部序列化逻辑
-	data := make([]byte, FileHeaderSize)
-	// 这里应该包含具体的序列化逻辑
-	return data
+	return bp.FileHeader.GetSerialBytes()
 }
 
 // serializeBlobHeader 序列化BLOB头部
@@ -221,16 +218,12 @@ func (bp *BlobPage) serializeBlobHeader() []byte {
 
 // serializeFileTrailer 序列化文件尾部
 func (bp *BlobPage) serializeFileTrailer() []byte {
-	// 实现文件尾部序列化逻辑
-	data := make([]byte, FileTrailerSize)
-	// 这里应该包含具体的序列化逻辑
-	return data
+	return bp.FileTrailer.FileTrailer[:]
 }
 
 // deserializeFileHeader 反序列化文件头部
 func (bp *BlobPage) deserializeFileHeader(data []byte) error {
-	// 实现文件头部反序列化逻辑
-	return nil
+	return bp.FileHeader.ParseFileHeader(data)
 }
 
 // deserializeBlobHeader 反序列化BLOB头部
@@ -249,7 +242,7 @@ func (bp *BlobPage) deserializeBlobHeader(data []byte) error {
 
 // deserializeFileTrailer 反序列化文件尾部
 func (bp *BlobPage) deserializeFileTrailer(data []byte) error {
-	// 实现文件尾部反序列化逻辑
+	copy(bp.FileTrailer.FileTrailer[:], data)
 	return nil
 }
 
