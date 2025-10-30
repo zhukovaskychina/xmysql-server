@@ -2,9 +2,10 @@ package manager
 
 import (
 	"errors"
-	mvcc2 "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/mvcc"
 	"sync"
 	"time"
+
+	mvcc2 "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/mvcc"
 )
 
 var (
@@ -20,7 +21,7 @@ type MVCCManager struct {
 	mvcc *mvcc2.Mvcc
 
 	// 活跃事务
-	activeTxs map[uint64]*TransactionInfo
+	activeTxs map[uint64]*MVCCTransactionInfo
 
 	// 事务ID生成器
 	nextTxID uint64
@@ -41,8 +42,8 @@ type MVCCConfig struct {
 	SnapshotRetention time.Duration
 }
 
-// TransactionInfo 事务信息
-type TransactionInfo struct {
+// MVCCTransactionInfo MVCC事务信息（避免与crash_recovery.go中的TransactionInfo冲突）
+type MVCCTransactionInfo struct {
 	ID        uint64
 	StartTime time.Time
 	ReadView  *mvcc2.ReadView
@@ -63,7 +64,7 @@ const (
 func NewMVCCManager(config *MVCCConfig) *MVCCManager {
 	return &MVCCManager{
 		mvcc:      &mvcc2.Mvcc{},
-		activeTxs: make(map[uint64]*TransactionInfo),
+		activeTxs: make(map[uint64]*MVCCTransactionInfo),
 		config:    config,
 	}
 }
@@ -97,7 +98,7 @@ func (m *MVCCManager) BeginTransaction() (uint64, error) {
 	view := mvcc2.NewReadView(activeIDs, minTrxID, maxTrxID, int64(txID))
 
 	// 记录事务信息
-	m.activeTxs[txID] = &TransactionInfo{
+	m.activeTxs[txID] = &MVCCTransactionInfo{
 		ID:        txID,
 		StartTime: time.Now(),
 		ReadView:  view,

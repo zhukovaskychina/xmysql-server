@@ -1231,14 +1231,13 @@ func (se *SelectExecutor) GetRow() []interface{} {
 }
 
 func (se *SelectExecutor) Close() error {
-	se.closed = true
 	se.currentRowIndex = 0
 	se.resultSet = nil
 	return nil
 }
 
 // 实现Executor接口的方法
-func (se *SelectExecutor) Schema() *metadata.Schema {
+func (se *SelectExecutor) Schema() *metadata.Table {
 	return se.schema
 }
 

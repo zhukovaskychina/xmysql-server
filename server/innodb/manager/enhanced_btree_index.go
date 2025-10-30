@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/zhukovaskychina/xmysql-server/logger"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/logger"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
@@ -97,7 +98,7 @@ func (idx *EnhancedBTreeIndex) GetMetadata() *IndexMetadata {
 
 // Insert 插入记录
 func (idx *EnhancedBTreeIndex) Insert(ctx context.Context, key []byte, value []byte) error {
-	if !atomic.LoadUint32(&idx.isLoaded) == 1 {
+	if atomic.LoadUint32(&idx.isLoaded) == 0 {
 		return fmt.Errorf("index %d is not loaded", idx.metadata.IndexID)
 	}
 
@@ -126,7 +127,7 @@ func (idx *EnhancedBTreeIndex) Insert(ctx context.Context, key []byte, value []b
 
 // Delete 删除记录
 func (idx *EnhancedBTreeIndex) Delete(ctx context.Context, key []byte) error {
-	if !atomic.LoadUint32(&idx.isLoaded) == 1 {
+	if atomic.LoadUint32(&idx.isLoaded) == 0 {
 		return fmt.Errorf("index %d is not loaded", idx.metadata.IndexID)
 	}
 
@@ -163,7 +164,7 @@ func (idx *EnhancedBTreeIndex) Delete(ctx context.Context, key []byte) error {
 
 // Search 搜索记录
 func (idx *EnhancedBTreeIndex) Search(ctx context.Context, key []byte) (*IndexRecord, error) {
-	if !atomic.LoadUint32(&idx.isLoaded) == 1 {
+	if atomic.LoadUint32(&idx.isLoaded) == 0 {
 		return nil, fmt.Errorf("index %d is not loaded", idx.metadata.IndexID)
 	}
 
@@ -206,7 +207,7 @@ func (idx *EnhancedBTreeIndex) Search(ctx context.Context, key []byte) (*IndexRe
 
 // RangeSearch 范围搜索
 func (idx *EnhancedBTreeIndex) RangeSearch(ctx context.Context, startKey, endKey []byte) ([]IndexRecord, error) {
-	if !atomic.LoadUint32(&idx.isLoaded) == 1 {
+	if atomic.LoadUint32(&idx.isLoaded) == 0 {
 		return nil, fmt.Errorf("index %d is not loaded", idx.metadata.IndexID)
 	}
 
@@ -466,7 +467,7 @@ func (idx *EnhancedBTreeIndex) IsLoaded() bool {
 
 // GetRefCount 获取引用计数
 func (idx *EnhancedBTreeIndex) GetRefCount() int32 {
-	return idx.refCount.Load()
+	return atomic.LoadInt32(&idx.refCount)
 }
 
 // AddRef 增加引用计数

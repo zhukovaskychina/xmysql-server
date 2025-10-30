@@ -6,7 +6,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/extent"
 )
 
@@ -217,7 +216,7 @@ func (erm *ExtentReuseManager) ReclaimExtent(ext *extent.BaseExtent, spaceID uin
 	// 验证Extent是否完全空闲
 	if !erm.isExtentFullyFree(ext) {
 		atomic.AddUint64(&erm.stats.reclaimErrors, 1)
-		return fmt.Errorf("extent %d is not fully free", ext.ExtentID)
+		return fmt.Errorf("extent %d is not fully free", ext.GetID())
 	}
 
 	// 延迟回收
@@ -266,7 +265,7 @@ func (erm *ExtentReuseManager) doReclaim(ext *extent.BaseExtent, spaceID uint32,
 	reuseExt := &ReuseExtent{
 		Extent:       ext,
 		SpaceID:      spaceID,
-		ExtentNo:     ext.ExtentID,
+		ExtentNo:     ext.GetID(),
 		SegmentType:  segType,
 		ReclaimedAt:  time.Now(),
 		ReuseCount:   0,
@@ -275,8 +274,8 @@ func (erm *ExtentReuseManager) doReclaim(ext *extent.BaseExtent, spaceID uint32,
 
 	// 设置局部性信息
 	if erm.config.EnableLocality {
-		reuseExt.PrevExtentNo = ext.ExtentID - 1
-		reuseExt.NextExtentNo = ext.ExtentID + 1
+		reuseExt.PrevExtentNo = ext.GetID() - 1
+		reuseExt.NextExtentNo = ext.GetID() + 1
 	}
 
 	// 添加到对应的复用列表
@@ -464,7 +463,7 @@ func (erm *ExtentReuseManager) evictExtent(pool *ExtentReusePool, segType uint8)
 // isExtentFullyFree 检查Extent是否完全空闲
 func (erm *ExtentReuseManager) isExtentFullyFree(ext *extent.BaseExtent) bool {
 	// 简化实现，实际需要检查所有页面
-	return ext.UsedPages == 0
+	return ext.GetPageCount() == 0
 }
 
 // delayedReclaimWorker 延迟回收工作协程

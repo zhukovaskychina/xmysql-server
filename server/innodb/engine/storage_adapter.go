@@ -45,22 +45,16 @@ func (sa *StorageAdapter) GetTableMetadata(ctx context.Context, schemaName, tabl
 		return nil, fmt.Errorf("failed to get table metadata: %w", err)
 	}
 
-	// 2. 获取表的表空间ID
-	spaceID, err := sa.tableStorageManager.GetTableSpaceID(schemaName, tableName)
+	// 2. 获取表的存储信息 (包含表空间ID和段信息)
+	storageInfo, err := sa.tableStorageManager.GetTableStorageInfo(schemaName, tableName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get table space ID: %w", err)
-	}
-
-	// 3. 获取表的数据段根页号
-	segmentInfo, exists := sa.tableStorageManager.GetTableSegment(schemaName, tableName)
-	if !exists {
-		return nil, fmt.Errorf("table segment not found for %s.%s", schemaName, tableName)
+		return nil, fmt.Errorf("failed to get table storage info: %w", err)
 	}
 
 	return &TableScanMetadata{
 		Schema:      table,
-		SpaceID:     spaceID,
-		RootPageNo:  segmentInfo.RootPageNo,
+		SpaceID:     storageInfo.SpaceID,
+		RootPageNo:  storageInfo.RootPageNo,
 		FirstPageNo: 3, // InnoDB默认从第3页开始存储数据
 	}, nil
 }
@@ -76,25 +70,25 @@ func (sa *StorageAdapter) ReadPage(ctx context.Context, spaceID, pageNo uint32) 
 
 // ParseRecords 解析页面中的记录
 // 根据InnoDB页面格式解析记录，返回Record列表
-func (sa *StorageAdapter) ParseRecords(ctx context.Context, page *buffer_pool.BufferPage, schema *metadata.Schema) ([]Record, error) {
+func (sa *StorageAdapter) ParseRecords(ctx context.Context, page *buffer_pool.BufferPage, schema *metadata.Table) ([]Record, error) {
 	content := page.GetContent()
-	if len(content) < common.PAGE_HEADER_SIZE {
+	if len(content) < common.PageHeaderSize {
 		return nil, fmt.Errorf("invalid page content size: %d", len(content))
 	}
 
 	// 解析页面头部信息
-	pageType := binary.LittleEndian.Uint16(content[24:26])
+	pageType := common.PageType(binary.LittleEndian.Uint16(content[24:26]))
 	recordCount := binary.LittleEndian.Uint16(content[40:42])
 
 	// 只处理索引页（数据页）
-	if pageType != common.PAGE_TYPE_INDEX {
+	if pageType != common.FIL_PAGE_INDEX {
 		logger.Debugf("Skip non-index page, type: %d", pageType)
 		return []Record{}, nil
 	}
 
 	// 解析记录
 	records := make([]Record, 0, recordCount)
-	offset := common.PAGE_HEADER_SIZE
+	offset := common.PageHeaderSize
 
 	for i := uint16(0); i < recordCount && offset < len(content)-8; i++ {
 		// 检查是否到达页面结尾
@@ -116,13 +110,13 @@ func (sa *StorageAdapter) ParseRecords(ctx context.Context, page *buffer_pool.Bu
 				break
 			}
 
-			value, bytesRead := sa.parseColumnValue(content[offset:], col.Type)
+			value, bytesRead := sa.parseColumnValue(content[offset:], string(col.DataType))
 			values[colIdx] = value
 			offset += bytesRead
 		}
 
 		// 创建记录
-		record := NewExecutorRecordFromValues(values, schema)
+		record := NewExecutorRecordFromValues(values, nil) // TODO: Fix schema parameter
 		records = append(records, record)
 	}
 
@@ -134,10 +128,10 @@ func (sa *StorageAdapter) parseColumnValue(data []byte, colType string) (basic.V
 	switch colType {
 	case "INT", "INTEGER", "BIGINT":
 		if len(data) < 8 {
-			return basic.NewInt64(0), 0
+			return basic.NewInt64Value(0), 0
 		}
 		val := int64(binary.LittleEndian.Uint64(data[:8]))
-		return basic.NewInt64(val), 8
+		return basic.NewInt64Value(val), 8
 
 	case "VARCHAR", "CHAR", "TEXT":
 		// 变长字段：前2字节为长度
@@ -186,7 +180,7 @@ type TablePageIterator struct {
 	ctx         context.Context
 	spaceID     uint32
 	currentPage uint32
-	schema      *metadata.Schema
+	schema      *metadata.Table
 	records     []Record
 	recordIndex int
 }

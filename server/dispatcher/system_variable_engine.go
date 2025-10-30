@@ -872,15 +872,13 @@ func (e *SystemVariableEngine) executeWithVolcanoModel(operator engine.Operator)
 	var rows [][]interface{}
 	var columns []string
 
+	// TODO: Fix - schema type issue, for now just use default columns
 	// 获取schema信息作为列名
 	schema := operator.Schema()
 	if schema != nil {
-		if tables := schema.GetTables(); len(tables) > 0 && len(tables[0].Columns) > 0 {
-			columns = make([]string, len(tables[0].Columns))
-			for i, col := range tables[0].Columns {
-				columns[i] = col.Name
-			}
-		}
+		// Schema is interface, cannot directly access methods on pointer to interface
+		// For now, set default columns
+		columns = []string{"Variable_name", "Value"}
 	}
 
 	// 如果从schema获取不到列信息，尝试从执行器获取
@@ -935,17 +933,16 @@ func convertValueToInterface(value basic.Value) interface{} {
 	if value.IsNull() {
 		return nil
 	}
-	switch value.GetType() {
-	case basic.TypeInt64:
-		return value.ToInt64()
-	case basic.TypeFloat64:
-		return value.ToFloat64()
-	case basic.TypeString:
-		return value.ToString()
-	case basic.TypeBool:
-		return value.ToBool()
+	// Use Type() method and ValueType constants
+	switch value.Type() {
+	case basic.ValueTypeBigInt, basic.ValueTypeInt, basic.ValueTypeMediumInt, basic.ValueTypeSmallInt, basic.ValueTypeTinyInt:
+		return value.Int()
+	case basic.ValueTypeFloat, basic.ValueTypeDouble:
+		return value.Float64()
+	case basic.ValueTypeChar, basic.ValueTypeVarchar, basic.ValueTypeText:
+		return value.String()
 	default:
-		return value.ToString()
+		return value.String()
 	}
 }
 
@@ -1012,13 +1009,13 @@ type SystemVariableScanOperator struct {
 
 // NewSystemVariableScanOperator 创建系统变量扫描算子
 func NewSystemVariableScanOperator(sysVarManager *manager.SystemVariablesManager, sessionID string, varQuery *manager.SystemVariableQuery) *SystemVariableScanOperator {
-	schemaImpl := NewSystemVariableSchema(varQuery)
+	_ = NewSystemVariableSchema(varQuery) // schemaImpl - TODO: fix schema type issue
 	return &SystemVariableScanOperator{
 		sysVarManager: sysVarManager,
 		sessionID:     sessionID,
 		varQuery:      varQuery,
 		finished:      false,
-		schema:        schemaImpl,
+		schema:        nil, // TODO: Fix - cannot assign *SystemVariableSchema to *metadata.Schema
 	}
 }
 
@@ -1076,12 +1073,12 @@ type SystemVariableProjectionOperator struct {
 
 // NewSystemVariableProjectionOperator 创建系统变量投影算子
 func NewSystemVariableProjectionOperator(child engine.Operator, columns []string, varQuery *manager.SystemVariableQuery) *SystemVariableProjectionOperator {
-	schemaImpl := NewSystemVariableSchema(varQuery)
+	_ = NewSystemVariableSchema(varQuery) // schemaImpl - TODO: fix schema type issue
 	return &SystemVariableProjectionOperator{
 		child:    child,
 		columns:  columns,
 		varQuery: varQuery,
-		schema:   schemaImpl,
+		schema:   nil, // TODO: Fix - cannot assign *SystemVariableSchema to *metadata.Schema
 	}
 }
 
@@ -1125,15 +1122,15 @@ func convertInterfaceToValue(val interface{}) basic.Value {
 	case string:
 		return basic.NewString(v)
 	case int:
-		return basic.NewInt64(int64(v))
+		return basic.NewInt64Value(int64(v))
 	case int32:
-		return basic.NewInt64(int64(v))
+		return basic.NewInt64Value(int64(v))
 	case int64:
-		return basic.NewInt64(v)
+		return basic.NewInt64Value(v)
 	case float32:
-		return basic.NewFloat64(float64(v))
+		return basic.NewFloatValue(float64(v))
 	case float64:
-		return basic.NewFloat64(v)
+		return basic.NewFloatValue(v)
 	case bool:
 		return basic.NewBool(v)
 	default:

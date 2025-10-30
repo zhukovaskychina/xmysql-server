@@ -103,9 +103,11 @@ func (ue *UnifiedExecutor) ExecuteSelect(ctx context.Context, stmt *sqlparser.Se
 
 	// 5. 构造结果
 	return &SelectResult{
-		Columns:  ue.getColumnNames(rootOperator.Schema()),
-		Rows:     rows,
-		RowCount: int64(len(rows)),
+		Records:    []Record{}, // TODO: should be records from rootOperator
+		RowCount:   len(rows),
+		Columns:    []string{}, // TODO: Fix - need to get columns from schema, but schema type issue
+		ResultType: "SELECT",
+		Message:    "Success",
 	}, nil
 }
 
@@ -138,13 +140,11 @@ func (ue *UnifiedExecutor) ExecuteInsert(ctx context.Context, stmt *sqlparser.In
 		return nil, fmt.Errorf("insert failed: %w", err)
 	}
 
-	affectedRows := int64(0)
+	affectedRows := int(0)
 	if record != nil {
 		values := record.GetValues()
 		if len(values) > 0 {
-			if val, ok := values[0].ToInt64(); ok {
-				affectedRows = val
-			}
+			affectedRows = int(values[0].Int())
 		}
 	}
 
@@ -189,13 +189,11 @@ func (ue *UnifiedExecutor) ExecuteUpdate(ctx context.Context, stmt *sqlparser.Up
 		return nil, fmt.Errorf("update failed: %w", err)
 	}
 
-	affectedRows := int64(0)
+	affectedRows := int(0)
 	if record != nil {
 		values := record.GetValues()
 		if len(values) > 0 {
-			if val, ok := values[0].ToInt64(); ok {
-				affectedRows = val
-			}
+			affectedRows = int(values[0].Int())
 		}
 	}
 
@@ -240,13 +238,11 @@ func (ue *UnifiedExecutor) ExecuteDelete(ctx context.Context, stmt *sqlparser.De
 		return nil, fmt.Errorf("delete failed: %w", err)
 	}
 
-	affectedRows := int64(0)
+	affectedRows := int(0)
 	if record != nil {
 		values := record.GetValues()
 		if len(values) > 0 {
-			if val, ok := values[0].ToInt64(); ok {
-				affectedRows = val
-			}
+			affectedRows = int(values[0].Int())
 		}
 	}
 
@@ -308,13 +304,13 @@ func (ue *UnifiedExecutor) recordToRow(record Record) []interface{} {
 	values := record.GetValues()
 	row := make([]interface{}, len(values))
 	for i, val := range values {
-		row[i] = val.ToInterface()
+		row[i] = val.Raw()
 	}
 	return row
 }
 
 // getColumnNames 获取列名
-func (ue *UnifiedExecutor) getColumnNames(schema *metadata.Schema) []string {
+func (ue *UnifiedExecutor) getColumnNames(schema *metadata.Table) []string {
 	if schema == nil || len(schema.Columns) == 0 {
 		return []string{}
 	}
@@ -326,15 +322,5 @@ func (ue *UnifiedExecutor) getColumnNames(schema *metadata.Schema) []string {
 	return names
 }
 
-// SelectResult SELECT查询结果
-type SelectResult struct {
-	Columns  []string
-	Rows     [][]interface{}
-	RowCount int64
-}
-
-// DMLResult DML操作结果
-type DMLResult struct {
-	AffectedRows int64
-	Message      string
-}
+// Note: SelectResult is defined in select_executor.go
+// Note: DMLResult is defined in dml_executor.go

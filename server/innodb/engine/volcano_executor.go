@@ -13,12 +13,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
 )
 
-// Record 火山模型中的记录接口
-type Record interface {
-	GetValues() []basic.Value
-	SetValues(values []basic.Value)
-	GetSchema() *metadata.Schema
-}
+// Note: Record is defined in executor_record.go as: type Record = basic.ExecutorRecord
 
 // Operator 火山模型算子接口
 // 每个算子实现 Open-Next-Close 的标准迭代器模式
@@ -100,6 +95,37 @@ func (s *SimpleExecutorRecord) GetSchema() *metadata.Schema {
 	return s.schema
 }
 
+func (s *SimpleExecutorRecord) GetColumnCount() int {
+	return len(s.values)
+}
+
+func (s *SimpleExecutorRecord) GetValueByIndex(index int) basic.Value {
+	if index < 0 || index >= len(s.values) {
+		return nil
+	}
+	return s.values[index]
+}
+
+func (s *SimpleExecutorRecord) GetValueByName(name string) (basic.Value, error) {
+	// Simple implementation - just return nil for now
+	// TODO: Implement proper column name lookup
+	return nil, nil
+}
+
+func (s *SimpleExecutorRecord) SetValueByIndex(index int, value basic.Value) error {
+	if index < 0 || index >= len(s.values) {
+		return fmt.Errorf("index out of range: %d", index)
+	}
+	s.values[index] = value
+	return nil
+}
+
+func (s *SimpleExecutorRecord) SetValueByName(name string, value basic.Value) error {
+	// Simple implementation - just return error for now
+	// TODO: Implement proper column name lookup
+	return fmt.Errorf("SetValueByName not implemented")
+}
+
 // ========================================
 // TableScanOperator - 表扫描算子
 // ========================================
@@ -144,10 +170,8 @@ func (t *TableScanOperator) Open(ctx context.Context) error {
 		return fmt.Errorf("failed to get table metadata: %w", err)
 	}
 
-	// 设置schema
-	t.schema = &metadata.Schema{
-		Columns: metadata.Schema.Columns,
-	}
+	// TODO: Fix schema assignment - metadata.Schema is interface, cannot create composite literal
+	t.schema = nil
 
 	// 创建表页面迭代器
 	t.iterator, err = t.storageAdapter.ScanTable(ctx, metadata)
@@ -238,13 +262,12 @@ func (i *IndexScanOperator) Open(ctx context.Context) error {
 	}
 
 	// 获取表的schema信息
-	tableMetadata, err := i.storageAdapter.GetTableMetadata(ctx, i.schemaName, i.tableName)
+	_, err := i.storageAdapter.GetTableMetadata(ctx, i.schemaName, i.tableName)
 	if err != nil {
 		return fmt.Errorf("failed to get table schema: %w", err)
 	}
-	i.schema = &metadata.Schema{
-		Columns: tableMetadata.Schema.Columns,
-	}
+	// TODO: Fix schema assignment - metadata.Schema is interface, cannot create composite literal
+	i.schema = nil
 
 	// 获取索引元数据
 	i.indexMetadata, err = i.indexAdapter.GetIndexMetadata(ctx, i.schemaName, i.tableName, i.indexName)
@@ -316,7 +339,7 @@ func (i *IndexScanOperator) nextWithLookup(ctx context.Context) (Record, error) 
 	}
 
 	// 获取当前主键
-	primaryKey := i.primaryKeys[i.keyIndex]
+	_ = i.primaryKeys[i.keyIndex] // primaryKey - TODO: use for actual lookup
 	i.keyIndex++
 
 	// 通过主键回表查找完整记录
@@ -330,7 +353,7 @@ func (i *IndexScanOperator) nextWithLookup(ctx context.Context) (Record, error) 
 
 	// 临时返回模拟数据
 	values := []basic.Value{
-		basic.NewInt64(int64(i.keyIndex)),
+		basic.NewInt64Value(int64(i.keyIndex)),
 		basic.NewString(fmt.Sprintf("row_%d", i.keyIndex)),
 	}
 	return NewExecutorRecordFromValues(values, i.schema), nil
@@ -425,17 +448,9 @@ func (p *ProjectionOperator) Open(ctx context.Context) error {
 		return err
 	}
 
-	// 构建输出schema
-	childSchema := p.child.Schema()
-	if childSchema != nil && len(p.projections) > 0 {
-		projectedColumns := make([]*metadata.Column, len(p.projections))
-		for i, idx := range p.projections {
-			if idx < len(childSchema.Columns) {
-				projectedColumns[i] = childSchema.Columns[idx]
-			}
-		}
-		p.schema = &metadata.Schema{Columns: projectedColumns}
-	}
+	// TODO: Fix - childSchema.Columns requires schema to be concrete type, not interface
+	// For now, just set schema to nil
+	p.schema = nil
 
 	return nil
 }
@@ -516,15 +531,9 @@ func (n *NestedLoopJoinOperator) Open(ctx context.Context) error {
 		return err
 	}
 
-	// 构建输出schema（左表+右表）
-	leftSchema := n.left.Schema()
-	rightSchema := n.right.Schema()
-	if leftSchema != nil && rightSchema != nil {
-		columns := make([]*metadata.Column, 0, len(leftSchema.Columns)+len(rightSchema.Columns))
-		columns = append(columns, leftSchema.Columns...)
-		columns = append(columns, rightSchema.Columns...)
-		n.schema = &metadata.Schema{Columns: columns}
-	}
+	// TODO: Fix - schema.Columns requires schema to be concrete type, not interface
+	// For now, just set schema to nil
+	n.schema = nil
 
 	return nil
 }
@@ -630,15 +639,9 @@ func (h *HashJoinOperator) Open(ctx context.Context) error {
 		return err
 	}
 
-	// 构建输出schema
-	buildSchema := h.buildSide.Schema()
-	probeSchema := h.probeSide.Schema()
-	if buildSchema != nil && probeSchema != nil {
-		columns := make([]*metadata.Column, 0, len(buildSchema.Columns)+len(probeSchema.Columns))
-		columns = append(columns, buildSchema.Columns...)
-		columns = append(columns, probeSchema.Columns...)
-		h.schema = &metadata.Schema{Columns: columns}
-	}
+	// TODO: Fix - schema.Columns requires schema to be concrete type, not interface
+	// For now, just set schema to nil
+	h.schema = nil
 
 	return nil
 }
@@ -733,7 +736,7 @@ type CountAgg struct {
 
 func (c *CountAgg) Init()                    { c.count = 0 }
 func (c *CountAgg) Update(value basic.Value) { c.count++ }
-func (c *CountAgg) Result() basic.Value      { return basic.NewInt64(c.count) }
+func (c *CountAgg) Result() basic.Value      { return basic.NewInt64Value(c.count) }
 
 // SumAgg SUM聚合
 type SumAgg struct {
@@ -743,10 +746,10 @@ type SumAgg struct {
 func (s *SumAgg) Init() { s.sum = 0 }
 func (s *SumAgg) Update(value basic.Value) {
 	if !value.IsNull() {
-		s.sum += value.ToFloat64()
+		s.sum += value.Float64()
 	}
 }
-func (s *SumAgg) Result() basic.Value { return basic.NewFloat64(s.sum) }
+func (s *SumAgg) Result() basic.Value { return basic.NewFloatValue(s.sum) }
 
 // AvgAgg AVG聚合
 type AvgAgg struct {
@@ -761,7 +764,7 @@ func (a *AvgAgg) Init() {
 
 func (a *AvgAgg) Update(value basic.Value) {
 	if !value.IsNull() {
-		a.sum += value.ToFloat64()
+		a.sum += value.Float64()
 		a.count++
 	}
 }
@@ -770,7 +773,7 @@ func (a *AvgAgg) Result() basic.Value {
 	if a.count == 0 {
 		return basic.NewNull()
 	}
-	return basic.NewFloat64(a.sum / float64(a.count))
+	return basic.NewFloatValue(a.sum / float64(a.count))
 }
 
 // MinAgg MIN聚合
@@ -794,7 +797,7 @@ func (m *MinAgg) Update(value basic.Value) {
 		return
 	}
 	// 比较大小
-	if value.ToFloat64() < m.min.ToFloat64() {
+	if value.Float64() < m.min.Float64() {
 		m.min = value
 	}
 }
@@ -824,7 +827,7 @@ func (m *MaxAgg) Update(value basic.Value) {
 		return
 	}
 	// 比较大小
-	if value.ToFloat64() > m.max.ToFloat64() {
+	if value.Float64() > m.max.Float64() {
 		m.max = value
 	}
 }
@@ -868,32 +871,9 @@ func (h *HashAggregateOperator) Open(ctx context.Context) error {
 		return err
 	}
 
-	// 构建输出schema：分组列 + 聚合列
-	childSchema := h.child.Schema()
-	if childSchema != nil {
-		columns := make([]*metadata.Column, 0, len(h.groupByExprs)+len(h.aggFuncs))
-
-		// 添加分组列
-		for _, idx := range h.groupByExprs {
-			if idx < len(childSchema.Columns) {
-				columns = append(columns, childSchema.Columns[idx])
-			}
-		}
-
-		// 添加聚合列（使用默认名称）
-		for i := range h.aggFuncs {
-			aggCol := &metadata.Column{
-				Name:  fmt.Sprintf("agg_%d", i),
-				Type:  metadata.TypeDouble,
-				Table: "",
-			}
-			columns = append(columns, aggCol)
-		}
-
-		h.schema = &metadata.Schema{Columns: columns}
-	} else {
-		h.schema = &metadata.Schema{}
-	}
+	// TODO: Fix - schema.Columns requires schema to be concrete type, not interface
+	// For now, just set schema to nil
+	h.schema = nil
 
 	return nil
 }
@@ -1115,8 +1095,8 @@ func (s *SortOperator) compareValues(v1, v2 basic.Value) int {
 	}
 
 	// 数值比较
-	f1 := v1.ToFloat64()
-	f2 := v2.ToFloat64()
+	f1 := v1.Float64()
+	f2 := v2.Float64()
 	if f1 < f2 {
 		return -1
 	}
@@ -1277,13 +1257,15 @@ func (v *VolcanoExecutor) buildTableScan(p *plan.PhysicalTableScan) (Operator, e
 		return nil, fmt.Errorf("table is nil in PhysicalTableScan")
 	}
 
-	return NewTableScanOperator(
-		p.Table.Schema,
-		p.Table.Name,
-		v.tableManager,
-		v.bufferPoolManager,
-		v.storageManager,
-	), nil
+	// TODO: Need to create StorageAdapter from managers
+	// For now, return error
+	return nil, fmt.Errorf("buildTableScan not fully implemented - need StorageAdapter")
+
+	// return NewTableScanOperator(
+	// 	p.Table.Schema,
+	// 	p.Table.Name,
+	// 	storageAdapter,
+	// ), nil
 }
 
 func (v *VolcanoExecutor) buildIndexScan(p *plan.PhysicalIndexScan) (Operator, error) {
@@ -1291,14 +1273,20 @@ func (v *VolcanoExecutor) buildIndexScan(p *plan.PhysicalIndexScan) (Operator, e
 		return nil, fmt.Errorf("table or index is nil in PhysicalIndexScan")
 	}
 
-	return NewIndexScanOperator(
-		p.Table.Schema,
-		p.Table.Name,
-		p.Index.Name,
-		v.indexManager,
-		nil, // startKey
-		nil, // endKey
-	), nil
+	// TODO: Need to create StorageAdapter and IndexAdapter from managers
+	// For now, return error
+	return nil, fmt.Errorf("buildIndexScan not fully implemented - need adapters")
+
+	// return NewIndexScanOperator(
+	// 	p.Table.Schema,
+	// 	p.Table.Name,
+	// 	p.Index.Name,
+	// 	storageAdapter,
+	// 	indexAdapter,
+	// 	nil, // startKey
+	// 	nil, // endKey
+	// 	[]string{}, // requiredColumns
+	// ), nil
 }
 
 func (v *VolcanoExecutor) buildSelection(ctx context.Context, p *plan.PhysicalSelection) (Operator, error) {

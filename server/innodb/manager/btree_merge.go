@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"fmt"
+
 	"github.com/zhukovaskychina/xmysql-server/logger"
 )
 
@@ -297,14 +298,13 @@ func (m *NodeMerger) rebalanceAfterMerge(ctx context.Context, node *BPlusTreeNod
 	}
 
 	// 无法借键，尝试合并
-	var mergedWith uint32
 	if leftSibling != nil && m.CanMerge(node, leftSibling) {
 		logger.Debugf("🔗 [Depth %d] Merging with left sibling", depth)
 		if node.IsLeaf {
-			mergedWith, err = m.MergeLeafNodes(ctx, leftSibling, node)
+			_, err = m.MergeLeafNodes(ctx, leftSibling, node)
 		} else {
 			middleKey := parentNode.Keys[childIndex-1]
-			mergedWith, err = m.MergeNonLeafNodes(ctx, leftSibling, node, middleKey)
+			_, err = m.MergeNonLeafNodes(ctx, leftSibling, node, middleKey)
 		}
 		if err == nil {
 			// 从父节点删除被合并的节点
@@ -313,10 +313,10 @@ func (m *NodeMerger) rebalanceAfterMerge(ctx context.Context, node *BPlusTreeNod
 	} else if rightSibling != nil && m.CanMerge(node, rightSibling) {
 		logger.Debugf("🔗 [Depth %d] Merging with right sibling", depth)
 		if node.IsLeaf {
-			mergedWith, err = m.MergeLeafNodes(ctx, node, rightSibling)
+			_, err = m.MergeLeafNodes(ctx, node, rightSibling)
 		} else {
 			middleKey := parentNode.Keys[childIndex]
-			mergedWith, err = m.MergeNonLeafNodes(ctx, node, rightSibling, middleKey)
+			_, err = m.MergeNonLeafNodes(ctx, node, rightSibling, middleKey)
 		}
 		if err == nil {
 			// 从父节点删除被合并的节点

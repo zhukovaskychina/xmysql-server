@@ -6,7 +6,6 @@ import (
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
@@ -64,9 +63,10 @@ func (i *InsertOperator) Open(ctx context.Context) error {
 		return fmt.Errorf("failed to get table metadata: %w", err)
 	}
 
-	i.schema = &metadata.Schema{
-		Columns: tableMetadata.Schema.Columns,
-	}
+	// Schema字段类型不匹配，暂时设为nil
+	// TODO: 需要重构BaseOperator.schema字段类型或创建适配器
+	i.schema = nil
+	_ = tableMetadata // 避免未使用错误
 
 	logger.Debugf("InsertOperator opened for table %s.%s", i.schemaName, i.tableName)
 	return nil
@@ -107,7 +107,7 @@ func (i *InsertOperator) Next(ctx context.Context) (Record, error) {
 
 	// 返回结果记录（包含影响行数）
 	values := []basic.Value{
-		basic.NewInt64(affectedRows),
+		basic.NewInt64Value(affectedRows),
 	}
 
 	return NewExecutorRecordFromValues(values, nil), nil
@@ -181,14 +181,13 @@ func (u *UpdateOperator) Open(ctx context.Context) error {
 	}
 
 	// 获取表元数据
-	tableMetadata, err := u.storageAdapter.GetTableMetadata(ctx, u.schemaName, u.tableName)
+	_, err := u.storageAdapter.GetTableMetadata(ctx, u.schemaName, u.tableName)
 	if err != nil {
 		return fmt.Errorf("failed to get table metadata: %w", err)
 	}
 
-	u.schema = &metadata.Schema{
-		Columns: tableMetadata.Schema.Columns,
-	}
+	// TODO: Fix schema assignment - tableMetadata.Schema is *metadata.Table, not metadata.Schema interface
+	u.schema = nil
 
 	logger.Debugf("UpdateOperator opened for table %s.%s", u.schemaName, u.tableName)
 	return nil
@@ -229,7 +228,7 @@ func (u *UpdateOperator) Next(ctx context.Context) (Record, error) {
 
 	// 返回结果记录（包含影响行数）
 	values := []basic.Value{
-		basic.NewInt64(affectedRows),
+		basic.NewInt64Value(affectedRows),
 	}
 
 	return NewExecutorRecordFromValues(values, nil), nil
@@ -321,14 +320,13 @@ func (d *DeleteOperator) Open(ctx context.Context) error {
 	}
 
 	// 获取表元数据
-	tableMetadata, err := d.storageAdapter.GetTableMetadata(ctx, d.schemaName, d.tableName)
+	_, err := d.storageAdapter.GetTableMetadata(ctx, d.schemaName, d.tableName)
 	if err != nil {
 		return fmt.Errorf("failed to get table metadata: %w", err)
 	}
 
-	d.schema = &metadata.Schema{
-		Columns: tableMetadata.Schema.Columns,
-	}
+	// TODO: Fix schema assignment - tableMetadata.Schema is *metadata.Table, not metadata.Schema interface
+	d.schema = nil
 
 	logger.Debugf("DeleteOperator opened for table %s.%s", d.schemaName, d.tableName)
 	return nil
@@ -369,7 +367,7 @@ func (d *DeleteOperator) Next(ctx context.Context) (Record, error) {
 
 	// 返回结果记录（包含影响行数）
 	values := []basic.Value{
-		basic.NewInt64(affectedRows),
+		basic.NewInt64Value(affectedRows),
 	}
 
 	return NewExecutorRecordFromValues(values, nil), nil

@@ -2,10 +2,11 @@ package manager
 
 import (
 	"fmt"
+	"sync"
+
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/extent"
-	"sync"
 )
 
 // SegmentManager 管理表空间中的段
@@ -71,7 +72,6 @@ const (
 // Fragment分配常量
 const (
 	FragmentPageCount = 32    // Fragment页面数量
-	PagesPerExtent    = 64    // 每个Extent的页面数
 	PageSize          = 16384 // 页面大小16KB
 )
 
@@ -128,7 +128,7 @@ func (sm *SegmentManager) CreateSegment(spaceID uint32, segType uint8, isTemp bo
 
 	case SEGMENT_TYPE_UNDO:
 		// Undo段：分配固定大小的Extent
-		ext, err := sm.extentManager.AllocateExtent(spaceID, basic.ExtentTypeUndo)
+		ext, err := sm.extentManager.AllocateExtent(spaceID, basic.ExtentTypeSystem)
 		if err != nil {
 			return nil, fmt.Errorf("failed to allocate extent for undo segment: %v", err)
 		}
@@ -325,9 +325,9 @@ func (sm *SegmentManager) getExtentType(segType uint8) basic.ExtentType {
 	case SEGMENT_TYPE_INDEX:
 		return basic.ExtentTypeIndex
 	case SEGMENT_TYPE_UNDO:
-		return basic.ExtentTypeUndo
+		return basic.ExtentTypeSystem // Undo uses system extent type
 	case SEGMENT_TYPE_BLOB:
-		return basic.ExtentTypeBlob
+		return basic.ExtentTypeData // BLOB uses data extent type
 	default:
 		return basic.ExtentTypeData
 	}
@@ -390,7 +390,7 @@ func (sm *SegmentManager) FreePage(segID uint32, pageNo uint32) error {
 	if wasFull && !isFull {
 		// 从Full移动到NotFull
 		sm.moveExtent(seg, extent, &seg.FullExtents, &seg.NotFullExtents)
-	} else if wasNotFull && isempty {
+	} else if wasNotFull && isEmpty {
 		// 从NotFull移动到Free
 		sm.moveExtent(seg, extent, &seg.NotFullExtents, &seg.FreeExtents)
 
@@ -454,8 +454,12 @@ func (sm *SegmentManager) DropSegment(segID uint32) error {
 		return ErrSegmentNotFound
 	}
 
-	// 释放所有区
-	for _, ext := range seg.Extents {
+	// 释放所有区（合并所有extent列表）
+	allExtents := append([]*extent.BaseExtent{}, seg.FreeExtents...)
+	allExtents = append(allExtents, seg.NotFullExtents...)
+	allExtents = append(allExtents, seg.FullExtents...)
+
+	for _, ext := range allExtents {
 		if err := sm.extentManager.FreeExtent(ext.GetID()); err != nil {
 			return err
 		}
@@ -484,7 +488,12 @@ func (sm *SegmentManager) Close() error {
 
 	// 释放所有段
 	for _, seg := range sm.segments {
-		for _, ext := range seg.Extents {
+		// 合并所有extent列表
+		allExtents := append([]*extent.BaseExtent{}, seg.FreeExtents...)
+		allExtents = append(allExtents, seg.NotFullExtents...)
+		allExtents = append(allExtents, seg.FullExtents...)
+
+		for _, ext := range allExtents {
 			if err := sm.extentManager.FreeExtent(ext.GetID()); err != nil {
 				return err
 			}
@@ -503,14 +512,14 @@ func (sm *SegmentManager) tryFreeExtent(seg *SegmentImpl, ext basic.Extent) {
 	if len(seg.FreeExtents) > 2 {
 		// 从Free链表移除
 		for i, e := range seg.FreeExtents {
-			if e.GetID() == ext.ID() {
+			if e.GetID() == ext.GetID() {
 				seg.FreeExtents = append(seg.FreeExtents[:i], seg.FreeExtents[i+1:]...)
 				break
 			}
 		}
 
 		// 释放Extent
-		sm.extentManager.FreeExtent(ext.ID())
+		sm.extentManager.FreeExtent(ext.GetID())
 		seg.ExtentCount--
 		sm.stats.TotalExtents--
 	}

@@ -2,8 +2,9 @@ package manager
 
 import (
 	"fmt"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"sync"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 /*
@@ -260,7 +261,7 @@ func (pa *PageAllocator) allocateFromExtent() (uint32, error) {
 		return 0, fmt.Errorf("failed to allocate extent: %v", err)
 	}
 
-	extentID := extent.ID()
+	extentID := extent.GetID()
 	pageNo := extentID * PagesPerExtent
 	pa.notFullExtents = append(pa.notFullExtents, extentID)
 
@@ -313,12 +314,12 @@ func (pa *PageAllocator) allocatePagesFromExtents(count uint32) ([]uint32, error
 				}
 				return nil, fmt.Errorf("failed to allocate extent: %v", err)
 			}
-			extentID = extent.ID()
+			extentID = extent.GetID()
 		}
 
 		// 分配此Extent中的页面
 		startPage := extentID * PagesPerExtent
-		pagesInExtent := PagesPerExtent
+		pagesInExtent := uint32(PagesPerExtent)
 		if uint32(len(pages))+pagesInExtent > count {
 			pagesInExtent = count - uint32(len(pages))
 		}
@@ -328,7 +329,7 @@ func (pa *PageAllocator) allocatePagesFromExtents(count uint32) ([]uint32, error
 		}
 
 		// 更新Extent状态
-		if pagesInExtent < PagesPerExtent {
+		if pagesInExtent < uint32(PagesPerExtent) {
 			pa.notFullExtents = append(pa.notFullExtents, extentID)
 		} else {
 			pa.fullExtents = append(pa.fullExtents, extentID)
@@ -413,8 +414,19 @@ func (pa *PageAllocator) GetStats() *AllocationStats {
 	pa.RLock()
 	defer pa.RUnlock()
 
-	// 返回统计信息的副本
-	statsCopy := *pa.stats
+	// 返回统计信息的副本（不包含mutex）
+	statsCopy := AllocationStats{
+		TotalAllocations:  pa.stats.TotalAllocations,
+		FragmentAllocs:    pa.stats.FragmentAllocs,
+		CompleteAllocs:    pa.stats.CompleteAllocs,
+		BatchAllocs:       pa.stats.BatchAllocs,
+		FailedAllocs:      pa.stats.FailedAllocs,
+		TotalPages:        pa.stats.TotalPages,
+		AllocatedPages:    pa.stats.AllocatedPages,
+		FragmentPages:     pa.stats.FragmentPages,
+		ExtentPages:       pa.stats.ExtentPages,
+		FragmentationRate: pa.stats.FragmentationRate,
+	}
 	return &statsCopy
 }
 

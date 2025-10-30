@@ -5,9 +5,7 @@ import (
 	"fmt"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
 // IndexAdapter 索引适配器，提供索引访问接口
@@ -124,8 +122,11 @@ type Transaction struct {
 func (ta *TransactionAdapter) BeginTransaction(ctx context.Context, readOnly bool, isolationLevel string) (*Transaction, error) {
 	logger.Debugf("Begin transaction: readOnly=%v, isolationLevel=%s", readOnly, isolationLevel)
 
-	// TODO: 调用存储管理器的事务管理接口
-	txnID := ta.storageManager.AllocTransactionID()
+	// 调用存储管理器的事务管理接口
+	txnID, err := ta.storageManager.BeginTransaction()
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
 
 	return &Transaction{
 		TxnID:          txnID,

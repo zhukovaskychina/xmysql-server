@@ -5,8 +5,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 /*
@@ -352,7 +350,7 @@ func (sso *SegmentSpaceOptimizer) ReclaimSegmentSpace(segID uint32) (uint64, err
 
 	// 回收完全空闲的Extent
 	for _, ext := range seg.FreeExtents {
-		if ext.UsedPages == 0 {
+		if ext.GetPageCount() == 0 {
 			// 这里应该调用ExtentReuseManager回收
 			reclaimedSize += uint64(PagesPerExtent * PageSize)
 		}

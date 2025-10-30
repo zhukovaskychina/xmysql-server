@@ -3,10 +3,11 @@ package manager
 import (
 	"context"
 	"fmt"
-	"github.com/zhukovaskychina/xmysql-server/logger"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/logger"
 )
 
 // EnhancedBTreeManager 增强版B+树管理器
@@ -378,11 +379,11 @@ func (m *EnhancedBTreeManager) DropIndex(ctx context.Context, indexID uint64) er
 
 // Close 关闭管理器
 func (m *EnhancedBTreeManager) Close() error {
-	if m.isShutdown.Load() {
+	if atomic.LoadUint32(&m.isShutdown) == 1 {
 		return nil
 	}
 
-	m.isShutdown.Store(true)
+	atomic.StoreUint32(&m.isShutdown, 1)
 
 	// 停止后台任务
 	close(m.stopChan)

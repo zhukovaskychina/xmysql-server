@@ -3,7 +3,7 @@ package manager
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 )
 
@@ -27,9 +27,6 @@ SystemPageInitializer 系统页面初始化器
 */
 
 const (
-	// 页面大小常量
-	PAGE_SIZE = 16384 // 16KB
-
 	// 文件头大小
 	FIL_HEADER_SIZE  = 38
 	FIL_TRAILER_SIZE = 8

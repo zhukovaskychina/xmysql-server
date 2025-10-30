@@ -21,6 +21,19 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
+// BaseExecutor 基础执行器，提供公共字段
+type BaseExecutor struct {
+	schema   *metadata.Table
+	children []Executor
+}
+
+// Executor 执行器接口
+type Executor interface {
+	Schema() *metadata.Table
+	Children() []Executor
+	SetChildren(children []Executor)
+}
+
 // XMySQLExecutor 是 SQL 执行器的核心结构，负责整个 SQL 的解析与执行
 // 支持解析 SELECT、DDL、SHOW 等语句，并调用相应执行逻辑
 // 执行流程：解析 -> 生成逻辑计划 -> 转物理计划 -> 构造执行器 -> 流式迭代执行
@@ -372,17 +385,15 @@ func (e *XMySQLExecutor) optimizeToPhysicalPlan(logicalPlan plan.LogicalPlan) (p
 }
 
 // convertToSelectResult 将Record数组转换为SelectResult
-func (e *XMySQLExecutor) convertToSelectResult(records []Record, schema *metadata.Schema) (*SelectResult, error) {
+func (e *XMySQLExecutor) convertToSelectResult(records []Record, schema *metadata.Table) (*SelectResult, error) {
 	if schema == nil {
 		return nil, fmt.Errorf("schema is nil")
 	}
 
 	// 构建列名和类型
 	columnNames := make([]string, 0, len(schema.Columns))
-	columnTypes := make([]string, 0, len(schema.Columns))
 	for _, col := range schema.Columns {
 		columnNames = append(columnNames, col.Name)
-		columnTypes = append(columnTypes, col.DataType)
 	}
 
 	// 转换记录为行数据
@@ -397,10 +408,9 @@ func (e *XMySQLExecutor) convertToSelectResult(records []Record, schema *metadat
 	}
 
 	return &SelectResult{
-		ColumnNames: columnNames,
-		ColumnTypes: columnTypes,
-		Rows:        rows,
-		RowCount:    len(rows),
+		Records:  records,
+		RowCount: len(rows),
+		Columns:  columnNames,
 	}, nil
 }
 
@@ -410,25 +420,20 @@ func (e *XMySQLExecutor) convertValueToInterface(value basic.Value) interface{} 
 		return nil
 	}
 
-	switch value.GetType() {
-	case basic.TypeInt64:
-		return value.ToInt64()
-	case basic.TypeFloat64:
-		return value.ToFloat64()
-	case basic.TypeString:
-		return value.ToString()
-	case basic.TypeBool:
-		return value.ToBool()
-	case basic.TypeBytes:
-		return value.ToBytes()
-	case basic.TypeDecimal:
-		return value.ToDecimal()
-	case basic.TypeDate:
-		return value.ToDate()
-	case basic.TypeTimestamp:
-		return value.ToTimestamp()
+	// 使用Value interface的方法
+	switch value.Type() {
+	case basic.ValueTypeBigInt, basic.ValueTypeInt, basic.ValueTypeMediumInt, basic.ValueTypeSmallInt, basic.ValueTypeTinyInt:
+		return value.Int()
+	case basic.ValueTypeFloat, basic.ValueTypeDouble:
+		return value.Float64()
+	case basic.ValueTypeChar, basic.ValueTypeVarchar, basic.ValueTypeText, basic.ValueTypeMediumText, basic.ValueTypeLongText:
+		return value.String()
+	case basic.ValueTypeBinary, basic.ValueTypeVarBinary, basic.ValueTypeBlob, basic.ValueTypeMediumBlob, basic.ValueTypeLongBlob:
+		return value.Bytes()
+	case basic.ValueTypeDate, basic.ValueTypeTime, basic.ValueTypeDateTime, basic.ValueTypeTimestamp:
+		return value.Time()
 	default:
-		return value.ToString()
+		return value.Raw()
 	}
 }
 

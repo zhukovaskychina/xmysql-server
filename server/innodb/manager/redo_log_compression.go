@@ -28,11 +28,11 @@ type RedoLogCompressor struct {
 	minSize   int                  // 最小压缩大小（小于此值不压缩）
 
 	// 统计信息
-	stats *CompressionStats
+	stats *RedoCompressionStats
 }
 
-// CompressionStats 压缩统计信息
-type CompressionStats struct {
+// RedoCompressionStats Redo日志压缩统计信息（避免与compression_manager.go中的CompressionStats冲突）
+type RedoCompressionStats struct {
 	TotalCompressed   uint64  `json:"total_compressed"`   // 总压缩次数
 	TotalDecompressed uint64  `json:"total_decompressed"` // 总解压次数
 	BytesBeforeComp   uint64  `json:"bytes_before_comp"`  // 压缩前字节数
@@ -52,7 +52,7 @@ func NewRedoLogCompressor(algorithm CompressionAlgorithm, level int) *RedoLogCom
 		algorithm: algorithm,
 		level:     level,
 		minSize:   128, // 默认128字节以下不压缩
-		stats:     &CompressionStats{},
+		stats:     &RedoCompressionStats{},
 	}
 }
 
@@ -227,7 +227,7 @@ func (c *RedoLogCompressor) updateCompressionRatio() {
 }
 
 // GetStats 获取压缩统计信息
-func (c *RedoLogCompressor) GetStats() *CompressionStats {
+func (c *RedoLogCompressor) GetStats() *RedoCompressionStats {
 	stats := *c.stats
 	return &stats
 }

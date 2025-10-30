@@ -2,8 +2,9 @@ package engine
 
 import (
 	"fmt"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"io"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
 // ShowExecutor SHOW语句执行器
@@ -12,14 +13,14 @@ type ShowExecutor struct {
 	showType string
 	rows     [][]interface{}
 	current  int
+	closed   bool
 }
 
 // buildShowExecutor 构建SHOW语句执行器
 func (e *XMySQLExecutor) buildShowExecutor(showType string) Executor {
 	executor := &ShowExecutor{
 		BaseExecutor: BaseExecutor{
-			ctx:    e.ctx,
-			schema: nil, // Schema是接口，设为nil
+			schema: nil, // Schema可以是nil
 		},
 		showType: showType,
 		rows:     make([][]interface{}, 0),
@@ -29,7 +30,7 @@ func (e *XMySQLExecutor) buildShowExecutor(showType string) Executor {
 }
 
 // Schema 返回算子的输出模式
-func (e *ShowExecutor) Schema() *metadata.Schema {
+func (e *ShowExecutor) Schema() *metadata.Table {
 	return nil // 简化实现，返回nil
 }
 
