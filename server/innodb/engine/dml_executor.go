@@ -24,9 +24,9 @@ type SecondaryIndexSyncer interface {
 }
 
 // DMLExecutor DML操作执行器
+// 注意：此执行器是DML操作协调器，不是火山模型的Operator
+// 实际的算子执行使用volcano_executor.go中的Operator接口
 type DMLExecutor struct {
-	BaseExecutor
-
 	// 管理器组件
 	optimizerManager  *manager.OptimizerManager
 	bufferPoolManager *manager.OptimizedBufferPoolManager

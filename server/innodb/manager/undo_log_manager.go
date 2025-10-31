@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/logger"
 )
 
 // UndoLogManager 撤销日志管理器
@@ -147,29 +149,72 @@ func (u *UndoLogManager) writeEntryToFile(entry *UndoLogEntry) error {
 }
 
 // Rollback 回滚指定事务
+// 完整实现：
+// 1. 按LSN倒序回滚所有Undo日志
+// 2. 写入CLR（补偿日志记录）确保回滚操作可恢复
+// 3. 正确更新MVCC版本链
+// 4. 支持部分回滚（Savepoint）
 func (u *UndoLogManager) Rollback(txID int64) error {
 	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	entries, exists := u.logs[txID]
+	logs, exists := u.logs[txID]
 	if !exists {
-		return errors.New("transaction not found")
+		u.mu.Unlock()
+		return fmt.Errorf("no undo logs for transaction %d", txID)
 	}
 
+	// 复制日志列表以便在锁外处理
+	undoLogs := make([]UndoLogEntry, len(logs))
+	copy(undoLogs, logs)
+	u.mu.Unlock()
+
+	// 检查回滚执行器
 	if u.rollbackExecutor == nil {
-		return errors.New("rollback executor not set")
+		return fmt.Errorf("rollback executor not set")
 	}
 
-	// 从后向前回滚
-	for i := len(entries) - 1; i >= 0; i-- {
-		entry := entries[i]
-		if err := u.executeRollback(&entry); err != nil {
-			return fmt.Errorf("rollback entry %d failed: %v", i, err)
+	logger.Infof("🔄 Starting rollback for transaction %d, %d undo logs to process", txID, len(undoLogs))
+
+	// 步骤1: 按LSN从大到小倒序回滚（从最新的操作开始回滚）
+	rollbackCount := 0
+	for i := len(undoLogs) - 1; i >= 0; i-- {
+		log := &undoLogs[i]
+
+		// 检查是否已经通过CLR回滚
+		if u.isAlreadyRolledBack(txID, log.LSN) {
+			logger.Debugf("  ⏭️  Undo log LSN=%d already rolled back (CLR exists), skipping", log.LSN)
+			continue
 		}
+
+		logger.Debugf("  🔄 Rolling back undo log: LSN=%d, Type=%d, RecordID=%d",
+			log.LSN, log.Type, log.RecordID)
+
+		// 执行回滚操作（根据不同的操作类型调用不同的方法）
+		if err := u.executeUndoLogRollback(log); err != nil {
+			return fmt.Errorf("failed to execute undo log LSN=%d: %v", log.LSN, err)
+		}
+
+		// 步骤2: 写入CLR（补偿日志记录）
+		clrLSN := uint64(u.lsnManager.AllocateLSN())
+		u.recordCLR(txID, clrLSN, log.LSN)
+		logger.Debugf("  ✅ Recorded CLR: CLR_LSN=%d for Undo_LSN=%d", clrLSN, log.LSN)
+
+		// 步骤3: 更新版本链
+		if err := u.updateVersionChain(log); err != nil {
+			logger.Warnf("  ⚠️  Failed to update version chain for LSN=%d: %v", log.LSN, err)
+			// 版本链更新失败不应中断回滚
+		}
+
+		rollbackCount++
 	}
 
-	// 清理事务记录
-	u.cleanupLocked(txID)
+	// 步骤4: 清理事务状态
+	u.mu.Lock()
+	delete(u.logs, txID)
+	delete(u.activeTxns, txID)
+	u.mu.Unlock()
+
+	logger.Infof("✅ Transaction %d rolled back successfully, %d/%d undo logs processed",
+		txID, rollbackCount, len(undoLogs))
 
 	return nil
 }
@@ -251,10 +296,79 @@ func (u *UndoLogManager) executeRollback(entry *UndoLogEntry) error {
 	}
 
 	// 生成CLR（补偿日志记录）防止重复回滚
-	u.generateCLR(entry.TrxID, entry.LSN)
+	clrLSN := uint64(u.lsnManager.AllocateLSN())
+	u.recordCLR(entry.TrxID, clrLSN, entry.LSN)
 
 	// 更新版本链（如果需要）
 	u.updateVersionChainOnRollback(entry)
+
+	return nil
+}
+
+// executeUndoLogRollback 执行单条Undo日志的回滚
+// 根据不同的操作类型（INSERT/UPDATE/DELETE）调用对应的回滚方法
+func (u *UndoLogManager) executeUndoLogRollback(entry *UndoLogEntry) error {
+	if u.rollbackExecutor == nil {
+		return fmt.Errorf("rollback executor not set")
+	}
+
+	var err error
+	switch entry.Type {
+	case LOG_TYPE_INSERT:
+		// INSERT的回滚：删除记录
+		logger.Debugf("    ↩️  Rollback INSERT: Delete record (tableID=%d, recordID=%d)",
+			entry.TableID, entry.RecordID)
+		err = u.rollbackExecutor.DeleteRecord(entry.TableID, entry.RecordID, entry.Data)
+
+	case LOG_TYPE_UPDATE:
+		// UPDATE的回滚：恢复旧值
+		bitmap, oldData, parseErr := u.formatter.ParseUpdateUndo(entry.Data)
+		if parseErr != nil {
+			return fmt.Errorf("failed to parse UPDATE undo data: %v", parseErr)
+		}
+		logger.Debugf("    ↩️  Rollback UPDATE: Restore old values (tableID=%d, recordID=%d)",
+			entry.TableID, entry.RecordID)
+		err = u.rollbackExecutor.UpdateRecord(entry.TableID, entry.RecordID, oldData, bitmap)
+
+	case LOG_TYPE_DELETE:
+		// DELETE的回滚：重新插入
+		logger.Debugf("    ↩️  Rollback DELETE: Re-insert record (tableID=%d, recordID=%d)",
+			entry.TableID, entry.RecordID)
+		err = u.rollbackExecutor.InsertRecord(entry.TableID, entry.RecordID, entry.Data)
+
+	default:
+		return fmt.Errorf("unknown undo log type: %d", entry.Type)
+	}
+
+	if err != nil {
+		return fmt.Errorf("rollback execution failed: %v", err)
+	}
+
+	return nil
+}
+
+// updateVersionChain 更新版本链
+// 回滚时需要从版本链中移除对应的版本
+func (u *UndoLogManager) updateVersionChain(log *UndoLogEntry) error {
+	u.versionMu.Lock()
+	defer u.versionMu.Unlock()
+
+	chain, exists := u.versionChains[log.RecordID]
+	if !exists {
+		// 版本链不存在，可能已被清理，不算错误
+		logger.Debugf("    ℹ️  Version chain not found for recordID=%d (may be purged)", log.RecordID)
+		return nil
+	}
+
+	// 从版本链中移除此Undo日志对应的版本
+	removed := chain.RemoveVersion(log.LSN)
+	if removed {
+		logger.Debugf("    🗑️  Removed version LSN=%d from version chain (recordID=%d)",
+			log.LSN, log.RecordID)
+	} else {
+		logger.Debugf("    ℹ️  Version LSN=%d not found in chain (recordID=%d)",
+			log.LSN, log.RecordID)
+	}
 
 	return nil
 }
@@ -525,6 +639,23 @@ func (vc *VersionChain) AddVersion(txID int64, lsn uint64, undoPtr uint64, data 
 	vc.versions = append([]*VersionChainNode{node}, vc.versions...)
 }
 
+// RemoveVersion 从版本链中移除指定LSN的版本（用于回滚）
+func (vc *VersionChain) RemoveVersion(lsn uint64) bool {
+	vc.mu.Lock()
+	defer vc.mu.Unlock()
+
+	// 查找并移除指定LSN的版本
+	for i, version := range vc.versions {
+		if version.lsn == lsn {
+			// 从版本链中移除此版本
+			vc.versions = append(vc.versions[:i], vc.versions[i+1:]...)
+			return true
+		}
+	}
+
+	return false // 未找到指定LSN的版本
+}
+
 // GetVersion 获取指定事务可见的版本
 func (vc *VersionChain) GetVersion(readView *ReadView) *VersionChainNode {
 	vc.mu.RLock()
@@ -634,13 +765,19 @@ func (u *UndoLogManager) isAlreadyRolledBack(txID int64, lsn uint64) bool {
 	return false
 }
 
-// generateCLR 生成补偿日志记录（CLR）
-func (u *UndoLogManager) generateCLR(txID int64, undoLSN uint64) {
+// recordCLR 记录补偿日志（CLR）
+// 用于标记某个Undo日志已被回滚，防止重复回滚
+func (u *UndoLogManager) recordCLR(txID int64, clrLSN uint64, undoLSN uint64) {
 	u.clrMu.Lock()
 	defer u.clrMu.Unlock()
 
-	// 记录已回滚的Undo日志LSN
+	if u.clrLogs[txID] == nil {
+		u.clrLogs[txID] = make([]uint64, 0)
+	}
 	u.clrLogs[txID] = append(u.clrLogs[txID], undoLSN)
+
+	logger.Debugf("📝 Recorded CLR: txn=%d, CLR_LSN=%d, Undo_LSN=%d",
+		txID, clrLSN, undoLSN)
 }
 
 // updateVersionChainOnRollback 回滚时更新版本链

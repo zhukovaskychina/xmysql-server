@@ -21,21 +21,9 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
-// BaseExecutor 基础执行器，提供公共字段
-type BaseExecutor struct {
-	schema   *metadata.Table
-	children []Executor
-}
-
-// Executor 执行器接口
-type Executor interface {
-	Schema() *metadata.Table
-	Children() []Executor
-	SetChildren(children []Executor)
-}
-
 // XMySQLExecutor 是 SQL 执行器的核心结构，负责整个 SQL 的解析与执行
 // 支持解析 SELECT、DDL、SHOW 等语句，并调用相应执行逻辑
+// 注意：实际的算子执行使用volcano_executor.go中的Operator接口和火山模型
 // 执行流程：解析 -> 生成逻辑计划 -> 转物理计划 -> 构造执行器 -> 流式迭代执行
 // 当前实现简化处理，仅返回模拟执行结果
 

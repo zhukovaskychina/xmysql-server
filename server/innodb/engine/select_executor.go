@@ -19,9 +19,9 @@ import (
 )
 
 // SelectExecutor SELECT查询执行器
+// 注意：此执行器是查询协调器，不是火山模型的Operator
+// 实际的算子执行使用volcano_executor.go中的Operator接口
 type SelectExecutor struct {
-	BaseExecutor
-
 	// 管理器组件
 	optimizerManager  *manager.OptimizerManager
 	bufferPoolManager *manager.OptimizedBufferPoolManager
@@ -1234,17 +1234,4 @@ func (se *SelectExecutor) Close() error {
 	se.currentRowIndex = 0
 	se.resultSet = nil
 	return nil
-}
-
-// 实现Executor接口的方法
-func (se *SelectExecutor) Schema() *metadata.Table {
-	return se.schema
-}
-
-func (se *SelectExecutor) Children() []Executor {
-	return se.children
-}
-
-func (se *SelectExecutor) SetChildren(children []Executor) {
-	se.children = children
 }
