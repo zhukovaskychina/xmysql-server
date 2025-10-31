@@ -2,6 +2,7 @@ package manager
 
 import (
 	"encoding/binary"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -255,7 +256,7 @@ func (r *RedoLogManager) Recover() error {
 
 		// 读取LSN
 		if err := binary.Read(r.logFile, binary.BigEndian, &entry.LSN); err != nil {
-			if err.Error() == "EOF" {
+			if err == io.EOF {
 				break
 			}
 			return err

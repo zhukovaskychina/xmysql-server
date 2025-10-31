@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -32,6 +33,17 @@ type UndoLogManager struct {
 
 	// 格式化器
 	formatter *UndoLogFormatter // Undo日志格式化器
+
+	// 版本链管理
+	versionChains map[uint64]*VersionChain // 记录ID -> 版本链
+	versionMu     sync.RWMutex             // 版本链锁
+
+	// CLR（补偿日志记录）管理
+	clrLogs map[int64][]uint64 // 事务ID -> CLR LSN列表
+	clrMu   sync.RWMutex       // CLR锁
+
+	// LSN管理器（用于生成CLR的LSN）
+	lsnManager *LSNManager
 }
 
 // NewUndoLogManager 创建新的撤销日志管理器
@@ -59,6 +71,9 @@ func NewUndoLogManager(undoDir string) (*UndoLogManager, error) {
 		purgeChan:      make(chan int64, 100),
 		shutdown:       make(chan struct{}),
 		formatter:      NewUndoLogFormatter(),
+		versionChains:  make(map[uint64]*VersionChain),
+		clrLogs:        make(map[int64][]uint64),
+		lsnManager:     NewLSNManager(1), // 从LSN 1开始
 	}
 
 	// 启动Purge协程
@@ -202,28 +217,46 @@ func (u *UndoLogManager) PartialRollback(txID int64, savepointLSN uint64) error 
 
 // executeRollback 执行单条Undo日志的回滚
 func (u *UndoLogManager) executeRollback(entry *UndoLogEntry) error {
+	// 检查是否已经回滚过（通过CLR检查）
+	if u.isAlreadyRolledBack(entry.TrxID, entry.LSN) {
+		return nil // 已回滚，跳过
+	}
+
+	var err error
 	switch entry.Type {
 	case LOG_TYPE_INSERT:
 		// INSERT的回滚：删除记录
 		// entry.Data包含主键数据
-		return u.rollbackExecutor.DeleteRecord(entry.TableID, 0, entry.Data)
+		err = u.rollbackExecutor.DeleteRecord(entry.TableID, entry.RecordID, entry.Data)
 
 	case LOG_TYPE_UPDATE:
 		// UPDATE的回滚：恢复旧值
-		bitmap, oldData, err := u.formatter.ParseUpdateUndo(entry.Data)
-		if err != nil {
-			return err
+		bitmap, oldData, parseErr := u.formatter.ParseUpdateUndo(entry.Data)
+		if parseErr != nil {
+			return parseErr
 		}
-		return u.rollbackExecutor.UpdateRecord(entry.TableID, 0, oldData, bitmap)
+		err = u.rollbackExecutor.UpdateRecord(entry.TableID, entry.RecordID, oldData, bitmap)
 
 	case LOG_TYPE_DELETE:
 		// DELETE的回滚：重新插入
 		// entry.Data包含完整记录
-		return u.rollbackExecutor.InsertRecord(entry.TableID, 0, entry.Data)
+		err = u.rollbackExecutor.InsertRecord(entry.TableID, entry.RecordID, entry.Data)
 
 	default:
 		return fmt.Errorf("unknown undo log type: %d", entry.Type)
 	}
+
+	if err != nil {
+		return err
+	}
+
+	// 生成CLR（补偿日志记录）防止重复回滚
+	u.generateCLR(entry.TrxID, entry.LSN)
+
+	// 更新版本链（如果需要）
+	u.updateVersionChainOnRollback(entry)
+
+	return nil
 }
 
 // Cleanup 清理事务的Undo日志
@@ -237,6 +270,9 @@ func (u *UndoLogManager) Cleanup(txID int64) {
 func (u *UndoLogManager) cleanupLocked(txID int64) {
 	delete(u.logs, txID)
 	delete(u.activeTxns, txID)
+
+	// 清理CLR日志
+	u.ClearCLRLogs(txID)
 
 	// 更新最老事务时间
 	if len(u.activeTxns) == 0 {
@@ -360,7 +396,7 @@ func (u *UndoLogManager) Recover() error {
 
 		// 读取LSN
 		if err := binary.Read(u.undoFile, binary.BigEndian, &entry.LSN); err != nil {
-			if err.Error() == "EOF" {
+			if err == io.EOF {
 				break
 			}
 			return err
@@ -446,4 +482,253 @@ type UndoLogStats struct {
 	PendingPurge   int           `json:"pending_purge"`
 	PurgeThreshold time.Duration `json:"purge_threshold"`
 	OldestTxnTime  time.Time     `json:"oldest_txn_time"`
+}
+
+// VersionChain MVCC版本链
+type VersionChain struct {
+	recordID uint64              // 记录ID
+	versions []*VersionChainNode // 版本列表（从新到旧）
+	mu       sync.RWMutex        // 版本链锁
+}
+
+// VersionChainNode 版本链节点
+type VersionChainNode struct {
+	txID      int64     // 创建此版本的事务ID
+	lsn       uint64    // 日志序列号
+	undoPtr   uint64    // 指向Undo日志的指针
+	timestamp time.Time // 版本创建时间
+	data      []byte    // 版本数据（可选，用于快速访问）
+}
+
+// NewVersionChain 创建新的版本链
+func NewVersionChain(recordID uint64) *VersionChain {
+	return &VersionChain{
+		recordID: recordID,
+		versions: make([]*VersionChainNode, 0),
+	}
+}
+
+// AddVersion 添加新版本到版本链
+func (vc *VersionChain) AddVersion(txID int64, lsn uint64, undoPtr uint64, data []byte) {
+	vc.mu.Lock()
+	defer vc.mu.Unlock()
+
+	node := &VersionChainNode{
+		txID:      txID,
+		lsn:       lsn,
+		undoPtr:   undoPtr,
+		timestamp: time.Now(),
+		data:      data,
+	}
+
+	// 插入到版本链头部（最新版本）
+	vc.versions = append([]*VersionChainNode{node}, vc.versions...)
+}
+
+// GetVersion 获取指定事务可见的版本
+func (vc *VersionChain) GetVersion(readView *ReadView) *VersionChainNode {
+	vc.mu.RLock()
+	defer vc.mu.RUnlock()
+
+	// 从最新版本开始查找
+	for _, version := range vc.versions {
+		// 检查版本是否对当前ReadView可见
+		if readView == nil || readView.IsVisible(version.txID) {
+			return version
+		}
+	}
+
+	return nil
+}
+
+// GetLatestVersion 获取最新版本
+func (vc *VersionChain) GetLatestVersion() *VersionChainNode {
+	vc.mu.RLock()
+	defer vc.mu.RUnlock()
+
+	if len(vc.versions) > 0 {
+		return vc.versions[0]
+	}
+	return nil
+}
+
+// PurgeOldVersions 清理旧版本（在所有活跃事务之前的版本）
+func (vc *VersionChain) PurgeOldVersions(oldestActiveTxID int64) int {
+	vc.mu.Lock()
+	defer vc.mu.Unlock()
+
+	purgedCount := 0
+	newVersions := make([]*VersionChainNode, 0)
+
+	for _, version := range vc.versions {
+		// 保留比最老活跃事务更新的版本
+		if version.txID >= oldestActiveTxID {
+			newVersions = append(newVersions, version)
+		} else {
+			purgedCount++
+		}
+	}
+
+	// 至少保留一个版本
+	if len(newVersions) == 0 && len(vc.versions) > 0 {
+		newVersions = append(newVersions, vc.versions[len(vc.versions)-1])
+		purgedCount--
+	}
+
+	vc.versions = newVersions
+	return purgedCount
+}
+
+// ReadView MVCC读视图（简化版本，完整版本在mvcc包中）
+type ReadView struct {
+	creatorTxID int64   // 创建此ReadView的事务ID
+	minTxID     int64   // 最小活跃事务ID
+	maxTxID     int64   // 最大事务ID
+	activeTxIDs []int64 // 活跃事务ID列表
+}
+
+// IsVisible 检查版本是否对当前ReadView可见
+func (rv *ReadView) IsVisible(txID int64) bool {
+	// 自己的修改总是可见
+	if txID == rv.creatorTxID {
+		return true
+	}
+
+	// 在ReadView创建之前提交的事务可见
+	if txID < rv.minTxID {
+		return true
+	}
+
+	// 在ReadView创建之后开始的事务不可见
+	if txID >= rv.maxTxID {
+		return false
+	}
+
+	// 检查是否在活跃事务列表中
+	for _, activeTxID := range rv.activeTxIDs {
+		if txID == activeTxID {
+			return false // 活跃事务不可见
+		}
+	}
+
+	return true // 已提交事务可见
+}
+
+// isAlreadyRolledBack 检查是否已经回滚过（通过CLR检查）
+func (u *UndoLogManager) isAlreadyRolledBack(txID int64, lsn uint64) bool {
+	u.clrMu.RLock()
+	defer u.clrMu.RUnlock()
+
+	clrList, exists := u.clrLogs[txID]
+	if !exists {
+		return false
+	}
+
+	// 检查LSN是否在CLR列表中
+	for _, clrLSN := range clrList {
+		if clrLSN == lsn {
+			return true
+		}
+	}
+
+	return false
+}
+
+// generateCLR 生成补偿日志记录（CLR）
+func (u *UndoLogManager) generateCLR(txID int64, undoLSN uint64) {
+	u.clrMu.Lock()
+	defer u.clrMu.Unlock()
+
+	// 记录已回滚的Undo日志LSN
+	u.clrLogs[txID] = append(u.clrLogs[txID], undoLSN)
+}
+
+// updateVersionChainOnRollback 回滚时更新版本链
+func (u *UndoLogManager) updateVersionChainOnRollback(entry *UndoLogEntry) {
+	// 对于回滚操作，我们需要从版本链中移除对应的版本
+	// 这里简化处理：标记版本为已回滚
+	// 实际实现中可能需要更复杂的版本链管理
+
+	// 注意：这是一个简化实现
+	// 完整的实现需要与MVCC管理器协调
+}
+
+// BuildVersionChain 为记录构建版本链
+func (u *UndoLogManager) BuildVersionChain(recordID uint64, txID int64) (*VersionChain, error) {
+	u.versionMu.Lock()
+	defer u.versionMu.Unlock()
+
+	// 检查是否已存在版本链
+	if chain, exists := u.versionChains[recordID]; exists {
+		return chain, nil
+	}
+
+	// 创建新的版本链
+	chain := NewVersionChain(recordID)
+
+	// 从Undo日志中构建版本链
+	u.mu.RLock()
+	entries, exists := u.logs[txID]
+	u.mu.RUnlock()
+
+	if exists {
+		for i := len(entries) - 1; i >= 0; i-- {
+			entry := &entries[i]
+			// 添加版本到版本链
+			chain.AddVersion(entry.TrxID, entry.LSN, entry.LSN, entry.Data)
+		}
+	}
+
+	u.versionChains[recordID] = chain
+	return chain, nil
+}
+
+// GetVersionChain 获取记录的版本链
+func (u *UndoLogManager) GetVersionChain(recordID uint64) *VersionChain {
+	u.versionMu.RLock()
+	defer u.versionMu.RUnlock()
+
+	return u.versionChains[recordID]
+}
+
+// PurgeVersionChains 清理旧版本链
+func (u *UndoLogManager) PurgeVersionChains() int {
+	u.versionMu.Lock()
+	defer u.versionMu.Unlock()
+
+	// 获取最老的活跃事务ID
+	u.mu.RLock()
+	var oldestTxID int64 = 0
+	for txID := range u.activeTxns {
+		if oldestTxID == 0 || txID < oldestTxID {
+			oldestTxID = txID
+		}
+	}
+	u.mu.RUnlock()
+
+	if oldestTxID == 0 {
+		return 0 // 没有活跃事务
+	}
+
+	// 清理每个版本链中的旧版本
+	totalPurged := 0
+	for _, chain := range u.versionChains {
+		purged := chain.PurgeOldVersions(oldestTxID)
+		totalPurged += purged
+	}
+
+	return totalPurged
+}
+
+// ClearCLRLogs 清理事务的CLR日志
+func (u *UndoLogManager) ClearCLRLogs(txID int64) {
+	u.clrMu.Lock()
+	defer u.clrMu.Unlock()
+
+	delete(u.clrLogs, txID)
+}
+
+// IsRolledBack 检查指定LSN是否已回滚（公共方法用于测试）
+func (u *UndoLogManager) IsRolledBack(txID int64, lsn uint64) bool {
+	return u.isAlreadyRolledBack(txID, lsn)
 }

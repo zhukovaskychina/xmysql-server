@@ -113,6 +113,7 @@ func (eei *ExecutionEngineIntegrator) initializeExecutors() {
 		eei.btreeManager,
 		eei.tableManager,
 		eei.transactionManager,
+		eei.indexManager,
 	)
 
 	// 创建存储引擎集成的DML执行器

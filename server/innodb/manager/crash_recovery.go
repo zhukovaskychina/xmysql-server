@@ -3,6 +3,7 @@ package manager
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -21,6 +22,12 @@ type CrashRecovery struct {
 	// LSN管理器
 	lsnManager *LSNManager
 
+	// 缓冲池管理器（用于页面操作）
+	bufferPoolManager BufferPoolInterface
+
+	// 存储管理器（用于页面读写）
+	storageManager StorageInterface
+
 	// 检查点LSN
 	checkpointLSN uint64
 
@@ -38,6 +45,32 @@ type CrashRecovery struct {
 	redoStartLSN       uint64                       // Redo起始LSN
 	redoEndLSN         uint64                       // Redo结束LSN
 	undoTransactions   []int64                      // 需要回滚的事务列表
+}
+
+// BufferPoolInterface 缓冲池接口（用于解耦）
+type BufferPoolInterface interface {
+	FetchPage(pageID uint64) (PageInterface, error)
+	UnpinPage(pageID uint64, isDirty bool) error
+	FlushPage(pageID uint64) error
+}
+
+// PageInterface 页面接口
+type PageInterface interface {
+	GetPageID() uint64
+	GetLSN() uint64
+	SetLSN(lsn uint64)
+	GetData() []byte
+	SetData(data []byte)
+	IsDirty() bool
+	SetDirty(dirty bool)
+}
+
+// StorageInterface 存储接口
+type StorageInterface interface {
+	ReadPage(pageID uint64) ([]byte, error)
+	WritePage(pageID uint64, data []byte) error
+	CreatePage() (uint64, error)
+	DeletePage(pageID uint64) error
 }
 
 // TransactionInfo 事务恢复信息
@@ -73,7 +106,23 @@ func NewCrashRecovery(
 		activeTransactions: make(map[int64]*TransactionInfo),
 		dirtyPages:         make(map[uint64]*PageRecoveryInfo),
 		undoTransactions:   make([]int64, 0),
+		bufferPoolManager:  nil, // 需要通过SetBufferPoolManager设置
+		storageManager:     nil, // 需要通过SetStorageManager设置
 	}
+}
+
+// SetBufferPoolManager 设置缓冲池管理器
+func (cr *CrashRecovery) SetBufferPoolManager(bpm BufferPoolInterface) {
+	cr.mu.Lock()
+	defer cr.mu.Unlock()
+	cr.bufferPoolManager = bpm
+}
+
+// SetStorageManager 设置存储管理器
+func (cr *CrashRecovery) SetStorageManager(sm StorageInterface) {
+	cr.mu.Lock()
+	defer cr.mu.Unlock()
+	cr.storageManager = sm
 }
 
 // Recover 执行完整的崩溃恢复流程
@@ -157,7 +206,7 @@ func (cr *CrashRecovery) scanRedoLog(fromLSN uint64) error {
 
 		// 读取LSN
 		if err := binary.Read(logFile, binary.BigEndian, &entry.LSN); err != nil {
-			if err.Error() == "EOF" {
+			if err == io.EOF {
 				break
 			}
 			return err
@@ -291,7 +340,7 @@ func (cr *CrashRecovery) redoPhase() error {
 
 		// 读取LSN
 		if err := binary.Read(logFile, binary.BigEndian, &entry.LSN); err != nil {
-			if err.Error() == "EOF" {
+			if err == io.EOF {
 				break
 			}
 			return err
@@ -369,43 +418,140 @@ func (cr *CrashRecovery) redoLogEntry(entry *RedoLogEntry) error {
 
 // redoInsert 重做INSERT操作
 func (cr *CrashRecovery) redoInsert(entry *RedoLogEntry) error {
-	// 注意：实际实现需要缓冲池管理器和B+树管理器的支持
-	// 这里只是框架代码
-	// 实际应该：
+	// 实现物理重做逻辑
 	// 1. 从缓冲池获取页面
-	// 2. 检查页面LSN
+	// 2. 检查页面LSN（幂等性保证）
 	// 3. 如果entry.LSN > pageLSN，则应用修改
 	// 4. 更新页面LSN
+
+	if cr.bufferPoolManager == nil {
+		// 如果没有缓冲池管理器，使用存储管理器直接操作
+		return cr.redoWithStorage(entry)
+	}
+
+	// 获取页面
+	page, err := cr.bufferPoolManager.FetchPage(entry.PageID)
+	if err != nil {
+		return fmt.Errorf("获取页面%d失败: %v", entry.PageID, err)
+	}
+	defer cr.bufferPoolManager.UnpinPage(entry.PageID, true)
+
+	// 检查页面LSN（幂等性保证）
+	if page.GetLSN() >= entry.LSN {
+		// 页面已经包含此修改，跳过
+		return nil
+	}
+
+	// 应用修改：将日志数据写入页面
+	if len(entry.Data) > 0 {
+		page.SetData(entry.Data)
+	}
+
+	// 更新页面LSN
+	page.SetLSN(entry.LSN)
+	page.SetDirty(true)
+
 	return nil
 }
 
 // redoUpdate 重做UPDATE操作
 func (cr *CrashRecovery) redoUpdate(entry *RedoLogEntry) error {
-	// 类似redoInsert的实现
-	return nil
+	// UPDATE操作的重做逻辑与INSERT类似
+	return cr.redoInsert(entry)
 }
 
 // redoDelete 重做DELETE操作
 func (cr *CrashRecovery) redoDelete(entry *RedoLogEntry) error {
-	// 类似redoInsert的实现
-	return nil
+	// DELETE操作的重做逻辑与INSERT类似
+	return cr.redoInsert(entry)
 }
 
 // redoPageCreate 重做页面创建操作
 func (cr *CrashRecovery) redoPageCreate(entry *RedoLogEntry) error {
-	// 页面创建的重做逻辑
+	if cr.storageManager == nil {
+		return fmt.Errorf("存储管理器未设置")
+	}
+
+	// 创建新页面
+	pageID, err := cr.storageManager.CreatePage()
+	if err != nil {
+		return fmt.Errorf("创建页面失败: %v", err)
+	}
+
+	// 验证页面ID是否匹配
+	if pageID != entry.PageID {
+		return fmt.Errorf("页面ID不匹配: 期望%d, 实际%d", entry.PageID, pageID)
+	}
+
+	// 如果有初始数据，写入页面
+	if len(entry.Data) > 0 {
+		if err := cr.storageManager.WritePage(pageID, entry.Data); err != nil {
+			return fmt.Errorf("写入页面数据失败: %v", err)
+		}
+	}
+
 	return nil
 }
 
 // redoPageDelete 重做页面删除操作
 func (cr *CrashRecovery) redoPageDelete(entry *RedoLogEntry) error {
-	// 页面删除的重做逻辑
+	if cr.storageManager == nil {
+		return fmt.Errorf("存储管理器未设置")
+	}
+
+	// 删除页面
+	if err := cr.storageManager.DeletePage(entry.PageID); err != nil {
+		return fmt.Errorf("删除页面%d失败: %v", entry.PageID, err)
+	}
+
 	return nil
 }
 
 // redoPageModify 重做页面修改操作
 func (cr *CrashRecovery) redoPageModify(entry *RedoLogEntry) error {
-	// 页面修改的重做逻辑
+	// 页面修改操作与INSERT类似
+	return cr.redoInsert(entry)
+}
+
+// redoWithStorage 使用存储管理器直接重做（无缓冲池）
+func (cr *CrashRecovery) redoWithStorage(entry *RedoLogEntry) error {
+	if cr.storageManager == nil {
+		// 既没有缓冲池也没有存储管理器，记录警告并跳过
+		fmt.Printf("警告: 无法重做LSN=%d的日志，缺少缓冲池和存储管理器\n", entry.LSN)
+		return nil
+	}
+
+	// 读取页面数据
+	pageData, err := cr.storageManager.ReadPage(entry.PageID)
+	if err != nil {
+		return fmt.Errorf("读取页面%d失败: %v", entry.PageID, err)
+	}
+
+	// 检查页面LSN（假设LSN存储在页面头部的前8字节）
+	if len(pageData) >= 8 {
+		pageLSN := binary.BigEndian.Uint64(pageData[0:8])
+		if pageLSN >= entry.LSN {
+			// 页面已经包含此修改，跳过
+			return nil
+		}
+	}
+
+	// 应用修改
+	if len(entry.Data) > 0 {
+		// 更新页面数据
+		copy(pageData, entry.Data)
+
+		// 更新页面LSN（写入前8字节）
+		if len(pageData) >= 8 {
+			binary.BigEndian.PutUint64(pageData[0:8], entry.LSN)
+		}
+
+		// 写回页面
+		if err := cr.storageManager.WritePage(entry.PageID, pageData); err != nil {
+			return fmt.Errorf("写入页面%d失败: %v", entry.PageID, err)
+		}
+	}
+
 	return nil
 }
 

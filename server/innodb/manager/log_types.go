@@ -7,6 +7,7 @@ type UndoLogEntry struct {
 	LSN       uint64    // 日志序列号
 	TrxID     int64     // 事务ID
 	TableID   uint64    // 表ID
+	RecordID  uint64    // 记录ID
 	Type      uint8     // 操作类型
 	Data      []byte    // 操作数据
 	Timestamp time.Time // 时间戳

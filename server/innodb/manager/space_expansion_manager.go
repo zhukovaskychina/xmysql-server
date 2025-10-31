@@ -2,10 +2,11 @@ package manager
 
 import (
 	"fmt"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"math"
 	"sync"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 /*
@@ -206,28 +207,32 @@ func NewSpaceExpansionManager(spaceManager basic.SpaceManager, config *Expansion
 
 // CheckAndExpand 检查并扩展表空间
 func (sem *SpaceExpansionManager) CheckAndExpand(spaceID uint32) error {
-	sem.Lock()
-	defer sem.Unlock()
-
-	// 获取表空间信息
+	// 获取表空间信息（不需要持有锁）
 	space, err := sem.spaceManager.GetSpace(spaceID)
 	if err != nil {
 		return fmt.Errorf("failed to get space: %v", err)
 	}
 
-	// 计算使用率
+	// 计算使用率（不需要持有锁）
 	usageRate := sem.calculateUsageRate(space)
 
-	// 记录使用率快照
+	// 记录使用率快照（需要持有锁）
+	sem.Lock()
 	sem.recordUsageSnapshot(spaceID, space, usageRate)
 
 	// 检查是否需要扩展
-	if usageRate >= (100.0 - sem.config.LowWaterMark) {
+	needExpand := usageRate >= (100.0 - sem.config.LowWaterMark)
+	var extents uint32
+	if needExpand {
 		// 计算需要扩展的Extent数
-		extents := sem.calculateExpansionSize(space, usageRate)
+		extents = sem.calculateExpansionSize(space, usageRate)
+	}
+	asyncExpand := sem.config.AsyncExpand
+	sem.Unlock()
 
-		// 执行扩展
-		if sem.config.AsyncExpand {
+	// 执行扩展（不持有锁，避免阻塞）
+	if needExpand {
+		if asyncExpand {
 			return sem.expandAsync(spaceID, extents, "auto")
 		} else {
 			return sem.expandSync(spaceID, extents, "auto")
@@ -252,29 +257,31 @@ func (sem *SpaceExpansionManager) PredictiveExpand(spaceID uint32) error {
 		return nil
 	}
 
+	// 基于历史数据预测增长（需要读锁）
 	sem.RLock()
-	defer sem.RUnlock()
-
-	// 基于历史数据预测增长
 	growthRate := sem.calculateGrowthRate()
+	predictionWindow := sem.config.PredictionWindow
+	lowWaterMark := sem.config.LowWaterMark
+	sem.RUnlock()
+
 	if growthRate <= 0 {
 		return nil // 没有增长，不需要扩展
 	}
 
-	// 预测未来时间窗口内的空间需求
+	// 预测未来时间窗口内的空间需求（不需要持有锁）
 	space, err := sem.spaceManager.GetSpace(spaceID)
 	if err != nil {
 		return err
 	}
 
 	currentSize := sem.getSpaceSize(space)
-	predictedGrowth := growthRate * float64(sem.config.PredictionWindow)
+	predictedGrowth := growthRate * float64(predictionWindow)
 
 	if currentSize > 0 {
 		predictedUsage := (float64(currentSize) + predictedGrowth) / float64(currentSize) * 100
 
-		// 如果预测使用率超过阈值，提前扩展
-		if predictedUsage >= (100.0 - sem.config.LowWaterMark) {
+		// 如果预测使用率超过阈值，提前扩展（不持有锁）
+		if predictedUsage >= (100.0 - lowWaterMark) {
 			extents := sem.calculateExtentsForGrowth(predictedGrowth)
 			return sem.expandAsync(spaceID, extents, "predicted")
 		}
@@ -290,7 +297,8 @@ func (sem *SpaceExpansionManager) expandSync(spaceID uint32, extents uint32, tri
 	// 获取表空间
 	space, err := sem.spaceManager.GetSpace(spaceID)
 	if err != nil {
-		sem.stats.FailedExpansions++
+		// 安全地更新失败统计
+		sem.incrementFailedExpansions()
 		return fmt.Errorf("failed to get space: %v", err)
 	}
 
@@ -298,7 +306,8 @@ func (sem *SpaceExpansionManager) expandSync(spaceID uint32, extents uint32, tri
 
 	// 检查限制
 	if err := sem.checkLimits(beforeSize, extents); err != nil {
-		sem.stats.FailedExpansions++
+		// 安全地更新失败统计
+		sem.incrementFailedExpansions()
 		return err
 	}
 
@@ -314,11 +323,17 @@ func (sem *SpaceExpansionManager) expandSync(spaceID uint32, extents uint32, tri
 	}
 
 	if addedExtents == 0 {
-		sem.stats.FailedExpansions++
+		// 安全地更新失败统计
+		sem.incrementFailedExpansions()
 		return fmt.Errorf("failed to allocate any extents")
 	}
 
 	afterSize := beforeSize + uint64(addedExtents)*64*16384 // 64页/extent * 16KB/页
+
+	// 读取配置（需要读锁）
+	sem.RLock()
+	strategy := sem.config.Strategy
+	sem.RUnlock()
 
 	// 记录扩展历史
 	record := &ExpansionRecord{
@@ -327,13 +342,17 @@ func (sem *SpaceExpansionManager) expandSync(spaceID uint32, extents uint32, tri
 		BeforeSize:   beforeSize,
 		AfterSize:    afterSize,
 		ExtentsAdded: addedExtents,
-		Strategy:     sem.config.Strategy,
+		Strategy:     strategy,
 		Duration:     time.Since(startTime),
 		Triggered:    triggered,
 	}
-	sem.recordExpansion(record)
 
-	// 更新统计
+	// 安全地记录扩展历史（需要写锁）
+	sem.Lock()
+	sem.recordExpansion(record)
+	sem.Unlock()
+
+	// 更新统计（内部有锁保护）
 	sem.updateStats(record, triggered)
 
 	return nil
@@ -430,6 +449,7 @@ func (sem *SpaceExpansionManager) calculateExpansionSize(space basic.Space, usag
 }
 
 // calculateGrowthRate 计算增长率（字节/秒）
+// 注意：调用者必须持有 sem 的读锁或写锁
 func (sem *SpaceExpansionManager) calculateGrowthRate() float64 {
 	if len(sem.usageHistory) < 2 {
 		return 0.0
@@ -485,6 +505,7 @@ func (sem *SpaceExpansionManager) checkLimits(currentSize uint64, extents uint32
 }
 
 // recordUsageSnapshot 记录使用率快照
+// 注意：调用者必须持有 sem 的写锁
 func (sem *SpaceExpansionManager) recordUsageSnapshot(spaceID uint32, space basic.Space, usageRate float64) {
 	snapshot := UsageSnapshot{
 		Timestamp: time.Now(),
@@ -503,6 +524,7 @@ func (sem *SpaceExpansionManager) recordUsageSnapshot(spaceID uint32, space basi
 }
 
 // recordExpansion 记录扩展历史
+// 注意：调用者必须持有 sem 的写锁
 func (sem *SpaceExpansionManager) recordExpansion(record *ExpansionRecord) {
 	sem.history = append(sem.history, record)
 
@@ -512,8 +534,21 @@ func (sem *SpaceExpansionManager) recordExpansion(record *ExpansionRecord) {
 	}
 }
 
+// incrementFailedExpansions 安全地增加失败扩展计数
+func (sem *SpaceExpansionManager) incrementFailedExpansions() {
+	sem.stats.Lock()
+	sem.stats.FailedExpansions++
+	sem.stats.Unlock()
+}
+
 // updateStats 更新统计信息
 func (sem *SpaceExpansionManager) updateStats(record *ExpansionRecord, triggered string) {
+	// 先计算增长率（需要读取 usageHistory，需要读锁）
+	sem.RLock()
+	growthRate := sem.calculateGrowthRate()
+	sem.RUnlock()
+
+	// 更新统计信息（需要 stats 的写锁）
 	sem.stats.Lock()
 	defer sem.stats.Unlock()
 
@@ -538,8 +573,8 @@ func (sem *SpaceExpansionManager) updateStats(record *ExpansionRecord, triggered
 		sem.stats.AverageExpandTime = (totalTime + record.Duration) / time.Duration(sem.stats.TotalExpansions)
 	}
 
-	// 更新增长率
-	sem.stats.CurrentGrowthRate = sem.calculateGrowthRate() * 3600 / (1024 * 1024) // 转换为MB/小时
+	// 更新增长率（使用之前计算的值）
+	sem.stats.CurrentGrowthRate = growthRate * 3600 / (1024 * 1024) // 转换为MB/小时
 }
 
 // getSpaceSize 获取表空间大小
@@ -554,8 +589,21 @@ func (sem *SpaceExpansionManager) GetStats() *ExpansionStats {
 	sem.stats.RLock()
 	defer sem.stats.RUnlock()
 
-	statsCopy := *sem.stats
-	return &statsCopy
+	// 手动复制字段，避免复制锁
+	statsCopy := &ExpansionStats{
+		TotalExpansions:     sem.stats.TotalExpansions,
+		AutoExpansions:      sem.stats.AutoExpansions,
+		ManualExpansions:    sem.stats.ManualExpansions,
+		PredictedExpansions: sem.stats.PredictedExpansions,
+		FailedExpansions:    sem.stats.FailedExpansions,
+		TotalExtentsAdded:   sem.stats.TotalExtentsAdded,
+		TotalBytesAdded:     sem.stats.TotalBytesAdded,
+		AverageExpandTime:   sem.stats.AverageExpandTime,
+		LastExpansion:       sem.stats.LastExpansion,
+		CurrentGrowthRate:   sem.stats.CurrentGrowthRate,
+		PredictedFullTime:   sem.stats.PredictedFullTime,
+	}
+	return statsCopy
 }
 
 // GetHistory 获取扩展历史

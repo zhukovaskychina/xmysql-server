@@ -90,7 +90,7 @@ func TestDMLExecutor_ParseDeleteStatement(t *testing.T) {
 
 func TestDMLExecutor_ExecuteInsertWithMockData(t *testing.T) {
 	// 创建DML执行器（使用nil管理器进行基本测试）
-	dmlExecutor := NewDMLExecutor(nil, nil, nil, nil, nil)
+	dmlExecutor := NewDMLExecutor(nil, nil, nil, nil, nil, nil)
 
 	// 解析INSERT语句
 	insertSQL := "INSERT INTO users (id, name) VALUES (1, 'Test User')"
@@ -114,7 +114,7 @@ func TestDMLExecutor_ExecuteInsertWithMockData(t *testing.T) {
 }
 
 func TestDMLExecutor_EvaluateExpressions(t *testing.T) {
-	dmlExecutor := NewDMLExecutor(nil, nil, nil, nil, nil)
+	dmlExecutor := NewDMLExecutor(nil, nil, nil, nil, nil, nil)
 
 	// 测试字符串值解析
 	strVal := &sqlparser.SQLVal{
@@ -161,7 +161,7 @@ func TestDMLExecutor_EvaluateExpressions(t *testing.T) {
 }
 
 func TestDMLExecutor_ValidateTableNameParsing(t *testing.T) {
-	dmlExecutor := NewDMLExecutor(nil, nil, nil, nil, nil)
+	dmlExecutor := NewDMLExecutor(nil, nil, nil, nil, nil, nil)
 
 	// 创建一个简单的表表达式
 	tableName := sqlparser.TableName{

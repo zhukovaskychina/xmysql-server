@@ -15,6 +15,14 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
+// SecondaryIndexSyncer 二级索引同步器接口
+// 用于在DML操作时同步二级索引
+type SecondaryIndexSyncer interface {
+	SyncSecondaryIndexesOnInsert(tableID uint64, rowData map[string]interface{}, primaryKeyValue []byte) error
+	SyncSecondaryIndexesOnUpdate(tableID uint64, oldRowData, newRowData map[string]interface{}, primaryKeyValue []byte) error
+	SyncSecondaryIndexesOnDelete(tableID uint64, rowData map[string]interface{}) error
+}
+
 // DMLExecutor DML操作执行器
 type DMLExecutor struct {
 	BaseExecutor
@@ -25,6 +33,7 @@ type DMLExecutor struct {
 	btreeManager      basic.BPlusTreeManager
 	tableManager      *manager.TableManager
 	txManager         *manager.TransactionManager
+	indexSyncer       SecondaryIndexSyncer // 二级索引同步器接口
 
 	// 执行状态
 	schemaName    string
@@ -39,6 +48,7 @@ func NewDMLExecutor(
 	btreeManager basic.BPlusTreeManager,
 	tableManager *manager.TableManager,
 	txManager *manager.TransactionManager,
+	indexSyncer SecondaryIndexSyncer,
 ) *DMLExecutor {
 	return &DMLExecutor{
 		optimizerManager:  optimizerManager,
@@ -46,6 +56,7 @@ func NewDMLExecutor(
 		btreeManager:      btreeManager,
 		tableManager:      tableManager,
 		txManager:         txManager,
+		indexSyncer:       indexSyncer,
 		isInitialized:     false,
 	}
 }
@@ -526,10 +537,42 @@ func (dml *DMLExecutor) insertRow(ctx context.Context, txn interface{}, row *Ins
 		return 0, fmt.Errorf("serialize row failed: %v", err)
 	}
 
-	// 写入B+树索引
+	// 写入B+树主键索引
 	if dml.btreeManager != nil {
 		if err := dml.btreeManager.Insert(ctx, pkVal, bytes); err != nil {
 			return 0, err
+		}
+	}
+
+	// 同步二级索引
+	// 注意：由于 TableMeta 没有 TableID 字段，我们需要通过其他方式获取
+	// 这里暂时使用表名的哈希值作为 TableID（临时方案）
+	// TODO: 需要在 TableMeta 中添加 TableID 字段，或从 TableManager 获取
+	if dml.indexSyncer != nil {
+		tableID := dml.getTableIDFromName(tableMeta.Name)
+		if tableID > 0 {
+			if err := dml.indexSyncer.SyncSecondaryIndexesOnInsert(
+				tableID,
+				row.ColumnValues,
+				bytes, // 主键值（序列化后的行数据）
+			); err != nil {
+				// 二级索引同步失败，需要回滚主键插入
+				logger.Errorf("❌ 二级索引同步失败，回滚主键插入: %v", err)
+
+				// 尝试删除已插入的主键索引
+				if dml.btreeManager != nil {
+					if deleter, ok := interface{}(dml.btreeManager).(interface {
+						Delete(ctx context.Context, key interface{}) error
+					}); ok {
+						if delErr := deleter.Delete(ctx, pkVal); delErr != nil {
+							logger.Errorf("❌ 回滚主键插入失败: %v", delErr)
+						}
+					}
+				}
+
+				return 0, fmt.Errorf("同步二级索引失败: %v", err)
+			}
+			logger.Debugf("✅ 二级索引同步成功")
 		}
 	}
 
@@ -569,26 +612,45 @@ func (dml *DMLExecutor) findRowsToUpdate(ctx context.Context, txn interface{}, w
 func (dml *DMLExecutor) updateRow(ctx context.Context, txn interface{}, rowInfo *RowUpdateInfo, updateExprs []*UpdateExpression, tableMeta *metadata.TableMeta) error {
 	logger.Debugf(" 更新行数据: RowID=%d", rowInfo.RowId)
 
-	data := make(map[string]interface{})
+	// 构建新的行数据
+	newData := make(map[string]interface{})
 	for k, v := range rowInfo.OldValues {
-		data[k] = v
+		newData[k] = v
 	}
 
 	for _, expr := range updateExprs {
 		if !dml.validateValueType(expr.NewValue, expr.ColumnType) {
 			return fmt.Errorf("column %s type mismatch", expr.ColumnName)
 		}
-		data[expr.ColumnName] = expr.NewValue
+		newData[expr.ColumnName] = expr.NewValue
 	}
 
-	bytes, err := json.Marshal(data)
+	bytes, err := json.Marshal(newData)
 	if err != nil {
 		return fmt.Errorf("serialize row failed: %v", err)
 	}
 
+	// 更新主键索引
 	if dml.btreeManager != nil {
 		if err := dml.btreeManager.Insert(ctx, rowInfo.RowId, bytes); err != nil {
 			return err
+		}
+	}
+
+	// 同步二级索引
+	if dml.indexSyncer != nil {
+		tableID := dml.getTableIDFromName(tableMeta.Name)
+		if tableID > 0 {
+			if err := dml.indexSyncer.SyncSecondaryIndexesOnUpdate(
+				tableID,
+				rowInfo.OldValues, // 旧数据
+				newData,           // 新数据
+				bytes,             // 主键值（序列化后的行数据）
+			); err != nil {
+				logger.Errorf("❌ 二级索引更新失败: %v", err)
+				return fmt.Errorf("同步二级索引失败: %v", err)
+			}
+			logger.Debugf("✅ 二级索引更新成功")
 		}
 	}
 
@@ -632,6 +694,22 @@ func (dml *DMLExecutor) deleteRow(ctx context.Context, txn interface{}, rowInfo 
 		return fmt.Errorf("btree manager not initialized")
 	}
 
+	// 先同步删除二级索引（在删除主键之前）
+	if dml.indexSyncer != nil {
+		tableID := dml.getTableIDFromName(tableMeta.Name)
+		if tableID > 0 {
+			if err := dml.indexSyncer.SyncSecondaryIndexesOnDelete(
+				tableID,
+				rowInfo.OldValues, // 行数据
+			); err != nil {
+				logger.Errorf("❌ 二级索引删除失败: %v", err)
+				return fmt.Errorf("同步二级索引删除失败: %v", err)
+			}
+			logger.Debugf("✅ 二级索引删除成功")
+		}
+	}
+
+	// 删除主键索引
 	if deleter, ok := interface{}(dml.btreeManager).(interface {
 		Delete(ctx context.Context, key interface{}) error
 	}); ok {
@@ -644,6 +722,29 @@ func (dml *DMLExecutor) deleteRow(ctx context.Context, txn interface{}, rowInfo 
 }
 
 // ===== 辅助方法 =====
+
+// getTableIDFromName 从表名获取 TableID
+// TODO: 这是一个临时实现，应该从 TableManager 或数据字典中获取真实的 TableID
+func (dml *DMLExecutor) getTableIDFromName(tableName string) uint64 {
+	if tableName == "" {
+		return 0
+	}
+
+	// 临时方案：使用表名的哈希值作为 TableID
+	// 在生产环境中，应该从数据字典或 TableManager 中获取真实的 TableID
+	var hash uint64
+	for i := 0; i < len(tableName); i++ {
+		hash = hash*31 + uint64(tableName[i])
+	}
+
+	// 确保返回一个非零的正数
+	if hash == 0 {
+		hash = 1
+	}
+
+	logger.Debugf("📋 表名 '%s' 映射到 TableID: %d (临时哈希值)", tableName, hash)
+	return hash
+}
 
 func (dml *DMLExecutor) convertPrimaryKeyToUint64(key interface{}) uint64 {
 	switch v := key.(type) {

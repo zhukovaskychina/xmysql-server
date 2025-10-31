@@ -508,7 +508,8 @@ func (e *XMySQLExecutor) executeInsertStatement(ctx *ExecutionContext, stmt *sql
 			bufferPoolManager,
 			btreeManager,
 			tableManager,
-			nil, // TODO: 添加事务管理器
+			nil,            // TODO: 添加事务管理器
+			e.indexManager, // 索引管理器
 		)
 
 		// 执行INSERT语句
@@ -585,7 +586,8 @@ func (e *XMySQLExecutor) executeUpdateStatement(ctx *ExecutionContext, stmt *sql
 			bufferPoolManager,
 			btreeManager,
 			tableManager,
-			nil, // TODO: 添加事务管理器
+			nil,            // TODO: 添加事务管理器
+			e.indexManager, // 索引管理器
 		)
 
 		// 执行UPDATE语句
@@ -662,7 +664,8 @@ func (e *XMySQLExecutor) executeDeleteStatement(ctx *ExecutionContext, stmt *sql
 			bufferPoolManager,
 			btreeManager,
 			tableManager,
-			nil, // TODO: 添加事务管理器
+			nil,            // TODO: 添加事务管理器
+			e.indexManager, // 索引管理器
 		)
 
 		// 执行DELETE语句

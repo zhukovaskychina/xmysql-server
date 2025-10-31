@@ -2,12 +2,13 @@ package manager
 
 import (
 	"fmt"
-	"github.com/zhukovaskychina/xmysql-server/logger"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/logger"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 )
 
 const (
@@ -18,6 +19,16 @@ const (
 	YOUNG_LIST_RATIO         = 0.75        // young list比例
 	OLD_LIST_RATIO           = 0.25        // old list比例
 	OLD_BLOCK_TIME           = 1000        // old区块时间（毫秒）
+
+	// 自适应刷新参数
+	MIN_FLUSH_INTERVAL      = 100 * time.Millisecond // 最小刷新间隔
+	MAX_FLUSH_INTERVAL      = 10 * time.Second       // 最大刷新间隔
+	BATCH_FLUSH_SIZE        = 100                    // 批量刷新大小
+	AGGRESSIVE_FLUSH_RATIO  = 0.75                   // 激进刷新阈值（脏页比例）
+	MODERATE_FLUSH_RATIO    = 0.50                   // 中等刷新阈值
+	LIGHT_FLUSH_RATIO       = 0.25                   // 轻度刷新阈值
+	ADAPTIVE_ADJUST_FACTOR  = 0.1                    // 自适应调整因子
+	MAX_FLUSH_PAGES_PER_SEC = 1000                   // 每秒最大刷新页数
 )
 
 // BufferPoolConfig 缓冲池配置
@@ -70,6 +81,12 @@ type BufferPoolManager struct {
 	// 后台线程控制
 	stopChan    chan struct{}
 	flushTicker *time.Ticker
+
+	// 自适应刷新控制
+	currentFlushInterval time.Duration // 当前刷新间隔
+	flushRateLimit       int           // 刷新速率限制（页/秒）
+	lastFlushTime        time.Time     // 上次刷新时间
+	lastFlushCount       int           // 上次刷新页数
 }
 
 // NewBufferPoolManager creates a new buffer pool manager
@@ -129,9 +146,12 @@ func NewBufferPoolManager(config *BufferPoolConfig) (*BufferPoolManager, error) 
 
 	// Create buffer pool manager
 	bpm := &BufferPoolManager{
-		bufferPool: buffer_pool.NewBufferPool(bpConfig),
-		config:     config,
-		stopChan:   make(chan struct{}),
+		bufferPool:           buffer_pool.NewBufferPool(bpConfig),
+		config:               config,
+		stopChan:             make(chan struct{}),
+		currentFlushInterval: config.FlushInterval,
+		flushRateLimit:       MAX_FLUSH_PAGES_PER_SEC,
+		lastFlushTime:        time.Now(),
 	}
 
 	// Start background threads
@@ -239,29 +259,166 @@ func (bpm *BufferPoolManager) FlushAllPages() error {
 	return nil
 }
 
-// backgroundFlush performs background page flushing
+// backgroundFlush performs background page flushing with adaptive strategy
 func (bpm *BufferPoolManager) backgroundFlush() {
-	// Get dirty pages from buffer pool
+	// 获取脏页统计
 	dirtyPages := bpm.bufferPool.GetDirtyPages()
+	totalPages := bpm.config.PoolSize
+	dirtyRatio := float64(len(dirtyPages)) / float64(totalPages)
 
-	// Flush dirty pages in batches
-	for _, page := range dirtyPages {
-		if err := bpm.FlushPage(page.GetSpaceID(), page.GetPageNo()); err != nil {
-			// Log error but continue with other pages
-			logger.Debugf("Error flushing page %d: %v", page.GetPageNo(), err)
+	// 根据脏页比例调整刷新策略
+	flushBatchSize := bpm.calculateFlushBatchSize(dirtyRatio)
+	if flushBatchSize == 0 {
+		return // 脏页比例很低，不需要刷新
+	}
+
+	// 应用速率限制
+	flushBatchSize = bpm.applyRateLimit(flushBatchSize)
+
+	// 使用 BufferPool 的刷新策略选择要刷新的页面
+	if err := bpm.bufferPool.FlushDirtyPagesWithLimit(flushBatchSize); err != nil {
+		logger.Debugf("Error during background flush: %v", err)
+	}
+
+	// 更新统计信息
+	bpm.lastFlushTime = time.Now()
+	bpm.lastFlushCount = flushBatchSize
+
+	// 自适应调整刷新间隔
+	bpm.adjustFlushInterval(dirtyRatio)
+}
+
+// calculateFlushBatchSize 根据脏页比例计算批量刷新大小
+func (bpm *BufferPoolManager) calculateFlushBatchSize(dirtyRatio float64) int {
+	var batchSize int
+
+	switch {
+	case dirtyRatio >= AGGRESSIVE_FLUSH_RATIO:
+		// 激进刷新：脏页比例 >= 75%
+		batchSize = BATCH_FLUSH_SIZE * 4
+		logger.Debugf("Aggressive flush mode: dirty ratio %.2f%%", dirtyRatio*100)
+
+	case dirtyRatio >= MODERATE_FLUSH_RATIO:
+		// 中等刷新：脏页比例 >= 50%
+		batchSize = BATCH_FLUSH_SIZE * 2
+		logger.Debugf("Moderate flush mode: dirty ratio %.2f%%", dirtyRatio*100)
+
+	case dirtyRatio >= LIGHT_FLUSH_RATIO:
+		// 轻度刷新：脏页比例 >= 25%
+		batchSize = BATCH_FLUSH_SIZE
+		logger.Debugf("Light flush mode: dirty ratio %.2f%%", dirtyRatio*100)
+
+	default:
+		// 脏页比例很低，不需要刷新
+		batchSize = 0
+	}
+
+	return batchSize
+}
+
+// applyRateLimit 应用速率限制
+func (bpm *BufferPoolManager) applyRateLimit(requestedPages int) int {
+	// 计算自上次刷新以来的时间
+	elapsed := time.Since(bpm.lastFlushTime)
+	if elapsed == 0 {
+		elapsed = 1 * time.Millisecond
+	}
+
+	// 计算允许的最大页数（基于速率限制）
+	maxPagesAllowed := int(float64(bpm.flushRateLimit) * elapsed.Seconds())
+
+	// 返回较小值
+	if requestedPages > maxPagesAllowed {
+		logger.Debugf("Rate limit applied: requested %d, allowed %d", requestedPages, maxPagesAllowed)
+		return maxPagesAllowed
+	}
+
+	return requestedPages
+}
+
+// adjustFlushInterval 自适应调整刷新间隔
+func (bpm *BufferPoolManager) adjustFlushInterval(dirtyRatio float64) {
+	bpm.mu.Lock()
+	defer bpm.mu.Unlock()
+
+	oldInterval := bpm.currentFlushInterval
+
+	switch {
+	case dirtyRatio >= AGGRESSIVE_FLUSH_RATIO:
+		// 脏页比例很高，减少刷新间隔（更频繁刷新）
+		bpm.currentFlushInterval = time.Duration(float64(bpm.currentFlushInterval) * (1 - ADAPTIVE_ADJUST_FACTOR))
+
+	case dirtyRatio >= MODERATE_FLUSH_RATIO:
+		// 脏页比例中等，略微减少刷新间隔
+		bpm.currentFlushInterval = time.Duration(float64(bpm.currentFlushInterval) * (1 - ADAPTIVE_ADJUST_FACTOR/2))
+
+	case dirtyRatio < LIGHT_FLUSH_RATIO:
+		// 脏页比例很低，增加刷新间隔（减少刷新频率）
+		bpm.currentFlushInterval = time.Duration(float64(bpm.currentFlushInterval) * (1 + ADAPTIVE_ADJUST_FACTOR))
+	}
+
+	// 限制刷新间隔在合理范围内
+	if bpm.currentFlushInterval < MIN_FLUSH_INTERVAL {
+		bpm.currentFlushInterval = MIN_FLUSH_INTERVAL
+	}
+	if bpm.currentFlushInterval > MAX_FLUSH_INTERVAL {
+		bpm.currentFlushInterval = MAX_FLUSH_INTERVAL
+	}
+
+	// 如果间隔发生变化，重启定时器
+	if oldInterval != bpm.currentFlushInterval {
+		logger.Debugf("Flush interval adjusted: %v -> %v (dirty ratio: %.2f%%)",
+			oldInterval, bpm.currentFlushInterval, dirtyRatio*100)
+
+		// 重启定时器
+		if bpm.flushTicker != nil {
+			bpm.flushTicker.Stop()
+			bpm.flushTicker = time.NewTicker(bpm.currentFlushInterval)
 		}
 	}
 }
 
 // GetStats returns buffer pool statistics
 func (bpm *BufferPoolManager) GetStats() map[string]interface{} {
+	dirtyPages := bpm.bufferPool.GetDirtyPages()
+	dirtyRatio := float64(len(dirtyPages)) / float64(bpm.config.PoolSize)
+
 	return map[string]interface{}{
-		"hits":        atomic.LoadUint64(&bpm.stats.hits),
-		"misses":      atomic.LoadUint64(&bpm.stats.misses),
-		"evictions":   atomic.LoadUint64(&bpm.stats.evictions),
-		"flushes":     atomic.LoadUint64(&bpm.stats.flushes),
-		"page_reads":  atomic.LoadUint64(&bpm.stats.pageReads),
-		"page_writes": atomic.LoadUint64(&bpm.stats.pageWrites),
+		"hits":                   atomic.LoadUint64(&bpm.stats.hits),
+		"misses":                 atomic.LoadUint64(&bpm.stats.misses),
+		"evictions":              atomic.LoadUint64(&bpm.stats.evictions),
+		"flushes":                atomic.LoadUint64(&bpm.stats.flushes),
+		"page_reads":             atomic.LoadUint64(&bpm.stats.pageReads),
+		"page_writes":            atomic.LoadUint64(&bpm.stats.pageWrites),
+		"dirty_pages":            len(dirtyPages),
+		"dirty_ratio":            dirtyRatio,
+		"total_pages":            bpm.config.PoolSize,
+		"current_flush_interval": bpm.currentFlushInterval.String(),
+		"flush_rate_limit":       bpm.flushRateLimit,
+		"last_flush_count":       bpm.lastFlushCount,
+	}
+}
+
+// GetDirtyPageRatio 获取脏页比例
+func (bpm *BufferPoolManager) GetDirtyPageRatio() float64 {
+	dirtyPages := bpm.bufferPool.GetDirtyPages()
+	return float64(len(dirtyPages)) / float64(bpm.config.PoolSize)
+}
+
+// GetDirtyPageCount 获取脏页数量
+func (bpm *BufferPoolManager) GetDirtyPageCount() int {
+	dirtyPages := bpm.bufferPool.GetDirtyPages()
+	return len(dirtyPages)
+}
+
+// SetFlushRateLimit 设置刷新速率限制
+func (bpm *BufferPoolManager) SetFlushRateLimit(pagesPerSecond int) {
+	bpm.mu.Lock()
+	defer bpm.mu.Unlock()
+
+	if pagesPerSecond > 0 {
+		bpm.flushRateLimit = pagesPerSecond
+		logger.Debugf("Flush rate limit set to %d pages/sec", pagesPerSecond)
 	}
 }
 
@@ -310,8 +467,49 @@ func (bpm *BufferPoolManager) Close() error {
 	return bpm.FlushAllPages()
 }
 
+// startBackgroundThreads 启动后台线程
 func (bpm *BufferPoolManager) startBackgroundThreads() {
+	// 创建刷新定时器
+	bpm.flushTicker = time.NewTicker(bpm.currentFlushInterval)
 
+	// 启动后台刷新线程
+	go func() {
+		logger.Debugf("Background flush thread started with interval %v", bpm.currentFlushInterval)
+
+		for {
+			select {
+			case <-bpm.flushTicker.C:
+				// 执行后台刷新
+				bpm.backgroundFlush()
+
+			case <-bpm.stopChan:
+				// 收到停止信号，退出
+				logger.Debugf("Background flush thread stopped")
+				return
+			}
+		}
+	}()
+
+	// 启动 LRU 维护线程
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		logger.Debugf("LRU maintenance thread started")
+
+		for {
+			select {
+			case <-ticker.C:
+				// 维护 LRU 列表
+				bpm.maintainLRULists()
+
+			case <-bpm.stopChan:
+				// 收到停止信号，退出
+				logger.Debugf("LRU maintenance thread stopped")
+				return
+			}
+		}
+	}()
 }
 
 // makePageID 生成页面ID
