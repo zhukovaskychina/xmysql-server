@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	mvcc2 "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/mvcc"
+	formatmvcc "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/format/mvcc"
 )
 
 var (
@@ -16,9 +16,6 @@ var (
 // MVCCManager MVCC管理器
 type MVCCManager struct {
 	sync.RWMutex
-
-	// MVCC控制
-	mvcc *mvcc2.Mvcc
 
 	// 活跃事务
 	activeTxs map[uint64]*MVCCTransactionInfo
@@ -46,7 +43,7 @@ type MVCCConfig struct {
 type MVCCTransactionInfo struct {
 	ID        uint64
 	StartTime time.Time
-	ReadView  *mvcc2.ReadView
+	ReadView  *formatmvcc.ReadView
 	State     TxState
 }
 
@@ -63,13 +60,13 @@ const (
 // NewMVCCManager 创建MVCC管理器
 func NewMVCCManager(config *MVCCConfig) *MVCCManager {
 	return &MVCCManager{
-		mvcc:      &mvcc2.Mvcc{},
 		activeTxs: make(map[uint64]*MVCCTransactionInfo),
 		config:    config,
 	}
 }
 
 // BeginTransaction 开始事务
+// 修复MVCC-001: 确保ReadView创建时正确捕获所有活跃事务ID
 func (m *MVCCManager) BeginTransaction() (uint64, error) {
 	m.Lock()
 	defer m.Unlock()
@@ -83,27 +80,32 @@ func (m *MVCCManager) BeginTransaction() (uint64, error) {
 	m.nextTxID++
 	txID := m.nextTxID
 
-	// 基于当前活跃事务创建 ReadView（与 TransactionManager 对齐）
-	activeIDs := make([]int64, 0, len(m.activeTxs))
-	minTrxID := int64(^uint64(0) >> 1)
-	for id, tx := range m.activeTxs {
-		if tx.State == TxStateActive && uint64(id) != txID {
-			activeIDs = append(activeIDs, int64(id))
-			if int64(id) < minTrxID {
-				minTrxID = int64(id)
-			}
-		}
-	}
-	maxTrxID := int64(m.nextTxID)
-	view := mvcc2.NewReadView(activeIDs, minTrxID, maxTrxID, int64(txID))
-
-	// 记录事务信息
+	// 【修复1】先将新事务加入activeTxs，确保并发事务能看到它
+	// 此时ReadView为nil，稍后创建
 	m.activeTxs[txID] = &MVCCTransactionInfo{
 		ID:        txID,
 		StartTime: time.Now(),
-		ReadView:  view,
+		ReadView:  nil, // 稍后创建
 		State:     TxStateActive,
 	}
+
+	// 【修复2】基于当前所有活跃事务创建ReadView（原子快照）
+	// 注意：此时activeTxs已包含当前事务，需要排除自己
+	activeIDs := make([]uint64, 0, len(m.activeTxs)-1)
+
+	for id, tx := range m.activeTxs {
+		// 排除当前事务自己，只记录其他活跃事务
+		if tx.State == TxStateActive && id != txID {
+			activeIDs = append(activeIDs, id)
+		}
+	}
+
+	// 创建ReadView
+	// format/mvcc的NewReadView会自动计算lowWaterMark和highWaterMark
+	view := formatmvcc.NewReadView(activeIDs, txID, m.nextTxID+1)
+
+	// 【修复6】更新事务的ReadView
+	m.activeTxs[txID].ReadView = view
 
 	return txID, nil
 }
@@ -120,9 +122,6 @@ func (m *MVCCManager) CommitTransaction(txID uint64) error {
 
 	// 更新事务状态
 	tx.State = TxStateCommitting
-
-	// 关闭ReadView
-	m.mvcc.CloseView(tx.ReadView, false)
 
 	// 移除事务记录
 	delete(m.activeTxs, txID)
@@ -143,9 +142,6 @@ func (m *MVCCManager) RollbackTransaction(txID uint64) error {
 	// 更新事务状态
 	tx.State = TxStateRollback
 
-	// 关闭ReadView
-	m.mvcc.CloseView(tx.ReadView, false)
-
 	// 移除事务记录
 	delete(m.activeTxs, txID)
 
@@ -153,7 +149,7 @@ func (m *MVCCManager) RollbackTransaction(txID uint64) error {
 }
 
 // GetTransactionReadView 获取事务的ReadView
-func (m *MVCCManager) GetTransactionReadView(txID uint64) (*mvcc2.ReadView, error) {
+func (m *MVCCManager) GetTransactionReadView(txID uint64) (*formatmvcc.ReadView, error) {
 	m.RLock()
 	defer m.RUnlock()
 
@@ -175,7 +171,7 @@ func (m *MVCCManager) IsVisible(txID uint64, version uint64) (bool, error) {
 		// 没有ReadView则默认为可见（例如RU或管理器尚未初始化）
 		return true, nil
 	}
-	return rv.IsVisible(int64(version)), nil
+	return rv.IsVisible(version), nil
 }
 
 // CleanupExpiredTransactions 清理过期事务

@@ -1,21 +1,28 @@
 package mvcc
 
 import (
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	formatmvcc "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/format/mvcc"
 )
 
-// MVCCPage MVCC页面接口
-type MVCCPage interface {
+// IMVCCPage MVCC页面接口
+// 统一了wrapper/page/MVCCPage和wrapper/mvcc/MVCCPage的定义
+type IMVCCPage interface {
 	basic.IPage
 
 	// 版本控制
 	GetVersion() uint64
 	SetVersion(version uint64)
 
-	// 事务管理
+	// 事务ID管理
 	GetTxID() uint64
 	SetTxID(txID uint64)
+
+	// 回滚指针管理
+	GetRollPtr() []byte
+	SetRollPtr(ptr []byte)
 
 	// 快照管理
 	CreateSnapshot() (*PageSnapshot, error)
@@ -24,18 +31,22 @@ type MVCCPage interface {
 	// 锁管理
 	AcquireLock(txID uint64, mode LockMode) error
 	ReleaseLock(txID uint64) error
+
+	// 序列化支持
+	ParseFromBytes(data []byte) error
+	ToBytes() ([]byte, error)
 }
 
 // RecordVersionManager 记录版本管理器接口
 type RecordVersionManager interface {
 	// 版本链管理
-	AddVersion(record *RecordVersion) error
-	GetLatestVersion(key basic.Value) (*RecordVersion, error)
-	GetVersionByTxID(key basic.Value, txID uint64) (*RecordVersion, error)
-	GetVisibleVersion(key basic.Value, txID uint64, readTS time.Time) (*RecordVersion, error)
+	AddVersion(record *formatmvcc.RecordVersion) error
+	GetLatestVersion(key basic.Value) (*formatmvcc.RecordVersion, error)
+	GetVersionByTxID(key basic.Value, txID uint64) (*formatmvcc.RecordVersion, error)
+	GetVisibleVersion(key basic.Value, readView *formatmvcc.ReadView) (*formatmvcc.RecordVersion, error)
 
 	// 垃圾回收
-	PurgeOldVersions(beforeTS time.Time) error
+	PurgeOldVersions(minTxID uint64) error
 	GetVersionChainLength(key basic.Value) int
 }
 
@@ -77,22 +88,13 @@ type LockManager interface {
 // TransactionVisibility 事务可见性接口
 type TransactionVisibility interface {
 	// 可见性检查
-	IsVisible(record *RecordVersion, txID uint64, readTS time.Time) bool
-	GetReadView(txID uint64) (*ReadView, error)
-	CreateReadView(txID uint64) (*ReadView, error)
+	IsVisible(record *formatmvcc.RecordVersion, readView *formatmvcc.ReadView) bool
+	GetReadView(txID uint64) (*formatmvcc.ReadView, error)
+	CreateReadView(txID uint64, activeTxIDs []uint64, nextTxID uint64) (*formatmvcc.ReadView, error)
 
 	// 隔离级别支持
 	SetIsolationLevel(level IsolationLevel)
 	GetIsolationLevel() IsolationLevel
-}
-
-// ReadView 读取视图，用于MVCC可见性判断
-type ReadView struct {
-	TxID          uint64    // 当前事务ID
-	CreateTS      time.Time // 创建时间
-	LowWaterMark  uint64    // 最小活跃事务ID
-	HighWaterMark uint64    // 最大事务ID
-	ActiveTxIDs   []uint64  // 活跃事务ID列表
 }
 
 // IsolationLevel 事务隔离级别
@@ -126,60 +128,4 @@ func (il IsolationLevel) String() string {
 	default:
 		return "UNKNOWN"
 	}
-}
-
-// NewReadView 创建新的读取视图
-func NewReadView(txID uint64, activeTxIDs []uint64) *ReadView {
-	rv := &ReadView{
-		TxID:        txID,
-		CreateTS:    time.Now(),
-		ActiveTxIDs: make([]uint64, len(activeTxIDs)),
-	}
-
-	copy(rv.ActiveTxIDs, activeTxIDs)
-
-	// 计算水位线
-	if len(activeTxIDs) > 0 {
-		rv.LowWaterMark = activeTxIDs[0]
-		rv.HighWaterMark = activeTxIDs[len(activeTxIDs)-1]
-
-		for _, txID := range activeTxIDs {
-			if txID < rv.LowWaterMark {
-				rv.LowWaterMark = txID
-			}
-			if txID > rv.HighWaterMark {
-				rv.HighWaterMark = txID
-			}
-		}
-	}
-
-	return rv
-}
-
-// IsVisible 检查事务对当前读取视图是否可见
-func (rv *ReadView) IsVisible(txID uint64) bool {
-	// 自己的事务总是可见
-	if txID == rv.TxID {
-		return true
-	}
-
-	// 小于低水位线的事务已提交，可见
-	if txID < rv.LowWaterMark {
-		return true
-	}
-
-	// 大于高水位线的事务还未开始，不可见
-	if txID > rv.HighWaterMark {
-		return false
-	}
-
-	// 在活跃事务列表中的不可见
-	for _, activeTxID := range rv.ActiveTxIDs {
-		if txID == activeTxID {
-			return false
-		}
-	}
-
-	// 其他情况可见
-	return true
 }

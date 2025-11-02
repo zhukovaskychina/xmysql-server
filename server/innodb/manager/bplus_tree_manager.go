@@ -51,6 +51,12 @@ type DefaultBPlusTreeManager struct {
 
 	// 淘汰操作锁（新增，避免竞态条件）
 	evictMutex sync.Mutex
+
+	// Undo日志管理器（新增）
+	undoLogManager *UndoLogManager
+
+	// LSN管理器（新增）
+	lsnManager *LSNManager
 }
 
 // BPlusTreeConfig B+树配置
@@ -97,6 +103,20 @@ func NewBPlusTreeManager(bpm *OptimizedBufferPoolManager, config *BPlusTreeConfi
 	go btm.backgroundCleaner()
 
 	return btm
+}
+
+// SetUndoLogManager 设置Undo日志管理器
+func (m *DefaultBPlusTreeManager) SetUndoLogManager(undoMgr *UndoLogManager) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.undoLogManager = undoMgr
+}
+
+// SetLSNManager 设置LSN管理器
+func (m *DefaultBPlusTreeManager) SetLSNManager(lsnMgr *LSNManager) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.lsnManager = lsnMgr
 }
 
 // BPlusTreeStats B+树统计信息
@@ -761,14 +781,40 @@ func (m *DefaultBPlusTreeManager) InsertWithTransaction(ctx context.Context, key
 		return fmt.Errorf("failed to find inserted node: %v", err)
 	}
 
+	// 记录Undo日志
+	var undoPtr uint64 = 0
+	if m.undoLogManager != nil && m.lsnManager != nil {
+		// 分配LSN
+		lsn := uint64(m.lsnManager.AllocateLSN())
+
+		// 创建Undo日志条目
+		undoEntry := &UndoLogEntry{
+			LSN:      lsn,
+			TrxID:    int64(trxID),
+			TableID:  uint64(m.spaceId), // 使用spaceId作为tableID
+			RecordID: uint64(leafNode.PageNum),
+			Type:     LOG_TYPE_INSERT,
+			Data:     value, // 记录主键数据用于回滚时删除
+		}
+
+		// 追加Undo日志
+		if err := m.undoLogManager.Append(undoEntry); err != nil {
+			logger.Warnf("⚠️  Failed to append undo log: %v", err)
+			// 不中断插入操作，只记录警告
+		} else {
+			undoPtr = lsn // 使用LSN作为Undo指针
+			logger.Debugf("📝 Recorded Undo log: LSN=%d, trxID=%d, key=%v", lsn, trxID, key)
+		}
+	}
+
 	// 设置事务ID和Undo指针
 	leafNode.mu.Lock()
 	leafNode.TrxID = trxID
-	leafNode.RollPtr = 0 // TODO: 实际应该记录Undo日志指针
+	leafNode.RollPtr = undoPtr
 	leafNode.isDirty = true
 	leafNode.mu.Unlock()
 
-	logger.Debugf("✅ Transaction Insert completed: key=%v, trxID=%d", key, trxID)
+	logger.Debugf("✅ Transaction Insert completed: key=%v, trxID=%d, undoPtr=%d", key, trxID, undoPtr)
 	return nil
 }
 
@@ -776,20 +822,52 @@ func (m *DefaultBPlusTreeManager) InsertWithTransaction(ctx context.Context, key
 func (m *DefaultBPlusTreeManager) DeleteWithTransaction(ctx context.Context, key interface{}, trxID uint64) error {
 	logger.Debugf("🗑️ Transaction Delete: key=%v, trxID=%d", key, trxID)
 
-	// 在删除前，记录Undo日志（简化实现）
+	// 在删除前，记录Undo日志
 	leafNode, err := m.findLeafNode(ctx, key)
 	if err != nil {
 		return fmt.Errorf("failed to find leaf node: %v", err)
 	}
 
-	// 设置事务ID
+	// 读取要删除的记录数据（用于Undo日志）
+	var recordData []byte
+	bufferPage, err := m.bufferPoolManager.GetPage(m.spaceId, leafNode.PageNum)
+	if err == nil {
+		recordData = bufferPage.GetContent() // 简化：使用整个页面内容
+	}
+
+	// 记录Undo日志
+	var undoPtr uint64 = 0
+	if m.undoLogManager != nil && m.lsnManager != nil {
+		// 分配LSN
+		lsn := uint64(m.lsnManager.AllocateLSN())
+
+		// 创建Undo日志条目
+		undoEntry := &UndoLogEntry{
+			LSN:      lsn,
+			TrxID:    int64(trxID),
+			TableID:  uint64(m.spaceId),
+			RecordID: uint64(leafNode.PageNum),
+			Type:     LOG_TYPE_DELETE,
+			Data:     recordData, // 记录完整数据用于回滚时恢复
+		}
+
+		// 追加Undo日志
+		if err := m.undoLogManager.Append(undoEntry); err != nil {
+			logger.Warnf("⚠️  Failed to append undo log: %v", err)
+		} else {
+			undoPtr = lsn
+			logger.Debugf("📝 Recorded Undo log: LSN=%d, trxID=%d, key=%v", lsn, trxID, key)
+		}
+	}
+
+	// 设置事务ID和Undo指针
 	leafNode.mu.Lock()
 	oldTrxID := leafNode.TrxID
 	leafNode.TrxID = trxID
-	leafNode.RollPtr = 0 // TODO: 实际应该记录Undo日志指针
+	leafNode.RollPtr = undoPtr
 	leafNode.mu.Unlock()
 
-	logger.Debugf("📝 Recorded Undo log: key=%v, oldTrxID=%d, newTrxID=%d", key, oldTrxID, trxID)
+	logger.Debugf("📝 Recorded Undo log: key=%v, oldTrxID=%d, newTrxID=%d, undoPtr=%d", key, oldTrxID, trxID, undoPtr)
 
 	// 执行删除
 	err = m.Delete(ctx, key)
@@ -797,7 +875,7 @@ func (m *DefaultBPlusTreeManager) DeleteWithTransaction(ctx context.Context, key
 		return err
 	}
 
-	logger.Debugf("✅ Transaction Delete completed: key=%v, trxID=%d", key, trxID)
+	logger.Debugf("✅ Transaction Delete completed: key=%v, trxID=%d, undoPtr=%d", key, trxID, undoPtr)
 	return nil
 }
 
@@ -1013,10 +1091,19 @@ func (m *DefaultBPlusTreeManager) findLeafNode(ctx context.Context, key interfac
 
 	// 从根节点开始查找到叶子节点
 	for !node.IsLeaf {
+		// 如果没有子节点，返回当前节点
+		if len(node.Children) == 0 {
+			return node, nil
+		}
+
 		childIndex := m.findChildIndex(node, key)
 		if childIndex >= len(node.Children) {
 			childIndex = len(node.Children) - 1
 		}
+		if childIndex < 0 {
+			childIndex = 0
+		}
+
 		node, err = m.getNode(ctx, node.Children[childIndex])
 		if err != nil {
 			return nil, err
@@ -1225,7 +1312,17 @@ func (m *DefaultBPlusTreeManager) insertIntoNewLeafNode(ctx context.Context, key
 		isDirty:  true,
 	}
 
-	// 将节点添加到缓存
+	// 将节点添加到缓存（先检查缓存大小）
+	m.mutex.RLock()
+	currentCacheSize := uint32(len(m.nodeCache))
+	m.mutex.RUnlock()
+
+	// 如果缓存已满，先触发淘汰
+	if currentCacheSize >= m.config.MaxCacheSize {
+		logger.Debugf("⚠️ Cache full before adding new node, triggering eviction")
+		m.evictLRU()
+	}
+
 	m.mutex.Lock()
 	m.nodeCache[newPageNum] = newNode
 	m.lastAccess[newPageNum] = time.Now()

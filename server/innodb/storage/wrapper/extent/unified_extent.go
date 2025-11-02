@@ -37,6 +37,10 @@ const (
 )
 
 // UnifiedExtent is the unified extent implementation that combines all features
+//
+// 优化说明：移除map和list缓存，直接使用bitmap
+// 内存优化：从~1,344字节减少到~16字节（bitmap），节省95%
+// 性能优化：bitmap访问仍然是O(1)，且缓存友好
 type UnifiedExtent struct {
 	mu sync.RWMutex
 
@@ -51,16 +55,18 @@ type UnifiedExtent struct {
 	purpose basic.ExtentPurpose
 	state   basic.ExtentState
 
-	// Page tracking (hybrid approach)
-	bitmap   [16]byte        // Persistent bitmap (2 bits per page, 64 pages = 128 bits = 16 bytes)
-	pages    map[uint32]bool // Runtime cache for O(1) lookup
-	pageList []uint32        // Ordered list for iteration
+	// Page tracking - 使用bitmap替代map
+	// 移除了：
+	// - pages map[uint32]bool  (~1,072字节)
+	// - pageList []uint32      (~256字节)
+	// 保留：
+	// - entry.PageBitmap       (16字节)
 
 	// Statistics
 	stats basic.ExtentStats
 
 	// Persistence layer
-	entry *extents.ExtentEntry // Underlying storage format
+	entry *extents.ExtentEntry // Underlying storage format (包含PageBitmap)
 }
 
 // NewUnifiedExtent creates a new unified extent
@@ -73,8 +79,7 @@ func NewUnifiedExtent(id, spaceID, startPage uint32, extType basic.ExtentType, p
 		extType:   extType,
 		purpose:   purpose,
 		state:     basic.ExtentStateFree,
-		pages:     make(map[uint32]bool, PagesPerExtent),
-		pageList:  make([]uint32, 0, PagesPerExtent),
+		// 移除了map和list的初始化，节省内存
 		stats: basic.ExtentStats{
 			TotalPages:    PagesPerExtent,
 			FreePages:     PagesPerExtent,
@@ -85,7 +90,7 @@ func NewUnifiedExtent(id, spaceID, startPage uint32, extType basic.ExtentType, p
 		},
 	}
 
-	// Create underlying ExtentEntry
+	// Create underlying ExtentEntry (包含bitmap)
 	ue.entry = extents.NewExtentEntry(startPage)
 
 	return ue
@@ -93,6 +98,9 @@ func NewUnifiedExtent(id, spaceID, startPage uint32, extType basic.ExtentType, p
 
 // NewUnifiedExtentFromEntry creates a unified extent from an ExtentEntry
 func NewUnifiedExtentFromEntry(entry *extents.ExtentEntry, id, spaceID uint32, extType basic.ExtentType, purpose basic.ExtentPurpose) *UnifiedExtent {
+	// 计算已使用页面数（直接从entry获取）
+	usedPages := uint32(entry.GetUsedPages())
+
 	ue := &UnifiedExtent{
 		id:        id,
 		spaceID:   spaceID,
@@ -101,31 +109,16 @@ func NewUnifiedExtentFromEntry(entry *extents.ExtentEntry, id, spaceID uint32, e
 		extType:   extType,
 		purpose:   purpose,
 		state:     mapExtentState(entry.GetState()),
-		bitmap:    entry.PageBitmap,
-		pages:     make(map[uint32]bool, PagesPerExtent),
-		pageList:  make([]uint32, 0, entry.GetUsedPages()),
 		entry:     entry,
-	}
-
-	// Build runtime structures from bitmap
-	usedPages := uint32(0)
-	for offset := uint8(0); offset < PagesPerExtent; offset++ {
-		if !entry.IsPageFree(offset) {
-			pageNo := entry.FirstPageNo + uint32(offset)
-			ue.pages[pageNo] = true
-			ue.pageList = append(ue.pageList, pageNo)
-			usedPages++
-		}
-	}
-
-	// Initialize statistics
-	ue.stats = basic.ExtentStats{
-		TotalPages:    PagesPerExtent,
-		FreePages:     PagesPerExtent - usedPages,
-		FragPages:     0,
-		LastAllocated: 0,
-		LastFreed:     0,
-		LastDefragged: 0,
+		// 移除了map和list的构建，直接使用entry的bitmap
+		stats: basic.ExtentStats{
+			TotalPages:    PagesPerExtent,
+			FreePages:     PagesPerExtent - usedPages,
+			FragPages:     0,
+			LastAllocated: 0,
+			LastFreed:     0,
+			LastDefragged: 0,
+		},
 	}
 
 	return ue
@@ -223,9 +216,7 @@ func (ue *UnifiedExtent) AllocatePage() (uint32, error) {
 				return 0, fmt.Errorf("failed to allocate page in entry: %w", err)
 			}
 
-			// Update runtime structures
-			ue.pages[pageNo] = true
-			ue.pageList = append(ue.pageList, pageNo)
+			// 移除了map和list的更新，直接使用bitmap
 
 			// Update statistics
 			ue.stats.FreePages--
@@ -251,26 +242,19 @@ func (ue *UnifiedExtent) FreePage(pageNo uint32) error {
 		return ErrPageNotFound
 	}
 
-	// Check if page is allocated
-	if !ue.pages[pageNo] {
+	offset := uint8(pageNo - ue.startPage)
+
+	// Check if page is allocated (使用bitmap)
+	if ue.entry.IsPageFree(offset) {
 		return ErrPageNotFound
 	}
-
-	offset := uint8(pageNo - ue.startPage)
 
 	// Free in entry (updates bitmap)
 	if err := ue.entry.FreePage(offset); err != nil {
 		return fmt.Errorf("failed to free page in entry: %w", err)
 	}
 
-	// Update runtime structures
-	delete(ue.pages, pageNo)
-	for i, p := range ue.pageList {
-		if p == pageNo {
-			ue.pageList = append(ue.pageList[:i], ue.pageList[i+1:]...)
-			break
-		}
-	}
+	// 移除了map和list的更新，直接使用bitmap
 
 	// Update statistics
 	ue.stats.FreePages++
@@ -337,9 +321,41 @@ func (ue *UnifiedExtent) Defragment() error {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	// TODO: Implement actual defragmentation logic
-	// For now, just update the timestamp
+	// 1. 从bitmap构建页面列表
+	pageList := make([]uint32, 0, ue.entry.GetUsedPages())
+	for offset := uint8(0); offset < PagesPerExtent; offset++ {
+		if !ue.entry.IsPageFree(offset) {
+			pageList = append(pageList, ue.startPage+uint32(offset))
+		}
+	}
+
+	// 页面列表已经按offset顺序，无需排序
+
+	// 2. 计算碎片页数（不连续的页面）
+	fragPages := uint32(0)
+	for i := 1; i < len(pageList); i++ {
+		if pageList[i] != pageList[i-1]+1 {
+			fragPages++
+		}
+	}
+	ue.stats.FragPages = fragPages
+
+	// 3. bitmap已经在entry中维护，无需同步
+
+	// 4. 重新评估extent状态
+	usedPages := uint32(len(pageList))
+	if usedPages == 0 {
+		ue.state = basic.ExtentStateFree
+	} else if usedPages == PagesPerExtent {
+		ue.state = basic.ExtentStateFull
+	} else {
+		ue.state = basic.ExtentStatePartial
+	}
+
+	// 5. 更新统计信息
 	ue.stats.LastDefragged = time.Now().UnixNano()
+	ue.stats.FreePages = PagesPerExtent - usedPages
+
 	return nil
 }
 
@@ -348,14 +364,11 @@ func (ue *UnifiedExtent) Reset() error {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	// Reset entry
+	// Reset entry (包含bitmap)
 	ue.entry = extents.NewExtentEntry(ue.startPage)
 	ue.entry.SetSegmentID(ue.segmentID)
 
-	// Reset runtime structures
-	ue.pages = make(map[uint32]bool, PagesPerExtent)
-	ue.pageList = make([]uint32, 0, PagesPerExtent)
-	ue.bitmap = [16]byte{}
+	// 移除了map和list的重置，只需重置entry即可
 
 	// Reset state
 	ue.state = basic.ExtentStateFree
@@ -439,7 +452,8 @@ func (ue *UnifiedExtent) IsPageAllocated(pageNo uint32) bool {
 		return false
 	}
 
-	return ue.pages[pageNo]
+	offset := uint8(pageNo - ue.startPage)
+	return !ue.entry.IsPageFree(offset) // 使用bitmap检查
 }
 
 // GetAllocatedPages returns a list of allocated page numbers
@@ -447,9 +461,13 @@ func (ue *UnifiedExtent) GetAllocatedPages() []uint32 {
 	ue.mu.RLock()
 	defer ue.mu.RUnlock()
 
-	// Return a copy of the page list
-	pages := make([]uint32, len(ue.pageList))
-	copy(pages, ue.pageList)
+	// 遍历bitmap构建已分配页面列表
+	pages := make([]uint32, 0, ue.entry.GetUsedPages())
+	for offset := uint8(0); offset < PagesPerExtent; offset++ {
+		if !ue.entry.IsPageFree(offset) {
+			pages = append(pages, ue.startPage+uint32(offset))
+		}
+	}
 	return pages
 }
 

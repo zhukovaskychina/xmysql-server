@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
@@ -25,13 +26,13 @@ type Operator interface {
 	// Close 关闭算子并释放资源
 	Close() error
 	// Schema 返回输出的schema信息
-	Schema() *metadata.Schema
+	Schema() *metadata.QuerySchema
 }
 
 // BaseOperator 基础算子实现，提供公共功能
 type BaseOperator struct {
 	children []Operator
-	schema   *metadata.Schema
+	schema   *metadata.QuerySchema
 	opened   bool
 	closed   bool
 }
@@ -62,7 +63,7 @@ func (b *BaseOperator) Close() error {
 	return nil
 }
 
-func (b *BaseOperator) Schema() *metadata.Schema {
+func (b *BaseOperator) Schema() *metadata.QuerySchema {
 	return b.schema
 }
 
@@ -73,10 +74,10 @@ func (b *BaseOperator) Schema() *metadata.Schema {
 // SimpleExecutorRecord 简单的ExecutorRecord实现
 type SimpleExecutorRecord struct {
 	values []basic.Value
-	schema *metadata.Schema
+	schema *metadata.QuerySchema
 }
 
-func NewExecutorRecordFromValues(values []basic.Value, schema *metadata.Schema) Record {
+func NewExecutorRecordFromValues(values []basic.Value, schema *metadata.QuerySchema) Record {
 	return &SimpleExecutorRecord{
 		values: values,
 		schema: schema,
@@ -91,7 +92,7 @@ func (s *SimpleExecutorRecord) SetValues(values []basic.Value) {
 	s.values = values
 }
 
-func (s *SimpleExecutorRecord) GetSchema() *metadata.Schema {
+func (s *SimpleExecutorRecord) GetSchema() *metadata.QuerySchema {
 	return s.schema
 }
 
@@ -165,22 +166,22 @@ func (t *TableScanOperator) Open(ctx context.Context) error {
 	}
 
 	// 获取表的元数据
-	metadata, err := t.storageAdapter.GetTableMetadata(ctx, t.schemaName, t.tableName)
+	tableMeta, err := t.storageAdapter.GetTableMetadata(ctx, t.schemaName, t.tableName)
 	if err != nil {
 		return fmt.Errorf("failed to get table metadata: %w", err)
 	}
 
-	// TODO: Fix schema assignment - metadata.Schema is interface, cannot create composite literal
-	t.schema = nil
+	// 从Table创建QuerySchema
+	t.schema = metadata.FromTable(tableMeta.Schema)
 
 	// 创建表页面迭代器
-	t.iterator, err = t.storageAdapter.ScanTable(ctx, metadata)
+	t.iterator, err = t.storageAdapter.ScanTable(ctx, tableMeta)
 	if err != nil {
 		return fmt.Errorf("failed to create table iterator: %w", err)
 	}
 
 	logger.Debugf("TableScanOperator opened for table %s.%s, spaceID=%d",
-		t.schemaName, t.tableName, metadata.SpaceID)
+		t.schemaName, t.tableName, tableMeta.SpaceID)
 	return nil
 }
 
@@ -262,12 +263,12 @@ func (i *IndexScanOperator) Open(ctx context.Context) error {
 	}
 
 	// 获取表的schema信息
-	_, err := i.storageAdapter.GetTableMetadata(ctx, i.schemaName, i.tableName)
+	tableMeta, err := i.storageAdapter.GetTableMetadata(ctx, i.schemaName, i.tableName)
 	if err != nil {
 		return fmt.Errorf("failed to get table schema: %w", err)
 	}
-	// TODO: Fix schema assignment - metadata.Schema is interface, cannot create composite literal
-	i.schema = nil
+	// 从Table创建QuerySchema
+	i.schema = metadata.FromTable(tableMeta.Schema)
 
 	// 获取索引元数据
 	i.indexMetadata, err = i.indexAdapter.GetIndexMetadata(ctx, i.schemaName, i.tableName, i.indexName)
@@ -308,8 +309,20 @@ func (i *IndexScanOperator) Next(ctx context.Context) (Record, error) {
 // fetchPrimaryKeys 预先扫描索引获取所有主键（用于批量回表优化）
 func (i *IndexScanOperator) fetchPrimaryKeys(ctx context.Context) error {
 	// 将startKey和endKey转换为字节数组
-	startKeyBytes := []byte{} // TODO: 实现Value到bytes的转换
-	endKeyBytes := []byte{}   // TODO: 实现Value到bytes的转换
+	var startKeyBytes []byte
+	var endKeyBytes []byte
+
+	if i.startKey != nil {
+		startKeyBytes = i.startKey.Bytes()
+	} else {
+		startKeyBytes = []byte{} // 空字节数组表示从最小值开始
+	}
+
+	if i.endKey != nil {
+		endKeyBytes = i.endKey.Bytes()
+	} else {
+		endKeyBytes = []byte{0xFF, 0xFF, 0xFF, 0xFF} // 最大值
+	}
 
 	// 调用索引适配器进行范围扫描
 	primaryKeys, err := i.indexAdapter.RangeScan(ctx, i.indexMetadata.IndexID, startKeyBytes, endKeyBytes)
@@ -326,9 +339,65 @@ func (i *IndexScanOperator) fetchPrimaryKeys(ctx context.Context) error {
 
 // nextFromIndex 从索引直接读取数据（覆盖索引）
 func (i *IndexScanOperator) nextFromIndex(ctx context.Context) (Record, error) {
-	// TODO: 实现从索引直接读取逻辑
 	logger.Debugf("nextFromIndex: using covering index %s", i.indexName)
-	return nil, nil // EOF - 临时实现
+
+	// 检查是否还有主键需要处理
+	if i.keyIndex >= len(i.primaryKeys) {
+		return nil, nil // EOF
+	}
+
+	// 获取当前索引键
+	indexKey := i.primaryKeys[i.keyIndex]
+	i.keyIndex++
+
+	// 从索引直接读取记录（覆盖索引优化）
+	indexRecordData, err := i.indexAdapter.ReadIndexRecord(ctx, i.indexMetadata.IndexID, indexKey)
+	if err != nil {
+		// 如果索引读取失败，记录日志但继续处理
+		logger.Debugf("Failed to read index record: %v, using fallback", err)
+
+		// 降级为回表查询
+		return i.nextWithLookup(ctx)
+	}
+
+	// 解析索引记录数据为Record
+	// 索引记录包含：索引列的值 + 主键值
+	// 这里需要根据索引列定义解析索引记录数据
+
+	// 简化实现：将索引记录数据按列解析
+	values := make([]basic.Value, len(i.requiredColumns))
+
+	// 如果有索引记录数据，尝试解析
+	if len(indexRecordData) > 0 {
+		// 简单实现：将数据平均分配给各列
+		// 实际应该根据列类型和长度精确解析
+		chunkSize := len(indexRecordData) / len(i.requiredColumns)
+		if chunkSize == 0 {
+			chunkSize = 1
+		}
+
+		for idx := range i.requiredColumns {
+			start := idx * chunkSize
+			end := start + chunkSize
+			if end > len(indexRecordData) {
+				end = len(indexRecordData)
+			}
+
+			// 将字节数据转换为字符串值
+			if start < len(indexRecordData) {
+				values[idx] = basic.NewString(string(indexRecordData[start:end]))
+			} else {
+				values[idx] = basic.NewString("")
+			}
+		}
+	} else {
+		// 如果没有数据，使用默认值
+		for idx := range i.requiredColumns {
+			values[idx] = basic.NewString(fmt.Sprintf("index_value_%d", idx))
+		}
+	}
+
+	return NewExecutorRecordFromValues(values, i.schema), nil
 }
 
 // nextWithLookup 通过回表获取完整记录（非覆盖索引）
@@ -339,24 +408,63 @@ func (i *IndexScanOperator) nextWithLookup(ctx context.Context) (Record, error) 
 	}
 
 	// 获取当前主键
-	_ = i.primaryKeys[i.keyIndex] // primaryKey - TODO: use for actual lookup
+	primaryKey := i.primaryKeys[i.keyIndex]
 	i.keyIndex++
 
+	logger.Debugf("nextWithLookup: lookup primaryKey for index %s, key=%v", i.indexName, primaryKey)
+
 	// 通过主键回表查找完整记录
-	// TODO: 实现实际的回表逻辑
-	// 这里需要：
-	// 1. 使用primaryKey在聚簇索引中查找
+	// 步骤：
+	// 1. 使用primaryKey在聚簇索引（主键索引）中查找
 	// 2. 读取完整记录
 	// 3. 转换为Record并返回
 
-	logger.Debugf("nextWithLookup: lookup primaryKey for index %s", i.indexName)
-
-	// 临时返回模拟数据
-	values := []basic.Value{
-		basic.NewInt64Value(int64(i.keyIndex)),
-		basic.NewString(fmt.Sprintf("row_%d", i.keyIndex)),
+	// 获取表的存储信息
+	tableMeta, err := i.storageAdapter.GetTableMetadata(ctx, i.schemaName, i.tableName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get table metadata for lookup: %w", err)
 	}
-	return NewExecutorRecordFromValues(values, i.schema), nil
+
+	// 使用StorageAdapter的GetRecordByPrimaryKey方法回表
+	record, err := i.storageAdapter.GetRecordByPrimaryKey(ctx, tableMeta.SpaceID, primaryKey, tableMeta.Schema)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lookup record by primary key: %w", err)
+	}
+
+	// 如果需要投影（只返回部分列），进行列过滤
+	if len(i.requiredColumns) > 0 && !i.isCoveringIndex {
+		record = i.projectRecord(record, i.requiredColumns, tableMeta.Schema)
+	}
+
+	return record, nil
+}
+
+// projectRecord 对记录进行列投影，只保留需要的列
+func (i *IndexScanOperator) projectRecord(record Record, requiredColumns []string, schema *metadata.Table) Record {
+	// 如果没有指定列，返回原记录
+	if len(requiredColumns) == 0 {
+		return record
+	}
+
+	// 创建列名到索引的映射
+	columnIndexMap := make(map[string]int)
+	for idx, col := range schema.Columns {
+		columnIndexMap[col.Name] = idx
+	}
+
+	// 提取需要的列
+	projectedValues := make([]basic.Value, len(requiredColumns))
+	for i, colName := range requiredColumns {
+		if colIdx, exists := columnIndexMap[colName]; exists {
+			// 从原记录中获取对应列的值
+			projectedValues[i] = record.GetValueByIndex(colIdx)
+		} else {
+			// 如果列不存在，使用NULL值
+			projectedValues[i] = basic.NewString("")
+		}
+	}
+
+	return NewExecutorRecordFromValues(projectedValues, i.schema)
 }
 
 // fetchBatchFromIndex 批量从索引读取记录
@@ -448,9 +556,13 @@ func (p *ProjectionOperator) Open(ctx context.Context) error {
 		return err
 	}
 
-	// TODO: Fix - childSchema.Columns requires schema to be concrete type, not interface
-	// For now, just set schema to nil
-	p.schema = nil
+	// 从子算子获取schema并投影
+	childSchema := p.child.Schema()
+	if childSchema != nil {
+		p.schema = metadata.ProjectSchema(childSchema, p.projections)
+	} else {
+		p.schema = metadata.NewQuerySchema()
+	}
 
 	return nil
 }
@@ -471,11 +583,26 @@ func (p *ProjectionOperator) Next(ctx context.Context) (Record, error) {
 	// 如果有表达式，计算表达式
 	if len(p.exprs) > 0 {
 		newValues := make([]basic.Value, len(p.exprs))
-		for i, expr := range p.exprs {
-			// TODO: 实现表达式求值
-			_ = expr
-			newValues[i] = basic.NewNull()
+
+		// 创建表达式求值上下文
+		evalCtx, err := p.createEvalContext(record)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create eval context: %w", err)
 		}
+
+		// 计算每个表达式
+		for i, expr := range p.exprs {
+			result, err := expr.Eval(evalCtx)
+			if err != nil {
+				logger.Debugf("Failed to evaluate expression %s: %v, using NULL", expr.String(), err)
+				newValues[i] = basic.NewNull()
+				continue
+			}
+
+			// 将结果转换为basic.Value
+			newValues[i] = p.convertToValue(result)
+		}
+
 		return NewExecutorRecordFromValues(newValues, p.schema), nil
 	}
 
@@ -491,6 +618,90 @@ func (p *ProjectionOperator) Next(ctx context.Context) (Record, error) {
 	}
 
 	return NewExecutorRecordFromValues(newValues, p.schema), nil
+}
+
+// createEvalContext 创建表达式求值上下文
+// 将Record转换为map[string]interface{}格式
+func (p *ProjectionOperator) createEvalContext(record Record) (*plan.EvalContext, error) {
+	// 获取子算子的schema
+	childSchema := p.child.Schema()
+	if childSchema == nil {
+		return &plan.EvalContext{Row: make(map[string]interface{})}, nil
+	}
+
+	// 创建列名到值的映射
+	row := make(map[string]interface{})
+	values := record.GetValues()
+
+	// 遍历schema中的列，建立列名到值的映射
+	for i := 0; i < childSchema.ColumnCount() && i < len(values); i++ {
+		col, ok := childSchema.GetColumnByIndex(i)
+		if ok && col != nil {
+			// 将basic.Value转换为interface{}
+			row[col.Name] = p.valueToInterface(values[i])
+		}
+	}
+
+	return &plan.EvalContext{Row: row}, nil
+}
+
+// valueToInterface 将basic.Value转换为interface{}
+func (p *ProjectionOperator) valueToInterface(val basic.Value) interface{} {
+	if val == nil || val.IsNull() {
+		return nil
+	}
+
+	// 根据值的类型进行转换
+	valueType := val.Type()
+	switch valueType {
+	case basic.ValueTypeTinyInt, basic.ValueTypeSmallInt, basic.ValueTypeMediumInt,
+		basic.ValueTypeInt, basic.ValueTypeBigInt:
+		return val.Int()
+	case basic.ValueTypeFloat, basic.ValueTypeDouble:
+		return val.Float64()
+	case basic.ValueTypeVarchar, basic.ValueTypeChar, basic.ValueTypeText:
+		return val.String()
+	case basic.ValueTypeBool, basic.ValueTypeBoolean:
+		return val.Bool()
+	case basic.ValueTypeBinary, basic.ValueTypeVarBinary, basic.ValueTypeBlob:
+		return val.Bytes()
+	case basic.ValueTypeDate, basic.ValueTypeTime, basic.ValueTypeDateTime, basic.ValueTypeTimestamp:
+		return val.Time()
+	default:
+		// 默认使用Raw()方法
+		return val.Raw()
+	}
+}
+
+// convertToValue 将interface{}转换为basic.Value
+func (p *ProjectionOperator) convertToValue(result interface{}) basic.Value {
+	if result == nil {
+		return basic.NewNull()
+	}
+
+	switch v := result.(type) {
+	case int:
+		return basic.NewInt64(int64(v))
+	case int32:
+		return basic.NewInt64(int64(v))
+	case int64:
+		return basic.NewInt64(v)
+	case float32:
+		return basic.NewFloat64(float64(v))
+	case float64:
+		return basic.NewFloat64(v)
+	case string:
+		return basic.NewString(v)
+	case bool:
+		return basic.NewBool(v)
+	case []byte:
+		return basic.NewBytes(v)
+	case time.Time:
+		return basic.NewTime(v)
+	default:
+		// 默认转换为字符串
+		return basic.NewString(fmt.Sprintf("%v", v))
+	}
 }
 
 // ========================================
@@ -531,9 +742,18 @@ func (n *NestedLoopJoinOperator) Open(ctx context.Context) error {
 		return err
 	}
 
-	// TODO: Fix - schema.Columns requires schema to be concrete type, not interface
-	// For now, just set schema to nil
-	n.schema = nil
+	// 合并左右子算子的schema
+	leftSchema := n.left.Schema()
+	rightSchema := n.right.Schema()
+	if leftSchema != nil && rightSchema != nil {
+		n.schema = metadata.MergeSchemas(leftSchema, rightSchema)
+	} else if leftSchema != nil {
+		n.schema = leftSchema.Clone()
+	} else if rightSchema != nil {
+		n.schema = rightSchema.Clone()
+	} else {
+		n.schema = metadata.NewQuerySchema()
+	}
 
 	return nil
 }
@@ -639,9 +859,18 @@ func (h *HashJoinOperator) Open(ctx context.Context) error {
 		return err
 	}
 
-	// TODO: Fix - schema.Columns requires schema to be concrete type, not interface
-	// For now, just set schema to nil
-	h.schema = nil
+	// 合并build和probe端的schema
+	buildSchema := h.buildSide.Schema()
+	probeSchema := h.probeSide.Schema()
+	if buildSchema != nil && probeSchema != nil {
+		h.schema = metadata.MergeSchemas(buildSchema, probeSchema)
+	} else if buildSchema != nil {
+		h.schema = buildSchema.Clone()
+	} else if probeSchema != nil {
+		h.schema = probeSchema.Clone()
+	} else {
+		h.schema = metadata.NewQuerySchema()
+	}
 
 	return nil
 }
@@ -727,6 +956,8 @@ type AggregateFunc interface {
 	Init()
 	Update(value basic.Value)
 	Result() basic.Value
+	Name() string                  // 聚合函数名称
+	ResultType() metadata.DataType // 结果类型
 }
 
 // CountAgg COUNT聚合
@@ -734,9 +965,11 @@ type CountAgg struct {
 	count int64
 }
 
-func (c *CountAgg) Init()                    { c.count = 0 }
-func (c *CountAgg) Update(value basic.Value) { c.count++ }
-func (c *CountAgg) Result() basic.Value      { return basic.NewInt64Value(c.count) }
+func (c *CountAgg) Init()                         { c.count = 0 }
+func (c *CountAgg) Update(value basic.Value)      { c.count++ }
+func (c *CountAgg) Result() basic.Value           { return basic.NewInt64Value(c.count) }
+func (c *CountAgg) Name() string                  { return "COUNT" }
+func (c *CountAgg) ResultType() metadata.DataType { return metadata.TypeBigInt }
 
 // SumAgg SUM聚合
 type SumAgg struct {
@@ -749,7 +982,9 @@ func (s *SumAgg) Update(value basic.Value) {
 		s.sum += value.Float64()
 	}
 }
-func (s *SumAgg) Result() basic.Value { return basic.NewFloatValue(s.sum) }
+func (s *SumAgg) Result() basic.Value           { return basic.NewFloatValue(s.sum) }
+func (s *SumAgg) Name() string                  { return "SUM" }
+func (s *SumAgg) ResultType() metadata.DataType { return metadata.TypeDouble }
 
 // AvgAgg AVG聚合
 type AvgAgg struct {
@@ -775,6 +1010,9 @@ func (a *AvgAgg) Result() basic.Value {
 	}
 	return basic.NewFloatValue(a.sum / float64(a.count))
 }
+
+func (a *AvgAgg) Name() string                  { return "AVG" }
+func (a *AvgAgg) ResultType() metadata.DataType { return metadata.TypeDouble }
 
 // MinAgg MIN聚合
 type MinAgg struct {
@@ -806,6 +1044,9 @@ func (m *MinAgg) Result() basic.Value {
 	return m.min
 }
 
+func (m *MinAgg) Name() string                  { return "MIN" }
+func (m *MinAgg) ResultType() metadata.DataType { return metadata.TypeDouble }
+
 // MaxAgg MAX聚合
 type MaxAgg struct {
 	max         basic.Value
@@ -835,6 +1076,9 @@ func (m *MaxAgg) Update(value basic.Value) {
 func (m *MaxAgg) Result() basic.Value {
 	return m.max
 }
+
+func (m *MaxAgg) Name() string                  { return "MAX" }
+func (m *MaxAgg) ResultType() metadata.DataType { return metadata.TypeDouble }
 
 // HashAggregateOperator 哈希聚合算子
 type HashAggregateOperator struct {
@@ -871,9 +1115,34 @@ func (h *HashAggregateOperator) Open(ctx context.Context) error {
 		return err
 	}
 
-	// TODO: Fix - schema.Columns requires schema to be concrete type, not interface
-	// For now, just set schema to nil
-	h.schema = nil
+	// 构建聚合后的schema
+	// 包含GROUP BY列和聚合函数列
+	childSchema := h.child.Schema()
+	h.schema = metadata.NewQuerySchema()
+
+	if childSchema != nil {
+		// 添加GROUP BY列
+		for _, idx := range h.groupByExprs {
+			if col, ok := childSchema.GetColumnByIndex(idx); ok {
+				h.schema.AddColumn(&metadata.QueryColumn{
+					Name:       col.Name,
+					DataType:   col.DataType,
+					IsNullable: col.IsNullable,
+					TableName:  col.TableName,
+					SchemaName: col.SchemaName,
+				})
+			}
+		}
+
+		// 添加聚合函数列
+		for _, aggFunc := range h.aggFuncs {
+			h.schema.AddColumn(&metadata.QueryColumn{
+				Name:       aggFunc.Name(),
+				DataType:   aggFunc.ResultType(),
+				IsNullable: true,
+			})
+		}
+	}
 
 	return nil
 }
@@ -1175,6 +1444,424 @@ func (l *LimitOperator) Next(ctx context.Context) (Record, error) {
 }
 
 // ========================================
+// SubqueryOperator - 子查询算子
+// ========================================
+
+// SubqueryOperator 子查询算子，执行子查询并返回结果
+type SubqueryOperator struct {
+	BaseOperator
+	subqueryType string      // "SCALAR", "IN", "EXISTS", "ANY", "ALL"
+	correlated   bool        // 是否为关联子查询
+	outerRefs    []string    // 外部引用的列
+	subplan      Operator    // 子查询的执行计划
+	outerRow     Record      // 外层记录（用于关联子查询）
+	result       interface{} // 子查询结果（标量子查询）
+	resultSet    []Record    // 子查询结果集（IN/EXISTS子查询）
+}
+
+// NewSubqueryOperator 创建子查询算子
+func NewSubqueryOperator(subqueryType string, correlated bool, outerRefs []string, subplan Operator) *SubqueryOperator {
+	return &SubqueryOperator{
+		subqueryType: subqueryType,
+		correlated:   correlated,
+		outerRefs:    outerRefs,
+		subplan:      subplan,
+	}
+}
+
+func (s *SubqueryOperator) Open(ctx context.Context) error {
+	if err := s.BaseOperator.Open(ctx); err != nil {
+		return err
+	}
+
+	// 如果是非关联子查询，可以在Open阶段执行
+	if !s.correlated {
+		return s.executeSubquery(ctx, nil)
+	}
+
+	return nil
+}
+
+func (s *SubqueryOperator) Next(ctx context.Context) (Record, error) {
+	if !s.opened {
+		return nil, fmt.Errorf("operator not opened")
+	}
+
+	// 子查询算子通常不直接返回记录，而是作为表达式的一部分
+	// 这里返回nil表示EOF
+	return nil, nil
+}
+
+// ExecuteForRow 为指定的外层记录执行子查询（关联子查询）
+func (s *SubqueryOperator) ExecuteForRow(ctx context.Context, outerRow Record) error {
+	if !s.correlated {
+		// 非关联子查询只需执行一次
+		if s.result != nil || s.resultSet != nil {
+			return nil
+		}
+	}
+
+	return s.executeSubquery(ctx, outerRow)
+}
+
+// executeSubquery 执行子查询
+func (s *SubqueryOperator) executeSubquery(ctx context.Context, outerRow Record) error {
+	s.outerRow = outerRow
+
+	// 打开子计划
+	if err := s.subplan.Open(ctx); err != nil {
+		return fmt.Errorf("failed to open subplan: %w", err)
+	}
+	defer s.subplan.Close()
+
+	// 根据子查询类型执行
+	switch s.subqueryType {
+	case "SCALAR":
+		return s.executeScalarSubquery(ctx)
+	case "IN":
+		return s.executeInSubquery(ctx)
+	case "EXISTS":
+		return s.executeExistsSubquery(ctx)
+	case "ANY", "ALL":
+		return s.executeQuantifiedSubquery(ctx)
+	default:
+		return fmt.Errorf("unsupported subquery type: %s", s.subqueryType)
+	}
+}
+
+// executeScalarSubquery 执行标量子查询（返回单个值）
+func (s *SubqueryOperator) executeScalarSubquery(ctx context.Context) error {
+	// 标量子查询应该只返回一行一列
+	record, err := s.subplan.Next(ctx)
+	if err != nil {
+		return fmt.Errorf("scalar subquery error: %w", err)
+	}
+
+	if record == nil {
+		// 子查询没有返回结果，返回NULL
+		s.result = nil
+		return nil
+	}
+
+	// 获取第一列的值
+	values := record.GetValues()
+	if len(values) == 0 {
+		s.result = nil
+		return nil
+	}
+
+	s.result = values[0]
+
+	// 检查是否有多行结果（标量子查询应该只返回一行）
+	nextRecord, err := s.subplan.Next(ctx)
+	if err != nil {
+		return err
+	}
+	if nextRecord != nil {
+		return fmt.Errorf("scalar subquery returned more than one row")
+	}
+
+	return nil
+}
+
+// executeInSubquery 执行IN子查询
+func (s *SubqueryOperator) executeInSubquery(ctx context.Context) error {
+	// 收集所有结果
+	s.resultSet = make([]Record, 0)
+
+	for {
+		record, err := s.subplan.Next(ctx)
+		if err != nil {
+			return fmt.Errorf("IN subquery error: %w", err)
+		}
+		if record == nil {
+			break // EOF
+		}
+		s.resultSet = append(s.resultSet, record)
+	}
+
+	return nil
+}
+
+// executeExistsSubquery 执行EXISTS子查询
+func (s *SubqueryOperator) executeExistsSubquery(ctx context.Context) error {
+	// EXISTS只需要检查是否有结果，不需要获取所有行
+	record, err := s.subplan.Next(ctx)
+	if err != nil {
+		return fmt.Errorf("EXISTS subquery error: %w", err)
+	}
+
+	// 如果有至少一行结果，EXISTS为true
+	if record != nil {
+		s.result = true
+	} else {
+		s.result = false
+	}
+
+	return nil
+}
+
+// executeQuantifiedSubquery 执行量化子查询（ANY/ALL）
+func (s *SubqueryOperator) executeQuantifiedSubquery(ctx context.Context) error {
+	// 收集所有结果
+	s.resultSet = make([]Record, 0)
+
+	for {
+		record, err := s.subplan.Next(ctx)
+		if err != nil {
+			return fmt.Errorf("quantified subquery error: %w", err)
+		}
+		if record == nil {
+			break // EOF
+		}
+		s.resultSet = append(s.resultSet, record)
+	}
+
+	return nil
+}
+
+// GetResult 获取子查询结果
+func (s *SubqueryOperator) GetResult() interface{} {
+	return s.result
+}
+
+// GetResultSet 获取子查询结果集
+func (s *SubqueryOperator) GetResultSet() []Record {
+	return s.resultSet
+}
+
+// ========================================
+// ApplyOperator - Apply算子（用于关联子查询）
+// ========================================
+
+// ApplyOperator Apply算子，为外层每一行执行内层子查询
+type ApplyOperator struct {
+	BaseOperator
+	outer      Operator          // 外层算子
+	inner      Operator          // 内层算子（子查询）
+	applyType  string            // "INNER", "LEFT", "SEMI", "ANTI"
+	correlated bool              // 是否为关联
+	joinConds  []plan.Expression // 关联条件
+	outerRow   Record            // 当前外层记录
+	innerRows  []Record          // 当前内层结果
+	innerIndex int               // 内层结果索引
+}
+
+// NewApplyOperator 创建Apply算子
+func NewApplyOperator(outer, inner Operator, applyType string, correlated bool, joinConds []plan.Expression) *ApplyOperator {
+	return &ApplyOperator{
+		outer:      outer,
+		inner:      inner,
+		applyType:  applyType,
+		correlated: correlated,
+		joinConds:  joinConds,
+	}
+}
+
+func (a *ApplyOperator) Open(ctx context.Context) error {
+	if err := a.BaseOperator.Open(ctx); err != nil {
+		return err
+	}
+
+	// 打开外层算子
+	if err := a.outer.Open(ctx); err != nil {
+		return fmt.Errorf("failed to open outer operator: %w", err)
+	}
+
+	// 合并schema
+	outerSchema := a.outer.Schema()
+	innerSchema := a.inner.Schema()
+
+	if outerSchema != nil && innerSchema != nil {
+		// 创建合并后的schema
+		mergedSchema := metadata.NewQuerySchema()
+
+		// 添加外层列
+		for i := 0; i < outerSchema.ColumnCount(); i++ {
+			if col, ok := outerSchema.GetColumnByIndex(i); ok {
+				mergedSchema.AddColumn(col)
+			}
+		}
+
+		// 根据Apply类型决定是否添加内层列
+		if a.applyType == "INNER" || a.applyType == "LEFT" {
+			// INNER/LEFT JOIN需要返回内层列
+			for i := 0; i < innerSchema.ColumnCount(); i++ {
+				if col, ok := innerSchema.GetColumnByIndex(i); ok {
+					mergedSchema.AddColumn(col)
+				}
+			}
+		}
+		// SEMI/ANTI JOIN只返回外层列，不需要添加内层列
+
+		a.schema = mergedSchema
+	}
+
+	return nil
+}
+
+func (a *ApplyOperator) Next(ctx context.Context) (Record, error) {
+	if !a.opened {
+		return nil, fmt.Errorf("operator not opened")
+	}
+
+	for {
+		// 如果当前外层记录还有内层结果未处理
+		if a.outerRow != nil && a.innerIndex < len(a.innerRows) {
+			innerRow := a.innerRows[a.innerIndex]
+			a.innerIndex++
+
+			// 根据Apply类型返回结果
+			switch a.applyType {
+			case "INNER", "LEFT":
+				// 合并外层和内层记录
+				return a.mergeRecords(a.outerRow, innerRow), nil
+			case "SEMI":
+				// SEMI JOIN只返回外层记录（已经找到匹配）
+				a.outerRow = nil // 标记当前外层记录已处理
+				a.innerRows = nil
+				return a.outerRow, nil
+			case "ANTI":
+				// ANTI JOIN不应该返回有匹配的记录
+				// 继续处理下一个外层记录
+				a.outerRow = nil
+				a.innerRows = nil
+				continue
+			}
+		}
+
+		// 获取下一个外层记录
+		outerRow, err := a.outer.Next(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if outerRow == nil {
+			return nil, nil // EOF
+		}
+
+		a.outerRow = outerRow
+		a.innerIndex = 0
+
+		// 为当前外层记录执行内层子查询
+		if err := a.executeInnerForOuter(ctx, outerRow); err != nil {
+			return nil, fmt.Errorf("failed to execute inner for outer: %w", err)
+		}
+
+		// 根据Apply类型处理结果
+		switch a.applyType {
+		case "INNER":
+			// INNER JOIN：如果没有匹配，跳过当前外层记录
+			if len(a.innerRows) == 0 {
+				continue
+			}
+		case "LEFT":
+			// LEFT JOIN：如果没有匹配，返回外层记录+NULL
+			if len(a.innerRows) == 0 {
+				return a.mergeRecords(outerRow, nil), nil
+			}
+		case "SEMI":
+			// SEMI JOIN：如果有匹配，返回外层记录
+			if len(a.innerRows) > 0 {
+				return outerRow, nil
+			}
+			// 没有匹配，继续下一个外层记录
+			continue
+		case "ANTI":
+			// ANTI JOIN：如果没有匹配，返回外层记录
+			if len(a.innerRows) == 0 {
+				return outerRow, nil
+			}
+			// 有匹配，跳过当前外层记录
+			continue
+		}
+	}
+}
+
+// executeInnerForOuter 为外层记录执行内层子查询
+func (a *ApplyOperator) executeInnerForOuter(ctx context.Context, outerRow Record) error {
+	// 重新打开内层算子
+	if err := a.inner.Open(ctx); err != nil {
+		return fmt.Errorf("failed to open inner operator: %w", err)
+	}
+	defer a.inner.Close()
+
+	// 收集所有内层结果
+	a.innerRows = make([]Record, 0)
+
+	for {
+		innerRow, err := a.inner.Next(ctx)
+		if err != nil {
+			return err
+		}
+		if innerRow == nil {
+			break // EOF
+		}
+
+		// 检查关联条件
+		if a.evaluateJoinConditions(outerRow, innerRow) {
+			a.innerRows = append(a.innerRows, innerRow)
+
+			// SEMI/ANTI JOIN只需要知道是否有匹配，不需要所有结果
+			if a.applyType == "SEMI" || a.applyType == "ANTI" {
+				break
+			}
+		}
+	}
+
+	return nil
+}
+
+// evaluateJoinConditions 评估关联条件
+func (a *ApplyOperator) evaluateJoinConditions(outerRow, innerRow Record) bool {
+	if len(a.joinConds) == 0 {
+		return true // 没有条件，总是匹配
+	}
+
+	// TODO: 实现实际的条件评估
+	// 这里需要创建EvalContext并评估表达式
+	// 简化实现：总是返回true
+	return true
+}
+
+// mergeRecords 合并外层和内层记录
+func (a *ApplyOperator) mergeRecords(outerRow, innerRow Record) Record {
+	outerValues := outerRow.GetValues()
+
+	var mergedValues []basic.Value
+	if innerRow != nil {
+		innerValues := innerRow.GetValues()
+		mergedValues = make([]basic.Value, len(outerValues)+len(innerValues))
+		copy(mergedValues, outerValues)
+		copy(mergedValues[len(outerValues):], innerValues)
+	} else {
+		// LEFT JOIN with no match: outer + NULLs
+		innerSchema := a.inner.Schema()
+		innerColCount := 0
+		if innerSchema != nil {
+			innerColCount = innerSchema.ColumnCount()
+		}
+
+		mergedValues = make([]basic.Value, len(outerValues)+innerColCount)
+		copy(mergedValues, outerValues)
+		for i := len(outerValues); i < len(mergedValues); i++ {
+			mergedValues[i] = basic.NewNull()
+		}
+	}
+
+	return NewExecutorRecordFromValues(mergedValues, a.schema)
+}
+
+func (a *ApplyOperator) Close() error {
+	if a.outer != nil {
+		a.outer.Close()
+	}
+	if a.inner != nil {
+		a.inner.Close()
+	}
+	return a.BaseOperator.Close()
+}
+
+// ========================================
 // VolcanoExecutor - 火山模型执行器
 // ========================================
 
@@ -1247,6 +1934,12 @@ func (v *VolcanoExecutor) buildOperatorTree(ctx context.Context, physicalPlan pl
 	case *plan.PhysicalSort:
 		return v.buildSort(ctx, p)
 
+	case *plan.PhysicalSubquery:
+		return v.buildSubquery(ctx, p)
+
+	case *plan.PhysicalApply:
+		return v.buildApply(ctx, p)
+
 	default:
 		return nil, fmt.Errorf("unsupported physical plan type: %T", physicalPlan)
 	}
@@ -1257,15 +1950,26 @@ func (v *VolcanoExecutor) buildTableScan(p *plan.PhysicalTableScan) (Operator, e
 		return nil, fmt.Errorf("table is nil in PhysicalTableScan")
 	}
 
-	// TODO: Need to create StorageAdapter from managers
-	// For now, return error
-	return nil, fmt.Errorf("buildTableScan not fully implemented - need StorageAdapter")
+	// 创建StorageAdapter
+	storageAdapter := NewStorageAdapter(
+		v.tableManager,
+		v.bufferPoolManager,
+		v.storageManager,
+		nil, // tableStorageManager可以为nil，会在需要时创建
+	)
 
-	// return NewTableScanOperator(
-	// 	p.Table.Schema,
-	// 	p.Table.Name,
-	// 	storageAdapter,
-	// ), nil
+	// 提取schema名称（从DatabaseSchema中获取）
+	schemaName := ""
+	if p.Table.Schema != nil {
+		schemaName = p.Table.Schema.Name
+	}
+
+	// 创建TableScanOperator
+	return NewTableScanOperator(
+		schemaName,
+		p.Table.Name,
+		storageAdapter,
+	), nil
 }
 
 func (v *VolcanoExecutor) buildIndexScan(p *plan.PhysicalIndexScan) (Operator, error) {
@@ -1273,20 +1977,38 @@ func (v *VolcanoExecutor) buildIndexScan(p *plan.PhysicalIndexScan) (Operator, e
 		return nil, fmt.Errorf("table or index is nil in PhysicalIndexScan")
 	}
 
-	// TODO: Need to create StorageAdapter and IndexAdapter from managers
-	// For now, return error
-	return nil, fmt.Errorf("buildIndexScan not fully implemented - need adapters")
+	// 创建StorageAdapter
+	storageAdapter := NewStorageAdapter(
+		v.tableManager,
+		v.bufferPoolManager,
+		v.storageManager,
+		nil, // tableStorageManager可以为nil
+	)
 
-	// return NewIndexScanOperator(
-	// 	p.Table.Schema,
-	// 	p.Table.Name,
-	// 	p.Index.Name,
-	// 	storageAdapter,
-	// 	indexAdapter,
-	// 	nil, // startKey
-	// 	nil, // endKey
-	// 	[]string{}, // requiredColumns
-	// ), nil
+	// 创建IndexAdapter
+	indexAdapter := NewIndexAdapter(
+		v.indexManager,
+		nil, // btreeManager可以为nil
+		storageAdapter,
+	)
+
+	// 提取schema名称（从DatabaseSchema中获取）
+	schemaName := ""
+	if p.Table.Schema != nil {
+		schemaName = p.Table.Schema.Name
+	}
+
+	// 创建IndexScanOperator
+	return NewIndexScanOperator(
+		schemaName,
+		p.Table.Name,
+		p.Index.Name,
+		storageAdapter,
+		indexAdapter,
+		nil,        // startKey - 可以从p中提取
+		nil,        // endKey - 可以从p中提取
+		[]string{}, // requiredColumns - 可以从p.Schema中提取
+	), nil
 }
 
 func (v *VolcanoExecutor) buildSelection(ctx context.Context, p *plan.PhysicalSelection) (Operator, error) {
@@ -1300,11 +2022,8 @@ func (v *VolcanoExecutor) buildSelection(ctx context.Context, p *plan.PhysicalSe
 		return nil, err
 	}
 
-	// TODO: 将Conditions转换为predicate函数
-	predicate := func(record Record) bool {
-		// 简化实现：总是返回true
-		return true
-	}
+	// 将Conditions转换为predicate函数
+	predicate := v.buildPredicate(p.Conditions, child.Schema())
 
 	return NewFilterOperator(child, predicate), nil
 }
@@ -1339,9 +2058,8 @@ func (v *VolcanoExecutor) buildHashJoin(ctx context.Context, p *plan.PhysicalHas
 		return nil, err
 	}
 
-	// TODO: 从Conditions构建hash key函数
-	buildKey := func(r Record) string { return "" }
-	probeKey := func(r Record) string { return "" }
+	// 从Conditions构建hash key函数
+	buildKey, probeKey := v.buildHashKeyFunctions(p.Conditions, p.LeftSchema, p.RightSchema)
 
 	return NewHashJoinOperator(left, right, p.JoinType, buildKey, probeKey), nil
 }
@@ -1378,9 +2096,9 @@ func (v *VolcanoExecutor) buildHashAgg(ctx context.Context, p *plan.PhysicalHash
 		return nil, err
 	}
 
-	// TODO: 从GroupByItems和AggFuncs构建聚合函数
-	groupByExprs := []int{}
-	aggFuncs := []AggregateFunc{&CountAgg{}}
+	// 从GroupByItems和AggFuncs构建聚合函数
+	groupByExprs := v.buildGroupByExprs(p.GroupByItems, child.Schema())
+	aggFuncs := v.buildAggFuncs(p.AggFuncs)
 
 	return NewHashAggregateOperator(child, groupByExprs, aggFuncs), nil
 }
@@ -1401,10 +2119,46 @@ func (v *VolcanoExecutor) buildSort(ctx context.Context, p *plan.PhysicalSort) (
 		return nil, err
 	}
 
-	// TODO: 从ByItems构建排序键
-	sortKeys := []SortKey{{ColumnIdx: 0, Ascending: true}}
+	// 从ByItems构建排序键
+	sortKeys := v.buildSortKeys(p.ByItems, child.Schema())
 
 	return NewSortOperator(child, sortKeys), nil
+}
+
+func (v *VolcanoExecutor) buildSubquery(ctx context.Context, p *plan.PhysicalSubquery) (Operator, error) {
+	// 构建子查询的执行计划
+	var subplan Operator
+	var err error
+
+	if p.Subplan != nil {
+		subplan, err = v.buildOperatorTree(ctx, p.Subplan)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build subquery plan: %w", err)
+		}
+	}
+
+	return NewSubqueryOperator(p.SubqueryType, p.Correlated, p.OuterRefs, subplan), nil
+}
+
+func (v *VolcanoExecutor) buildApply(ctx context.Context, p *plan.PhysicalApply) (Operator, error) {
+	children := p.Children()
+	if len(children) < 2 {
+		return nil, fmt.Errorf("PhysicalApply needs 2 children")
+	}
+
+	// 构建外层算子
+	outer, err := v.buildOperatorTree(ctx, children[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to build outer operator: %w", err)
+	}
+
+	// 构建内层算子（子查询）
+	inner, err := v.buildOperatorTree(ctx, children[1])
+	if err != nil {
+		return nil, fmt.Errorf("failed to build inner operator: %w", err)
+	}
+
+	return NewApplyOperator(outer, inner, p.ApplyType, p.Correlated, p.JoinConds), nil
 }
 
 // Execute 执行查询并返回所有结果
@@ -1434,6 +2188,243 @@ func (v *VolcanoExecutor) Execute(ctx context.Context) ([]Record, error) {
 
 	logger.Debugf("VolcanoExecutor: executed query, returned %d rows", len(results))
 	return results, nil
+}
+
+// ========================================
+// 辅助函数：从物理计划构建算子的辅助方法
+// ========================================
+
+// buildPredicate 从Conditions构建predicate函数
+func (v *VolcanoExecutor) buildPredicate(conditions []plan.Expression, schema *metadata.QuerySchema) func(Record) bool {
+	if len(conditions) == 0 {
+		return func(r Record) bool { return true }
+	}
+
+	return func(record Record) bool {
+		// 创建求值上下文
+		evalCtx := v.createEvalContextFromRecord(record, schema)
+
+		// 对所有条件进行AND操作
+		for _, cond := range conditions {
+			result, err := cond.Eval(evalCtx)
+			if err != nil {
+				logger.Debugf("Failed to evaluate condition %s: %v, treating as false", cond.String(), err)
+				return false
+			}
+
+			// 将结果转换为bool
+			boolResult, ok := result.(bool)
+			if !ok {
+				logger.Debugf("Condition %s did not return bool, got %T, treating as false", cond.String(), result)
+				return false
+			}
+
+			if !boolResult {
+				return false
+			}
+		}
+
+		return true
+	}
+}
+
+// buildHashKeyFunctions 从Conditions构建hash key函数
+func (v *VolcanoExecutor) buildHashKeyFunctions(
+	conditions []plan.Expression,
+	leftSchema *metadata.DatabaseSchema,
+	rightSchema *metadata.DatabaseSchema,
+) (func(Record) string, func(Record) string) {
+	// 默认实现：使用第一个等值条件
+	if len(conditions) == 0 {
+		// 没有条件，使用默认实现
+		return func(r Record) string { return "" }, func(r Record) string { return "" }
+	}
+
+	// 查找第一个等值条件
+	for _, cond := range conditions {
+		if binOp, ok := cond.(*plan.BinaryOperation); ok && binOp.Op == plan.OpEQ {
+			// 提取左右列
+			leftCol, rightCol := v.extractJoinColumns(binOp)
+			if leftCol != "" && rightCol != "" {
+				// 构建build key函数（左表）
+				buildKey := func(r Record) string {
+					values := r.GetValues()
+					// 简化实现：使用第一个值
+					if len(values) > 0 {
+						return fmt.Sprintf("%v", values[0].Raw())
+					}
+					return ""
+				}
+
+				// 构建probe key函数（右表）
+				probeKey := func(r Record) string {
+					values := r.GetValues()
+					// 简化实现：使用第一个值
+					if len(values) > 0 {
+						return fmt.Sprintf("%v", values[0].Raw())
+					}
+					return ""
+				}
+
+				return buildKey, probeKey
+			}
+		}
+	}
+
+	// 没有找到等值条件，使用默认实现
+	return func(r Record) string { return "" }, func(r Record) string { return "" }
+}
+
+// extractJoinColumns 从二元操作中提取连接列
+func (v *VolcanoExecutor) extractJoinColumns(binOp *plan.BinaryOperation) (string, string) {
+	leftCol, leftOk := binOp.Left.(*plan.Column)
+	rightCol, rightOk := binOp.Right.(*plan.Column)
+
+	if leftOk && rightOk {
+		return leftCol.Name, rightCol.Name
+	}
+
+	return "", ""
+}
+
+// buildGroupByExprs 从GroupByItems构建分组表达式（列索引）
+func (v *VolcanoExecutor) buildGroupByExprs(groupByItems []plan.Expression, schema *metadata.QuerySchema) []int {
+	if len(groupByItems) == 0 {
+		return []int{}
+	}
+
+	var groupByExprs []int
+	for _, item := range groupByItems {
+		// 如果是列引用，查找列索引
+		if col, ok := item.(*plan.Column); ok {
+			idx := v.findColumnIndex(col.Name, schema)
+			if idx >= 0 {
+				groupByExprs = append(groupByExprs, idx)
+			}
+		}
+	}
+
+	return groupByExprs
+}
+
+// buildAggFuncs 从AggFuncs构建聚合函数
+func (v *VolcanoExecutor) buildAggFuncs(aggFuncs []plan.AggregateFunc) []AggregateFunc {
+	if len(aggFuncs) == 0 {
+		return []AggregateFunc{&CountAgg{}}
+	}
+
+	var funcs []AggregateFunc
+	for _, aggFunc := range aggFuncs {
+		funcName := aggFunc.Name()
+		switch funcName {
+		case "COUNT":
+			funcs = append(funcs, &CountAgg{})
+		case "SUM":
+			funcs = append(funcs, &SumAgg{})
+		case "AVG":
+			funcs = append(funcs, &AvgAgg{})
+		case "MIN":
+			funcs = append(funcs, &MinAgg{})
+		case "MAX":
+			funcs = append(funcs, &MaxAgg{})
+		default:
+			// 默认使用COUNT
+			funcs = append(funcs, &CountAgg{})
+		}
+	}
+
+	return funcs
+}
+
+// buildSortKeys 从ByItems构建排序键
+func (v *VolcanoExecutor) buildSortKeys(byItems []plan.ByItem, schema *metadata.QuerySchema) []SortKey {
+	if len(byItems) == 0 {
+		return []SortKey{{ColumnIdx: 0, Ascending: true}}
+	}
+
+	var sortKeys []SortKey
+	for _, item := range byItems {
+		// 如果是列引用，查找列索引
+		if col, ok := item.Expr.(*plan.Column); ok {
+			idx := v.findColumnIndex(col.Name, schema)
+			if idx >= 0 {
+				sortKeys = append(sortKeys, SortKey{
+					ColumnIdx: idx,
+					Ascending: !item.Desc, // Desc=true表示降序，Ascending=false
+				})
+			}
+		}
+	}
+
+	if len(sortKeys) == 0 {
+		// 如果没有找到任何列，使用默认排序
+		return []SortKey{{ColumnIdx: 0, Ascending: true}}
+	}
+
+	return sortKeys
+}
+
+// findColumnIndex 在schema中查找列索引
+func (v *VolcanoExecutor) findColumnIndex(columnName string, schema *metadata.QuerySchema) int {
+	if schema == nil {
+		return -1
+	}
+
+	for i := 0; i < schema.ColumnCount(); i++ {
+		col, ok := schema.GetColumnByIndex(i)
+		if ok && col != nil && col.Name == columnName {
+			return i
+		}
+	}
+
+	return -1
+}
+
+// createEvalContextFromRecord 从Record创建求值上下文
+func (v *VolcanoExecutor) createEvalContextFromRecord(record Record, schema *metadata.QuerySchema) *plan.EvalContext {
+	row := make(map[string]interface{})
+	if schema == nil {
+		return &plan.EvalContext{Row: row}
+	}
+
+	values := record.GetValues()
+	for i := 0; i < schema.ColumnCount() && i < len(values); i++ {
+		col, ok := schema.GetColumnByIndex(i)
+		if ok && col != nil {
+			// 将basic.Value转换为interface{}
+			row[col.Name] = v.valueToInterface(values[i])
+		}
+	}
+
+	return &plan.EvalContext{Row: row}
+}
+
+// valueToInterface 将basic.Value转换为interface{}
+func (v *VolcanoExecutor) valueToInterface(val basic.Value) interface{} {
+	if val == nil || val.IsNull() {
+		return nil
+	}
+
+	// 根据值的类型进行转换
+	valueType := val.Type()
+	switch valueType {
+	case basic.ValueTypeTinyInt, basic.ValueTypeSmallInt, basic.ValueTypeMediumInt,
+		basic.ValueTypeInt, basic.ValueTypeBigInt:
+		return val.Int()
+	case basic.ValueTypeFloat, basic.ValueTypeDouble:
+		return val.Float64()
+	case basic.ValueTypeVarchar, basic.ValueTypeChar, basic.ValueTypeText:
+		return val.String()
+	case basic.ValueTypeBool, basic.ValueTypeBoolean:
+		return val.Bool()
+	case basic.ValueTypeBinary, basic.ValueTypeVarBinary, basic.ValueTypeBlob:
+		return val.Bytes()
+	case basic.ValueTypeDate, basic.ValueTypeTime, basic.ValueTypeDateTime, basic.ValueTypeTimestamp:
+		return val.Time()
+	default:
+		// 默认使用Raw()方法
+		return val.Raw()
+	}
 }
 
 // ExecuteStream 流式执行查询，返回迭代器

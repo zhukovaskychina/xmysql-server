@@ -1,6 +1,7 @@
 package page
 
 import (
+	"encoding/binary"
 	"errors"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
@@ -15,6 +16,21 @@ var (
 )
 
 // BasePageWrapper 基础页面包装器
+//
+// Deprecated: BasePageWrapper is deprecated and will be removed in a future version.
+// Use types.UnifiedPage instead, which provides:
+//   - Better concurrency control with atomic operations
+//   - Complete IPageWrapper interface implementation
+//   - Integrated statistics and buffer pool support
+//   - Full serialization/deserialization support
+//
+// Migration example:
+//
+//	// Old code:
+//	page := page.NewBasePageWrapper(id, spaceID, pageType)
+//
+//	// New code:
+//	page := types.NewUnifiedPage(spaceID, id, pageType)
 type BasePageWrapper struct {
 	sync.RWMutex
 
@@ -37,6 +53,8 @@ type BasePageWrapper struct {
 }
 
 // NewBasePageWrapper 创建基础页面包装器
+//
+// Deprecated: Use types.NewUnifiedPage instead
 func NewBasePageWrapper(id, spaceID uint32, typ common.PageType) *BasePageWrapper {
 	header := pages.NewFileHeader()
 	header.WritePageOffset(id)
@@ -75,24 +93,26 @@ func (p *BasePageWrapper) GetPageType() common.PageType {
 	return p.pageType
 }
 
-// GetFileHeader 获取文件头（返回字节数组）
+// GetFileHeader 获取文件头（返回副本，安全）
 func (p *BasePageWrapper) GetFileHeader() []byte {
 	p.RLock()
 	defer p.RUnlock()
+	result := make([]byte, pages.FileHeaderSize)
 	if len(p.content) >= pages.FileHeaderSize {
-		return p.content[:pages.FileHeaderSize]
+		copy(result, p.content[:pages.FileHeaderSize])
 	}
-	return make([]byte, pages.FileHeaderSize)
+	return result
 }
 
-// GetFileTrailer 获取文件尾（返回字节数组）
+// GetFileTrailer 获取文件尾（返回副本，安全）
 func (p *BasePageWrapper) GetFileTrailer() []byte {
 	p.RLock()
 	defer p.RUnlock()
+	result := make([]byte, 8)
 	if len(p.content) >= 8 {
-		return p.content[len(p.content)-8:]
+		copy(result, p.content[len(p.content)-8:])
 	}
-	return make([]byte, 8)
+	return result
 }
 
 // ParseFromBytes 从字节数据解析页面
@@ -175,10 +195,32 @@ func (p *BasePageWrapper) ClearDirty() {
 	p.dirty = false
 }
 
-// UpdateChecksum 更新校验和
+// UpdateChecksum 更新页面校验和
+// 计算并更新页面头部和尾部的校验和字段
 func (p *BasePageWrapper) UpdateChecksum() {
-	checksum := p.calculateChecksum()
-	p.trailer.SetChecksum(checksum)
+	p.Lock()
+	defer p.Unlock()
+
+	if len(p.content) < pages.FileHeaderSize+8 {
+		return
+	}
+
+	// 计算校验和
+	checker := pages.NewPageIntegrityChecker(pages.ChecksumCRC32)
+	checksum32 := checker.CalculateChecksum(p.content)
+
+	// 更新页面头部的校验和字段（前4字节）
+	binary.LittleEndian.PutUint32(p.content[0:4], checksum32)
+
+	// 更新FileTrailer中的校验和
+	p.trailer.SetChecksum(uint64(checksum32))
+
+	// 更新content中的trailer部分（最后8字节）
+	trailerBytes := p.trailer.FileTrailer[:]
+	copy(p.content[len(p.content)-8:], trailerBytes)
+
+	// 标记为脏页
+	p.dirty = true
 }
 
 // ValidateChecksum 验证校验和
@@ -189,14 +231,18 @@ func (p *BasePageWrapper) ValidateChecksum() bool {
 }
 
 // calculateChecksum 计算校验和
+// 使用CRC32算法计算页面校验和，符合InnoDB标准
 func (p *BasePageWrapper) calculateChecksum() uint64 {
-	// TODO: 实现CRC32或其他校验和算法
-	// 这里使用简单的累加作为占位符
-	var sum uint64
-	for _, b := range p.content[:len(p.content)-8] { // 排除trailer
-		sum += uint64(b)
+	if len(p.content) < pages.FileHeaderSize+8 {
+		return 0
 	}
-	return sum
+
+	// 使用PageIntegrityChecker计算CRC32校验和
+	checker := pages.NewPageIntegrityChecker(pages.ChecksumCRC32)
+	checksum32 := checker.CalculateChecksum(p.content)
+
+	// 转换为uint64以匹配FileTrailer的接口
+	return uint64(checksum32)
 }
 
 // ========================================

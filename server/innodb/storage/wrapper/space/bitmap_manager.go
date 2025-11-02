@@ -3,6 +3,7 @@ package space
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 )
 
 /*
@@ -466,4 +467,472 @@ func trailingZeros(x uint64) uint32 {
 		n += 1
 	}
 	return n
+}
+
+// ========================================
+// 分段锁版本BitmapManager
+// ========================================
+
+const (
+	// SegmentCount 分段数量（16个segment，平衡并发度和内存开销）
+	SegmentCount = 16
+)
+
+// BitmapSegment 位图分段
+type BitmapSegment struct {
+	mu     sync.RWMutex      // segment独立的锁
+	bitmap []uint64          // segment的位图数据
+	cache  map[uint32]uint64 // segment级别的缓存
+
+	// segment级别的统计
+	setBits   uint32 // 已设置的位数
+	clearBits uint32 // 空闲的位数
+
+	// 性能优化
+	lastSetPos   uint32 // 上次设置的位置（segment内）
+	lastClearPos uint32 // 上次清除的位置（segment内）
+	cacheHits    uint64 // 缓存命中次数（使用原子操作）
+	cacheMiss    uint64 // 缓存未命中次数（使用原子操作）
+}
+
+// SegmentedBitmapManager 分段锁位图管理器
+type SegmentedBitmapManager struct {
+	// 分段数据
+	segments [SegmentCount]BitmapSegment
+
+	// 全局只读数据（无需锁）
+	size        uint32 // 位图大小（bit数）
+	segmentSize uint32 // 每个segment的大小（words数）
+
+	// 全局统计（使用原子操作）
+	totalOperations uint64 // 总操作次数
+}
+
+// NewSegmentedBitmapManager 创建分段锁位图管理器
+func NewSegmentedBitmapManager(size uint32) *SegmentedBitmapManager {
+	if size > MaxBitmap {
+		size = MaxBitmap
+	}
+
+	// 计算需要的word数量
+	totalWords := (size + BitsPerWord - 1) / BitsPerWord
+
+	// 计算每个segment的word数量
+	wordsPerSegment := (totalWords + SegmentCount - 1) / SegmentCount
+
+	sbm := &SegmentedBitmapManager{
+		size:            size,
+		segmentSize:     wordsPerSegment,
+		totalOperations: 0,
+	}
+
+	// 初始化每个segment
+	for i := 0; i < SegmentCount; i++ {
+		seg := &sbm.segments[i]
+		seg.bitmap = make([]uint64, wordsPerSegment)
+		seg.cache = make(map[uint32]uint64, CacheSize/SegmentCount)
+		seg.setBits = 0
+		seg.clearBits = 0 // 将在下面计算
+		seg.lastSetPos = 0
+		seg.lastClearPos = 0
+		seg.cacheHits = 0
+		seg.cacheMiss = 0
+	}
+
+	// 计算每个segment的clearBits
+	remainingBits := size
+	for i := 0; i < SegmentCount && remainingBits > 0; i++ {
+		seg := &sbm.segments[i]
+		segBits := wordsPerSegment * BitsPerWord
+		if segBits > remainingBits {
+			segBits = remainingBits
+		}
+		seg.clearBits = segBits
+		remainingBits -= segBits
+	}
+
+	return sbm
+}
+
+// getSegmentIndex 计算位置对应的segment索引
+func (sbm *SegmentedBitmapManager) getSegmentIndex(pos uint32) int {
+	wordIdx := pos / BitsPerWord
+	return int(wordIdx % SegmentCount)
+}
+
+// getLocalWordIndex 计算segment内的word索引
+func (sbm *SegmentedBitmapManager) getLocalWordIndex(pos uint32) uint32 {
+	wordIdx := pos / BitsPerWord
+	return wordIdx / SegmentCount
+}
+
+// Set 设置指定位
+func (sbm *SegmentedBitmapManager) Set(pos uint32) error {
+	if pos >= sbm.size {
+		return fmt.Errorf("position %d out of range [0, %d)", pos, sbm.size)
+	}
+
+	// 计算segment索引
+	segIdx := sbm.getSegmentIndex(pos)
+	seg := &sbm.segments[segIdx]
+
+	// 只锁定对应的segment
+	seg.mu.Lock()
+	defer seg.mu.Unlock()
+
+	// 计算segment内的位置
+	localWordIdx := sbm.getLocalWordIndex(pos)
+	bitIdx := pos % BitsPerWord
+
+	// 检查是否已经设置
+	if !sbm.isSetLocked(seg, localWordIdx, bitIdx) {
+		seg.bitmap[localWordIdx] |= (1 << bitIdx)
+		seg.setBits++
+		seg.clearBits--
+		seg.lastSetPos = localWordIdx
+
+		// 更新缓存
+		sbm.updateCacheLocked(seg, localWordIdx, seg.bitmap[localWordIdx])
+	}
+
+	// 更新全局统计（原子操作）
+	atomic.AddUint64(&sbm.totalOperations, 1)
+
+	return nil
+}
+
+// Clear 清除指定位
+func (sbm *SegmentedBitmapManager) Clear(pos uint32) error {
+	if pos >= sbm.size {
+		return fmt.Errorf("position %d out of range [0, %d)", pos, sbm.size)
+	}
+
+	// 计算segment索引
+	segIdx := sbm.getSegmentIndex(pos)
+	seg := &sbm.segments[segIdx]
+
+	// 只锁定对应的segment
+	seg.mu.Lock()
+	defer seg.mu.Unlock()
+
+	// 计算segment内的位置
+	localWordIdx := sbm.getLocalWordIndex(pos)
+	bitIdx := pos % BitsPerWord
+
+	// 检查是否已经清除
+	if sbm.isSetLocked(seg, localWordIdx, bitIdx) {
+		seg.bitmap[localWordIdx] &^= (1 << bitIdx)
+		seg.setBits--
+		seg.clearBits++
+		seg.lastClearPos = localWordIdx
+
+		// 更新缓存
+		sbm.updateCacheLocked(seg, localWordIdx, seg.bitmap[localWordIdx])
+	}
+
+	// 更新全局统计（原子操作）
+	atomic.AddUint64(&sbm.totalOperations, 1)
+
+	return nil
+}
+
+// IsSet 检查指定位是否已设置
+func (sbm *SegmentedBitmapManager) IsSet(pos uint32) (bool, error) {
+	if pos >= sbm.size {
+		return false, fmt.Errorf("position %d out of range [0, %d)", pos, sbm.size)
+	}
+
+	// 计算segment索引
+	segIdx := sbm.getSegmentIndex(pos)
+	seg := &sbm.segments[segIdx]
+
+	// 只锁定对应的segment（读锁）
+	seg.mu.RLock()
+	defer seg.mu.RUnlock()
+
+	// 计算segment内的位置
+	localWordIdx := sbm.getLocalWordIndex(pos)
+	bitIdx := pos % BitsPerWord
+
+	// 先查缓存
+	if cachedWord, ok := seg.cache[localWordIdx]; ok {
+		atomic.AddUint64(&seg.cacheHits, 1)
+		return (cachedWord & (1 << bitIdx)) != 0, nil
+	}
+
+	// 缓存未命中，从位图读取（不更新缓存，因为是读锁）
+	atomic.AddUint64(&seg.cacheMiss, 1)
+	if localWordIdx >= uint32(len(seg.bitmap)) {
+		return false, nil
+	}
+
+	word := seg.bitmap[localWordIdx]
+	return (word & (1 << bitIdx)) != 0, nil
+}
+
+// FindFirstClear 查找第一个空闲位
+func (sbm *SegmentedBitmapManager) FindFirstClear() (uint32, error) {
+	// 轮询所有segment，找到第一个空闲位
+	for i := 0; i < SegmentCount; i++ {
+		seg := &sbm.segments[i]
+		seg.mu.RLock()
+
+		if seg.clearBits > 0 {
+			// 在这个segment中查找
+			for localWordIdx := uint32(0); localWordIdx < uint32(len(seg.bitmap)); localWordIdx++ {
+				word := seg.bitmap[localWordIdx]
+				if word != ^uint64(0) {
+					// 找到空闲位
+					for bitIdx := uint32(0); bitIdx < BitsPerWord; bitIdx++ {
+						if (word & (1 << bitIdx)) == 0 {
+							// 计算全局位置
+							globalWordIdx := localWordIdx*SegmentCount + uint32(i)
+							pos := globalWordIdx*BitsPerWord + bitIdx
+
+							seg.mu.RUnlock()
+
+							if pos < sbm.size {
+								return pos, nil
+							}
+						}
+					}
+				}
+			}
+		}
+
+		seg.mu.RUnlock()
+	}
+
+	return 0, fmt.Errorf("no free bits available")
+}
+
+// FindFirstSet 查找第一个已设置的位
+func (sbm *SegmentedBitmapManager) FindFirstSet() (uint32, error) {
+	// 轮询所有segment，找到第一个已设置的位
+	for i := 0; i < SegmentCount; i++ {
+		seg := &sbm.segments[i]
+		seg.mu.RLock()
+
+		if seg.setBits > 0 {
+			// 在这个segment中查找
+			for localWordIdx := uint32(0); localWordIdx < uint32(len(seg.bitmap)); localWordIdx++ {
+				word := seg.bitmap[localWordIdx]
+				if word != 0 {
+					// 找到已设置的位
+					for bitIdx := uint32(0); bitIdx < BitsPerWord; bitIdx++ {
+						if (word & (1 << bitIdx)) != 0 {
+							// 计算全局位置
+							globalWordIdx := localWordIdx*SegmentCount + uint32(i)
+							pos := globalWordIdx*BitsPerWord + bitIdx
+
+							seg.mu.RUnlock()
+
+							if pos < sbm.size {
+								return pos, nil
+							}
+						}
+					}
+				}
+			}
+		}
+
+		seg.mu.RUnlock()
+	}
+
+	return 0, fmt.Errorf("no set bits available")
+}
+
+// FindNContinuousClear 查找N个连续的空闲位
+func (sbm *SegmentedBitmapManager) FindNContinuousClear(n uint32) (uint32, error) {
+	if n == 0 {
+		return 0, fmt.Errorf("invalid count: 0")
+	}
+
+	totalClear := sbm.CountClear()
+	if n > totalClear {
+		return 0, fmt.Errorf("not enough free bits: need %d, have %d", n, totalClear)
+	}
+
+	// 遍历位图查找连续空闲位
+	continuousCount := uint32(0)
+	startPos := uint32(0)
+
+	for pos := uint32(0); pos < sbm.size; pos++ {
+		isSet, _ := sbm.IsSet(pos)
+
+		if !isSet {
+			if continuousCount == 0 {
+				startPos = pos
+			}
+			continuousCount++
+
+			if continuousCount >= n {
+				return startPos, nil
+			}
+		} else {
+			continuousCount = 0
+		}
+	}
+
+	return 0, fmt.Errorf("cannot find %d continuous free bits", n)
+}
+
+// SetRange 设置范围内的所有位
+func (sbm *SegmentedBitmapManager) SetRange(start, end uint32) error {
+	if start >= sbm.size || end > sbm.size || start >= end {
+		return fmt.Errorf("invalid range [%d, %d)", start, end)
+	}
+
+	// 按segment分组处理
+	for pos := start; pos < end; pos++ {
+		if err := sbm.Set(pos); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// ClearRange 清除范围内的所有位
+func (sbm *SegmentedBitmapManager) ClearRange(start, end uint32) error {
+	if start >= sbm.size || end > sbm.size || start >= end {
+		return fmt.Errorf("invalid range [%d, %d)", start, end)
+	}
+
+	// 按segment分组处理
+	for pos := start; pos < end; pos++ {
+		if err := sbm.Clear(pos); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// CountSet 统计已设置的位数
+func (sbm *SegmentedBitmapManager) CountSet() uint32 {
+	total := uint32(0)
+	for i := 0; i < SegmentCount; i++ {
+		seg := &sbm.segments[i]
+		seg.mu.RLock()
+		total += seg.setBits
+		seg.mu.RUnlock()
+	}
+	return total
+}
+
+// CountClear 统计空闲的位数
+func (sbm *SegmentedBitmapManager) CountClear() uint32 {
+	total := uint32(0)
+	for i := 0; i < SegmentCount; i++ {
+		seg := &sbm.segments[i]
+		seg.mu.RLock()
+		total += seg.clearBits
+		seg.mu.RUnlock()
+	}
+	return total
+}
+
+// Size 返回位图大小
+func (sbm *SegmentedBitmapManager) Size() uint32 {
+	return sbm.size
+}
+
+// GetStats 获取统计信息
+func (sbm *SegmentedBitmapManager) GetStats() map[string]interface{} {
+	setBits := sbm.CountSet()
+	clearBits := sbm.CountClear()
+
+	totalCacheHits := uint64(0)
+	totalCacheMiss := uint64(0)
+
+	for i := 0; i < SegmentCount; i++ {
+		seg := &sbm.segments[i]
+		// 使用原子操作读取，无需锁
+		totalCacheHits += atomic.LoadUint64(&seg.cacheHits)
+		totalCacheMiss += atomic.LoadUint64(&seg.cacheMiss)
+	}
+
+	cacheHitRate := 0.0
+	totalCacheOps := totalCacheHits + totalCacheMiss
+	if totalCacheOps > 0 {
+		cacheHitRate = float64(totalCacheHits) / float64(totalCacheOps) * 100
+	}
+
+	return map[string]interface{}{
+		"size":           sbm.size,
+		"set_bits":       setBits,
+		"clear_bits":     clearBits,
+		"usage_rate":     float64(setBits) / float64(sbm.size) * 100,
+		"operations":     atomic.LoadUint64(&sbm.totalOperations),
+		"cache_hits":     totalCacheHits,
+		"cache_miss":     totalCacheMiss,
+		"cache_hit_rate": cacheHitRate,
+		"segment_count":  SegmentCount,
+	}
+}
+
+// Reset 重置位图（清除所有位）
+func (sbm *SegmentedBitmapManager) Reset() {
+	for i := 0; i < SegmentCount; i++ {
+		seg := &sbm.segments[i]
+		seg.mu.Lock()
+
+		for j := range seg.bitmap {
+			seg.bitmap[j] = 0
+		}
+
+		seg.setBits = 0
+		// clearBits保持不变（由初始化时设置）
+		seg.lastSetPos = 0
+		seg.lastClearPos = 0
+
+		// 清空缓存
+		seg.cache = make(map[uint32]uint64, CacheSize/SegmentCount)
+		atomic.StoreUint64(&seg.cacheHits, 0)
+		atomic.StoreUint64(&seg.cacheMiss, 0)
+
+		seg.mu.Unlock()
+	}
+
+	atomic.StoreUint64(&sbm.totalOperations, 0)
+}
+
+// 内部辅助方法
+
+// isSetLocked 检查指定word的指定bit是否已设置（内部方法，调用前需持有锁）
+func (sbm *SegmentedBitmapManager) isSetLocked(seg *BitmapSegment, localWordIdx, bitIdx uint32) bool {
+	// 先查缓存
+	if cachedWord, ok := seg.cache[localWordIdx]; ok {
+		atomic.AddUint64(&seg.cacheHits, 1)
+		return (cachedWord & (1 << bitIdx)) != 0
+	}
+
+	// 缓存未命中，从位图读取
+	atomic.AddUint64(&seg.cacheMiss, 1)
+	if localWordIdx >= uint32(len(seg.bitmap)) {
+		return false
+	}
+
+	word := seg.bitmap[localWordIdx]
+
+	// 更新缓存
+	sbm.updateCacheLocked(seg, localWordIdx, word)
+
+	return (word & (1 << bitIdx)) != 0
+}
+
+// updateCacheLocked 更新缓存（内部方法，调用前需持有锁）
+func (sbm *SegmentedBitmapManager) updateCacheLocked(seg *BitmapSegment, localWordIdx uint32, word uint64) {
+	// 如果缓存已满，使用简单的FIFO策略删除一个条目
+	segCacheSize := CacheSize / SegmentCount
+	if len(seg.cache) >= segCacheSize {
+		// 删除第一个条目（简化实现）
+		for k := range seg.cache {
+			delete(seg.cache, k)
+			break
+		}
+	}
+
+	seg.cache[localWordIdx] = word
 }

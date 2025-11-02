@@ -52,7 +52,10 @@ func NewUnifiedExecutor(
 		storageAdapter,
 	)
 
-	transactionAdapter := NewTransactionAdapter(storageManager)
+	// 创建锁管理器（如果需要）
+	lockManager := manager.NewLockManager()
+
+	transactionAdapter := NewTransactionAdapter(storageManager, lockManager)
 
 	return &UnifiedExecutor{
 		storageAdapter:      storageAdapter,

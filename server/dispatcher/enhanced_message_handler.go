@@ -61,12 +61,8 @@ func (h *EnhancedBusinessMessageHandler) HandleMessage(msg protocol.Message) (pr
 		return h.handlePingMessage(ctx, msg)
 	default:
 		logger.Errorf(" 未知消息类型: %d", msg.Type())
-		return &protocol.ErrorMessage{
-			BaseMessage: protocol.NewBaseMessage(protocol.MSG_ERROR, msg.SessionID(), nil),
-			Code:        common.ER_UNKNOWN_ERROR,
-			State:       "42000",
-			Message:     fmt.Sprintf("Unknown message type: %d", msg.Type()),
-		}, nil
+		return protocol.NewErrorMessage(msg.SessionID(), common.ER_UNKNOWN_ERROR,
+			fmt.Sprintf("Unknown message type: %d", msg.Type())), nil
 	}
 }
 
@@ -110,12 +106,8 @@ func (h *EnhancedBusinessMessageHandler) HandleQueryWithRealSession(realSession 
 	ctx := context.Background()
 	if err := h.checkQueryPrivilege(ctx, user, host, database, query); err != nil {
 		logger.Errorf(" 权限检查失败: %v", err)
-		return &protocol.ErrorMessage{
-			BaseMessage: protocol.NewBaseMessage(protocol.MSG_ERROR, "temp", nil),
-			Code:        common.ER_ACCESS_DENIED_ERROR,
-			State:       "28000",
-			Message:     fmt.Sprintf("Access denied for user '%s'@'%s'", user, host),
-		}, nil
+		return protocol.NewErrorMessage("temp", common.ER_ACCESS_DENIED_ERROR,
+			user, host, "NO"), nil
 	}
 
 	logger.Debugf(" 权限检查通过，准备执行SQL查询")
@@ -136,12 +128,7 @@ func (h *EnhancedBusinessMessageHandler) HandleQueryWithRealSession(realSession 
 		// 如果有错误，记录详细信息
 		if result.Err != nil {
 			logger.Errorf(" SQL执行错误: %v", result.Err)
-			return &protocol.ErrorMessage{
-				BaseMessage: protocol.NewBaseMessage(protocol.MSG_ERROR, "temp", nil),
-				Code:        common.ER_UNKNOWN_ERROR,
-				State:       "42000",
-				Message:     fmt.Sprintf("SQL execution error: %v", result.Err),
-			}, nil
+			return protocol.NewErrorMessageFromGoError("temp", result.Err), nil
 		}
 
 		// 转换结果格式
@@ -163,12 +150,8 @@ func (h *EnhancedBusinessMessageHandler) HandleQueryWithRealSession(realSession 
 	}
 
 	logger.Errorf(" 未收到查询结果，结果数量: %d", resultCount)
-	return &protocol.ErrorMessage{
-		BaseMessage: protocol.NewBaseMessage(protocol.MSG_ERROR, "temp", nil),
-		Code:        common.ER_UNKNOWN_ERROR,
-		State:       "42000",
-		Message:     "No result received from query execution",
-	}, nil
+	return protocol.NewErrorMessage("temp", common.ER_UNKNOWN_ERROR,
+		"No result received from query execution"), nil
 }
 
 // CanHandle 检查是否能处理指定类型的消息
@@ -235,22 +218,14 @@ func (h *EnhancedBusinessMessageHandler) handleAuthMessage(ctx context.Context, 
 		authMsg.Database,
 	)
 	if err != nil {
-		return &protocol.ErrorMessage{
-			BaseMessage: protocol.NewBaseMessage(protocol.MSG_ERROR, msg.SessionID(), nil),
-			Code:        common.ER_ACCESS_DENIED_ERROR,
-			State:       "HY000",
-			Message:     fmt.Sprintf("Authentication error: %v", err),
-		}, nil
+		return protocol.NewErrorMessageFromGoError(msg.SessionID(), err), nil
 	}
 
 	// 检查认证结果
 	if !authResult.Success {
-		return &protocol.ErrorMessage{
-			BaseMessage: protocol.NewBaseMessage(protocol.MSG_ERROR, msg.SessionID(), nil),
-			Code:        authResult.ErrorCode,
-			State:       "28000",
-			Message:     authResult.ErrorMessage,
-		}, nil
+		// 使用认证结果中的错误码创建错误消息
+		sqlErr := common.NewErr(authResult.ErrorCode, authResult.ErrorMessage)
+		return protocol.NewErrorMessageFromGoError(msg.SessionID(), sqlErr), nil
 	}
 
 	// 认证成功，记录用户信息
@@ -291,12 +266,8 @@ func (h *EnhancedBusinessMessageHandler) handleQueryMessage(ctx context.Context,
 	// 检查权限
 	if err := h.checkQueryPrivilege(ctx, user, host, queryMsg.Database, queryMsg.SQL); err != nil {
 		logger.Errorf(" 权限检查失败: %v", err)
-		return &protocol.ErrorMessage{
-			BaseMessage: protocol.NewBaseMessage(protocol.MSG_ERROR, msg.SessionID(), nil),
-			Code:        common.ER_ACCESS_DENIED_ERROR,
-			State:       "28000",
-			Message:     fmt.Sprintf("Access denied for user '%s'@'%s'", user, host),
-		}, nil
+		return protocol.NewErrorMessage(msg.SessionID(), common.ER_ACCESS_DENIED_ERROR,
+			user, host, "NO"), nil
 	}
 
 	logger.Debugf(" 权限检查通过，准备执行SQL查询")
@@ -324,12 +295,7 @@ func (h *EnhancedBusinessMessageHandler) handleQueryMessage(ctx context.Context,
 		// 如果有错误，记录详细信息
 		if result.Err != nil {
 			logger.Errorf(" SQL执行错误: %v", result.Err)
-			return &protocol.ErrorMessage{
-				BaseMessage: protocol.NewBaseMessage(protocol.MSG_ERROR, msg.SessionID(), nil),
-				Code:        common.ER_UNKNOWN_ERROR,
-				State:       "42000",
-				Message:     fmt.Sprintf("SQL execution error: %v", result.Err),
-			}, nil
+			return protocol.NewErrorMessageFromGoError(msg.SessionID(), result.Err), nil
 		}
 
 		// 转换结果格式
@@ -371,12 +337,8 @@ func (h *EnhancedBusinessMessageHandler) handleUseDBMessage(ctx context.Context,
 	// 验证数据库是否存在
 	if err := h.authService.ValidateDatabase(ctx, useDBMsg.Database); err != nil {
 		logger.Errorf(" 数据库验证失败: database=%s, error=%v", useDBMsg.Database, err)
-		return &protocol.ErrorMessage{
-			BaseMessage: protocol.NewBaseMessage(protocol.MSG_ERROR, msg.SessionID(), nil),
-			Code:        common.ER_BAD_DB_ERROR,
-			State:       "42000",
-			Message:     fmt.Sprintf("Unknown database '%s'", useDBMsg.Database),
-		}, nil
+		return protocol.NewErrorMessage(msg.SessionID(), common.ER_BAD_DB_ERROR,
+			useDBMsg.Database), nil
 	}
 
 	logger.Debugf(" 数据库验证通过: database=%s", useDBMsg.Database)
@@ -392,12 +354,8 @@ func (h *EnhancedBusinessMessageHandler) handleUseDBMessage(ctx context.Context,
 		if err := h.authService.CheckPrivilege(ctx, user, host, useDBMsg.Database, "", common.SelectPriv); err != nil {
 			logger.Errorf(" 数据库访问权限检查失败: user=%s, host=%s, database=%s, error=%v",
 				user, host, useDBMsg.Database, err)
-			return &protocol.ErrorMessage{
-				BaseMessage: protocol.NewBaseMessage(protocol.MSG_ERROR, msg.SessionID(), nil),
-				Code:        common.ER_SPECIFIC_ACCESS_DENIED_ERROR,
-				State:       "42000",
-				Message:     fmt.Sprintf("Access denied for user '%s'@'%s' to database '%s'", user, host, useDBMsg.Database),
-			}, nil
+			return protocol.NewErrorMessage(msg.SessionID(), common.ER_SPECIFIC_ACCESS_DENIED_ERROR,
+				user, host, useDBMsg.Database), nil
 		}
 		logger.Debugf(" 数据库访问权限检查通过")
 	} else {

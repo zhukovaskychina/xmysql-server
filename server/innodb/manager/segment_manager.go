@@ -38,18 +38,18 @@ type SegmentImpl struct {
 	FragmentUsed  uint32   // 已使用的Fragment页面数
 	FragmentFull  bool     // Fragment是否已满
 
-	// Extent链表管理
-	FreeExtents    []*extent.BaseExtent // 完全空闲的Extent链表
-	NotFullExtents []*extent.BaseExtent // 部分使用的Extent链表
-	FullExtents    []*extent.BaseExtent // 完全使用的Extent链表
+	// Extent链表管理（使用UnifiedExtent）
+	FreeExtents    []*extent.UnifiedExtent // 完全空闲的Extent链表
+	NotFullExtents []*extent.UnifiedExtent // 部分使用的Extent链表
+	FullExtents    []*extent.UnifiedExtent // 完全使用的Extent链表
 
 	// 统计信息
 	FreeSpace   uint64 // 空闲空间
 	PageCount   uint32 // 页面数量
 	ExtentCount uint32 // Extent数量
 
-	IsTemporary bool               // 是否临时段
-	LastExtent  *extent.BaseExtent // 最后一个Extent（优化分配）
+	IsTemporary bool                  // 是否临时段
+	LastExtent  *extent.UnifiedExtent // 最后一个Extent（优化分配）
 }
 
 // SegmentStats 段统计信息
@@ -101,9 +101,9 @@ func (sm *SegmentManager) CreateSegment(spaceID uint32, segType uint8, isTemp bo
 		FragmentPages:  [32]bool{},
 		FragmentUsed:   0,
 		FragmentFull:   false,
-		FreeExtents:    make([]*extent.BaseExtent, 0),
-		NotFullExtents: make([]*extent.BaseExtent, 0),
-		FullExtents:    make([]*extent.BaseExtent, 0),
+		FreeExtents:    make([]*extent.UnifiedExtent, 0),
+		NotFullExtents: make([]*extent.UnifiedExtent, 0),
+		FullExtents:    make([]*extent.UnifiedExtent, 0),
 		IsTemporary:    isTemp,
 	}
 
@@ -404,7 +404,7 @@ func (sm *SegmentManager) FreePage(segID uint32, pageNo uint32) error {
 }
 
 // findExtentInLists 在所有Extent链表中查找Extent
-func (sm *SegmentManager) findExtentInLists(seg *SegmentImpl, extentID uint32) *extent.BaseExtent {
+func (sm *SegmentManager) findExtentInLists(seg *SegmentImpl, extentID uint32) *extent.UnifiedExtent {
 	// 搜索Free链表
 	for _, ext := range seg.FreeExtents {
 		if ext.GetID() == extentID {
@@ -430,8 +430,8 @@ func (sm *SegmentManager) findExtentInLists(seg *SegmentImpl, extentID uint32) *
 }
 
 // moveExtent 在Extent链表之间移动Extent
-func (sm *SegmentManager) moveExtent(seg *SegmentImpl, ext *extent.BaseExtent,
-	from *[]*extent.BaseExtent, to *[]*extent.BaseExtent) {
+func (sm *SegmentManager) moveExtent(seg *SegmentImpl, ext *extent.UnifiedExtent,
+	from *[]*extent.UnifiedExtent, to *[]*extent.UnifiedExtent) {
 	// 从from移除
 	for i, e := range *from {
 		if e.GetID() == ext.GetID() {
@@ -455,7 +455,7 @@ func (sm *SegmentManager) DropSegment(segID uint32) error {
 	}
 
 	// 释放所有区（合并所有extent列表）
-	allExtents := append([]*extent.BaseExtent{}, seg.FreeExtents...)
+	allExtents := append([]*extent.UnifiedExtent{}, seg.FreeExtents...)
 	allExtents = append(allExtents, seg.NotFullExtents...)
 	allExtents = append(allExtents, seg.FullExtents...)
 
@@ -489,7 +489,7 @@ func (sm *SegmentManager) Close() error {
 	// 释放所有段
 	for _, seg := range sm.segments {
 		// 合并所有extent列表
-		allExtents := append([]*extent.BaseExtent{}, seg.FreeExtents...)
+		allExtents := append([]*extent.UnifiedExtent{}, seg.FreeExtents...)
 		allExtents = append(allExtents, seg.NotFullExtents...)
 		allExtents = append(allExtents, seg.FullExtents...)
 
@@ -523,4 +523,78 @@ func (sm *SegmentManager) tryFreeExtent(seg *SegmentImpl, ext basic.Extent) {
 		seg.ExtentCount--
 		sm.stats.TotalExtents--
 	}
+}
+
+// GetSegmentsBySpace 获取指定表空间的所有segment
+func (sm *SegmentManager) GetSegmentsBySpace(spaceID uint32) []basic.Segment {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	segments := make([]basic.Segment, 0)
+	for _, seg := range sm.segments {
+		if seg.SpaceID == spaceID {
+			segments = append(segments, seg)
+		}
+	}
+
+	return segments
+}
+
+// ============ SegmentImpl方法实现 ============
+
+// GetID 实现basic.Segment接口
+func (seg *SegmentImpl) GetID() uint32 {
+	return seg.SegmentID
+}
+
+// GetFreeSpace 获取segment的空闲空间
+func (seg *SegmentImpl) GetFreeSpace() uint64 {
+	return seg.FreeSpace
+}
+
+// Defragment 对segment进行碎片整理
+func (seg *SegmentImpl) Defragment() error {
+	// 1. 对所有extent进行碎片整理
+	allExtents := append([]*extent.UnifiedExtent{}, seg.FreeExtents...)
+	allExtents = append(allExtents, seg.NotFullExtents...)
+	allExtents = append(allExtents, seg.FullExtents...)
+
+	for _, ext := range allExtents {
+		if err := ext.Defragment(); err != nil {
+			return fmt.Errorf("failed to defragment extent %d: %v", ext.GetID(), err)
+		}
+	}
+
+	// 2. 重新组织extent链表
+	// 将完全空闲的extent移到FreeExtents
+	// 将部分使用的extent移到NotFullExtents
+	// 将完全使用的extent移到FullExtents
+	seg.reorganizeExtents()
+
+	return nil
+}
+
+// reorganizeExtents 重新组织extent链表
+func (seg *SegmentImpl) reorganizeExtents() {
+	newFree := make([]*extent.UnifiedExtent, 0)
+	newNotFull := make([]*extent.UnifiedExtent, 0)
+	newFull := make([]*extent.UnifiedExtent, 0)
+
+	allExtents := append([]*extent.UnifiedExtent{}, seg.FreeExtents...)
+	allExtents = append(allExtents, seg.NotFullExtents...)
+	allExtents = append(allExtents, seg.FullExtents...)
+
+	for _, ext := range allExtents {
+		if ext.GetPageCount() == 0 {
+			newFree = append(newFree, ext)
+		} else if ext.GetPageCount() == 64 {
+			newFull = append(newFull, ext)
+		} else {
+			newNotFull = append(newNotFull, ext)
+		}
+	}
+
+	seg.FreeExtents = newFree
+	seg.NotFullExtents = newNotFull
+	seg.FullExtents = newFull
 }

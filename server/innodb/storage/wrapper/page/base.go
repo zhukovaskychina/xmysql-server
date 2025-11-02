@@ -35,6 +35,21 @@ const (
 )
 
 // BasePage 基础页面实现
+//
+// Deprecated: BasePage is deprecated and will be removed in a future version.
+// Use types.UnifiedPage instead, which provides:
+//   - Better concurrency control with atomic operations
+//   - Complete IPageWrapper interface implementation
+//   - Integrated statistics and buffer pool support
+//   - Full serialization/deserialization support
+//
+// Migration example:
+//
+//	// Old code:
+//	page := page.NewBasePage(spaceID, pageNo, pageType)
+//
+//	// New code:
+//	page := types.NewUnifiedPage(spaceID, pageNo, pageType)
 type BasePage struct {
 	ConcurrentWrapper
 
@@ -57,6 +72,8 @@ type BasePage struct {
 var _ IPageWrapper = (*BasePage)(nil)
 
 // NewBasePage 创建基础页面
+//
+// Deprecated: Use types.NewUnifiedPage instead
 func NewBasePage(spaceID, pageNo uint32, pageType common.PageType) *BasePage {
 	bp := &BasePage{
 		rawPage: pageTypes.NewPageHeader(common.PageSize),

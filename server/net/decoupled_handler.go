@@ -1,13 +1,16 @@
 package net
 
 import (
+	"context"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"sync"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server/auth"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/dispatcher"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
@@ -31,6 +34,9 @@ type DecoupledMySQLMessageHandler struct {
 
 	// 握手生成器
 	handshakeGenerator *HandshakeGenerator
+
+	// 认证服务
+	authService auth.AuthService
 }
 
 // NewDecoupledMySQLMessageHandler 创建解耦的MySQL消息处理器
@@ -44,6 +50,12 @@ func NewDecoupledMySQLMessageHandler(cfg *conf.Cfg) *DecoupledMySQLMessageHandle
 // NewDecoupledMySQLMessageHandlerWithEngine 使用已存在的XMySQLEngine创建解耦的MySQL消息处理器
 // 推荐使用此方法以避免重复创建XMySQLEngine实例
 func NewDecoupledMySQLMessageHandlerWithEngine(cfg *conf.Cfg, xmysqlEngine *engine.XMySQLEngine) *DecoupledMySQLMessageHandler {
+	// 创建引擎访问接口
+	engineAccess := auth.NewInnoDBEngineAccess(cfg, xmysqlEngine)
+
+	// 创建认证服务
+	authService := auth.NewAuthService(cfg, engineAccess)
+
 	handler := &DecoupledMySQLMessageHandler{
 		sessionMap:         make(map[Session]server.MySQLServerSession),
 		cfg:                cfg,
@@ -52,6 +64,7 @@ func NewDecoupledMySQLMessageHandlerWithEngine(cfg *conf.Cfg, xmysqlEngine *engi
 		messageBus:         protocol.NewDefaultMessageBus(),
 		businessHandler:    dispatcher.NewEnhancedBusinessMessageHandler(cfg, xmysqlEngine),
 		handshakeGenerator: NewHandshakeGenerator(),
+		authService:        authService,
 	}
 
 	// 注册业务处理器到消息总线
@@ -94,6 +107,11 @@ func (h *DecoupledMySQLMessageHandler) OnOpen(session Session) error {
 		logger.Errorf("生成握手包失败: %v", err)
 		return err
 	}
+
+	// 保存challenge到session属性（用于后续密码验证）
+	challenge := handshakePacket.GetAuthData()
+	session.SetAttribute("auth_challenge", challenge)
+	logger.Debugf("保存challenge到session: %x", challenge)
 
 	// 发送握手包
 	handshakeData := handshakePacket.Encode()
@@ -342,20 +360,51 @@ func (h *DecoupledMySQLMessageHandler) handleAuthentication(session Session, cur
 		logger.Debugf("没有数据库名信息")
 	}
 
-	// 简化认证处理 - 直接认证成功（暂时跳过密码验证）
+	// 验证用户名
 	if username == "" {
 		logger.Errorf("用户名为空")
 		return h.sendErrorResponse(session, 1045, "28000", "Access denied for empty user")
 	}
 
+	// 获取保存的challenge
+	challengeAttr := session.GetAttribute("auth_challenge")
+	if challengeAttr == nil {
+		logger.Errorf("未找到challenge数据")
+		return h.sendErrorResponse(session, 1045, "28000", "Authentication failed: missing challenge")
+	}
+	challenge, ok := challengeAttr.([]byte)
+	if !ok {
+		logger.Errorf("challenge数据类型错误")
+		return h.sendErrorResponse(session, 1045, "28000", "Authentication failed: invalid challenge")
+	}
+
+	logger.Debugf("开始密码验证，用户: %s, challenge: %x, authResponse: %x", username, challenge, authResponse)
+
+	// 使用AuthService进行密码验证
+	ctx := context.Background()
+	host := "%" // 暂时使用通配符主机
+	if database == "" {
+		database = "mysql" // 默认数据库
+	}
+
+	// 将authResponse转换为十六进制字符串（模拟客户端发送的密码）
+	// 注意：这里需要特殊处理，因为authResponse是加密后的数据
+	// 我们需要使用AuthService的ValidatePassword方法
+	authResult, err := h.authenticateWithChallenge(ctx, username, authResponse, challenge, host, database)
+	if err != nil {
+		logger.Errorf("认证失败: %v", err)
+		return h.sendErrorResponse(session, 1045, "28000", fmt.Sprintf("Access denied for user '%s'@'%s'", username, host))
+	}
+
+	if !authResult.Success {
+		logger.Errorf("认证失败: %s", authResult.ErrorMessage)
+		return h.sendErrorResponse(session, authResult.ErrorCode, "28000", authResult.ErrorMessage)
+	}
+
 	// 设置认证成功状态
 	session.SetAttribute("auth_status", "success")
 	(*currentMysqlSession).SetParamByName("user", username)
-	if database != "" {
-		(*currentMysqlSession).SetParamByName("database", database)
-	} else {
-		(*currentMysqlSession).SetParamByName("database", "mysql")
-	}
+	(*currentMysqlSession).SetParamByName("database", database)
 
 	// 更新会话映射
 	h.rwlock.Lock()
@@ -369,7 +418,7 @@ func (h *DecoupledMySQLMessageHandler) handleAuthentication(session Session, cur
 
 	logger.Debugf("准备发送认证OK包，包长度: %d, 数据: %v", len(okData), okData)
 
-	err := session.WriteBytes(okData)
+	err = session.WriteBytes(okData)
 	if err != nil {
 		logger.Errorf("发送认证响应失败: %v", err)
 		return err
@@ -385,6 +434,116 @@ func (h *DecoupledMySQLMessageHandler) handleAuthentication(session Session, cur
 	}
 
 	return nil
+}
+
+// authenticateWithChallenge 使用challenge进行密码验证
+func (h *DecoupledMySQLMessageHandler) authenticateWithChallenge(
+	ctx context.Context,
+	username string,
+	authResponse []byte,
+	challenge []byte,
+	host string,
+	database string,
+) (*auth.AuthResult, error) {
+	// 获取用户信息
+	userInfo, err := h.authService.GetUserInfo(ctx, username, host)
+	if err != nil {
+		logger.Errorf("获取用户信息失败: %v", err)
+		return &auth.AuthResult{
+			Success:      false,
+			ErrorCode:    1045,
+			ErrorMessage: fmt.Sprintf("Access denied for user '%s'@'%s'", username, host),
+		}, err
+	}
+
+	// 如果密码为空（用户没有密码）
+	if userInfo.Password == "" || userInfo.Password == "*" {
+		if len(authResponse) == 0 {
+			// 空密码且客户端也发送空密码，认证成功
+			return &auth.AuthResult{
+				Success: true,
+				User:    username,
+				Host:    host,
+			}, nil
+		}
+		// 用户无密码但客户端发送了密码，认证失败
+		return &auth.AuthResult{
+			Success:      false,
+			ErrorCode:    1045,
+			ErrorMessage: fmt.Sprintf("Access denied for user '%s'@'%s'", username, host),
+		}, nil
+	}
+
+	// 验证密码
+	// MySQL native password验证算法：
+	// authResponse = XOR(SHA1(password), SHA1(challenge + SHA1(SHA1(password))))
+	// 我们需要验证：authResponse == XOR(SHA1(password), SHA1(challenge + storedPasswordHash))
+
+	// 将存储的密码哈希转换为字节（去掉前缀*）
+	storedHashStr := userInfo.Password
+	if len(storedHashStr) > 0 && storedHashStr[0] == '*' {
+		storedHashStr = storedHashStr[1:]
+	}
+	storedHash, err := hex.DecodeString(storedHashStr)
+	if err != nil {
+		logger.Errorf("解析存储的密码哈希失败: %v", err)
+		return &auth.AuthResult{
+			Success:      false,
+			ErrorCode:    1045,
+			ErrorMessage: fmt.Sprintf("Access denied for user '%s'@'%s'", username, host),
+		}, err
+	}
+
+	// 使用password validator验证
+	// 注意：这里我们需要反向验证，因为我们有authResponse而不是原始密码
+	// 我们需要计算：SHA1(challenge + storedHash) 然后与 authResponse XOR 得到 SHA1(password)
+	// 然后验证 SHA1(SHA1(password)) == storedHash
+
+	// 简化方案：直接使用ValidatePassword，但需要传入authResponse作为"密码"
+	// 这需要修改ValidatePassword的实现，或者我们在这里实现验证逻辑
+
+	// 实现MySQL native password验证
+	if !h.verifyMySQLNativePassword(authResponse, challenge, storedHash) {
+		logger.Errorf("密码验证失败")
+		return &auth.AuthResult{
+			Success:      false,
+			ErrorCode:    1045,
+			ErrorMessage: fmt.Sprintf("Access denied for user '%s'@'%s' (using password: YES)", username, host),
+		}, nil
+	}
+
+	// 认证成功
+	return &auth.AuthResult{
+		Success: true,
+		User:    username,
+		Host:    host,
+	}, nil
+}
+
+// verifyMySQLNativePassword 验证MySQL native password
+func (h *DecoupledMySQLMessageHandler) verifyMySQLNativePassword(authResponse, challenge, storedHash []byte) bool {
+	// MySQL native password算法：
+	// authResponse = XOR(SHA1(password), SHA1(challenge + SHA1(SHA1(password))))
+	// 其中 SHA1(SHA1(password)) 就是 storedHash
+	//
+	// 验证步骤：
+	// 1. 计算 SHA1(challenge + storedHash)
+	// 2. XOR(authResponse, SHA1(challenge + storedHash)) 得到 SHA1(password)
+	// 3. 计算 SHA1(SHA1(password))
+	// 4. 比较结果是否等于 storedHash
+
+	if len(authResponse) != 20 || len(challenge) != 20 || len(storedHash) != 20 {
+		logger.Errorf("密码验证参数长度错误: authResponse=%d, challenge=%d, storedHash=%d",
+			len(authResponse), len(challenge), len(storedHash))
+		return false
+	}
+
+	// 使用auth包的password validator
+	// 注意：VerifyAuthResponse是MySQLNativePasswordValidator的具体方法，不是接口方法
+	validator := auth.NewMySQLNativePasswordValidator().(*auth.MySQLNativePasswordValidator)
+
+	// 使用VerifyAuthResponse进行验证
+	return validator.VerifyAuthResponse(authResponse, challenge, storedHash)
 }
 
 // createOKPacket 创建OK包

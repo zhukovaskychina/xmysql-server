@@ -90,9 +90,9 @@ type ExtentReusePool struct {
 	mu sync.RWMutex
 }
 
-// ReuseExtent 可复用的Extent
+// ReuseExtent 可复用的Extent（使用UnifiedExtent）
 type ReuseExtent struct {
-	Extent      *extent.BaseExtent
+	Extent      *extent.UnifiedExtent
 	SpaceID     uint32
 	ExtentNo    uint32
 	SegmentType uint8
@@ -109,7 +109,7 @@ type ReuseExtent struct {
 
 // DelayedReclaimEntry 延迟回收条目
 type DelayedReclaimEntry struct {
-	Extent      *extent.BaseExtent
+	Extent      *extent.UnifiedExtent
 	SpaceID     uint32
 	SegmentType uint8
 	ReclaimTime time.Time
@@ -211,8 +211,8 @@ func (erm *ExtentReuseManager) GetOrCreatePool(spaceID uint32) *ExtentReusePool 
 	return pool
 }
 
-// ReclaimExtent 回收Extent到复用池
-func (erm *ExtentReuseManager) ReclaimExtent(ext *extent.BaseExtent, spaceID uint32, segType uint8) error {
+// ReclaimExtent 回收Extent到复用池（使用UnifiedExtent）
+func (erm *ExtentReuseManager) ReclaimExtent(ext *extent.UnifiedExtent, spaceID uint32, segType uint8) error {
 	// 验证Extent是否完全空闲
 	if !erm.isExtentFullyFree(ext) {
 		atomic.AddUint64(&erm.stats.reclaimErrors, 1)
@@ -241,7 +241,7 @@ func (erm *ExtentReuseManager) ReclaimExtent(ext *extent.BaseExtent, spaceID uin
 }
 
 // doReclaim 执行回收
-func (erm *ExtentReuseManager) doReclaim(ext *extent.BaseExtent, spaceID uint32, segType uint8) error {
+func (erm *ExtentReuseManager) doReclaim(ext *extent.UnifiedExtent, spaceID uint32, segType uint8) error {
 	startTime := time.Now()
 	defer func() {
 		elapsed := time.Since(startTime).Nanoseconds()
@@ -296,8 +296,8 @@ func (erm *ExtentReuseManager) doReclaim(ext *extent.BaseExtent, spaceID uint32,
 	return nil
 }
 
-// ReuseExtent 从复用池获取Extent
-func (erm *ExtentReuseManager) ReuseExtent(spaceID uint32, segType uint8, preferExtentNo uint32) (*extent.BaseExtent, error) {
+// ReuseExtent 从复用池获取Extent（返回UnifiedExtent）
+func (erm *ExtentReuseManager) ReuseExtent(spaceID uint32, segType uint8, preferExtentNo uint32) (*extent.UnifiedExtent, error) {
 	startTime := time.Now()
 	defer func() {
 		elapsed := time.Since(startTime).Nanoseconds()
@@ -461,7 +461,7 @@ func (erm *ExtentReuseManager) evictExtent(pool *ExtentReusePool, segType uint8)
 }
 
 // isExtentFullyFree 检查Extent是否完全空闲
-func (erm *ExtentReuseManager) isExtentFullyFree(ext *extent.BaseExtent) bool {
+func (erm *ExtentReuseManager) isExtentFullyFree(ext *extent.UnifiedExtent) bool {
 	// 简化实现，实际需要检查所有页面
 	return ext.GetPageCount() == 0
 }

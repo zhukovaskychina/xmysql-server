@@ -194,21 +194,24 @@ func (tp *TrxPage) Read() error {
 		return err
 	}
 
+	// 获取页面内容
+	content := tp.GetContent()
+
 	// 读取Trx页面头
 	offset := uint32(87)
-	tp.entryCount = binary.LittleEndian.Uint16(tp.Content[offset:])
+	tp.entryCount = binary.LittleEndian.Uint16(content[offset:])
 	offset += 2
 
 	// 读取事务条目
 	for i := uint16(0); i < tp.entryCount; i++ {
 		entry := &TrxEntry{
-			ID:         binary.LittleEndian.Uint64(tp.Content[offset:]),
-			State:      TrxState(tp.Content[offset+8]),
-			StartLSN:   binary.LittleEndian.Uint64(tp.Content[offset+9:]),
-			EndLSN:     binary.LittleEndian.Uint64(tp.Content[offset+17:]),
-			StartTime:  int64(binary.LittleEndian.Uint64(tp.Content[offset+25:])),
-			EndTime:    int64(binary.LittleEndian.Uint64(tp.Content[offset+33:])),
-			ThreadID:   binary.LittleEndian.Uint32(tp.Content[offset+41:]),
+			ID:         binary.LittleEndian.Uint64(content[offset:]),
+			State:      TrxState(content[offset+8]),
+			StartLSN:   binary.LittleEndian.Uint64(content[offset+9:]),
+			EndLSN:     binary.LittleEndian.Uint64(content[offset+17:]),
+			StartTime:  int64(binary.LittleEndian.Uint64(content[offset+25:])),
+			EndTime:    int64(binary.LittleEndian.Uint64(content[offset+33:])),
+			ThreadID:   binary.LittleEndian.Uint32(content[offset+41:]),
 			Properties: make(map[string]string),
 		}
 
@@ -225,26 +228,32 @@ func (tp *TrxPage) Read() error {
 
 // Write 实现Page接口
 func (tp *TrxPage) Write() error {
+	// 获取页面内容
+	content := tp.GetContent()
+
 	// 写入Trx页面头
 	offset := uint32(87)
-	binary.LittleEndian.PutUint16(tp.Content[offset:], tp.entryCount)
+	binary.LittleEndian.PutUint16(content[offset:], tp.entryCount)
 	offset += 2
 
 	// 写入事务条目
 	for i := uint16(0); i < tp.entryCount; i++ {
 		if tp.entries[i] != nil {
 			entry := tp.entries[i]
-			binary.LittleEndian.PutUint64(tp.Content[offset:], entry.ID)
-			tp.Content[offset+8] = byte(entry.State)
-			binary.LittleEndian.PutUint64(tp.Content[offset+9:], entry.StartLSN)
-			binary.LittleEndian.PutUint64(tp.Content[offset+17:], entry.EndLSN)
-			binary.LittleEndian.PutUint64(tp.Content[offset+25:], uint64(entry.StartTime))
-			binary.LittleEndian.PutUint64(tp.Content[offset+33:], uint64(entry.EndTime))
-			binary.LittleEndian.PutUint32(tp.Content[offset+41:], entry.ThreadID)
+			binary.LittleEndian.PutUint64(content[offset:], entry.ID)
+			content[offset+8] = byte(entry.State)
+			binary.LittleEndian.PutUint64(content[offset+9:], entry.StartLSN)
+			binary.LittleEndian.PutUint64(content[offset+17:], entry.EndLSN)
+			binary.LittleEndian.PutUint64(content[offset+25:], uint64(entry.StartTime))
+			binary.LittleEndian.PutUint64(content[offset+33:], uint64(entry.EndTime))
+			binary.LittleEndian.PutUint32(content[offset+41:], entry.ThreadID)
 
 			offset += 45
 		}
 	}
+
+	// 更新回页面
+	tp.SetContent(content)
 
 	// 更新统计信息
 	tp.stats.LastModified = time.Now().UnixNano()

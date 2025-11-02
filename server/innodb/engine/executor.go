@@ -367,9 +367,310 @@ func (e *XMySQLExecutor) optimizeToPhysicalPlan(logicalPlan plan.LogicalPlan) (p
 		return nil, fmt.Errorf("optimizerManager is nil, cannot optimize to physical plan")
 	}
 
-	// TODO: 实现物理计划优化
-	// 这里需要调用优化器管理器的优化方法
-	return nil, fmt.Errorf("physical plan optimization not yet implemented")
+	logger.Debugf("🔧 开始物理计划优化...")
+
+	// 使用优化器管理器生成物理计划
+	physicalPlan, err := e.generatePhysicalPlan(logicalPlan, optimizerManager)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate physical plan: %v", err)
+	}
+
+	logger.Debugf("✅ 物理计划优化完成")
+	return physicalPlan, nil
+}
+
+// generatePhysicalPlan 生成物理计划
+func (e *XMySQLExecutor) generatePhysicalPlan(logicalPlan plan.LogicalPlan, optimizerManager *manager.OptimizerManager) (plan.PhysicalPlan, error) {
+	// 根据逻辑计划类型生成对应的物理计划
+	switch lp := logicalPlan.(type) {
+	case *plan.LogicalTableScan:
+		return e.generatePhysicalTableScan(lp, optimizerManager)
+
+	case *plan.LogicalIndexScan:
+		return e.generatePhysicalIndexScan(lp, optimizerManager)
+
+	case *plan.LogicalJoin:
+		return e.generatePhysicalJoin(lp, optimizerManager)
+
+	case *plan.LogicalAggregation:
+		return e.generatePhysicalAggregation(lp, optimizerManager)
+
+	case *plan.LogicalProjection:
+		return e.generatePhysicalProjection(lp, optimizerManager)
+
+	case *plan.LogicalSelection:
+		return e.generatePhysicalSelection(lp, optimizerManager)
+
+	default:
+		// 简化：不支持的计划类型，返回默认表扫描
+		logger.Debugf("Unsupported logical plan type: %T, using default table scan", logicalPlan)
+		return &plan.PhysicalTableScan{
+			BasePhysicalPlan: plan.BasePhysicalPlan{},
+		}, nil
+	}
+}
+
+// generatePhysicalTableScan 生成物理表扫描计划
+func (e *XMySQLExecutor) generatePhysicalTableScan(lp *plan.LogicalTableScan, om *manager.OptimizerManager) (plan.PhysicalPlan, error) {
+	logger.Debugf("生成物理表扫描计划: table=%s", lp.Table.Name)
+
+	return &plan.PhysicalTableScan{
+		BasePhysicalPlan: plan.BasePhysicalPlan{},
+		Table:            lp.Table,
+	}, nil
+}
+
+// generatePhysicalIndexScan 生成物理索引扫描计划
+func (e *XMySQLExecutor) generatePhysicalIndexScan(lp *plan.LogicalIndexScan, om *manager.OptimizerManager) (plan.PhysicalPlan, error) {
+	logger.Debugf("生成物理索引扫描计划: table=%s, index=%s", lp.Table.Name, lp.Index.Name)
+
+	// 将plan.Index转换为metadata.Index
+	metadataIndex := &metadata.Index{
+		Name:     lp.Index.Name,
+		Columns:  lp.Index.Columns,
+		IsUnique: lp.Index.Unique,
+	}
+
+	return &plan.PhysicalIndexScan{
+		BasePhysicalPlan: plan.BasePhysicalPlan{},
+		Table:            lp.Table,
+		Index:            metadataIndex,
+	}, nil
+}
+
+// generatePhysicalJoin 生成物理连接计划
+func (e *XMySQLExecutor) generatePhysicalJoin(lp *plan.LogicalJoin, om *manager.OptimizerManager) (plan.PhysicalPlan, error) {
+	logger.Debugf("生成物理连接计划: type=%s", lp.JoinType)
+
+	// 递归生成左右子计划
+	children := lp.Children()
+	if len(children) < 2 {
+		return nil, fmt.Errorf("join plan needs at least 2 children")
+	}
+
+	leftPlan, err := e.generatePhysicalPlan(children[0], om)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate left plan: %v", err)
+	}
+
+	rightPlan, err := e.generatePhysicalPlan(children[1], om)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate right plan: %v", err)
+	}
+
+	// 选择连接算法（Hash Join, Nested Loop Join, Sort-Merge Join）
+	joinAlgorithm := e.chooseJoinAlgorithm(lp, leftPlan, rightPlan, om)
+
+	switch joinAlgorithm {
+	case "hash":
+		return &plan.PhysicalHashJoin{
+			BasePhysicalPlan: plan.BasePhysicalPlan{},
+			JoinType:         lp.JoinType,
+			Conditions:       lp.Conditions,
+			LeftSchema:       lp.LeftSchema,
+			RightSchema:      lp.RightSchema,
+		}, nil
+
+	case "merge":
+		return &plan.PhysicalMergeJoin{
+			BasePhysicalPlan: plan.BasePhysicalPlan{},
+			JoinType:         lp.JoinType,
+			Conditions:       lp.Conditions,
+			LeftSchema:       lp.LeftSchema,
+			RightSchema:      lp.RightSchema,
+		}, nil
+
+	default:
+		// 默认使用Hash Join
+		return &plan.PhysicalHashJoin{
+			BasePhysicalPlan: plan.BasePhysicalPlan{},
+			JoinType:         lp.JoinType,
+			Conditions:       lp.Conditions,
+			LeftSchema:       lp.LeftSchema,
+			RightSchema:      lp.RightSchema,
+		}, nil
+	}
+}
+
+// generatePhysicalAggregation 生成物理聚合计划
+func (e *XMySQLExecutor) generatePhysicalAggregation(lp *plan.LogicalAggregation, om *manager.OptimizerManager) (plan.PhysicalPlan, error) {
+	logger.Debugf("生成物理聚合计划")
+
+	// 递归生成子计划
+	children := lp.Children()
+	if len(children) == 0 {
+		return nil, fmt.Errorf("aggregation plan has no child")
+	}
+
+	childPlan, err := e.generatePhysicalPlan(children[0], om)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate child plan: %v", err)
+	}
+
+	// 选择聚合算法（Hash Aggregate, Sort Aggregate）
+	aggAlgorithm := e.chooseAggregateAlgorithm(lp, childPlan, om)
+
+	switch aggAlgorithm {
+	case "hash":
+		return &plan.PhysicalHashAgg{
+			BasePhysicalPlan: plan.BasePhysicalPlan{},
+			GroupByItems:     lp.GroupByItems,
+			AggFuncs:         lp.AggFuncs,
+		}, nil
+
+	case "stream":
+		return &plan.PhysicalStreamAgg{
+			BasePhysicalPlan: plan.BasePhysicalPlan{},
+			GroupByItems:     lp.GroupByItems,
+			AggFuncs:         lp.AggFuncs,
+		}, nil
+
+	default:
+		// 默认使用Hash Aggregate
+		return &plan.PhysicalHashAgg{
+			BasePhysicalPlan: plan.BasePhysicalPlan{},
+			GroupByItems:     lp.GroupByItems,
+			AggFuncs:         lp.AggFuncs,
+		}, nil
+	}
+}
+
+// generatePhysicalProjection 生成物理投影计划
+func (e *XMySQLExecutor) generatePhysicalProjection(lp *plan.LogicalProjection, om *manager.OptimizerManager) (plan.PhysicalPlan, error) {
+	logger.Debugf("生成物理投影计划")
+
+	// 递归生成子计划
+	children := lp.Children()
+	if len(children) == 0 {
+		return nil, fmt.Errorf("projection plan has no child")
+	}
+
+	_, err := e.generatePhysicalPlan(children[0], om)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate child plan: %v", err)
+	}
+
+	return &plan.PhysicalProjection{
+		BasePhysicalPlan: plan.BasePhysicalPlan{},
+		Exprs:            lp.Exprs,
+	}, nil
+}
+
+// generatePhysicalSelection 生成物理选择计划
+func (e *XMySQLExecutor) generatePhysicalSelection(lp *plan.LogicalSelection, om *manager.OptimizerManager) (plan.PhysicalPlan, error) {
+	logger.Debugf("生成物理选择计划")
+
+	// 递归生成子计划
+	children := lp.Children()
+	if len(children) == 0 {
+		return nil, fmt.Errorf("selection plan has no child")
+	}
+
+	_, err := e.generatePhysicalPlan(children[0], om)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate child plan: %v", err)
+	}
+
+	return &plan.PhysicalSelection{
+		BasePhysicalPlan: plan.BasePhysicalPlan{},
+		Conditions:       lp.Conditions,
+	}, nil
+}
+
+// generatePhysicalSort 生成物理排序计划
+func (e *XMySQLExecutor) generatePhysicalSort(lp *plan.BaseLogicalPlan, om *manager.OptimizerManager) (plan.PhysicalPlan, error) {
+	logger.Debugf("生成物理排序计划")
+
+	// 递归生成子计划
+	children := lp.Children()
+	if len(children) == 0 {
+		return nil, fmt.Errorf("sort plan has no child")
+	}
+
+	_, err := e.generatePhysicalPlan(children[0], om)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate child plan: %v", err)
+	}
+
+	return &plan.PhysicalSort{
+		BasePhysicalPlan: plan.BasePhysicalPlan{},
+		ByItems:          []plan.ByItem{}, // 简化：空排序项
+	}, nil
+}
+
+// generatePhysicalLimit 生成物理限制计划
+func (e *XMySQLExecutor) generatePhysicalLimit(lp *plan.BaseLogicalPlan, om *manager.OptimizerManager) (plan.PhysicalPlan, error) {
+	logger.Debugf("生成物理限制计划")
+
+	// 递归生成子计划
+	children := lp.Children()
+	if len(children) == 0 {
+		return nil, fmt.Errorf("limit plan has no child")
+	}
+
+	childPlan, err := e.generatePhysicalPlan(children[0], om)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate child plan: %v", err)
+	}
+
+	// 简化：直接返回子计划，limit逻辑在执行时处理
+	return childPlan, nil
+}
+
+// chooseJoinAlgorithm 选择连接算法
+func (e *XMySQLExecutor) chooseJoinAlgorithm(lp *plan.LogicalJoin, leftPlan, rightPlan plan.PhysicalPlan, om *manager.OptimizerManager) string {
+	// 简化实现：基于表大小选择算法
+	// 实际应该使用代价估算
+
+	// 如果有等值连接条件，优先使用Hash Join
+	if e.hasEquiJoinCondition(lp.Conditions) {
+		return "hash"
+	}
+
+	// 否则使用Nested Loop Join
+	return "nested_loop"
+}
+
+// chooseAggregateAlgorithm 选择聚合算法
+func (e *XMySQLExecutor) chooseAggregateAlgorithm(lp *plan.LogicalAggregation, childPlan plan.PhysicalPlan, om *manager.OptimizerManager) string {
+	// 简化实现：默认使用Hash Aggregate
+	// 实际应该使用代价估算
+
+	// 如果有GROUP BY，使用Hash Aggregate
+	if len(lp.GroupByItems) > 0 {
+		return "hash"
+	}
+
+	// 否则使用Stream Aggregate
+	return "stream"
+}
+
+// hasEquiJoinCondition 检查是否有等值连接条件
+func (e *XMySQLExecutor) hasEquiJoinCondition(conditions []plan.Expression) bool {
+	// 简化实现：检查是否有等号条件
+	for _, cond := range conditions {
+		// TODO: 实际应该解析表达式AST
+		condStr := fmt.Sprintf("%v", cond)
+		if contains(condStr, "=") && !contains(condStr, "!=") {
+			return true
+		}
+	}
+	return false
+}
+
+// contains 检查字符串是否包含子串
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || containsMiddle(s, substr)))
+}
+
+// containsMiddle 检查字符串中间是否包含子串
+func containsMiddle(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
 
 // convertToSelectResult 将Record数组转换为SelectResult

@@ -2,7 +2,6 @@ package pages
 
 import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
-	"github.com/zhukovaskychina/xmysql-server/util"
 	"testing"
 )
 
@@ -37,13 +36,13 @@ func TestFspHdrPage_DeserializeFields(t *testing.T) {
 		t.Fatalf("FileSpaceHeader is nil")
 	}
 
-	if gotSpace := fsp.FileSpaceHeader.SpaceId; len(gotSpace) != 4 {
+	if gotSpace := fsp.FileSpaceHeader.SpaceId(); len(gotSpace) != 4 {
 		t.Fatalf("SpaceId length invalid: %d", len(gotSpace))
 	}
 
 	// Verify space id matches
-	if want := spaceID; want != util.ReadUB4Byte2UInt32(fsp.FileSpaceHeader.SpaceId) {
-		t.Fatalf("SpaceId mismatch: want %d got %d", want, util.ReadUB4Byte2UInt32(fsp.FileSpaceHeader.SpaceId))
+	if want := spaceID; want != fsp.FileSpaceHeader.GetSpaceID() {
+		t.Fatalf("SpaceId mismatch: want %d got %d", want, fsp.FileSpaceHeader.GetSpaceID())
 	}
 
 	if len(fsp.XDESEntrys) != 256 {

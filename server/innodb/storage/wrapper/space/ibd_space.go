@@ -383,3 +383,145 @@ func (adapter *FileTableSpaceAdapter) FlushToDisk(pageNo uint32, content []byte)
 func (s *IBDSpace) AsFileTableSpace() basic.FileTableSpace {
 	return &FileTableSpaceAdapter{IBDSpace: s}
 }
+
+// GetTotalSize returns the total size of the tablespace in bytes
+func (s *IBDSpace) GetTotalSize() uint64 {
+	s.RLock()
+	defer s.RUnlock()
+
+	// Total size = next page number * page size
+	// This represents the allocated space (not necessarily all used)
+	return uint64(s.nextPage) * PageSize
+}
+
+// GetFreeSpace returns the free space in bytes
+func (s *IBDSpace) GetFreeSpace() uint64 {
+	s.RLock()
+	defer s.RUnlock()
+
+	// Free space = (allocated pages - used pages) * page size
+	allocatedPages := s.nextPage
+	usedPages := s.pageCount
+
+	if allocatedPages > usedPages {
+		return uint64(allocatedPages-usedPages) * PageSize
+	}
+	return 0
+}
+
+// GetSegmentCount returns the number of segments in the tablespace
+// Note: This is a simplified implementation
+// In a full implementation, this would track actual segments
+func (s *IBDSpace) GetSegmentCount() uint32 {
+	s.RLock()
+	defer s.RUnlock()
+
+	// Simplified: estimate based on extents
+	// Typically, each segment has multiple extents
+	// For now, we estimate 1 segment per 4 extents (data + index segments)
+	if s.extentCount == 0 {
+		return 0
+	}
+
+	// At minimum, we have 1 segment
+	// Add 1 segment for every 4 extents
+	segmentCount := uint32(1 + (s.extentCount / 4))
+	return segmentCount
+}
+
+// GetFreeExtentCount returns the number of free extents
+func (s *IBDSpace) GetFreeExtentCount() uint32 {
+	s.RLock()
+	defer s.RUnlock()
+
+	freeCount := uint32(0)
+	for _, ext := range s.extents {
+		if ext.IsEmpty() {
+			freeCount++
+		}
+	}
+	return freeCount
+}
+
+// GetPartialExtentCount returns the number of partially used extents
+func (s *IBDSpace) GetPartialExtentCount() uint32 {
+	s.RLock()
+	defer s.RUnlock()
+
+	partialCount := uint32(0)
+	for _, ext := range s.extents {
+		if !ext.IsEmpty() && !ext.IsFull() {
+			partialCount++
+		}
+	}
+	return partialCount
+}
+
+// GetFullExtentCount returns the number of fully used extents
+func (s *IBDSpace) GetFullExtentCount() uint32 {
+	s.RLock()
+	defer s.RUnlock()
+
+	fullCount := uint32(0)
+	for _, ext := range s.extents {
+		if ext.IsFull() {
+			fullCount++
+		}
+	}
+	return fullCount
+}
+
+// GetDetailedStats returns detailed statistics about the tablespace
+func (s *IBDSpace) GetDetailedStats() *SpaceDetailedStats {
+	s.RLock()
+	defer s.RUnlock()
+
+	stats := &SpaceDetailedStats{
+		SpaceID:        s.id,
+		Name:           s.name,
+		TotalPages:     s.nextPage,
+		AllocatedPages: s.pageCount,
+		TotalExtents:   s.extentCount,
+		FreeExtents:    0,
+		PartialExtents: 0,
+		FullExtents:    0,
+		TotalSize:      uint64(s.nextPage) * PageSize,
+		UsedSize:       uint64(s.pageCount) * PageSize,
+		FreeSize:       0,
+		FragmentCount:  s.fragmentCount,
+	}
+
+	// Calculate extent statistics
+	for _, ext := range s.extents {
+		if ext.IsEmpty() {
+			stats.FreeExtents++
+		} else if ext.IsFull() {
+			stats.FullExtents++
+		} else {
+			stats.PartialExtents++
+		}
+	}
+
+	// Calculate free size
+	if stats.TotalPages > stats.AllocatedPages {
+		stats.FreeSize = uint64(stats.TotalPages-stats.AllocatedPages) * PageSize
+	}
+
+	return stats
+}
+
+// SpaceDetailedStats contains detailed statistics about a tablespace
+type SpaceDetailedStats struct {
+	SpaceID        uint32
+	Name           string
+	TotalPages     uint32
+	AllocatedPages uint32
+	TotalExtents   uint32
+	FreeExtents    uint32
+	PartialExtents uint32
+	FullExtents    uint32
+	TotalSize      uint64
+	UsedSize       uint64
+	FreeSize       uint64
+	FragmentCount  uint32
+}

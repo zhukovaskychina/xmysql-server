@@ -142,8 +142,8 @@ func (h *MySQLProtocolHandler) handleQuery(conn net.Conn, packet *MySQLRawPacket
 func (h *MySQLProtocolHandler) handleQueryResults(conn net.Conn, resultChan <-chan *QueryResult) {
 	for result := range resultChan {
 		if result.Error != nil {
-			// 发送错误响应
-			errPacket := EncodeErrorPacket(1064, "42000", result.Error.Error())
+			// 发送错误响应（使用错误处理工具）
+			errPacket := EncodeErrorFromGoError(result.Error)
 			conn.Write(errPacket)
 			continue
 		}
@@ -240,7 +240,7 @@ func (h *MySQLProtocolHandler) handleStmtPrepare(conn net.Conn, packet *MySQLRaw
 	// 准备语句
 	stmt, err := h.preparedStmtMgr.Prepare(sql)
 	if err != nil {
-		errPacket := EncodeErrorPacket(1064, "42000", err.Error())
+		errPacket := EncodeErrorFromGoError(err)
 		_, writeErr := conn.Write(errPacket)
 		if writeErr != nil {
 			return fmt.Errorf("failed to send error packet: %w", writeErr)
@@ -275,7 +275,7 @@ func (h *MySQLProtocolHandler) handleStmtExecute(conn net.Conn, packet *MySQLRaw
 	// 获取预编译语句
 	stmt, err := h.preparedStmtMgr.Get(stmtID)
 	if err != nil {
-		errPacket := EncodeErrorPacket(1243, "HY000", fmt.Sprintf("Unknown prepared statement handler (%d)", stmtID))
+		errPacket := EncodeErrorFromCode(common.ErrUnknownStmtHandler, stmtID)
 		conn.Write(errPacket)
 		return err
 	}
@@ -290,7 +290,7 @@ func (h *MySQLProtocolHandler) handleStmtExecute(conn net.Conn, packet *MySQLRaw
 	// 解析参数
 	params, err := h.parseExecuteParams(packet.Body[10:], stmt.ParamCount)
 	if err != nil {
-		errPacket := EncodeErrorPacket(1064, "42000", err.Error())
+		errPacket := EncodeErrorFromGoError(err)
 		conn.Write(errPacket)
 		return err
 	}
@@ -313,7 +313,7 @@ func (h *MySQLProtocolHandler) handleStmtExecute(conn net.Conn, packet *MySQLRaw
 	// 处理结果（同步处理，确保顺序）
 	for result := range resultChan {
 		if result.Error != nil {
-			errPacket := EncodeErrorPacket(1064, "42000", result.Error.Error())
+			errPacket := EncodeErrorFromGoError(result.Error)
 			conn.Write(errPacket)
 			continue
 		}

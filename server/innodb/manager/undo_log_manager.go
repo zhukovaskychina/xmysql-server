@@ -148,6 +148,20 @@ func (u *UndoLogManager) writeEntryToFile(entry *UndoLogEntry) error {
 	return u.undoFile.Sync()
 }
 
+// GetCurrentLSN 获取事务当前的LSN（最后一条Undo日志的LSN）
+func (u *UndoLogManager) GetCurrentLSN(txID int64) uint64 {
+	u.mu.RLock()
+	defer u.mu.RUnlock()
+
+	logs, exists := u.logs[txID]
+	if !exists || len(logs) == 0 {
+		return 0
+	}
+
+	// 返回最后一条Undo日志的LSN
+	return logs[len(logs)-1].LSN
+}
+
 // Rollback 回滚指定事务
 // 完整实现：
 // 1. 按LSN倒序回滚所有Undo日志
@@ -568,6 +582,22 @@ func (u *UndoLogManager) Close() error {
 	defer u.mu.Unlock()
 
 	return u.undoFile.Close()
+}
+
+// GetLogs 获取指定事务的Undo日志列表
+func (u *UndoLogManager) GetLogs(txID int64) []UndoLogEntry {
+	u.mu.RLock()
+	defer u.mu.RUnlock()
+
+	logs, exists := u.logs[txID]
+	if !exists {
+		return []UndoLogEntry{}
+	}
+
+	// 返回副本，避免外部修改
+	result := make([]UndoLogEntry, len(logs))
+	copy(result, logs)
+	return result
 }
 
 // GetStats 获取Undo Log统计信息

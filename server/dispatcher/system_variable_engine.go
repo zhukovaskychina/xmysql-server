@@ -1004,18 +1004,27 @@ type SystemVariableScanOperator struct {
 	varQuery      *manager.SystemVariableQuery
 	currentRecord engine.Record
 	finished      bool
-	schema        *metadata.Schema
+	schema        *metadata.QuerySchema
 }
 
 // NewSystemVariableScanOperator 创建系统变量扫描算子
 func NewSystemVariableScanOperator(sysVarManager *manager.SystemVariablesManager, sessionID string, varQuery *manager.SystemVariableQuery) *SystemVariableScanOperator {
-	_ = NewSystemVariableSchema(varQuery) // schemaImpl - TODO: fix schema type issue
+	// 创建QuerySchema
+	querySchema := metadata.NewQuerySchema()
+	for _, varInfo := range varQuery.Variables {
+		querySchema.AddColumn(&metadata.QueryColumn{
+			Name:       varInfo.Alias,
+			DataType:   metadata.TypeVarchar,
+			IsNullable: true,
+		})
+	}
+
 	return &SystemVariableScanOperator{
 		sysVarManager: sysVarManager,
 		sessionID:     sessionID,
 		varQuery:      varQuery,
 		finished:      false,
-		schema:        nil, // TODO: Fix - cannot assign *SystemVariableSchema to *metadata.Schema
+		schema:        querySchema,
 	}
 }
 
@@ -1058,7 +1067,7 @@ func (s *SystemVariableScanOperator) Close() error {
 }
 
 // Schema 返回扫描器的schema
-func (s *SystemVariableScanOperator) Schema() *metadata.Schema {
+func (s *SystemVariableScanOperator) Schema() *metadata.QuerySchema {
 	return s.schema
 }
 
@@ -1068,17 +1077,26 @@ type SystemVariableProjectionOperator struct {
 	child    engine.Operator
 	columns  []string
 	varQuery *manager.SystemVariableQuery
-	schema   *metadata.Schema
+	schema   *metadata.QuerySchema
 }
 
 // NewSystemVariableProjectionOperator 创建系统变量投影算子
 func NewSystemVariableProjectionOperator(child engine.Operator, columns []string, varQuery *manager.SystemVariableQuery) *SystemVariableProjectionOperator {
-	_ = NewSystemVariableSchema(varQuery) // schemaImpl - TODO: fix schema type issue
+	// 创建QuerySchema
+	querySchema := metadata.NewQuerySchema()
+	for _, varInfo := range varQuery.Variables {
+		querySchema.AddColumn(&metadata.QueryColumn{
+			Name:       varInfo.Alias,
+			DataType:   metadata.TypeVarchar,
+			IsNullable: true,
+		})
+	}
+
 	return &SystemVariableProjectionOperator{
 		child:    child,
 		columns:  columns,
 		varQuery: varQuery,
-		schema:   nil, // TODO: Fix - cannot assign *SystemVariableSchema to *metadata.Schema
+		schema:   querySchema,
 	}
 }
 
@@ -1109,7 +1127,7 @@ func (p *SystemVariableProjectionOperator) Close() error {
 }
 
 // Schema 返回投影器的schema
-func (p *SystemVariableProjectionOperator) Schema() *metadata.Schema {
+func (p *SystemVariableProjectionOperator) Schema() *metadata.QuerySchema {
 	return p.schema
 }
 

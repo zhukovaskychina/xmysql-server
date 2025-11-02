@@ -212,6 +212,25 @@ func (fh *FileHeader) GetSerialBytes() []byte {
    //////////////////////////
 *
 *********/
+
+// IPage 页面接口
+//
+// Deprecated: IPage is deprecated and will be removed in a future version.
+// Use wrapper/types.IPageWrapper instead, which provides:
+//   - Complete page lifecycle management
+//   - Buffer pool integration
+//   - Concurrency control with atomic operations
+//   - Statistics tracking
+//
+// Migration example:
+//
+//	// Old code:
+//	var page pages.IPage
+//	header := page.GetFileHeader()
+//
+//	// New code:
+//	var page types.IPageWrapper
+//	header := page.GetFileHeaderStruct()
 type IPage interface {
 	GetFileHeader() FileHeader
 
@@ -229,6 +248,26 @@ type IPage interface {
 	CalculateChecksum() uint32
 	IsCorrupted() bool
 }
+
+// AbstractPage 抽象页面基类
+//
+// Deprecated: AbstractPage is deprecated and will be removed in a future version.
+// Use types.UnifiedPage instead, which provides:
+//   - Better concurrency control with atomic operations
+//   - Complete IPageWrapper interface implementation
+//   - Integrated statistics and buffer pool support
+//   - Full serialization/deserialization support
+//
+// Migration example:
+//
+//	// Old code:
+//	page := &pages.AbstractPage{
+//	    FileHeader:  header,
+//	    FileTrailer: trailer,
+//	}
+//
+//	// New code:
+//	page := types.NewUnifiedPage(spaceID, pageNo, pageType)
 type AbstractPage struct {
 	IPage
 

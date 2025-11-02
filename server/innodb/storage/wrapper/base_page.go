@@ -2,147 +2,72 @@ package wrapper
 
 import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/latch"
-	"sync"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/types"
 )
 
 // BasePage 基础页面结构
+//
+// Deprecated: BasePage is deprecated and will be removed in a future version.
+// Use types.UnifiedPage instead, which provides:
+//   - Better concurrency control with atomic operations
+//   - Complete IPageWrapper interface implementation
+//   - Integrated statistics and buffer pool support
+//   - Full serialization/deserialization support
+//
+// Migration example:
+//
+//	// Old code:
+//	page := wrapper.NewBasePage(spaceID, pageNo, pageType)
+//
+//	// New code:
+//	page := types.NewUnifiedPage(spaceID, pageNo, pageType)
 type BasePage struct {
-	SpaceID uint32
-	PageNo  uint32
-	Type    common.PageType
-	LSN     uint64
-	State   basic.PageState
-	Stats   *basic.PageStats
-	Latch   *latch.Latch
-	Dirty   bool
-	Content []byte
-	mutex   sync.RWMutex
+	*types.UnifiedPage
+
+	// Legacy fields for backward compatibility
+	Latch *latch.Latch
 }
 
 // NewBasePage 创建一个新的基础页面
+//
+// Deprecated: Use types.NewUnifiedPage instead
 func NewBasePage(spaceID uint32, pageNo uint32, pageType common.PageType) *BasePage {
 	return &BasePage{
-		SpaceID: spaceID,
-		PageNo:  pageNo,
-		Type:    pageType,
-		LSN:     0,
-		State:   basic.PageStateActive,
-		Stats:   &basic.PageStats{},
-		Latch:   latch.NewLatch(),
-		Dirty:   false,
-		Content: make([]byte, 16384), // 16KB page size
+		UnifiedPage: types.NewUnifiedPage(spaceID, pageNo, pageType),
+		Latch:       latch.NewLatch(),
 	}
 }
 
-// Lock 获取写锁
+// Note: Most methods are now inherited from types.UnifiedPage
+// The following methods are available through embedding:
+// - GetContent/SetContent
+// - GetID/GetSpaceID/GetPageNo/GetPageType
+// - GetLSN/SetLSN
+// - IsDirty/MarkDirty
+// - GetState/SetState
+// - GetStats
+// - Pin/Unpin
+// - Read/Write (through UnifiedPage's implementation)
+//
+// Legacy Latch field is kept for backward compatibility
+
+// Lock provides access to UnifiedPage's internal lock
 func (bp *BasePage) Lock() {
-	bp.mutex.Lock()
+	bp.UnifiedPage.LockPage()
 }
 
-// Unlock 释放写锁
+// Unlock provides access to UnifiedPage's internal unlock
 func (bp *BasePage) Unlock() {
-	bp.mutex.Unlock()
+	bp.UnifiedPage.UnlockPage()
 }
 
-// RLock 获取读锁
+// RLock provides access to UnifiedPage's internal read lock
 func (bp *BasePage) RLock() {
-	bp.mutex.RLock()
+	bp.UnifiedPage.RLockPage()
 }
 
-// RUnlock 释放读锁
+// RUnlock provides access to UnifiedPage's internal read unlock
 func (bp *BasePage) RUnlock() {
-	bp.mutex.RUnlock()
-}
-
-// GetContent 获取页面内容
-func (bp *BasePage) GetContent() []byte {
-	return bp.Content
-}
-
-// SetContent 设置页面内容
-func (bp *BasePage) SetContent(content []byte) {
-	bp.Content = content
-}
-
-// GetID 获取页面ID
-func (bp *BasePage) GetID() uint32 {
-	return bp.PageNo
-}
-
-// GetSpaceID 获取空间ID
-func (bp *BasePage) GetSpaceID() uint32 {
-	return bp.SpaceID
-}
-
-// GetPageNo 获取页面号
-func (bp *BasePage) GetPageNo() uint32 {
-	return bp.PageNo
-}
-
-// GetPageType 获取页面类型
-func (bp *BasePage) GetPageType() common.PageType {
-	return bp.Type
-}
-
-// GetLSN 获取LSN
-func (bp *BasePage) GetLSN() uint64 {
-	return bp.LSN
-}
-
-// SetLSN 设置LSN
-func (bp *BasePage) SetLSN(lsn uint64) {
-	bp.LSN = lsn
-}
-
-// IsDirty 判断页面是否脏
-func (bp *BasePage) IsDirty() bool {
-	return bp.Dirty
-}
-
-// MarkDirty 标记页面为脏
-func (bp *BasePage) MarkDirty() {
-	bp.Dirty = true
-}
-
-// GetState 获取页面状态
-func (bp *BasePage) GetState() basic.PageState {
-	return bp.State
-}
-
-// SetState 设置页面状态
-func (bp *BasePage) SetState(state basic.PageState) {
-	bp.State = state
-}
-
-// GetStats 获取页面统计信息
-func (bp *BasePage) GetStats() *basic.PageStats {
-	return bp.Stats
-}
-
-// Pin 固定页面
-func (bp *BasePage) Pin() {
-	bp.Stats.PinCount++
-}
-
-// Unpin 解除页面固定
-func (bp *BasePage) Unpin() {
-	if bp.Stats.PinCount > 0 {
-		bp.Stats.PinCount--
-	}
-}
-
-// Read 读取页面内容
-func (bp *BasePage) Read() error {
-	bp.Stats.IncReadCount()
-	bp.Stats.LastAccessed = basic.GetCurrentTimestamp()
-	return nil
-}
-
-// Write 写入页面内容
-func (bp *BasePage) Write() error {
-	bp.Stats.IncWriteCount()
-	bp.Stats.LastModified = basic.GetCurrentTimestamp()
-	return nil
+	bp.UnifiedPage.RUnlockPage()
 }

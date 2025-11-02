@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -308,14 +309,15 @@ func TestNodeSplitter_TreeHeightTracking(t *testing.T) {
 // setupTestBufferPool 创建测试用的缓冲池
 func setupTestBufferPool(t *testing.T) *OptimizedBufferPoolManager {
 	config := &BufferPoolConfig{
-		PoolSize:         128,
-		PageSize:         16384,
-		MaxDirtyPages:    64,
-		FlushInterval:    60,
-		EnablePrefetch:   false,
-		PrefetchSize:     4,
-		EvictionPolicy:   "LRU",
-		EnableMonitoring: false,
+		PoolSize:        128,
+		PageSize:        16384,
+		FlushInterval:   time.Second,
+		YoungListRatio:  0.75,
+		OldListRatio:    0.25,
+		OldBlockTime:    1000,
+		PrefetchWorkers: 2,
+		MaxQueueSize:    100,
+		StorageProvider: &MockStorageProviderForBTree{},
 	}
 
 	bpm, err := NewOptimizedBufferPoolManager(config)

@@ -142,33 +142,8 @@ func (s *DefaultPageSerializer) deserializeFSPPage(data []byte) (IPage, error) {
 	// 文件头
 	fsp.LoadFileHeader(data[:hdrOff])
 
-	// FileSpaceHeader
-	base := hdrOff
-	// 按字段切片
-	fsp.FileSpaceHeader.SpaceId = data[base : base+4]
-	base += 4
-	fsp.FileSpaceHeader.NotUsed = data[base : base+4]
-	base += 4
-	fsp.FileSpaceHeader.Size = data[base : base+4]
-	base += 4
-	fsp.FileSpaceHeader.FreeLimit = data[base : base+4]
-	base += 4
-	fsp.FileSpaceHeader.SpaceFlags = data[base : base+4]
-	base += 4
-	fsp.FileSpaceHeader.FragNUsed = data[base : base+4]
-	base += 4
-	fsp.FileSpaceHeader.BaseNodeForFreeList = data[base : base+16]
-	base += 16
-	fsp.FileSpaceHeader.BaseNodeForFragFreeList = data[base : base+16]
-	base += 16
-	fsp.FileSpaceHeader.BaseNodeForFullFragList = data[base : base+16]
-	base += 16
-	fsp.FileSpaceHeader.NextUnusedSegmentId = data[base : base+8]
-	base += 8
-	fsp.FileSpaceHeader.SegFullINodesList = data[base : base+16]
-	base += 16
-	fsp.FileSpaceHeader.SegFreeINodesList = data[base : base+16]
-	base += 16
+	// FileSpaceHeader - 使用新的LoadFromBytes方法（单次复制，零切片创建）
+	fsp.FileSpaceHeader.LoadFromBytes(data[hdrOff : hdrOff+fspHdrStructSize])
 
 	// XDES entries
 	xdesTotal := xdesEntrySize * xdesEntryCount

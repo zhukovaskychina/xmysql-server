@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/auth"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
@@ -75,8 +76,8 @@ func (e *QueryResponseEncoder) Encode(msg Message) ([]byte, error) {
 
 	result := responseMsg.Result
 	if result.Error != nil {
-		// 编码错误响应
-		return EncodeErrorPacket(1064, "42000", result.Error.Error()), nil
+		// 编码错误响应（使用错误处理工具）
+		return EncodeErrorFromGoError(result.Error), nil
 	}
 
 	switch result.Type {
@@ -99,9 +100,13 @@ func (e *QueryResponseEncoder) encodeSelectResult(result *MessageQueryResult) ([
 		columnCountPacket := e.encodeColumnCount(len(result.Columns))
 		response = append(response, columnCountPacket...)
 
-		// 编码列定义
+		// 编码列定义（使用列类型信息）
 		for i, column := range result.Columns {
-			columnPacket := e.encodeColumnDefinition(column, byte(i+1))
+			var columnType string
+			if result.ColumnTypes != nil && i < len(result.ColumnTypes) {
+				columnType = result.ColumnTypes[i]
+			}
+			columnPacket := e.encodeColumnDefinitionWithType(column, columnType, byte(i+1))
 			response = append(response, columnPacket...)
 		}
 
@@ -131,6 +136,12 @@ func (e *QueryResponseEncoder) encodeColumnCount(count int) []byte {
 }
 
 func (e *QueryResponseEncoder) encodeColumnDefinition(columnName string, sequenceId byte) []byte {
+	// 使用新的方法，支持列类型信息
+	return e.encodeColumnDefinitionWithType(columnName, "", sequenceId)
+}
+
+// encodeColumnDefinitionWithType 编码列定义（支持类型信息）
+func (e *QueryResponseEncoder) encodeColumnDefinitionWithType(columnName string, columnType string, sequenceId byte) []byte {
 	payload := make([]byte, 0, 64+len(columnName))
 
 	// 简化的列定义
@@ -141,16 +152,129 @@ func (e *QueryResponseEncoder) encodeColumnDefinition(columnName string, sequenc
 	payload = appendLengthEncodedString(payload, columnName) // name
 	payload = appendLengthEncodedString(payload, columnName) // org_name
 
+	// 根据列类型确定MySQL类型码和长度
+	mysqlType, columnLength, flags, decimals := e.getColumnTypeInfo(columnType)
+
 	// 固定长度字段
-	payload = append(payload, 0x0c)                   // length of fixed fields
-	payload = append(payload, 0x21, 0x00)             // character set
-	payload = append(payload, 0x00, 0x00, 0x00, 0x00) // column length
-	payload = append(payload, 0xFD)                   // column type (VAR_STRING)
-	payload = append(payload, 0x00, 0x00)             // flags
-	payload = append(payload, 0x00)                   // decimals
-	payload = append(payload, 0x00, 0x00)             // filler
+	payload = append(payload, 0x0c)                                                                                      // length of fixed fields
+	payload = append(payload, 0x21, 0x00)                                                                                // character set (utf8_general_ci)
+	payload = append(payload, byte(columnLength), byte(columnLength>>8), byte(columnLength>>16), byte(columnLength>>24)) // column length (4 bytes, little-endian)
+	payload = append(payload, mysqlType)                                                                                 // column type
+	payload = append(payload, byte(flags), byte(flags>>8))                                                               // flags (2 bytes, little-endian)
+	payload = append(payload, decimals)                                                                                  // decimals
+	payload = append(payload, 0x00, 0x00)                                                                                // filler
 
 	return addPacketHeader(payload, sequenceId)
+}
+
+// getColumnTypeInfo 根据列类型字符串返回MySQL类型信息
+func (e *QueryResponseEncoder) getColumnTypeInfo(columnType string) (mysqlType byte, columnLength uint32, flags uint16, decimals byte) {
+	// 默认值
+	mysqlType = common.COLUMN_TYPE_VAR_STRING
+	columnLength = 255
+	flags = 0
+	decimals = 0
+
+	if columnType == "" {
+		return
+	}
+
+	// 转换为小写进行匹配
+	columnType = strings.ToLower(columnType)
+
+	// 根据类型字符串确定MySQL类型码
+	switch {
+	case strings.HasPrefix(columnType, "tinyint"):
+		mysqlType = common.COLUMN_TYPE_TINY
+		columnLength = 4
+	case strings.HasPrefix(columnType, "smallint"):
+		mysqlType = common.COLUMN_TYPE_SHORT
+		columnLength = 6
+	case strings.HasPrefix(columnType, "mediumint"):
+		mysqlType = common.COLUMN_TYPE_INT24
+		columnLength = 9
+	case strings.HasPrefix(columnType, "int"):
+		mysqlType = common.COLUMN_TYPE_LONG
+		columnLength = 11
+	case strings.HasPrefix(columnType, "bigint"):
+		mysqlType = common.COLUMN_TYPE_LONGLONG
+		columnLength = 20
+	case strings.HasPrefix(columnType, "float"):
+		mysqlType = common.COLUMN_TYPE_FLOAT
+		columnLength = 12
+		decimals = 31
+	case strings.HasPrefix(columnType, "double"):
+		mysqlType = common.COLUMN_TYPE_DOUBLE
+		columnLength = 22
+		decimals = 31
+	case strings.HasPrefix(columnType, "decimal"):
+		mysqlType = common.COLUMN_TYPE_NEWDECIMAL
+		columnLength = 10
+		decimals = 0
+	case strings.HasPrefix(columnType, "datetime"):
+		mysqlType = common.COLUMN_TYPE_DATETIME
+		columnLength = 19
+	case strings.HasPrefix(columnType, "timestamp"):
+		mysqlType = common.COLUMN_TYPE_TIMESTAMP
+		columnLength = 19
+	case strings.HasPrefix(columnType, "date"):
+		mysqlType = common.COLUMN_TYPE_DATE
+		columnLength = 10
+	case strings.HasPrefix(columnType, "time"):
+		mysqlType = common.COLUMN_TYPE_TIME
+		columnLength = 10
+	case strings.HasPrefix(columnType, "year"):
+		mysqlType = common.COLUMN_TYPE_YEAR
+		columnLength = 4
+	case strings.HasPrefix(columnType, "char"):
+		mysqlType = common.COLUMN_TYPE_STRING
+		columnLength = 255
+	case strings.HasPrefix(columnType, "varchar"):
+		mysqlType = common.COLUMN_TYPE_VAR_STRING
+		columnLength = 255
+	case strings.HasPrefix(columnType, "binary"):
+		mysqlType = common.COLUMN_TYPE_STRING
+		columnLength = 255
+		flags = uint16(common.BinaryFlag)
+	case strings.HasPrefix(columnType, "varbinary"):
+		mysqlType = common.COLUMN_TYPE_VAR_STRING
+		columnLength = 255
+		flags = uint16(common.BinaryFlag)
+	case strings.HasPrefix(columnType, "tinyblob"), strings.HasPrefix(columnType, "tinytext"):
+		mysqlType = common.COLUMN_TYPE_TINY_BLOB
+		columnLength = 255
+	case strings.HasPrefix(columnType, "blob"), strings.HasPrefix(columnType, "text"):
+		mysqlType = common.COLUMN_TYPE_BLOB
+		columnLength = 65535
+	case strings.HasPrefix(columnType, "mediumblob"), strings.HasPrefix(columnType, "mediumtext"):
+		mysqlType = common.COLUMN_TYPE_MEDIUM_BLOB
+		columnLength = 16777215
+	case strings.HasPrefix(columnType, "longblob"), strings.HasPrefix(columnType, "longtext"):
+		mysqlType = common.COLUMN_TYPE_LONG_BLOB
+		columnLength = 4294967295
+	case strings.HasPrefix(columnType, "enum"):
+		mysqlType = common.COLUMN_TYPE_ENUM
+		columnLength = 1
+	case strings.HasPrefix(columnType, "set"):
+		mysqlType = common.COLUMN_TYPE_SET
+		columnLength = 1
+	case strings.HasPrefix(columnType, "json"):
+		mysqlType = common.COLUMN_TYPE_JSON
+		columnLength = 4294967295
+	case strings.HasPrefix(columnType, "bit"):
+		mysqlType = common.COLUMN_TYPE_BIT
+		columnLength = 1
+	case strings.HasPrefix(columnType, "geometry"), strings.HasPrefix(columnType, "point"),
+		strings.HasPrefix(columnType, "linestring"), strings.HasPrefix(columnType, "polygon"):
+		mysqlType = common.COLUMN_TYPE_GEOMETRY
+		columnLength = 4294967295
+	default:
+		// 默认使用VAR_STRING
+		mysqlType = common.COLUMN_TYPE_VAR_STRING
+		columnLength = 255
+	}
+
+	return
 }
 
 func (e *QueryResponseEncoder) encodeRowData(row []interface{}, sequenceId byte) []byte {

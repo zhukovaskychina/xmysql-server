@@ -163,14 +163,17 @@ func (fp *FSPPage) Read() error {
 		return err
 	}
 
+	// 获取页面内容
+	content := fp.GetContent()
+
 	// 读取FSP页面头
 	offset := uint32(87)
-	fp.header.SpaceID = binary.LittleEndian.Uint32(fp.Content[offset:])
-	fp.header.SpaceFlags = binary.LittleEndian.Uint32(fp.Content[offset+4:])
-	fp.header.Size = binary.LittleEndian.Uint64(fp.Content[offset+8:])
-	fp.header.FreeLimit = binary.LittleEndian.Uint32(fp.Content[offset+16:])
-	fp.header.FreePages = binary.LittleEndian.Uint32(fp.Content[offset+20:])
-	fp.header.FragPages = binary.LittleEndian.Uint32(fp.Content[offset+24:])
+	fp.header.SpaceID = binary.LittleEndian.Uint32(content[offset:])
+	fp.header.SpaceFlags = binary.LittleEndian.Uint32(content[offset+4:])
+	fp.header.Size = binary.LittleEndian.Uint64(content[offset+8:])
+	fp.header.FreeLimit = binary.LittleEndian.Uint32(content[offset+16:])
+	fp.header.FreePages = binary.LittleEndian.Uint32(content[offset+20:])
+	fp.header.FragPages = binary.LittleEndian.Uint32(content[offset+24:])
 
 	// 更新统计信息
 	fp.stats.LastModified = time.Now().UnixNano()
@@ -181,14 +184,20 @@ func (fp *FSPPage) Read() error {
 
 // Write 实现Page接口
 func (fp *FSPPage) Write() error {
+	// 获取页面内容
+	content := fp.GetContent()
+
 	// 写入FSP页面头
 	offset := uint32(87)
-	binary.LittleEndian.PutUint32(fp.Content[offset:], fp.header.SpaceID)
-	binary.LittleEndian.PutUint32(fp.Content[offset+4:], fp.header.SpaceFlags)
-	binary.LittleEndian.PutUint64(fp.Content[offset+8:], fp.header.Size)
-	binary.LittleEndian.PutUint32(fp.Content[offset+16:], fp.header.FreeLimit)
-	binary.LittleEndian.PutUint32(fp.Content[offset+20:], fp.header.FreePages)
-	binary.LittleEndian.PutUint32(fp.Content[offset+24:], fp.header.FragPages)
+	binary.LittleEndian.PutUint32(content[offset:], fp.header.SpaceID)
+	binary.LittleEndian.PutUint32(content[offset+4:], fp.header.SpaceFlags)
+	binary.LittleEndian.PutUint64(content[offset+8:], fp.header.Size)
+	binary.LittleEndian.PutUint32(content[offset+16:], fp.header.FreeLimit)
+	binary.LittleEndian.PutUint32(content[offset+20:], fp.header.FreePages)
+	binary.LittleEndian.PutUint32(content[offset+24:], fp.header.FragPages)
+
+	// 更新回页面
+	fp.SetContent(content)
 
 	// 更新统计信息
 	fp.stats.LastModified = time.Now().UnixNano()

@@ -34,6 +34,14 @@ var (
 //	ext := NewUnifiedExtent(extentID, spaceID, startPage, extType, purpose)
 type BaseExtent struct {
 	basic.Extent
+
+	// 不可变字段（初始化后不变，无需锁保护）
+	extentID  uint32
+	spaceID   uint32
+	extType   basic.ExtentType
+	firstPage uint32
+
+	// 可变字段（需要锁保护）
 	mu       sync.RWMutex
 	header   basic.ExtentHeader
 	stats    basic.ExtentStats
@@ -46,7 +54,16 @@ type BaseExtent struct {
 // Deprecated: Use NewUnifiedExtent instead.
 // NewUnifiedExtent provides better performance and more features.
 func NewBaseExtent(spaceID, extentID uint32, extType basic.ExtentType) *BaseExtent {
+	firstPage := extentID * 64 // 假设每个区64页
+
 	be := &BaseExtent{
+		// 不可变字段
+		extentID:  extentID,
+		spaceID:   spaceID,
+		extType:   extType,
+		firstPage: firstPage,
+
+		// 可变字段
 		pages: make(map[uint32]bool),
 	}
 
@@ -56,7 +73,7 @@ func NewBaseExtent(spaceID, extentID uint32, extType basic.ExtentType) *BaseExte
 		SpaceID:    spaceID,
 		State:      basic.ExtentStateFree,
 		Type:       extType,
-		FirstPage:  extentID * 64, // 假设每个区64页
+		FirstPage:  firstPage,
 		PageCount:  0,
 		FreeSpace:  64 * 16 * 1024, // 64页 * 16KB
 		CreateTime: time.Now().UnixNano(),
@@ -65,30 +82,32 @@ func NewBaseExtent(spaceID, extentID uint32, extType basic.ExtentType) *BaseExte
 	return be
 }
 
-// GetID 获取区ID
+// GetID 获取区ID（不可变字段，无需锁）
 func (be *BaseExtent) GetID() uint32 {
-	return be.header.ExtentID
+	return be.extentID
 }
 
-// GetState 获取区状态
+// GetState 获取区状态（可变字段，需要锁）
 func (be *BaseExtent) GetState() basic.ExtentState {
 	be.mu.RLock()
 	defer be.mu.RUnlock()
 	return be.header.State
 }
 
-// GetType 获取区类型
+// GetType 获取区类型（不可变字段，无需锁）
 func (be *BaseExtent) GetType() basic.ExtentType {
-	return be.header.Type
+	return be.extType
 }
 
-// GetSpaceID 获取表空间ID
+// GetSpaceID 获取表空间ID（不可变字段，无需锁）
 func (be *BaseExtent) GetSpaceID() uint32 {
-	return be.header.SpaceID
+	return be.spaceID
 }
 
-// GetSegmentID 获取段ID
+// GetSegmentID 获取段ID（可变字段，需要锁）
 func (be *BaseExtent) GetSegmentID() uint64 {
+	be.mu.RLock()
+	defer be.mu.RUnlock()
 	return be.header.SegmentID
 }
 
@@ -228,8 +247,46 @@ func (be *BaseExtent) Defragment() error {
 	be.mu.Lock()
 	defer be.mu.Unlock()
 
-	// TODO: 实现碎片整理
+	// 1. 重建页面列表，按页号排序
+	pageList := make([]uint32, 0, len(be.pages))
+	for pageNo := range be.pages {
+		pageList = append(pageList, pageNo)
+	}
+
+	// 排序页面列表，使其连续
+	if len(pageList) > 1 {
+		// 简单冒泡排序（页面数量不多，64页最多）
+		for i := 0; i < len(pageList)-1; i++ {
+			for j := 0; j < len(pageList)-i-1; j++ {
+				if pageList[j] > pageList[j+1] {
+					pageList[j], pageList[j+1] = pageList[j+1], pageList[j]
+				}
+			}
+		}
+	}
+	be.pageList = pageList
+
+	// 2. 计算碎片页数（不连续的页面）
+	fragPages := uint32(0)
+	for i := 1; i < len(pageList); i++ {
+		if pageList[i] != pageList[i-1]+1 {
+			fragPages++
+		}
+	}
+	be.stats.FragPages = fragPages
+
+	// 3. 重新评估extent状态
+	if be.header.PageCount == 0 {
+		be.header.State = basic.ExtentStateFree
+	} else if be.header.PageCount == 64 {
+		be.header.State = basic.ExtentStateFull
+	} else {
+		be.header.State = basic.ExtentStatePartial
+	}
+
+	// 4. 更新统计信息
 	be.stats.LastDefragged = time.Now().UnixNano()
+
 	return nil
 }
 

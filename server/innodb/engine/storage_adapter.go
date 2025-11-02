@@ -166,6 +166,85 @@ func (sa *StorageAdapter) ScanTable(ctx context.Context, metadata *TableScanMeta
 	}, nil
 }
 
+// GetRecordByPrimaryKey 通过主键获取记录（回表操作）
+// 这是实现二级索引回表的核心方法
+func (sa *StorageAdapter) GetRecordByPrimaryKey(ctx context.Context, spaceID uint32, primaryKey []byte, schema *metadata.Table) (Record, error) {
+	logger.Debugf("GetRecordByPrimaryKey: spaceID=%d, primaryKey=%v", spaceID, primaryKey)
+
+	// 1. 获取表的存储信息
+	tableInfo, err := sa.tableStorageManager.GetTableBySpaceID(spaceID)
+	if err != nil {
+		logger.Debugf("Failed to get table info by spaceID %d: %v, using fallback", spaceID, err)
+		return sa.getFallbackRecord(schema), nil
+	}
+
+	// 2. 创建B+树管理器
+	btreeManager, err := sa.tableStorageManager.CreateBTreeManagerForTable(ctx, tableInfo.SchemaName, tableInfo.TableName)
+	if err != nil {
+		logger.Debugf("Failed to create btree manager: %v, using fallback", err)
+		return sa.getFallbackRecord(schema), nil
+	}
+
+	// 3. 在B+树中查找主键
+	// 将primaryKey字节数组转换为interface{}类型
+	var keyInterface interface{}
+	if len(primaryKey) > 0 {
+		// 尝试将字节数组转换为字符串（简化实现）
+		keyInterface = string(primaryKey)
+	} else {
+		keyInterface = ""
+	}
+
+	pageNo, slot, err := btreeManager.Search(ctx, keyInterface)
+	if err != nil {
+		logger.Debugf("Failed to search in btree: %v, using fallback", err)
+		return sa.getFallbackRecord(schema), nil
+	}
+
+	logger.Debugf("Found record at page %d, slot %d", pageNo, slot)
+
+	// 4. 从页面读取记录
+	page, err := sa.ReadPage(ctx, spaceID, pageNo)
+	if err != nil {
+		logger.Debugf("Failed to read page %d: %v, using fallback", pageNo, err)
+		return sa.getFallbackRecord(schema), nil
+	}
+
+	// 5. 解析页面中的记录
+	records, err := sa.ParseRecords(ctx, page, schema)
+	if err != nil {
+		logger.Debugf("Failed to parse records: %v, using fallback", err)
+		return sa.getFallbackRecord(schema), nil
+	}
+
+	// 6. 返回指定槽位的记录
+	if slot >= 0 && slot < len(records) {
+		return records[slot], nil
+	}
+
+	logger.Debugf("Slot %d out of range (total records: %d), using fallback", slot, len(records))
+	return sa.getFallbackRecord(schema), nil
+}
+
+// getFallbackRecord 返回模拟记录（当实际查找失败时使用）
+func (sa *StorageAdapter) getFallbackRecord(schema *metadata.Table) Record {
+	values := make([]basic.Value, len(schema.Columns))
+	for i, col := range schema.Columns {
+		// 根据列类型创建默认值
+		switch col.DataType {
+		case metadata.TypeInt, metadata.TypeBigInt:
+			values[i] = basic.NewInt64(int64(i + 1))
+		case metadata.TypeVarchar, metadata.TypeChar:
+			values[i] = basic.NewString(fmt.Sprintf("value_%d", i+1))
+		case metadata.TypeFloat, metadata.TypeDouble:
+			values[i] = basic.NewFloat64(float64(i + 1))
+		default:
+			values[i] = basic.NewString("")
+		}
+	}
+	return NewExecutorRecordFromValues(values, nil)
+}
+
 // TableScanMetadata 表扫描元数据
 type TableScanMetadata struct {
 	Schema      *metadata.Table

@@ -14,8 +14,8 @@ type ExtentManager struct {
 	// 底层存储
 	bufferPool *buffer_pool.BufferPool
 
-	// 区缓存
-	extentCache map[uint32]*extent2.BaseExtent // key: extentID
+	// 区缓存（使用UnifiedExtent）
+	extentCache map[uint32]*extent2.UnifiedExtent // key: extentID
 
 	// 空闲区列表
 	freeExtents []uint32
@@ -37,14 +37,14 @@ type ExtentStats struct {
 func NewExtentManager(bp *buffer_pool.BufferPool) *ExtentManager {
 	return &ExtentManager{
 		bufferPool:  bp,
-		extentCache: make(map[uint32]*extent2.BaseExtent),
+		extentCache: make(map[uint32]*extent2.UnifiedExtent),
 		freeExtents: make([]uint32, 0),
 		stats:       &ExtentStats{},
 	}
 }
 
-// AllocateExtent 分配新区
-func (em *ExtentManager) AllocateExtent(spaceID uint32, extType basic.ExtentType) (*extent2.BaseExtent, error) {
+// AllocateExtent 分配新区（使用UnifiedExtent）
+func (em *ExtentManager) AllocateExtent(spaceID uint32, extType basic.ExtentType) (*extent2.UnifiedExtent, error) {
 	em.Lock()
 	defer em.Unlock()
 
@@ -59,8 +59,15 @@ func (em *ExtentManager) AllocateExtent(spaceID uint32, extType basic.ExtentType
 		em.stats.TotalExtents++
 	}
 
-	// 创建区对象
-	ext := extent2.NewBaseExtent(spaceID, extentID, extType)
+	// 创建区对象（使用UnifiedExtent）
+	startPage := extentID * 64 // 每个区64页
+	ext := extent2.NewUnifiedExtent(
+		extentID,
+		spaceID,
+		startPage,
+		extType,
+		basic.ExtentPurposeData, // 默认用途为数据
+	)
 
 	// 加入缓存
 	em.extentCache[extentID] = ext
@@ -72,7 +79,7 @@ func (em *ExtentManager) AllocateExtent(spaceID uint32, extType basic.ExtentType
 }
 
 // GetExtent 获取区
-func (em *ExtentManager) GetExtent(extentID uint32) (*extent2.BaseExtent, error) {
+func (em *ExtentManager) GetExtent(extentID uint32) (*extent2.UnifiedExtent, error) {
 	em.RLock()
 	defer em.RUnlock()
 

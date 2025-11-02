@@ -17,12 +17,10 @@ func TestHashJoinOperator_InnerJoin(t *testing.T) {
 	ctx := context.Background()
 
 	// 创建左表数据: (id, name)
-	leftSchema := &metadata.Schema{
-		Columns: []*metadata.Column{
-			{Name: "id", Type: metadata.TypeInt},
-			{Name: "name", Type: metadata.TypeVarchar},
-		},
-	}
+	leftSchema := createTestSchema([]testColumn{
+		{Name: "id", Type: metadata.TypeInt},
+		{Name: "name", Type: metadata.TypeVarchar},
+	})
 	leftData := [][]basic.Value{
 		{basic.NewInt64(1), basic.NewString("Alice")},
 		{basic.NewInt64(2), basic.NewString("Bob")},
@@ -31,12 +29,10 @@ func TestHashJoinOperator_InnerJoin(t *testing.T) {
 	leftOp := NewMockDataOperator(leftData, leftSchema)
 
 	// 创建右表数据: (user_id, age)
-	rightSchema := &metadata.Schema{
-		Columns: []*metadata.Column{
-			{Name: "user_id", Type: metadata.TypeInt},
-			{Name: "age", Type: metadata.TypeInt},
-		},
-	}
+	rightSchema := createTestSchema([]testColumn{
+		{Name: "user_id", Type: metadata.TypeInt},
+		{Name: "age", Type: metadata.TypeInt},
+	})
 	rightData := [][]basic.Value{
 		{basic.NewInt64(1), basic.NewInt64(25)},
 		{basic.NewInt64(2), basic.NewInt64(30)},
@@ -96,19 +92,15 @@ func TestHashJoinOperator_EmptyBuildSide(t *testing.T) {
 	ctx := context.Background()
 
 	// 左表为空
-	leftSchema := &metadata.Schema{
-		Columns: []*metadata.Column{
-			{Name: "id", Type: metadata.TypeInt},
-		},
-	}
+	leftSchema := createTestSchema([]testColumn{
+		{Name: "id", Type: metadata.TypeInt},
+	})
 	leftOp := NewMockDataOperator([][]basic.Value{}, leftSchema)
 
 	// 右表有数据
-	rightSchema := &metadata.Schema{
-		Columns: []*metadata.Column{
-			{Name: "id", Type: metadata.TypeInt},
-		},
-	}
+	rightSchema := createTestSchema([]testColumn{
+		{Name: "id", Type: metadata.TypeInt},
+	})
 	rightData := [][]basic.Value{
 		{basic.NewInt64(1)},
 		{basic.NewInt64(2)},
@@ -142,12 +134,10 @@ func TestHashAggregateOperator_Count(t *testing.T) {
 	ctx := context.Background()
 
 	// 创建测试数据: (category, amount)
-	schema := &metadata.Schema{
-		Columns: []*metadata.Column{
-			{Name: "category", Type: metadata.TypeVarchar},
-			{Name: "amount", Type: metadata.TypeDouble},
-		},
-	}
+	schema := createTestSchema([]testColumn{
+		{Name: "category", Type: metadata.TypeVarchar},
+		{Name: "amount", Type: metadata.TypeDouble},
+	})
 	data := [][]basic.Value{
 		{basic.NewString("A"), basic.NewFloat64(10.0)},
 		{basic.NewString("B"), basic.NewFloat64(20.0)},
@@ -208,12 +198,10 @@ func TestHashAggregateOperator_SumAvg(t *testing.T) {
 	ctx := context.Background()
 
 	// 创建测试数据
-	schema := &metadata.Schema{
-		Columns: []*metadata.Column{
-			{Name: "category", Type: metadata.TypeVarchar},
-			{Name: "amount", Type: metadata.TypeDouble},
-		},
-	}
+	schema := createTestSchema([]testColumn{
+		{Name: "category", Type: metadata.TypeVarchar},
+		{Name: "amount", Type: metadata.TypeDouble},
+	})
 	data := [][]basic.Value{
 		{basic.NewString("A"), basic.NewFloat64(10.0)},
 		{basic.NewString("A"), basic.NewFloat64(20.0)},
@@ -273,12 +261,10 @@ func TestHashAggregateOperator_MinMax(t *testing.T) {
 	ctx := context.Background()
 
 	// 创建测试数据
-	schema := &metadata.Schema{
-		Columns: []*metadata.Column{
-			{Name: "category", Type: metadata.TypeVarchar},
-			{Name: "score", Type: metadata.TypeDouble},
-		},
-	}
+	schema := createTestSchema([]testColumn{
+		{Name: "category", Type: metadata.TypeVarchar},
+		{Name: "score", Type: metadata.TypeDouble},
+	})
 	data := [][]basic.Value{
 		{basic.NewString("A"), basic.NewFloat64(85.0)},
 		{basic.NewString("A"), basic.NewFloat64(90.0)},
@@ -338,11 +324,9 @@ func TestHashAggregateOperator_NoGroupBy(t *testing.T) {
 	ctx := context.Background()
 
 	// 创建测试数据
-	schema := &metadata.Schema{
-		Columns: []*metadata.Column{
-			{Name: "amount", Type: metadata.TypeDouble},
-		},
-	}
+	schema := createTestSchema([]testColumn{
+		{Name: "amount", Type: metadata.TypeDouble},
+	})
 	data := [][]basic.Value{
 		{basic.NewFloat64(10.0)},
 		{basic.NewFloat64(20.0)},
@@ -387,16 +371,17 @@ func TestHashAggregateOperator_NoGroupBy(t *testing.T) {
 // MockDataOperator 模拟数据源算子，用于测试
 type MockDataOperator struct {
 	BaseOperator
-	data   [][]basic.Value
-	schema *metadata.Schema
-	idx    int
+	data [][]basic.Value
+	idx  int
 }
 
-func NewMockDataOperator(data [][]basic.Value, schema *metadata.Schema) *MockDataOperator {
+func NewMockDataOperator(data [][]basic.Value, schema *metadata.QuerySchema) *MockDataOperator {
 	return &MockDataOperator{
-		data:   data,
-		schema: schema,
-		idx:    0,
+		BaseOperator: BaseOperator{
+			schema: schema,
+		},
+		data: data,
+		idx:  0,
 	}
 }
 
@@ -418,11 +403,24 @@ func (m *MockDataOperator) Next(ctx context.Context) (Record, error) {
 	return record, nil
 }
 
-func (m *MockDataOperator) Close() error {
-	m.opened = false
-	return nil
+// ========================================
+// 测试辅助函数
+// ========================================
+
+type testColumn struct {
+	Name string
+	Type metadata.DataType
 }
 
-func (m *MockDataOperator) Schema() *metadata.Schema {
-	return m.schema
+// createTestSchema 创建测试用的QuerySchema
+func createTestSchema(columns []testColumn) *metadata.QuerySchema {
+	schema := metadata.NewQuerySchema()
+	for _, col := range columns {
+		schema.AddColumn(&metadata.QueryColumn{
+			Name:       col.Name,
+			DataType:   col.Type,
+			IsNullable: true,
+		})
+	}
+	return schema
 }

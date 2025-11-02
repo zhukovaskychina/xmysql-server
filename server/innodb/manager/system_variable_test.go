@@ -1,8 +1,9 @@
 package manager
 
 import (
-	"fmt"
 	"testing"
+
+	"github.com/zhukovaskychina/xmysql-server/logger"
 )
 
 func TestSystemVariablesManager(t *testing.T) {

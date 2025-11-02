@@ -128,6 +128,21 @@ type IPageFactory interface {
 }
 
 // BasePageWrapper provides a base implementation of IPageWrapper
+//
+// Deprecated: BasePageWrapper is deprecated and will be removed in a future version.
+// Use UnifiedPage instead, which provides:
+//   - Better concurrency control with atomic operations
+//   - Complete IPageWrapper interface implementation
+//   - Integrated statistics and buffer pool support
+//   - Full serialization/deserialization support
+//
+// Migration example:
+//
+//	// Old code:
+//	page := types.NewBasePageWrapper(id, spaceID, pageNo, pageType)
+//
+//	// New code:
+//	page := types.NewUnifiedPage(spaceID, pageNo, pageType)
 type BasePageWrapper struct {
 	ID          uint32
 	SpaceID     uint32
@@ -144,6 +159,8 @@ type BasePageWrapper struct {
 }
 
 // NewBasePageWrapper creates a new base page wrapper
+//
+// Deprecated: Use NewUnifiedPage instead
 func NewBasePageWrapper(id, spaceID, pageNo uint32, pageType common.PageType) *BasePageWrapper {
 	return &BasePageWrapper{
 		ID:       id,
@@ -290,15 +307,25 @@ func (b *BasePageWrapper) GetFileTrailerStruct() *pages.FileTrailer {
 	return b.fileTrailer
 }
 
-// ToBytes implements IPageWrapper
+// ToBytes implements IPageWrapper (返回副本，安全)
 func (b *BasePageWrapper) ToBytes() ([]byte, error) {
-	return b.Content, nil
+	result := make([]byte, len(b.Content))
+	copy(result, b.Content)
+	return result, nil
 }
 
-// ToByte implements IPageWrapper (兼容旧接口)
+// ToByte implements IPageWrapper (兼容旧接口，返回副本，安全)
 // Deprecated: 使用 ToBytes() 代替
 func (b *BasePageWrapper) ToByte() []byte {
-	return b.Content
+	result := make([]byte, len(b.Content))
+	copy(result, b.Content)
+	return result
+}
+
+// ReadContent 高性能只读访问（回调模式，零拷贝）
+// 使用场景：只需要读取内容，不需要修改
+func (b *BasePageWrapper) ReadContent(fn func([]byte)) {
+	fn(b.Content)
 }
 
 // ParseFromBytes implements IPageWrapper

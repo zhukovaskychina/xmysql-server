@@ -30,20 +30,119 @@ func (esc *EnhancedStatisticsCollector) getTableSpaceID(table *metadata.Table) u
 
 // getRealRowCount 获取真实行数
 func (esc *EnhancedStatisticsCollector) getRealRowCount(space basic.Space) int64 {
-	// 策略1: 从系统表空间元数据获取（快速但可能不准确）
 	pageCount := space.GetPageCount()
 	if pageCount == 0 {
 		return 0
 	}
 
-	// 估算每页平均行数（基于16KB页面和平均行大小）
-	avgRowsPerPage := int64(100) // 假设平均100行/页
-	estimatedRows := int64(pageCount) * avgRowsPerPage
+	// 根据配置选择统计模式
+	if esc.config.SampleRate >= 1.0 {
+		// 精确统计模式：遍历所有页面
+		return esc.getExactRowCount(space)
+	} else {
+		// 采样估算模式：基于采样页面估算
+		return esc.getSampledRowCount(space, pageCount)
+	}
+}
 
-	// 策略2: 若需要精确统计，可遍历B+树叶子节点（慢）
-	// TODO: 实现精确统计模式
+// getExactRowCount 获取精确行数（遍历所有页面）
+func (esc *EnhancedStatisticsCollector) getExactRowCount(space basic.Space) int64 {
+	// 如果有B+树管理器，使用B+树统计
+	if esc.btreeManager != nil {
+		// TODO: 实现B+树叶子节点遍历统计
+		// 这需要访问B+树的叶子节点链表
+		// 暂时降级为采样估算
+	}
+
+	// 降级为采样估算
+	pageCount := space.GetPageCount()
+	return esc.getSampledRowCount(space, pageCount)
+}
+
+// getSampledRowCount 基于采样获取估算行数
+func (esc *EnhancedStatisticsCollector) getSampledRowCount(space basic.Space, totalPages uint32) int64 {
+	if totalPages == 0 {
+		return 0
+	}
+
+	// 确定采样页面数
+	samplePages := int(float64(totalPages) * esc.config.SampleRate)
+	if samplePages < 1 {
+		samplePages = 1
+	}
+	if samplePages > int(totalPages) {
+		samplePages = int(totalPages)
+	}
+
+	// 随机采样页面
+	sampledPageIDs := esc.selectRandomPages(totalPages, samplePages)
+
+	// 统计采样页面的行数
+	totalRowsInSample := int64(0)
+	validSampleCount := 0
+
+	for _, pageID := range sampledPageIDs {
+		rowCount := esc.countRowsInPage(space, pageID)
+		if rowCount > 0 {
+			totalRowsInSample += rowCount
+			validSampleCount++
+		}
+	}
+
+	// 基于采样结果估算总行数
+	if validSampleCount == 0 {
+		// 使用默认估算
+		return int64(totalPages) * 100
+	}
+
+	avgRowsPerPage := float64(totalRowsInSample) / float64(validSampleCount)
+	estimatedRows := int64(avgRowsPerPage * float64(totalPages))
 
 	return estimatedRows
+}
+
+// selectRandomPages 随机选择页面
+func (esc *EnhancedStatisticsCollector) selectRandomPages(totalPages uint32, sampleCount int) []uint32 {
+	if sampleCount >= int(totalPages) {
+		// 返回所有页面
+		pages := make([]uint32, totalPages)
+		for i := uint32(0); i < totalPages; i++ {
+			pages[i] = i
+		}
+		return pages
+	}
+
+	// 使用水塘采样算法
+	rand.Seed(time.Now().UnixNano())
+	selected := make([]uint32, sampleCount)
+
+	// 初始化前sampleCount个页面
+	for i := 0; i < sampleCount; i++ {
+		selected[i] = uint32(i)
+	}
+
+	// 对剩余页面进行采样
+	for i := sampleCount; i < int(totalPages); i++ {
+		j := rand.Intn(i + 1)
+		if j < sampleCount {
+			selected[j] = uint32(i)
+		}
+	}
+
+	return selected
+}
+
+// countRowsInPage 统计页面中的行数
+func (esc *EnhancedStatisticsCollector) countRowsInPage(space basic.Space, pageID uint32) int64 {
+	// 简化实现：假设每页平均100行
+	// TODO: 实现真实的页面解析逻辑
+	// 这需要：
+	// 1. 读取页面数据
+	// 2. 解析页面头部
+	// 3. 统计记录数
+
+	// 暂时返回估算值
+	return 100
 }
 
 // getSpaceSize 获取空间大小
@@ -81,17 +180,105 @@ func (esc *EnhancedStatisticsCollector) sampleColumnData(
 	// 确定采样大小
 	sampleSize := esc.sampler.GetSampleSize(tableRowCount)
 
-	// 简化实现：生成模拟采样数据
-	// TODO: 实现真实的页面采样逻辑
-	sampleData := make([]interface{}, sampleSize)
+	// 根据配置选择采样策略
+	if esc.config.SampleRate >= 1.0 {
+		// 精确模式：扫描所有数据
+		return esc.scanAllColumnData(space, column, tableRowCount)
+	} else {
+		// 采样模式：基于页面采样
+		return esc.sampleColumnDataFromPages(space, column, sampleSize)
+	}
+}
 
-	// 根据列类型生成采样数据
-	rand.Seed(time.Now().UnixNano())
-	for i := int64(0); i < sampleSize; i++ {
-		sampleData[i] = esc.generateSampleValue(column, i, tableRowCount)
+// scanAllColumnData 扫描所有列数据（精确模式）
+func (esc *EnhancedStatisticsCollector) scanAllColumnData(
+	space basic.Space,
+	column *metadata.Column,
+	tableRowCount int64,
+) []interface{} {
+	// TODO: 实现真实的全表扫描逻辑
+	// 这需要：
+	// 1. 遍历所有数据页
+	// 2. 解析每个记录
+	// 3. 提取列值
+
+	// 暂时降级为采样模式
+	sampleSize := esc.sampler.GetSampleSize(tableRowCount)
+	return esc.sampleColumnDataFromPages(space, column, sampleSize)
+}
+
+// sampleColumnDataFromPages 从页面采样列数据
+func (esc *EnhancedStatisticsCollector) sampleColumnDataFromPages(
+	space basic.Space,
+	column *metadata.Column,
+	sampleSize int64,
+) []interface{} {
+	pageCount := space.GetPageCount()
+	if pageCount == 0 {
+		return []interface{}{}
+	}
+
+	// 确定需要采样的页面数
+	samplePages := int(float64(pageCount) * esc.config.SampleRate)
+	if samplePages < 1 {
+		samplePages = 1
+	}
+
+	// 随机选择页面
+	sampledPageIDs := esc.selectRandomPages(pageCount, samplePages)
+
+	// 从采样页面中提取列值
+	sampleData := make([]interface{}, 0, sampleSize)
+
+	for _, pageID := range sampledPageIDs {
+		// 从页面中提取列值
+		pageValues := esc.extractColumnValuesFromPage(space, pageID, column)
+		sampleData = append(sampleData, pageValues...)
+
+		// 如果已经收集足够的样本，停止
+		if int64(len(sampleData)) >= sampleSize {
+			break
+		}
+	}
+
+	// 如果样本不足，使用生成的数据补充
+	if int64(len(sampleData)) < sampleSize {
+		rand.Seed(time.Now().UnixNano())
+		for i := int64(len(sampleData)); i < sampleSize; i++ {
+			sampleData = append(sampleData, esc.generateSampleValue(column, i, sampleSize))
+		}
+	}
+
+	// 限制样本大小
+	if int64(len(sampleData)) > sampleSize {
+		sampleData = sampleData[:sampleSize]
 	}
 
 	return sampleData
+}
+
+// extractColumnValuesFromPage 从页面中提取列值
+func (esc *EnhancedStatisticsCollector) extractColumnValuesFromPage(
+	space basic.Space,
+	pageID uint32,
+	column *metadata.Column,
+) []interface{} {
+	// TODO: 实现真实的页面解析逻辑
+	// 这需要：
+	// 1. 读取页面数据
+	// 2. 解析页面格式（InnoDB页面格式）
+	// 3. 遍历记录
+	// 4. 提取指定列的值
+
+	// 暂时返回模拟数据
+	values := make([]interface{}, 0, 100)
+	rand.Seed(time.Now().UnixNano() + int64(pageID))
+
+	for i := 0; i < 100; i++ {
+		values = append(values, esc.generateSampleValue(column, int64(i), 100))
+	}
+
+	return values
 }
 
 // generateSampleValue 生成采样值

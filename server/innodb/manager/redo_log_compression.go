@@ -7,6 +7,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+
+	"github.com/pierrec/lz4/v4"
 )
 
 // ============ LOG-003.2: Redo日志压缩算法实现 ============
@@ -77,8 +79,7 @@ func (c *RedoLogCompressor) Compress(data []byte) ([]byte, error) {
 		compressed, err = c.compressZlib(data)
 
 	case COMPRESS_LZ4:
-		// TODO: 实现LZ4压缩
-		compressed, err = c.compressGzip(data) // 临时使用GZIP
+		compressed, err = c.compressLZ4(data)
 
 	default:
 		return nil, fmt.Errorf("unsupported compression algorithm: %d", c.algorithm)
@@ -126,8 +127,7 @@ func (c *RedoLogCompressor) Decompress(data []byte) ([]byte, error) {
 		decompressed, err = c.decompressZlib(compressedData)
 
 	case COMPRESS_LZ4:
-		// TODO: 实现LZ4解压
-		decompressed, err = c.decompressGzip(compressedData) // 临时使用GZIP
+		decompressed, err = c.decompressLZ4(compressedData)
 
 	default:
 		return nil, fmt.Errorf("unsupported compression algorithm: %d", algorithm)
@@ -201,6 +201,45 @@ func (c *RedoLogCompressor) decompressZlib(data []byte) ([]byte, error) {
 	defer reader.Close()
 
 	return io.ReadAll(reader)
+}
+
+// compressLZ4 LZ4压缩
+func (c *RedoLogCompressor) compressLZ4(data []byte) ([]byte, error) {
+	buf := new(bytes.Buffer)
+
+	// 创建LZ4 writer
+	writer := lz4.NewWriter(buf)
+
+	// 设置压缩级别
+	// LZ4支持的压缩级别：0-16，0表示默认
+	if c.level > 0 && c.level <= 16 {
+		writer.Apply(lz4.CompressionLevelOption(lz4.CompressionLevel(c.level)))
+	}
+
+	// 写入数据
+	if _, err := writer.Write(data); err != nil {
+		return nil, fmt.Errorf("LZ4 compression failed: %v", err)
+	}
+
+	// 关闭writer以刷新缓冲区
+	if err := writer.Close(); err != nil {
+		return nil, fmt.Errorf("LZ4 writer close failed: %v", err)
+	}
+
+	return buf.Bytes(), nil
+}
+
+// decompressLZ4 LZ4解压
+func (c *RedoLogCompressor) decompressLZ4(data []byte) ([]byte, error) {
+	reader := lz4.NewReader(bytes.NewReader(data))
+
+	// 读取解压后的数据
+	decompressed, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, fmt.Errorf("LZ4 decompression failed: %v", err)
+	}
+
+	return decompressed, nil
 }
 
 // wrapCompressed 包装压缩数据（添加压缩类型标志）

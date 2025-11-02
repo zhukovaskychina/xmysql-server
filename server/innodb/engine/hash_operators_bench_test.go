@@ -31,22 +31,18 @@ func BenchmarkHashJoin_SkewedData(b *testing.B) {
 
 	// 左表：10000行，ID分布正常
 	leftData := generateSequentialData(10000)
-	leftSchema := &metadata.Schema{
-		Columns: []*metadata.Column{
-			{Name: "id", Type: metadata.TypeInt},
-			{Name: "value", Type: metadata.TypeDouble},
-		},
-	}
+	leftSchema := createTestSchema([]testColumn{
+		{Name: "id", Type: metadata.TypeInt},
+		{Name: "value", Type: metadata.TypeDouble},
+	})
 	leftOp := NewMockDataOperator(leftData, leftSchema)
 
 	// 右表：10000行，但90%的数据集中在少数几个ID上
 	rightData := generateSkewedData(10000, 10)
-	rightSchema := &metadata.Schema{
-		Columns: []*metadata.Column{
-			{Name: "user_id", Type: metadata.TypeInt},
-			{Name: "score", Type: metadata.TypeDouble},
-		},
-	}
+	rightSchema := createTestSchema([]testColumn{
+		{Name: "user_id", Type: metadata.TypeInt},
+		{Name: "score", Type: metadata.TypeDouble},
+	})
 
 	keyFunc := func(r Record) string {
 		values := r.GetValues()
@@ -85,18 +81,14 @@ func benchmarkHashJoin(b *testing.B, leftSize, rightSize int) {
 	leftData := generateSequentialData(leftSize)
 	rightData := generateSequentialData(rightSize)
 
-	leftSchema := &metadata.Schema{
-		Columns: []*metadata.Column{
-			{Name: "id", Type: metadata.TypeInt},
-			{Name: "value", Type: metadata.TypeDouble},
-		},
-	}
-	rightSchema := &metadata.Schema{
-		Columns: []*metadata.Column{
-			{Name: "id", Type: metadata.TypeInt},
-			{Name: "score", Type: metadata.TypeDouble},
-		},
-	}
+	leftSchema := createTestSchema([]testColumn{
+		{Name: "id", Type: metadata.TypeInt},
+		{Name: "value", Type: metadata.TypeDouble},
+	})
+	rightSchema := createTestSchema([]testColumn{
+		{Name: "id", Type: metadata.TypeInt},
+		{Name: "score", Type: metadata.TypeDouble},
+	})
 
 	keyFunc := func(r Record) string {
 		values := r.GetValues()
@@ -148,12 +140,10 @@ func BenchmarkHashAgg_ManyAggFuncs(b *testing.B) {
 
 	// 生成测试数据
 	data := generateGroupedData(10000, 100)
-	schema := &metadata.Schema{
-		Columns: []*metadata.Column{
-			{Name: "group_key", Type: metadata.TypeVarchar},
-			{Name: "value", Type: metadata.TypeDouble},
-		},
-	}
+	schema := createTestSchema([]testColumn{
+		{Name: "group_key", Type: metadata.TypeVarchar},
+		{Name: "value", Type: metadata.TypeDouble},
+	})
 
 	// 多个聚合函数: COUNT, SUM, AVG, MIN, MAX
 	groupByExprs := []int{0}
@@ -189,12 +179,10 @@ func benchmarkHashAgg(b *testing.B, rowCount, groupCount int) {
 
 	// 生成分组数据
 	data := generateGroupedData(rowCount, groupCount)
-	schema := &metadata.Schema{
-		Columns: []*metadata.Column{
-			{Name: "group_key", Type: metadata.TypeVarchar},
-			{Name: "value", Type: metadata.TypeDouble},
-		},
-	}
+	schema := createTestSchema([]testColumn{
+		{Name: "group_key", Type: metadata.TypeVarchar},
+		{Name: "value", Type: metadata.TypeDouble},
+	})
 
 	groupByExprs := []int{0}
 	aggFuncs := []AggregateFunc{

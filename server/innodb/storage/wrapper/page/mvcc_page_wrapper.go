@@ -6,14 +6,16 @@ import (
 )
 
 // MVCCPage 定义MVCC页面的接口
+// 已废弃：请使用 wrapper/mvcc.IMVCCPage
+// Deprecated: Use wrapper/mvcc.IMVCCPage instead
 type MVCCPage interface {
 	// 版本控制
 	GetVersion() uint64
 	SetVersion(version uint64)
 
 	// 事务ID管理
-	GetTrxID() uint64
-	SetTrxID(trxID uint64)
+	GetTxID() uint64
+	SetTxID(txID uint64)
 
 	// 回滚指针管理
 	GetRollPtr() []byte
@@ -58,18 +60,30 @@ func (m *MVCCPageWrapper) SetVersion(version uint64) {
 	m.version = version
 }
 
-// GetTrxID 获取事务ID
-func (m *MVCCPageWrapper) GetTrxID() uint64 {
+// GetTxID 获取事务ID
+func (m *MVCCPageWrapper) GetTxID() uint64 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.trxID
 }
 
-// SetTrxID 设置事务ID
-func (m *MVCCPageWrapper) SetTrxID(trxID uint64) {
+// SetTxID 设置事务ID
+func (m *MVCCPageWrapper) SetTxID(txID uint64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.trxID = trxID
+	m.trxID = txID
+}
+
+// GetTrxID 获取事务ID（已废弃，使用GetTxID）
+// Deprecated: Use GetTxID instead
+func (m *MVCCPageWrapper) GetTrxID() uint64 {
+	return m.GetTxID()
+}
+
+// SetTrxID 设置事务ID（已废弃，使用SetTxID）
+// Deprecated: Use SetTxID instead
+func (m *MVCCPageWrapper) SetTrxID(trxID uint64) {
+	m.SetTxID(trxID)
 }
 
 // GetRollPtr 获取回滚指针

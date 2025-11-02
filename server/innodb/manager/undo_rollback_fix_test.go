@@ -7,23 +7,23 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// MockRollbackExecutor 模拟回滚执行器
-type MockRollbackExecutor struct {
+// MockUndoRollbackExecutor 模拟回滚执行器（用于Undo测试）
+type MockUndoRollbackExecutor struct {
 	insertedRecords map[uint64][]byte
 	updatedRecords  map[uint64][]byte
 	deletedRecords  map[uint64]bool
 	mu              sync.RWMutex
 }
 
-func NewMockRollbackExecutor() *MockRollbackExecutor {
-	return &MockRollbackExecutor{
+func NewMockUndoRollbackExecutor() *MockUndoRollbackExecutor {
+	return &MockUndoRollbackExecutor{
 		insertedRecords: make(map[uint64][]byte),
 		updatedRecords:  make(map[uint64][]byte),
 		deletedRecords:  make(map[uint64]bool),
 	}
 }
 
-func (m *MockRollbackExecutor) InsertRecord(tableID, recordID uint64, data []byte) error {
+func (m *MockUndoRollbackExecutor) InsertRecord(tableID, recordID uint64, data []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -32,7 +32,7 @@ func (m *MockRollbackExecutor) InsertRecord(tableID, recordID uint64, data []byt
 	return nil
 }
 
-func (m *MockRollbackExecutor) UpdateRecord(tableID, recordID uint64, data, columnBitmap []byte) error {
+func (m *MockUndoRollbackExecutor) UpdateRecord(tableID, recordID uint64, data, columnBitmap []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -40,7 +40,7 @@ func (m *MockRollbackExecutor) UpdateRecord(tableID, recordID uint64, data, colu
 	return nil
 }
 
-func (m *MockRollbackExecutor) DeleteRecord(tableID, recordID uint64, primaryKeyData []byte) error {
+func (m *MockUndoRollbackExecutor) DeleteRecord(tableID, recordID uint64, primaryKeyData []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -49,7 +49,7 @@ func (m *MockRollbackExecutor) DeleteRecord(tableID, recordID uint64, primaryKey
 	return nil
 }
 
-func (m *MockRollbackExecutor) GetInsertedRecord(recordID uint64) ([]byte, bool) {
+func (m *MockUndoRollbackExecutor) GetInsertedRecord(recordID uint64) ([]byte, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -57,7 +57,7 @@ func (m *MockRollbackExecutor) GetInsertedRecord(recordID uint64) ([]byte, bool)
 	return data, exists
 }
 
-func (m *MockRollbackExecutor) IsDeleted(recordID uint64) bool {
+func (m *MockUndoRollbackExecutor) IsDeleted(recordID uint64) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -72,7 +72,7 @@ func TestUndoRollbackWithCLR(t *testing.T) {
 	assert.NoError(t, err)
 	defer undoManager.Close()
 
-	executor := NewMockRollbackExecutor()
+	executor := NewMockUndoRollbackExecutor()
 	undoManager.SetRollbackExecutor(executor)
 
 	t.Run("测试INSERT回滚（生成DELETE）", func(t *testing.T) {
@@ -247,7 +247,7 @@ func TestPartialRollback(t *testing.T) {
 	assert.NoError(t, err)
 	defer undoManager.Close()
 
-	executor := NewMockRollbackExecutor()
+	executor := NewMockUndoRollbackExecutor()
 	undoManager.SetRollbackExecutor(executor)
 
 	t.Run("测试回滚到保存点", func(t *testing.T) {
@@ -296,7 +296,7 @@ func TestConcurrentRollback(t *testing.T) {
 	assert.NoError(t, err)
 	defer undoManager.Close()
 
-	executor := NewMockRollbackExecutor()
+	executor := NewMockUndoRollbackExecutor()
 	undoManager.SetRollbackExecutor(executor)
 
 	t.Run("测试多个事务并发回滚", func(t *testing.T) {

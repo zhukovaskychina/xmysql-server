@@ -610,3 +610,23 @@ func (p *UnifiedPage) GetBufferPage() *buffer_pool.BufferPage {
 
 	return p.bufferPage
 }
+
+// LockPage acquires the write lock (for external access)
+func (p *UnifiedPage) LockPage() {
+	p.mu.Lock()
+}
+
+// UnlockPage releases the write lock (for external access)
+func (p *UnifiedPage) UnlockPage() {
+	p.mu.Unlock()
+}
+
+// RLockPage acquires the read lock (for external access)
+func (p *UnifiedPage) RLockPage() {
+	p.mu.RLock()
+}
+
+// RUnlockPage releases the read lock (for external access)
+func (p *UnifiedPage) RUnlockPage() {
+	p.mu.RUnlock()
+}

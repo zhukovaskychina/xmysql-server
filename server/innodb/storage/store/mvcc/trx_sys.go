@@ -1,19 +1,33 @@
 package mvcc
 
+// Deprecated: This file is deprecated and will be removed in a future version.
+// The structures defined here (TrxIdBytes, GlobalTrxSys) are not implemented.
+// Transaction system functionality should be implemented in manager/transaction_manager.go
+//
+// The comments below contain valuable information about InnoDB's transaction system
+// and MVCC visibility rules. This information has been preserved in the documentation.
+//
+// This file will be removed after all references are updated.
+
 //***
-//在Innodb中，每次开启一个事务时，都会为该session分配一个事务对象。而为了对全局所有的事务进行控制和协调，
-//有一个全局对象trx_sys，对trx_sys相关成员的操作需要trx_sys->mutex锁。
-// 若访问记录trx_id 等于readview的creator_trx_id,则访问的是自己修改过自己的记录，当前记录可以被访问
-// 若访问记录trx_id 小于readview的min_trx_id ,表明生成的该版本的事务生成readview已经提交，该版本可以被访问
-// 如果被访问版本的trx_id 属性值，大于或等于read_view 中的max_trx_id 值，表明生成该版本的事务是在当前事务readview之后，该版本不可以被访问
-// 如果被访问该版本的trx_id属性值在readView的min 和max之间，则需要判断trx_id是否在m_ids 列表中。如果在，说明创建readview生成的该版本的事务还是活跃的，该版本不可以被
-// 如果不在，说明创建readview生成该版本的事务已经被提交，该版本可以被访问
-
-// 如果不能访问该版本，则访问它的下一个版本的数据。
-
+// InnoDB事务系统说明：
+//
+// 在Innodb中，每次开启一个事务时，都会为该session分配一个事务对象。而为了对全局所有的事务进行控制和协调，
+// 有一个全局对象trx_sys，对trx_sys相关成员的操作需要trx_sys->mutex锁。
+//
+// MVCC可见性规则：
+// 1. 若访问记录trx_id 等于readview的creator_trx_id,则访问的是自己修改过自己的记录，当前记录可以被访问
+// 2. 若访问记录trx_id 小于readview的min_trx_id ,表明生成的该版本的事务生成readview已经提交，该版本可以被访问
+// 3. 如果被访问版本的trx_id 属性值，大于或等于read_view 中的max_trx_id 值，表明生成该版本的事务是在当前事务readview之后，该版本不可以被访问
+// 4. 如果被访问该版本的trx_id属性值在readView的min 和max之间，则需要判断trx_id是否在m_ids 列表中。
+//    - 如果在，说明创建readview生成的该版本的事务还是活跃的，该版本不可以被访问
+//    - 如果不在，说明创建readview生成该版本的事务已经被提交，该版本可以被访问
+// 5. 如果不能访问该版本，则访问它的下一个版本的数据。
+//
 //**//
 
 // TrxIdBytes represents 6-byte transaction ID as used in InnoDB
+// Deprecated: 未实现，仅作为参考
 type TrxIdBytes struct {
 	id [6]byte
 }
@@ -45,6 +59,8 @@ Valid state transitions are:
 
 **
 */
+// GlobalTrxSys 全局事务系统
+// Deprecated: 未实现，仅作为参考
 type GlobalTrxSys struct {
 	currentTrxId TrxIdBytes //6 byte 当前事务ID 最大值2^(48)-1 281474976710655
 

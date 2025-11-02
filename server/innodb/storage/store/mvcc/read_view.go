@@ -1,14 +1,33 @@
 package mvcc
 
+// Deprecated: This file is deprecated and will be removed in a future version.
+// ReadView functionality has been migrated to format/mvcc/read_view.go
+//
+// Migration guide:
+// - Old: import "github.com/.../storage/store/mvcc"
+//        rv := mvcc.NewReadView(activeIDs, minTrxID, maxTrxID, creatorTrxID)
+//
+// - New: import formatmvcc "github.com/.../storage/format/mvcc"
+//        rv := formatmvcc.NewReadView(activeIDs, txID, nextTxID)
+//
+// Key differences:
+// 1. format/mvcc uses uint64 instead of int64 for transaction IDs
+// 2. format/mvcc automatically calculates lowWaterMark from activeIDs
+// 3. format/mvcc provides both map-based (O(1)) and binary-search-based visibility checks
+//
+// This file will be removed after all references are updated.
+
 import (
 	"sort"
 	"time"
 )
 
 // TrxId 事务ID类型
+// Deprecated: 使用uint64代替
 type TrxId int64
 
 // ReadView MVCC读视图
+// Deprecated: 使用format/mvcc.ReadView代替
 type ReadView struct {
 	activeIDs    []TrxId        // 创建ReadView时的活跃事务ID列表
 	minTrxID     TrxId          // 活跃事务中最小的事务ID
@@ -19,6 +38,7 @@ type ReadView struct {
 }
 
 // NewReadView 创建新的ReadView
+// Deprecated: 使用format/mvcc.NewReadView(activeIDs, txID, nextTxID)代替
 func NewReadView(activeIDs []int64, minTrxID, maxTrxID, creatorTrxID int64) *ReadView {
 	// 转换活跃事务ID列表
 	ids := make([]TrxId, len(activeIDs))

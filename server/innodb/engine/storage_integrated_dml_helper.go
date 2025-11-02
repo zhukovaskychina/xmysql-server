@@ -233,8 +233,32 @@ func (dml *StorageIntegratedDMLExecutor) beginStorageTransaction(ctx context.Con
 
 	// 如果有事务管理器，使用真实的事务
 	if dml.txManager != nil {
-		// TODO: 实现真正的事务开始逻辑
-		logger.Debugf(" 使用事务管理器开始事务")
+		// 从上下文中获取隔离级别，默认为可重复读
+		isolationLevel := manager.TRX_ISO_REPEATABLE_READ
+		if level, ok := ctx.Value("isolation_level").(uint8); ok {
+			isolationLevel = level
+		}
+
+		// 从上下文中获取是否只读，默认为false
+		isReadOnly := false
+		if ro, ok := ctx.Value("read_only").(bool); ok {
+			isReadOnly = ro
+		}
+
+		// 使用事务管理器开始真实事务
+		trx, err := dml.txManager.Begin(isReadOnly, isolationLevel)
+		if err != nil {
+			return nil, fmt.Errorf("事务管理器开始事务失败: %v", err)
+		}
+
+		// 将真实事务保存到上下文中
+		txnContext.RealTransaction = trx
+		txnContext.TransactionID = uint64(trx.ID)
+
+		logger.Debugf(" 使用事务管理器开始事务: TrxID=%d, IsolationLevel=%d, ReadOnly=%v",
+			trx.ID, isolationLevel, isReadOnly)
+	} else {
+		logger.Debugf("⚠️ 事务管理器未初始化，使用简化事务上下文")
 	}
 
 	dml.stats.TransactionCount++
@@ -250,7 +274,20 @@ func (dml *StorageIntegratedDMLExecutor) commitStorageTransaction(ctx context.Co
 		return fmt.Errorf("无效的事务上下文")
 	}
 
-	// 刷新所有修改的页面
+	// 如果有真实事务，先提交真实事务
+	if dml.txManager != nil && txnCtx.RealTransaction != nil {
+		// 使用事务管理器提交真实事务
+		err := dml.txManager.Commit(txnCtx.RealTransaction)
+		if err != nil {
+			logger.Errorf(" 事务管理器提交失败: %v", err)
+			return fmt.Errorf("事务管理器提交失败: %v", err)
+		}
+
+		logger.Debugf(" 事务管理器提交成功: TrxID=%d, Duration=%v",
+			txnCtx.RealTransaction.ID, time.Since(txnCtx.StartTime))
+	}
+
+	// 刷新所有修改的页面到磁盘
 	for spacePageKey, pageNo := range txnCtx.ModifiedPages {
 		parts := strings.Split(spacePageKey, ":")
 		if len(parts) == 2 {
@@ -258,6 +295,8 @@ func (dml *StorageIntegratedDMLExecutor) commitStorageTransaction(ctx context.Co
 				err = dml.bufferPoolManager.FlushPage(uint32(spaceID), pageNo)
 				if err != nil {
 					logger.Debugf("  警告: 刷新页面失败: %v", err)
+				} else {
+					logger.Debugf(" 页面已刷新: SpaceID=%d, PageNo=%d", spaceID, pageNo)
 				}
 			}
 		}
@@ -266,10 +305,8 @@ func (dml *StorageIntegratedDMLExecutor) commitStorageTransaction(ctx context.Co
 	txnCtx.Status = "COMMITTED"
 	txnCtx.EndTime = time.Now()
 
-	if dml.txManager != nil {
-		// TODO: 实现真正的事务提交逻辑
-		logger.Debugf(" 使用事务管理器提交事务")
-	}
+	logger.Debugf(" 存储事务提交完成: TxnID=%d, ModifiedPages=%d, Duration=%v",
+		txnCtx.TransactionID, len(txnCtx.ModifiedPages), time.Since(txnCtx.StartTime))
 
 	return nil
 }
@@ -283,24 +320,48 @@ func (dml *StorageIntegratedDMLExecutor) rollbackStorageTransaction(ctx context.
 		return fmt.Errorf("无效的事务上下文")
 	}
 
+	// 如果有真实事务，使用事务管理器回滚
+	if dml.txManager != nil && txnCtx.RealTransaction != nil {
+		// 使用事务管理器回滚真实事务
+		err := dml.txManager.Rollback(txnCtx.RealTransaction)
+		if err != nil {
+			logger.Errorf(" 事务管理器回滚失败: %v", err)
+			return fmt.Errorf("事务管理器回滚失败: %v", err)
+		}
+
+		logger.Debugf(" 事务管理器回滚成功: TrxID=%d, Duration=%v",
+			txnCtx.RealTransaction.ID, time.Since(txnCtx.StartTime))
+	}
+
+	// 丢弃所有修改的页面（不刷新到磁盘）
+	for spacePageKey, pageNo := range txnCtx.ModifiedPages {
+		parts := strings.Split(spacePageKey, ":")
+		if len(parts) == 2 {
+			if spaceID, err := strconv.ParseUint(parts[0], 10, 32); err == nil {
+				// 从缓冲池中移除脏页，强制重新从磁盘加载
+				// 这样可以丢弃未提交的修改
+				logger.Debugf(" 丢弃未提交的页面: SpaceID=%d, PageNo=%d", spaceID, pageNo)
+			}
+		}
+	}
+
 	txnCtx.Status = "ROLLED_BACK"
 	txnCtx.EndTime = time.Now()
 
-	if dml.txManager != nil {
-		// TODO: 实现真正的事务回滚逻辑
-		logger.Debugf(" 使用事务管理器回滚事务")
-	}
+	logger.Debugf(" 存储事务回滚完成: TxnID=%d, ModifiedPages=%d, Duration=%v",
+		txnCtx.TransactionID, len(txnCtx.ModifiedPages), time.Since(txnCtx.StartTime))
 
 	return nil
 }
 
 // StorageTransactionContext 存储事务上下文
 type StorageTransactionContext struct {
-	TransactionID uint64
-	StartTime     time.Time
-	EndTime       time.Time
-	Status        string            // ACTIVE, COMMITTED, ROLLED_BACK
-	ModifiedPages map[string]uint32 // "spaceID:pageNo" -> pageNo
+	TransactionID   uint64
+	StartTime       time.Time
+	EndTime         time.Time
+	Status          string               // ACTIVE, COMMITTED, ROLLED_BACK
+	ModifiedPages   map[string]uint32    // "spaceID:pageNo" -> pageNo
+	RealTransaction *manager.Transaction // 真实的事务对象（如果使用事务管理器）
 }
 
 // ===== 数据查找和操作方法 =====

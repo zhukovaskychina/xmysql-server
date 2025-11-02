@@ -1,11 +1,31 @@
 package mvcc
 
+// Deprecated: This file is deprecated and will be removed in a future version.
+// VersionChain and RecordVersion functionality has been migrated to format/mvcc/version_chain.go
+//
+// Migration guide:
+// - Old: import "github.com/.../storage/store/mvcc"
+//        vc := mvcc.NewVersionChain()
+//        vc.InsertVersion(trxID, rollPtr, data, deleteMark)
+//
+// - New: import formatmvcc "github.com/.../storage/format/mvcc"
+//        vc := formatmvcc.NewVersionChainManager()
+//        rv := formatmvcc.NewRecordVersion(txID, key, value)
+//
+// Key differences:
+// 1. format/mvcc uses uint64 instead of TrxId (int64) for transaction IDs
+// 2. format/mvcc.RecordVersion has more fields (Version, Key, Value, CreateTS)
+// 3. format/mvcc provides VersionChainManager for managing multiple version chains
+//
+// This file will be removed after all references are updated.
+
 import (
 	"sync"
 	"time"
 )
 
 // RecordVersion 记录版本
+// Deprecated: 使用format/mvcc.RecordVersion代替
 type RecordVersion struct {
 	TrxID      TrxId          // 创建该版本的事务ID
 	RollPtr    uint64         // 回滚指针，指向undo log中的记录
@@ -16,6 +36,7 @@ type RecordVersion struct {
 }
 
 // VersionChain 版本链管理器
+// Deprecated: 使用format/mvcc.VersionChain和VersionChainManager代替
 type VersionChain struct {
 	mu       sync.RWMutex
 	head     *RecordVersion // 链表头（最新版本）

@@ -169,6 +169,41 @@ func (v *MySQLNativePasswordValidator) bytesEqual(a, b []byte) bool {
 	return true
 }
 
+// VerifyAuthResponse 验证客户端发送的认证响应
+// authResponse: 客户端发送的认证响应（20字节）
+// challenge: 服务器发送的挑战数据（20字节）
+// storedHash: 存储的密码哈希 SHA1(SHA1(password))（20字节）
+func (v *MySQLNativePasswordValidator) VerifyAuthResponse(authResponse, challenge, storedHash []byte) bool {
+	if len(authResponse) != 20 || len(challenge) != 20 || len(storedHash) != 20 {
+		return false
+	}
+
+	// MySQL native password验证算法：
+	// authResponse = XOR(SHA1(password), SHA1(challenge + SHA1(SHA1(password))))
+	// 其中 SHA1(SHA1(password)) 就是 storedHash
+	//
+	// 验证步骤：
+	// 1. 计算 SHA1(challenge + storedHash)
+	// 2. XOR(authResponse, SHA1(challenge + storedHash)) 得到 SHA1(password)
+	// 3. 计算 SHA1(SHA1(password))
+	// 4. 比较结果是否等于 storedHash
+
+	// 步骤1: 计算 SHA1(challenge + storedHash)
+	challengeHash := v.sha1Hash(append(challenge, storedHash...))
+
+	// 步骤2: XOR(authResponse, challengeHash) 得到 SHA1(password)
+	stage1Hash := v.xorBytes(authResponse, challengeHash)
+	if stage1Hash == nil {
+		return false
+	}
+
+	// 步骤3: 计算 SHA1(SHA1(password))
+	stage2Hash := v.sha1Hash(stage1Hash)
+
+	// 步骤4: 比较结果是否等于 storedHash
+	return v.bytesEqual(stage2Hash, storedHash)
+}
+
 // CachingSHA2PasswordValidator SHA2密码验证器（简化实现）
 type CachingSHA2PasswordValidator struct{}
 

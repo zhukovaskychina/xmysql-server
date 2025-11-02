@@ -322,6 +322,11 @@ type ClusterLeafRowData struct {
 	Content   []byte
 	meta      tuple
 	RowValues []basic.Value
+
+	// InnoDB隐藏系统列（用于MVCC和版本链管理）
+	DBRowID   uint64 // 6字节，如果表没有主键则使用
+	DBTrxID   uint64 // 6字节，最后修改此记录的事务ID
+	DBRollPtr uint64 // 7字节，回滚指针，指向Undo日志
 }
 
 // TODO: Uncomment when store package is available
@@ -366,6 +371,36 @@ func (cld *ClusterLeafRowData) ReadBytesWithNullWithPosition(index int) []byte {
 	// TODO: Fix ToByte method call when basic.Value interface is properly defined
 	// return cld.RowValues[index].ToByte()
 	return nil
+}
+
+// GetDBRowID 获取DB_ROW_ID（如果表没有主键）
+func (cld *ClusterLeafRowData) GetDBRowID() uint64 {
+	return cld.DBRowID
+}
+
+// SetDBRowID 设置DB_ROW_ID
+func (cld *ClusterLeafRowData) SetDBRowID(rowID uint64) {
+	cld.DBRowID = rowID
+}
+
+// GetDBTrxID 获取DB_TRX_ID（最后修改此记录的事务ID）
+func (cld *ClusterLeafRowData) GetDBTrxID() uint64 {
+	return cld.DBTrxID
+}
+
+// SetDBTrxID 设置DB_TRX_ID
+func (cld *ClusterLeafRowData) SetDBTrxID(trxID uint64) {
+	cld.DBTrxID = trxID
+}
+
+// GetDBRollPtr 获取DB_ROLL_PTR（回滚指针）
+func (cld *ClusterLeafRowData) GetDBRollPtr() uint64 {
+	return cld.DBRollPtr
+}
+
+// SetDBRollPtr 设置DB_ROLL_PTR
+func (cld *ClusterLeafRowData) SetDBRollPtr(rollPtr uint64) {
+	cld.DBRollPtr = rollPtr
 }
 
 /***
@@ -427,6 +462,62 @@ func (row *ClusterLeafRow) GetRowLength() uint16 {
 func (row *ClusterLeafRow) ReadValueByIndex(index int) basic.Value {
 
 	return row.value.ReadValue(index)
+}
+
+// GetDBTrxID 获取事务ID（用于MVCC）
+func (row *ClusterLeafRow) GetDBTrxID() uint64 {
+	if data, ok := row.value.(*ClusterLeafRowData); ok {
+		return data.GetDBTrxID()
+	}
+	return 0
+}
+
+// SetDBTrxID 设置事务ID
+func (row *ClusterLeafRow) SetDBTrxID(trxID uint64) {
+	if data, ok := row.value.(*ClusterLeafRowData); ok {
+		data.SetDBTrxID(trxID)
+	}
+}
+
+// GetDBRollPtr 获取回滚指针（用于版本链）
+func (row *ClusterLeafRow) GetDBRollPtr() uint64 {
+	if data, ok := row.value.(*ClusterLeafRowData); ok {
+		return data.GetDBRollPtr()
+	}
+	return 0
+}
+
+// SetDBRollPtr 设置回滚指针
+func (row *ClusterLeafRow) SetDBRollPtr(rollPtr uint64) {
+	if data, ok := row.value.(*ClusterLeafRowData); ok {
+		data.SetDBRollPtr(rollPtr)
+	}
+}
+
+// GetDBRowID 获取行ID（如果表没有主键）
+func (row *ClusterLeafRow) GetDBRowID() uint64 {
+	if data, ok := row.value.(*ClusterLeafRowData); ok {
+		return data.GetDBRowID()
+	}
+	return 0
+}
+
+// SetDBRowID 设置行ID
+func (row *ClusterLeafRow) SetDBRowID(rowID uint64) {
+	if data, ok := row.value.(*ClusterLeafRowData); ok {
+		data.SetDBRowID(rowID)
+	}
+}
+
+// UpdateVersionInfo 更新版本信息（事务ID和回滚指针）
+func (row *ClusterLeafRow) UpdateVersionInfo(trxID uint64, rollPtr uint64) {
+	row.SetDBTrxID(trxID)
+	row.SetDBRollPtr(rollPtr)
+}
+
+// GetVersionInfo 获取版本信息
+func (row *ClusterLeafRow) GetVersionInfo() (trxID uint64, rollPtr uint64) {
+	return row.GetDBTrxID(), row.GetDBRollPtr()
 }
 
 /***

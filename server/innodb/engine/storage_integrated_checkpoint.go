@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 )
 
@@ -451,14 +452,47 @@ func (cm *CheckpointManager) collectActiveTxns() []uint64 {
 
 // collectDirtyPages 收集脏页信息
 func (cm *CheckpointManager) collectDirtyPages() []DirtyPageInfo {
-	// 简化实现：返回空列表
-	// 在实际实现中，应该从缓冲池管理器获取脏页信息
-	return []DirtyPageInfo{}
+	if cm.bufferPoolManager == nil {
+		return []DirtyPageInfo{}
+	}
+
+	// 从缓冲池管理器获取脏页列表
+	dirtyPages := cm.bufferPoolManager.GetDirtyPages()
+
+	dirtyPageInfos := make([]DirtyPageInfo, 0, len(dirtyPages))
+	for _, page := range dirtyPages {
+		pageID := (uint64(page.GetSpaceID()) << 32) | uint64(page.GetPageNo())
+		info := DirtyPageInfo{
+			PageID:      pageID,
+			SpaceID:     page.GetSpaceID(),
+			OldestLSN:   page.GetLSN(),
+			LatestLSN:   page.GetLSN(),
+			ModifyCount: 1, // 简化实现
+		}
+		dirtyPageInfos = append(dirtyPageInfos, info)
+	}
+
+	logger.Debugf("📋 收集脏页信息: 共 %d 个脏页", len(dirtyPageInfos))
+	return dirtyPageInfos
 }
 
 // WriteSharpCheckpoint 写入Sharp Checkpoint（全量检查点）
 // Sharp Checkpoint会阻塞所有写操作，将所有脏页刷新到磁盘
 func (cm *CheckpointManager) WriteSharpCheckpoint(lsn uint64) error {
+	logger.Infof("🔒 开始Sharp Checkpoint: LSN=%d", lsn)
+
+	// 1. 阻塞新的写操作（通过事务管理器）
+	// TODO: 实现写操作阻塞机制
+
+	// 2. 刷新所有脏页
+	if cm.bufferPoolManager != nil {
+		logger.Debugf("💧 刷新所有脏页...")
+		if err := cm.bufferPoolManager.FlushAllPages(); err != nil {
+			return fmt.Errorf("刷新脏页失败: %v", err)
+		}
+		logger.Debugf("✅ 所有脏页已刷新")
+	}
+
 	checkpoint := &CheckpointRecord{
 		LSN:            lsn,
 		Timestamp:      time.Now(),
@@ -466,9 +500,16 @@ func (cm *CheckpointManager) WriteSharpCheckpoint(lsn uint64) error {
 		DirtyPages:     []DirtyPageInfo{}, // Sharp检查点后没有脏页
 	}
 
-	// TODO: 阻塞写操作，刷新所有脏页
+	// 3. 写入检查点
+	if err := cm.WriteCheckpoint(checkpoint); err != nil {
+		return err
+	}
 
-	return cm.WriteCheckpoint(checkpoint)
+	// 4. 恢复写操作
+	// TODO: 解除写操作阻塞
+
+	logger.Infof("✅ Sharp Checkpoint完成")
+	return nil
 }
 
 // WriteFuzzyCheckpoint 写入Fuzzy Checkpoint（增量检查点）
@@ -495,14 +536,102 @@ func (cm *CheckpointManager) IncrementalFlush(maxPages int) (int, error) {
 		return 0, fmt.Errorf("检查点管理器未运行")
 	}
 
-	// TODO: 从缓冲池管理器获取脏页列表
-	// TODO: 按LRU或其他策略选择maxPages个页面
-	// TODO: 刷新选中的页面
+	if cm.bufferPoolManager == nil {
+		return 0, fmt.Errorf("缓冲池管理器未初始化")
+	}
 
-	flushedPages := 0 // 实际刷新的页面数
+	// 1. 从缓冲池管理器获取脏页列表
+	dirtyPages := cm.bufferPoolManager.GetDirtyPages()
+	if len(dirtyPages) == 0 {
+		return 0, nil
+	}
 
-	logger.Debugf("💧 增量刷新: 刷新了 %d 个页面", flushedPages)
+	logger.Debugf("💧 增量刷新: 脏页总数=%d, 最大刷新=%d", len(dirtyPages), maxPages)
+
+	// 2. 使用智能刷新策略选择要刷新的页面
+	pagesToFlush := cm.selectPagesToFlush(dirtyPages, maxPages)
+
+	// 3. 刷新选中的页面
+	flushedPages := 0
+	for _, page := range pagesToFlush {
+		if err := cm.bufferPoolManager.FlushPage(page.GetSpaceID(), page.GetPageNo()); err != nil {
+			logger.Errorf("  刷新页面失败 [%d:%d]: %v", page.GetSpaceID(), page.GetPageNo(), err)
+			continue
+		}
+		flushedPages++
+	}
+
+	logger.Debugf("✅ 增量刷新完成: 刷新了 %d/%d 个页面", flushedPages, len(pagesToFlush))
 	return flushedPages, nil
+}
+
+// selectPagesToFlush 选择要刷新的页面（智能刷新策略）
+func (cm *CheckpointManager) selectPagesToFlush(dirtyPages []*buffer_pool.BufferPage, maxPages int) []*buffer_pool.BufferPage {
+	if len(dirtyPages) <= maxPages {
+		return dirtyPages
+	}
+
+	// 使用组合策略选择页面
+	// 1. LSN优先：优先刷新LSN较小的页面（有利于推进checkpoint LSN）
+	// 2. 访问频率：优先刷新访问频率低的页面（减少对热点页面的影响）
+	// 3. 脏页年龄：优先刷新较老的脏页（减少恢复时间）
+
+	type pageScore struct {
+		page  *buffer_pool.BufferPage
+		score float64
+	}
+
+	scores := make([]pageScore, len(dirtyPages))
+
+	// 计算每个页面的得分
+	for i, page := range dirtyPages {
+		score := cm.calculateFlushScore(page)
+		scores[i] = pageScore{page: page, score: score}
+	}
+
+	// 按得分排序（得分越高，越优先刷新）
+	sort.Slice(scores, func(i, j int) bool {
+		return scores[i].score > scores[j].score
+	})
+
+	// 选择前maxPages个页面
+	selected := make([]*buffer_pool.BufferPage, maxPages)
+	for i := 0; i < maxPages; i++ {
+		selected[i] = scores[i].page
+	}
+
+	return selected
+}
+
+// calculateFlushScore 计算页面的刷新得分
+func (cm *CheckpointManager) calculateFlushScore(page *buffer_pool.BufferPage) float64 {
+	score := 0.0
+
+	// 1. LSN得分（权重40%）：LSN越小，得分越高
+	lsn := page.GetLSN()
+	if lsn > 0 {
+		// 归一化LSN得分（假设最大LSN为1000000）
+		lsnScore := 1.0 - (float64(lsn) / 1000000.0)
+		if lsnScore < 0 {
+			lsnScore = 0
+		}
+		score += lsnScore * 0.4
+	}
+
+	// 2. 访问频率得分（权重30%）：访问频率越低，得分越高
+	// 简化实现：使用固定得分
+	accessScore := 0.5
+	score += accessScore * 0.3
+
+	// 3. 脏页年龄得分（权重30%）：年龄越大，得分越高
+	// 简化实现：使用LSN作为年龄的代理指标
+	ageScore := 1.0 - (float64(lsn) / 1000000.0)
+	if ageScore < 0 {
+		ageScore = 0
+	}
+	score += ageScore * 0.3
+
+	return score
 }
 
 // calculateChecksum 计算检查点校验和
