@@ -850,6 +850,140 @@ func (u *UndoLogManager) BuildVersionChain(recordID uint64, txID int64) (*Versio
 	return chain, nil
 }
 
+// TraverseVersionChain 遍历版本链，找到对 ReadView 可见的版本
+// 这是 MVCC 的核心方法，用于实现快照隔离
+//
+// 参数:
+//   - recordID: 记录ID
+//   - readView: MVCC 读视图（来自 format/mvcc 包）
+//
+// 返回:
+//   - *VersionChainNode: 可见的版本节点
+//   - error: 错误信息
+//
+// 算法:
+//  1. 获取记录的版本链
+//  2. 从最新版本开始遍历
+//  3. 对每个版本，使用 ReadView.IsVisible() 判断可见性
+//  4. 返回第一个可见的版本
+//
+// 注意:
+//   - 如果没有可见版本，返回错误
+//   - 版本链按时间倒序排列（最新版本在前）
+func (u *UndoLogManager) TraverseVersionChain(recordID uint64, readView interface{}) (*VersionChainNode, error) {
+	u.versionMu.RLock()
+	chain, exists := u.versionChains[recordID]
+	u.versionMu.RUnlock()
+
+	if !exists {
+		return nil, fmt.Errorf("版本链不存在: recordID=%d", recordID)
+	}
+
+	// 从最新版本开始遍历
+	chain.mu.RLock()
+	defer chain.mu.RUnlock()
+
+	if len(chain.versions) == 0 {
+		return nil, fmt.Errorf("版本链为空: recordID=%d", recordID)
+	}
+
+	// 尝试类型断言 ReadView（支持两种 ReadView 类型）
+	// 1. format/mvcc.ReadView (新版本，推荐)
+	// 2. store/mvcc.ReadView (旧版本，已废弃)
+
+	// 尝试新版本 ReadView
+	type ReadViewInterface interface {
+		IsVisible(txID uint64) bool
+	}
+
+	rv, ok := readView.(ReadViewInterface)
+	if !ok {
+		return nil, fmt.Errorf("无效的 ReadView 类型")
+	}
+
+	// 遍历版本链，找到第一个可见的版本
+	for _, version := range chain.versions {
+		if rv.IsVisible(uint64(version.txID)) {
+			logger.Debugf("🔍 Found visible version: recordID=%d, txID=%d, LSN=%d",
+				recordID, version.txID, version.lsn)
+			return version, nil
+		}
+	}
+
+	// 没有找到可见版本
+	return nil, fmt.Errorf("没有可见版本: recordID=%d, 版本数=%d", recordID, len(chain.versions))
+}
+
+// GetVisibleVersion 获取对指定 ReadView 可见的记录版本数据
+// 这是 TraverseVersionChain 的便捷包装方法
+//
+// 参数:
+//   - recordID: 记录ID
+//   - readView: MVCC 读视图
+//
+// 返回:
+//   - []byte: 可见版本的数据
+//   - uint64: 可见版本的 LSN
+//   - error: 错误信息
+func (u *UndoLogManager) GetVisibleVersion(recordID uint64, readView interface{}) ([]byte, uint64, error) {
+	version, err := u.TraverseVersionChain(recordID, readView)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return version.data, version.lsn, nil
+}
+
+// GetVersionChainLength 获取版本链长度（用于监控和调试）
+func (u *UndoLogManager) GetVersionChainLength(recordID uint64) int {
+	u.versionMu.RLock()
+	defer u.versionMu.RUnlock()
+
+	chain, exists := u.versionChains[recordID]
+	if !exists {
+		return 0
+	}
+
+	chain.mu.RLock()
+	defer chain.mu.RUnlock()
+
+	return len(chain.versions)
+}
+
+// GetVersionChainInfo 获取版本链详细信息（用于调试）
+func (u *UndoLogManager) GetVersionChainInfo(recordID uint64) map[string]interface{} {
+	u.versionMu.RLock()
+	defer u.versionMu.RUnlock()
+
+	chain, exists := u.versionChains[recordID]
+	if !exists {
+		return map[string]interface{}{
+			"exists": false,
+		}
+	}
+
+	chain.mu.RLock()
+	defer chain.mu.RUnlock()
+
+	versions := make([]map[string]interface{}, 0, len(chain.versions))
+	for _, v := range chain.versions {
+		versions = append(versions, map[string]interface{}{
+			"txID":      v.txID,
+			"lsn":       v.lsn,
+			"undoPtr":   v.undoPtr,
+			"timestamp": v.timestamp,
+			"dataSize":  len(v.data),
+		})
+	}
+
+	return map[string]interface{}{
+		"exists":       true,
+		"recordID":     recordID,
+		"versionCount": len(chain.versions),
+		"versions":     versions,
+	}
+}
+
 // GetVersionChain 获取记录的版本链
 func (u *UndoLogManager) GetVersionChain(recordID uint64) *VersionChain {
 	u.versionMu.RLock()

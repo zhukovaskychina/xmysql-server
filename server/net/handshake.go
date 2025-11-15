@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 )
 
 // HandshakePacket MySQL握手包
@@ -36,17 +37,36 @@ func NewHandshakePacket(connectionID uint32) *HandshakePacket {
 		}
 	}
 
+	// 设置实际支持的能力标志
+	// 低16位能力标志
+	capFlags1 := uint16(0)
+	capFlags1 |= uint16(common.CLIENT_LONG_PASSWORD)     // 支持新密码
+	capFlags1 |= uint16(common.CLIENT_FOUND_ROWS)        // 返回找到的行数
+	capFlags1 |= uint16(common.CLIENT_LONG_FLAG)         // 获取所有列标志
+	capFlags1 |= uint16(common.CLIENT_CONNECT_WITH_DB)   // 连接时可指定数据库
+	capFlags1 |= uint16(common.CLIENT_NO_SCHEMA)         // 不允许 database.table.column
+	capFlags1 |= uint16(common.CLIENT_PROTOCOL_41)       // 使用4.1协议
+	capFlags1 |= uint16(common.CLIENT_TRANSACTIONS)      // 支持事务
+	capFlags1 |= uint16(common.CLIENT_SECURE_CONNECTION) // 支持安全连接
+
+	// 高16位能力标志
+	capFlags2 := uint16(0)
+	capFlags2 |= uint16(common.CLIENT_MULTI_STATEMENTS >> 16) // 支持多语句
+	capFlags2 |= uint16(common.CLIENT_MULTI_RESULTS >> 16)    // 支持多结果集
+	capFlags2 |= uint16(common.CLIENT_PLUGIN_AUTH >> 16)      // 支持插件认证
+	capFlags2 |= uint16(common.CLIENT_DEPRECATE_EOF >> 16)    // 不再需要EOF包
+
 	return &HandshakePacket{
 		ProtocolVersion:     10,
 		ServerVersion:       "8.0.0-xmysql-server",
 		ConnectionID:        connectionID,
 		AuthPluginDataPart1: authData[:8],
 		Filler:              0x00,
-		CapabilityFlags1:    0xFFFF, // 支持所有低16位能力
+		CapabilityFlags1:    capFlags1,
 		CharacterSet:        0x21,   // utf8_general_ci
 		StatusFlags:         0x0002, // SERVER_STATUS_AUTOCOMMIT
-		CapabilityFlags2:    0x807F, // 支持高16位能力
-		AuthPluginDataLen:   21,     // 20字节数据 + 1字节null终止符
+		CapabilityFlags2:    capFlags2,
+		AuthPluginDataLen:   21, // 20字节数据 + 1字节null终止符
 		Reserved:            make([]byte, 10),
 		AuthPluginDataPart2: authData[8:],
 		AuthPluginName:      "mysql_native_password",

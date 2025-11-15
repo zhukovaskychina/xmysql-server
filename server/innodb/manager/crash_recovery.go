@@ -410,8 +410,30 @@ func (cr *CrashRecovery) redoLogEntry(entry *RedoLogEntry) error {
 		return cr.redoPageDelete(entry)
 	case LOG_TYPE_PAGE_MODIFY:
 		return cr.redoPageModify(entry)
+	case LOG_TYPE_PAGE_SPLIT:
+		return cr.redoPageSplit(entry)
+	case LOG_TYPE_PAGE_MERGE:
+		return cr.redoPageMerge(entry)
+	case LOG_TYPE_INDEX_INSERT:
+		return cr.redoIndexInsert(entry)
+	case LOG_TYPE_INDEX_DELETE:
+		return cr.redoIndexDelete(entry)
+	case LOG_TYPE_INDEX_UPDATE:
+		return cr.redoIndexUpdate(entry)
+	case LOG_TYPE_FILE_EXTEND:
+		return cr.redoFileExtend(entry)
+	case LOG_TYPE_COMPENSATE:
+		// CLR 日志不需要重做，只用于标记已回滚的操作
+		return nil
+	case LOG_TYPE_TXN_BEGIN, LOG_TYPE_TXN_COMMIT, LOG_TYPE_TXN_ROLLBACK, LOG_TYPE_TXN_SAVEPOINT:
+		// 事务控制日志在分析阶段已处理，重做阶段不需要处理
+		return nil
+	case LOG_TYPE_CHECKPOINT:
+		// 检查点日志不需要重做
+		return nil
 	default:
-		// 其他类型的日志不需要重做
+		// 未知类型的日志，记录警告但不中断恢复
+		fmt.Printf("警告: 遇到未知日志类型 %d (LSN=%d)，跳过\n", entry.Type, entry.LSN)
 		return nil
 	}
 }
@@ -716,4 +738,176 @@ type RecoveryStatistics struct {
 	TotalModifications int           `json:"total_modifications"` // 总修改次数
 	RedoLSNRange       uint64        `json:"redo_lsn_range"`      // Redo LSN范围
 	RecoveryTime       time.Duration `json:"recovery_time"`       // 恢复耗时
+}
+
+// ============================================================================
+// 新增的 Redo 日志类型处理方法
+// ============================================================================
+
+// redoPageSplit 重做页面分裂操作
+// 页面分裂是 B+树操作中的关键操作，需要确保原子性
+func (cr *CrashRecovery) redoPageSplit(entry *RedoLogEntry) error {
+	if cr.bufferPoolManager == nil {
+		return cr.redoWithStorage(entry)
+	}
+
+	// 页面分裂日志包含：原页面ID、新页面ID、分裂点、数据分布
+	// 这里简化处理：直接应用日志数据到页面
+	page, err := cr.bufferPoolManager.FetchPage(entry.PageID)
+	if err != nil {
+		return fmt.Errorf("获取页面%d失败: %v", entry.PageID, err)
+	}
+	defer cr.bufferPoolManager.UnpinPage(entry.PageID, true)
+
+	// 检查幂等性
+	if page.GetLSN() >= entry.LSN {
+		return nil
+	}
+
+	// 应用分裂操作
+	if len(entry.Data) > 0 {
+		page.SetData(entry.Data)
+	}
+
+	page.SetLSN(entry.LSN)
+	page.SetDirty(true)
+
+	return nil
+}
+
+// redoPageMerge 重做页面合并操作
+// 页面合并是 B+树删除操作的一部分，需要确保数据一致性
+func (cr *CrashRecovery) redoPageMerge(entry *RedoLogEntry) error {
+	if cr.bufferPoolManager == nil {
+		return cr.redoWithStorage(entry)
+	}
+
+	// 页面合并日志包含：左页面ID、右页面ID、合并后的数据
+	page, err := cr.bufferPoolManager.FetchPage(entry.PageID)
+	if err != nil {
+		return fmt.Errorf("获取页面%d失败: %v", entry.PageID, err)
+	}
+	defer cr.bufferPoolManager.UnpinPage(entry.PageID, true)
+
+	// 检查幂等性
+	if page.GetLSN() >= entry.LSN {
+		return nil
+	}
+
+	// 应用合并操作
+	if len(entry.Data) > 0 {
+		page.SetData(entry.Data)
+	}
+
+	page.SetLSN(entry.LSN)
+	page.SetDirty(true)
+
+	return nil
+}
+
+// redoIndexInsert 重做索引插入操作
+// 索引插入需要维护索引页面的有序性
+func (cr *CrashRecovery) redoIndexInsert(entry *RedoLogEntry) error {
+	if cr.bufferPoolManager == nil {
+		return cr.redoWithStorage(entry)
+	}
+
+	// 索引插入日志包含：索引页面ID、插入位置、索引键值
+	page, err := cr.bufferPoolManager.FetchPage(entry.PageID)
+	if err != nil {
+		return fmt.Errorf("获取索引页面%d失败: %v", entry.PageID, err)
+	}
+	defer cr.bufferPoolManager.UnpinPage(entry.PageID, true)
+
+	// 检查幂等性
+	if page.GetLSN() >= entry.LSN {
+		return nil
+	}
+
+	// 应用索引插入
+	if len(entry.Data) > 0 {
+		page.SetData(entry.Data)
+	}
+
+	page.SetLSN(entry.LSN)
+	page.SetDirty(true)
+
+	return nil
+}
+
+// redoIndexDelete 重做索引删除操作
+// 索引删除需要维护索引页面的完整性
+func (cr *CrashRecovery) redoIndexDelete(entry *RedoLogEntry) error {
+	if cr.bufferPoolManager == nil {
+		return cr.redoWithStorage(entry)
+	}
+
+	// 索引删除日志包含：索引页面ID、删除位置、删除的键值
+	page, err := cr.bufferPoolManager.FetchPage(entry.PageID)
+	if err != nil {
+		return fmt.Errorf("获取索引页面%d失败: %v", entry.PageID, err)
+	}
+	defer cr.bufferPoolManager.UnpinPage(entry.PageID, true)
+
+	// 检查幂等性
+	if page.GetLSN() >= entry.LSN {
+		return nil
+	}
+
+	// 应用索引删除
+	if len(entry.Data) > 0 {
+		page.SetData(entry.Data)
+	}
+
+	page.SetLSN(entry.LSN)
+	page.SetDirty(true)
+
+	return nil
+}
+
+// redoIndexUpdate 重做索引更新操作
+// 索引更新通常是删除旧索引项 + 插入新索引项
+func (cr *CrashRecovery) redoIndexUpdate(entry *RedoLogEntry) error {
+	// 索引更新的重做逻辑与索引插入类似
+	return cr.redoIndexInsert(entry)
+}
+
+// redoFileExtend 重做文件扩展操作
+// 文件扩展用于表空间增长，需要确保空间分配的原子性
+func (cr *CrashRecovery) redoFileExtend(entry *RedoLogEntry) error {
+	if cr.storageManager == nil {
+		fmt.Printf("警告: 无法重做文件扩展操作 (LSN=%d)，存储管理器未设置\n", entry.LSN)
+		return nil
+	}
+
+	// 文件扩展日志包含：扩展的页面数量、新的文件大小
+	// 这里简化处理：如果页面不存在则创建
+	// 实际实现中应该调用存储管理器的扩展接口
+
+	// 检查页面是否已存在
+	_, err := cr.storageManager.ReadPage(entry.PageID)
+	if err == nil {
+		// 页面已存在，说明扩展已完成
+		return nil
+	}
+
+	// 页面不存在，创建新页面
+	pageID, err := cr.storageManager.CreatePage()
+	if err != nil {
+		return fmt.Errorf("创建扩展页面失败: %v", err)
+	}
+
+	// 验证页面ID
+	if pageID != entry.PageID {
+		fmt.Printf("警告: 扩展页面ID不匹配 (期望=%d, 实际=%d)\n", entry.PageID, pageID)
+	}
+
+	// 如果有初始数据，写入页面
+	if len(entry.Data) > 0 {
+		if err := cr.storageManager.WritePage(pageID, entry.Data); err != nil {
+			return fmt.Errorf("写入扩展页面数据失败: %v", err)
+		}
+	}
+
+	return nil
 }

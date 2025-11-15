@@ -538,3 +538,146 @@ func TestRaceConditionDetection(t *testing.T) {
 	wg.Wait()
 	time.Sleep(1 * time.Second) // 等待异步操作完成
 }
+
+// TestExpansionLockEffectiveness 测试扩展锁的有效性
+func TestExpansionLockEffectiveness(t *testing.T) {
+	spaceManager := NewMockSpaceManager()
+	config := &ExpansionConfig{
+		Strategy:     ExpansionStrategyFixed,
+		AutoExpand:   true,
+		AsyncExpand:  false, // 使用同步扩展便于测试
+		FixedExtents: 2,
+		MinExtents:   MinExtentsPerExpand,
+		MaxExtents:   MaxExtentsPerExpand,
+		MaxSpaceSize: DefaultMaxSpaceSize,
+	}
+
+	sem := NewSpaceExpansionManager(spaceManager, config)
+	defer sem.Stop()
+
+	const numGoroutines = 50
+	const spaceID = uint32(1)
+
+	var wg sync.WaitGroup
+	errors := make(chan error, numGoroutines)
+
+	// 并发扩展同一个表空间
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			if err := sem.ExpandSpace(spaceID, 1); err != nil {
+				errors <- fmt.Errorf("goroutine %d: %v", id, err)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	close(errors)
+
+	// 检查错误
+	errorCount := 0
+	for err := range errors {
+		t.Logf("Error: %v", err)
+		errorCount++
+	}
+
+	if errorCount > 0 {
+		t.Errorf("Got %d errors during concurrent expansion", errorCount)
+	}
+
+	// 验证扩展次数和Extent数量
+	stats := sem.GetStats()
+	t.Logf("Total expansions: %d", stats.TotalExpansions)
+	t.Logf("Total extents added: %d", stats.TotalExtentsAdded)
+
+	// 每次扩展添加1个Extent，所以总数应该等于扩展次数
+	if stats.TotalExpansions != numGoroutines {
+		t.Errorf("Expected %d expansions, got %d", numGoroutines, stats.TotalExpansions)
+	}
+
+	// 验证表空间的实际Extent数量
+	space, err := spaceManager.GetSpace(spaceID)
+	if err != nil {
+		t.Fatalf("Failed to get space: %v", err)
+	}
+
+	actualExtents := space.GetExtentCount()
+	expectedExtents := uint32(1 + numGoroutines) // 初始1个 + 扩展的50个
+	t.Logf("Actual extents in space: %d, expected: %d", actualExtents, expectedExtents)
+
+	// 由于扩展锁的保护，每次扩展都应该成功添加Extent
+	if actualExtents != expectedExtents {
+		t.Errorf("Expected %d extents, got %d", expectedExtents, actualExtents)
+	}
+}
+
+// TestNoDataOverwrite 测试扩展不会覆盖现有数据
+func TestNoDataOverwrite(t *testing.T) {
+	spaceManager := NewMockSpaceManager()
+	config := &ExpansionConfig{
+		Strategy:     ExpansionStrategyFixed,
+		AutoExpand:   true,
+		AsyncExpand:  false,
+		FixedExtents: 4,
+		MinExtents:   MinExtentsPerExpand,
+		MaxExtents:   MaxExtentsPerExpand,
+		MaxSpaceSize: DefaultMaxSpaceSize,
+	}
+
+	sem := NewSpaceExpansionManager(spaceManager, config)
+	defer sem.Stop()
+
+	const spaceID = uint32(1)
+
+	// 获取初始状态
+	space, err := spaceManager.GetSpace(spaceID)
+	if err != nil {
+		t.Fatalf("Failed to get space: %v", err)
+	}
+
+	initialExtents := space.GetExtentCount()
+	initialSize := space.GetUsedSpace()
+	t.Logf("Initial state - Extents: %d, Size: %d", initialExtents, initialSize)
+
+	// 执行多次扩展
+	const numExpansions = 10
+	for i := 0; i < numExpansions; i++ {
+		if err := sem.ExpandSpace(spaceID, 2); err != nil {
+			t.Fatalf("Expansion %d failed: %v", i, err)
+		}
+
+		// 验证每次扩展后的状态
+		currentExtents := space.GetExtentCount()
+		currentSize := space.GetUsedSpace()
+
+		// Extent数量应该单调递增
+		if currentExtents <= initialExtents {
+			t.Errorf("Expansion %d: extents did not increase (initial: %d, current: %d)",
+				i, initialExtents, currentExtents)
+		}
+
+		// 大小应该单调递增
+		if currentSize <= initialSize {
+			t.Errorf("Expansion %d: size did not increase (initial: %d, current: %d)",
+				i, initialSize, currentSize)
+		}
+
+		t.Logf("After expansion %d - Extents: %d, Size: %d", i, currentExtents, currentSize)
+
+		initialExtents = currentExtents
+		initialSize = currentSize
+	}
+
+	// 验证最终状态
+	finalExtents := space.GetExtentCount()
+	stats := sem.GetStats()
+
+	t.Logf("Final state - Extents: %d, Total expansions: %d, Total extents added: %d",
+		finalExtents, stats.TotalExpansions, stats.TotalExtentsAdded)
+
+	// 验证扩展次数
+	if stats.TotalExpansions != numExpansions {
+		t.Errorf("Expected %d expansions, got %d", numExpansions, stats.TotalExpansions)
+	}
+}

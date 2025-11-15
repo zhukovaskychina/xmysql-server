@@ -76,7 +76,11 @@ func (h *MySQLProtocolHandler) HandlePacket(conn net.Conn, packet *MySQLRawPacke
 	case common.COM_STMT_CLOSE:
 		return h.handleStmtClose(conn, packet)
 	default:
-		return h.handleAuth(conn, packet)
+		// 未知命令，返回错误而不是当作认证包处理
+		errPacket := EncodeErrorFromCode(common.ER_UNKNOWN_ERROR,
+			fmt.Sprintf("Unknown command: 0x%02X", packetType))
+		conn.Write(errPacket)
+		return fmt.Errorf("unknown command: 0x%02X", packetType)
 	}
 }
 

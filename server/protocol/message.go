@@ -83,10 +83,11 @@ func (m *BaseMessage) Payload() interface{} {
 // ConnectMessage 连接消息
 type ConnectMessage struct {
 	*BaseMessage
-	ClientInfo *ClientInfo
+	ConnectionInfo *ConnectionInfo
 }
 
-type ClientInfo struct {
+// ConnectionInfo 连接信息
+type ConnectionInfo struct {
 	Host     string
 	Port     int
 	User     string

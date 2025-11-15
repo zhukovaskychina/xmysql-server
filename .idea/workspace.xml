@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="ALL" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="cebb430f-c076-4984-8043-b00b7330fdf5" name="Changes" comment="feat(mvcc): enhance MVCC functionality and refactor related components&#10;&#10;### 📄 详细修改内容&#10;- 修改文件或模块：unified_executor.go, trx.go, mvcc.go, page.go, extent.go, storage_adapter.go, etc.&#10;- 主要改动：引入锁管理器，重构事务管理，更新MVCC相关接口，优化页面内容获取和设置逻辑，增加LZ4压缩支持。&#10;&#10;### 💡 修改原因&#10;此次修改旨在提升MVCC的功能性和性能，确保事务管理的高效性和安全性，同时引入新的压缩算法以优化存储。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MVCC管理器、事务处理、页面管理&#10;- 受影响接口或服务：事务创建、页面读写、数据压缩&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证新功能的稳定性&#10;- 更新相关文档以反映接口变更">
+      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/jdbc_client/.idea/copilot.data.migration.agent.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/jdbc_client/.idea/copilot.data.migration.ask.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/jdbc_client/.idea/copilot.data.migration.edit.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/server/innodb/manager/crash_recovery_extended_test.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/server/innodb/manager/crash_recovery_fault_injection_test.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/server/innodb/manager/crash_recovery_integration_test.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/server/innodb/manager/secondary_index_consistency_test.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/server/innodb/manager/undo_version_chain_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/AugmentWebviewStateStore.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/AugmentWebviewStateStore.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/BTREE-005_SPLIT_OPTIMIZATION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/BTREE_006_CACHE_LIMIT_FIX_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/BTREE_FIXES_VERIFICATION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/BTREE_IMPLEMENTATION_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/CRASH_RECOVERY_IMPLEMENTATION_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/DEVELOPMENT_ROADMAP.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/EXECUTOR_ARCHITECTURE_REFACTOR_PLAN.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/EXECUTOR_REFACTOR_COMPLETION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/EXECUTOR_REFACTOR_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/IMPLEMENTATION_ISSUES_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/INDEX_001_SECONDARY_INDEX_VERIFICATION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/JDBC_PROTOCOL_ANALYSIS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/LOCK_001_GAP_LOCK_FIX_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/MISSING_FEATURES_LIST.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/MVCC_001_READVIEW_FIX_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/MVCC_ARCHITECTURE_ANALYSIS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/MVCC_INTEGRATION_TEST_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/MVCC_REFACTORING_PROGRESS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/MVCC_STORE_PACKAGE_EVALUATION.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P0_ISSUES_COMPLETION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P0_TASKS_COMPLETION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P1-002_VERIFICATION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P1-005_COMPLETION_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P1_1_BASEEXTENT_MIGRATION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P1_2_4_DEPRECATION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P1_2_BASEPAGE_MIGRATION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P1_2_COMPLETION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P1_2_MIGRATION_PROGRESS_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P1_2_PAGE_ANALYSIS_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P1_3_COMPLETION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P1_3_FSP_HEADER_ANALYSIS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P1_ISSUES_FIX_PLAN.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P1_ISSUES_PROGRESS_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P2_1_COMPLETION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P2_1_EXTENT_BITMAP_ANALYSIS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P2_2_BITMAP_MANAGER_ANALYSIS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P2_2_COMPLETION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P2_3_COMPLETION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P2_3_PAGE_CONTENT_ACCESS_ANALYSIS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P3_1_ARCHITECTURE_ANALYSIS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P3_1_COMPLETION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P3_1_NEW_ARCHITECTURE_DESIGN.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P3_2_COMPLETION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/P3_2_NAMING_CODING_STYLE_ANALYSIS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/PHASE3_COMPLETION_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/PHASE4_COMPLETION_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/PHASE4_OPTIMIZER_RULES_ANALYSIS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/PHASE5_COMPLETION_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/PREPARED_STATEMENT_IMPLEMENTATION_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/PRIORITY_TASK_LIST.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/PROJECT_COMPREHENSIVE_ANALYSIS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/PROJECT_EVALUATION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/PROTO-003_PASSWORD_VERIFICATION_FIX.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/PROTO-004_COLUMN_TYPE_MAPPING_FIX.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/PROTO-005_ERROR_CODE_MAPPING_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/REMAINING_ISSUES_ANALYSIS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/STAGE2_COMPLETION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/STAGE2_EXTENT_PAGE_ANALYSIS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/STAGE2_PROGRESS_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/STAGE3_COMPLETION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/STAGE3_MVCC_ADJUSTMENT_PLAN.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/STAGE4_DEADLOCK_DETECTION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/STAGE_3_ADVANCED_FEATURES_COMPLETION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/STAGE_3_ADVANCED_FEATURES_STATUS_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/STAGE_5_OPTIMIZATION_COMPLETION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/STORAGE-001_CONCURRENCY_FIX_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/STORAGE-001_DIRTY_PAGE_FLUSH_VERIFICATION.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/STORAGE-001_FIX_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/STORAGE-003_TABLESPACE_DEFRAGMENTATION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/STORAGE_ARCHITECTURE.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/STORAGE_MODULE_ARCHITECTURE_ANALYSIS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/STORAGE_MODULE_REFACTORING_PLAN.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/STORAGE_OPTIMIZATION_TASKS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/STORAGE_WRAPPER_STORE_ANALYSIS_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TASK_1_1_PAGE_CHECKSUM_FIX_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TASK_1_2_FIND_SIBLINGS_FIX_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TASK_1_3_UNDO_LOG_POINTER_FIX_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TASK_1_4_VERSION_CHAIN_FIX_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TASK_2_1_COMPLETION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TASK_2_1_SCHEMA_TYPE_FIX_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TASK_2_2_PAGE_ANALYSIS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TASK_2_2_VALUE_CONVERSION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TASK_2_3_INDEX_LOOKUP_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TASK_2_3_MIGRATION_PLAN.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TASK_2_4_EXPRESSION_EVALUATION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TASK_2_5_SUBQUERY_EXECUTOR_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TASK_4_1_SCHEMA_MANAGEMENT_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TASK_4_3_INSERT_BUFFER_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TASK_4_4_STORAGE_OPTIMIZATION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TODO_DETAILED_CHECKLIST.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TODO_EXECUTION_PLAN.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TODO_STATISTICS_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TODO_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TXN-003_SAVEPOINT_IMPLEMENTATION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TXN-004_LONG_TRANSACTION_DETECTION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TXN_001_REDO_LOG_FIX_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TXN_002_REAPPLY_COMPLETION_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TXN_002_ROLLBACK_FIX_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TXN_002_UNDO_LOG_FIX_REPORT.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/log-optimization-summary.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/txn-gap-nextkey-locks-summary.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/txn-gap-nextkey-locks.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/auth/auth_service.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/auth/auth_service.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/auth/engine_access.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/auth/engine_access.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/dispatcher/enhanced_message_handler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/dispatcher/enhanced_message_handler.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/dispatcher/message_handler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/dispatcher/message_handler.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/dispatcher/system_variable_engine.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/dispatcher/system_variable_engine.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/select_executor.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/select_executor.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/manager/crash_recovery.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/manager/crash_recovery.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/manager/gap_lock.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/manager/gap_lock.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/manager/index_manager.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/manager/index_manager.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/manager/space_expansion_concurrent_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/manager/space_expansion_concurrent_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/manager/space_expansion_manager.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/manager/space_expansion_manager.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/manager/system_variables_manager.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/manager/system_variables_manager.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/manager/undo_log_manager.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/manager/undo_log_manager.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/plan/cost_model_test.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/plan/query_optimizer_enhancement_test.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/plan/statistics_sampling_test.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/decoupled_handler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/net/decoupled_handler.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/handshake.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/net/handshake.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/mysql_server.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/net/mysql_server.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/protocol/auth.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/protocol/auth.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/protocol/error.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/protocol/error.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/protocol/message.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/protocol/message.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/protocol/mysql_codec.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/protocol/mysql_codec.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/protocol/mysql_protocol.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/protocol/mysql_protocol.go" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="GOROOT" url="file://$USER_HOME$/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.darwin-amd64" />
+  <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="main" />
+      </map>
+    </option>
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;zhukovaskychina&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/zhukovaskychina/xmysql-server.git&quot;,
+    &quot;accountId&quot;: &quot;002448ed-9f28-4727-8558-6e54404cefb2&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;&quot;,
+  &quot;associatedIndex&quot;: 6
+}</component>
+  <component name="ProjectId" id="34dyUfHs3t7sE91mYs6TKQe1Zz3" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server.executor&quot;: &quot;Debug&quot;,
+    &quot;RunOnceActivity.GoLinterPluginOnboarding&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.GoLinterPluginStorageMigration&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.formatter.settings.were.checked&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.migrated.go.modules.settings&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.modules.go.list.on.any.changes.was.set&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;dev&quot;,
+    &quot;go.import.settings.migrated&quot;: &quot;true&quot;,
+    &quot;go.sdk.automatically.set&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/zhukovasky&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  }
+}</component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/docs" />
+    </key>
+  </component>
+  <component name="RunManager">
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$/main.go" />
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Go Build.go build github.com/zhukovaskychina/xmysql-server" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-gosdk-f466f9b0953e-3d2cccfc42a2-org.jetbrains.plugins.go.sharedIndexes.bundled-GO-252.23892.449" />
+        <option value="bundled-js-predefined-d6986cc7102b-e03c56caf84a-JavaScript-GO-252.23892.449" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="cebb430f-c076-4984-8043-b00b7330fdf5" name="Changes" comment="" />
+      <created>1761557760992</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1761557760992</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="feat(cnf): implement CNF converter and integrate with query optimizer&#10;&#10;###  详细修改内容&#10;- 新增文件：`cnf_converter.go`, `cnf_converter_test.go`, `cnf_integration_test.go`, `main.go`&#10;- 主要改动：实现了CNF转换器，支持双重否定消除、德摩根定律、运算符取反、分配律展开等功能，并集成到查询优化器中。&#10;&#10;###  修改原因&#10;实现CNF转换器以规范化复杂的WHERE子句，为后续的谓词下推和索引优化提供支持。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：查询优化器&#10;- 受影响接口或服务：`pushDownPredicates`函数&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 完善单元测试和集成测试，确保转换器的稳定性和性能。" />
+    <MESSAGE value="feat(statistics): refactor atomic operations for page statistics&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：base.go, fsp.go, trx.go, dict.go, ibuf.go, xdes.go, extent.go&#10;- 主要改动：将页面统计信息的原子操作从使用自定义的 atomic 类型改为使用 Go 的 sync/atomic 包，确保线程安全性和性能优化。&#10;&#10;###  修改原因&#10;此修改旨在提高代码的可读性和一致性，同时利用 Go 的内置原子操作来增强性能和安全性，避免潜在的竞争条件。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：页面管理和统计模块&#10;- 受影响接口或服务：所有涉及页面统计的功能&#10;- 向后兼容性：兼容&#10;- 风险等级：低&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证统计信息的准确性和性能。" />
+    <MESSAGE value="feat(prepared_statement): implement prepared statement management and protocol handling&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：prepared_statement_manager.go, prepared_statement_test.go&#10;- 主要改动：实现了预编译语句管理器，支持 COM_STMT_PREPARE、COM_STMT_EXECUTE 和 COM_STMT_CLOSE 协议的处理。&#10;&#10;###  修改原因&#10;为了支持 MySQL 的预编译语句功能，提升查询性能和安全性，减少 SQL 注入风险。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：数据库协议处理和执行引擎&#10;- 受影响接口或服务：预编译语句的创建、执行和关闭&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 添加更多测试用例以覆盖边界情况&#10;- 监控预编译语句的性能表现" />
+    <MESSAGE value="feat(mvcc): enhance MVCC visibility logic and deadlock detection&#10;&#10;###  详细修改内容&#10;- 修改文件：`isolation.go`, `deadlock.go`, `isolation_test.go`&#10;- 主要改动：修复了 MVCC 的可见性判断逻辑，确保不同隔离级别下的事务可见性行为符合预期；改进了死锁检测算法，确保能够正确识别死锁情况。&#10;&#10;###  修改原因&#10;此次修改旨在修复 MVCC 可见性逻辑中的缺陷，确保在不同事务隔离级别下的行为一致性。同时，优化死锁检测机制，以提高系统的稳定性和可靠性。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MVCC 管理和事务管理&#10;- 受影响接口或服务：事务的可见性判断和锁管理&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 增加更多的测试用例以覆盖边界情况&#10;- 监控系统在高并发场景下的表现" />
+    <MESSAGE value="feat(mvcc): enhance MVCC visibility logic and deadlock detection&#10;&#10;###  详细修改内容&#10;- 修改文件：`isolation.go`, `deadlock.go`, `isolation_test.go`&#10;- 主要改动：修复了 MVCC 的可见性判断逻辑，确保不同隔离级别下的事务可见性行为符合预期；改进了死锁检测算法，确保能够正确识别死锁情况。&#10;&#10;###  修改原因&#10;此次修改旨在修复 MVCC 可见性逻辑中的缺陷，确保在不同事务隔离级别下的行为一致性。同时，优化死锁检测机制，以提高系统的稳定性和可靠性。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MVCC 管理和事务管理&#10;- 受影响接口或服务：事务的可见性判断和锁管理&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 增加更多的测试用例以覆盖边界情况&#10;- 监控系统在高并发场景下的表现" />
+    <MESSAGE value="feat(mvcc): enhance MVCC functionality and refactor related components&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：unified_executor.go, trx.go, mvcc.go, page.go, extent.go, storage_adapter.go, etc.&#10;- 主要改动：引入锁管理器，重构事务管理，更新MVCC相关接口，优化页面内容获取和设置逻辑，增加LZ4压缩支持。&#10;&#10;###  修改原因&#10;此次修改旨在提升MVCC的功能性和性能，确保事务管理的高效性和安全性，同时引入新的压缩算法以优化存储。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MVCC管理器、事务处理、页面管理&#10;- 受影响接口或服务：事务创建、页面读写、数据压缩&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证新功能的稳定性&#10;- 更新相关文档以反映接口变更" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat(mvcc): enhance MVCC functionality and refactor related components&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：unified_executor.go, trx.go, mvcc.go, page.go, extent.go, storage_adapter.go, etc.&#10;- 主要改动：引入锁管理器，重构事务管理，更新MVCC相关接口，优化页面内容获取和设置逻辑，增加LZ4压缩支持。&#10;&#10;###  修改原因&#10;此次修改旨在提升MVCC的功能性和性能，确保事务管理的高效性和安全性，同时引入新的压缩算法以优化存储。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MVCC管理器、事务处理、页面管理&#10;- 受影响接口或服务：事务创建、页面读写、数据压缩&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证新功能的稳定性&#10;- 更新相关文档以反映接口变更" />
+  </component>
+  <component name="VgoProject">
+    <settings-migrated>true</settings-migrated>
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/server/net/decoupled_handler.go</url>
+          <line>266</line>
+          <option name="timeStamp" value="6" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
+</project>

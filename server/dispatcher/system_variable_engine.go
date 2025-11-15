@@ -872,26 +872,27 @@ func (e *SystemVariableEngine) executeWithVolcanoModel(operator engine.Operator)
 	var rows [][]interface{}
 	var columns []string
 
-	// TODO: Fix - schema type issue, for now just use default columns
-	// 获取schema信息作为列名
-	schema := operator.Schema()
-	if schema != nil {
-		// Schema is interface, cannot directly access methods on pointer to interface
-		// For now, set default columns
-		columns = []string{"Variable_name", "Value"}
-	}
-
-	// 如果从schema获取不到列信息，尝试从执行器获取
-	if len(columns) == 0 {
-		if scanOp, ok := operator.(*SystemVariableScanOperator); ok {
-			columns = make([]string, len(scanOp.varQuery.Variables))
-			for i, varInfo := range scanOp.varQuery.Variables {
-				columns[i] = varInfo.Alias
+	// 从执行器获取列信息
+	if scanOp, ok := operator.(*SystemVariableScanOperator); ok {
+		columns = make([]string, len(scanOp.varQuery.Variables))
+		for i, varInfo := range scanOp.varQuery.Variables {
+			// 使用变量名作为列名（去掉@@前缀）
+			columns[i] = varInfo.Alias
+		}
+		logger.Debugf("✅ 从扫描算子获取列信息: %v", columns)
+	} else if projOp, ok := operator.(*SystemVariableProjectionOperator); ok {
+		columns = projOp.columns
+		logger.Debugf("✅ 从投影算子获取列信息: %v", columns)
+	} else {
+		// 如果无法从算子获取，尝试从schema获取
+		schema := operator.Schema()
+		if schema != nil {
+			// 从schema中提取列名
+			columns = make([]string, len(schema.Columns))
+			for i, col := range schema.Columns {
+				columns[i] = col.Name
 			}
-			logger.Debugf("✅ 从扫描算子获取列信息: %v", columns)
-		} else if projOp, ok := operator.(*SystemVariableProjectionOperator); ok {
-			columns = projOp.columns
-			logger.Debugf("✅ 从投影算子获取列信息: %v", columns)
+			logger.Debugf("✅ 从Schema获取列信息: %v", columns)
 		}
 	}
 

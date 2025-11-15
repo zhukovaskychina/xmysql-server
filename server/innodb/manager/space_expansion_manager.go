@@ -82,6 +82,10 @@ type SpaceExpansionManager struct {
 	expandChan chan *ExpansionRequest
 	stopChan   chan struct{}
 	wg         sync.WaitGroup
+
+	// 扩展锁：防止同一表空间的并发扩展
+	expansionLocks map[uint32]*sync.Mutex
+	locksMu        sync.Mutex
 }
 
 // ExpansionConfig 扩展配置
@@ -187,13 +191,14 @@ func NewSpaceExpansionManager(spaceManager basic.SpaceManager, config *Expansion
 	}
 
 	sem := &SpaceExpansionManager{
-		spaceManager: spaceManager,
-		config:       config,
-		history:      make([]*ExpansionRecord, 0, 100),
-		usageHistory: make([]UsageSnapshot, 0, HistoryWindowSize),
-		stats:        &ExpansionStats{},
-		expandChan:   make(chan *ExpansionRequest, 10),
-		stopChan:     make(chan struct{}),
+		spaceManager:   spaceManager,
+		config:         config,
+		history:        make([]*ExpansionRecord, 0, 100),
+		usageHistory:   make([]UsageSnapshot, 0, HistoryWindowSize),
+		stats:          &ExpansionStats{},
+		expandChan:     make(chan *ExpansionRequest, 10),
+		stopChan:       make(chan struct{}),
+		expansionLocks: make(map[uint32]*sync.Mutex),
 	}
 
 	// 启动后台扩展worker
@@ -290,8 +295,26 @@ func (sem *SpaceExpansionManager) PredictiveExpand(spaceID uint32) error {
 	return nil
 }
 
+// getExpansionLock 获取表空间的扩展锁
+func (sem *SpaceExpansionManager) getExpansionLock(spaceID uint32) *sync.Mutex {
+	sem.locksMu.Lock()
+	defer sem.locksMu.Unlock()
+
+	lock, exists := sem.expansionLocks[spaceID]
+	if !exists {
+		lock = &sync.Mutex{}
+		sem.expansionLocks[spaceID] = lock
+	}
+	return lock
+}
+
 // expandSync 同步扩展
 func (sem *SpaceExpansionManager) expandSync(spaceID uint32, extents uint32, triggered string) error {
+	// 获取表空间的扩展锁，防止并发扩展同一表空间
+	expansionLock := sem.getExpansionLock(spaceID)
+	expansionLock.Lock()
+	defer expansionLock.Unlock()
+
 	startTime := time.Now()
 
 	// 获取表空间

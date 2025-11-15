@@ -78,6 +78,28 @@ func (lm *LockManager) AcquireGapLock(txID uint64, gapRange *GapRange, lockType 
 			lm.gapLocks[key] = lm.gapLocks[key][:len(lm.gapLocks[key])-1]
 			return fmt.Errorf("deadlock detected")
 		}
+
+		// 等待锁被授予
+		lm.mu.Unlock()
+		select {
+		case <-newLock.WaitChan:
+			// 锁已授予
+			lm.mu.Lock()
+		case <-time.After(30 * time.Second):
+			// 超时
+			lm.mu.Lock()
+			// 移除Gap锁请求
+			locks := lm.gapLocks[key]
+			var newLocks []*GapLockInfo
+			for _, lock := range locks {
+				if lock.TxID != txID || !gapRangesEqual(lock.GapRange, gapRange) {
+					newLocks = append(newLocks, lock)
+				}
+			}
+			lm.gapLocks[key] = newLocks
+			lm.removeFromWaitGraph(txID)
+			return fmt.Errorf("lock wait timeout")
+		}
 	}
 
 	// 记录事务持有的Gap锁
@@ -113,9 +135,10 @@ func (lm *LockManager) ReleaseGapLock(txID uint64, gapRange *GapRange) error {
 		delete(lm.gapLocks, key)
 	} else {
 		lm.gapLocks[key] = newLocks
-		// 尝试授予等待的插入意向锁
-		lm.grantWaitingInsertIntentionLocks(key)
 	}
+
+	// 尝试授予等待的插入意向锁（无论Gap锁是否完全释放）
+	lm.grantWaitingInsertIntentionLocks(key)
 
 	return nil
 }
@@ -223,6 +246,28 @@ func (lm *LockManager) AcquireNextKeyLock(txID uint64, recordKey interface{}, ga
 			lm.nextKeyLocks[key] = lm.nextKeyLocks[key][:len(lm.nextKeyLocks[key])-1]
 			return fmt.Errorf("deadlock detected")
 		}
+
+		// 等待锁被授予
+		lm.mu.Unlock()
+		select {
+		case <-newLock.WaitChan:
+			// 锁已授予
+			lm.mu.Lock()
+		case <-time.After(30 * time.Second):
+			// 超时
+			lm.mu.Lock()
+			// 移除Next-Key锁请求
+			locks := lm.nextKeyLocks[key]
+			var newLocks []*NextKeyLockInfo
+			for _, lock := range locks {
+				if lock.TxID != txID || compareKeys(lock.RecordKey, recordKey) != 0 || !gapRangesEqual(lock.GapRange, gapRange) {
+					newLocks = append(newLocks, lock)
+				}
+			}
+			lm.nextKeyLocks[key] = newLocks
+			lm.removeFromWaitGraph(txID)
+			return fmt.Errorf("lock wait timeout")
+		}
 	}
 
 	// 记录事务持有的Next-Key锁
@@ -258,9 +303,14 @@ func (lm *LockManager) ReleaseNextKeyLock(txID uint64, recordKey interface{}, ga
 		delete(lm.nextKeyLocks, key)
 	} else {
 		lm.nextKeyLocks[key] = newLocks
-		// 尝试授予等待的锁
-		lm.grantWaitingNextKeyLocks(key)
 	}
+
+	// 尝试授予等待的锁（无论Next-Key锁是否完全释放）
+	lm.grantWaitingNextKeyLocks(key)
+
+	// Next-Key锁包含Gap锁，释放后也需要尝试授予插入意向锁
+	gapKey := makeGapLockKey(gapRange.TableID, gapRange.IndexID)
+	lm.grantWaitingInsertIntentionLocks(gapKey)
 
 	return nil
 }
@@ -281,6 +331,12 @@ func (lm *LockManager) ReleaseAllNextKeyLocks(txID uint64) {
 			continue
 		}
 
+		// 保存第一个锁的GapRange用于后续授予插入意向锁
+		var gapRange *GapRange
+		if len(locks) > 0 && locks[0].GapRange != nil {
+			gapRange = locks[0].GapRange
+		}
+
 		// 移除该事务的Next-Key锁
 		var newLocks []*NextKeyLockInfo
 		for _, lock := range locks {
@@ -297,6 +353,12 @@ func (lm *LockManager) ReleaseAllNextKeyLocks(txID uint64) {
 
 		// 尝试授予等待的锁
 		lm.grantWaitingNextKeyLocks(key)
+
+		// Next-Key锁包含Gap锁，释放后也需要尝试授予插入意向锁
+		if gapRange != nil {
+			gapKey := makeGapLockKey(gapRange.TableID, gapRange.IndexID)
+			lm.grantWaitingInsertIntentionLocks(gapKey)
+		}
 	}
 }
 
@@ -319,7 +381,8 @@ func (lm *LockManager) AcquireInsertIntentionLock(txID uint64, insertKey interfa
 	var holdingTxIDs []uint64
 	if gapLocks, exists := lm.gapLocks[key]; exists {
 		for _, glock := range gapLocks {
-			if glock.Granted && gapRangeContains(glock.GapRange, insertKey) {
+			// Gap锁与插入意向锁冲突，除非是同一个事务
+			if glock.Granted && glock.TxID != txID && gapRangeContains(glock.GapRange, insertKey) {
 				holdingTxIDs = append(holdingTxIDs, glock.TxID)
 			}
 		}
@@ -329,7 +392,8 @@ func (lm *LockManager) AcquireInsertIntentionLock(txID uint64, insertKey interfa
 	nextKeyKey := makeNextKeyLockKey(gapRange.TableID, gapRange.IndexID)
 	if nextKeyLocks, exists := lm.nextKeyLocks[nextKeyKey]; exists {
 		for _, nklock := range nextKeyLocks {
-			if nklock.Granted && gapRangeContains(nklock.GapRange, insertKey) {
+			// Next-Key锁与插入意向锁冲突，除非是同一个事务
+			if nklock.Granted && nklock.TxID != txID && gapRangeContains(nklock.GapRange, insertKey) {
 				holdingTxIDs = append(holdingTxIDs, nklock.TxID)
 			}
 		}
@@ -361,6 +425,29 @@ func (lm *LockManager) AcquireInsertIntentionLock(txID uint64, insertKey interfa
 			lm.insertIntLocks[key] = lm.insertIntLocks[key][:len(lm.insertIntLocks[key])-1]
 			return fmt.Errorf("deadlock detected")
 		}
+
+		// 等待锁被授予
+		lm.mu.Unlock()
+		select {
+		case <-newLock.WaitChan:
+			// 锁已授予
+			lm.mu.Lock()
+			return nil
+		case <-time.After(30 * time.Second):
+			// 超时
+			lm.mu.Lock()
+			// 移除插入意向锁请求
+			locks := lm.insertIntLocks[key]
+			var newLocks []*InsertIntentionLockInfo
+			for _, lock := range locks {
+				if lock.TxID != txID || lock.InsertKey != insertKey {
+					newLocks = append(newLocks, lock)
+				}
+			}
+			lm.insertIntLocks[key] = newLocks
+			lm.removeFromWaitGraph(txID)
+			return fmt.Errorf("lock wait timeout")
+		}
 	}
 
 	return nil
@@ -386,7 +473,8 @@ func (lm *LockManager) grantWaitingInsertIntentionLocks(key string) {
 		hasConflict := false
 		if gapLocks != nil {
 			for _, glock := range gapLocks {
-				if glock.Granted && gapRangeContains(glock.GapRange, ilock.InsertKey) {
+				// Gap锁与插入意向锁冲突，除非是同一个事务
+				if glock.Granted && glock.TxID != ilock.TxID && gapRangeContains(glock.GapRange, ilock.InsertKey) {
 					hasConflict = true
 					break
 				}

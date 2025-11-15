@@ -156,10 +156,10 @@ func (h *BusinessMessageHandler) handleConnectMessage(msg protocol.Message) (pro
 
 	// 记录连接信息
 	logger.Debugf("Client connected: %s:%d, User: %s, Database: %s\n",
-		connectMsg.ClientInfo.Host,
-		connectMsg.ClientInfo.Port,
-		connectMsg.ClientInfo.User,
-		connectMsg.ClientInfo.Database)
+		connectMsg.ConnectionInfo.Host,
+		connectMsg.ConnectionInfo.Port,
+		connectMsg.ConnectionInfo.User,
+		connectMsg.ConnectionInfo.Database)
 
 	// 连接成功，返回成功响应
 	return protocol.NewBaseMessage(protocol.MSG_CONNECT, msg.SessionID(), "Connection established"), nil

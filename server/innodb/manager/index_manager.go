@@ -575,16 +575,16 @@ type IndexStatistics struct {
 
 // SyncSecondaryIndexesOnInsert 在INSERT时同步所有二级索引
 func (im *IndexManager) SyncSecondaryIndexesOnInsert(tableID uint64, rowData map[string]interface{}, primaryKeyValue []byte) error {
+	// 先获取二级索引列表（需要读锁）
 	im.mu.RLock()
-	defer im.mu.RUnlock()
-
-	// 获取表的所有二级索引
 	secondaryIndexes := im.getSecondaryIndexesByTable(tableID)
+	im.mu.RUnlock()
+
 	if len(secondaryIndexes) == 0 {
 		return nil // 没有二级索引，直接返回
 	}
 
-	// 为每个二级索引插入条目
+	// 为每个二级索引插入条目（InsertKey内部会加写锁）
 	for _, idx := range secondaryIndexes {
 		// 提取索引键值
 		indexKey, err := im.extractIndexKey(idx, rowData)
@@ -603,16 +603,16 @@ func (im *IndexManager) SyncSecondaryIndexesOnInsert(tableID uint64, rowData map
 
 // SyncSecondaryIndexesOnUpdate 在UPDATE时同步所有二级索引
 func (im *IndexManager) SyncSecondaryIndexesOnUpdate(tableID uint64, oldRowData, newRowData map[string]interface{}, primaryKeyValue []byte) error {
+	// 先获取二级索引列表（需要读锁）
 	im.mu.RLock()
-	defer im.mu.RUnlock()
-
-	// 获取表的所有二级索引
 	secondaryIndexes := im.getSecondaryIndexesByTable(tableID)
+	im.mu.RUnlock()
+
 	if len(secondaryIndexes) == 0 {
 		return nil // 没有二级索引，直接返回
 	}
 
-	// 为每个二级索引更新条目
+	// 为每个二级索引更新条目（UpdateKey内部会加写锁）
 	for _, idx := range secondaryIndexes {
 		// 检查索引列是否被更新
 		if !im.isIndexAffected(idx, oldRowData, newRowData) {
@@ -642,16 +642,16 @@ func (im *IndexManager) SyncSecondaryIndexesOnUpdate(tableID uint64, oldRowData,
 
 // SyncSecondaryIndexesOnDelete 在DELETE时同步所有二级索引
 func (im *IndexManager) SyncSecondaryIndexesOnDelete(tableID uint64, rowData map[string]interface{}) error {
+	// 先获取二级索引列表（需要读锁）
 	im.mu.RLock()
-	defer im.mu.RUnlock()
-
-	// 获取表的所有二级索引
 	secondaryIndexes := im.getSecondaryIndexesByTable(tableID)
+	im.mu.RUnlock()
+
 	if len(secondaryIndexes) == 0 {
 		return nil // 没有二级索引，直接返回
 	}
 
-	// 为每个二级索引删除条目
+	// 为每个二级索引删除条目（DeleteKey内部会加写锁）
 	for _, idx := range secondaryIndexes {
 		// 提取索引键值
 		indexKey, err := im.extractIndexKey(idx, rowData)

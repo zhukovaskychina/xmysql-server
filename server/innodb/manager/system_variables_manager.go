@@ -81,6 +81,7 @@ func (mgr *SystemVariablesManager) initializeDefaultVariables() {
 		{Name: "tx_isolation", DefaultValue: "REPEATABLE-READ", Scope: BothScope, ReadOnly: false, Description: "Transaction isolation level"},
 		{Name: "transaction_isolation", DefaultValue: "REPEATABLE-READ", Scope: BothScope, ReadOnly: false, Description: "Transaction isolation level"},
 		{Name: "tx_read_only", DefaultValue: int64(0), Scope: BothScope, ReadOnly: false, Description: "Transaction read only"},
+		{Name: "transaction_read_only", DefaultValue: int64(0), Scope: BothScope, ReadOnly: false, Description: "Transaction read only"},
 		{Name: "autocommit", DefaultValue: "ON", Scope: BothScope, ReadOnly: false, Description: "Autocommit"},
 
 		// 时区相关
