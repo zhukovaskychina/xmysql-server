@@ -80,19 +80,19 @@ func (e *MySQLResultSetEncoder) WriteLenEncNullString(str *string) []byte {
 // https://dev.mysql.com/doc/internals/en/com-query-response.html#packet-Protocol::ColumnDefinition41
 
 // ColumnDefinition 列定义结构
-type ColumnDefinition struct {
-	Catalog      string // 总是 "def"
-	Schema       string // 数据库名（可为空）
-	Table        string // 表名（可为空）
-	OrgTable     string // 原始表名（可为空）
-	Name         string // 列名（必填）
-	OrgName      string // 原始列名（通常与 Name 相同）
-	CharacterSet uint16 // 字符集，通常 0x21(utf8) 或 0x3F(binary)
-	ColumnLength uint32 // 列长度
-	ColumnType   byte   // MySQL 字段类型（见 MySQLFieldType）
-	Flags        uint16 // 列标志（见 ColumnFlags）
-	Decimals     byte   // 小数位数（数值类型使用）
-}
+//type ColumnDefinition struct {
+//	Catalog      string // 总是 "def"
+//	Schema       string // 数据库名（可为空）
+//	Table        string // 表名（可为空）
+//	OrgTable     string // 原始表名（可为空）
+//	Name         string // 列名（必填）
+//	OrgName      string // 原始列名（通常与 Name 相同）
+//	CharacterSet uint16 // 字符集，通常 0x21(utf8) 或 0x3F(binary)
+//	ColumnLength uint32 // 列长度
+//	ColumnType   byte   // MySQL 字段类型（见 MySQLFieldType）
+//	Flags        uint16 // 列标志（见 ColumnFlags）
+//	Decimals     byte   // 小数位数（数值类型使用）
+//}
 
 // MySQLFieldType MySQL 字段类型常量
 const (
@@ -192,6 +192,12 @@ func (e *MySQLResultSetEncoder) WriteColumnDefinitionPacket(col *ColumnDefinitio
 	return data
 }
 
+// EncodeColumnDefinitionPacket 编码列定义并附加包头
+func (e *MySQLResultSetEncoder) EncodeColumnDefinitionPacket(col *ColumnDefinition, sequenceId byte) []byte {
+	payload := e.WriteColumnDefinitionPacket(col)
+	return addPacketHeader(payload, sequenceId)
+}
+
 // ============================================================================
 // EOF Packet
 // ============================================================================
@@ -276,6 +282,12 @@ func (e *MySQLResultSetEncoder) WriteRowDataPacket(values []interface{}) []byte 
 	}
 
 	return data
+}
+
+// EncodeRowDataPacket 编码行数据并附加包头
+func (e *MySQLResultSetEncoder) EncodeRowDataPacket(values []interface{}, sequenceId byte) []byte {
+	payload := e.WriteRowDataPacket(values)
+	return addPacketHeader(payload, sequenceId)
 }
 
 // valueToString 将 interface{} 值转换为字符串（用于文本协议）

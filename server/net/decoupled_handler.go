@@ -747,6 +747,9 @@ func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session,
 	query := queryMsg.SQL
 	logger.Debugf("[Query内容] SQL: '%s', 长度: %d", query, len(query))
 
+	// ✅ 修复：清除上一次查询的发送标记
+	session.SetAttribute("__result_sent__", false)
+
 	// 在响应前再次检查会话状态
 	defer func() {
 		if r := recover(); r != nil {
@@ -798,6 +801,14 @@ func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session,
 			case *protocol.ResponseMessage:
 				// 查询结果响应
 				if resp.Result != nil {
+					// ✅ 修复：SET/DDL 语句应该返回 OK Packet 而非 ResultSet
+					resultType := strings.ToLower(resp.Result.Type)
+					if resultType == "set" || resultType == "ddl" {
+						logger.Debugf("[handleQueryMessageDirect] SET/DDL 语句，发送 OK Packet")
+						return h.sendMySQLOKPacket(session, 0, 0, 1)
+					}
+
+					// 其他查询返回 ResultSet
 					return h.sendQueryResultSet(session, resp.Result, 1)
 				}
 				return h.sendMySQLOKPacket(session, 0, 0, 1)
@@ -1548,6 +1559,14 @@ func (h *DecoupledMySQLMessageHandler) inferFieldType(value interface{}) string 
 func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, result *protocol.MessageQueryResult, seqID byte) error {
 	logger.Debugf("[sendQueryResultSet] 开始发送查询结果集（MySQL 协议标准实现）")
 
+	// ✅ 修复：防止重复发送 ResultSet
+	if resultSent := session.GetAttribute("__result_sent__"); resultSent != nil {
+		if sent, ok := resultSent.(bool); ok && sent {
+			logger.Errorf("❌ 协议错误：尝试重复发送 ResultSet，已忽略")
+			return fmt.Errorf("result already sent")
+		}
+	}
+
 	// 检查会话状态
 	if session.IsClosed() {
 		logger.Errorf("会话已关闭，无法发送结果集")
@@ -1593,8 +1612,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 			colDef = encoder.CreateColumnDefinition(colName, protocol.MYSQL_TYPE_VAR_STRING, 0)
 		}
 
-		columnDefData := encoder.WriteColumnDefinitionPacket(colDef)
-		columnDefPacket := h.createMySQLPacket(columnDefData, seqID)
+		columnDefPacket := encoder.EncodeColumnDefinitionPacket(colDef, seqID)
 
 		logger.Debugf("[sendQueryResultSet] 发送列定义: name=%s, type=0x%02X, length=%d",
 			colName, colDef.ColumnType, colDef.ColumnLength)
@@ -1610,8 +1628,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	// ========================================================================
 	// Step 3: 发送第一个 EOF Packet（结束列定义）
 	// ========================================================================
-	eofData1 := encoder.WriteEOFPacket(0, protocol.SERVER_STATUS_AUTOCOMMIT)
-	eofPacket1 := h.createMySQLPacket(eofData1, seqID)
+	eofPacket1 := protocol.EncodeEOFPacketWithSeq(0, protocol.SERVER_STATUS_AUTOCOMMIT, seqID)
 
 	logger.Debugf("[sendQueryResultSet] 发送第一个 EOF 包（列定义结束）")
 	err = session.WriteBytes(eofPacket1)
@@ -1625,8 +1642,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	// Step 4: 发送 Row Data Packets（文本协议）
 	// ========================================================================
 	for rowIdx, row := range result.Rows {
-		rowData := encoder.WriteRowDataPacket(row)
-		rowPacket := h.createMySQLPacket(rowData, seqID)
+		rowPacket := encoder.EncodeRowDataPacket(row, seqID)
 
 		logger.Debugf("[sendQueryResultSet] 发送行数据 %d: %v", rowIdx, row)
 
@@ -1650,8 +1666,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	// ========================================================================
 	// Step 5: 发送第二个 EOF Packet（结束行数据）
 	// ========================================================================
-	eofData2 := encoder.WriteEOFPacket(0, protocol.SERVER_STATUS_AUTOCOMMIT)
-	eofPacket2 := h.createMySQLPacket(eofData2, seqID)
+	eofPacket2 := protocol.EncodeEOFPacketWithSeq(0, protocol.SERVER_STATUS_AUTOCOMMIT, seqID)
 
 	logger.Debugf("[sendQueryResultSet] 发送第二个 EOF 包（行数据结束）")
 	err = session.WriteBytes(eofPacket2)
@@ -1661,6 +1676,10 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	}
 
 	logger.Debugf("[sendQueryResultSet] ✅ 查询结果集发送完成: %d 列, %d 行", len(result.Columns), len(result.Rows))
+
+	// ✅ 修复：标记 ResultSet 已发送
+	session.SetAttribute("__result_sent__", true)
+
 	return nil
 }
 

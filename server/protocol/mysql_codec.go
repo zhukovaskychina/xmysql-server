@@ -49,38 +49,39 @@ func EncodeOKPacket(info []byte, affectedRows, lastInsertId uint64, warnings []b
 	return addPacketHeader(payload, 1)
 }
 
-// EncodeOKPacketWithSeq 编码OK包（带指定序列号）
-func EncodeOKPacketWithSeq(info []byte, affectedRows, lastInsertId uint64, warnings []byte, sequenceId byte) []byte {
-	payload := make([]byte, 0, 64)
-
-	// OK包标识符
-	payload = append(payload, 0x00)
-
-	// 受影响的行数 (length-encoded integer)
-	payload = appendLengthEncodedInt(payload, affectedRows)
-
-	// 最后插入的ID (length-encoded integer)
-	payload = appendLengthEncodedInt(payload, lastInsertId)
-
-	// 服务器状态标志 (2字节，小端序)
-	// SERVER_STATUS_AUTOCOMMIT = 0x0002
-	payload = append(payload, 0x02, 0x00)
-
-	// 警告数量 (2字节，小端序)
-	warningCount := uint16(0)
-	if warnings != nil && len(warnings) > 0 {
-		warningCount = uint16(len(warnings))
-	}
-	payload = append(payload, byte(warningCount), byte(warningCount>>8))
-
-	// 可选的info字符串
-	if info != nil && len(info) > 0 {
-		payload = append(payload, info...)
-	}
-
-	// 添加包头
-	return addPacketHeader(payload, sequenceId)
-}
+//
+//// EncodeOKPacketWithSeq 编码OK包（带指定序列号）
+//func EncodeOKPacketWithSeq(info []byte, affectedRows, lastInsertId uint64, warnings []byte, sequenceId byte) []byte {
+//	payload := make([]byte, 0, 64)
+//
+//	// OK包标识符
+//	payload = append(payload, 0x00)
+//
+//	// 受影响的行数 (length-encoded integer)
+//	payload = appendLengthEncodedInt(payload, affectedRows)
+//
+//	// 最后插入的ID (length-encoded integer)
+//	payload = appendLengthEncodedInt(payload, lastInsertId)
+//
+//	// 服务器状态标志 (2字节，小端序)
+//	// SERVER_STATUS_AUTOCOMMIT = 0x0002
+//	payload = append(payload, 0x02, 0x00)
+//
+//	// 警告数量 (2字节，小端序)
+//	warningCount := uint16(0)
+//	if warnings != nil && len(warnings) > 0 {
+//		warningCount = uint16(len(warnings))
+//	}
+//	payload = append(payload, byte(warningCount), byte(warningCount>>8))
+//
+//	// 可选的info字符串
+//	if info != nil && len(info) > 0 {
+//		payload = append(payload, info...)
+//	}
+//
+//	// 添加包头
+//	return addPacketHeader(payload, sequenceId)
+//}
 
 // EncodeErrorPacket 编码错误包
 // 注意：此函数使用固定序列号0，适用于握手阶段的错误
@@ -108,27 +109,27 @@ func EncodeErrorPacket(errorCode uint16, sqlState, message string) []byte {
 }
 
 // EncodeErrorPacketWithSeq 编码错误包（带指定序列号）
-func EncodeErrorPacketWithSeq(errorCode uint16, sqlState, message string, sequenceId byte) []byte {
-	payload := make([]byte, 0, 64+len(message))
-
-	// 错误包标识符
-	payload = append(payload, 0xFF)
-
-	// 错误代码
-	payload = append(payload, byte(errorCode), byte(errorCode>>8))
-
-	// SQL状态标记
-	payload = append(payload, '#')
-
-	// SQL状态
-	payload = append(payload, []byte(sqlState)...)
-
-	// 错误消息
-	payload = append(payload, []byte(message)...)
-
-	// 添加包头
-	return addPacketHeader(payload, sequenceId)
-}
+//func EncodeErrorPacketWithSeq(errorCode uint16, sqlState, message string, sequenceId byte) []byte {
+//	payload := make([]byte, 0, 64+len(message))
+//
+//	// 错误包标识符
+//	payload = append(payload, 0xFF)
+//
+//	// 错误代码
+//	payload = append(payload, byte(errorCode), byte(errorCode>>8))
+//
+//	// SQL状态标记
+//	payload = append(payload, '#')
+//
+//	// SQL状态
+//	payload = append(payload, []byte(sqlState)...)
+//
+//	// 错误消息
+//	payload = append(payload, []byte(message)...)
+//
+//	// 添加包头
+//	return addPacketHeader(payload, sequenceId)
+//}
 
 // EncodeColumnsPacket 编码列定义包
 func EncodeColumnsPacket(columns []string) []byte {
@@ -211,31 +212,31 @@ func EncodeEOFPacket(warnings, statusFlags uint16) []byte {
 	return addPacketHeader(payload, 0)
 }
 
-// EncodeEOFPacketWithSeq 编码EOF包（带序列号）
-func EncodeEOFPacketWithSeq(warnings, statusFlags uint16, sequenceId byte) []byte {
-	payload := make([]byte, 5)
-	payload[0] = 0xFE // EOF标识符
-	binary.LittleEndian.PutUint16(payload[1:3], warnings)
-	binary.LittleEndian.PutUint16(payload[3:5], statusFlags)
-
-	return addPacketHeader(payload, sequenceId)
-}
+//// EncodeEOFPacketWithSeq 编码EOF包（带序列号）
+//func EncodeEOFPacketWithSeq(warnings, statusFlags uint16, sequenceId byte) []byte {
+//	payload := make([]byte, 5)
+//	payload[0] = 0xFE // EOF标识符
+//	binary.LittleEndian.PutUint16(payload[1:3], warnings)
+//	binary.LittleEndian.PutUint16(payload[3:5], statusFlags)
+//
+//	return addPacketHeader(payload, sequenceId)
+//}
 
 // addPacketHeader 添加MySQL包头
-func addPacketHeader(payload []byte, sequenceId byte) []byte {
-	length := len(payload)
-	header := make([]byte, 4)
-
-	// 包长度 (3字节，小端序)
-	header[0] = byte(length)
-	header[1] = byte(length >> 8)
-	header[2] = byte(length >> 16)
-
-	// 序列号
-	header[3] = sequenceId
-
-	return append(header, payload...)
-}
+//func addPacketHeader(payload []byte, sequenceId byte) []byte {
+//	length := len(payload)
+//	header := make([]byte, 4)
+//
+//	// 包长度 (3字节，小端序)
+//	header[0] = byte(length)
+//	header[1] = byte(length >> 8)
+//	header[2] = byte(length >> 16)
+//
+//	// 序列号
+//	header[3] = sequenceId
+//
+//	return append(header, payload...)
+//}
 
 // appendLengthEncodedInt 追加长度编码整数
 func appendLengthEncodedInt(data []byte, value uint64) []byte {

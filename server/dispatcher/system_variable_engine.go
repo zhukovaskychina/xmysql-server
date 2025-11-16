@@ -518,7 +518,7 @@ func (e *SystemVariableEngine) evaluateSystemFunction(funcName string, session s
 		if version, err := e.sysVarManager.GetVariable(sessionID, "version", manager.GlobalScope); err == nil {
 			return version
 		}
-		return "8.0.32-xmysql"
+		return "8.0.32"
 
 	case "CONNECTION_ID":
 		return sessionID
@@ -1219,8 +1219,8 @@ func (e *SystemVariableEngine) getSessionID(session server.MySQLServerSession) s
 		}
 	}
 
-	// 4. 如果都失败了，生成一个基于用户和数据库的会话ID
-	var user, database string
+	// 4. 如果都失败了，生成一个基于用户、数据库和连接地址的唯一会话ID
+	var user, database, remoteAddr string
 	if userParam := session.GetParamByName("user"); userParam != nil {
 		if u, ok := userParam.(string); ok {
 			user = u
@@ -1232,13 +1232,27 @@ func (e *SystemVariableEngine) getSessionID(session server.MySQLServerSession) s
 		}
 	}
 
-	// 生成一个相对唯一的会话ID
-	sessionID := fmt.Sprintf("%s@%s_session", user, database)
-	if sessionID == "@_session" {
+	// ✅ 修复：添加远程地址以确保每个连接有唯一的 SessionID
+	if session != nil {
+		// 尝试获取远程地址
+		if remoteAddrGetter, ok := session.(interface{ RemoteAddr() string }); ok {
+			remoteAddr = remoteAddrGetter.RemoteAddr()
+		}
+	}
+
+	// 生成唯一的会话ID（包含远程地址以区分不同连接）
+	var sessionID string
+	if remoteAddr != "" {
+		sessionID = fmt.Sprintf("%s@%s_%s", user, database, remoteAddr)
+	} else {
+		sessionID = fmt.Sprintf("%s@%s_session", user, database)
+	}
+
+	if sessionID == "@_session" || sessionID == "@_" {
 		sessionID = "system_default_session"
 	}
 
-	logger.Debugf("🔑 生成默认会话ID: %s", sessionID)
+	logger.Debugf("🔑 生成唯一会话ID: %s", sessionID)
 	return sessionID
 }
 
