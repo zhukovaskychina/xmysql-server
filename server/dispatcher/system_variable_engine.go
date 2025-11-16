@@ -281,6 +281,9 @@ func (e *SystemVariableEngine) ExecuteQuery(session server.MySQLServerSession, q
 
 		logger.Debugf("🚀 [SystemVariableEngine.ExecuteQuery] 开始执行查询: %s", query)
 
+		// 将握手阶段保存的关键会话变量同步到系统变量管理器
+		e.syncSessionVariables(session)
+
 		sessionID := e.getSessionID(session)
 
 		// 1. 首先尝试解析为系统函数查询
@@ -364,6 +367,35 @@ func (e *SystemVariableEngine) ExecuteQuery(session server.MySQLServerSession, q
 	}()
 
 	return resultChan
+}
+
+// syncSessionVariables 确保握手阶段写入 session attribute 的关键变量能够在系统变量管理器中生效
+func (e *SystemVariableEngine) syncSessionVariables(session server.MySQLServerSession) {
+	if session == nil || e.sysVarManager == nil {
+		return
+	}
+
+	// 避免重复同步
+	if synced, ok := session.GetParamByName("__sysvar_synced__").(bool); ok && synced {
+		return
+	}
+
+	sessionID := e.getSessionID(session)
+	if sessionID == "" {
+		return
+	}
+
+	// 同步 max_allowed_packet（JDBC 会依赖此变量来确定包大小限制）
+	if val := session.GetParamByName("max_allowed_packet"); val != nil {
+		if err := e.sysVarManager.SetVariable(sessionID, "max_allowed_packet", val, manager.SessionScope); err != nil {
+			logger.Warnf(" [SystemVariableEngine.syncSessionVariables] 同步max_allowed_packet失败: %v", err)
+		} else {
+			logger.Debugf(" [SystemVariableEngine.syncSessionVariables] 会话%s同步max_allowed_packet=%v", sessionID, val)
+		}
+	}
+
+	// 标记为已同步，避免后续重复执行
+	session.SetParamByName("__sysvar_synced__", true)
 }
 
 // executeSystemFunctionQuery 执行系统函数查询

@@ -12,6 +12,7 @@ type MySQLProtocolHandler struct {
 	sessionManager  session.SessionManager
 	queryDispatcher QueryDispatcher
 	preparedStmtMgr *PreparedStatementManager
+	encoder         *MySQLResultSetEncoder // ResultSet 编码器（复用实例）
 }
 
 // NewMySQLProtocolHandler 创建协议处理器
@@ -20,6 +21,7 @@ func NewMySQLProtocolHandler(sessionMgr session.SessionManager, dispatcher Query
 		sessionManager:  sessionMgr,
 		queryDispatcher: dispatcher,
 		preparedStmtMgr: NewPreparedStatementManager(),
+		encoder:         NewMySQLResultSetEncoder(), // 初始化 ResultSet 编码器
 	}
 }
 
@@ -170,23 +172,38 @@ func (h *MySQLProtocolHandler) handleQueryResults(conn net.Conn, resultChan <-ch
 
 // sendQueryResult 发送查询结果
 func (h *MySQLProtocolHandler) sendQueryResult(conn net.Conn, result *QueryResult) {
-	// 发送列定义
-	if len(result.Columns) > 0 {
-		columnPacket := EncodeColumnsPacket(result.Columns)
-		conn.Write(columnPacket)
+	// 使用编码器生成 ResultSet 包
+	resultSetData := &ResultSetData{
+		Columns: result.Columns,
+		Rows:    result.Rows,
 	}
 
-	// 发送行数据
-	if len(result.Rows) > 0 {
-		for _, row := range result.Rows {
-			rowPacket := EncodeRowPacket(row)
-			conn.Write(rowPacket)
-		}
-	}
+	// 生成所有包（不包括 MySQL packet header）
+	packets := h.encoder.SendResultSetPackets(resultSetData)
 
-	// 发送EOF包
-	eofPacket := EncodeEOFPacket(0, 0)
-	conn.Write(eofPacket)
+	// 添加 MySQL packet header 并发送
+	seqID := byte(1)
+	for _, payload := range packets {
+		packet := h.addPacketHeader(payload, seqID)
+		conn.Write(packet)
+		seqID++
+	}
+}
+
+// addPacketHeader 添加 MySQL 包头
+func (h *MySQLProtocolHandler) addPacketHeader(payload []byte, sequenceID byte) []byte {
+	length := len(payload)
+	header := make([]byte, 4)
+
+	// 包长度 (3字节，小端序)
+	header[0] = byte(length)
+	header[1] = byte(length >> 8)
+	header[2] = byte(length >> 16)
+
+	// 序列号
+	header[3] = sequenceID
+
+	return append(header, payload...)
 }
 
 // handleQuit 处理退出

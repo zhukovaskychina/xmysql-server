@@ -33,13 +33,13 @@ type DecoupledMySQLMessageHandler struct {
 	businessHandler protocol.MessageHandler
 
 	// 握手生成器
-	handshakeGenerator *HandshakeGenerator
+	handshakeGenerator *protocol.HandshakeGenerator
 
 	// 认证服务
 	authService auth.AuthService
 
-	// ResultSet 协议编码器（复用实例，避免重复创建）
-	resultSetEncoder *MySQLProtocolEncoder
+	// ResultSet 编码器（复用实例，避免重复创建）
+	resultSetEncoder *protocol.MySQLResultSetEncoder
 }
 
 // NewDecoupledMySQLMessageHandler 创建解耦的MySQL消息处理器
@@ -66,9 +66,9 @@ func NewDecoupledMySQLMessageHandlerWithEngine(cfg *conf.Cfg, xmysqlEngine *engi
 		protocolEncoder:    protocol.NewMySQLProtocolEncoder(),
 		messageBus:         protocol.NewDefaultMessageBus(),
 		businessHandler:    dispatcher.NewEnhancedBusinessMessageHandler(cfg, xmysqlEngine),
-		handshakeGenerator: NewHandshakeGenerator(),
+		handshakeGenerator: protocol.NewHandshakeGenerator(),
 		authService:        authService,
-		resultSetEncoder:   NewMySQLProtocolEncoder(), // 初始化 ResultSet 编码器
+		resultSetEncoder:   protocol.NewMySQLResultSetEncoder(), // 初始化 ResultSet 编码器
 	}
 
 	// 注册业务处理器到消息总线
@@ -1583,14 +1583,14 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	// Step 2: 发送 Column Definition Packets
 	// ========================================================================
 	for colIdx, colName := range result.Columns {
-		var colDef *ColumnDefinition
+		var colDef *protocol.ColumnDefinition
 
 		// 从第一行数据推断列类型
 		if len(result.Rows) > 0 && colIdx < len(result.Rows[0]) {
 			colDef = encoder.CreateColumnDefinitionFromValue(colName, result.Rows[0][colIdx])
 		} else {
 			// 没有数据行，默认为 VARCHAR
-			colDef = encoder.CreateColumnDefinition(colName, MYSQL_TYPE_VAR_STRING, 0)
+			colDef = encoder.CreateColumnDefinition(colName, protocol.MYSQL_TYPE_VAR_STRING, 0)
 		}
 
 		columnDefData := encoder.WriteColumnDefinitionPacket(colDef)
@@ -1610,7 +1610,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	// ========================================================================
 	// Step 3: 发送第一个 EOF Packet（结束列定义）
 	// ========================================================================
-	eofData1 := encoder.WriteEOFPacket(0, SERVER_STATUS_AUTOCOMMIT)
+	eofData1 := encoder.WriteEOFPacket(0, protocol.SERVER_STATUS_AUTOCOMMIT)
 	eofPacket1 := h.createMySQLPacket(eofData1, seqID)
 
 	logger.Debugf("[sendQueryResultSet] 发送第一个 EOF 包（列定义结束）")
@@ -1650,7 +1650,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	// ========================================================================
 	// Step 5: 发送第二个 EOF Packet（结束行数据）
 	// ========================================================================
-	eofData2 := encoder.WriteEOFPacket(0, SERVER_STATUS_AUTOCOMMIT)
+	eofData2 := encoder.WriteEOFPacket(0, protocol.SERVER_STATUS_AUTOCOMMIT)
 	eofPacket2 := h.createMySQLPacket(eofData2, seqID)
 
 	logger.Debugf("[sendQueryResultSet] 发送第二个 EOF 包（行数据结束）")

@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	innodbcommon "github.com/zhukovaskychina/xmysql-server/server/innodb/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
@@ -1104,8 +1106,183 @@ func createDatabaseMetadataFile(dbPath, charset, collation string) error {
 // buildWhereConditions 构建 WHERE 条件表达式（占位）
 func (e *XMySQLExecutor) buildWhereConditions(where *sqlparser.Where) {}
 
-// executeSetStatement 执行 SET 语句（占位）
-func (e *XMySQLExecutor) executeSetStatement(ctx *ExecutionContext, stmt *sqlparser.Set) {}
+// executeSetStatement 执行 SET 语句
+func (e *XMySQLExecutor) executeSetStatement(ctx *ExecutionContext, stmt *sqlparser.Set, session server.MySQLServerSession) {
+	if ctx == nil || ctx.Results == nil {
+		logger.Errorf(" [executeSetStatement] execution context is not initialized")
+		return
+	}
+
+	logger.Debugf(" [executeSetStatement] 执行SET语句，包含 %d 个表达式", len(stmt.Exprs))
+
+	if session == nil {
+		logger.Errorf(" [executeSetStatement] session is nil, 无法设置会话变量")
+		ctx.Results <- &Result{
+			Err:        fmt.Errorf("session is required for SET statements"),
+			ResultType: innodbcommon.RESULT_TYPE_ERROR,
+			Message:    "session unavailable for SET statement",
+		}
+		return
+	}
+
+	affectedVars := 0
+	var errors []string
+
+	for _, expr := range stmt.Exprs {
+		varName := expr.Name.String()
+		logger.Debugf(" [executeSetStatement] 处理变量: %s", varName)
+
+		value, err := e.evaluateSetValue(expr.Expr)
+		if err != nil {
+			errMsg := fmt.Sprintf("failed to evaluate value for %s: %v", varName, err)
+			logger.Errorf(" [executeSetStatement] %s", errMsg)
+			errors = append(errors, errMsg)
+			continue
+		}
+
+		if err := e.setSessionVariable(session, varName, value); err != nil {
+			errMsg := fmt.Sprintf("failed to set %s: %v", varName, err)
+			logger.Warnf(" [executeSetStatement] %s", errMsg)
+			errors = append(errors, errMsg)
+			continue
+		}
+
+		affectedVars++
+		logger.Debugf(" [executeSetStatement] 成功设置变量: %s = %v", varName, value)
+	}
+
+	if affectedVars == 0 && len(errors) > 0 {
+		ctx.Results <- &Result{
+			Err:        fmt.Errorf("SET statement failed: %s", strings.Join(errors, "; ")),
+			ResultType: innodbcommon.RESULT_TYPE_ERROR,
+			Message:    "SET statement failed",
+		}
+		return
+	}
+
+	message := fmt.Sprintf("SET statement executed, %d variables processed", affectedVars)
+	if len(errors) > 0 {
+		message = fmt.Sprintf("%s (%d warnings: %s)", message, len(errors), strings.Join(errors, "; "))
+	}
+
+	ctx.Results <- &Result{
+		ResultType: innodbcommon.RESULT_TYPE_SET,
+		Message:    message,
+	}
+	logger.Debugf(" [executeSetStatement] SET语句执行完成: %s", message)
+}
+
+// evaluateSetValue 计算 SET 表达式的值
+func (e *XMySQLExecutor) evaluateSetValue(expr sqlparser.Expr) (interface{}, error) {
+	switch v := expr.(type) {
+	case *sqlparser.SQLVal:
+		switch v.Type {
+		case sqlparser.IntVal:
+			val, err := strconv.ParseInt(string(v.Val), 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid integer value '%s'", string(v.Val))
+			}
+			return val, nil
+		case sqlparser.FloatVal:
+			val, err := strconv.ParseFloat(string(v.Val), 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid float value '%s'", string(v.Val))
+			}
+			return val, nil
+		case sqlparser.StrVal:
+			return string(v.Val), nil
+		default:
+			return string(v.Val), nil
+		}
+	case sqlparser.BoolVal:
+		if bool(v) {
+			return int64(1), nil
+		}
+		return int64(0), nil
+	case *sqlparser.NullVal:
+		return nil, nil
+	case *sqlparser.ColName:
+		return v.Name.String(), nil
+	case *sqlparser.ParenExpr:
+		return e.evaluateSetValue(v.Expr)
+	default:
+		return sqlparser.String(expr), nil
+	}
+}
+
+// setSessionVariable 设置会话变量
+func (e *XMySQLExecutor) setSessionVariable(session server.MySQLServerSession, name string, value interface{}) error {
+	if session == nil {
+		return fmt.Errorf("session is nil")
+	}
+
+	cleanName := strings.TrimSpace(name)
+	cleanName = strings.Trim(cleanName, "`")
+	cleanName = strings.TrimPrefix(cleanName, "@@")
+	cleanName = strings.TrimPrefix(cleanName, "session.")
+	cleanName = strings.TrimPrefix(cleanName, "global.")
+	cleanName = strings.ToLower(cleanName)
+
+	if cleanName == "" {
+		return fmt.Errorf("variable name cannot be empty")
+	}
+
+	logger.Debugf(" [setSessionVariable] 设置变量: %s = %v (type=%T)", cleanName, value, value)
+
+	switch cleanName {
+	case "autocommit":
+		session.SetParamByName(cleanName, fmt.Sprintf("%d", boolishToInt(value)))
+	case "names":
+		charset := fmt.Sprintf("%v", value)
+		if charset == "" {
+			charset = "utf8mb4"
+		}
+		session.SetParamByName("character_set_client", charset)
+		session.SetParamByName("character_set_connection", charset)
+		session.SetParamByName("character_set_results", charset)
+	case "character_set_client", "character_set_connection", "character_set_results",
+		"character_set_database", "character_set_server":
+		session.SetParamByName(cleanName, fmt.Sprintf("%v", value))
+	case "sql_mode", "time_zone", "transaction_isolation", "tx_isolation",
+		"net_write_timeout", "net_read_timeout", "max_allowed_packet":
+		session.SetParamByName(cleanName, fmt.Sprintf("%v", value))
+	default:
+		session.SetParamByName(cleanName, fmt.Sprintf("%v", value))
+	}
+
+	return nil
+}
+
+func boolishToInt(value interface{}) int64 {
+	switch v := value.(type) {
+	case int64:
+		if v != 0 {
+			return 1
+		}
+		return 0
+	case int:
+		if v != 0 {
+			return 1
+		}
+		return 0
+	case bool:
+		if v {
+			return 1
+		}
+		return 0
+	case string:
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "1", "on", "true", "enabled":
+			return 1
+		default:
+			return 0
+		}
+	case nil:
+		return 0
+	default:
+		return 0
+	}
+}
 
 // executeCreateTableStatement 执行 CREATE TABLE
 func (e *XMySQLExecutor) executeCreateTableStatement(ctx *ExecutionContext, databaseName string, stmt *sqlparser.DDL) {
@@ -1722,4 +1899,257 @@ func (e *XMySQLExecutor) parseTableOptions(spec *sqlparser.TableSpec) map[string
 	}
 
 	return options
+}
+
+// executeShowStatement 执行 SHOW 语句
+func (e *XMySQLExecutor) executeShowStatement(ctx *ExecutionContext, stmt *sqlparser.Show, session server.MySQLServerSession) {
+	logger.Debugf(" [executeShowStatement] 处理SHOW语句: %s", stmt.Type)
+
+	showType := strings.ToLower(stmt.Type)
+
+	switch showType {
+	case "databases":
+		e.executeShowDatabases(ctx)
+	case "tables":
+		e.executeShowTables(ctx, session)
+	case "columns", "fields":
+		e.executeShowColumns(ctx, stmt)
+	case "variables":
+		e.executeShowVariables(ctx, stmt)
+	case "status":
+		e.executeShowStatus(ctx, stmt)
+	case "create table":
+		e.executeShowCreateTable(ctx, stmt)
+	case "engines":
+		e.executeShowEngines(ctx)
+	case "warnings":
+		e.executeShowWarnings(ctx)
+	case "errors":
+		e.executeShowErrors(ctx)
+	default:
+		logger.Warnf(" [executeShowStatement] 不支持的SHOW类型: %s", showType)
+		ctx.Results <- &Result{
+			Err:        fmt.Errorf("unsupported SHOW type: %s", showType),
+			ResultType: "ERROR",
+		}
+	}
+}
+
+// executeShowDatabases 执行 SHOW DATABASES
+func (e *XMySQLExecutor) executeShowDatabases(ctx *ExecutionContext) {
+	logger.Debugf(" [executeShowDatabases] 执行SHOW DATABASES")
+
+	// 获取数据目录
+	dataDir := e.conf.DataDir
+	if dataDir == "" {
+		dataDir = "data"
+	}
+
+	// 读取数据目录下的所有子目录（每个子目录代表一个数据库）
+	var databases []string
+
+	// 添加系统数据库
+	databases = append(databases, "information_schema", "mysql", "performance_schema", "sys")
+
+	// 读取用户数据库
+	if entries, err := os.ReadDir(dataDir); err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() {
+				dbName := entry.Name()
+				// 过滤掉隐藏目录和系统目录
+				if !strings.HasPrefix(dbName, ".") && !strings.HasPrefix(dbName, "_") {
+					databases = append(databases, dbName)
+				}
+			}
+		}
+	}
+
+	// 构造结果集
+	rows := make([][]interface{}, len(databases))
+	for i, db := range databases {
+		rows[i] = []interface{}{db}
+	}
+
+	// 使用 Data 字段存储结果，格式为 map
+	resultData := map[string]interface{}{
+		"columns": []string{"Database"},
+		"rows":    rows,
+	}
+
+	ctx.Results <- &Result{
+		ResultType: "QUERY",
+		Data:       resultData,
+		Message:    fmt.Sprintf("Found %d databases", len(databases)),
+	}
+
+	logger.Debugf(" [executeShowDatabases] 返回 %d 个数据库", len(databases))
+}
+
+// executeShowTables 执行 SHOW TABLES
+func (e *XMySQLExecutor) executeShowTables(ctx *ExecutionContext, session server.MySQLServerSession) {
+	logger.Debugf(" [executeShowTables] 执行SHOW TABLES")
+
+	// 获取当前数据库
+	currentDB := session.GetParamByName("database")
+	if currentDB == "" {
+		ctx.Results <- &Result{
+			Err:        fmt.Errorf("no database selected"),
+			ResultType: "ERROR",
+		}
+		return
+	}
+
+	// 从SchemaManager获取表列表
+	tables := []string{}
+
+	// 这里简化实现，返回空列表
+	// 实际应该从 SchemaManager 获取
+	logger.Debugf(" [executeShowTables] 当前数据库: %s", currentDB)
+
+	// 构造结果集
+	rows := make([][]interface{}, len(tables))
+	for i, table := range tables {
+		rows[i] = []interface{}{table}
+	}
+
+	columnName := fmt.Sprintf("Tables_in_%s", currentDB)
+	resultData := map[string]interface{}{
+		"columns": []string{columnName},
+		"rows":    rows,
+	}
+
+	ctx.Results <- &Result{
+		ResultType: "QUERY",
+		Data:       resultData,
+		Message:    fmt.Sprintf("Found %d tables", len(tables)),
+	}
+
+	logger.Debugf(" [executeShowTables] 返回 %d 个表", len(tables))
+}
+
+// executeShowColumns 执行 SHOW COLUMNS
+func (e *XMySQLExecutor) executeShowColumns(ctx *ExecutionContext, stmt *sqlparser.Show) {
+	logger.Debugf(" [executeShowColumns] 执行SHOW COLUMNS")
+
+	// 简化实现，返回空结果
+	resultData := map[string]interface{}{
+		"columns": []string{"Field", "Type", "Null", "Key", "Default", "Extra"},
+		"rows":    [][]interface{}{},
+	}
+
+	ctx.Results <- &Result{
+		ResultType: "QUERY",
+		Data:       resultData,
+	}
+}
+
+// executeShowVariables 执行 SHOW VARIABLES
+func (e *XMySQLExecutor) executeShowVariables(ctx *ExecutionContext, stmt *sqlparser.Show) {
+	logger.Debugf(" [executeShowVariables] 执行SHOW VARIABLES")
+
+	// 简化实现，返回一些常见变量
+	rows := [][]interface{}{
+		{"character_set_client", "utf8mb4"},
+		{"character_set_connection", "utf8mb4"},
+		{"character_set_database", "utf8mb4"},
+		{"character_set_results", "utf8mb4"},
+		{"character_set_server", "utf8mb4"},
+		{"collation_connection", "utf8mb4_general_ci"},
+		{"collation_database", "utf8mb4_general_ci"},
+		{"collation_server", "utf8mb4_general_ci"},
+		{"version", "8.0.0-xmysql"},
+		{"version_comment", "XMySQL Server"},
+	}
+
+	resultData := map[string]interface{}{
+		"columns": []string{"Variable_name", "Value"},
+		"rows":    rows,
+	}
+
+	ctx.Results <- &Result{
+		ResultType: "QUERY",
+		Data:       resultData,
+	}
+}
+
+// executeShowStatus 执行 SHOW STATUS
+func (e *XMySQLExecutor) executeShowStatus(ctx *ExecutionContext, stmt *sqlparser.Show) {
+	logger.Debugf(" [executeShowStatus] 执行SHOW STATUS")
+
+	// 简化实现，返回一些状态变量
+	rows := [][]interface{}{
+		{"Threads_connected", "1"},
+		{"Uptime", "3600"},
+		{"Questions", "100"},
+	}
+
+	resultData := map[string]interface{}{
+		"columns": []string{"Variable_name", "Value"},
+		"rows":    rows,
+	}
+
+	ctx.Results <- &Result{
+		ResultType: "QUERY",
+		Data:       resultData,
+	}
+}
+
+// executeShowCreateTable 执行 SHOW CREATE TABLE
+func (e *XMySQLExecutor) executeShowCreateTable(ctx *ExecutionContext, stmt *sqlparser.Show) {
+	logger.Debugf(" [executeShowCreateTable] 执行SHOW CREATE TABLE")
+
+	// 简化实现
+	ctx.Results <- &Result{
+		Err:        fmt.Errorf("SHOW CREATE TABLE not yet fully implemented"),
+		ResultType: "ERROR",
+	}
+}
+
+// executeShowEngines 执行 SHOW ENGINES
+func (e *XMySQLExecutor) executeShowEngines(ctx *ExecutionContext) {
+	logger.Debugf(" [executeShowEngines] 执行SHOW ENGINES")
+
+	rows := [][]interface{}{
+		{"InnoDB", "DEFAULT", "Supports transactions, row-level locking, and foreign keys", "YES", "YES", "YES"},
+	}
+
+	resultData := map[string]interface{}{
+		"columns": []string{"Engine", "Support", "Comment", "Transactions", "XA", "Savepoints"},
+		"rows":    rows,
+	}
+
+	ctx.Results <- &Result{
+		ResultType: "QUERY",
+		Data:       resultData,
+	}
+}
+
+// executeShowWarnings 执行 SHOW WARNINGS
+func (e *XMySQLExecutor) executeShowWarnings(ctx *ExecutionContext) {
+	logger.Debugf(" [executeShowWarnings] 执行SHOW WARNINGS")
+
+	resultData := map[string]interface{}{
+		"columns": []string{"Level", "Code", "Message"},
+		"rows":    [][]interface{}{},
+	}
+
+	ctx.Results <- &Result{
+		ResultType: "QUERY",
+		Data:       resultData,
+	}
+}
+
+// executeShowErrors 执行 SHOW ERRORS
+func (e *XMySQLExecutor) executeShowErrors(ctx *ExecutionContext) {
+	logger.Debugf(" [executeShowErrors] 执行SHOW ERRORS")
+
+	resultData := map[string]interface{}{
+		"columns": []string{"Level", "Code", "Message"},
+		"rows":    [][]interface{}{},
+	}
+
+	ctx.Results <- &Result{
+		ResultType: "QUERY",
+		Data:       resultData,
+	}
 }

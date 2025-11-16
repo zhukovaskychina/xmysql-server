@@ -200,7 +200,7 @@ func ExampleSessionStateManager() {
 
 // ExampleIntegratedUsage 集成使用示例
 func ExampleIntegratedUsage() {
-	fmt.Println("=== MySQL协议高级特性集成示例 ===\n")
+	fmt.Println("=== MySQL协议高级特性集成示例 ===")
 
 	// 1. 字符集管理
 	fmt.Println("1. 字符集管理:")

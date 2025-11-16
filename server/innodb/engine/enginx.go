@@ -246,22 +246,21 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			switch stmt.Action {
 			case "create":
 				e.QueryExecutor.executeCreateDatabaseStatement(ctx, stmt)
+			case "drop":
+				e.QueryExecutor.executeDropDatabaseStatement(ctx, stmt)
 			default:
 				results <- &Result{Err: fmt.Errorf("unsupported DB action: %s", stmt.Action), ResultType: common.RESULT_TYPE_ERROR}
 			}
 
 		case *sqlparser.Show:
-			results <- &Result{Err: fmt.Errorf("SHOW not yet implemented"), ResultType: common.RESULT_TYPE_ERROR}
+			// 处理 SHOW 语句
+			logger.Debugf(" [XMySQLEngine.ExecuteQuery] 处理SHOW语句: %s", stmt.Type)
+			e.QueryExecutor.executeShowStatement(ctx, stmt, session)
 
 		case *sqlparser.Set:
-			for _, expr := range stmt.Exprs {
-				logger.Error(expr)
-				results <- &Result{
-					StatementID: ctx.statementId,
-					ResultType:  common.RESULT_TYPE_SET,
-				}
-				session.SendOK()
-			}
+			// SET 语句需要统一由执行器处理，避免在协议层重复发送OK包
+			logger.Debugf(" [XMySQLEngine.ExecuteQuery] 处理SET语句，包含 %d 个表达式", len(stmt.Exprs))
+			e.QueryExecutor.executeSetStatement(ctx, stmt, session)
 
 		case *sqlparser.Use:
 			// 处理USE语句
