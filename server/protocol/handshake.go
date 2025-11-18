@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
+
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/util"
@@ -39,7 +40,7 @@ func NewHandshakePacket(connectionID uint32) *HandshakePacket {
 		}
 	}
 
-	// 设置实际支持的能力标志
+	// 设置实际支持的能力标志（与历史版本保持一致，提升 JDBC 兼容性）
 	// 低16位能力标志
 	capFlags1 := uint16(0)
 	capFlags1 |= uint16(common.CLIENT_LONG_PASSWORD)     // 支持新密码
@@ -64,11 +65,13 @@ func NewHandshakePacket(connectionID uint32) *HandshakePacket {
 		ConnectionID:        connectionID,
 		AuthPluginDataPart1: authData[:8],
 		Filler:              0x00,
-		CapabilityFlags1:    capFlags1,
-		CharacterSet:        0x21,   // utf8_general_ci
-		StatusFlags:         0x0002, // SERVER_STATUS_AUTOCOMMIT
+
+		CapabilityFlags1: capFlags1,
+		CharacterSet:     0x21,   // utf8_general_ci
+		StatusFlags:      0x0002, // SERVER_STATUS_AUTOCOMMIT
+
 		CapabilityFlags2:    capFlags2,
-		AuthPluginDataLen:   21, // 20字节数据 + 1字节null终止符
+		AuthPluginDataLen:   21,
 		Reserved:            make([]byte, 10),
 		AuthPluginDataPart2: authData[8:],
 		AuthPluginName:      "mysql_native_password",

@@ -197,7 +197,7 @@ func EncodeColumnDefinitionPacket(def *ColumnDefinition, seq byte) []byte {
 
 // EncodeRowDataPacket 编码行数据包（包含 MySQL 包头）
 // 完全符合 MySQL 文本协议规范
-func EncodeRowDataPacket(row []any, seq byte) []byte {
+func EncodeRowDataPacket(row []interface{}, seq byte) []byte {
 	var payload []byte
 
 	for _, value := range row {
@@ -216,7 +216,7 @@ func EncodeRowDataPacket(row []any, seq byte) []byte {
 }
 
 // valueToString 将任意类型转换为字符串（用于文本协议）
-func valueToString(value any) string {
+func valueToString(value interface{}) string {
 	if value == nil {
 		return ""
 	}

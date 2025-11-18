@@ -125,7 +125,7 @@ func (sei *StorageEngineIntegrator) injectStorageStatistics() {
 // configureOptimizerStorageAccess 配置优化器存储访问
 func (sei *StorageEngineIntegrator) configureOptimizerStorageAccess() {
 	// 设置代价估算器的存储访问接口
-	storageAccessor := &StorageAccessor{
+	_ = &StorageAccessor{
 		spaceManager:      sei.spaceManager,
 		bufferPoolManager: sei.bufferPoolManager,
 		btreeManager:      sei.btreeManager,
@@ -326,8 +326,17 @@ func (sei *StorageEngineIntegrator) updateOptimizerStatistics(table *metadata.Ta
 
 // 辅助方法
 func (sei *StorageEngineIntegrator) getTableSpaceID(table *metadata.Table) uint32 {
-	// 简化实现，实际应该从表元数据获取
-	return uint32(table.ID)
+	// 简化实现：通过 SpaceManager 根据表名获取表空间
+	if table == nil || sei.spaceManager == nil {
+		return 0
+	}
+
+	ts, err := sei.spaceManager.GetTableSpaceByName(table.Name)
+	if err != nil {
+		return 0
+	}
+
+	return ts.GetSpaceId()
 }
 
 func (sei *StorageEngineIntegrator) estimateRowCount(space basic.Space) uint64 {
@@ -351,10 +360,16 @@ func (sei *StorageEngineIntegrator) estimateClusterFactor(space basic.Space, ind
 }
 
 func (sei *StorageEngineIntegrator) calculatePrefixLength(index *metadata.Index) int {
-	// 计算索引前缀长度
+	// 计算索引前缀长度：基于列的最大字符长度估算
+	if index == nil || index.Table == nil {
+		return 0
+	}
+
 	totalLength := 0
-	for _, column := range index.Columns {
-		totalLength += int(column.Length)
+	for _, colName := range index.Columns {
+		if col, ok := index.Table.GetColumn(colName); ok {
+			totalLength += col.CharMaxLength
+		}
 	}
 	return totalLength
 }
@@ -370,7 +385,7 @@ func (sei *StorageEngineIntegrator) estimateIndexSelectivity(space basic.Space, 
 
 func (sei *StorageEngineIntegrator) estimateNotNullCount(space basic.Space, column *metadata.Column) uint64 {
 	rowCount := sei.estimateRowCount(space)
-	if column.NotNull {
+	if column != nil && !column.IsNullable {
 		return rowCount
 	}
 	return rowCount * 95 / 100 // 假设95%非空
@@ -382,7 +397,7 @@ func (sei *StorageEngineIntegrator) estimateDistinctCount(space basic.Space, col
 }
 
 func (sei *StorageEngineIntegrator) estimateNullCount(space basic.Space, column *metadata.Column) uint64 {
-	if column.NotNull {
+	if column != nil && !column.IsNullable {
 		return 0
 	}
 	rowCount := sei.estimateRowCount(space)
@@ -391,10 +406,14 @@ func (sei *StorageEngineIntegrator) estimateNullCount(space basic.Space, column 
 
 func (sei *StorageEngineIntegrator) getColumnMinValue(space basic.Space, column *metadata.Column) interface{} {
 	// 简化实现，返回类型默认最小值
-	switch column.Type {
-	case "INT", "BIGINT":
+	if column == nil {
+		return nil
+	}
+
+	switch column.DataType {
+	case metadata.TypeInt, metadata.TypeBigInt:
 		return int64(1)
-	case "VARCHAR", "TEXT":
+	case metadata.TypeVarchar, metadata.TypeText:
 		return "A"
 	default:
 		return nil
@@ -403,10 +422,14 @@ func (sei *StorageEngineIntegrator) getColumnMinValue(space basic.Space, column 
 
 func (sei *StorageEngineIntegrator) getColumnMaxValue(space basic.Space, column *metadata.Column) interface{} {
 	// 简化实现，返回类型默认最大值
-	switch column.Type {
-	case "INT", "BIGINT":
+	if column == nil {
+		return nil
+	}
+
+	switch column.DataType {
+	case metadata.TypeInt, metadata.TypeBigInt:
 		return int64(1000000)
-	case "VARCHAR", "TEXT":
+	case metadata.TypeVarchar, metadata.TypeText:
 		return "ZZZZ"
 	default:
 		return nil
