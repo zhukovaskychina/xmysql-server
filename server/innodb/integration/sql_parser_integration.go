@@ -19,9 +19,6 @@ import (
 type SQLParserIntegrator struct {
 	sync.RWMutex
 
-	// 解析器组件
-	parser *sqlparser.Parser
-
 	// 优化器组件
 	optimizerManager    *manager.OptimizerManager
 	storageIntegrator   *StorageEngineIntegrator
@@ -73,8 +70,7 @@ func NewSQLParserIntegrator(
 
 // initializeIntegration 初始化集成组件
 func (spi *SQLParserIntegrator) initializeIntegration() {
-	// 初始化解析器
-	spi.parser = &sqlparser.Parser{}
+	// 初始化解析器 (使用sqlparser包提供的全局解析函数)
 
 	// 获取优化器组件
 	spi.statisticsCollector = spi.storageIntegrator.statisticsCollector
@@ -346,13 +342,15 @@ func (spi *SQLParserIntegrator) convertExpressionToPlanExpression(
 			return nil, err
 		}
 
-		// 创建OR表达式
-		orExpr := &plan.BinaryOperation{
-			Op:    plan.OpOR,
-			Left:  &plan.ExpressionList{Expressions: leftExprs},
-			Right: &plan.ExpressionList{Expressions: rightExprs},
+		// 创建OR表达式，简化为仅取首个转换结果
+		if len(leftExprs) > 0 && len(rightExprs) > 0 {
+			orExpr := &plan.BinaryOperation{
+				Op:    plan.OpOr,
+				Left:  leftExprs[0],
+				Right: rightExprs[0],
+			}
+			expressions = append(expressions, orExpr)
 		}
-		expressions = append(expressions, orExpr)
 	}
 
 	return expressions, nil
@@ -415,7 +413,7 @@ func (spi *SQLParserIntegrator) convertValueExpression(
 }
 
 // convertOperator 转换操作符
-func (spi *SQLParserIntegrator) convertOperator(operator string) (plan.Operator, error) {
+func (spi *SQLParserIntegrator) convertOperator(operator string) (plan.BinaryOp, error) {
 	switch operator {
 	case "=":
 		return plan.OpEQ, nil
@@ -432,7 +430,7 @@ func (spi *SQLParserIntegrator) convertOperator(operator string) (plan.Operator,
 	case "like":
 		return plan.OpLike, nil
 	case "in":
-		return plan.OpIN, nil
+		return plan.OpIn, nil
 	default:
 		return plan.OpEQ, fmt.Errorf("不支持的操作符: %s", operator)
 	}
@@ -515,7 +513,7 @@ func (spi *SQLParserIntegrator) getQueryType(stmt sqlparser.Statement) QueryType
 	}
 }
 
-func (spi *SQLParserIntegrator) extractTableName(expr sqlparser.TableExpr) string {
+func (spi *SQLParserIntegrator) extractTableName(expr sqlparser.SimpleTableExpr) string {
 	switch v := expr.(type) {
 	case sqlparser.TableName:
 		return v.Name.String()

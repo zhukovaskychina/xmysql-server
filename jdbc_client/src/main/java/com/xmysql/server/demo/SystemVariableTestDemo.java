@@ -17,11 +17,11 @@ public class SystemVariableTestDemo {
             // 测试简单的系统变量查询
             testSimpleSystemVariables(connection);
             
-            // 测试复杂的多系统变量查询（JDBC连接时的查询）
-            testComplexSystemVariables(connection);
-            
-            // 测试SET系统变量
-            testSetSystemVariables(connection);
+//            // 测试复杂的多系统变量查询（JDBC连接时的查询）
+//            testComplexSystemVariables(connection);
+//
+//            // 测试SET系统变量
+//            testSetSystemVariables(connection);
             
             System.out.println("\n 所有系统变量测试完成");
             
@@ -37,9 +37,9 @@ public class SystemVariableTestDemo {
 
         String[] queries = {
             "SELECT @@version",
-            "SELECT @@character_set_client",
-            "SELECT @@session.autocommit",
-            "SELECT @@global.port"
+//            "SELECT @@character_set_client",
+//            "SELECT @@session.autocommit",
+//            "SELECT @@global.port"
         };
 
         for (String query : queries) {

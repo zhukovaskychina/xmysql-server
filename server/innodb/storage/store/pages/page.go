@@ -23,8 +23,12 @@ const (
 
 // Common errors
 var (
-	ErrInvalidHeaderSize = errors.New("invalid header size")
-	ErrInvalidChecksum   = errors.New("invalid page checksum")
+	ErrInvalidHeaderSize  = errors.New("invalid header size")
+	ErrInvalidChecksum    = errors.New("invalid page checksum")
+	ErrInvalidPageSize    = errors.New("invalid page size")
+	ErrPageCorrupted      = errors.New("page is corrupted")
+	ErrPageAlreadyInited  = errors.New("page already initialized")
+	ErrInvalidPageContent = errors.New("invalid page content")
 )
 
 // FileHeader represents the header structure of an InnoDB page
@@ -208,6 +212,25 @@ func (fh *FileHeader) GetSerialBytes() []byte {
    //////////////////////////
 *
 *********/
+
+// IPage 页面接口
+//
+// Deprecated: IPage is deprecated and will be removed in a future version.
+// Use wrapper/types.IPageWrapper instead, which provides:
+//   - Complete page lifecycle management
+//   - Buffer pool integration
+//   - Concurrency control with atomic operations
+//   - Statistics tracking
+//
+// Migration example:
+//
+//	// Old code:
+//	var page pages.IPage
+//	header := page.GetFileHeader()
+//
+//	// New code:
+//	var page types.IPageWrapper
+//	header := page.GetFileHeaderStruct()
 type IPage interface {
 	GetFileHeader() FileHeader
 
@@ -218,7 +241,33 @@ type IPage interface {
 	LoadFileHeader(content []byte)
 
 	LoadFileTrailer(content []byte)
+
+	// 新增方法
+	GetPageType() uint16
+	ValidateChecksum() error
+	CalculateChecksum() uint32
+	IsCorrupted() bool
 }
+
+// AbstractPage 抽象页面基类
+//
+// Deprecated: AbstractPage is deprecated and will be removed in a future version.
+// Use types.UnifiedPage instead, which provides:
+//   - Better concurrency control with atomic operations
+//   - Complete IPageWrapper interface implementation
+//   - Integrated statistics and buffer pool support
+//   - Full serialization/deserialization support
+//
+// Migration example:
+//
+//	// Old code:
+//	page := &pages.AbstractPage{
+//	    FileHeader:  header,
+//	    FileTrailer: trailer,
+//	}
+//
+//	// New code:
+//	page := types.NewUnifiedPage(spaceID, pageNo, pageType)
 type AbstractPage struct {
 	IPage
 
@@ -253,4 +302,39 @@ func (a *AbstractPage) LoadFileTrailer(content []byte) {
 // 获得Bytes
 func (a *AbstractPage) SerializeBytes() []byte {
 	return nil
+}
+
+// GetPageType 获取页面类型
+func (a *AbstractPage) GetPageType() uint16 {
+	return uint16(a.FileHeader.GetPageType())
+}
+
+// ValidateChecksum 验证校验和
+func (a *AbstractPage) ValidateChecksum() error {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := a.GetSerializeBytes()
+	if data == nil {
+		return ErrPageCorrupted
+	}
+	return checker.ValidateChecksum(data)
+}
+
+// CalculateChecksum 计算校验和
+func (a *AbstractPage) CalculateChecksum() uint32 {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := a.GetSerializeBytes()
+	if data == nil {
+		return 0
+	}
+	return checker.CalculateChecksum(data)
+}
+
+// IsCorrupted 检查页面是否损坏
+func (a *AbstractPage) IsCorrupted() bool {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := a.GetSerializeBytes()
+	if data == nil {
+		return true
+	}
+	return checker.IsPageCorrupted(data)
 }

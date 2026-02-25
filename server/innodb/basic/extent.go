@@ -1,7 +1,5 @@
 package basic
 
-import "sync/atomic"
-
 // ExtentState represents the state of an extent
 type ExtentState uint8
 
@@ -23,9 +21,9 @@ const (
 
 // ExtentStats 区统计信息
 type ExtentStats struct {
-	TotalPages    atomic.Uint32
-	FreePages     atomic.Uint32
-	FragPages     atomic.Uint32
+	TotalPages    uint32
+	FreePages     uint32
+	FragPages     uint32
 	LastAllocated int64
 	LastFreed     int64
 	LastDefragged int64
@@ -106,14 +104,14 @@ type ExtentManager interface {
 
 // ExtentManagerStats 区管理器统计信息
 type ExtentManagerStats struct {
-	TotalExtents    atomic.Uint32
-	FreeExtents     atomic.Uint32
-	FullExtents     atomic.Uint32
-	PartialExtents  atomic.Uint32
-	TotalPages      atomic.Uint64
-	FreePages       atomic.Uint64
-	AllocOperations atomic.Uint64
-	FreeOperations  atomic.Uint64
+	TotalExtents    uint32
+	FreeExtents     uint32
+	FullExtents     uint32
+	PartialExtents  uint32
+	TotalPages      uint64
+	FreePages       uint64
+	AllocOperations uint64
+	FreeOperations  uint64
 	LastDefragTime  int64
 }
 

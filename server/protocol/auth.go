@@ -86,38 +86,65 @@ type AuthPacket struct {
 }
 
 func (ap *AuthPacket) DecodeAuth(buff []byte) *AuthPacket {
-	//解析packetLength
+	// 解析packetLength
 	var cursor = 0
 	var database = ""
+
+	// 检查最小长度
+	if len(buff) < 4 {
+		fmt.Println("认证包太短，无法解析包头")
+		return nil
+	}
+
 	cursor, packetLength := util.ReadUB3(buff, cursor)
-	if packetLength <= 32 {
-		cursor, packetId := util.ReadByte(buff, cursor)
-		fmt.Println(packetId)
-		cursor, maxPacketSize := util.ReadUB4(buff, cursor)
-		cursor, charsetIndex := util.ReadByte(buff, cursor)
-		fmt.Println(maxPacketSize, charsetIndex)
-		cursor, user := util.ReadStringWithNull(buff, cursor)
-		cursor, password := util.ReadBytesWithNull(buff, cursor-1)
-		cursor, database = util.ReadStringWithNull(buff, cursor-1)
-		fmt.Println(user)
-		fmt.Println(password)
-		fmt.Println(database)
-		return ap
+	cursor, _ = util.ReadByte(buff, cursor) // 跳过packetId
+
+	// 检查是否有足够的数据
+	if len(buff) < int(packetLength)+4 {
+		fmt.Println("认证包数据不完整")
+		return nil
 	}
-	cursor = 4
-	cursor, clientFlag := util.ReadUB4(buff, cursor)
-	cursor, maxPacketSize := util.ReadUB4(buff, cursor)
-	cursor, charsetIndex := util.ReadByte(buff, cursor)
-	var currentCursor = cursor
-	cursor, length := util.ReadLength(buff, cursor)
-	if currentCursor > 0 && length < 23 {
-		//获取extra
+
+	// 认证包的payload从第4字节开始
+	payload := buff[4:]
+	cursor = 0
+
+	// 检查payload最小长度（至少需要：4字节clientFlag + 4字节maxPacketSize + 1字节charset + 23字节保留）
+	if len(payload) < 32 {
+		fmt.Println("认证包payload太短")
+		return nil
 	}
-	cursor = cursor + 22
-	cursor, user := util.ReadStringWithNull(buff, cursor)
-	cursor, password := util.ReadBytesWithNull(buff, cursor)
-	if (len(buff) > cursor) && (int32(clientFlag)&int32(common.CLIENT_CONNECT_WITH_DB)) != 0 {
-		_, database = util.ReadStringWithNull(buff, cursor)
+
+	// 解析客户端能力标志（4字节）
+	cursor, clientFlag := util.ReadUB4(payload, cursor)
+
+	// 解析最大包大小（4字节）
+	cursor, maxPacketSize := util.ReadUB4(payload, cursor)
+
+	// 解析字符集（1字节）
+	cursor, charsetIndex := util.ReadByte(payload, cursor)
+
+	// 跳过保留字段（23字节）
+	cursor += 23
+
+	// 检查是否还有数据可读
+	if cursor >= len(payload) {
+		fmt.Println("认证包缺少用户名字段")
+		return nil
+	}
+
+	// 解析用户名（null结尾字符串）
+	cursor, user := util.ReadStringWithNull(payload, cursor)
+
+	// 解析密码（可能为空）
+	var password []byte
+	if cursor < len(payload) {
+		cursor, password = util.ReadBytesWithNull(payload, cursor)
+	}
+
+	// 解析数据库名（如果客户端指定了）
+	if cursor < len(payload) && (int32(clientFlag)&int32(common.CLIENT_CONNECT_WITH_DB)) != 0 {
+		_, database = util.ReadStringWithNull(payload, cursor)
 	}
 
 	ap.clientFlag = int(clientFlag)

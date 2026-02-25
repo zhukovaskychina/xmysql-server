@@ -276,6 +276,32 @@ func ConvertToPhysicalPlan(logicalPlan LogicalPlan) PhysicalPlan {
 			},
 			Conditions: v.Conditions,
 		}
+	case *LogicalSubquery:
+		// 转换子查询的子计划
+		var subplan PhysicalPlan
+		if v.Subplan != nil {
+			subplan = ConvertToPhysicalPlan(v.Subplan)
+		}
+		return &PhysicalSubquery{
+			BasePhysicalPlan: BasePhysicalPlan{
+				schema: v.Schema(),
+				cost:   estimateSubqueryCost(v),
+			},
+			SubqueryType: v.SubqueryType,
+			Correlated:   v.Correlated,
+			OuterRefs:    v.OuterRefs,
+			Subplan:      subplan,
+		}
+	case *LogicalApply:
+		return &PhysicalApply{
+			BasePhysicalPlan: BasePhysicalPlan{
+				schema: v.Schema(),
+				cost:   estimateApplyCost(v),
+			},
+			ApplyType:  v.ApplyType,
+			Correlated: v.Correlated,
+			JoinConds:  v.JoinConds,
+		}
 	}
 	return nil
 }
@@ -311,9 +337,75 @@ func estimateStreamAggCost(agg *LogicalAggregation) float64 {
 	return 0
 }
 
+func estimateSubqueryCost(subquery *LogicalSubquery) float64 {
+	// 子查询代价 = 子计划代价 * (关联子查询需要多次执行)
+	baseCost := 100.0
+	if subquery.Subplan != nil {
+		// 递归估算子计划代价
+		baseCost = 1000.0 // 简化估算
+	}
+
+	// 关联子查询代价更高（需要为外层每行执行一次）
+	if subquery.Correlated {
+		baseCost *= 100.0
+	}
+
+	return baseCost
+}
+
+func estimateApplyCost(apply *LogicalApply) float64 {
+	// Apply算子代价 = 左表行数 * 右表代价
+	baseCost := 1000.0
+
+	// 关联Apply代价更高
+	if apply.Correlated {
+		baseCost *= 100.0
+	}
+
+	// SEMI/ANTI JOIN可以提前终止，代价较低
+	if apply.ApplyType == "SEMI" || apply.ApplyType == "ANTI" {
+		baseCost *= 0.5
+	}
+
+	return baseCost
+}
+
 // ByItem 排序项
 type ByItem struct {
 	Expr      Expression
 	Desc      bool
 	NullOrder string
+}
+
+// PhysicalSubquery 子查询物理计划
+type PhysicalSubquery struct {
+	BasePhysicalPlan
+	SubqueryType string       // "SCALAR", "IN", "EXISTS", "ANY", "ALL"
+	Correlated   bool         // 是否为关联子查询
+	OuterRefs    []string     // 外部引用的列
+	Subplan      PhysicalPlan // 子查询的物理计划
+}
+
+func (p *PhysicalSubquery) ToString() string {
+	return "Subquery(" + p.SubqueryType + ")"
+}
+
+func (p *PhysicalSubquery) GetPlanAccessType() string {
+	return "SUBQUERY"
+}
+
+// PhysicalApply Apply算子物理计划（用于关联子查询）
+type PhysicalApply struct {
+	BasePhysicalPlan
+	ApplyType  string       // "INNER", "LEFT", "SEMI", "ANTI"
+	Correlated bool         // 是否为关联
+	JoinConds  []Expression // 关联条件
+}
+
+func (p *PhysicalApply) ToString() string {
+	return "Apply(" + p.ApplyType + ")"
+}
+
+func (p *PhysicalApply) GetPlanAccessType() string {
+	return "APPLY"
 }

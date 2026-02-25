@@ -40,6 +40,23 @@ type ExtentStats struct {
 }
 
 // ExtentImpl implements the Extent interface
+//
+// Deprecated: ExtentImpl is deprecated and will be removed in a future version.
+// Use extent.UnifiedExtent instead, which provides:
+//   - Unified implementation combining all extent features
+//   - Better performance with hybrid bitmap/map tracking
+//   - Full serialization support
+//   - Consistent API across the codebase
+//
+// Migration example:
+//
+//	// Old code:
+//	import "github.com/.../wrapper/space"
+//	ext := space.NewExtent(id, spaceID, startPage, purpose)
+//
+//	// New code:
+//	import "github.com/.../wrapper/extent"
+//	ext := extent.NewUnifiedExtent(id, spaceID, startPage, extType, purpose)
 type ExtentImpl struct {
 	mu sync.RWMutex
 	basic.Extent
@@ -53,6 +70,8 @@ type ExtentImpl struct {
 }
 
 // NewExtent creates a new extent
+//
+// Deprecated: Use extent.NewUnifiedExtent instead.
 func NewExtent(id, spaceID, startPage uint32, purpose basic.ExtentPurpose) *ExtentImpl {
 	return &ExtentImpl{
 		id:        id,
@@ -280,13 +299,13 @@ func (e *ExtentImpl) GetStats() *basic.ExtentStats {
 
 	// 转换为basic.ExtentStats
 	basicStats := &basic.ExtentStats{
+		TotalPages:    PagesPerExtent,
+		FreePages:     e.stats.FreePages,
+		FragPages:     e.stats.FragmentCount,
 		LastAllocated: e.stats.LastAllocTime.Unix(),
 		LastFreed:     e.stats.LastFreeTime.Unix(),
 		LastDefragged: 0,
 	}
-	basicStats.TotalPages.Store(PagesPerExtent)
-	basicStats.FreePages.Store(e.stats.FreePages)
-	basicStats.FragPages.Store(e.stats.FragmentCount)
 
 	return basicStats
 }

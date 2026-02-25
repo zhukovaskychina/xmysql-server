@@ -4,16 +4,23 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/zhukovaskychina/xmysql-server/logger"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/logger"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/page"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/record"
 )
+
+// ctxKey is the type used for context keys in this package.
+type ctxKey string
+
+// ctxTxnIDKey is the context key used to store the current transaction ID.
+const ctxTxnIDKey ctxKey = "txn_id"
 
 // EnhancedBTreeIndex 增强版B+树索引实例
 type EnhancedBTreeIndex struct {
@@ -31,11 +38,11 @@ type EnhancedBTreeIndex struct {
 	statistics *EnhancedIndexStatistics // 索引统计
 
 	// 引用计数
-	refCount atomic.Int32 // 引用计数
+	refCount int32 // 引用计数，使用atomic操作
 
 	// 状态管理
-	isLoaded  atomic.Bool // 是否已加载
-	lastFlush time.Time   // 最后刷新时间
+	isLoaded  uint32    // 是否已加载，使用atomic操作（0=false, 1=true）
+	lastFlush time.Time // 最后刷新时间
 }
 
 // NewEnhancedBTreeIndex 创建增强版B+树索引实例
@@ -91,7 +98,7 @@ func (idx *EnhancedBTreeIndex) GetMetadata() *IndexMetadata {
 
 // Insert 插入记录
 func (idx *EnhancedBTreeIndex) Insert(ctx context.Context, key []byte, value []byte) error {
-	if !idx.isLoaded.Load() {
+	if atomic.LoadUint32(&idx.isLoaded) == 0 {
 		return fmt.Errorf("index %d is not loaded", idx.metadata.IndexID)
 	}
 
@@ -120,7 +127,7 @@ func (idx *EnhancedBTreeIndex) Insert(ctx context.Context, key []byte, value []b
 
 // Delete 删除记录
 func (idx *EnhancedBTreeIndex) Delete(ctx context.Context, key []byte) error {
-	if !idx.isLoaded.Load() {
+	if atomic.LoadUint32(&idx.isLoaded) == 0 {
 		return fmt.Errorf("index %d is not loaded", idx.metadata.IndexID)
 	}
 
@@ -157,7 +164,7 @@ func (idx *EnhancedBTreeIndex) Delete(ctx context.Context, key []byte) error {
 
 // Search 搜索记录
 func (idx *EnhancedBTreeIndex) Search(ctx context.Context, key []byte) (*IndexRecord, error) {
-	if !idx.isLoaded.Load() {
+	if atomic.LoadUint32(&idx.isLoaded) == 0 {
 		return nil, fmt.Errorf("index %d is not loaded", idx.metadata.IndexID)
 	}
 
@@ -200,7 +207,7 @@ func (idx *EnhancedBTreeIndex) Search(ctx context.Context, key []byte) (*IndexRe
 
 // RangeSearch 范围搜索
 func (idx *EnhancedBTreeIndex) RangeSearch(ctx context.Context, startKey, endKey []byte) ([]IndexRecord, error) {
-	if !idx.isLoaded.Load() {
+	if atomic.LoadUint32(&idx.isLoaded) == 0 {
 		return nil, fmt.Errorf("index %d is not loaded", idx.metadata.IndexID)
 	}
 
@@ -351,17 +358,23 @@ func (idx *EnhancedBTreeIndex) GetPage(ctx context.Context, pageNo uint32) (*BTr
 
 // AllocatePage 分配新页面
 func (idx *EnhancedBTreeIndex) AllocatePage(ctx context.Context) (uint32, error) {
-	// 简化实现：使用时间戳生成页号
-	// 实际应该从存储管理器分配页面
-	newPageNo := uint32(time.Now().UnixNano())%1000000 + 10000
+	// 使用存储管理器通过缓冲池管理器分配页面
+	bufferPage, err := idx.storageManager.GetBufferPoolManager().AllocatePage(idx.metadata.SpaceID)
+	if err != nil {
+		return 0, err
+	}
 
-	// TODO: 真正的页面分配逻辑
-	return newPageNo, nil
+	return bufferPage.GetPageNo(), nil
 }
 
 // DeallocatePage 释放页面
 func (idx *EnhancedBTreeIndex) DeallocatePage(ctx context.Context, pageNo uint32) error {
-	// 从缓存中移除
+	// 先通过存储管理器释放页面
+	if err := idx.storageManager.GetBufferPoolManager().FreePage(idx.metadata.SpaceID, pageNo); err != nil {
+		return err
+	}
+
+	// 再从缓存中移除
 	idx.mu.Lock()
 	delete(idx.pageCache, pageNo)
 	for i, no := range idx.pageLoadOrder {
@@ -372,7 +385,6 @@ func (idx *EnhancedBTreeIndex) DeallocatePage(ctx context.Context, pageNo uint32
 	}
 	idx.mu.Unlock()
 
-	// TODO: 真正的页面释放逻辑
 	return nil
 }
 
@@ -402,7 +414,27 @@ func (idx *EnhancedBTreeIndex) UpdateStatistics(ctx context.Context) error {
 
 // CheckConsistency 检查一致性
 func (idx *EnhancedBTreeIndex) CheckConsistency(ctx context.Context) error {
-	// TODO: 实现一致性检查逻辑
+	leafPages, err := idx.GetAllLeafPages(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, pageNo := range leafPages {
+		page, err := idx.GetPage(ctx, pageNo)
+		if err != nil {
+			return err
+		}
+
+		bufferPage, err := idx.storageManager.GetBufferPoolManager().GetPage(idx.metadata.SpaceID, pageNo)
+		if err != nil {
+			return err
+		}
+
+		if idx.getRecordCountFromPage(bufferPage.GetContent()) != page.RecordCount {
+			return fmt.Errorf("page %d record count mismatch", pageNo)
+		}
+	}
+
 	return nil
 }
 
@@ -430,22 +462,22 @@ func (idx *EnhancedBTreeIndex) Flush(ctx context.Context) error {
 
 // IsLoaded 检查是否已加载
 func (idx *EnhancedBTreeIndex) IsLoaded() bool {
-	return idx.isLoaded.Load()
+	return atomic.LoadUint32(&idx.isLoaded) == 1
 }
 
 // GetRefCount 获取引用计数
 func (idx *EnhancedBTreeIndex) GetRefCount() int32 {
-	return idx.refCount.Load()
+	return atomic.LoadInt32(&idx.refCount)
 }
 
 // AddRef 增加引用计数
 func (idx *EnhancedBTreeIndex) AddRef() int32 {
-	return idx.refCount.Add(1)
+	return atomic.AddInt32(&idx.refCount, 1)
 }
 
 // Release 释放引用
 func (idx *EnhancedBTreeIndex) Release() int32 {
-	return idx.refCount.Add(-1)
+	return atomic.AddInt32(&idx.refCount, -1)
 }
 
 // 索引生命周期方法
@@ -484,7 +516,7 @@ func (idx *EnhancedBTreeIndex) InitializeEmptyIndex(ctx context.Context) error {
 	idx.metadata.PageCount = 1
 	idx.metadata.RecordCount = 0
 
-	idx.isLoaded.Store(true)
+	atomic.StoreUint32(&idx.isLoaded, 1)
 	return nil
 }
 
@@ -496,7 +528,7 @@ func (idx *EnhancedBTreeIndex) LoadFromStorage(ctx context.Context) error {
 		return fmt.Errorf("failed to load root page: %v", err)
 	}
 
-	idx.isLoaded.Store(true)
+	atomic.StoreUint32(&idx.isLoaded, 1)
 	return nil
 }
 
@@ -547,12 +579,26 @@ func (idx *EnhancedBTreeIndex) insertIntoPage(ctx context.Context, page *BTreePa
 	}
 
 	// 7. 更新内存中的记录信息（为了兼容现有逻辑）
+	txnID := uint64(0)
+	if ctx != nil {
+		if v := ctx.Value(ctxTxnIDKey); v != nil {
+			switch t := v.(type) {
+			case uint64:
+				txnID = t
+			case int64:
+				txnID = uint64(t)
+			case *Transaction:
+				txnID = uint64(t.ID)
+			}
+		}
+	}
+
 	indexRecord := IndexRecord{
 		Key:        make([]byte, len(key)),
 		Value:      make([]byte, len(value)),
 		PageNo:     page.PageNo,
 		SlotNo:     page.RecordCount - 1, // 使用真实的记录数量
-		TxnID:      0,                    // TODO: 获取事务ID
+		TxnID:      txnID,
 		DeleteMark: false,
 	}
 	copy(indexRecord.Key, key)
@@ -897,10 +943,17 @@ func (idx *EnhancedBTreeIndex) searchInPage(page *BTreePage, key []byte) (*Index
 	}
 
 	// 在内部页面中搜索子页面
-	// 简化实现：返回第一个子页面
 	if len(page.Records) > 0 {
-		// TODO: 实现正确的子页面查找逻辑
-		return nil, idx.getFirstChildPageNo(page), nil
+		for i, record := range page.Records {
+			if idx.compareKeys(key, record.Key) < 0 {
+				if i == 0 {
+					return nil, binary.LittleEndian.Uint32(record.Value), nil
+				}
+				return nil, binary.LittleEndian.Uint32(page.Records[i-1].Value), nil
+			}
+		}
+		last := page.Records[len(page.Records)-1]
+		return nil, binary.LittleEndian.Uint32(last.Value), nil
 	}
 
 	return nil, 0, fmt.Errorf("empty internal page")
@@ -928,23 +981,39 @@ func (idx *EnhancedBTreeIndex) rangeSearchInPage(page *BTreePage, startKey, endK
 
 // parsePageContent 解析页面内容
 func (idx *EnhancedBTreeIndex) parsePageContent(bufferPage interface{}) (*BTreePage, error) {
-	// 简化实现：创建一个基本的页面结构
+	p, ok := bufferPage.(basic.IPage)
+	if !ok {
+		return nil, fmt.Errorf("invalid buffer page")
+	}
+
+	data := p.GetData()
+	if len(data) < 42 {
+		return nil, fmt.Errorf("invalid page data")
+	}
+
+	pageType := BTreePageTypeLeaf
+	if !p.IsLeafPage() {
+		pageType = BTreePageTypeInternal
+	}
+
+	recordCount := binary.LittleEndian.Uint16(data[40:42])
+	prev := binary.LittleEndian.Uint32(data[8:12])
+	next := binary.LittleEndian.Uint32(data[12:16])
+
 	page := &BTreePage{
-		PageNo:      1,                 // bufferPage.GetPageNo(), // 简化实现
-		PageType:    BTreePageTypeLeaf, // 简化实现
+		PageNo:      p.GetPageNo(),
+		PageType:    pageType,
 		Level:       0,
-		RecordCount: 0,
-		FreeSpace:   uint16(idx.config.PageSize),
-		NextPage:    0,
-		PrevPage:    0,
+		RecordCount: recordCount,
+		FreeSpace:   0,
+		NextPage:    next,
+		PrevPage:    prev,
 		Records:     make([]IndexRecord, 0),
 		IsLoaded:    true,
-		IsDirty:     false,
+		IsDirty:     p.IsDirty(),
 		LastAccess:  time.Now(),
 		PinCount:    1,
 	}
-
-	// TODO: 实现真正的页面内容解析
 
 	return page, nil
 }
@@ -957,9 +1026,14 @@ func (idx *EnhancedBTreeIndex) flushPage(ctx context.Context, page *BTreePage) e
 		return err
 	}
 
-	// TODO: 将page内容序列化到bufferPage
+	data := bufferPage.GetContent()
+	if len(data) >= 42 {
+		binary.LittleEndian.PutUint32(data[8:12], page.PrevPage)
+		binary.LittleEndian.PutUint32(data[12:16], page.NextPage)
+		binary.LittleEndian.PutUint16(data[40:42], page.RecordCount)
+		bufferPage.SetContent(data)
+	}
 
-	// 标记为脏页并刷新
 	bufferPage.MarkDirty()
 	err = idx.storageManager.GetBufferPoolManager().FlushPage(idx.metadata.SpaceID, page.PageNo)
 	if err != nil {

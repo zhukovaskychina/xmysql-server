@@ -14,8 +14,10 @@ var (
 	ErrInvalidExtent = errors.New("invalid extent")
 )
 
-// ExtentImpl 区段实现
-type ExtentImpl struct {
+// ExtentDescriptor 区段描述符（简化版本，仅用于FSP页面内部）
+// Note: This is a lightweight descriptor, not the full extent implementation.
+// For full extent functionality, use extent.UnifiedExtent instead.
+type ExtentDescriptor struct {
 	StartPage uint32
 	PageCount uint32
 	FreePages uint32
@@ -41,10 +43,10 @@ type FSPPageWrapper struct {
 	pageSize   uint32
 	extentSize uint32
 
-	// Extent管理
-	freeExtents []*ExtentImpl
-	fullExtents []*ExtentImpl
-	fragExtents []*ExtentImpl
+	// Extent管理 (使用轻量级描述符)
+	freeExtents []*ExtentDescriptor
+	fullExtents []*ExtentDescriptor
+	fragExtents []*ExtentDescriptor
 
 	// 位图管理
 	spaceMap []byte
@@ -59,9 +61,9 @@ func NewFSPPageWrapper(id uint32, spaceID uint32, bp *buffer_pool.BufferPool) *F
 		BasePageWrapper: base,
 		bufferPool:      bp,
 		fspPage:         fspPage,
-		freeExtents:     make([]*ExtentImpl, 0),
-		fullExtents:     make([]*ExtentImpl, 0),
-		fragExtents:     make([]*ExtentImpl, 0),
+		freeExtents:     make([]*ExtentDescriptor, 0),
+		fullExtents:     make([]*ExtentDescriptor, 0),
+		fragExtents:     make([]*ExtentDescriptor, 0),
 		spaceMap:        make([]byte, 16320),
 	}
 
@@ -290,8 +292,8 @@ func (p *FSPPageWrapper) DeallocateExtent(desc *ExtentDesc) error {
 	p.extentLock.Lock()
 	defer p.extentLock.Unlock()
 
-	// 简化实现：创建空闲区段
-	ext := &ExtentImpl{
+	// 简化实现：创建空闲区段描述符
+	ext := &ExtentDescriptor{
 		StartPage: 0, // 需要根据实际情况设置
 		PageCount: desc.PageCount,
 		FreePages: desc.PageCount,
@@ -326,7 +328,7 @@ func (p *FSPPageWrapper) GetFSPPage() *pages.FspHrdBinaryPage {
 }
 
 // 辅助方法
-func (p *FSPPageWrapper) allocatePagesFromExtent(ext *ExtentImpl, n uint32) []uint32 {
+func (p *FSPPageWrapper) allocatePagesFromExtent(ext *ExtentDescriptor, n uint32) []uint32 {
 	var pages []uint32
 	allocated := uint32(0)
 

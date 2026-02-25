@@ -2,25 +2,27 @@ package engine
 
 import (
 	"fmt"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"io"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
 // ShowExecutor SHOW语句执行器
+// 注意：此执行器用于处理特殊的SHOW语句，不是火山模型的Operator
 type ShowExecutor struct {
-	BaseExecutor
+	schema   *metadata.Table
+	children []interface{} // 改为interface{}以避免循环依赖
 	showType string
 	rows     [][]interface{}
 	current  int
+	closed   bool
 }
 
 // buildShowExecutor 构建SHOW语句执行器
-func (e *XMySQLExecutor) buildShowExecutor(showType string) Executor {
+func (e *XMySQLExecutor) buildShowExecutor(showType string) *ShowExecutor {
 	executor := &ShowExecutor{
-		BaseExecutor: BaseExecutor{
-			ctx:    e.ctx,
-			schema: nil, // Schema是接口，设为nil
-		},
+		schema:   nil, // Schema可以是nil
+		children: nil,
 		showType: showType,
 		rows:     make([][]interface{}, 0),
 		current:  -1,
@@ -29,17 +31,17 @@ func (e *XMySQLExecutor) buildShowExecutor(showType string) Executor {
 }
 
 // Schema 返回算子的输出模式
-func (e *ShowExecutor) Schema() *metadata.Schema {
+func (e *ShowExecutor) Schema() *metadata.Table {
 	return nil // 简化实现，返回nil
 }
 
-// Children 返回子算子
-func (e *ShowExecutor) Children() []Executor {
+// Children 返回子算子（用于兼容性）
+func (e *ShowExecutor) Children() []interface{} {
 	return e.children
 }
 
-// SetChildren 设置子算子
-func (e *ShowExecutor) SetChildren(children []Executor) {
+// SetChildren 设置子算子（用于兼容性）
+func (e *ShowExecutor) SetChildren(children []interface{}) {
 	e.children = children
 }
 

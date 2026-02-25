@@ -199,6 +199,42 @@ type DictRootPageData struct {
 
 	// 段信息
 	TablesSegmentID  uint32 // 表段ID
+	ColumnsSegmentID uint32 // 列段ID
+	IndexesSegmentID uint32 // 索引段ID
+	FieldsSegmentID  uint32 // 字段段ID
+}
+
+// TrxSysPageData 事务系统页面数据
+type TrxSysPageData struct {
+	// 页面头部
+	PageType uint8  // 页面类型
+	LSN      uint64 // 日志序列号
+
+	// 事务系统信息
+	MaxTrxID        uint64 // 最大事务ID
+	NextRollbackSeg uint32 // 下一个回滚段ID
+	RsegArraySize   uint32 // 回滚段数组大小
+
+	// 回滚段头页面指针（支持最多128个回滚段）
+	RsegHeaders [128]uint32 // 回滚段头页面号数组
+
+	// 双写缓冲区信息
+	DoubleWriteBlock1 uint32 // 双写缓冲区块1起始页号
+	DoubleWriteBlock2 uint32 // 双写缓冲区块2起始页号
+}
+
+// SystemPageManager 系统页面管理器
+type SystemPageManager struct {
+	mu sync.RWMutex
+
+	// 页面信息映射
+	pages map[uint32]*SystemPageInfo
+
+	// 缓冲池管理器
+	bufferPool *buffer_pool.BufferPool
+
+	// 统计信息
+	stats            *SystemSpaceStats
 	IndexesSegmentID uint32 // 索引段ID
 	ColumnsSegmentID uint32 // 列段ID
 

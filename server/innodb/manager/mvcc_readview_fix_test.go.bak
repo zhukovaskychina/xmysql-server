@@ -1,0 +1,247 @@
+package manager
+
+import (
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+)
+
+// TestMVCC001_ReadViewCreation 测试ReadView创建逻辑修复
+func TestMVCC001_ReadViewCreation(t *testing.T) {
+	config := &MVCCConfig{
+		TxTimeout:         5 * time.Minute,
+		MaxActiveTxs:      1000,
+		SnapshotRetention: 10 * time.Minute,
+	}
+	manager := NewMVCCManager(config)
+
+	// 测试1: 单个事务的ReadView创建
+	t.Run("SingleTransaction", func(t *testing.T) {
+		txID, err := manager.BeginTransaction()
+		assert.NoError(t, err)
+		assert.Greater(t, txID, uint64(0))
+
+		// 获取ReadView
+		rv, err := manager.GetTransactionReadView(txID)
+		assert.NoError(t, err)
+		assert.NotNil(t, rv)
+
+		// 验证ReadView属性
+		assert.Equal(t, int64(txID), int64(rv.GetCreatorTrxID()))
+		assert.Equal(t, 0, rv.GetActiveCount()) // 没有其他活跃事务
+		assert.Equal(t, int64(txID+1), int64(rv.GetMinTrxID())) // minTrxID应该等于maxTrxID
+		assert.Equal(t, int64(txID+1), int64(rv.GetMaxTrxID()))
+
+		// 清理
+		err = manager.CommitTransaction(txID)
+		assert.NoError(t, err)
+	})
+
+	// 测试2: 多个并发事务的ReadView创建
+	t.Run("ConcurrentTransactions", func(t *testing.T) {
+		// 创建3个事务
+		tx1, err := manager.BeginTransaction()
+		assert.NoError(t, err)
+
+		tx2, err := manager.BeginTransaction()
+		assert.NoError(t, err)
+
+		tx3, err := manager.BeginTransaction()
+		assert.NoError(t, err)
+
+		// 验证tx1的ReadView（创建时没有其他活跃事务）
+		rv1, err := manager.GetTransactionReadView(tx1)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, rv1.GetActiveCount())
+
+		// 验证tx2的ReadView（创建时tx1活跃）
+		rv2, err := manager.GetTransactionReadView(tx2)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, rv2.GetActiveCount())
+		// 转换TrxId切片为int64切片进行比较
+		activeIDs2 := make([]int64, len(rv2.GetActiveIDs()))
+		for i, id := range rv2.GetActiveIDs() {
+			activeIDs2[i] = int64(id)
+		}
+		assert.Contains(t, activeIDs2, int64(tx1))
+
+		// 验证tx3的ReadView（创建时tx1和tx2活跃）
+		rv3, err := manager.GetTransactionReadView(tx3)
+		assert.NoError(t, err)
+		assert.Equal(t, 2, rv3.GetActiveCount())
+		activeIDs3 := make([]int64, len(rv3.GetActiveIDs()))
+		for i, id := range rv3.GetActiveIDs() {
+			activeIDs3[i] = int64(id)
+		}
+		assert.Contains(t, activeIDs3, int64(tx1))
+		assert.Contains(t, activeIDs3, int64(tx2))
+
+		// 验证minTrxID正确
+		assert.Equal(t, int64(tx1), int64(rv3.GetMinTrxID()))
+
+		// 清理
+		manager.CommitTransaction(tx1)
+		manager.CommitTransaction(tx2)
+		manager.CommitTransaction(tx3)
+	})
+
+	// 测试3: 可见性判断
+	t.Run("VisibilityCheck", func(t *testing.T) {
+		// 创建tx1并提交
+		tx1, err := manager.BeginTransaction()
+		assert.NoError(t, err)
+		err = manager.CommitTransaction(tx1)
+		assert.NoError(t, err)
+
+		// 创建tx2（此时tx1已提交）
+		tx2, err := manager.BeginTransaction()
+		assert.NoError(t, err)
+
+		// tx2应该能看到tx1的修改
+		visible, err := manager.IsVisible(tx2, tx1)
+		assert.NoError(t, err)
+		assert.True(t, visible, "tx2 should see committed tx1")
+
+		// 创建tx3（此时tx2活跃）
+		tx3, err := manager.BeginTransaction()
+		assert.NoError(t, err)
+
+		// tx3不应该看到tx2的修改（tx2未提交）
+		visible, err = manager.IsVisible(tx3, tx2)
+		assert.NoError(t, err)
+		assert.False(t, visible, "tx3 should not see uncommitted tx2")
+
+		// tx3应该能看到自己的修改
+		visible, err = manager.IsVisible(tx3, tx3)
+		assert.NoError(t, err)
+		assert.True(t, visible, "tx3 should see its own changes")
+
+		// 清理
+		manager.CommitTransaction(tx2)
+		manager.CommitTransaction(tx3)
+	})
+
+	// 测试4: 并发创建ReadView的竞态条件
+	t.Run("ConcurrentReadViewCreation", func(t *testing.T) {
+		const numTxs = 100
+		var wg sync.WaitGroup
+		txIDs := make([]uint64, numTxs)
+		errors := make([]error, numTxs)
+
+		// 并发创建100个事务
+		for i := 0; i < numTxs; i++ {
+			wg.Add(1)
+			go func(idx int) {
+				defer wg.Done()
+				txID, err := manager.BeginTransaction()
+				txIDs[idx] = txID
+				errors[idx] = err
+			}(i)
+		}
+		wg.Wait()
+
+		// 验证所有事务都成功创建
+		for i := 0; i < numTxs; i++ {
+			assert.NoError(t, errors[i])
+			assert.Greater(t, txIDs[i], uint64(0))
+		}
+
+		// 验证每个事务的ReadView都正确记录了其他活跃事务
+		for i := 0; i < numTxs; i++ {
+			rv, err := manager.GetTransactionReadView(txIDs[i])
+			assert.NoError(t, err)
+			assert.NotNil(t, rv)
+
+			// ReadView的活跃事务数应该在合理范围内
+			// 由于并发创建，每个事务看到的活跃事务数可能不同
+			activeCount := rv.GetActiveCount()
+			assert.GreaterOrEqual(t, activeCount, 0)
+			assert.Less(t, activeCount, numTxs)
+		}
+
+		// 清理所有事务
+		for i := 0; i < numTxs; i++ {
+			manager.CommitTransaction(txIDs[i])
+		}
+	})
+
+	// 测试5: ReadView的不可变性
+	t.Run("ReadViewImmutability", func(t *testing.T) {
+		// 创建tx1
+		tx1, err := manager.BeginTransaction()
+		assert.NoError(t, err)
+
+		// 获取tx1的ReadView
+		rv1, err := manager.GetTransactionReadView(tx1)
+		assert.NoError(t, err)
+		initialActiveCount := rv1.GetActiveCount()
+
+		// 创建tx2（不应该影响tx1的ReadView）
+		tx2, err := manager.BeginTransaction()
+		assert.NoError(t, err)
+
+		// 再次获取tx1的ReadView，应该不变
+		rv1Again, err := manager.GetTransactionReadView(tx1)
+		assert.NoError(t, err)
+		assert.Equal(t, initialActiveCount, rv1Again.GetActiveCount())
+		assert.Equal(t, rv1.GetMinTrxID(), rv1Again.GetMinTrxID())
+		assert.Equal(t, rv1.GetMaxTrxID(), rv1Again.GetMaxTrxID())
+
+		// 清理
+		manager.CommitTransaction(tx1)
+		manager.CommitTransaction(tx2)
+	})
+}
+
+// TestMVCC001_TransactionManagerReadView 测试TransactionManager的ReadView创建
+// 注意：此测试需要完整的manager包环境，暂时跳过
+// TODO: 在集成测试中验证TransactionManager的ReadView创建逻辑
+func TestMVCC001_TransactionManagerReadView(t *testing.T) {
+	t.Skip("Skipping TransactionManager test - requires full manager package")
+}
+
+// TestMVCC001_EdgeCases 测试边界情况
+func TestMVCC001_EdgeCases(t *testing.T) {
+	config := &MVCCConfig{
+		TxTimeout:         5 * time.Minute,
+		MaxActiveTxs:      10,
+		SnapshotRetention: 10 * time.Minute,
+	}
+	manager := NewMVCCManager(config)
+
+	// 测试1: 达到最大事务数限制
+	t.Run("MaxTransactionsLimit", func(t *testing.T) {
+		txIDs := make([]uint64, 0, 10)
+
+		// 创建10个事务（达到上限）
+		for i := 0; i < 10; i++ {
+			txID, err := manager.BeginTransaction()
+			assert.NoError(t, err)
+			txIDs = append(txIDs, txID)
+		}
+
+		// 尝试创建第11个事务，应该失败
+		_, err := manager.BeginTransaction()
+		assert.Error(t, err)
+		assert.Equal(t, ErrTooManyTransactions, err)
+
+		// 清理
+		for _, txID := range txIDs {
+			manager.CommitTransaction(txID)
+		}
+	})
+
+	// 测试2: 事务不存在
+	t.Run("TransactionNotFound", func(t *testing.T) {
+		_, err := manager.GetTransactionReadView(99999)
+		assert.Error(t, err)
+		assert.Equal(t, ErrTransactionNotFound, err)
+
+		err = manager.CommitTransaction(99999)
+		assert.Error(t, err)
+		assert.Equal(t, ErrTransactionNotFound, err)
+	})
+}
+

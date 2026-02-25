@@ -3,10 +3,11 @@ package manager
 import (
 	"context"
 	"fmt"
-	"github.com/zhukovaskychina/xmysql-server/logger"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/logger"
 )
 
 // EnhancedBTreeManager 增强版B+树管理器
@@ -29,7 +30,7 @@ type EnhancedBTreeManager struct {
 	backgroundWG sync.WaitGroup // 后台任务等待组
 
 	// 资源管理
-	isShutdown atomic.Bool // 是否已关闭
+	isShutdown uint32 // 是否已关闭，使用atomic操作（0=false, 1=true）
 }
 
 // BTreeManagerStats B+树管理器统计信息
@@ -82,7 +83,7 @@ func NewEnhancedBTreeManager(storageManager *StorageManager, config *BTreeConfig
 
 // CreateIndex 创建新索引
 func (m *EnhancedBTreeManager) CreateIndex(ctx context.Context, metadata *IndexMetadata) (BTreeIndex, error) {
-	if m.isShutdown.Load() {
+	if atomic.LoadUint32(&m.isShutdown) == 1 {
 		return nil, fmt.Errorf("btree manager is shutdown")
 	}
 
@@ -139,7 +140,7 @@ func (m *EnhancedBTreeManager) CreateIndex(ctx context.Context, metadata *IndexM
 
 // GetIndex 获取索引实例
 func (m *EnhancedBTreeManager) GetIndex(indexID uint64) (BTreeIndex, error) {
-	if m.isShutdown.Load() {
+	if atomic.LoadUint32(&m.isShutdown) == 1 {
 		return nil, fmt.Errorf("btree manager is shutdown")
 	}
 
@@ -378,11 +379,11 @@ func (m *EnhancedBTreeManager) DropIndex(ctx context.Context, indexID uint64) er
 
 // Close 关闭管理器
 func (m *EnhancedBTreeManager) Close() error {
-	if m.isShutdown.Load() {
+	if atomic.LoadUint32(&m.isShutdown) == 1 {
 		return nil
 	}
 
-	m.isShutdown.Store(true)
+	atomic.StoreUint32(&m.isShutdown, 1)
 
 	// 停止后台任务
 	close(m.stopChan)
@@ -516,15 +517,13 @@ func (m *EnhancedBTreeManager) validateIndexMetadata(metadata *IndexMetadata) er
 
 // allocateRootPage 分配根页面
 func (m *EnhancedBTreeManager) allocateRootPage(ctx context.Context, spaceID uint32) (uint32, error) {
-	// 简化实现：使用时间戳作为页号
-	// 实际应该从存储管理器分配页面
-	rootPageNo := uint32(time.Now().Unix())%100000 + 1000
+	// 使用缓冲池管理器分配页面
+	bufferPage, err := m.storageManager.GetBufferPoolManager().AllocatePage(spaceID)
+	if err != nil {
+		return 0, err
+	}
 
-	// TODO: 真正的页面分配逻辑
-	// bufferPage, err := m.storageManager.GetBufferPoolManager().AllocatePage(spaceID)
-	// return bufferPage.GetPageNo(), err
-
-	return rootPageNo, nil
+	return bufferPage.GetPageNo(), nil
 }
 
 // startBackgroundTasks 启动后台任务

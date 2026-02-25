@@ -239,10 +239,7 @@ func (sp *SystemPage) Deserialize(data []byte) error {
 
 // serializeFileHeader 序列化文件头部
 func (sp *SystemPage) serializeFileHeader() []byte {
-	// 实现文件头部序列化逻辑
-	data := make([]byte, FileHeaderSize)
-	// 这里应该包含具体的序列化逻辑
-	return data
+	return sp.FileHeader.GetSerialBytes()
 }
 
 // serializeSystemHeader 序列化系统头部
@@ -261,16 +258,12 @@ func (sp *SystemPage) serializeSystemHeader() []byte {
 
 // serializeFileTrailer 序列化文件尾部
 func (sp *SystemPage) serializeFileTrailer() []byte {
-	// 实现文件尾部序列化逻辑
-	data := make([]byte, FileTrailerSize)
-	// 这里应该包含具体的序列化逻辑
-	return data
+	return sp.FileTrailer.FileTrailer[:]
 }
 
 // deserializeFileHeader 反序列化文件头部
 func (sp *SystemPage) deserializeFileHeader(data []byte) error {
-	// 实现文件头部反序列化逻辑
-	return nil
+	return sp.FileHeader.ParseFileHeader(data)
 }
 
 // deserializeSystemHeader 反序列化系统头部
@@ -291,7 +284,7 @@ func (sp *SystemPage) deserializeSystemHeader(data []byte) error {
 
 // deserializeFileTrailer 反序列化文件尾部
 func (sp *SystemPage) deserializeFileTrailer(data []byte) error {
-	// 实现文件尾部反序列化逻辑
+	copy(sp.FileTrailer.FileTrailer[:], data)
 	return nil
 }
 
@@ -338,4 +331,29 @@ func (sp *SystemPage) LoadFileHeader(content []byte) {
 // LoadFileTrailer 加载文件尾部
 func (sp *SystemPage) LoadFileTrailer(content []byte) {
 	sp.deserializeFileTrailer(content)
+}
+
+// GetPageType 获取页面类型
+func (sp *SystemPage) GetPageType() uint16 {
+	return uint16(sp.FileHeader.GetPageType())
+}
+
+// ValidateChecksum 验证校验和
+func (sp *SystemPage) ValidateChecksum() error {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := sp.GetSerializeBytes()
+	if data == nil {
+		return ErrPageCorrupted
+	}
+	return checker.ValidateChecksum(data)
+}
+
+// CalculateChecksum 计算校验和
+func (sp *SystemPage) CalculateChecksum() uint32 {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := sp.GetSerializeBytes()
+	if data == nil {
+		return 0
+	}
+	return checker.CalculateChecksum(data)
 }

@@ -201,10 +201,7 @@ func (bp *BlobPage) Deserialize(data []byte) error {
 
 // serializeFileHeader 序列化文件头部
 func (bp *BlobPage) serializeFileHeader() []byte {
-	// 实现文件头部序列化逻辑
-	data := make([]byte, FileHeaderSize)
-	// 这里应该包含具体的序列化逻辑
-	return data
+	return bp.FileHeader.GetSerialBytes()
 }
 
 // serializeBlobHeader 序列化BLOB头部
@@ -221,16 +218,12 @@ func (bp *BlobPage) serializeBlobHeader() []byte {
 
 // serializeFileTrailer 序列化文件尾部
 func (bp *BlobPage) serializeFileTrailer() []byte {
-	// 实现文件尾部序列化逻辑
-	data := make([]byte, FileTrailerSize)
-	// 这里应该包含具体的序列化逻辑
-	return data
+	return bp.FileTrailer.FileTrailer[:]
 }
 
 // deserializeFileHeader 反序列化文件头部
 func (bp *BlobPage) deserializeFileHeader(data []byte) error {
-	// 实现文件头部反序列化逻辑
-	return nil
+	return bp.FileHeader.ParseFileHeader(data)
 }
 
 // deserializeBlobHeader 反序列化BLOB头部
@@ -249,7 +242,7 @@ func (bp *BlobPage) deserializeBlobHeader(data []byte) error {
 
 // deserializeFileTrailer 反序列化文件尾部
 func (bp *BlobPage) deserializeFileTrailer(data []byte) error {
-	// 实现文件尾部反序列化逻辑
+	copy(bp.FileTrailer.FileTrailer[:], data)
 	return nil
 }
 
@@ -296,4 +289,39 @@ func (bp *BlobPage) LoadFileHeader(content []byte) {
 // LoadFileTrailer 加载文件尾部
 func (bp *BlobPage) LoadFileTrailer(content []byte) {
 	bp.deserializeFileTrailer(content)
+}
+
+// GetPageType 获取页面类型
+func (bp *BlobPage) GetPageType() uint16 {
+	return uint16(bp.FileHeader.GetPageType())
+}
+
+// ValidateChecksum 验证校验和
+func (bp *BlobPage) ValidateChecksum() error {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := bp.GetSerializeBytes()
+	if data == nil {
+		return ErrPageCorrupted
+	}
+	return checker.ValidateChecksum(data)
+}
+
+// CalculateChecksum 计算校验和
+func (bp *BlobPage) CalculateChecksum() uint32 {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := bp.GetSerializeBytes()
+	if data == nil {
+		return 0
+	}
+	return checker.CalculateChecksum(data)
+}
+
+// IsCorrupted 检查页面是否损坏
+func (bp *BlobPage) IsCorrupted() bool {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := bp.GetSerializeBytes()
+	if data == nil {
+		return true
+	}
+	return checker.IsPageCorrupted(data)
 }

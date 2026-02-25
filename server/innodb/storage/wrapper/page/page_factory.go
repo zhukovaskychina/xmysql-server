@@ -6,6 +6,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/types"
 )
 
 var (
@@ -21,21 +22,9 @@ func NewPageFactory() *PageFactory {
 	return &PageFactory{}
 }
 
-// IPageWrapper 页面包装器接口
-type IPageWrapper interface {
-	// 基本信息
-	GetPageID() uint32
-	GetSpaceID() uint32
-	GetPageType() common.PageType
-
-	// 序列化
-	ParseFromBytes(data []byte) error
-	ToBytes() ([]byte, error)
-
-	// 文件头尾访问
-	GetFileHeader() *pages.FileHeader
-	GetFileTrailer() *pages.FileTrailer
-}
+// IPageWrapper 使用统一的页面包装器接口
+// 此类型别名用于向后兼容，新代码应直接使用 types.IPageWrapper
+type IPageWrapper = types.IPageWrapper
 
 // CreatePage 根据页面类型创建对应的页面wrapper
 func (f *PageFactory) CreatePage(pageType common.PageType, id, spaceID uint32, bufferPool *buffer_pool.BufferPool) IPageWrapper {

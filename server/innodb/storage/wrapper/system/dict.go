@@ -3,6 +3,7 @@ package system
 import (
 	"encoding/binary"
 	"errors"
+	"sync/atomic"
 	"time"
 )
 
@@ -167,26 +168,29 @@ func (dp *DictPage) Read() error {
 		return err
 	}
 
+	// 获取页面内容
+	content := dp.GetContent()
+
 	// 读取Dict页面头
 	offset := uint32(87)
-	dp.entryCount = binary.LittleEndian.Uint16(dp.Content[offset:])
+	dp.entryCount = binary.LittleEndian.Uint16(content[offset:])
 	offset += 2
 
 	// 读取条目
 	for i := uint16(0); i < dp.entryCount; i++ {
 		entry := &DictEntry{
-			Type:       DictEntryType(dp.Content[offset]),
-			ID:         binary.LittleEndian.Uint64(dp.Content[offset+1:]),
-			SpaceID:    binary.LittleEndian.Uint32(dp.Content[offset+9:]),
-			PageNo:     binary.LittleEndian.Uint32(dp.Content[offset+13:]),
-			LSN:        binary.LittleEndian.Uint64(dp.Content[offset+17:]),
-			Version:    binary.LittleEndian.Uint32(dp.Content[offset+25:]),
+			Type:       DictEntryType(content[offset]),
+			ID:         binary.LittleEndian.Uint64(content[offset+1:]),
+			SpaceID:    binary.LittleEndian.Uint32(content[offset+9:]),
+			PageNo:     binary.LittleEndian.Uint32(content[offset+13:]),
+			LSN:        binary.LittleEndian.Uint64(content[offset+17:]),
+			Version:    binary.LittleEndian.Uint32(content[offset+25:]),
 			Properties: make(map[string]string),
 		}
 
 		// 读取名称长度和名称
-		nameLen := binary.LittleEndian.Uint16(dp.Content[offset+29:])
-		entry.Name = string(dp.Content[offset+31 : offset+31+uint32(nameLen)])
+		nameLen := binary.LittleEndian.Uint16(content[offset+29:])
+		entry.Name = string(content[offset+31 : offset+31+uint32(nameLen)])
 
 		dp.entries[i] = entry
 		offset += 31 + uint32(nameLen)
@@ -194,40 +198,46 @@ func (dp *DictPage) Read() error {
 
 	// 更新统计信息
 	dp.stats.LastModified = time.Now().UnixNano()
-	dp.stats.Reads.Add(1)
+	atomic.AddUint64(&dp.stats.Reads, 1)
 
 	return nil
 }
 
 // Write 实现Page接口
 func (dp *DictPage) Write() error {
+	// 获取页面内容
+	content := dp.GetContent()
+
 	// 写入Dict页面头
 	offset := uint32(87)
-	binary.LittleEndian.PutUint16(dp.Content[offset:], dp.entryCount)
+	binary.LittleEndian.PutUint16(content[offset:], dp.entryCount)
 	offset += 2
 
 	// 写入条目
 	for i := uint16(0); i < dp.entryCount; i++ {
 		if dp.entries[i] != nil {
 			entry := dp.entries[i]
-			dp.Content[offset] = byte(entry.Type)
-			binary.LittleEndian.PutUint64(dp.Content[offset+1:], entry.ID)
-			binary.LittleEndian.PutUint32(dp.Content[offset+9:], entry.SpaceID)
-			binary.LittleEndian.PutUint32(dp.Content[offset+13:], entry.PageNo)
-			binary.LittleEndian.PutUint64(dp.Content[offset+17:], entry.LSN)
-			binary.LittleEndian.PutUint32(dp.Content[offset+25:], entry.Version)
+			content[offset] = byte(entry.Type)
+			binary.LittleEndian.PutUint64(content[offset+1:], entry.ID)
+			binary.LittleEndian.PutUint32(content[offset+9:], entry.SpaceID)
+			binary.LittleEndian.PutUint32(content[offset+13:], entry.PageNo)
+			binary.LittleEndian.PutUint64(content[offset+17:], entry.LSN)
+			binary.LittleEndian.PutUint32(content[offset+25:], entry.Version)
 
 			// 写入名称长度和名称
-			binary.LittleEndian.PutUint16(dp.Content[offset+29:], uint16(len(entry.Name)))
-			copy(dp.Content[offset+31:], entry.Name)
+			binary.LittleEndian.PutUint16(content[offset+29:], uint16(len(entry.Name)))
+			copy(content[offset+31:], entry.Name)
 
 			offset += 31 + uint32(len(entry.Name))
 		}
 	}
 
+	// 更新回页面
+	dp.SetContent(content)
+
 	// 更新统计信息
 	dp.stats.LastModified = time.Now().UnixNano()
-	dp.stats.Writes.Add(1)
+	atomic.AddUint64(&dp.stats.Writes, 1)
 
 	return dp.BaseSystemPage.Write()
 }

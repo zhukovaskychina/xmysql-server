@@ -14,9 +14,8 @@ import (
 
 // StorageIntegratedDMLExecutor 存储引擎集成的DML执行器
 // 与实际的B+树存储引擎和索引管理器完全集成
+// 注意：此执行器是DML操作协调器，不是火山模型的Operator
 type StorageIntegratedDMLExecutor struct {
-	BaseExecutor
-
 	// 核心管理器组件
 	optimizerManager  *manager.OptimizerManager
 	bufferPoolManager *manager.OptimizedBufferPoolManager
@@ -590,50 +589,30 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForInsert(
 ) error {
 	logger.Debugf("🔄 更新INSERT相关索引，表: %s", tableMeta.Name)
 
-	// 获取表的所有索引 - 使用SpaceID作为TableID的替代
-	indexes := dml.indexManager.ListIndexes(uint64(tableStorageInfo.SpaceID))
+	// ===== 新增：使用IndexManager的标准二级索引同步方法 =====
+	// 将InsertRowData转换为map[string]interface{}格式
+	rowData := dml.convertInsertRowDataToMap(row, tableMeta)
 
-	for _, index := range indexes {
-		if index.IsPrimary {
-			continue // 主键索引已经在主表插入时处理
-		}
-
-		// 构建索引键
-		indexKey, err := dml.buildIndexKey(row, index, tableMeta)
-		if err != nil {
-			logger.Debugf("  构建索引键失败: %v", err)
-			continue
-		}
-
-		// 验证索引键
-		err = dml.validateIndexKey(indexKey, index)
-		if err != nil {
-			return fmt.Errorf("索引键验证失败: %v", err)
-		}
-
-		// 检查唯一性（如果是唯一索引）
-		err = dml.checkIndexKeyUniqueness(index.IndexID, indexKey, index)
-		if err != nil {
-			return fmt.Errorf("唯一索引约束检查失败: %v", err)
-		}
-
-		// 生成主键值作为索引值
-		primaryKey, err := dml.generatePrimaryKey(row, tableMeta)
-		if err != nil {
-			return fmt.Errorf("生成主键失败: %v", err)
-		}
-
-		// 插入索引项
-		err = dml.insertIndexEntry(index.IndexID, indexKey, primaryKey)
-		if err != nil {
-			return fmt.Errorf("插入索引项失败: %v", err)
-		}
-
-		// 更新统计信息
-		dml.updateIndexStatistics(index.IndexID, "INSERT")
-
-		logger.Debugf(" 成功更新索引: %s", index.Name)
+	// 生成主键值
+	primaryKeyBytes, err := dml.generatePrimaryKeyBytes(row, tableMeta)
+	if err != nil {
+		return fmt.Errorf("生成主键字节失败: %v", err)
 	}
+
+	// 调用IndexManager的标准方法同步所有二级索引
+	logger.Debugf("  📝 调用IndexManager.SyncSecondaryIndexesOnInsert，tableID=%d", tableStorageInfo.SpaceID)
+	if err := dml.indexManager.SyncSecondaryIndexesOnInsert(
+		uint64(tableStorageInfo.SpaceID),
+		rowData,
+		primaryKeyBytes,
+	); err != nil {
+		return fmt.Errorf("同步二级索引失败: %v", err)
+	}
+
+	logger.Debugf(" ✅ 二级索引同步成功")
+
+	// 更新统计信息
+	dml.stats.IndexUpdates++
 
 	return nil
 }
@@ -649,64 +628,38 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForUpdate(
 ) error {
 	logger.Debugf("🔄 更新UPDATE相关索引，表: %s", tableMeta.Name)
 
-	// 获取表的所有索引 - 使用SpaceID作为TableID的替代
-	indexes := dml.indexManager.ListIndexes(uint64(tableStorageInfo.SpaceID))
+	// ===== 新增：使用IndexManager的标准二级索引同步方法 =====
+	// 为每个待更新的行调用IndexManager的同步方法
+	for _, rowInfo := range rowsToUpdate {
+		// 转换旧行数据
+		oldRowData := dml.convertUpdateRowInfoToMap(rowInfo)
 
-	for _, index := range indexes {
-		if index.IsPrimary {
-			continue // 主键索引通常不更新
+		// 应用更新表达式得到新行数据
+		newRowData := dml.applyUpdateExpressionsToRowData(oldRowData, updateExprs)
+
+		// 生成主键值
+		primaryKeyBytes, err := dml.generatePrimaryKeyBytesFromRowData(oldRowData, tableMeta)
+		if err != nil {
+			return fmt.Errorf("生成主键字节失败: %v", err)
 		}
 
-		// 检查此索引是否受UPDATE影响
-		if !dml.indexNeedsUpdateForExpressions(index, updateExprs) {
-			continue
+		// 调用IndexManager的标准方法同步所有二级索引
+		logger.Debugf("  📝 调用IndexManager.SyncSecondaryIndexesOnUpdate，tableID=%d, rowID=%s",
+			tableStorageInfo.SpaceID, rowInfo.RowId)
+		if err := dml.indexManager.SyncSecondaryIndexesOnUpdate(
+			uint64(tableStorageInfo.SpaceID),
+			oldRowData,
+			newRowData,
+			primaryKeyBytes,
+		); err != nil {
+			return fmt.Errorf("同步二级索引失败: %v", err)
 		}
-
-		// 为每个待更新的行处理索引
-		for _, rowInfo := range rowsToUpdate {
-			// 构建旧索引键
-			oldIndexKey, err := dml.buildIndexKeyFromOldValues(rowInfo.OldValues, index, tableMeta)
-			if err != nil {
-				logger.Debugf("  构建旧索引键失败: %v", err)
-				continue
-			}
-
-			// 构建新索引键
-			newIndexKey, err := dml.buildIndexKeyFromUpdateExpressions(rowInfo.OldValues, updateExprs, index, tableMeta)
-			if err != nil {
-				logger.Debugf("  构建新索引键失败: %v", err)
-				continue
-			}
-
-			// 如果索引键没有变化，跳过更新
-			if oldIndexKey == newIndexKey {
-				continue
-			}
-
-			// 验证新索引键
-			err = dml.validateIndexKey(newIndexKey, index)
-			if err != nil {
-				return fmt.Errorf("新索引键验证失败: %v", err)
-			}
-
-			// 检查新索引键的唯一性（如果是唯一索引）
-			err = dml.checkIndexKeyUniqueness(index.IndexID, newIndexKey, index)
-			if err != nil {
-				return fmt.Errorf("新索引键唯一性检查失败: %v", err)
-			}
-
-			// 更新索引项（删除旧的，插入新的）
-			err = dml.updateIndexEntry(index.IndexID, oldIndexKey, newIndexKey, rowInfo.RowId)
-			if err != nil {
-				return fmt.Errorf("更新索引项失败: %v", err)
-			}
-
-			// 更新统计信息
-			dml.updateIndexStatistics(index.IndexID, "UPDATE")
-		}
-
-		logger.Debugf(" 成功更新索引: %s", index.Name)
 	}
+
+	logger.Debugf(" ✅ 二级索引同步成功，更新了 %d 行", len(rowsToUpdate))
+
+	// 更新统计信息
+	dml.stats.IndexUpdates += uint64(len(rowsToUpdate))
 
 	return nil
 }
@@ -721,36 +674,27 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForDelete(
 ) error {
 	logger.Debugf("🔄 更新DELETE相关索引，表: %s", tableMeta.Name)
 
-	// 获取表的所有索引 - 使用SpaceID作为TableID的替代
-	indexes := dml.indexManager.ListIndexes(uint64(tableStorageInfo.SpaceID))
+	// ===== 新增：使用IndexManager的标准二级索引同步方法 =====
+	// 为每个待删除的行调用IndexManager的同步方法
+	for _, rowInfo := range rowsToDelete {
+		// 转换行数据
+		rowData := dml.convertUpdateRowInfoToMap(rowInfo)
 
-	for _, index := range indexes {
-		if index.IsPrimary {
-			continue // 主键索引在主表删除时已处理
+		// 调用IndexManager的标准方法同步所有二级索引
+		logger.Debugf("  📝 调用IndexManager.SyncSecondaryIndexesOnDelete，tableID=%d, rowID=%s",
+			tableStorageInfo.SpaceID, rowInfo.RowId)
+		if err := dml.indexManager.SyncSecondaryIndexesOnDelete(
+			uint64(tableStorageInfo.SpaceID),
+			rowData,
+		); err != nil {
+			return fmt.Errorf("同步二级索引失败: %v", err)
 		}
-
-		// 为每个待删除的行处理索引
-		for _, rowInfo := range rowsToDelete {
-			// 构建索引键
-			indexKey, err := dml.buildIndexKeyFromOldValues(rowInfo.OldValues, index, tableMeta)
-			if err != nil {
-				logger.Debugf("  构建索引键失败: %v", err)
-				continue
-			}
-
-			// 删除索引项
-			err = dml.deleteIndexEntry(index.IndexID, indexKey)
-			if err != nil {
-				logger.Debugf("  删除索引项失败: %v", err)
-				continue
-			}
-
-			// 更新统计信息
-			dml.updateIndexStatistics(index.IndexID, "DELETE")
-		}
-
-		logger.Debugf(" 成功更新索引: %s", index.Name)
 	}
+
+	logger.Debugf(" ✅ 二级索引同步成功，删除了 %d 行", len(rowsToDelete))
+
+	// 更新统计信息
+	dml.stats.IndexUpdates += uint64(len(rowsToDelete))
 
 	return nil
 }
@@ -775,6 +719,150 @@ func (dml *StorageIntegratedDMLExecutor) getTableMetadata() (*metadata.TableMeta
 	logger.Debugf(" 获取表元数据: %s.%s", dml.schemaName, dml.tableName)
 
 	return tableMeta, nil
+}
+
+// ===== 二级索引辅助方法 =====
+
+// convertInsertRowDataToMap 将InsertRowData转换为map[string]interface{}格式
+// 用于IndexManager的SyncSecondaryIndexes方法
+func (dml *StorageIntegratedDMLExecutor) convertInsertRowDataToMap(
+	row *InsertRowData,
+	tableMeta *metadata.TableMeta,
+) map[string]interface{} {
+	rowData := make(map[string]interface{})
+
+	// 将ColumnValues中的数据转换为map
+	for colName, colValue := range row.ColumnValues {
+		rowData[colName] = colValue
+	}
+
+	logger.Debugf("  转换行数据: %d个列", len(rowData))
+	return rowData
+}
+
+// generatePrimaryKeyBytes 生成主键的字节表示
+func (dml *StorageIntegratedDMLExecutor) generatePrimaryKeyBytes(
+	row *InsertRowData,
+	tableMeta *metadata.TableMeta,
+) ([]byte, error) {
+	// 查找主键列
+	var primaryKeyValue interface{}
+	primaryKeyFound := false
+
+	// 从表元数据中找到主键列名
+	for _, col := range tableMeta.Columns {
+		if col.IsPrimary {
+			// 在行数据中查找主键值
+			if val, exists := row.ColumnValues[col.Name]; exists {
+				primaryKeyValue = val
+				primaryKeyFound = true
+				break
+			}
+		}
+	}
+
+	if !primaryKeyFound {
+		return nil, fmt.Errorf("未找到主键列或主键值")
+	}
+
+	// 将主键值转换为字节
+	primaryKeyBytes, err := dml.convertValueToBytes(primaryKeyValue)
+	if err != nil {
+		return nil, fmt.Errorf("转换主键为字节失败: %v", err)
+	}
+
+	return primaryKeyBytes, nil
+}
+
+// generatePrimaryKeyBytesFromRowData 从map格式的行数据生成主键的字节表示
+func (dml *StorageIntegratedDMLExecutor) generatePrimaryKeyBytesFromRowData(
+	rowData map[string]interface{},
+	tableMeta *metadata.TableMeta,
+) ([]byte, error) {
+	// 查找主键列
+	var primaryKeyValue interface{}
+	primaryKeyFound := false
+
+	// 从表元数据中找到主键列名
+	for _, col := range tableMeta.Columns {
+		if col.IsPrimary {
+			// 在行数据中查找主键值
+			if val, exists := rowData[col.Name]; exists {
+				primaryKeyValue = val
+				primaryKeyFound = true
+				break
+			}
+		}
+	}
+
+	if !primaryKeyFound {
+		return nil, fmt.Errorf("未找到主键列或主键值")
+	}
+
+	// 将主键值转换为字节
+	primaryKeyBytes, err := dml.convertValueToBytes(primaryKeyValue)
+	if err != nil {
+		return nil, fmt.Errorf("转换主键为字节失败: %v", err)
+	}
+
+	return primaryKeyBytes, nil
+}
+
+// convertValueToBytes 将任意值转换为字节数组
+func (dml *StorageIntegratedDMLExecutor) convertValueToBytes(value interface{}) ([]byte, error) {
+	switch v := value.(type) {
+	case int:
+		return []byte(fmt.Sprintf("%d", v)), nil
+	case int64:
+		return []byte(fmt.Sprintf("%d", v)), nil
+	case uint64:
+		return []byte(fmt.Sprintf("%d", v)), nil
+	case string:
+		return []byte(v), nil
+	case []byte:
+		return v, nil
+	case float64:
+		return []byte(fmt.Sprintf("%f", v)), nil
+	default:
+		// 使用fmt.Sprintf作为最后的备用方案
+		return []byte(fmt.Sprintf("%v", v)), nil
+	}
+}
+
+// convertUpdateRowInfoToMap 将RowUpdateInfo转换为map[string]interface{}格式
+// 用于IndexManager的SyncSecondaryIndexesOnUpdate方法
+func (dml *StorageIntegratedDMLExecutor) convertUpdateRowInfoToMap(
+	rowInfo *RowUpdateInfo,
+) map[string]interface{} {
+	rowData := make(map[string]interface{})
+
+	// 将OldValues中的数据转换为map
+	for colName, colValue := range rowInfo.OldValues {
+		rowData[colName] = colValue
+	}
+
+	return rowData
+}
+
+// applyUpdateExpressionsToRowData 将UPDATE表达式应用到行数据
+// 返回更新后的行数据
+func (dml *StorageIntegratedDMLExecutor) applyUpdateExpressionsToRowData(
+	oldRowData map[string]interface{},
+	updateExprs []*UpdateExpression,
+) map[string]interface{} {
+	newRowData := make(map[string]interface{})
+
+	// 复制旧数据
+	for k, v := range oldRowData {
+		newRowData[k] = v
+	}
+
+	// 应用更新表达式
+	for _, expr := range updateExprs {
+		newRowData[expr.ColumnName] = expr.NewValue
+	}
+
+	return newRowData
 }
 
 // 继续实现其他辅助方法...

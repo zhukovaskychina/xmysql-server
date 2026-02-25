@@ -146,15 +146,16 @@ func (tm *TransactionManager) AcquireLock(txn *Transaction, resourceID string, l
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
-	// 检查死锁
-	if tm.deadlockDetector.WouldCauseCycle(txn.ID, resourceID) {
-		return basic.ErrDeadlockDetected
-	}
-
-	// 检查锁兼容性
+	// 先检查锁兼容性
 	if !tm.isLockCompatible(resourceID, lockType) {
-		// 添加等待关系
-		tm.deadlockDetector.AddWaitFor(txn.ID, tm.getLockHolder(resourceID))
+		// 找到当前资源的锁持有者
+		holderID := tm.getLockHolder(resourceID)
+		// 如果添加 txn -> holder 的等待关系会形成环，则属于死锁
+		if tm.deadlockDetector.WouldCauseCycle(txn.ID, holderID) {
+			return basic.ErrDeadlockDetected
+		}
+		// 否则只是普通的锁冲突，记录等待关系
+		tm.deadlockDetector.AddWaitFor(txn.ID, holderID)
 		return basic.ErrLockConflict
 	}
 

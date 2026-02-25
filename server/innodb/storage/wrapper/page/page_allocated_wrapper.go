@@ -3,6 +3,7 @@ package page
 import (
 	"bytes"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
 )
 
@@ -44,12 +45,78 @@ func (a *Allocated) ToByte() []byte {
 	return buffer.Bytes()
 }
 
-func (a *Allocated) GetFileHeader() *pages.FileHeader {
+func (a *Allocated) GetFileHeader() []byte {
+	return a.FileHeader.GetSerialBytes()
+}
+
+func (a *Allocated) GetFileTrailer() []byte {
+	return a.FileTrailer.FileTrailer[:]
+}
+
+func (a *Allocated) GetFileHeaderStruct() *pages.FileHeader {
 	return &a.FileHeader
 }
 
-func (a *Allocated) GetFileTrailer() *pages.FileTrailer {
+func (a *Allocated) GetFileTrailerStruct() *pages.FileTrailer {
 	return &a.FileTrailer
+}
+
+// 实现 types.IPageWrapper 接口的其他方法
+
+func (a *Allocated) GetPageNo() uint32 {
+	return a.GetPageID()
+}
+
+func (a *Allocated) GetLSN() uint64 {
+	return uint64(a.FileHeader.GetPageLSN())
+}
+
+func (a *Allocated) SetLSN(lsn uint64) {
+	a.FileHeader.WritePageLSN(int64(lsn))
+}
+
+func (a *Allocated) GetState() basic.PageState {
+	return basic.PageStateClean
+}
+
+func (a *Allocated) SetState(state basic.PageState) {
+	// TODO: 添加状态字段
+}
+
+func (a *Allocated) IsDirty() bool {
+	return false
+}
+
+func (a *Allocated) MarkDirty() {
+	// TODO: 添加脏页标记
+}
+
+func (a *Allocated) Pin() {
+	// TODO: 添加引用计数
+}
+
+func (a *Allocated) Unpin() {
+	// TODO: 添加引用计数
+}
+
+func (a *Allocated) GetPinCount() int32 {
+	return 0
+}
+
+func (a *Allocated) GetStats() *basic.PageStats {
+	return &basic.PageStats{}
+}
+
+func (a *Allocated) Read() error {
+	return nil
+}
+
+func (a *Allocated) Write() error {
+	return nil
+}
+
+func (a *Allocated) Flush() error {
+	return nil
 }
 
 // 用于实现

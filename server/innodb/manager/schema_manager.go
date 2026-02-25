@@ -61,8 +61,11 @@ func (t *SimpleTable) GetOptions() map[string]string {
 
 // SimpleDatabase 简单的数据库实现
 type SimpleDatabase struct {
-	name string
-	path string
+	name    string
+	path    string
+	manager *SchemaManager             // 添加对SchemaManager的引用
+	tables  map[string]*metadata.Table // 表缓存
+	mu      sync.RWMutex               // 保护tables map
 }
 
 func (d *SimpleDatabase) Name() string {
@@ -70,28 +73,133 @@ func (d *SimpleDatabase) Name() string {
 }
 
 func (d *SimpleDatabase) GetTable(name string) (*metadata.Table, error) {
-	// TODO: 实现获取表
-	return nil, fmt.Errorf("table %s not found", name)
+	d.mu.RLock()
+
+	// 1. 先从缓存中查找
+	if table, exists := d.tables[name]; exists {
+		d.mu.RUnlock()
+		return table, nil
+	}
+	d.mu.RUnlock()
+
+	// 2. 从文件系统加载表定义
+	table, err := d.loadTableFromFilesystem(name)
+	if err != nil {
+		return nil, fmt.Errorf("table %s not found: %w", name, err)
+	}
+
+	// 3. 缓存表定义
+	d.mu.Lock()
+	if d.tables == nil {
+		d.tables = make(map[string]*metadata.Table)
+	}
+	d.tables[name] = table
+	d.mu.Unlock()
+
+	return table, nil
 }
 
 func (d *SimpleDatabase) ListTables() []*metadata.Table {
-	// TODO: 实现列出所有表
-	return nil
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	// 如果缓存为空，从文件系统加载所有表
+	if len(d.tables) == 0 {
+		d.mu.RUnlock()
+		d.loadAllTablesFromFilesystem()
+		d.mu.RLock()
+	}
+
+	tables := make([]*metadata.Table, 0, len(d.tables))
+	for _, table := range d.tables {
+		tables = append(tables, table)
+	}
+
+	return tables
 }
 
 func (d *SimpleDatabase) CreateTable(conf *conf.Cfg, stmt *sqlparser.DDL) (*metadata.Table, error) {
-	// TODO: 实现创建表
-	return nil, fmt.Errorf("create table not implemented")
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	tableName := stmt.Table.Name.String()
+
+	// 1. 检查表是否已存在
+	if _, exists := d.tables[tableName]; exists {
+		return nil, fmt.Errorf("table %s already exists", tableName)
+	}
+
+	// 2. 从DDL语句构建表定义
+	table, err := d.buildTableFromDDL(stmt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build table from DDL: %w", err)
+	}
+
+	// 3. 创建表文件（.frm文件或JSON格式）
+	if err := d.createTableFile(tableName, table); err != nil {
+		return nil, fmt.Errorf("failed to create table file: %w", err)
+	}
+
+	// 4. 创建表空间文件（.ibd文件）
+	if err := d.createTablespace(tableName); err != nil {
+		// 回滚：删除表文件
+		d.deleteTableFile(tableName)
+		return nil, fmt.Errorf("failed to create tablespace: %w", err)
+	}
+
+	// 5. 缓存表定义
+	if d.tables == nil {
+		d.tables = make(map[string]*metadata.Table)
+	}
+	d.tables[tableName] = table
+
+	logger.Infof("Created table %s.%s", d.name, tableName)
+	return table, nil
 }
 
 func (d *SimpleDatabase) DropTable(name string) error {
-	// TODO: 实现删除表
-	return fmt.Errorf("drop table not implemented")
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	// 1. 检查表是否存在
+	if _, exists := d.tables[name]; !exists {
+		return fmt.Errorf("table %s does not exist", name)
+	}
+
+	// 2. 删除表空间文件
+	if err := d.deleteTablespace(name); err != nil {
+		logger.Warnf("Failed to delete tablespace for table %s: %v", name, err)
+	}
+
+	// 3. 删除表文件
+	if err := d.deleteTableFile(name); err != nil {
+		return fmt.Errorf("failed to delete table file: %w", err)
+	}
+
+	// 4. 从缓存中删除
+	delete(d.tables, name)
+
+	logger.Infof("Dropped table %s.%s", d.name, name)
+	return nil
 }
 
 func (d *SimpleDatabase) ListTableName() []string {
-	// TODO: 实现列出表名
-	return nil
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	// 如果缓存为空，从文件系统加载
+	if len(d.tables) == 0 {
+		d.mu.RUnlock()
+		d.loadAllTablesFromFilesystem()
+		d.mu.RLock()
+	}
+
+	names := make([]string, 0, len(d.tables))
+	for name := range d.tables {
+		names = append(names, name)
+	}
+
+	return names
 }
 
 func (d *SimpleDatabase) GetName() string {
@@ -100,6 +208,279 @@ func (d *SimpleDatabase) GetName() string {
 
 func (d *SimpleDatabase) GetPath() string {
 	return d.path
+}
+
+// loadTableFromFilesystem 从文件系统加载表定义
+func (d *SimpleDatabase) loadTableFromFilesystem(tableName string) (*metadata.Table, error) {
+	// 1. 查找表定义文件（支持.json和.frm格式）
+	tableDefPath := filepath.Join(d.path, tableName+".json")
+	if _, err := os.Stat(tableDefPath); os.IsNotExist(err) {
+		// 尝试.frm格式
+		tableDefPath = filepath.Join(d.path, tableName+".frm")
+		if _, err := os.Stat(tableDefPath); os.IsNotExist(err) {
+			return nil, fmt.Errorf("table definition file not found")
+		}
+	}
+
+	// 2. 读取表定义文件
+	data, err := ioutil.ReadFile(tableDefPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read table definition: %w", err)
+	}
+
+	// 3. 解析表定义（假设使用JSON格式）
+	var tableMeta metadata.TableMeta
+	if err := json.Unmarshal(data, &tableMeta); err != nil {
+		return nil, fmt.Errorf("failed to parse table definition: %w", err)
+	}
+
+	// 4. 转换为metadata.Table
+	table := metadata.NewTable(tableName)
+	table.Engine = tableMeta.Engine
+	table.Charset = tableMeta.Charset
+	table.Collation = tableMeta.Collation
+	table.Comment = tableMeta.Comment
+
+	// 添加列
+	for _, colMeta := range tableMeta.Columns {
+		col := &metadata.Column{
+			Name:            colMeta.Name,
+			DataType:        colMeta.Type,
+			CharMaxLength:   colMeta.Length,
+			IsNullable:      colMeta.IsNullable,
+			IsAutoIncrement: colMeta.IsAutoIncrement,
+			DefaultValue:    colMeta.DefaultValue,
+			Charset:         colMeta.Charset,
+			Collation:       colMeta.Collation,
+			Comment:         colMeta.Comment,
+		}
+		table.AddColumn(col)
+
+		// 如果是主键列，创建主键索引
+		if colMeta.IsPrimary {
+			if table.PrimaryKey == nil {
+				table.PrimaryKey = &metadata.Index{
+					Name:      "PRIMARY",
+					Columns:   []string{colMeta.Name},
+					IsPrimary: true,
+					IsUnique:  true,
+				}
+			} else {
+				table.PrimaryKey.Columns = append(table.PrimaryKey.Columns, colMeta.Name)
+			}
+		}
+
+		// 如果是唯一列，创建唯一索引
+		if colMeta.IsUnique {
+			uniqueIdx := &metadata.Index{
+				Name:     fmt.Sprintf("uk_%s", colMeta.Name),
+				Columns:  []string{colMeta.Name},
+				IsUnique: true,
+			}
+			table.AddIndex(uniqueIdx)
+		}
+	}
+
+	return table, nil
+}
+
+// loadAllTablesFromFilesystem 从文件系统加载所有表
+func (d *SimpleDatabase) loadAllTablesFromFilesystem() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if d.tables == nil {
+		d.tables = make(map[string]*metadata.Table)
+	}
+
+	// 读取数据库目录
+	files, err := ioutil.ReadDir(d.path)
+	if err != nil {
+		logger.Warnf("Failed to read database directory %s: %v", d.path, err)
+		return
+	}
+
+	// 查找所有表定义文件
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		fileName := file.Name()
+		// 检查是否是表定义文件
+		if strings.HasSuffix(fileName, ".json") {
+			tableName := strings.TrimSuffix(fileName, ".json")
+
+			// 加载表定义
+			d.mu.Unlock()
+			table, err := d.loadTableFromFilesystem(tableName)
+			d.mu.Lock()
+
+			if err != nil {
+				logger.Warnf("Failed to load table %s: %v", tableName, err)
+				continue
+			}
+
+			d.tables[tableName] = table
+		}
+	}
+}
+
+// buildTableFromDDL 从DDL语句构建表定义
+func (d *SimpleDatabase) buildTableFromDDL(stmt *sqlparser.DDL) (*metadata.Table, error) {
+	tableName := stmt.Table.Name.String()
+	table := metadata.NewTable(tableName)
+
+	// 设置默认值
+	table.Engine = "InnoDB"
+	table.Charset = "utf8mb4"
+	table.Collation = "utf8mb4_general_ci"
+
+	// 解析列定义
+	if stmt.TableSpec != nil {
+		for _, colDef := range stmt.TableSpec.Columns {
+			col := &metadata.Column{
+				Name:       colDef.Name.String(),
+				IsNullable: true, // 默认可空
+			}
+
+			// 解析列类型
+			if colDef.Type.Type != "" {
+				col.DataType = metadata.DataType(colDef.Type.Type)
+				if colDef.Type.Length != nil {
+					// 简化处理，实际需要解析sqlparser.SQLVal
+					col.CharMaxLength = 255
+				}
+			}
+
+			// 解析列选项
+			if colDef.Type.NotNull {
+				col.IsNullable = false
+			}
+			if colDef.Type.Autoincrement {
+				col.IsAutoIncrement = true
+			}
+			if colDef.Type.Unsigned {
+				col.IsUnsigned = true
+			}
+			if colDef.Type.Zerofill {
+				col.IsZerofill = true
+			}
+			if colDef.Type.Charset != "" {
+				col.Charset = colDef.Type.Charset
+			}
+			if colDef.Type.Collate != "" {
+				col.Collation = colDef.Type.Collate
+			}
+
+			table.AddColumn(col)
+		}
+	}
+
+	return table, nil
+}
+
+// createTableFile 创建表定义文件
+func (d *SimpleDatabase) createTableFile(tableName string, table *metadata.Table) error {
+	// 转换为TableMeta
+	tableMeta := &metadata.TableMeta{
+		Name:      tableName,
+		Engine:    table.Engine,
+		Charset:   table.Charset,
+		Collation: table.Collation,
+		Comment:   table.Comment,
+		Columns:   make([]*metadata.ColumnMeta, 0, len(table.Columns)),
+	}
+
+	for _, col := range table.Columns {
+		// 检查列是否是主键
+		isPrimary := false
+		if table.PrimaryKey != nil {
+			for _, pkCol := range table.PrimaryKey.Columns {
+				if pkCol == col.Name {
+					isPrimary = true
+					break
+				}
+			}
+		}
+
+		// 检查列是否有唯一索引
+		isUnique := false
+		for _, idx := range table.Indices {
+			if idx.IsUnique && len(idx.Columns) == 1 && idx.Columns[0] == col.Name {
+				isUnique = true
+				break
+			}
+		}
+
+		colMeta := &metadata.ColumnMeta{
+			Name:            col.Name,
+			Type:            col.DataType,
+			Length:          col.CharMaxLength,
+			IsNullable:      col.IsNullable,
+			IsPrimary:       isPrimary,
+			IsUnique:        isUnique,
+			IsAutoIncrement: col.IsAutoIncrement,
+			DefaultValue:    col.DefaultValue,
+			Charset:         col.Charset,
+			Collation:       col.Collation,
+			Comment:         col.Comment,
+		}
+		tableMeta.Columns = append(tableMeta.Columns, colMeta)
+	}
+
+	// 序列化为JSON
+	data, err := json.MarshalIndent(tableMeta, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal table metadata: %w", err)
+	}
+
+	// 写入文件
+	tableDefPath := filepath.Join(d.path, tableName+".json")
+	if err := ioutil.WriteFile(tableDefPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write table definition file: %w", err)
+	}
+
+	return nil
+}
+
+// deleteTableFile 删除表定义文件
+func (d *SimpleDatabase) deleteTableFile(tableName string) error {
+	tableDefPath := filepath.Join(d.path, tableName+".json")
+	if err := os.Remove(tableDefPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to delete table definition file: %w", err)
+	}
+	return nil
+}
+
+// createTablespace 创建表空间文件
+func (d *SimpleDatabase) createTablespace(tableName string) error {
+	// 创建.ibd文件
+	ibdPath := filepath.Join(d.path, tableName+".ibd")
+
+	// 创建一个空的表空间文件（16KB初始大小）
+	file, err := os.Create(ibdPath)
+	if err != nil {
+		return fmt.Errorf("failed to create tablespace file: %w", err)
+	}
+	defer file.Close()
+
+	// 写入初始页面（简化实现）
+	initialData := make([]byte, 16384) // 16KB
+	if _, err := file.Write(initialData); err != nil {
+		return fmt.Errorf("failed to write initial tablespace data: %w", err)
+	}
+
+	return nil
+}
+
+// deleteTablespace 删除表空间文件
+func (d *SimpleDatabase) deleteTablespace(tableName string) error {
+	ibdPath := filepath.Join(d.path, tableName+".ibd")
+	if err := os.Remove(ibdPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to delete tablespace file: %w", err)
+	}
+	return nil
 }
 
 // SchemaManager 管理数据库schema
@@ -170,8 +551,10 @@ func (m *SchemaManager) loadDatabasesFromFilesystem() {
 
 		// 创建数据库对象
 		db := &SimpleDatabase{
-			name: dbName,
-			path: dbPath,
+			name:    dbName,
+			path:    dbPath,
+			manager: m,
+			tables:  make(map[string]*metadata.Table),
 		}
 		m.schemaMap[dbName] = db
 
@@ -311,8 +694,22 @@ func (m *SchemaManager) GetSchemaExist(schemaName string) bool {
 }
 
 func (m *SchemaManager) GetTableByName(schema string, tableName string) (*metadata.Table, error) {
-	// TODO: 实现从数据字典获取表
-	return nil, fmt.Errorf("table %s.%s not found", schema, tableName)
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// 1. 获取数据库
+	db, ok := m.schemaMap[schema]
+	if !ok {
+		return nil, fmt.Errorf("schema %s not found", schema)
+	}
+
+	// 2. 从数据库获取表
+	table, err := db.GetTable(tableName)
+	if err != nil {
+		return nil, fmt.Errorf("table %s.%s not found: %w", schema, tableName, err)
+	}
+
+	return table, nil
 }
 
 func (m *SchemaManager) GetTableExist(schemaName string, tableName string) bool {
@@ -321,6 +718,9 @@ func (m *SchemaManager) GetTableExist(schemaName string, tableName string) bool 
 }
 
 func (m *SchemaManager) GetAllSchemaNames() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	var names []string
 	for name := range m.schemaMap {
 		names = append(names, name)
@@ -329,6 +729,9 @@ func (m *SchemaManager) GetAllSchemaNames() []string {
 }
 
 func (m *SchemaManager) GetAllSchemas() []metadata.Database {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	var dbs []metadata.Database
 	for _, db := range m.schemaMap {
 		dbs = append(dbs, db)
@@ -337,8 +740,17 @@ func (m *SchemaManager) GetAllSchemas() []metadata.Database {
 }
 
 func (m *SchemaManager) GetAllSchemaTablesByName(schemaName string) []*metadata.Table {
-	// TODO: 实现获取schema下所有表
-	return nil
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// 1. 获取数据库
+	db, ok := m.schemaMap[schemaName]
+	if !ok {
+		return nil
+	}
+
+	// 2. 获取数据库下的所有表
+	return db.ListTables()
 }
 
 func (m *SchemaManager) PutDatabaseCache(databaseCache metadata.Database) {
@@ -412,8 +824,10 @@ func (m *SchemaManager) CreateDatabase(name string, charset string, collation st
 
 	// 9. 创建数据库对象并注册到schemaMap（内存缓存）
 	db := &SimpleDatabase{
-		name: name,
-		path: dbPath,
+		name:    name,
+		path:    dbPath,
+		manager: m,
+		tables:  make(map[string]*metadata.Table),
 	}
 	m.schemaMap[name] = db
 
@@ -425,8 +839,10 @@ func (m *SchemaManager) CreateDatabase(name string, charset string, collation st
 // loadSingleDatabase 加载单个数据库到内存
 func (m *SchemaManager) loadSingleDatabase(name, dbPath string) {
 	db := &SimpleDatabase{
-		name: name,
-		path: dbPath,
+		name:    name,
+		path:    dbPath,
+		manager: m,
+		tables:  make(map[string]*metadata.Table),
 	}
 	m.schemaMap[name] = db
 	logger.Debugf("Loaded existing database '%s' into memory", name)

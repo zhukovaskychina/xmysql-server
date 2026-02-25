@@ -440,6 +440,12 @@ func (ea *InnoDBEngineAccess) getString(row []interface{}, index int) string {
 	if str, ok := row[index].(string); ok {
 		return str
 	}
+	// 处理字节数组（例如密码哈希）
+	if bytes, ok := row[index].([]byte); ok {
+		// 如果是字节数组，直接转换为字符串
+		// 对于密码哈希，它应该已经是 "*HEXSTRING" 格式
+		return string(bytes)
+	}
 	return fmt.Sprintf("%v", row[index])
 }
 

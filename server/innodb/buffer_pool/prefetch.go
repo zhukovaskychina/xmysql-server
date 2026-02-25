@@ -6,6 +6,23 @@ import (
 	"time"
 )
 
+// AccessPattern 访问模式
+type AccessPattern int
+
+const (
+	PatternSequential AccessPattern = iota // 顺序访问
+	PatternRandom                          // 随机访问
+	PatternHotSpot                         // 热点访问
+	PatternUnknown                         // 未知模式
+)
+
+// PageAccess 页面访问记录
+type PageAccess struct {
+	SpaceID   uint32
+	PageNo    uint32
+	Timestamp time.Time
+}
+
 // PrefetchManager 管理预读
 type PrefetchManager struct {
 	bufferPool    *BufferPool
@@ -15,6 +32,12 @@ type PrefetchManager struct {
 	workers       int           // 预读工作线程数
 	workerPool    chan struct{} // 工作线程池
 	mu            sync.Mutex
+
+	// 智能预读相关
+	accessHistory       []PageAccess
+	maxHistorySize      int
+	patternWindow       int     // 分析模式的窗口大小
+	confidenceThreshold float64 // 置信度阈值
 }
 
 // PrefetchRequest 预读请求
@@ -29,12 +52,16 @@ type PrefetchRequest struct {
 // NewPrefetchManager 创建预读管理器
 func NewPrefetchManager(bufferPool *BufferPool, prefetchSize int, maxQueueSize int, workers int) *PrefetchManager {
 	pm := &PrefetchManager{
-		bufferPool:    bufferPool,
-		prefetchQueue: list.New(),
-		prefetchSize:  prefetchSize,
-		maxQueueSize:  maxQueueSize,
-		workers:       workers,
-		workerPool:    make(chan struct{}, workers),
+		bufferPool:          bufferPool,
+		prefetchQueue:       list.New(),
+		prefetchSize:        prefetchSize,
+		maxQueueSize:        maxQueueSize,
+		workers:             workers,
+		workerPool:          make(chan struct{}, workers),
+		accessHistory:       make([]PageAccess, 0, 1000),
+		maxHistorySize:      1000,
+		patternWindow:       10,
+		confidenceThreshold: 0.7,
 	}
 
 	// 启动预读工作线程
@@ -183,4 +210,110 @@ func (pm *PrefetchManager) ClearQueue() {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	pm.prefetchQueue.Init()
+}
+
+// UpdateAccessHistory 更新访问历史
+func (pm *PrefetchManager) UpdateAccessHistory(spaceID, pageNo uint32) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	access := PageAccess{
+		SpaceID:   spaceID,
+		PageNo:    pageNo,
+		Timestamp: time.Now(),
+	}
+
+	pm.accessHistory = append(pm.accessHistory, access)
+
+	// 保持历史记录在限制范围内
+	if len(pm.accessHistory) > pm.maxHistorySize {
+		pm.accessHistory = pm.accessHistory[len(pm.accessHistory)-pm.maxHistorySize:]
+	}
+}
+
+// AnalyzeAccessPattern 分析访问模式
+func (pm *PrefetchManager) AnalyzeAccessPattern() AccessPattern {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	if len(pm.accessHistory) < pm.patternWindow {
+		return PatternUnknown
+	}
+
+	// 获取最近的访问记录
+	recentAccesses := pm.accessHistory[len(pm.accessHistory)-pm.patternWindow:]
+
+	sequentialCount := 0
+	randomCount := 0
+	hotSpotCount := 0
+
+	// 分析连续访问
+	for i := 1; i < len(recentAccesses); i++ {
+		if recentAccesses[i].SpaceID == recentAccesses[i-1].SpaceID {
+			pageDiff := int32(recentAccesses[i].PageNo) - int32(recentAccesses[i-1].PageNo)
+			if pageDiff == 1 || pageDiff == -1 {
+				sequentialCount++
+			} else if pageDiff > 10 || pageDiff < -10 {
+				randomCount++
+			}
+		}
+	}
+
+	// 分析热点访问
+	pageFreq := make(map[uint64]int)
+	for _, access := range recentAccesses {
+		key := uint64(access.SpaceID)<<32 | uint64(access.PageNo)
+		pageFreq[key]++
+	}
+
+	for _, freq := range pageFreq {
+		if freq > len(recentAccesses)/4 { // 如果某个页面访问频率超过25%
+			hotSpotCount++
+		}
+	}
+
+	// 根据统计结果判断模式
+	total := sequentialCount + randomCount + hotSpotCount
+	if total == 0 {
+		return PatternUnknown
+	}
+
+	if float64(sequentialCount)/float64(total) > 0.6 {
+		return PatternSequential
+	} else if float64(hotSpotCount)/float64(total) > 0.4 {
+		return PatternHotSpot
+	} else {
+		return PatternRandom
+	}
+}
+
+// TriggerSmartPrefetch 触发智能预读
+func (pm *PrefetchManager) TriggerSmartPrefetch(spaceID, pageNo uint32) {
+	pattern := pm.AnalyzeAccessPattern()
+
+	// 根据访问模式调整预读策略
+	switch pattern {
+	case PatternSequential:
+		// 顺序访问，预读更多页面
+		pm.TriggerPrefetchWithPriority(spaceID, pageNo+1, 8, time.Second*3)
+	case PatternRandom:
+		// 随机访问，减少预读
+		if pm.prefetchSize > 2 {
+			endPage := pageNo + uint32(pm.prefetchSize/2)
+			request := &PrefetchRequest{
+				SpaceID:   spaceID,
+				StartPage: pageNo + 1,
+				EndPage:   endPage,
+				Priority:  3,
+				Deadline:  time.Now().Add(time.Second * 2),
+			}
+			pm.addPrefetchRequest(request)
+		}
+	case PatternHotSpot:
+		// 热点访问，预读相邻页面
+		pm.TriggerPrefetchWithPriority(spaceID, pageNo+1, 6, time.Second*4)
+	default:
+		// 未知模式，使用默认策略
+		pm.TriggerPrefetch(spaceID, pageNo+1)
+	}
 }

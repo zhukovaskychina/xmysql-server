@@ -82,6 +82,21 @@ func (s *SegmentHeader) GetBytes() []byte {
 	return buff
 }
 
+// GetSpaceID 获取表空间ID
+func (s *SegmentHeader) GetSpaceID() uint32 {
+	return util.ReadUB4Byte2UInt32(s.INodeEntrySpaceId)
+}
+
+// GetPageNumber 获取页面编号
+func (s *SegmentHeader) GetPageNumber() uint32 {
+	return util.ReadUB4Byte2UInt32(s.PageNumberINodeEntry)
+}
+
+// GetByteOffset 获取字节偏移量
+func (s *SegmentHeader) GetByteOffset() uint16 {
+	return util.ReadUB2Byte2Int(s.ByteOffsetINodeEntry)
+}
+
 // 分配新的Extent
 func (s *Segment) AllocateExtent(firstPageNo uint32) error {
 	extent := extents.NewExtentEntry(firstPageNo)

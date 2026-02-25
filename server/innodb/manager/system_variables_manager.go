@@ -81,6 +81,7 @@ func (mgr *SystemVariablesManager) initializeDefaultVariables() {
 		{Name: "tx_isolation", DefaultValue: "REPEATABLE-READ", Scope: BothScope, ReadOnly: false, Description: "Transaction isolation level"},
 		{Name: "transaction_isolation", DefaultValue: "REPEATABLE-READ", Scope: BothScope, ReadOnly: false, Description: "Transaction isolation level"},
 		{Name: "tx_read_only", DefaultValue: int64(0), Scope: BothScope, ReadOnly: false, Description: "Transaction read only"},
+		{Name: "transaction_read_only", DefaultValue: int64(0), Scope: BothScope, ReadOnly: false, Description: "Transaction read only"},
 		{Name: "autocommit", DefaultValue: "ON", Scope: BothScope, ReadOnly: false, Description: "Autocommit"},
 
 		// 时区相关
@@ -92,7 +93,7 @@ func (mgr *SystemVariablesManager) initializeDefaultVariables() {
 		{Name: "query_cache_size", DefaultValue: int64(0), Scope: GlobalScope, ReadOnly: false, Description: "Query cache size"},
 
 		// 服务器版本和信息
-		{Name: "version", DefaultValue: "8.0.32-xmysql", Scope: GlobalScope, ReadOnly: true, Description: "Server version"},
+		{Name: "version", DefaultValue: "8.0.32", Scope: GlobalScope, ReadOnly: true, Description: "Server version"},
 		{Name: "version_comment", DefaultValue: "XMySQL Server", Scope: GlobalScope, ReadOnly: true, Description: "Version comment"},
 		{Name: "version_compile_machine", DefaultValue: "x86_64", Scope: GlobalScope, ReadOnly: true, Description: "Version compile machine"},
 		{Name: "version_compile_os", DefaultValue: "Win32", Scope: GlobalScope, ReadOnly: true, Description: "Version compile OS"},

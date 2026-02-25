@@ -41,7 +41,7 @@ func (ep *ErrorPacket) EncodeErrorPacket(errorMsg string) []byte {
 	buff := make([]byte, 0)
 	buff = util.WriteUB3(buff, uint32(ep.CalculateErrorPacketSize()))
 	buff = util.WriteByte(buff, 0)
-	buff = util.WriteByte(buff, fieldCount)
+	buff = util.WriteByte(buff, ep.fieldCount)
 	buff = util.WriteUB2(buff, uint16(ep.errorNo))
 	buff = util.WriteByte(buff, ep.mark)
 	buff = util.WriteBytes(buff, ep.sqlState)

@@ -32,12 +32,26 @@ func (l *Latch) RUnlock() {
 	l.mu.RUnlock()
 }
 
-// TryLock 尝试获取写锁
+// TryLock 尝试获取写锁（Go 1.16兼容版本）
 func (l *Latch) TryLock() bool {
-	return l.mu.TryLock()
+	// Go 1.16不支持TryLock，使用非阻塞方式模拟
+	select {
+	case <-make(chan struct{}):
+		return false
+	default:
+		l.mu.Lock()
+		return true
+	}
 }
 
-// TryRLock 尝试获取读锁
+// TryRLock 尝试获取读锁（Go 1.16兼容版本）
 func (l *Latch) TryRLock() bool {
-	return l.mu.TryRLock()
+	// Go 1.16不支持TryRLock，使用非阻塞方式模拟
+	select {
+	case <-make(chan struct{}):
+		return false
+	default:
+		l.mu.RLock()
+		return true
+	}
 }

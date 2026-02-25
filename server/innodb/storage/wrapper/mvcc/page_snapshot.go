@@ -1,20 +1,22 @@
 package mvcc
 
 import (
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	formatmvcc "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/format/mvcc"
 )
 
 // PageSnapshot 页面快照，用于MVCC读取和事务隔离
 type PageSnapshot struct {
-	PageID    uint32                    // 页面ID
-	SpaceID   uint32                    // 表空间ID
-	Version   uint64                    // 快照版本
-	TxID      uint64                    // 创建快照的事务ID
-	CreateTS  time.Time                 // 快照创建时间
-	Records   map[uint16]*RecordVersion // 记录快照
-	PageState PageSnapshotState         // 页面状态
-	Metadata  map[string]interface{}    // 元数据信息
+	PageID    uint32                               // 页面ID
+	SpaceID   uint32                               // 表空间ID
+	Version   uint64                               // 快照版本
+	TxID      uint64                               // 创建快照的事务ID
+	CreateTS  time.Time                            // 快照创建时间
+	Records   map[uint16]*formatmvcc.RecordVersion // 记录快照
+	PageState PageSnapshotState                    // 页面状态
+	Metadata  map[string]interface{}               // 元数据信息
 }
 
 // PageSnapshotState 页面快照状态
@@ -58,7 +60,7 @@ func NewPageSnapshot(pageID, spaceID uint32, version, txID uint64) *PageSnapshot
 		Version:   version,
 		TxID:      txID,
 		CreateTS:  time.Now(),
-		Records:   make(map[uint16]*RecordVersion),
+		Records:   make(map[uint16]*formatmvcc.RecordVersion),
 		PageState: SnapshotStateActive,
 		Metadata:  make(map[string]interface{}),
 	}
@@ -100,9 +102,9 @@ func (ps *PageSnapshot) SetState(state PageSnapshotState) {
 }
 
 // AddRecord 添加记录到快照
-func (ps *PageSnapshot) AddRecord(slot uint16, record *RecordVersion) {
+func (ps *PageSnapshot) AddRecord(slot uint16, record *formatmvcc.RecordVersion) {
 	if ps.Records == nil {
-		ps.Records = make(map[uint16]*RecordVersion)
+		ps.Records = make(map[uint16]*formatmvcc.RecordVersion)
 	}
 
 	// 创建记录的深拷贝
@@ -110,14 +112,14 @@ func (ps *PageSnapshot) AddRecord(slot uint16, record *RecordVersion) {
 }
 
 // GetRecord 从快照中获取记录
-func (ps *PageSnapshot) GetRecord(slot uint16) (*RecordVersion, bool) {
+func (ps *PageSnapshot) GetRecord(slot uint16) (*formatmvcc.RecordVersion, bool) {
 	record, exists := ps.Records[slot]
 	return record, exists
 }
 
 // GetAllRecords 获取快照中的所有记录
-func (ps *PageSnapshot) GetAllRecords() map[uint16]*RecordVersion {
-	result := make(map[uint16]*RecordVersion)
+func (ps *PageSnapshot) GetAllRecords() map[uint16]*formatmvcc.RecordVersion {
+	result := make(map[uint16]*formatmvcc.RecordVersion)
 	for slot, record := range ps.Records {
 		result[slot] = record.Clone()
 	}
@@ -129,12 +131,12 @@ func (ps *PageSnapshot) GetRecordCount() int {
 	return len(ps.Records)
 }
 
-// GetVisibleRecords 获取对指定事务可见的记录
-func (ps *PageSnapshot) GetVisibleRecords(txID uint64, readTS time.Time) map[uint16]*RecordVersion {
-	result := make(map[uint16]*RecordVersion)
+// GetVisibleRecords 获取对指定ReadView可见的记录
+func (ps *PageSnapshot) GetVisibleRecords(readView *formatmvcc.ReadView) map[uint16]*formatmvcc.RecordVersion {
+	result := make(map[uint16]*formatmvcc.RecordVersion)
 
 	for slot, record := range ps.Records {
-		visibleRecord := record.GetLatestVisibleVersion(txID, readTS)
+		visibleRecord := record.GetLatestVisibleVersion(readView)
 		if visibleRecord != nil {
 			result[slot] = visibleRecord
 		}
@@ -174,7 +176,7 @@ func (ps *PageSnapshot) Clone() *PageSnapshot {
 		TxID:      ps.TxID,
 		CreateTS:  ps.CreateTS,
 		PageState: ps.PageState,
-		Records:   make(map[uint16]*RecordVersion),
+		Records:   make(map[uint16]*formatmvcc.RecordVersion),
 		Metadata:  make(map[string]interface{}),
 	}
 

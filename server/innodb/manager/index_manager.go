@@ -3,9 +3,10 @@ package manager
 import (
 	"context"
 	"fmt"
-	"github.com/zhukovaskychina/xmysql-server/logger"
 	"sync"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/logger"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
@@ -324,6 +325,21 @@ func (im *IndexManager) InsertKey(indexID uint64, key interface{}, value []byte)
 	return nil
 }
 
+// UpdateKey 更新索引项（先删除旧值，再插入新值）
+func (im *IndexManager) UpdateKey(indexID uint64, oldKey, newKey interface{}, newValue []byte) error {
+	// 先删除旧键
+	if err := im.DeleteKey(indexID, oldKey); err != nil {
+		return fmt.Errorf("delete old key failed: %v", err)
+	}
+
+	// 再插入新键
+	if err := im.InsertKey(indexID, newKey, newValue); err != nil {
+		return fmt.Errorf("insert new key failed: %v", err)
+	}
+
+	return nil
+}
+
 // DeleteKey 删除索引项
 func (im *IndexManager) DeleteKey(indexID uint64, key interface{}) error {
 	im.mu.Lock()
@@ -340,13 +356,21 @@ func (im *IndexManager) DeleteKey(indexID uint64, key interface{}) error {
 
 	// 从B+树删除
 	ctx := context.Background()
-	_, _, err := im.btreeManager.Search(ctx, key)
-	if err != nil {
-		return fmt.Errorf("key not found: %v", err)
-	}
 
-	// TODO: 实现B+树删除操作
-	// 目前B+树管理器没有Delete方法，需要补充
+	// 如果底层B+Tree实现支持删除接口，则直接调用
+	if deleter, ok := im.btreeManager.(interface {
+		Delete(ctx context.Context, key interface{}) error
+	}); ok {
+		if err := deleter.Delete(ctx, key); err != nil {
+			return fmt.Errorf("failed to delete key: %v", err)
+		}
+	} else {
+		// 旧的B+Tree实现没有提供删除接口，退化为查找并忽略操作
+		if _, _, err := im.btreeManager.Search(ctx, key); err != nil {
+			return fmt.Errorf("key not found: %v", err)
+		}
+		// 无直接删除能力，只更新统计信息
+	}
 
 	// 更新索引统计
 	if idx.KeyCount > 0 {
@@ -426,10 +450,28 @@ func (im *IndexManager) DropIndex(indexID uint64) error {
 	idx.State = IndexStateDropping
 	idx.UpdateTime = time.Now()
 
-	// TODO: 清理B+树中的所有页面
+	// 清理B+树中的所有页面
+	ctx := context.Background()
+
+	leafPages, err := im.btreeManager.GetAllLeafPages(ctx)
+	if err == nil {
+		for _, pageNo := range leafPages {
+			// 释放缓冲池及存储中的页面
+			if err := im.bufferPoolManager.FreePage(idx.SpaceID, pageNo); err != nil {
+				logger.Debugf("Warning: failed to free buffer page %d: %v", pageNo, err)
+			}
+			if err := im.segmentManager.FreePage(idx.SegmentID, pageNo); err != nil {
+				logger.Debugf("Warning: failed to free segment page %d: %v", pageNo, err)
+			}
+		}
+	}
 
 	// 释放段中的所有页面
 	for pageNo := uint32(0); pageNo < idx.PageCount; pageNo++ {
+		if err := im.bufferPoolManager.FreePage(idx.SpaceID, pageNo); err != nil {
+			logger.Debugf("Warning: failed to free buffer page %d: %v", pageNo, err)
+		}
+
 		if err := im.segmentManager.FreePage(idx.SegmentID, pageNo); err != nil {
 			// 记录错误但继续处理
 			logger.Debugf("Warning: failed to free page %d in segment %d: %v", pageNo, idx.SegmentID, err)
@@ -459,11 +501,34 @@ func (im *IndexManager) RebuildIndex(indexID uint64) error {
 	idx.State = IndexStateBuilding
 	idx.UpdateTime = time.Now()
 
-	// TODO: 实现索引重建逻辑
-	// 1. 创建新的B+树
-	// 2. 重新扫描表数据
-	// 3. 重新插入所有键值
-	// 4. 原子替换旧的索引结构
+	// 清理旧索引的所有页面
+	for pageNo := uint32(0); pageNo < idx.PageCount; pageNo++ {
+		if err := im.bufferPoolManager.FreePage(idx.SpaceID, pageNo); err != nil {
+			logger.Debugf("Warning: failed to free buffer page %d: %v", pageNo, err)
+		}
+		if err := im.segmentManager.FreePage(idx.SegmentID, pageNo); err != nil {
+			logger.Debugf("Warning: failed to free page %d in segment %d: %v", pageNo, idx.SegmentID, err)
+		}
+	}
+
+	// 重新分配根页并初始化B+树
+	rootPage, err := im.segmentManager.AllocatePage(idx.SegmentID)
+	if err != nil {
+		return fmt.Errorf("failed to allocate root page: %v", err)
+	}
+
+	ctx := context.Background()
+	if err := im.btreeManager.Init(ctx, idx.SpaceID, rootPage); err != nil {
+		return fmt.Errorf("failed to init btree: %v", err)
+	}
+
+	// 重置索引元数据
+	idx.RootPageNo = rootPage
+	idx.Height = 1
+	idx.PageCount = 1
+	idx.KeyCount = 0
+	idx.LeafPages = 1
+	idx.NonLeafPages = 0
 
 	// 标记为活跃状态
 	idx.State = IndexStateActive
@@ -506,6 +571,162 @@ type IndexStatistics struct {
 	State        IndexState
 	CreateTime   time.Time
 	UpdateTime   time.Time
+}
+
+// SyncSecondaryIndexesOnInsert 在INSERT时同步所有二级索引
+func (im *IndexManager) SyncSecondaryIndexesOnInsert(tableID uint64, rowData map[string]interface{}, primaryKeyValue []byte) error {
+	// 先获取二级索引列表（需要读锁）
+	im.mu.RLock()
+	secondaryIndexes := im.getSecondaryIndexesByTable(tableID)
+	im.mu.RUnlock()
+
+	if len(secondaryIndexes) == 0 {
+		return nil // 没有二级索引，直接返回
+	}
+
+	// 为每个二级索引插入条目（InsertKey内部会加写锁）
+	for _, idx := range secondaryIndexes {
+		// 提取索引键值
+		indexKey, err := im.extractIndexKey(idx, rowData)
+		if err != nil {
+			return fmt.Errorf("extract index key for index %d failed: %v", idx.IndexID, err)
+		}
+
+		// 插入到二级索引（值为主键）
+		if err := im.InsertKey(idx.IndexID, indexKey, primaryKeyValue); err != nil {
+			return fmt.Errorf("insert to secondary index %d failed: %v", idx.IndexID, err)
+		}
+	}
+
+	return nil
+}
+
+// SyncSecondaryIndexesOnUpdate 在UPDATE时同步所有二级索引
+func (im *IndexManager) SyncSecondaryIndexesOnUpdate(tableID uint64, oldRowData, newRowData map[string]interface{}, primaryKeyValue []byte) error {
+	// 先获取二级索引列表（需要读锁）
+	im.mu.RLock()
+	secondaryIndexes := im.getSecondaryIndexesByTable(tableID)
+	im.mu.RUnlock()
+
+	if len(secondaryIndexes) == 0 {
+		return nil // 没有二级索引，直接返回
+	}
+
+	// 为每个二级索引更新条目（UpdateKey内部会加写锁）
+	for _, idx := range secondaryIndexes {
+		// 检查索引列是否被更新
+		if !im.isIndexAffected(idx, oldRowData, newRowData) {
+			continue // 索引列未变化，跳过
+		}
+
+		// 提取旧索引键值
+		oldIndexKey, err := im.extractIndexKey(idx, oldRowData)
+		if err != nil {
+			return fmt.Errorf("extract old index key for index %d failed: %v", idx.IndexID, err)
+		}
+
+		// 提取新索引键值
+		newIndexKey, err := im.extractIndexKey(idx, newRowData)
+		if err != nil {
+			return fmt.Errorf("extract new index key for index %d failed: %v", idx.IndexID, err)
+		}
+
+		// 更新二级索引
+		if err := im.UpdateKey(idx.IndexID, oldIndexKey, newIndexKey, primaryKeyValue); err != nil {
+			return fmt.Errorf("update secondary index %d failed: %v", idx.IndexID, err)
+		}
+	}
+
+	return nil
+}
+
+// SyncSecondaryIndexesOnDelete 在DELETE时同步所有二级索引
+func (im *IndexManager) SyncSecondaryIndexesOnDelete(tableID uint64, rowData map[string]interface{}) error {
+	// 先获取二级索引列表（需要读锁）
+	im.mu.RLock()
+	secondaryIndexes := im.getSecondaryIndexesByTable(tableID)
+	im.mu.RUnlock()
+
+	if len(secondaryIndexes) == 0 {
+		return nil // 没有二级索引，直接返回
+	}
+
+	// 为每个二级索引删除条目（DeleteKey内部会加写锁）
+	for _, idx := range secondaryIndexes {
+		// 提取索引键值
+		indexKey, err := im.extractIndexKey(idx, rowData)
+		if err != nil {
+			return fmt.Errorf("extract index key for index %d failed: %v", idx.IndexID, err)
+		}
+
+		// 从二级索引删除
+		if err := im.DeleteKey(idx.IndexID, indexKey); err != nil {
+			return fmt.Errorf("delete from secondary index %d failed: %v", idx.IndexID, err)
+		}
+	}
+
+	return nil
+}
+
+// getSecondaryIndexesByTable 获取表的所有二级索引（非主键索引）
+func (im *IndexManager) getSecondaryIndexesByTable(tableID uint64) []*Index {
+	var secondaryIndexes []*Index
+
+	for _, idx := range im.indexes {
+		if idx.TableID == tableID && !idx.IsPrimary && idx.State == IndexStateActive {
+			secondaryIndexes = append(secondaryIndexes, idx)
+		}
+	}
+
+	return secondaryIndexes
+}
+
+// extractIndexKey 从行数据中提取索引键值
+func (im *IndexManager) extractIndexKey(idx *Index, rowData map[string]interface{}) (interface{}, error) {
+	if len(idx.Columns) == 0 {
+		return nil, fmt.Errorf("index %d has no columns", idx.IndexID)
+	}
+
+	// 单列索引：直接返回列值
+	if len(idx.Columns) == 1 {
+		colName := idx.Columns[0].Name
+		value, exists := rowData[colName]
+		if !exists {
+			return nil, fmt.Errorf("column %s not found in row data", colName)
+		}
+		return value, nil
+	}
+
+	// 复合索引：拼接多列值
+	var keyParts []interface{}
+	for _, col := range idx.Columns {
+		value, exists := rowData[col.Name]
+		if !exists {
+			return nil, fmt.Errorf("column %s not found in row data", col.Name)
+		}
+		keyParts = append(keyParts, value)
+	}
+
+	return keyParts, nil
+}
+
+// isIndexAffected 检查索引列是否被更新
+func (im *IndexManager) isIndexAffected(idx *Index, oldRowData, newRowData map[string]interface{}) bool {
+	for _, col := range idx.Columns {
+		oldValue, oldExists := oldRowData[col.Name]
+		newValue, newExists := newRowData[col.Name]
+
+		// 如果列存在性变化，或值变化，则索引受影响
+		if oldExists != newExists {
+			return true
+		}
+
+		if oldExists && newExists && oldValue != newValue {
+			return true
+		}
+	}
+
+	return false
 }
 
 // GetManagerStats 获取管理器统计信息

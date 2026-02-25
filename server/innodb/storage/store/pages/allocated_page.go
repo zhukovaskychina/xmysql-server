@@ -43,12 +43,7 @@ import (
 
 // Use basic.FIL_PAGE_TYPE_ALLOCATED for allocated page type
 
-// 通用错误定义
-var (
-	ErrInvalidPageSize    = errors.New("页面大小无效")
-	ErrPageAlreadyInited  = errors.New("页面已经初始化")
-	ErrInvalidPageContent = errors.New("页面内容无效")
-)
+// allocated_page.go specific functionality
 
 // AllocatedPage represents a page that has been allocated but not yet initialized
 type AllocatedPage struct {

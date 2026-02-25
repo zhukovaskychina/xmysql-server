@@ -1,9 +1,5 @@
 package system
 
-import (
-	"sync/atomic"
-)
-
 // SystemPageType 系统页面类型
 type SystemPageType uint16
 
@@ -27,10 +23,10 @@ const (
 
 // SystemPageStats 系统页面统计信息
 type SystemPageStats struct {
-	Reads         atomic.Uint64
-	Writes        atomic.Uint64
-	Corruptions   atomic.Uint32
-	Recoveries    atomic.Uint32
+	Reads         uint64 // 使用atomic操作
+	Writes        uint64 // 使用atomic操作
+	Corruptions   uint32 // 使用atomic操作
+	Recoveries    uint32 // 使用atomic操作
 	LastModified  int64
 	LastRecovered int64
 }
@@ -70,12 +66,12 @@ type SystemPageManager interface {
 
 // SystemPageManagerStats 系统页面管理器统计信息
 type SystemPageManagerStats struct {
-	TotalPages     atomic.Uint32
-	CorruptedPages atomic.Uint32
-	RecoveredPages atomic.Uint32
-	BackupPages    atomic.Uint32
-	ValidationOps  atomic.Uint64
-	RecoveryOps    atomic.Uint64
+	TotalPages     uint32 // 使用atomic操作
+	CorruptedPages uint32 // 使用atomic操作
+	RecoveredPages uint32 // 使用atomic操作
+	BackupPages    uint32 // 使用atomic操作
+	ValidationOps  uint64 // 使用atomic操作
+	RecoveryOps    uint64 // 使用atomic操作
 	LastValidation int64
 	LastRecovery   int64
 }

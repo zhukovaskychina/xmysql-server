@@ -2,8 +2,11 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
@@ -12,16 +15,25 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
-// DMLExecutor DML操作执行器
-type DMLExecutor struct {
-	BaseExecutor
+// SecondaryIndexSyncer 二级索引同步器接口
+// 用于在DML操作时同步二级索引
+type SecondaryIndexSyncer interface {
+	SyncSecondaryIndexesOnInsert(tableID uint64, rowData map[string]interface{}, primaryKeyValue []byte) error
+	SyncSecondaryIndexesOnUpdate(tableID uint64, oldRowData, newRowData map[string]interface{}, primaryKeyValue []byte) error
+	SyncSecondaryIndexesOnDelete(tableID uint64, rowData map[string]interface{}) error
+}
 
+// DMLExecutor DML操作执行器
+// 注意：此执行器是DML操作协调器，不是火山模型的Operator
+// 实际的算子执行使用volcano_executor.go中的Operator接口
+type DMLExecutor struct {
 	// 管理器组件
 	optimizerManager  *manager.OptimizerManager
 	bufferPoolManager *manager.OptimizedBufferPoolManager
 	btreeManager      basic.BPlusTreeManager
 	tableManager      *manager.TableManager
 	txManager         *manager.TransactionManager
+	indexSyncer       SecondaryIndexSyncer // 二级索引同步器接口
 
 	// 执行状态
 	schemaName    string
@@ -36,6 +48,7 @@ func NewDMLExecutor(
 	btreeManager basic.BPlusTreeManager,
 	tableManager *manager.TableManager,
 	txManager *manager.TransactionManager,
+	indexSyncer SecondaryIndexSyncer,
 ) *DMLExecutor {
 	return &DMLExecutor{
 		optimizerManager:  optimizerManager,
@@ -43,6 +56,7 @@ func NewDMLExecutor(
 		btreeManager:      btreeManager,
 		tableManager:      tableManager,
 		txManager:         txManager,
+		indexSyncer:       indexSyncer,
 		isInitialized:     false,
 	}
 }
@@ -437,53 +451,355 @@ func (dml *DMLExecutor) parseUpdateExpressions(exprs sqlparser.UpdateExprs, tabl
 // 事务相关方法 - 简化实现
 func (dml *DMLExecutor) beginTransaction(ctx context.Context) (interface{}, error) {
 	logger.Debugf("🔄 开始事务")
-	// TODO: 实现真正的事务开始逻辑
-	return "dummy_transaction", nil
+
+	if dml.txManager == nil {
+		return nil, fmt.Errorf("transaction manager not initialized")
+	}
+
+	tx, err := dml.txManager.Begin(false, manager.TRX_ISO_REPEATABLE_READ)
+	if err != nil {
+		return nil, err
+	}
+
+	return tx, nil
 }
 
 func (dml *DMLExecutor) commitTransaction(ctx context.Context, txn interface{}) error {
 	logger.Debugf(" 提交事务")
-	// TODO: 实现真正的事务提交逻辑
-	return nil
+
+	if txn == nil {
+		return fmt.Errorf("nil transaction")
+	}
+
+	t, ok := txn.(*manager.Transaction)
+	if !ok {
+		return fmt.Errorf("invalid transaction type")
+	}
+
+	if dml.txManager == nil {
+		return fmt.Errorf("transaction manager not initialized")
+	}
+
+	return dml.txManager.Commit(t)
 }
 
 func (dml *DMLExecutor) rollbackTransaction(ctx context.Context, txn interface{}) error {
 	logger.Debugf("🔄 回滚事务")
-	// TODO: 实现真正的事务回滚逻辑
-	return nil
+
+	if txn == nil {
+		return fmt.Errorf("nil transaction")
+	}
+
+	t, ok := txn.(*manager.Transaction)
+	if !ok {
+		return fmt.Errorf("invalid transaction type")
+	}
+
+	if dml.txManager == nil {
+		return fmt.Errorf("transaction manager not initialized")
+	}
+
+	return dml.txManager.Rollback(t)
 }
 
 // 数据操作方法 - 简化实现
 func (dml *DMLExecutor) insertRow(ctx context.Context, txn interface{}, row *InsertRowData, tableMeta *metadata.TableMeta) (uint64, error) {
 	logger.Debugf(" 插入行数据: %+v", row.ColumnValues)
-	// TODO: 实现真正的行插入逻辑，包括：
-	// 1. 分配新的行ID
-	// 2. 写入页面
-	// 3. 更新索引
-	// 4. 记录redo日志
-	return 1, nil // 返回模拟的插入ID
+
+	if tableMeta == nil {
+		return 0, fmt.Errorf("table metadata is nil")
+	}
+
+	// 确定主键列
+	pkCol := "id"
+	if len(tableMeta.PrimaryKey) > 0 {
+		pkCol = tableMeta.PrimaryKey[0]
+	}
+
+	pkVal, ok := row.ColumnValues[pkCol]
+	if !ok {
+		pkVal = time.Now().UnixNano()
+		row.ColumnValues[pkCol] = pkVal
+	}
+
+	// 类型验证
+	for _, col := range tableMeta.Columns {
+		if val, exists := row.ColumnValues[col.Name]; exists {
+			if !dml.validateValueType(val, col.Type) {
+				return 0, fmt.Errorf("column %s type mismatch", col.Name)
+			}
+		}
+	}
+
+	// 序列化行数据（使用简单JSON表示）
+	bytes, err := json.Marshal(row.ColumnValues)
+	if err != nil {
+		return 0, fmt.Errorf("serialize row failed: %v", err)
+	}
+
+	// 写入B+树主键索引
+	if dml.btreeManager != nil {
+		if err := dml.btreeManager.Insert(ctx, pkVal, bytes); err != nil {
+			return 0, err
+		}
+	}
+
+	// 同步二级索引
+	// 注意：由于 TableMeta 没有 TableID 字段，我们需要通过其他方式获取
+	// 这里暂时使用表名的哈希值作为 TableID（临时方案）
+	// TODO: 需要在 TableMeta 中添加 TableID 字段，或从 TableManager 获取
+	if dml.indexSyncer != nil {
+		tableID := dml.getTableIDFromName(tableMeta.Name)
+		if tableID > 0 {
+			if err := dml.indexSyncer.SyncSecondaryIndexesOnInsert(
+				tableID,
+				row.ColumnValues,
+				bytes, // 主键值（序列化后的行数据）
+			); err != nil {
+				// 二级索引同步失败，需要回滚主键插入
+				logger.Errorf("❌ 二级索引同步失败，回滚主键插入: %v", err)
+
+				// 尝试删除已插入的主键索引
+				if dml.btreeManager != nil {
+					if deleter, ok := interface{}(dml.btreeManager).(interface {
+						Delete(ctx context.Context, key interface{}) error
+					}); ok {
+						if delErr := deleter.Delete(ctx, pkVal); delErr != nil {
+							logger.Errorf("❌ 回滚主键插入失败: %v", delErr)
+						}
+					}
+				}
+
+				return 0, fmt.Errorf("同步二级索引失败: %v", err)
+			}
+			logger.Debugf("✅ 二级索引同步成功")
+		}
+	}
+
+	return dml.convertPrimaryKeyToUint64(pkVal), nil
 }
 
 func (dml *DMLExecutor) findRowsToUpdate(ctx context.Context, txn interface{}, whereConditions []string, tableMeta *metadata.TableMeta) ([]*RowUpdateInfo, error) {
 	logger.Debugf(" 查找待更新行，条件: %v", whereConditions)
-	// TODO: 实现真正的行查找逻辑
-	return []*RowUpdateInfo{}, nil
+
+	var rows []*RowUpdateInfo
+
+	for _, cond := range whereConditions {
+		key := dml.extractPrimaryKeyFromCondition(cond)
+		if key == nil {
+			continue
+		}
+
+		if dml.btreeManager != nil {
+			pageNo, slot, err := dml.btreeManager.Search(ctx, key)
+			if err != nil {
+				logger.Debugf(" search failed: %v", err)
+				continue
+			}
+
+			rows = append(rows, &RowUpdateInfo{
+				RowId:     dml.convertPrimaryKeyToUint64(key),
+				PageNum:   pageNo,
+				SlotIndex: slot,
+				OldValues: map[string]interface{}{},
+			})
+		}
+	}
+
+	return rows, nil
 }
 
 func (dml *DMLExecutor) updateRow(ctx context.Context, txn interface{}, rowInfo *RowUpdateInfo, updateExprs []*UpdateExpression, tableMeta *metadata.TableMeta) error {
 	logger.Debugf(" 更新行数据: RowID=%d", rowInfo.RowId)
-	// TODO: 实现真正的行更新逻辑
+
+	// 构建新的行数据
+	newData := make(map[string]interface{})
+	for k, v := range rowInfo.OldValues {
+		newData[k] = v
+	}
+
+	for _, expr := range updateExprs {
+		if !dml.validateValueType(expr.NewValue, expr.ColumnType) {
+			return fmt.Errorf("column %s type mismatch", expr.ColumnName)
+		}
+		newData[expr.ColumnName] = expr.NewValue
+	}
+
+	bytes, err := json.Marshal(newData)
+	if err != nil {
+		return fmt.Errorf("serialize row failed: %v", err)
+	}
+
+	// 更新主键索引
+	if dml.btreeManager != nil {
+		if err := dml.btreeManager.Insert(ctx, rowInfo.RowId, bytes); err != nil {
+			return err
+		}
+	}
+
+	// 同步二级索引
+	if dml.indexSyncer != nil {
+		tableID := dml.getTableIDFromName(tableMeta.Name)
+		if tableID > 0 {
+			if err := dml.indexSyncer.SyncSecondaryIndexesOnUpdate(
+				tableID,
+				rowInfo.OldValues, // 旧数据
+				newData,           // 新数据
+				bytes,             // 主键值（序列化后的行数据）
+			); err != nil {
+				logger.Errorf("❌ 二级索引更新失败: %v", err)
+				return fmt.Errorf("同步二级索引失败: %v", err)
+			}
+			logger.Debugf("✅ 二级索引更新成功")
+		}
+	}
+
 	return nil
 }
 
 func (dml *DMLExecutor) findRowsToDelete(ctx context.Context, txn interface{}, whereConditions []string, tableMeta *metadata.TableMeta) ([]*RowUpdateInfo, error) {
 	logger.Debugf(" 查找待删除行，条件: %v", whereConditions)
-	// TODO: 实现真正的行查找逻辑
-	return []*RowUpdateInfo{}, nil
+
+	var rows []*RowUpdateInfo
+
+	for _, cond := range whereConditions {
+		key := dml.extractPrimaryKeyFromCondition(cond)
+		if key == nil {
+			continue
+		}
+
+		if dml.btreeManager != nil {
+			pageNo, slot, err := dml.btreeManager.Search(ctx, key)
+			if err != nil {
+				logger.Debugf(" search failed: %v", err)
+				continue
+			}
+
+			rows = append(rows, &RowUpdateInfo{
+				RowId:     dml.convertPrimaryKeyToUint64(key),
+				PageNum:   pageNo,
+				SlotIndex: slot,
+				OldValues: map[string]interface{}{},
+			})
+		}
+	}
+
+	return rows, nil
 }
 
 func (dml *DMLExecutor) deleteRow(ctx context.Context, txn interface{}, rowInfo *RowUpdateInfo, tableMeta *metadata.TableMeta) error {
 	logger.Debugf("🗑️ 删除行数据: RowID=%d", rowInfo.RowId)
-	// TODO: 实现真正的行删除逻辑
+
+	if dml.btreeManager == nil {
+		return fmt.Errorf("btree manager not initialized")
+	}
+
+	// 先同步删除二级索引（在删除主键之前）
+	if dml.indexSyncer != nil {
+		tableID := dml.getTableIDFromName(tableMeta.Name)
+		if tableID > 0 {
+			if err := dml.indexSyncer.SyncSecondaryIndexesOnDelete(
+				tableID,
+				rowInfo.OldValues, // 行数据
+			); err != nil {
+				logger.Errorf("❌ 二级索引删除失败: %v", err)
+				return fmt.Errorf("同步二级索引删除失败: %v", err)
+			}
+			logger.Debugf("✅ 二级索引删除成功")
+		}
+	}
+
+	// 删除主键索引
+	if deleter, ok := interface{}(dml.btreeManager).(interface {
+		Delete(ctx context.Context, key interface{}) error
+	}); ok {
+		return deleter.Delete(ctx, rowInfo.RowId)
+	}
+
+	// 如果不支持删除，尝试插入空值标记覆盖
+	empty := []byte("DELETED")
+	return dml.btreeManager.Insert(ctx, rowInfo.RowId, empty)
+}
+
+// ===== 辅助方法 =====
+
+// getTableIDFromName 从表名获取 TableID
+// TODO: 这是一个临时实现，应该从 TableManager 或数据字典中获取真实的 TableID
+func (dml *DMLExecutor) getTableIDFromName(tableName string) uint64 {
+	if tableName == "" {
+		return 0
+	}
+
+	// 临时方案：使用表名的哈希值作为 TableID
+	// 在生产环境中，应该从数据字典或 TableManager 中获取真实的 TableID
+	var hash uint64
+	for i := 0; i < len(tableName); i++ {
+		hash = hash*31 + uint64(tableName[i])
+	}
+
+	// 确保返回一个非零的正数
+	if hash == 0 {
+		hash = 1
+	}
+
+	logger.Debugf("📋 表名 '%s' 映射到 TableID: %d (临时哈希值)", tableName, hash)
+	return hash
+}
+
+func (dml *DMLExecutor) convertPrimaryKeyToUint64(key interface{}) uint64 {
+	switch v := key.(type) {
+	case int64:
+		return uint64(v)
+	case uint64:
+		return v
+	case int:
+		return uint64(v)
+	case string:
+		if id, err := strconv.ParseUint(v, 10, 64); err == nil {
+			return id
+		}
+		return 0
+	default:
+		return 0
+	}
+}
+
+func (dml *DMLExecutor) extractPrimaryKeyFromCondition(condition string) interface{} {
+	if strings.Contains(condition, "=") {
+		parts := strings.Split(condition, "=")
+		if len(parts) == 2 {
+			left := strings.TrimSpace(parts[0])
+			right := strings.TrimSpace(parts[1])
+			if strings.Contains(strings.ToLower(left), "id") {
+				if id, err := strconv.ParseInt(right, 10, 64); err == nil {
+					return id
+				}
+				if strings.HasPrefix(right, "'") && strings.HasSuffix(right, "'") {
+					return right[1 : len(right)-1]
+				}
+				return right
+			}
+		}
+	}
 	return nil
+}
+
+func (dml *DMLExecutor) validateValueType(val interface{}, colType metadata.DataType) bool {
+	switch colType {
+	case metadata.TypeInt, metadata.TypeBigInt, metadata.TypeMediumInt, metadata.TypeSmallInt, metadata.TypeTinyInt:
+		switch val.(type) {
+		case int, int32, int64, uint, uint32, uint64:
+			return true
+		default:
+			return false
+		}
+	case metadata.TypeBool, metadata.TypeBoolean:
+		_, ok := val.(bool)
+		return ok
+	case metadata.TypeChar, metadata.TypeVarchar, metadata.TypeText, metadata.TypeLongText, metadata.TypeMediumText, metadata.TypeTinyText:
+		_, ok := val.(string)
+		return ok
+	default:
+		return true
+	}
 }

@@ -175,6 +175,34 @@ func (bpm *OptimizedBufferPoolManager) loadPageFromStorage(spaceID, pageNo uint3
 	return page, nil
 }
 
+// AllocatePage 从存储分配新页面并放入缓冲池
+func (bpm *OptimizedBufferPoolManager) AllocatePage(spaceID uint32) (*buffer_pool.BufferPage, error) {
+	pageNo, err := bpm.storage.AllocatePage(spaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	page := buffer_pool.NewBufferPage(spaceID, pageNo)
+	block := buffer_pool.NewBufferBlock(page)
+	if err := bpm.lruCache.Set(spaceID, pageNo, block); err != nil {
+		return nil, err
+	}
+
+	atomic.AddUint64(&bpm.stats.totalPages, 1)
+	return page, nil
+}
+
+// FreePage 释放页面并从缓冲池移除
+func (bpm *OptimizedBufferPoolManager) FreePage(spaceID, pageNo uint32) error {
+	if err := bpm.storage.FreePage(spaceID, pageNo); err != nil {
+		return err
+	}
+
+	bpm.lruCache.Remove(spaceID, pageNo)
+	atomic.AddUint64(&bpm.stats.totalPages, ^uint64(0))
+	return nil
+}
+
 // GetDirtyPage 获取页面并标记为脏页
 func (bpm *OptimizedBufferPoolManager) GetDirtyPage(spaceID, pageNo uint32) (*buffer_pool.BufferPage, error) {
 	page, err := bpm.GetPage(spaceID, pageNo)
@@ -346,6 +374,46 @@ func (bpm *OptimizedBufferPoolManager) GetStats() map[string]interface{} {
 		"cache_size":     bpm.lruCache.Len(),
 	}
 }
+
+// GetStatistics returns BufferPoolStatistics in a structured form.
+func (bpm *OptimizedBufferPoolManager) GetStatistics() *BufferPoolStatistics {
+	return &BufferPoolStatistics{
+		Hits:          atomic.LoadUint64(&bpm.stats.hits),
+		Misses:        atomic.LoadUint64(&bpm.stats.misses),
+		Evictions:     atomic.LoadUint64(&bpm.stats.evictions),
+		Flushes:       atomic.LoadUint64(&bpm.stats.flushes),
+		PageReads:     atomic.LoadUint64(&bpm.stats.pageReads),
+		PageWrites:    atomic.LoadUint64(&bpm.stats.pageWrites),
+		YoungHits:     atomic.LoadUint64(&bpm.stats.youngHits),
+		OldHits:       atomic.LoadUint64(&bpm.stats.oldHits),
+		DirtyPages:    atomic.LoadUint64(&bpm.stats.dirtyPages),
+		TotalPages:    atomic.LoadUint64(&bpm.stats.totalPages),
+		BackgroundOps: atomic.LoadUint64(&bpm.stats.backgroundOps),
+		HitRate:       bpm.calculateHitRate(),
+		CacheSize:     bpm.lruCache.Len(),
+	}
+}
+
+
+// ApplyHint applies a buffer pool tuning hint. The current implementation is a
+// no-op used to satisfy integration code expectations.
+func (bpm *OptimizedBufferPoolManager) ApplyHint(hint string) error {
+	// Real implementations would adjust buffer pool behavior based on the
+	// provided hint. We simply ignore the hint for now.
+	return nil
+}
+
+// SetReadAheadPages sets the number of pages to prefetch when read ahead is
+// enabled. It is implemented as a stub so the integrator can compile.
+func (bpm *OptimizedBufferPoolManager) SetReadAheadPages(pages int) error {
+	// Future implementations might tune internal prefetching behaviour.
+	// We store the value in the config if available.
+	if bpm.config != nil {
+		bpm.config.ReadAheadPages = uint32(pages)
+	}
+	return nil
+}
+
 
 // calculateHitRate 计算缓存命中率
 func (bpm *OptimizedBufferPoolManager) calculateHitRate() float64 {

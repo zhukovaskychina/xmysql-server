@@ -1,6 +1,7 @@
 package mvcc
 
 import (
+	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"testing"
 	"time"
@@ -90,10 +91,9 @@ func TestTransactionManager(t *testing.T) {
 }
 
 func TestDeadlockScenarios(t *testing.T) {
-	tm := NewTransactionManager(RepeatableRead)
-
-	// 测试简单死锁场景
+	// 测试简单死锁场景（使用独立的事务管理器，避免跨子测试状态干扰）
 	t.Run("TestSimpleDeadlock", func(t *testing.T) {
+		tm := NewTransactionManager(RepeatableRead)
 		txn1, _ := tm.BeginTransaction(RepeatableRead)
 		txn2, _ := tm.BeginTransaction(RepeatableRead)
 
@@ -122,8 +122,9 @@ func TestDeadlockScenarios(t *testing.T) {
 		}
 	})
 
-	// 测试复杂死锁场景
+	// 测试复杂死锁场景（使用独立的事务管理器，避免跨子测试状态干扰）
 	t.Run("TestComplexDeadlock", func(t *testing.T) {
+		tm := NewTransactionManager(RepeatableRead)
 		txn1, _ := tm.BeginTransaction(RepeatableRead)
 		txn2, _ := tm.BeginTransaction(RepeatableRead)
 		txn3, _ := tm.BeginTransaction(RepeatableRead)
@@ -143,8 +144,9 @@ func TestDeadlockScenarios(t *testing.T) {
 		}
 	})
 
-	// 测试死锁检测的性能
+	// 测试死锁检测的性能（使用独立的事务管理器，避免跨子测试状态干扰）
 	t.Run("TestDeadlockDetectionPerformance", func(t *testing.T) {
+		tm := NewTransactionManager(RepeatableRead)
 		const numTransactions = 100
 		const numResources = 50
 		transactions := make([]*Transaction, numTransactions)

@@ -310,15 +310,37 @@ func (sm *SpaceManagerImpl) GetTableSpaceInfo(spaceID uint32) (*basic.TableSpace
 		return nil, fmt.Errorf("tablespace %d not found", spaceID)
 	}
 
+	// Get total size (allocated space)
+	totalSize := space.GetTotalSize()
+
+	// Get free space
+	freeSpace := space.GetFreeSpace()
+
+	// Get segment count
+	segmentCount := space.GetSegmentCount()
+
 	info := &basic.TableSpaceInfo{
 		SpaceID:      spaceID,
 		Name:         space.Name(),
 		FilePath:     space.GetFilePath(),
-		Size:         0, // TODO: Implement size tracking
-		FreeSpace:    0, // TODO: Implement free space tracking
-		SegmentCount: 0, // TODO: Implement segment counting
+		Size:         totalSize,
+		FreeSpace:    freeSpace,
+		SegmentCount: segmentCount,
 	}
 	return info, nil
+}
+
+// GetDetailedSpaceStats returns detailed statistics for a tablespace
+func (sm *SpaceManagerImpl) GetDetailedSpaceStats(spaceID uint32) (*space.SpaceDetailedStats, error) {
+	sm.RLock()
+	defer sm.RUnlock()
+
+	ibdSpace, exists := sm.spaces[spaceID]
+	if !exists {
+		return nil, fmt.Errorf("tablespace %d not found", spaceID)
+	}
+
+	return ibdSpace.GetDetailedStats(), nil
 }
 
 func (sm *SpaceManagerImpl) DropTableSpace(spaceID uint32) error {

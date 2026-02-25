@@ -1,5 +1,6 @@
-com\xmysql\server\demo\DDLTestDemo.class
-com\xmysql\server\demo\SQLParserTestDemo.class
-com\xmysql\server\demo\MySQLDemo.class
-com\xmysql\server\demo\InsertTestDemo.class
-com\xmysql\server\demo\SystemVariableTestDemo.class
+com/xmysql/server/demo/SQLParserTestDemo.class
+com/xmysql/server/demo/SystemVariableTestDemo.class
+com/xmysql/server/demo/DDLTestDemo.class
+com/xmysql/server/demo/InsertTestDemo.class
+com/xmysql/server/demo/InsertDataTestDemo.class
+com/xmysql/server/demo/MySQLDemo.class

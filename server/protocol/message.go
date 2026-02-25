@@ -83,10 +83,11 @@ func (m *BaseMessage) Payload() interface{} {
 // ConnectMessage 连接消息
 type ConnectMessage struct {
 	*BaseMessage
-	ClientInfo *ClientInfo
+	ConnectionInfo *ConnectionInfo
 }
 
-type ClientInfo struct {
+// ConnectionInfo 连接信息
+type ConnectionInfo struct {
 	Host     string
 	Port     int
 	User     string
@@ -116,11 +117,12 @@ type QueryMessage struct {
 
 // MessageQueryResult 查询结果
 type MessageQueryResult struct {
-	Columns []string
-	Rows    [][]interface{}
-	Error   error
-	Message string
-	Type    string // select, insert, update, delete, ddl, etc.
+	Columns     []string
+	ColumnTypes []string // 列类型信息（可选）
+	Rows        [][]interface{}
+	Error       error
+	Message     string
+	Type        string // select, insert, update, delete, ddl, etc.
 }
 
 // ResponseMessage 响应消息

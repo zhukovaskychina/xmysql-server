@@ -61,9 +61,21 @@ func (ip *InodePageWrapper) GetPageNo() uint32 {
 	return ip.BasePageWrapper.GetPageID()
 }
 
-// GetContent 获取页面内容
+// GetContent 获取页面内容（返回副本，安全）
 func (ip *InodePageWrapper) GetContent() []byte {
-	return ip.BasePageWrapper.content
+	ip.RLock()
+	defer ip.RUnlock()
+	result := make([]byte, len(ip.BasePageWrapper.content))
+	copy(result, ip.BasePageWrapper.content)
+	return result
+}
+
+// ReadContent 高性能只读访问（回调模式，零拷贝）
+// 使用场景：只需要读取内容，不需要修改
+func (ip *InodePageWrapper) ReadContent(fn func([]byte)) {
+	ip.RLock()
+	defer ip.RUnlock()
+	fn(ip.BasePageWrapper.content)
 }
 
 // SetContent 设置页面内容

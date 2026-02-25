@@ -106,9 +106,10 @@ const (
 // BinaryOperation 二元运算表达式
 type BinaryOperation struct {
 	BaseExpression
-	Op    BinaryOp
-	Left  Expression
-	Right Expression
+	Op       BinaryOp
+	Operator string // 新增: 用于支持字符串操作符
+	Left     Expression
+	Right    Expression
 }
 
 func (b *BinaryOperation) Eval(ctx *EvalContext) (interface{}, error) {
@@ -197,13 +198,21 @@ func (b *BinaryOperation) convertOperatorToString() string {
 // Function 函数表达式
 type Function struct {
 	BaseExpression
-	Name string
-	Args []Expression
+	FuncName string
+	FuncArgs []Expression
+}
+
+func (f *Function) Name() string {
+	return f.FuncName
+}
+
+func (f *Function) Args() []Expression {
+	return f.FuncArgs
 }
 
 func (f *Function) Eval(ctx *EvalContext) (interface{}, error) {
-	args := make([]interface{}, len(f.Args))
-	for i, arg := range f.Args {
+	args := make([]interface{}, len(f.FuncArgs))
+	for i, arg := range f.FuncArgs {
 		val, err := arg.Eval(ctx)
 		if err != nil {
 			return nil, err
@@ -211,7 +220,7 @@ func (f *Function) Eval(ctx *EvalContext) (interface{}, error) {
 		args[i] = val
 	}
 
-	switch f.Name {
+	switch f.FuncName {
 	case "COUNT":
 		return evalCount(args)
 	case "SUM":
@@ -229,16 +238,16 @@ func (f *Function) Eval(ctx *EvalContext) (interface{}, error) {
 	case "NOW":
 		return time.Now(), nil
 	default:
-		return nil, fmt.Errorf("unknown function: %s", f.Name)
+		return nil, fmt.Errorf("unknown function: %s", f.FuncName)
 	}
 }
 
 func (f *Function) String() string {
-	args := make([]string, len(f.Args))
-	for i, arg := range f.Args {
+	args := make([]string, len(f.FuncArgs))
+	for i, arg := range f.FuncArgs {
 		args[i] = arg.String()
 	}
-	return fmt.Sprintf("%s(%s)", f.Name, strings.Join(args, ", "))
+	return fmt.Sprintf("%s(%s)", f.FuncName, strings.Join(args, ", "))
 }
 
 // 运算符求值函数
@@ -687,4 +696,136 @@ func evalSubstring(args []interface{}) (interface{}, error) {
 		return "", nil
 	}
 	return str[pos:end], nil
+}
+
+// ============ 新增表达式类型 (OPT-017支持) ============
+// 注意: NotExpression 已在 cnf_converter.go 中定义，此处不重复定义
+
+// InExpression IN表达式
+type InExpression struct {
+	BaseExpression
+	Column Expression
+	Values []interface{}
+}
+
+func (i *InExpression) Eval(ctx *EvalContext) (interface{}, error) {
+	colVal, err := i.Column.Eval(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, val := range i.Values {
+		eq, err := evalEQ(colVal, val)
+		if err != nil {
+			continue
+		}
+		if eq.(bool) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (i *InExpression) String() string {
+	return fmt.Sprintf("%s IN (%v)", i.Column.String(), i.Values)
+}
+
+// LikeExpression LIKE表达式
+type LikeExpression struct {
+	BaseExpression
+	Column  Expression
+	Pattern string
+}
+
+func (l *LikeExpression) Eval(ctx *EvalContext) (interface{}, error) {
+	colVal, err := l.Column.Eval(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if colVal == nil {
+		return nil, nil
+	}
+
+	str, ok := colVal.(string)
+	if !ok {
+		return nil, fmt.Errorf("LIKE: column must be string, got %T", colVal)
+	}
+
+	// 将SQL LIKE模式转换为正则表达式
+	pattern := strings.ReplaceAll(l.Pattern, "%", ".*")
+	pattern = strings.ReplaceAll(pattern, "_", ".")
+	pattern = "^" + pattern + "$"
+
+	matched, err := regexp.MatchString(pattern, str)
+	if err != nil {
+		return nil, err
+	}
+
+	return matched, nil
+}
+
+func (l *LikeExpression) String() string {
+	return fmt.Sprintf("%s LIKE '%s'", l.Column.String(), l.Pattern)
+}
+
+// IsNullExpression IS NULL表达式
+type IsNullExpression struct {
+	BaseExpression
+	Column Expression
+	IsNull bool // true: IS NULL, false: IS NOT NULL
+}
+
+func (i *IsNullExpression) Eval(ctx *EvalContext) (interface{}, error) {
+	colVal, err := i.Column.Eval(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if i.IsNull {
+		return colVal == nil, nil
+	}
+	return colVal != nil, nil
+}
+
+func (i *IsNullExpression) String() string {
+	if i.IsNull {
+		return fmt.Sprintf("%s IS NULL", i.Column.String())
+	}
+	return fmt.Sprintf("%s IS NOT NULL", i.Column.String())
+}
+
+// BetweenExpression BETWEEN表达式
+type BetweenExpression struct {
+	BaseExpression
+	Column Expression
+	Lower  interface{}
+	Upper  interface{}
+}
+
+func (b *BetweenExpression) Eval(ctx *EvalContext) (interface{}, error) {
+	colVal, err := b.Column.Eval(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if colVal == nil {
+		return nil, nil
+	}
+
+	ge, err := evalGE(colVal, b.Lower)
+	if err != nil {
+		return nil, err
+	}
+
+	le, err := evalLE(colVal, b.Upper)
+	if err != nil {
+		return nil, err
+	}
+
+	return ge.(bool) && le.(bool), nil
+}
+
+func (b *BetweenExpression) String() string {
+	return fmt.Sprintf("%s BETWEEN %v AND %v", b.Column.String(), b.Lower, b.Upper)
 }

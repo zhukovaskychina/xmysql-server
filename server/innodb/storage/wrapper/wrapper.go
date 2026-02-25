@@ -1,17 +1,13 @@
 package wrapper
 
 import (
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/types"
 	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
-type IPageWrapper interface {
-	GetFileHeader() *pages.FileHeader
-
-	GetFileTrailer() *pages.FileTrailer
-
-	ToByte() []byte
-}
+// IPageWrapper 使用统一的页面包装器接口
+// 此类型别名用于向后兼容，新代码应直接使用 types.IPageWrapper
+type IPageWrapper = types.IPageWrapper
 
 type CommonNodeInfo struct {
 	NodeInfoLength     uint32 //节点数量

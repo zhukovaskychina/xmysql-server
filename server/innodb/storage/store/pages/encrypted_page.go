@@ -403,10 +403,7 @@ func (ep *EncryptedPage) Deserialize(data []byte) error {
 
 // serializeFileHeader 序列化文件头部
 func (ep *EncryptedPage) serializeFileHeader() []byte {
-	// 实现文件头部序列化逻辑
-	data := make([]byte, FileHeaderSize)
-	// 这里应该包含具体的序列化逻辑
-	return data
+	return ep.FileHeader.GetSerialBytes()
 }
 
 // serializeEncryptionHeader 序列化加密头部
@@ -425,16 +422,12 @@ func (ep *EncryptedPage) serializeEncryptionHeader() []byte {
 
 // serializeFileTrailer 序列化文件尾部
 func (ep *EncryptedPage) serializeFileTrailer() []byte {
-	// 实现文件尾部序列化逻辑
-	data := make([]byte, FileTrailerSize)
-	// 这里应该包含具体的序列化逻辑
-	return data
+	return ep.FileTrailer.FileTrailer[:]
 }
 
 // deserializeFileHeader 反序列化文件头部
 func (ep *EncryptedPage) deserializeFileHeader(data []byte) error {
-	// 实现文件头部反序列化逻辑
-	return nil
+	return ep.FileHeader.ParseFileHeader(data)
 }
 
 // deserializeEncryptionHeader 反序列化加密头部
@@ -455,7 +448,7 @@ func (ep *EncryptedPage) deserializeEncryptionHeader(data []byte) error {
 
 // deserializeFileTrailer 反序列化文件尾部
 func (ep *EncryptedPage) deserializeFileTrailer(data []byte) error {
-	// 实现文件尾部反序列化逻辑
+	copy(ep.FileTrailer.FileTrailer[:], data)
 	return nil
 }
 
@@ -502,4 +495,39 @@ func (ep *EncryptedPage) LoadFileHeader(content []byte) {
 // LoadFileTrailer 加载文件尾部
 func (ep *EncryptedPage) LoadFileTrailer(content []byte) {
 	ep.deserializeFileTrailer(content)
+}
+
+// GetPageType 获取页面类型
+func (ep *EncryptedPage) GetPageType() uint16 {
+	return uint16(ep.FileHeader.GetPageType())
+}
+
+// ValidateChecksum 验证校验和
+func (ep *EncryptedPage) ValidateChecksum() error {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := ep.GetSerializeBytes()
+	if data == nil {
+		return ErrPageCorrupted
+	}
+	return checker.ValidateChecksum(data)
+}
+
+// CalculateChecksum 计算校验和
+func (ep *EncryptedPage) CalculateChecksum() uint32 {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := ep.GetSerializeBytes()
+	if data == nil {
+		return 0
+	}
+	return checker.CalculateChecksum(data)
+}
+
+// IsCorrupted 检查页面是否损坏
+func (ep *EncryptedPage) IsCorrupted() bool {
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	data := ep.GetSerializeBytes()
+	if data == nil {
+		return true
+	}
+	return checker.IsPageCorrupted(data)
 }

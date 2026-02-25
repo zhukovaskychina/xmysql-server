@@ -265,28 +265,73 @@ func (ce *CostEstimator) estimateHashJoinCost(
 	rightStats *TableStats,
 	joinConditions []Expression,
 ) (*CostEstimate, error) {
-	// 构建哈希表代价（较小的表）
-	buildRows := math.Min(float64(leftStats.RowCount), float64(rightStats.RowCount))
-	buildCost := buildRows * ce.costModel.CPUTupleCost
+	// 选择较小的表作为构建端（build side）
+	var buildRows, probeRows float64
+	var buildStats, probeStats *TableStats
 
-	// 探测代价（较大的表）
-	probeRows := math.Max(float64(leftStats.RowCount), float64(rightStats.RowCount))
-	probeCost := probeRows * ce.costModel.CPUTupleCost
+	if leftStats.RowCount <= rightStats.RowCount {
+		buildRows = float64(leftStats.RowCount)
+		probeRows = float64(rightStats.RowCount)
+		buildStats = leftStats
+		probeStats = rightStats
+	} else {
+		buildRows = float64(rightStats.RowCount)
+		probeRows = float64(leftStats.RowCount)
+		buildStats = rightStats
+		probeStats = leftStats
+	}
 
-	// 哈希计算代价
-	hashCost := (buildRows + probeRows) * ce.costModel.CPUOperatorCost
+	// 1. 构建哈希表代价
+	// 1.1 读取构建端数据
+	buildReadCost := buildRows * ce.costModel.CPUTupleCost
 
-	// 估算输出行数
-	outputRows := int64(float64(leftStats.RowCount) * float64(rightStats.RowCount) * 0.1)
+	// 1.2 计算哈希值
+	buildHashCost := buildRows * ce.costModel.CPUOperatorCost
 
-	totalCost := buildCost + probeCost + hashCost
+	// 1.3 插入哈希表
+	buildInsertCost := buildRows * ce.costModel.CPUOperatorCost
+
+	buildCost := buildReadCost + buildHashCost + buildInsertCost
+
+	// 2. 探测代价
+	// 2.1 读取探测端数据
+	probeReadCost := probeRows * ce.costModel.CPUTupleCost
+
+	// 2.2 计算哈希值并查找
+	probeLookupCost := probeRows * ce.costModel.CPUOperatorCost * 2.0
+
+	probeCost := probeReadCost + probeLookupCost
+
+	// 3. 内存代价（哈希表）
+	// 估算每行占用内存（包括键、值和指针）
+	avgRowSize := float64(buildStats.AvgRowLength)
+	if avgRowSize == 0 {
+		avgRowSize = 100.0 // 默认100字节
+	}
+	hashTableMemory := buildRows * avgRowSize
+	memoryCost := hashTableMemory * ce.costModel.MemoryTupleCost
+
+	// 4. 连接条件评估代价
+	joinCondCost := 0.0
+	if len(joinConditions) > 0 {
+		// 估算匹配的行数（使用选择率）
+		selectivity := ce.estimateJoinSelectivity(buildStats, probeStats, joinConditions)
+		matchedPairs := buildRows * probeRows * selectivity
+		joinCondCost = matchedPairs * float64(len(joinConditions)) * ce.costModel.CPUOperatorCost
+	}
+
+	// 5. 估算输出行数
+	selectivity := ce.estimateJoinSelectivity(buildStats, probeStats, joinConditions)
+	outputRows := int64(buildRows * probeRows * selectivity)
+
+	totalCost := buildCost + probeCost + memoryCost + joinCondCost
 
 	return &CostEstimate{
 		IOCost:      0,
 		CPUCost:     totalCost,
 		TotalCost:   totalCost,
 		OutputRows:  outputRows,
-		Selectivity: 0.1,
+		Selectivity: selectivity,
 	}, nil
 }
 
@@ -419,4 +464,183 @@ func GetCostRatio(cost1, cost2 *CostEstimate) float64 {
 		return math.Inf(1)
 	}
 	return cost1.TotalCost / cost2.TotalCost
+}
+
+// estimateJoinSelectivity 估算连接选择率
+func (ce *CostEstimator) estimateJoinSelectivity(
+	leftStats *TableStats,
+	rightStats *TableStats,
+	joinConditions []Expression,
+) float64 {
+	if len(joinConditions) == 0 {
+		// 笛卡尔积
+		return 1.0
+	}
+
+	// 基于连接条件估算选择率
+	selectivity := 1.0
+
+	for _, cond := range joinConditions {
+		// 简化实现：基于条件类型估算
+		// 等值连接：1 / max(NDV_left, NDV_right)
+		// 范围连接：使用默认选择率
+
+		condSelectivity := ce.estimateConditionSelectivity(cond, leftStats, rightStats)
+		selectivity *= condSelectivity
+	}
+
+	// 确保选择率在合理范围内
+	if selectivity < 0.0001 {
+		selectivity = 0.0001
+	}
+	if selectivity > 1.0 {
+		selectivity = 1.0
+	}
+
+	return selectivity
+}
+
+// estimateConditionSelectivity 估算单个条件的选择率
+func (ce *CostEstimator) estimateConditionSelectivity(
+	cond Expression,
+	leftStats *TableStats,
+	rightStats *TableStats,
+) float64 {
+	// 简化实现：根据条件类型返回默认选择率
+	// TODO: 实现更精确的选择率估算
+
+	// 等值连接的默认选择率
+	// 假设连接列的NDV为表行数的平方根
+	leftNDV := math.Sqrt(float64(leftStats.RowCount))
+	rightNDV := math.Sqrt(float64(rightStats.RowCount))
+	maxNDV := math.Max(leftNDV, rightNDV)
+
+	if maxNDV == 0 {
+		return 0.1 // 默认选择率
+	}
+
+	return 1.0 / maxNDV
+}
+
+// ChooseBestJoinAlgorithm 选择最佳连接算法
+func (ce *CostEstimator) ChooseBestJoinAlgorithm(
+	leftStats *TableStats,
+	rightStats *TableStats,
+	joinConditions []Expression,
+) (string, *CostEstimate, error) {
+	// 估算三种连接算法的代价
+
+	// 1. 嵌套循环连接
+	nestedLoopCost, err := ce.estimateNestedLoopJoinCost(leftStats, rightStats, joinConditions)
+	if err != nil {
+		return "", nil, err
+	}
+
+	// 2. 哈希连接
+	hashJoinCost, err := ce.estimateHashJoinCost(leftStats, rightStats, joinConditions)
+	if err != nil {
+		return "", nil, err
+	}
+
+	// 3. 排序合并连接
+	sortMergeJoinCost, err := ce.estimateSortMergeJoinCost(leftStats, rightStats, joinConditions)
+	if err != nil {
+		return "", nil, err
+	}
+
+	// 选择代价最小的算法
+	bestAlgorithm := "NESTED_LOOP"
+	bestCost := nestedLoopCost
+
+	if hashJoinCost.TotalCost < bestCost.TotalCost {
+		bestAlgorithm = "HASH_JOIN"
+		bestCost = hashJoinCost
+	}
+
+	if sortMergeJoinCost.TotalCost < bestCost.TotalCost {
+		bestAlgorithm = "SORT_MERGE_JOIN"
+		bestCost = sortMergeJoinCost
+	}
+
+	return bestAlgorithm, bestCost, nil
+}
+
+// ChooseAggregateAlgorithm 选择最佳聚合算法
+func (ce *CostEstimator) ChooseAggregateAlgorithm(
+	inputRows int64,
+	groupByColumns []string,
+	aggregateFunctions []string,
+) (string, *CostEstimate, error) {
+	// 估算分组数（简化：假设为输入行数的平方根）
+	groupCount := int64(math.Sqrt(float64(inputRows)))
+	if groupCount == 0 {
+		groupCount = 1
+	}
+
+	// 1. 哈希聚合代价
+	hashAggCost := ce.estimateHashAggregateCost(inputRows, groupCount, aggregateFunctions)
+
+	// 2. 排序聚合代价
+	sortAggCost := ce.estimateSortAggregateCost(inputRows, groupCount, aggregateFunctions)
+
+	// 选择代价最小的算法
+	if hashAggCost.TotalCost < sortAggCost.TotalCost {
+		return "HASH_AGGREGATE", hashAggCost, nil
+	}
+	return "SORT_AGGREGATE", sortAggCost, nil
+}
+
+// estimateHashAggregateCost 估算哈希聚合代价
+func (ce *CostEstimator) estimateHashAggregateCost(
+	inputRows int64,
+	groupCount int64,
+	aggregateFunctions []string,
+) *CostEstimate {
+	// 1. 读取输入数据
+	readCost := float64(inputRows) * ce.costModel.CPUTupleCost
+
+	// 2. 计算哈希值并分组
+	hashCost := float64(inputRows) * ce.costModel.CPUOperatorCost
+
+	// 3. 聚合计算
+	aggCost := float64(inputRows) * float64(len(aggregateFunctions)) * ce.costModel.CPUOperatorCost
+
+	// 4. 哈希表内存代价
+	memoryCost := float64(groupCount) * ce.costModel.MemoryTupleCost
+
+	totalCost := readCost + hashCost + aggCost + memoryCost
+
+	return &CostEstimate{
+		IOCost:      0,
+		CPUCost:     totalCost,
+		TotalCost:   totalCost,
+		OutputRows:  groupCount,
+		Selectivity: float64(groupCount) / float64(inputRows),
+	}
+}
+
+// estimateSortAggregateCost 估算排序聚合代价
+func (ce *CostEstimator) estimateSortAggregateCost(
+	inputRows int64,
+	groupCount int64,
+	aggregateFunctions []string,
+) *CostEstimate {
+	// 1. 排序代价
+	sortCost := ce.estimateSortCost(inputRows)
+
+	// 2. 读取排序后的数据
+	readCost := float64(inputRows) * ce.costModel.CPUTupleCost
+
+	// 3. 聚合计算（顺序扫描，每组只计算一次）
+	aggCost := float64(groupCount) * float64(len(aggregateFunctions)) * ce.costModel.CPUOperatorCost
+
+	totalCost := sortCost + readCost + aggCost
+
+	return &CostEstimate{
+		IOCost:      0,
+		CPUCost:     totalCost,
+		TotalCost:   totalCost,
+		OutputRows:  groupCount,
+		Selectivity: float64(groupCount) / float64(inputRows),
+	}
 }

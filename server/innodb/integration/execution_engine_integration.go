@@ -113,6 +113,7 @@ func (eei *ExecutionEngineIntegrator) initializeExecutors() {
 		eei.btreeManager,
 		eei.tableManager,
 		eei.transactionManager,
+		eei.indexManager,
 	)
 
 	// 创建存储引擎集成的DML执行器
@@ -190,6 +191,8 @@ func (eei *ExecutionEngineIntegrator) executeSelectQuery(
 		return nil, fmt.Errorf("无效的SELECT语句")
 	}
 
+	startTime := time.Now()
+
 	// 使用优化后的执行计划
 	executionPlan := eei.buildOptimizedExecutionPlan(optimizedPlan)
 
@@ -203,7 +206,7 @@ func (eei *ExecutionEngineIntegrator) executeSelectQuery(
 		QueryType:        QueryTypeSelect,
 		SelectResult:     selectResult,
 		RowsAffected:     int64(selectResult.RowCount),
-		ExecutionTime:    selectResult.ExecutionTime,
+		ExecutionTime:    time.Since(startTime),
 		OptimizationUsed: true,
 		AccessMethod:     optimizedPlan.OptimizedPlan.AccessMethod.String(),
 		IndexUsed:        optimizedPlan.OptimizedPlan.StorageHints.IndexName,
@@ -249,14 +252,7 @@ func (eei *ExecutionEngineIntegrator) executeIndexScan(
 		return nil, err
 	}
 
-	// 标记使用了索引优化
-	result.OptimizationInfo = &engine.OptimizationInfo{
-		IndexUsed:     true,
-		IndexName:     executionPlan.StorageHints.IndexName,
-		CoveringIndex: executionPlan.AccessMethod == AccessMethodCoveringIndex,
-		EstimatedCost: executionPlan.CostEstimate.TotalCost,
-		ActualRows:    int64(result.RowCount),
-	}
+	// 暂不记录索引优化信息
 
 	return result, nil
 }
@@ -282,14 +278,7 @@ func (eei *ExecutionEngineIntegrator) executeTableScan(
 		return nil, err
 	}
 
-	// 标记使用了表扫描
-	result.OptimizationInfo = &engine.OptimizationInfo{
-		IndexUsed:     false,
-		IndexName:     "",
-		CoveringIndex: false,
-		EstimatedCost: executionPlan.CostEstimate.TotalCost,
-		ActualRows:    int64(result.RowCount),
-	}
+	// 暂不记录表扫描的优化信息
 
 	return result, nil
 }
@@ -304,6 +293,8 @@ func (eei *ExecutionEngineIntegrator) executeInsertQuery(
 		return nil, fmt.Errorf("无效的INSERT语句")
 	}
 
+	startTime := time.Now()
+
 	// 使用存储引擎集成的DML执行器
 	dmlResult, err := eei.storageIntegratedDML.ExecuteInsert(ctx, insertStmt, optimizedPlan.SemanticInfo.DatabaseName)
 	if err != nil {
@@ -313,8 +304,8 @@ func (eei *ExecutionEngineIntegrator) executeInsertQuery(
 	return &ExecutionResult{
 		QueryType:        QueryTypeInsert,
 		DMLResult:        dmlResult,
-		RowsAffected:     dmlResult.RowsAffected,
-		ExecutionTime:    dmlResult.ExecutionTime,
+		RowsAffected:     int64(dmlResult.AffectedRows),
+		ExecutionTime:    time.Since(startTime),
 		OptimizationUsed: true,
 		AccessMethod:     "STORAGE_INTEGRATED",
 	}, nil
@@ -330,6 +321,8 @@ func (eei *ExecutionEngineIntegrator) executeUpdateQuery(
 		return nil, fmt.Errorf("无效的UPDATE语句")
 	}
 
+	startTime := time.Now()
+
 	// 使用存储引擎集成的DML执行器
 	dmlResult, err := eei.storageIntegratedDML.ExecuteUpdate(ctx, updateStmt, optimizedPlan.SemanticInfo.DatabaseName)
 	if err != nil {
@@ -339,8 +332,8 @@ func (eei *ExecutionEngineIntegrator) executeUpdateQuery(
 	return &ExecutionResult{
 		QueryType:        QueryTypeUpdate,
 		DMLResult:        dmlResult,
-		RowsAffected:     dmlResult.RowsAffected,
-		ExecutionTime:    dmlResult.ExecutionTime,
+		RowsAffected:     int64(dmlResult.AffectedRows),
+		ExecutionTime:    time.Since(startTime),
 		OptimizationUsed: true,
 		AccessMethod:     "STORAGE_INTEGRATED",
 	}, nil
@@ -356,6 +349,8 @@ func (eei *ExecutionEngineIntegrator) executeDeleteQuery(
 		return nil, fmt.Errorf("无效的DELETE语句")
 	}
 
+	startTime := time.Now()
+
 	// 使用存储引擎集成的DML执行器
 	dmlResult, err := eei.storageIntegratedDML.ExecuteDelete(ctx, deleteStmt, optimizedPlan.SemanticInfo.DatabaseName)
 	if err != nil {
@@ -365,8 +360,8 @@ func (eei *ExecutionEngineIntegrator) executeDeleteQuery(
 	return &ExecutionResult{
 		QueryType:        QueryTypeDelete,
 		DMLResult:        dmlResult,
-		RowsAffected:     dmlResult.RowsAffected,
-		ExecutionTime:    dmlResult.ExecutionTime,
+		RowsAffected:     int64(dmlResult.AffectedRows),
+		ExecutionTime:    time.Since(startTime),
 		OptimizationUsed: true,
 		AccessMethod:     "STORAGE_INTEGRATED",
 	}, nil

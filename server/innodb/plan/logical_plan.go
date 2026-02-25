@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
+	"strconv"
+	"strings"
 )
 
 // AggregateFunc represents an aggregate function
@@ -95,6 +97,23 @@ type LogicalAggregation struct {
 	AggFuncs     []AggregateFunc
 }
 
+// LogicalSubquery 子查询逻辑计划
+type LogicalSubquery struct {
+	BaseLogicalPlan
+	SubqueryType string      // "SCALAR", "IN", "EXISTS", "ANY", "ALL"
+	Correlated   bool        // 是否为关联子查询
+	OuterRefs    []string    // 外部引用的列
+	Subplan      LogicalPlan // 子查询的逻辑计划
+}
+
+// LogicalApply Apply算子（用于关联子查询）
+type LogicalApply struct {
+	BaseLogicalPlan
+	ApplyType  string       // "INNER", "LEFT", "SEMI", "ANTI"
+	Correlated bool         // 是否为关联
+	JoinConds  []Expression // 关联条件
+}
+
 func (p *LogicalTableScan) String() string {
 	return fmt.Sprintf("TableScan(%s)", p.Table.Name)
 }
@@ -119,6 +138,14 @@ func (p *LogicalAggregation) String() string {
 	return "Aggregation"
 }
 
+func (p *LogicalSubquery) String() string {
+	return fmt.Sprintf("Subquery(%s, correlated=%v)", p.SubqueryType, p.Correlated)
+}
+
+func (p *LogicalApply) String() string {
+	return fmt.Sprintf("Apply(%s, correlated=%v)", p.ApplyType, p.Correlated)
+}
+
 // BuildLogicalPlan 构建逻辑计划
 func BuildLogicalPlan(stmt *sqlparser.Select, infoSchema InfoSchemas) (LogicalPlan, error) {
 	builder := &PlanBuilder{
@@ -132,6 +159,42 @@ func BuildLogicalPlan(stmt *sqlparser.Select, infoSchema InfoSchemas) (LogicalPl
 type PlanBuilder struct {
 	ctx        interface{}
 	infoSchema InfoSchemas
+}
+
+func (b *PlanBuilder) convertComparisonOp(op string) BinaryOp {
+	switch strings.ToLower(op) {
+	case "=":
+		return OpEQ
+	case "!=", "<>":
+		return OpNE
+	case "<":
+		return OpLT
+	case "<=":
+		return OpLE
+	case ">":
+		return OpGT
+	case ">=":
+		return OpGE
+	case "like":
+		return OpLike
+	case "in":
+		return OpIn
+	}
+	return OpEQ
+}
+
+func (b *PlanBuilder) convertBinaryOp(op string) BinaryOp {
+	switch op {
+	case "+":
+		return OpAdd
+	case "-":
+		return OpSub
+	case "*":
+		return OpMul
+	case "/":
+		return OpDiv
+	}
+	return OpAdd
 }
 
 // buildSelect 构建SELECT语句的逻辑计划
@@ -170,7 +233,7 @@ func (b *PlanBuilder) buildSelect(stmt *sqlparser.Select) (LogicalPlan, error) {
 		BaseLogicalPlan: BaseLogicalPlan{
 			children: []LogicalPlan{from},
 		},
-		Exprs: b.buildProjectionExprs(stmt.SelectExprs),
+		Exprs: b.buildProjectionExprs(stmt.SelectExprs, from.Schema()),
 	}
 
 	return projection, nil
@@ -228,24 +291,122 @@ func (b *PlanBuilder) buildTableSource(tableExpr *sqlparser.AliasedTableExpr) (L
 
 // buildExpr 构建表达式
 func (b *PlanBuilder) buildExpr(expr sqlparser.Expr) Expression {
-	// TODO: 实现表达式构建
+	switch v := expr.(type) {
+	case *sqlparser.SQLVal:
+		switch v.Type {
+		case sqlparser.IntVal:
+			if n, err := strconv.ParseInt(string(v.Val), 10, 64); err == nil {
+				return &Constant{Value: n}
+			}
+		case sqlparser.FloatVal:
+			if f, err := strconv.ParseFloat(string(v.Val), 64); err == nil {
+				return &Constant{Value: f}
+			}
+		default:
+			return &Constant{Value: string(v.Val)}
+		}
+	case *sqlparser.NullVal:
+		return &Constant{Value: nil}
+	case sqlparser.BoolVal:
+		return &Constant{Value: bool(v)}
+	case *sqlparser.ColName:
+		return &Column{Name: v.Name.String()}
+	case *sqlparser.BinaryExpr:
+		return &BinaryOperation{
+			Op:    b.convertBinaryOp(v.Operator),
+			Left:  b.buildExpr(v.Left),
+			Right: b.buildExpr(v.Right),
+		}
+	case *sqlparser.ComparisonExpr:
+		return &BinaryOperation{
+			Op:    b.convertComparisonOp(v.Operator),
+			Left:  b.buildExpr(v.Left),
+			Right: b.buildExpr(v.Right),
+		}
+	case *sqlparser.AndExpr:
+		return &BinaryOperation{Op: OpAnd, Left: b.buildExpr(v.Left), Right: b.buildExpr(v.Right)}
+	case *sqlparser.OrExpr:
+		return &BinaryOperation{Op: OpOr, Left: b.buildExpr(v.Left), Right: b.buildExpr(v.Right)}
+	case *sqlparser.FuncExpr:
+		var args []Expression
+		for _, a := range v.Exprs {
+			if ae, ok := a.(*sqlparser.AliasedExpr); ok {
+				args = append(args, b.buildExpr(ae.Expr))
+			}
+		}
+		return &Function{FuncName: v.Name.String(), FuncArgs: args}
+	case sqlparser.ValTuple:
+		var vals []interface{}
+		for _, e := range v {
+			if c, ok := b.buildExpr(e).(*Constant); ok {
+				vals = append(vals, c.Value)
+			}
+		}
+		return &Constant{Value: vals}
+	case *sqlparser.ParenExpr:
+		return b.buildExpr(v.Expr)
+	}
 	return nil
 }
 
 // buildGroupByItems 构建GROUP BY项
 func (b *PlanBuilder) buildGroupByItems(groupBy sqlparser.GroupBy) []Expression {
-	// TODO: 实现GROUP BY项构建
-	return nil
+	var items []Expression
+	for _, expr := range groupBy {
+		items = append(items, b.buildExpr(expr))
+	}
+	return items
 }
 
 // buildAggFuncs 构建聚合函数
 func (b *PlanBuilder) buildAggFuncs(selectExprs sqlparser.SelectExprs) []AggregateFunc {
-	// TODO: 实现聚合函数构建
-	return nil
+	var funcs []AggregateFunc
+	for _, se := range selectExprs {
+		ae, ok := se.(*sqlparser.AliasedExpr)
+		if !ok {
+			continue
+		}
+		fe, ok := ae.Expr.(*sqlparser.FuncExpr)
+		if !ok || !fe.IsAggregate() {
+			continue
+		}
+		var args []Expression
+		for _, a := range fe.Exprs {
+			if ae2, ok := a.(*sqlparser.AliasedExpr); ok {
+				args = append(args, b.buildExpr(ae2.Expr))
+			}
+		}
+		funcs = append(funcs, &Function{FuncName: fe.Name.String(), FuncArgs: args})
+	}
+	return funcs
 }
 
 // buildProjectionExprs 构建投影表达式
-func (b *PlanBuilder) buildProjectionExprs(selectExprs sqlparser.SelectExprs) []Expression {
-	// TODO: 实现投影表达式构建
-	return nil
+func (b *PlanBuilder) buildProjectionExprs(selectExprs sqlparser.SelectExprs, schema *metadata.DatabaseSchema) []Expression {
+	var exprs []Expression
+	for _, se := range selectExprs {
+		switch v := se.(type) {
+		case *sqlparser.AliasedExpr:
+			exprs = append(exprs, b.buildExpr(v.Expr))
+		case *sqlparser.StarExpr:
+			if schema == nil {
+				continue
+			}
+			tblName := v.TableName.Name.String()
+			if tblName != "" {
+				if tbl, ok := schema.Tables[tblName]; ok {
+					for _, col := range tbl.Columns {
+						exprs = append(exprs, &Column{Name: col.Name})
+					}
+				}
+				continue
+			}
+			for _, tbl := range schema.Tables {
+				for _, col := range tbl.Columns {
+					exprs = append(exprs, &Column{Name: col.Name})
+				}
+			}
+		}
+	}
+	return exprs
 }

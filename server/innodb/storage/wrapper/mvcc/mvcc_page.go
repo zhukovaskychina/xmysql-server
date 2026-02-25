@@ -1,12 +1,18 @@
 package mvcc
 
 import (
-	"github.com/zhukovaskychina/xmysql-server/server/common"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"encoding/binary"
 	"io"
 	"sync"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	formatmvcc "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/format/mvcc"
 )
+
+// 确保MVCCIndexPage实现了IMVCCPage接口
+var _ IMVCCPage = (*MVCCIndexPage)(nil)
 
 // MVCCIndexPage MVCC索引页面实现
 type MVCCIndexPage struct {
@@ -22,9 +28,10 @@ type MVCCIndexPage struct {
 	// MVCC信息
 	version uint64
 	txID    uint64
+	rollPtr []byte
 
 	// 记录管理
-	records   map[uint16]*RecordVersion
+	records   map[uint16]*formatmvcc.RecordVersion
 	freeSlots []uint16
 
 	// 锁管理
@@ -40,7 +47,7 @@ func NewMVCCIndexPage(id, spaceID uint32) *MVCCIndexPage {
 		id:        id,
 		spaceID:   spaceID,
 		pageType:  common.FILE_PAGE_INDEX,
-		records:   make(map[uint16]*RecordVersion),
+		records:   make(map[uint16]*formatmvcc.RecordVersion),
 		freeSlots: make([]uint16, 0),
 		locks:     make(map[uint64]LockMode),
 	}
@@ -96,8 +103,8 @@ func (p *MVCCIndexPage) Init() error {
 	return nil
 }
 
-// Release 实现Page接口
-func (p *MVCCIndexPage) Release() error {
+// Release 实现basic.IPage接口
+func (p *MVCCIndexPage) Release() {
 	p.Lock()
 	defer p.Unlock()
 
@@ -105,8 +112,6 @@ func (p *MVCCIndexPage) Release() error {
 	p.records = nil
 	p.freeSlots = nil
 	p.locks = nil
-
-	return nil
 }
 
 // IsDirty 实现Page接口
@@ -144,6 +149,136 @@ func (p *MVCCIndexPage) SetTxID(txID uint64) {
 	p.txID = txID
 }
 
+// GetRollPtr 实现IMVCCPage接口
+func (p *MVCCIndexPage) GetRollPtr() []byte {
+	p.RLock()
+	defer p.RUnlock()
+	if p.rollPtr == nil {
+		return nil
+	}
+	result := make([]byte, len(p.rollPtr))
+	copy(result, p.rollPtr)
+	return result
+}
+
+// SetRollPtr 实现IMVCCPage接口
+func (p *MVCCIndexPage) SetRollPtr(ptr []byte) {
+	p.Lock()
+	defer p.Unlock()
+	if ptr == nil {
+		p.rollPtr = nil
+		return
+	}
+	p.rollPtr = make([]byte, len(ptr))
+	copy(p.rollPtr, ptr)
+}
+
+// GetContent 实现basic.IPage接口
+func (p *MVCCIndexPage) GetContent() []byte {
+	// 返回页面内容的副本
+	// 对于MVCC页面，内容包括所有记录的序列化数据
+	data, _ := p.ToBytes()
+	return data
+}
+
+// GetData 实现basic.IPage接口（与GetContent相同）
+func (p *MVCCIndexPage) GetData() []byte {
+	return p.GetContent()
+}
+
+// SetData 实现basic.IPage接口
+func (p *MVCCIndexPage) SetData(data []byte) error {
+	return p.ParseFromBytes(data)
+}
+
+// SetContent 实现basic.IPage接口
+func (p *MVCCIndexPage) SetContent(content []byte) {
+	_ = p.SetData(content)
+}
+
+// GetPageID 实现basic.IPage接口
+func (p *MVCCIndexPage) GetPageID() uint32 {
+	return p.id
+}
+
+// GetPageNo 实现basic.IPage接口
+func (p *MVCCIndexPage) GetPageNo() uint32 {
+	return p.id
+}
+
+// GetSpaceID 实现basic.IPage接口
+func (p *MVCCIndexPage) GetSpaceID() uint32 {
+	return p.spaceID
+}
+
+// GetPageType 实现basic.IPage接口
+func (p *MVCCIndexPage) GetPageType() basic.PageType {
+	return p.pageType
+}
+
+// GetSize 实现basic.IPage接口
+func (p *MVCCIndexPage) GetSize() uint32 {
+	return p.size
+}
+
+// GetLSN 实现basic.IPage接口
+func (p *MVCCIndexPage) GetLSN() uint64 {
+	return p.lsn
+}
+
+// SetLSN 实现basic.IPage接口
+func (p *MVCCIndexPage) SetLSN(lsn uint64) {
+	p.lsn = lsn
+}
+
+// SetDirty 实现basic.IPage接口
+func (p *MVCCIndexPage) SetDirty(dirty bool) {
+	p.dirty = dirty
+}
+
+// GetState 实现basic.IPage接口
+func (p *MVCCIndexPage) GetState() basic.PageState {
+	// MVCC页面默认为活跃状态
+	if p.dirty {
+		return basic.PageStateDirty
+	}
+	return basic.PageStateClean
+}
+
+// SetState 实现basic.IPage接口
+func (p *MVCCIndexPage) SetState(state basic.PageState) {
+	// 根据状态设置dirty标记
+	p.dirty = (state == basic.PageStateDirty)
+}
+
+// Pin 实现basic.IPage接口
+func (p *MVCCIndexPage) Pin() {
+	// MVCC页面的pin操作（可以扩展）
+}
+
+// Unpin 实现basic.IPage接口
+func (p *MVCCIndexPage) Unpin() {
+	// MVCC页面的unpin操作（可以扩展）
+}
+
+// Read 实现basic.IPage接口
+func (p *MVCCIndexPage) Read() error {
+	// TODO: 实现从磁盘读取
+	return nil
+}
+
+// Write 实现basic.IPage接口
+func (p *MVCCIndexPage) Write() error {
+	// TODO: 实现写入磁盘
+	return nil
+}
+
+// IsLeafPage 实现basic.IPage接口
+func (p *MVCCIndexPage) IsLeafPage() bool {
+	// MVCC索引页面默认为叶子页面
+	return true
+}
+
 // CreateSnapshot 实现MVCCPage接口
 func (p *MVCCIndexPage) CreateSnapshot() (*PageSnapshot, error) {
 	p.RLock()
@@ -154,19 +289,12 @@ func (p *MVCCIndexPage) CreateSnapshot() (*PageSnapshot, error) {
 		Version:  p.version,
 		TxID:     p.txID,
 		CreateTS: time.Now(),
-		Records:  make(map[uint16]*RecordVersion),
+		Records:  make(map[uint16]*formatmvcc.RecordVersion),
 	}
 
 	// 复制记录版本
 	for slot, rec := range p.records {
-		snap.Records[slot] = &RecordVersion{
-			Version:  rec.Version,
-			TxID:     rec.TxID,
-			CreateTS: rec.CreateTS,
-			Key:      rec.Key,
-			Value:    rec.Value,
-			Next:     rec.Next,
-		}
+		snap.Records[slot] = rec.Clone()
 	}
 
 	return snap, nil
@@ -182,16 +310,9 @@ func (p *MVCCIndexPage) RestoreSnapshot(snap *PageSnapshot) error {
 	p.txID = snap.TxID
 
 	// 恢复记录
-	p.records = make(map[uint16]*RecordVersion)
+	p.records = make(map[uint16]*formatmvcc.RecordVersion)
 	for slot, rec := range snap.Records {
-		p.records[slot] = &RecordVersion{
-			Version:  rec.Version,
-			TxID:     rec.TxID,
-			CreateTS: rec.CreateTS,
-			Key:      rec.Key,
-			Value:    rec.Value,
-			Next:     rec.Next,
-		}
+		p.records[slot] = rec.Clone()
 	}
 
 	p.MarkDirty()
@@ -251,13 +372,7 @@ func (p *MVCCIndexPage) InsertRecord(key basic.Value, value basic.Row) error {
 	p.freeSlots = p.freeSlots[1:]
 
 	// 创建新记录版本
-	rec := &RecordVersion{
-		Version:  p.version,
-		TxID:     p.txID,
-		CreateTS: time.Now(),
-		Key:      key,
-		Value:    value,
-	}
+	rec := formatmvcc.NewRecordVersion(p.version, p.txID, 0, key, value)
 
 	p.records[slot] = rec
 	p.MarkDirty()
@@ -292,17 +407,59 @@ func (p *MVCCIndexPage) UpdateRecord(slot uint16, value basic.Row) error {
 	}
 
 	// 创建新版本
-	newRec := &RecordVersion{
-		Version:  p.version,
-		TxID:     p.txID,
-		CreateTS: time.Now(),
-		Key:      rec.Key,
-		Value:    value,
-		Next:     rec,
-	}
+	newRec := formatmvcc.NewRecordVersion(p.version, p.txID, 0, rec.GetKey(), value)
+	newRec.SetNext(rec)
 
 	p.records[slot] = newRec
 	p.MarkDirty()
 
 	return nil
+}
+
+// ParseFromBytes 实现IMVCCPage接口
+func (p *MVCCIndexPage) ParseFromBytes(data []byte) error {
+	if len(data) < 16 { // version(8) + txID(8)
+		return nil // 数据不足，使用默认值
+	}
+
+	p.Lock()
+	defer p.Unlock()
+
+	p.version = binary.BigEndian.Uint64(data[0:8])
+	p.txID = binary.BigEndian.Uint64(data[8:16])
+
+	// 解析rollback pointer
+	if len(data) > 16 {
+		rollPtrSize := binary.BigEndian.Uint16(data[16:18])
+		if rollPtrSize > 0 && len(data) >= 18+int(rollPtrSize) {
+			p.rollPtr = make([]byte, rollPtrSize)
+			copy(p.rollPtr, data[18:18+rollPtrSize])
+		}
+	}
+
+	return nil
+}
+
+// ToBytes 实现IMVCCPage接口
+func (p *MVCCIndexPage) ToBytes() ([]byte, error) {
+	p.RLock()
+	defer p.RUnlock()
+
+	size := 16 // version(8) + txID(8)
+	rollPtrSize := 0
+	if p.rollPtr != nil {
+		rollPtrSize = len(p.rollPtr)
+		size += 2 + rollPtrSize // 2 bytes for length
+	}
+
+	data := make([]byte, size)
+	binary.BigEndian.PutUint64(data[0:8], p.version)
+	binary.BigEndian.PutUint64(data[8:16], p.txID)
+
+	if rollPtrSize > 0 {
+		binary.BigEndian.PutUint16(data[16:18], uint16(rollPtrSize))
+		copy(data[18:], p.rollPtr)
+	}
+
+	return data, nil
 }

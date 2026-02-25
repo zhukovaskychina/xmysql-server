@@ -19,9 +19,9 @@ import (
 )
 
 // SelectExecutor SELECT查询执行器
+// 注意：此执行器是查询协调器，不是火山模型的Operator
+// 实际的算子执行使用volcano_executor.go中的Operator接口
 type SelectExecutor struct {
-	BaseExecutor
-
 	// 管理器组件
 	optimizerManager  *manager.OptimizerManager
 	bufferPoolManager *manager.OptimizedBufferPoolManager
@@ -432,20 +432,23 @@ func (se *SelectExecutor) createDefaultUserData() error {
 	tableMeta := se.getMySQLUserTableMeta()
 
 	// 创建默认的root用户记录
+	// 字段顺序：Host, User, 29个权限字段, authentication_string, password_expired,
+	//          max_questions, max_updates, max_connections, max_user_connections,
+	//          account_locked, password_last_changed, password_require_current, user_attributes
 	rootUsers := [][]interface{}{
 		{
 			"localhost", "root", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
 			"Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
 			"Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
 			"Y", "*23AE809DDACAF96AF0FD78ED04B6A265E05AA257", "N",
-			"0", "N", "2024-01-01 00:00:00", "0", "0", "Y", "{}",
+			"0", "0", "0", "0", "N", "2024-01-01 00:00:00", "Y", "{}",
 		},
 		{
 			"%", "root", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
 			"Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
 			"Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
 			"Y", "*23AE809DDACAF96AF0FD78ED04B6A265E05AA257", "N",
-			"0", "N", "2024-01-01 00:00:00", "0", "0", "Y", "{}",
+			"0", "0", "0", "0", "N", "2024-01-01 00:00:00", "Y", "{}",
 		},
 	}
 
@@ -499,10 +502,11 @@ func (se *SelectExecutor) getMySQLUserTableMeta() *metadata.TableMeta {
 		{Name: "authentication_string", Type: metadata.TypeText, Length: 65535},
 		{Name: "password_expired", Type: metadata.TypeEnum, Length: 1},
 		{Name: "max_questions", Type: metadata.TypeInt, Length: 11},
-		{Name: "account_locked", Type: metadata.TypeEnum, Length: 1},
-		{Name: "password_last_changed", Type: metadata.TypeTimestamp, Length: 19},
 		{Name: "max_updates", Type: metadata.TypeInt, Length: 11},
 		{Name: "max_connections", Type: metadata.TypeInt, Length: 11},
+		{Name: "max_user_connections", Type: metadata.TypeInt, Length: 11},
+		{Name: "account_locked", Type: metadata.TypeEnum, Length: 1},
+		{Name: "password_last_changed", Type: metadata.TypeTimestamp, Length: 19},
 		{Name: "password_require_current", Type: metadata.TypeEnum, Length: 1},
 		{Name: "user_attributes", Type: metadata.TypeJSON, Length: 65535},
 	}
@@ -980,11 +984,26 @@ func (se *SelectExecutor) buildSelectResult() *SelectResult {
 	return result
 }
 
-// applyProjection 应用投影（记录在解析阶段已完成投影，此处直接返回）
+// applyProjection 应用投影
 func (se *SelectExecutor) applyProjection(records []Record) []Record {
-	// 投影已在 parsePageRecords 阶段完成，这里直接返回
-	// 这样避免了二次投影，提高了性能
-	return records
+	// 如果是 SELECT *，不需要投影
+	if len(se.selectExprs) == 1 && se.selectExprs[0] == "*" {
+		return records
+	}
+
+	// 对每条记录进行投影
+	projectedRecords := make([]Record, 0, len(records))
+	for _, record := range records {
+		projectedRecord, err := se.projectRecord(record, se.selectExprs)
+		if err != nil {
+			logger.Warnf(" [applyProjection] 投影记录失败: %v，跳过该记录", err)
+			continue
+		}
+		projectedRecords = append(projectedRecords, projectedRecord)
+	}
+
+	logger.Debugf(" [applyProjection] 投影完成: %d 条记录, %d 个字段", len(projectedRecords), len(se.selectExprs))
+	return projectedRecords
 }
 
 // projectRecord 对单条记录进行投影
@@ -1231,21 +1250,7 @@ func (se *SelectExecutor) GetRow() []interface{} {
 }
 
 func (se *SelectExecutor) Close() error {
-	se.closed = true
 	se.currentRowIndex = 0
 	se.resultSet = nil
 	return nil
-}
-
-// 实现Executor接口的方法
-func (se *SelectExecutor) Schema() *metadata.Schema {
-	return se.schema
-}
-
-func (se *SelectExecutor) Children() []Executor {
-	return se.children
-}
-
-func (se *SelectExecutor) SetChildren(children []Executor) {
-	se.children = children
 }

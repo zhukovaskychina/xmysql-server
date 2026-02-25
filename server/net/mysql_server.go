@@ -74,9 +74,9 @@ func (srv *MySQLServer) Start() {
 
 	gxlog.CInfo(logBanner)
 	gxlog.CInfo("启动成功")
-	gxlog.CInfo("%s starts successfull! its version=%s, its listen ends=%s:%s",
+	gxlog.CInfo("%s starts successfull! its version=%s, its listen ends=%s:%d",
 		srv.conf.AppName, getty.Version, srv.conf.BindAddress, srv.conf.Port)
-	log.Info("%s starts successfull! its version=%s, its listen ends=%s:%s",
+	log.Info("%s starts successfull! its version=%s, its listen ends=%s:%d",
 		srv.conf.AppName, getty.Version, srv.conf.BindAddress, srv.conf.Port)
 	//srv.initPurgeThread()
 

@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,40 +16,16 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	innodbcommon "github.com/zhukovaskychina/xmysql-server/server/innodb/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
-// Iterator 火山模型中的迭代器接口，每个算子实现该接口用于迭代数据
-type Iterator interface {
-	Init() error           // 初始化迭代器
-	Next() error           // 获取下一行数据，若无更多数据返回 io.EOF
-	GetRow() []interface{} // 获取当前行数据
-	Close() error          // 释放资源
-}
-
-// Executor 是算子接口，继承自 Iterator
-// 每个执行算子如 TableScan、Join 等都要实现该接口
-type Executor interface {
-	Iterator
-	Schema() *metadata.Schema        // 返回输出的字段结构
-	Children() []Executor            // 返回子节点
-	SetChildren(children []Executor) // 设置子节点
-}
-
-// BaseExecutor 所有执行器的基础结构
-// 提供公共字段如 schema、子节点、执行上下文等
-type BaseExecutor struct {
-	schema   *metadata.Schema
-	children []Executor
-	ctx      *ExecutionContext
-	closed   bool
-}
-
 // XMySQLExecutor 是 SQL 执行器的核心结构，负责整个 SQL 的解析与执行
 // 支持解析 SELECT、DDL、SHOW 等语句，并调用相应执行逻辑
+// 注意：实际的算子执行使用volcano_executor.go中的Operator接口和火山模型
 // 执行流程：解析 -> 生成逻辑计划 -> 转物理计划 -> 构造执行器 -> 流式迭代执行
 // 当前实现简化处理，仅返回模拟执行结果
 
@@ -58,7 +35,6 @@ type XMySQLExecutor struct {
 	conf               *conf.Cfg                  // 配置项
 	ctx                *ExecutionContext          // 执行上下文
 	results            chan *Result               // 结果通道
-	rootExecutor       Executor                   // 根算子节点
 
 	// 管理器组件 - 添加这些字段来访问各个管理器
 	optimizerManager  interface{} // 查询优化器管理器
@@ -257,9 +233,50 @@ func (e *XMySQLExecutor) executeDBDDL(stmt *sqlparser.DBDDL, results chan *Resul
 	}
 }
 
-// buildExecutorTree 构造物理计划对应的算子执行树
-func (e *XMySQLExecutor) buildExecutorTree(plan PhysicalPlan) Executor {
-	return nil // TODO: 实现基于计划节点的执行器构建
+// buildExecutorTree 从物理计划构建VolcanoExecutor
+func (e *XMySQLExecutor) buildExecutorTree(ctx context.Context, physicalPlan plan.PhysicalPlan) (*VolcanoExecutor, error) {
+	// 验证管理器实例有效性
+	var tableManager *manager.TableManager
+	var bufferPoolManager *manager.OptimizedBufferPoolManager
+	var storageManager *manager.StorageManager
+	var indexManager *manager.IndexManager
+
+	// 类型断言获取管理器
+	if e.tableManager != nil {
+		if tm, ok := e.tableManager.(*manager.TableManager); ok {
+			tableManager = tm
+		}
+	}
+	if e.bufferPoolManager != nil {
+		if bpm, ok := e.bufferPoolManager.(*manager.OptimizedBufferPoolManager); ok {
+			bufferPoolManager = bpm
+		}
+	}
+	storageManager = e.storageManager
+	indexManager = e.indexManager
+
+	// 验证必需的管理器
+	if tableManager == nil {
+		return nil, fmt.Errorf("tableManager is nil, cannot build executor tree")
+	}
+	if bufferPoolManager == nil {
+		return nil, fmt.Errorf("bufferPoolManager is nil, cannot build executor tree")
+	}
+
+	// 创建VolcanoExecutor实例
+	volcanoExec := NewVolcanoExecutor(
+		tableManager,
+		bufferPoolManager,
+		storageManager,
+		indexManager,
+	)
+
+	// 构建算子树
+	if err := volcanoExec.BuildFromPhysicalPlan(ctx, physicalPlan); err != nil {
+		return nil, fmt.Errorf("failed to build operator tree: %w", err)
+	}
+
+	return volcanoExec, nil
 }
 
 // recover 用于捕获 panic，避免系统崩溃
@@ -317,6 +334,398 @@ func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sql
 	}
 
 	return result, nil
+}
+
+// generateLogicalPlan 从SQL生成逻辑计划
+func (e *XMySQLExecutor) generateLogicalPlan(stmt *sqlparser.Select, databaseName string) (plan.LogicalPlan, error) {
+	// 获取优化器管理器
+	var optimizerManager *manager.OptimizerManager
+	if e.optimizerManager != nil {
+		if om, ok := e.optimizerManager.(*manager.OptimizerManager); ok {
+			optimizerManager = om
+		}
+	}
+
+	if optimizerManager == nil {
+		return nil, fmt.Errorf("optimizerManager is nil, cannot generate logical plan")
+	}
+
+	// TODO: 实现逻辑计划生成
+	// 这里需要调用优化器管理器的方法来生成逻辑计划
+	return nil, fmt.Errorf("logical plan generation not yet implemented")
+}
+
+// optimizeToPhysicalPlan 逻辑计划优化为物理计划
+func (e *XMySQLExecutor) optimizeToPhysicalPlan(logicalPlan plan.LogicalPlan) (plan.PhysicalPlan, error) {
+	// 获取优化器管理器
+	var optimizerManager *manager.OptimizerManager
+	if e.optimizerManager != nil {
+		if om, ok := e.optimizerManager.(*manager.OptimizerManager); ok {
+			optimizerManager = om
+		}
+	}
+
+	if optimizerManager == nil {
+		return nil, fmt.Errorf("optimizerManager is nil, cannot optimize to physical plan")
+	}
+
+	logger.Debugf("🔧 开始物理计划优化...")
+
+	// 使用优化器管理器生成物理计划
+	physicalPlan, err := e.generatePhysicalPlan(logicalPlan, optimizerManager)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate physical plan: %v", err)
+	}
+
+	logger.Debugf("✅ 物理计划优化完成")
+	return physicalPlan, nil
+}
+
+// generatePhysicalPlan 生成物理计划
+func (e *XMySQLExecutor) generatePhysicalPlan(logicalPlan plan.LogicalPlan, optimizerManager *manager.OptimizerManager) (plan.PhysicalPlan, error) {
+	// 根据逻辑计划类型生成对应的物理计划
+	switch lp := logicalPlan.(type) {
+	case *plan.LogicalTableScan:
+		return e.generatePhysicalTableScan(lp, optimizerManager)
+
+	case *plan.LogicalIndexScan:
+		return e.generatePhysicalIndexScan(lp, optimizerManager)
+
+	case *plan.LogicalJoin:
+		return e.generatePhysicalJoin(lp, optimizerManager)
+
+	case *plan.LogicalAggregation:
+		return e.generatePhysicalAggregation(lp, optimizerManager)
+
+	case *plan.LogicalProjection:
+		return e.generatePhysicalProjection(lp, optimizerManager)
+
+	case *plan.LogicalSelection:
+		return e.generatePhysicalSelection(lp, optimizerManager)
+
+	default:
+		// 简化：不支持的计划类型，返回默认表扫描
+		logger.Debugf("Unsupported logical plan type: %T, using default table scan", logicalPlan)
+		return &plan.PhysicalTableScan{
+			BasePhysicalPlan: plan.BasePhysicalPlan{},
+		}, nil
+	}
+}
+
+// generatePhysicalTableScan 生成物理表扫描计划
+func (e *XMySQLExecutor) generatePhysicalTableScan(lp *plan.LogicalTableScan, om *manager.OptimizerManager) (plan.PhysicalPlan, error) {
+	logger.Debugf("生成物理表扫描计划: table=%s", lp.Table.Name)
+
+	return &plan.PhysicalTableScan{
+		BasePhysicalPlan: plan.BasePhysicalPlan{},
+		Table:            lp.Table,
+	}, nil
+}
+
+// generatePhysicalIndexScan 生成物理索引扫描计划
+func (e *XMySQLExecutor) generatePhysicalIndexScan(lp *plan.LogicalIndexScan, om *manager.OptimizerManager) (plan.PhysicalPlan, error) {
+	logger.Debugf("生成物理索引扫描计划: table=%s, index=%s", lp.Table.Name, lp.Index.Name)
+
+	// 将plan.Index转换为metadata.Index
+	metadataIndex := &metadata.Index{
+		Name:     lp.Index.Name,
+		Columns:  lp.Index.Columns,
+		IsUnique: lp.Index.Unique,
+	}
+
+	return &plan.PhysicalIndexScan{
+		BasePhysicalPlan: plan.BasePhysicalPlan{},
+		Table:            lp.Table,
+		Index:            metadataIndex,
+	}, nil
+}
+
+// generatePhysicalJoin 生成物理连接计划
+func (e *XMySQLExecutor) generatePhysicalJoin(lp *plan.LogicalJoin, om *manager.OptimizerManager) (plan.PhysicalPlan, error) {
+	logger.Debugf("生成物理连接计划: type=%s", lp.JoinType)
+
+	// 递归生成左右子计划
+	children := lp.Children()
+	if len(children) < 2 {
+		return nil, fmt.Errorf("join plan needs at least 2 children")
+	}
+
+	leftPlan, err := e.generatePhysicalPlan(children[0], om)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate left plan: %v", err)
+	}
+
+	rightPlan, err := e.generatePhysicalPlan(children[1], om)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate right plan: %v", err)
+	}
+
+	// 选择连接算法（Hash Join, Nested Loop Join, Sort-Merge Join）
+	joinAlgorithm := e.chooseJoinAlgorithm(lp, leftPlan, rightPlan, om)
+
+	switch joinAlgorithm {
+	case "hash":
+		return &plan.PhysicalHashJoin{
+			BasePhysicalPlan: plan.BasePhysicalPlan{},
+			JoinType:         lp.JoinType,
+			Conditions:       lp.Conditions,
+			LeftSchema:       lp.LeftSchema,
+			RightSchema:      lp.RightSchema,
+		}, nil
+
+	case "merge":
+		return &plan.PhysicalMergeJoin{
+			BasePhysicalPlan: plan.BasePhysicalPlan{},
+			JoinType:         lp.JoinType,
+			Conditions:       lp.Conditions,
+			LeftSchema:       lp.LeftSchema,
+			RightSchema:      lp.RightSchema,
+		}, nil
+
+	default:
+		// 默认使用Hash Join
+		return &plan.PhysicalHashJoin{
+			BasePhysicalPlan: plan.BasePhysicalPlan{},
+			JoinType:         lp.JoinType,
+			Conditions:       lp.Conditions,
+			LeftSchema:       lp.LeftSchema,
+			RightSchema:      lp.RightSchema,
+		}, nil
+	}
+}
+
+// generatePhysicalAggregation 生成物理聚合计划
+func (e *XMySQLExecutor) generatePhysicalAggregation(lp *plan.LogicalAggregation, om *manager.OptimizerManager) (plan.PhysicalPlan, error) {
+	logger.Debugf("生成物理聚合计划")
+
+	// 递归生成子计划
+	children := lp.Children()
+	if len(children) == 0 {
+		return nil, fmt.Errorf("aggregation plan has no child")
+	}
+
+	childPlan, err := e.generatePhysicalPlan(children[0], om)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate child plan: %v", err)
+	}
+
+	// 选择聚合算法（Hash Aggregate, Sort Aggregate）
+	aggAlgorithm := e.chooseAggregateAlgorithm(lp, childPlan, om)
+
+	switch aggAlgorithm {
+	case "hash":
+		return &plan.PhysicalHashAgg{
+			BasePhysicalPlan: plan.BasePhysicalPlan{},
+			GroupByItems:     lp.GroupByItems,
+			AggFuncs:         lp.AggFuncs,
+		}, nil
+
+	case "stream":
+		return &plan.PhysicalStreamAgg{
+			BasePhysicalPlan: plan.BasePhysicalPlan{},
+			GroupByItems:     lp.GroupByItems,
+			AggFuncs:         lp.AggFuncs,
+		}, nil
+
+	default:
+		// 默认使用Hash Aggregate
+		return &plan.PhysicalHashAgg{
+			BasePhysicalPlan: plan.BasePhysicalPlan{},
+			GroupByItems:     lp.GroupByItems,
+			AggFuncs:         lp.AggFuncs,
+		}, nil
+	}
+}
+
+// generatePhysicalProjection 生成物理投影计划
+func (e *XMySQLExecutor) generatePhysicalProjection(lp *plan.LogicalProjection, om *manager.OptimizerManager) (plan.PhysicalPlan, error) {
+	logger.Debugf("生成物理投影计划")
+
+	// 递归生成子计划
+	children := lp.Children()
+	if len(children) == 0 {
+		return nil, fmt.Errorf("projection plan has no child")
+	}
+
+	_, err := e.generatePhysicalPlan(children[0], om)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate child plan: %v", err)
+	}
+
+	return &plan.PhysicalProjection{
+		BasePhysicalPlan: plan.BasePhysicalPlan{},
+		Exprs:            lp.Exprs,
+	}, nil
+}
+
+// generatePhysicalSelection 生成物理选择计划
+func (e *XMySQLExecutor) generatePhysicalSelection(lp *plan.LogicalSelection, om *manager.OptimizerManager) (plan.PhysicalPlan, error) {
+	logger.Debugf("生成物理选择计划")
+
+	// 递归生成子计划
+	children := lp.Children()
+	if len(children) == 0 {
+		return nil, fmt.Errorf("selection plan has no child")
+	}
+
+	_, err := e.generatePhysicalPlan(children[0], om)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate child plan: %v", err)
+	}
+
+	return &plan.PhysicalSelection{
+		BasePhysicalPlan: plan.BasePhysicalPlan{},
+		Conditions:       lp.Conditions,
+	}, nil
+}
+
+// generatePhysicalSort 生成物理排序计划
+func (e *XMySQLExecutor) generatePhysicalSort(lp *plan.BaseLogicalPlan, om *manager.OptimizerManager) (plan.PhysicalPlan, error) {
+	logger.Debugf("生成物理排序计划")
+
+	// 递归生成子计划
+	children := lp.Children()
+	if len(children) == 0 {
+		return nil, fmt.Errorf("sort plan has no child")
+	}
+
+	_, err := e.generatePhysicalPlan(children[0], om)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate child plan: %v", err)
+	}
+
+	return &plan.PhysicalSort{
+		BasePhysicalPlan: plan.BasePhysicalPlan{},
+		ByItems:          []plan.ByItem{}, // 简化：空排序项
+	}, nil
+}
+
+// generatePhysicalLimit 生成物理限制计划
+func (e *XMySQLExecutor) generatePhysicalLimit(lp *plan.BaseLogicalPlan, om *manager.OptimizerManager) (plan.PhysicalPlan, error) {
+	logger.Debugf("生成物理限制计划")
+
+	// 递归生成子计划
+	children := lp.Children()
+	if len(children) == 0 {
+		return nil, fmt.Errorf("limit plan has no child")
+	}
+
+	childPlan, err := e.generatePhysicalPlan(children[0], om)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate child plan: %v", err)
+	}
+
+	// 简化：直接返回子计划，limit逻辑在执行时处理
+	return childPlan, nil
+}
+
+// chooseJoinAlgorithm 选择连接算法
+func (e *XMySQLExecutor) chooseJoinAlgorithm(lp *plan.LogicalJoin, leftPlan, rightPlan plan.PhysicalPlan, om *manager.OptimizerManager) string {
+	// 简化实现：基于表大小选择算法
+	// 实际应该使用代价估算
+
+	// 如果有等值连接条件，优先使用Hash Join
+	if e.hasEquiJoinCondition(lp.Conditions) {
+		return "hash"
+	}
+
+	// 否则使用Nested Loop Join
+	return "nested_loop"
+}
+
+// chooseAggregateAlgorithm 选择聚合算法
+func (e *XMySQLExecutor) chooseAggregateAlgorithm(lp *plan.LogicalAggregation, childPlan plan.PhysicalPlan, om *manager.OptimizerManager) string {
+	// 简化实现：默认使用Hash Aggregate
+	// 实际应该使用代价估算
+
+	// 如果有GROUP BY，使用Hash Aggregate
+	if len(lp.GroupByItems) > 0 {
+		return "hash"
+	}
+
+	// 否则使用Stream Aggregate
+	return "stream"
+}
+
+// hasEquiJoinCondition 检查是否有等值连接条件
+func (e *XMySQLExecutor) hasEquiJoinCondition(conditions []plan.Expression) bool {
+	// 简化实现：检查是否有等号条件
+	for _, cond := range conditions {
+		// TODO: 实际应该解析表达式AST
+		condStr := fmt.Sprintf("%v", cond)
+		if contains(condStr, "=") && !contains(condStr, "!=") {
+			return true
+		}
+	}
+	return false
+}
+
+// contains 检查字符串是否包含子串
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || containsMiddle(s, substr)))
+}
+
+// containsMiddle 检查字符串中间是否包含子串
+func containsMiddle(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+// convertToSelectResult 将Record数组转换为SelectResult
+func (e *XMySQLExecutor) convertToSelectResult(records []Record, schema *metadata.Table) (*SelectResult, error) {
+	if schema == nil {
+		return nil, fmt.Errorf("schema is nil")
+	}
+
+	// 构建列名和类型
+	columnNames := make([]string, 0, len(schema.Columns))
+	for _, col := range schema.Columns {
+		columnNames = append(columnNames, col.Name)
+	}
+
+	// 转换记录为行数据
+	rows := make([][]interface{}, 0, len(records))
+	for _, record := range records {
+		values := record.GetValues()
+		row := make([]interface{}, len(values))
+		for i, v := range values {
+			row[i] = e.convertValueToInterface(v)
+		}
+		rows = append(rows, row)
+	}
+
+	return &SelectResult{
+		Records:  records,
+		RowCount: len(rows),
+		Columns:  columnNames,
+	}, nil
+}
+
+// convertValueToInterface 将basic.Value转换为interface{}
+func (e *XMySQLExecutor) convertValueToInterface(value basic.Value) interface{} {
+	if value.IsNull() {
+		return nil
+	}
+
+	// 使用Value interface的方法
+	switch value.Type() {
+	case basic.ValueTypeBigInt, basic.ValueTypeInt, basic.ValueTypeMediumInt, basic.ValueTypeSmallInt, basic.ValueTypeTinyInt:
+		return value.Int()
+	case basic.ValueTypeFloat, basic.ValueTypeDouble:
+		return value.Float64()
+	case basic.ValueTypeChar, basic.ValueTypeVarchar, basic.ValueTypeText, basic.ValueTypeMediumText, basic.ValueTypeLongText:
+		return value.String()
+	case basic.ValueTypeBinary, basic.ValueTypeVarBinary, basic.ValueTypeBlob, basic.ValueTypeMediumBlob, basic.ValueTypeLongBlob:
+		return value.Bytes()
+	case basic.ValueTypeDate, basic.ValueTypeTime, basic.ValueTypeDateTime, basic.ValueTypeTimestamp:
+		return value.Time()
+	default:
+		return value.Raw()
+	}
 }
 
 // executeInsertStatement 执行 INSERT 语句
@@ -390,7 +799,8 @@ func (e *XMySQLExecutor) executeInsertStatement(ctx *ExecutionContext, stmt *sql
 			bufferPoolManager,
 			btreeManager,
 			tableManager,
-			nil, // TODO: 添加事务管理器
+			nil,            // TODO: 添加事务管理器
+			e.indexManager, // 索引管理器
 		)
 
 		// 执行INSERT语句
@@ -467,7 +877,8 @@ func (e *XMySQLExecutor) executeUpdateStatement(ctx *ExecutionContext, stmt *sql
 			bufferPoolManager,
 			btreeManager,
 			tableManager,
-			nil, // TODO: 添加事务管理器
+			nil,            // TODO: 添加事务管理器
+			e.indexManager, // 索引管理器
 		)
 
 		// 执行UPDATE语句
@@ -544,7 +955,8 @@ func (e *XMySQLExecutor) executeDeleteStatement(ctx *ExecutionContext, stmt *sql
 			bufferPoolManager,
 			btreeManager,
 			tableManager,
-			nil, // TODO: 添加事务管理器
+			nil,            // TODO: 添加事务管理器
+			e.indexManager, // 索引管理器
 		)
 
 		// 执行DELETE语句
@@ -694,8 +1106,183 @@ func createDatabaseMetadataFile(dbPath, charset, collation string) error {
 // buildWhereConditions 构建 WHERE 条件表达式（占位）
 func (e *XMySQLExecutor) buildWhereConditions(where *sqlparser.Where) {}
 
-// executeSetStatement 执行 SET 语句（占位）
-func (e *XMySQLExecutor) executeSetStatement(ctx *ExecutionContext, stmt *sqlparser.Set) {}
+// executeSetStatement 执行 SET 语句
+func (e *XMySQLExecutor) executeSetStatement(ctx *ExecutionContext, stmt *sqlparser.Set, session server.MySQLServerSession) {
+	if ctx == nil || ctx.Results == nil {
+		logger.Errorf(" [executeSetStatement] execution context is not initialized")
+		return
+	}
+
+	logger.Debugf(" [executeSetStatement] 执行SET语句，包含 %d 个表达式", len(stmt.Exprs))
+
+	if session == nil {
+		logger.Errorf(" [executeSetStatement] session is nil, 无法设置会话变量")
+		ctx.Results <- &Result{
+			Err:        fmt.Errorf("session is required for SET statements"),
+			ResultType: innodbcommon.RESULT_TYPE_ERROR,
+			Message:    "session unavailable for SET statement",
+		}
+		return
+	}
+
+	affectedVars := 0
+	var errors []string
+
+	for _, expr := range stmt.Exprs {
+		varName := expr.Name.String()
+		logger.Debugf(" [executeSetStatement] 处理变量: %s", varName)
+
+		value, err := e.evaluateSetValue(expr.Expr)
+		if err != nil {
+			errMsg := fmt.Sprintf("failed to evaluate value for %s: %v", varName, err)
+			logger.Errorf(" [executeSetStatement] %s", errMsg)
+			errors = append(errors, errMsg)
+			continue
+		}
+
+		if err := e.setSessionVariable(session, varName, value); err != nil {
+			errMsg := fmt.Sprintf("failed to set %s: %v", varName, err)
+			logger.Warnf(" [executeSetStatement] %s", errMsg)
+			errors = append(errors, errMsg)
+			continue
+		}
+
+		affectedVars++
+		logger.Debugf(" [executeSetStatement] 成功设置变量: %s = %v", varName, value)
+	}
+
+	if affectedVars == 0 && len(errors) > 0 {
+		ctx.Results <- &Result{
+			Err:        fmt.Errorf("SET statement failed: %s", strings.Join(errors, "; ")),
+			ResultType: innodbcommon.RESULT_TYPE_ERROR,
+			Message:    "SET statement failed",
+		}
+		return
+	}
+
+	message := fmt.Sprintf("SET statement executed, %d variables processed", affectedVars)
+	if len(errors) > 0 {
+		message = fmt.Sprintf("%s (%d warnings: %s)", message, len(errors), strings.Join(errors, "; "))
+	}
+
+	ctx.Results <- &Result{
+		ResultType: innodbcommon.RESULT_TYPE_SET,
+		Message:    message,
+	}
+	logger.Debugf(" [executeSetStatement] SET语句执行完成: %s", message)
+}
+
+// evaluateSetValue 计算 SET 表达式的值
+func (e *XMySQLExecutor) evaluateSetValue(expr sqlparser.Expr) (interface{}, error) {
+	switch v := expr.(type) {
+	case *sqlparser.SQLVal:
+		switch v.Type {
+		case sqlparser.IntVal:
+			val, err := strconv.ParseInt(string(v.Val), 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid integer value '%s'", string(v.Val))
+			}
+			return val, nil
+		case sqlparser.FloatVal:
+			val, err := strconv.ParseFloat(string(v.Val), 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid float value '%s'", string(v.Val))
+			}
+			return val, nil
+		case sqlparser.StrVal:
+			return string(v.Val), nil
+		default:
+			return string(v.Val), nil
+		}
+	case sqlparser.BoolVal:
+		if bool(v) {
+			return int64(1), nil
+		}
+		return int64(0), nil
+	case *sqlparser.NullVal:
+		return nil, nil
+	case *sqlparser.ColName:
+		return v.Name.String(), nil
+	case *sqlparser.ParenExpr:
+		return e.evaluateSetValue(v.Expr)
+	default:
+		return sqlparser.String(expr), nil
+	}
+}
+
+// setSessionVariable 设置会话变量
+func (e *XMySQLExecutor) setSessionVariable(session server.MySQLServerSession, name string, value interface{}) error {
+	if session == nil {
+		return fmt.Errorf("session is nil")
+	}
+
+	cleanName := strings.TrimSpace(name)
+	cleanName = strings.Trim(cleanName, "`")
+	cleanName = strings.TrimPrefix(cleanName, "@@")
+	cleanName = strings.TrimPrefix(cleanName, "session.")
+	cleanName = strings.TrimPrefix(cleanName, "global.")
+	cleanName = strings.ToLower(cleanName)
+
+	if cleanName == "" {
+		return fmt.Errorf("variable name cannot be empty")
+	}
+
+	logger.Debugf(" [setSessionVariable] 设置变量: %s = %v (type=%T)", cleanName, value, value)
+
+	switch cleanName {
+	case "autocommit":
+		session.SetParamByName(cleanName, fmt.Sprintf("%d", boolishToInt(value)))
+	case "names":
+		charset := fmt.Sprintf("%v", value)
+		if charset == "" {
+			charset = "utf8mb4"
+		}
+		session.SetParamByName("character_set_client", charset)
+		session.SetParamByName("character_set_connection", charset)
+		session.SetParamByName("character_set_results", charset)
+	case "character_set_client", "character_set_connection", "character_set_results",
+		"character_set_database", "character_set_server":
+		session.SetParamByName(cleanName, fmt.Sprintf("%v", value))
+	case "sql_mode", "time_zone", "transaction_isolation", "tx_isolation",
+		"net_write_timeout", "net_read_timeout", "max_allowed_packet":
+		session.SetParamByName(cleanName, fmt.Sprintf("%v", value))
+	default:
+		session.SetParamByName(cleanName, fmt.Sprintf("%v", value))
+	}
+
+	return nil
+}
+
+func boolishToInt(value interface{}) int64 {
+	switch v := value.(type) {
+	case int64:
+		if v != 0 {
+			return 1
+		}
+		return 0
+	case int:
+		if v != 0 {
+			return 1
+		}
+		return 0
+	case bool:
+		if v {
+			return 1
+		}
+		return 0
+	case string:
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "1", "on", "true", "enabled":
+			return 1
+		default:
+			return 0
+		}
+	case nil:
+		return 0
+	default:
+		return 0
+	}
+}
 
 // executeCreateTableStatement 执行 CREATE TABLE
 func (e *XMySQLExecutor) executeCreateTableStatement(ctx *ExecutionContext, databaseName string, stmt *sqlparser.DDL) {
@@ -1312,4 +1899,257 @@ func (e *XMySQLExecutor) parseTableOptions(spec *sqlparser.TableSpec) map[string
 	}
 
 	return options
+}
+
+// executeShowStatement 执行 SHOW 语句
+func (e *XMySQLExecutor) executeShowStatement(ctx *ExecutionContext, stmt *sqlparser.Show, session server.MySQLServerSession) {
+	logger.Debugf(" [executeShowStatement] 处理SHOW语句: %s", stmt.Type)
+
+	showType := strings.ToLower(stmt.Type)
+
+	switch showType {
+	case "databases":
+		e.executeShowDatabases(ctx)
+	case "tables":
+		e.executeShowTables(ctx, session)
+	case "columns", "fields":
+		e.executeShowColumns(ctx, stmt)
+	case "variables":
+		e.executeShowVariables(ctx, stmt)
+	case "status":
+		e.executeShowStatus(ctx, stmt)
+	case "create table":
+		e.executeShowCreateTable(ctx, stmt)
+	case "engines":
+		e.executeShowEngines(ctx)
+	case "warnings":
+		e.executeShowWarnings(ctx)
+	case "errors":
+		e.executeShowErrors(ctx)
+	default:
+		logger.Warnf(" [executeShowStatement] 不支持的SHOW类型: %s", showType)
+		ctx.Results <- &Result{
+			Err:        fmt.Errorf("unsupported SHOW type: %s", showType),
+			ResultType: "ERROR",
+		}
+	}
+}
+
+// executeShowDatabases 执行 SHOW DATABASES
+func (e *XMySQLExecutor) executeShowDatabases(ctx *ExecutionContext) {
+	logger.Debugf(" [executeShowDatabases] 执行SHOW DATABASES")
+
+	// 获取数据目录
+	dataDir := e.conf.DataDir
+	if dataDir == "" {
+		dataDir = "data"
+	}
+
+	// 读取数据目录下的所有子目录（每个子目录代表一个数据库）
+	var databases []string
+
+	// 添加系统数据库
+	databases = append(databases, "information_schema", "mysql", "performance_schema", "sys")
+
+	// 读取用户数据库
+	if entries, err := os.ReadDir(dataDir); err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() {
+				dbName := entry.Name()
+				// 过滤掉隐藏目录和系统目录
+				if !strings.HasPrefix(dbName, ".") && !strings.HasPrefix(dbName, "_") {
+					databases = append(databases, dbName)
+				}
+			}
+		}
+	}
+
+	// 构造结果集
+	rows := make([][]interface{}, len(databases))
+	for i, db := range databases {
+		rows[i] = []interface{}{db}
+	}
+
+	// 使用 Data 字段存储结果，格式为 map
+	resultData := map[string]interface{}{
+		"columns": []string{"Database"},
+		"rows":    rows,
+	}
+
+	ctx.Results <- &Result{
+		ResultType: "QUERY",
+		Data:       resultData,
+		Message:    fmt.Sprintf("Found %d databases", len(databases)),
+	}
+
+	logger.Debugf(" [executeShowDatabases] 返回 %d 个数据库", len(databases))
+}
+
+// executeShowTables 执行 SHOW TABLES
+func (e *XMySQLExecutor) executeShowTables(ctx *ExecutionContext, session server.MySQLServerSession) {
+	logger.Debugf(" [executeShowTables] 执行SHOW TABLES")
+
+	// 获取当前数据库
+	currentDB := session.GetParamByName("database")
+	if currentDB == "" {
+		ctx.Results <- &Result{
+			Err:        fmt.Errorf("no database selected"),
+			ResultType: "ERROR",
+		}
+		return
+	}
+
+	// 从SchemaManager获取表列表
+	tables := []string{}
+
+	// 这里简化实现，返回空列表
+	// 实际应该从 SchemaManager 获取
+	logger.Debugf(" [executeShowTables] 当前数据库: %s", currentDB)
+
+	// 构造结果集
+	rows := make([][]interface{}, len(tables))
+	for i, table := range tables {
+		rows[i] = []interface{}{table}
+	}
+
+	columnName := fmt.Sprintf("Tables_in_%s", currentDB)
+	resultData := map[string]interface{}{
+		"columns": []string{columnName},
+		"rows":    rows,
+	}
+
+	ctx.Results <- &Result{
+		ResultType: "QUERY",
+		Data:       resultData,
+		Message:    fmt.Sprintf("Found %d tables", len(tables)),
+	}
+
+	logger.Debugf(" [executeShowTables] 返回 %d 个表", len(tables))
+}
+
+// executeShowColumns 执行 SHOW COLUMNS
+func (e *XMySQLExecutor) executeShowColumns(ctx *ExecutionContext, stmt *sqlparser.Show) {
+	logger.Debugf(" [executeShowColumns] 执行SHOW COLUMNS")
+
+	// 简化实现，返回空结果
+	resultData := map[string]interface{}{
+		"columns": []string{"Field", "Type", "Null", "Key", "Default", "Extra"},
+		"rows":    [][]interface{}{},
+	}
+
+	ctx.Results <- &Result{
+		ResultType: "QUERY",
+		Data:       resultData,
+	}
+}
+
+// executeShowVariables 执行 SHOW VARIABLES
+func (e *XMySQLExecutor) executeShowVariables(ctx *ExecutionContext, stmt *sqlparser.Show) {
+	logger.Debugf(" [executeShowVariables] 执行SHOW VARIABLES")
+
+	// 简化实现，返回一些常见变量
+	rows := [][]interface{}{
+		{"character_set_client", "utf8mb4"},
+		{"character_set_connection", "utf8mb4"},
+		{"character_set_database", "utf8mb4"},
+		{"character_set_results", "utf8mb4"},
+		{"character_set_server", "utf8mb4"},
+		{"collation_connection", "utf8mb4_general_ci"},
+		{"collation_database", "utf8mb4_general_ci"},
+		{"collation_server", "utf8mb4_general_ci"},
+		{"version", "8.0.0-xmysql"},
+		{"version_comment", "XMySQL Server"},
+	}
+
+	resultData := map[string]interface{}{
+		"columns": []string{"Variable_name", "Value"},
+		"rows":    rows,
+	}
+
+	ctx.Results <- &Result{
+		ResultType: "QUERY",
+		Data:       resultData,
+	}
+}
+
+// executeShowStatus 执行 SHOW STATUS
+func (e *XMySQLExecutor) executeShowStatus(ctx *ExecutionContext, stmt *sqlparser.Show) {
+	logger.Debugf(" [executeShowStatus] 执行SHOW STATUS")
+
+	// 简化实现，返回一些状态变量
+	rows := [][]interface{}{
+		{"Threads_connected", "1"},
+		{"Uptime", "3600"},
+		{"Questions", "100"},
+	}
+
+	resultData := map[string]interface{}{
+		"columns": []string{"Variable_name", "Value"},
+		"rows":    rows,
+	}
+
+	ctx.Results <- &Result{
+		ResultType: "QUERY",
+		Data:       resultData,
+	}
+}
+
+// executeShowCreateTable 执行 SHOW CREATE TABLE
+func (e *XMySQLExecutor) executeShowCreateTable(ctx *ExecutionContext, stmt *sqlparser.Show) {
+	logger.Debugf(" [executeShowCreateTable] 执行SHOW CREATE TABLE")
+
+	// 简化实现
+	ctx.Results <- &Result{
+		Err:        fmt.Errorf("SHOW CREATE TABLE not yet fully implemented"),
+		ResultType: "ERROR",
+	}
+}
+
+// executeShowEngines 执行 SHOW ENGINES
+func (e *XMySQLExecutor) executeShowEngines(ctx *ExecutionContext) {
+	logger.Debugf(" [executeShowEngines] 执行SHOW ENGINES")
+
+	rows := [][]interface{}{
+		{"InnoDB", "DEFAULT", "Supports transactions, row-level locking, and foreign keys", "YES", "YES", "YES"},
+	}
+
+	resultData := map[string]interface{}{
+		"columns": []string{"Engine", "Support", "Comment", "Transactions", "XA", "Savepoints"},
+		"rows":    rows,
+	}
+
+	ctx.Results <- &Result{
+		ResultType: "QUERY",
+		Data:       resultData,
+	}
+}
+
+// executeShowWarnings 执行 SHOW WARNINGS
+func (e *XMySQLExecutor) executeShowWarnings(ctx *ExecutionContext) {
+	logger.Debugf(" [executeShowWarnings] 执行SHOW WARNINGS")
+
+	resultData := map[string]interface{}{
+		"columns": []string{"Level", "Code", "Message"},
+		"rows":    [][]interface{}{},
+	}
+
+	ctx.Results <- &Result{
+		ResultType: "QUERY",
+		Data:       resultData,
+	}
+}
+
+// executeShowErrors 执行 SHOW ERRORS
+func (e *XMySQLExecutor) executeShowErrors(ctx *ExecutionContext) {
+	logger.Debugf(" [executeShowErrors] 执行SHOW ERRORS")
+
+	resultData := map[string]interface{}{
+		"columns": []string{"Level", "Code", "Message"},
+		"rows":    [][]interface{}{},
+	}
+
+	ctx.Results <- &Result{
+		ResultType: "QUERY",
+		Data:       resultData,
+	}
 }

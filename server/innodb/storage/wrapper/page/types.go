@@ -4,7 +4,6 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/latch"
 	"sync"
-	"sync/atomic"
 )
 
 const (
@@ -25,12 +24,22 @@ type ConcurrentWrapper struct {
 	mu sync.RWMutex
 }
 
-func (cw *ConcurrentWrapper) Lock()          { cw.mu.Lock() }
-func (cw *ConcurrentWrapper) Unlock()        { cw.mu.Unlock() }
-func (cw *ConcurrentWrapper) RLock()         { cw.mu.RLock() }
-func (cw *ConcurrentWrapper) RUnlock()       { cw.mu.RUnlock() }
-func (cw *ConcurrentWrapper) TryLock() bool  { return cw.mu.TryLock() }
-func (cw *ConcurrentWrapper) TryRLock() bool { return cw.mu.TryRLock() }
+func (cw *ConcurrentWrapper) Lock()    { cw.mu.Lock() }
+func (cw *ConcurrentWrapper) Unlock()  { cw.mu.Unlock() }
+func (cw *ConcurrentWrapper) RLock()   { cw.mu.RLock() }
+func (cw *ConcurrentWrapper) RUnlock() { cw.mu.RUnlock() }
+
+// TryLock 尝试获取写锁（Go 1.16兼容版本）
+func (cw *ConcurrentWrapper) TryLock() bool {
+	// Go 1.16不支持TryLock，直接返回false
+	return false
+}
+
+// TryRLock 尝试获取读锁（Go 1.16兼容版本）
+func (cw *ConcurrentWrapper) TryRLock() bool {
+	// Go 1.16不支持TryRLock，直接返回false
+	return false
+}
 
 // PageTrailer 页面尾部结构
 type PageTrailer struct {
@@ -49,17 +58,17 @@ type PageCache interface {
 
 // CacheStats 缓存统计信息
 type CacheStats struct {
-	Hits   atomic.Uint64
-	Misses atomic.Uint64
-	Size   atomic.Uint32
+	Hits   uint64 // 使用atomic操作
+	Misses uint64 // 使用atomic操作
+	Size   uint32 // 使用atomic操作
 }
 
 // PageManagerStats 页面管理器统计信息
 type PageManagerStats struct {
-	TotalPages      atomic.Uint32
-	DirtyPages      atomic.Uint32
-	FreePages       atomic.Uint32
-	FlushOperations atomic.Uint64
-	ReadOperations  atomic.Uint64
-	WriteOperations atomic.Uint64
+	TotalPages      uint32 // 使用atomic操作
+	DirtyPages      uint32 // 使用atomic操作
+	FreePages       uint32 // 使用atomic操作
+	FlushOperations uint64 // 使用atomic操作
+	ReadOperations  uint64 // 使用atomic操作
+	WriteOperations uint64 // 使用atomic操作
 }

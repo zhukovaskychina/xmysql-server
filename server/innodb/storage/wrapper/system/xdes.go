@@ -3,6 +3,7 @@ package system
 import (
 	"encoding/binary"
 	"errors"
+	"sync/atomic"
 	"time"
 )
 
@@ -237,32 +238,38 @@ func (xp *XDESPage) Read() error {
 		return err
 	}
 
+	// 获取页面内容
+	content := xp.GetContent()
+
 	// 读取XDES页面头
 	offset := uint32(87)
 
 	// 读取区描述符
 	for i := uint32(0); i < MaxDescriptorsPerPage; i++ {
-		if offset+13 > uint32(len(xp.Content)) {
+		if offset+13 > uint32(len(content)) {
 			break
 		}
 
 		desc := &xp.descriptors[i]
-		desc.ID = binary.LittleEndian.Uint32(xp.Content[offset:])
-		desc.State = xp.Content[offset+4]
+		desc.ID = binary.LittleEndian.Uint32(content[offset:])
+		desc.State = content[offset+4]
 		desc.PageBits = make([]byte, 8)
-		copy(desc.PageBits, xp.Content[offset+5:offset+13]) // 8字节位图
+		copy(desc.PageBits, content[offset+5:offset+13]) // 8字节位图
 		offset += 13
 	}
 
 	// 更新统计信息
 	xp.stats.LastModified = time.Now().UnixNano()
-	xp.stats.Reads.Add(1)
+	atomic.AddUint64(&xp.stats.Reads, 1)
 
 	return nil
 }
 
 // Write 实现Page接口
 func (xp *XDESPage) Write() error {
+	// 获取页面内容
+	content := xp.GetContent()
+
 	// 写入XDES页面头
 	offset := uint32(87)
 
@@ -272,15 +279,18 @@ func (xp *XDESPage) Write() error {
 		if desc.PageBits == nil {
 			break
 		}
-		binary.LittleEndian.PutUint32(xp.Content[offset:], desc.ID)
-		xp.Content[offset+4] = desc.State
-		copy(xp.Content[offset+5:offset+13], desc.PageBits)
+		binary.LittleEndian.PutUint32(content[offset:], desc.ID)
+		content[offset+4] = desc.State
+		copy(content[offset+5:offset+13], desc.PageBits)
 		offset += 13
 	}
 
+	// 更新回页面
+	xp.SetContent(content)
+
 	// 更新统计信息
 	xp.stats.LastModified = time.Now().UnixNano()
-	xp.stats.Writes.Add(1)
+	atomic.AddUint64(&xp.stats.Writes, 1)
 
 	return xp.BaseSystemPage.Write()
 }

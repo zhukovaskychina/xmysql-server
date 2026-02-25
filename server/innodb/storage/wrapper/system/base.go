@@ -3,9 +3,12 @@ package system
 import (
 	"encoding/binary"
 	"errors"
-	"github.com/zhukovaskychina/xmysql-server/server/common"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper"
+	"sync/atomic"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper"
 )
 
 var (
@@ -83,7 +86,7 @@ func (sp *BaseSystemPage) Recover() error {
 
 	// 设置恢复状态
 	sp.header.SystemState = SystemPageStateRecovering
-	sp.stats.Recoveries.Add(1)
+	atomic.AddUint32(&sp.stats.Recoveries, 1)
 	sp.stats.LastRecovered = time.Now().UnixNano()
 
 	// 标记页面为脏
@@ -104,7 +107,7 @@ func (sp *BaseSystemPage) Validate() error {
 
 	// 验证校验和
 	if !sp.validateChecksum() {
-		sp.stats.Corruptions.Add(1)
+		atomic.AddUint32(&sp.stats.Corruptions, 1)
 		return ErrCorruptedPage
 	}
 
@@ -130,15 +133,47 @@ func (sp *BaseSystemPage) Restore() error {
 }
 
 // validateChecksum 验证校验和
+// 使用CRC32算法验证页面完整性
 func (sp *BaseSystemPage) validateChecksum() bool {
-	// TODO: 实现校验和验证
-	return true
+	// 获取页面数据（使用GetContent方法）
+	content := sp.GetContent()
+	if len(content) < pages.FileHeaderSize+8 {
+		return false
+	}
+
+	// 使用PageIntegrityChecker验证校验和
+	checker := pages.NewPageIntegrityChecker(pages.ChecksumCRC32)
+	err := checker.ValidateChecksum(content)
+
+	return err == nil
 }
 
 // updateChecksum 更新校验和
+// 计算并更新页面的CRC32校验和
 func (sp *BaseSystemPage) updateChecksum() {
-	// TODO: 实现校验和计算
-	sp.header.Checksum = 0
+	// 获取页面数据（使用GetContent方法）
+	content := sp.GetContent()
+	if len(content) < pages.FileHeaderSize+8 {
+		sp.header.Checksum = 0
+		return
+	}
+
+	// 使用PageIntegrityChecker计算校验和
+	checker := pages.NewPageIntegrityChecker(pages.ChecksumCRC32)
+	checksum32 := checker.CalculateChecksum(content)
+
+	// 更新header中的校验和
+	sp.header.Checksum = uint64(checksum32)
+
+	// 更新页面数据中的校验和字段（前4字节）
+	binary.LittleEndian.PutUint32(content[0:4], checksum32)
+
+	// 更新页面数据中的trailer校验和（最后8字节的前4字节）
+	trailerOffset := len(content) - 8
+	binary.LittleEndian.PutUint32(content[trailerOffset:trailerOffset+4], checksum32)
+
+	// 更新回页面
+	sp.SetContent(content)
 }
 
 // Read 实现Page接口
@@ -148,14 +183,15 @@ func (sp *BaseSystemPage) Read() error {
 	}
 
 	// 读取系统页面头
-	sp.header.Version = binary.LittleEndian.Uint32(sp.Content[64:])
-	sp.header.Checksum = binary.LittleEndian.Uint64(sp.Content[68:])
-	sp.header.SystemType = SystemPageType(binary.LittleEndian.Uint16(sp.Content[76:]))
-	sp.header.SystemState = SystemPageState(sp.Content[78])
-	sp.header.LastModified = int64(binary.LittleEndian.Uint64(sp.Content[79:]))
+	content := sp.GetContent()
+	sp.header.Version = binary.LittleEndian.Uint32(content[64:])
+	sp.header.Checksum = binary.LittleEndian.Uint64(content[68:])
+	sp.header.SystemType = SystemPageType(binary.LittleEndian.Uint16(content[76:]))
+	sp.header.SystemState = SystemPageState(content[78])
+	sp.header.LastModified = int64(binary.LittleEndian.Uint64(content[79:]))
 
 	// 更新统计信息
-	sp.stats.Reads.Add(1)
+	atomic.AddUint64(&sp.stats.Reads, 1)
 	sp.stats.LastModified = time.Now().UnixNano()
 
 	return nil
@@ -167,14 +203,16 @@ func (sp *BaseSystemPage) Write() error {
 	sp.updateChecksum()
 
 	// 写入系统页面头
-	binary.LittleEndian.PutUint32(sp.Content[64:], sp.header.Version)
-	binary.LittleEndian.PutUint64(sp.Content[68:], sp.header.Checksum)
-	binary.LittleEndian.PutUint16(sp.Content[76:], uint16(sp.header.SystemType))
-	sp.Content[78] = byte(sp.header.SystemState)
-	binary.LittleEndian.PutUint64(sp.Content[79:], uint64(sp.header.LastModified))
+	content := sp.GetContent()
+	binary.LittleEndian.PutUint32(content[64:], sp.header.Version)
+	binary.LittleEndian.PutUint64(content[68:], sp.header.Checksum)
+	binary.LittleEndian.PutUint16(content[76:], uint16(sp.header.SystemType))
+	content[78] = byte(sp.header.SystemState)
+	binary.LittleEndian.PutUint64(content[79:], uint64(sp.header.LastModified))
+	sp.SetContent(content)
 
 	// 更新统计信息
-	sp.stats.Writes.Add(1)
+	atomic.AddUint64(&sp.stats.Writes, 1)
 	sp.stats.LastModified = time.Now().UnixNano()
 
 	return sp.BasePage.Write()

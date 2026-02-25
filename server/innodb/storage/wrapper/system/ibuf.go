@@ -3,6 +3,7 @@ package system
 import (
 	"encoding/binary"
 	"errors"
+	"sync/atomic"
 	"time"
 )
 
@@ -161,26 +162,29 @@ func (ip *IBufPage) Read() error {
 		return err
 	}
 
+	// 获取页面内容
+	content := ip.GetContent()
+
 	// 读取IBuf页面头
 	offset := uint32(87)
-	ip.entryCount = binary.LittleEndian.Uint16(ip.Content[offset:])
+	ip.entryCount = binary.LittleEndian.Uint16(content[offset:])
 	offset += 2
 
 	// 读取条目
 	for i := uint16(0); i < ip.entryCount; i++ {
 		entry := &IBufEntry{
-			Type:      IBufEntryType(ip.Content[offset]),
-			SpaceID:   binary.LittleEndian.Uint32(ip.Content[offset+1:]),
-			PageNo:    binary.LittleEndian.Uint32(ip.Content[offset+5:]),
-			IndexID:   binary.LittleEndian.Uint64(ip.Content[offset+9:]),
-			LSN:       binary.LittleEndian.Uint64(ip.Content[offset+17:]),
-			Timestamp: int64(binary.LittleEndian.Uint64(ip.Content[offset+25:])),
+			Type:      IBufEntryType(content[offset]),
+			SpaceID:   binary.LittleEndian.Uint32(content[offset+1:]),
+			PageNo:    binary.LittleEndian.Uint32(content[offset+5:]),
+			IndexID:   binary.LittleEndian.Uint64(content[offset+9:]),
+			LSN:       binary.LittleEndian.Uint64(content[offset+17:]),
+			Timestamp: int64(binary.LittleEndian.Uint64(content[offset+25:])),
 		}
 
 		// 读取数据长度和数据
-		dataLen := binary.LittleEndian.Uint16(ip.Content[offset+33:])
+		dataLen := binary.LittleEndian.Uint16(content[offset+33:])
 		entry.Data = make([]byte, dataLen)
-		copy(entry.Data, ip.Content[offset+35:offset+35+uint32(dataLen)])
+		copy(entry.Data, content[offset+35:offset+35+uint32(dataLen)])
 
 		ip.entries[i] = entry
 		offset += 35 + uint32(dataLen)
@@ -188,40 +192,46 @@ func (ip *IBufPage) Read() error {
 
 	// 更新统计信息
 	ip.stats.LastModified = time.Now().UnixNano()
-	ip.stats.Reads.Add(1)
+	atomic.AddUint64(&ip.stats.Reads, 1)
 
 	return nil
 }
 
 // Write 实现Page接口
 func (ip *IBufPage) Write() error {
+	// 获取页面内容
+	content := ip.GetContent()
+
 	// 写入IBuf页面头
 	offset := uint32(87)
-	binary.LittleEndian.PutUint16(ip.Content[offset:], ip.entryCount)
+	binary.LittleEndian.PutUint16(content[offset:], ip.entryCount)
 	offset += 2
 
 	// 写入条目
 	for i := uint16(0); i < ip.entryCount; i++ {
 		if ip.entries[i] != nil {
 			entry := ip.entries[i]
-			ip.Content[offset] = byte(entry.Type)
-			binary.LittleEndian.PutUint32(ip.Content[offset+1:], entry.SpaceID)
-			binary.LittleEndian.PutUint32(ip.Content[offset+5:], entry.PageNo)
-			binary.LittleEndian.PutUint64(ip.Content[offset+9:], entry.IndexID)
-			binary.LittleEndian.PutUint64(ip.Content[offset+17:], entry.LSN)
-			binary.LittleEndian.PutUint64(ip.Content[offset+25:], uint64(entry.Timestamp))
+			content[offset] = byte(entry.Type)
+			binary.LittleEndian.PutUint32(content[offset+1:], entry.SpaceID)
+			binary.LittleEndian.PutUint32(content[offset+5:], entry.PageNo)
+			binary.LittleEndian.PutUint64(content[offset+9:], entry.IndexID)
+			binary.LittleEndian.PutUint64(content[offset+17:], entry.LSN)
+			binary.LittleEndian.PutUint64(content[offset+25:], uint64(entry.Timestamp))
 
 			// 写入数据长度和数据
-			binary.LittleEndian.PutUint16(ip.Content[offset+33:], uint16(len(entry.Data)))
-			copy(ip.Content[offset+35:], entry.Data)
+			binary.LittleEndian.PutUint16(content[offset+33:], uint16(len(entry.Data)))
+			copy(content[offset+35:], entry.Data)
 
 			offset += 35 + uint32(len(entry.Data))
 		}
 	}
 
+	// 更新回页面
+	ip.SetContent(content)
+
 	// 更新统计信息
 	ip.stats.LastModified = time.Now().UnixNano()
-	ip.stats.Writes.Add(1)
+	atomic.AddUint64(&ip.stats.Writes, 1)
 
 	return ip.BaseSystemPage.Write()
 }

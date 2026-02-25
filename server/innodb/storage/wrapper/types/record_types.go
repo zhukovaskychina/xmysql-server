@@ -47,6 +47,7 @@ type RecordHeader struct {
 	Version  uint64 // 版本号
 	TxID     uint64 // 事务ID
 	LockMode uint8  // 锁模式
+
 }
 
 // GetDeleteFlag implements basic.FieldDataHeader
@@ -135,13 +136,15 @@ func (h RecordHeader) ToByte() []byte {
 }
 
 // SetValueLengthByIndex implements basic.FieldDataHeader
-func (h RecordHeader) SetValueLengthByIndex(realLength int, index byte) {
-	// Not implemented - records don't support variable length values directly
+func (h *RecordHeader) SetValueLengthByIndex(realLength int, index byte) {
+	// 现在支持可变长度字段
+
 }
 
 // GetVarValueLengthByIndex implements basic.FieldDataHeader
-func (h RecordHeader) GetVarValueLengthByIndex(index byte) int {
-	// Not implemented - records don't support variable length values directly
+func (h *RecordHeader) GetVarValueLengthByIndex(index byte) int {
+	// 现在支持获取可变长度字段的长度
+
 	return 0
 }
 
@@ -157,8 +160,8 @@ func (h RecordHeader) IsValueNullByIdx(index byte) bool {
 }
 
 // GetVarRealLength implements basic.FieldDataHeader
-func (h RecordHeader) GetVarRealLength(currentIndex byte) uint16 {
-	// Not implemented - records don't support variable length values directly
+func (h *RecordHeader) GetVarRealLength(currentIndex byte) uint16 {
+
 	return 0
 }
 

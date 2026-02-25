@@ -429,6 +429,11 @@ func NewInt(val interface{}) Value {
 	}
 }
 
+// NewInt64 creates an int64 value (alias for NewInt64Value)
+func NewInt64(val int64) Value {
+	return NewInt64Value(val)
+}
+
 // NewFloat creates a float value
 func NewFloat(val interface{}) Value {
 	switch v := val.(type) {
@@ -439,6 +444,11 @@ func NewFloat(val interface{}) Value {
 	default:
 		return NewFloatValue(0.0)
 	}
+}
+
+// NewFloat64 creates a float64 value (alias for NewFloatValue)
+func NewFloat64(val float64) Value {
+	return NewFloatValue(val)
 }
 
 // NewString creates a string value
@@ -543,13 +553,49 @@ func (v *basicValue) IsNull() bool {
 }
 
 func (v *basicValue) Int() int64 {
-	// TODO: Implement proper conversion
-	return 0
+	// 根据类型进行转换
+	switch v.valueType {
+	case ValueTypeTinyInt, ValueTypeSmallInt, ValueTypeMediumInt, ValueTypeInt, ValueTypeBigInt:
+		// 整数类型：从字节数组解析
+		return bytesToInt64(v.data)
+	case ValueTypeFloat, ValueTypeDouble:
+		// 浮点类型：先转换为float64再转为int64
+		return int64(bytesToFloat64(v.data))
+	case ValueTypeVarchar, ValueTypeChar, ValueTypeText:
+		// 字符串类型：尝试解析为整数
+		return parseInt64FromString(string(v.data))
+	case ValueTypeBool, ValueTypeBoolean:
+		// 布尔类型
+		if len(v.data) > 0 && v.data[0] != 0 {
+			return 1
+		}
+		return 0
+	default:
+		return 0
+	}
 }
 
 func (v *basicValue) Float64() float64 {
-	// TODO: Implement proper conversion
-	return 0.0
+	// 根据类型进行转换
+	switch v.valueType {
+	case ValueTypeFloat, ValueTypeDouble:
+		// 浮点类型：从字节数组解析
+		return bytesToFloat64(v.data)
+	case ValueTypeTinyInt, ValueTypeSmallInt, ValueTypeMediumInt, ValueTypeInt, ValueTypeBigInt:
+		// 整数类型：先转换为int64再转为float64
+		return float64(bytesToInt64(v.data))
+	case ValueTypeVarchar, ValueTypeChar, ValueTypeText:
+		// 字符串类型：尝试解析为浮点数
+		return parseFloat64FromString(string(v.data))
+	case ValueTypeBool, ValueTypeBoolean:
+		// 布尔类型
+		if len(v.data) > 0 && v.data[0] != 0 {
+			return 1.0
+		}
+		return 0.0
+	default:
+		return 0.0
+	}
 }
 
 func (v *basicValue) String() string {
@@ -557,8 +603,14 @@ func (v *basicValue) String() string {
 }
 
 func (v *basicValue) Time() interface{} {
-	// TODO: Implement proper time conversion
-	return nil
+	// 时间类型转换
+	switch v.valueType {
+	case ValueTypeDate, ValueTypeTime, ValueTypeDateTime, ValueTypeTimestamp:
+		// 返回字符串表示
+		return string(v.data)
+	default:
+		return nil
+	}
 }
 
 func (v *basicValue) Bool() bool {
@@ -568,4 +620,152 @@ func (v *basicValue) Bool() bool {
 // LessOrEqual 实现Value接口的LessOrEqual方法
 func (v *basicValue) LessOrEqual() (interface{}, interface{}) {
 	return v.data, v.valueType
+}
+
+// ========================================
+// 类型转换辅助函数
+// ========================================
+
+// bytesToInt64 将字节数组转换为int64
+func bytesToInt64(data []byte) int64 {
+	if len(data) == 0 {
+		return 0
+	}
+
+	// 根据字节长度处理不同大小的整数
+	var result int64
+	switch len(data) {
+	case 1:
+		// TinyInt: 1字节
+		result = int64(int8(data[0]))
+	case 2:
+		// SmallInt: 2字节
+		result = int64(int16(data[0])<<8 | int16(data[1]))
+	case 3:
+		// MediumInt: 3字节
+		val := int32(data[0])<<16 | int32(data[1])<<8 | int32(data[2])
+		// 处理符号位
+		if data[0]&0x80 != 0 {
+			val |= int32(-16777216) // 0xFF000000 as signed int32
+		}
+		result = int64(val)
+	case 4:
+		// Int: 4字节
+		result = int64(int32(data[0])<<24 | int32(data[1])<<16 | int32(data[2])<<8 | int32(data[3]))
+	case 8:
+		// BigInt: 8字节
+		result = int64(data[0])<<56 | int64(data[1])<<48 | int64(data[2])<<40 | int64(data[3])<<32 |
+			int64(data[4])<<24 | int64(data[5])<<16 | int64(data[6])<<8 | int64(data[7])
+	default:
+		// 默认按8字节处理
+		for i := 0; i < len(data) && i < 8; i++ {
+			result = (result << 8) | int64(data[i])
+		}
+	}
+
+	return result
+}
+
+// bytesToFloat64 将字节数组转换为float64
+func bytesToFloat64(data []byte) float64 {
+	if len(data) == 0 {
+		return 0.0
+	}
+
+	if len(data) == 4 {
+		// Float: 4字节
+		bits := uint32(data[0])<<24 | uint32(data[1])<<16 | uint32(data[2])<<8 | uint32(data[3])
+		return float64(math.Float32frombits(bits))
+	}
+
+	if len(data) >= 8 {
+		// Double: 8字节
+		bits := uint64(data[0])<<56 | uint64(data[1])<<48 | uint64(data[2])<<40 | uint64(data[3])<<32 |
+			uint64(data[4])<<24 | uint64(data[5])<<16 | uint64(data[6])<<8 | uint64(data[7])
+		return math.Float64frombits(bits)
+	}
+
+	// 默认返回0
+	return 0.0
+}
+
+// parseInt64FromString 从字符串解析int64
+func parseInt64FromString(s string) int64 {
+	if s == "" {
+		return 0
+	}
+
+	// 简单的整数解析
+	var result int64
+	var negative bool
+	start := 0
+
+	// 处理符号
+	if s[0] == '-' {
+		negative = true
+		start = 1
+	} else if s[0] == '+' {
+		start = 1
+	}
+
+	// 解析数字
+	for i := start; i < len(s); i++ {
+		if s[i] >= '0' && s[i] <= '9' {
+			result = result*10 + int64(s[i]-'0')
+		} else {
+			// 遇到非数字字符停止
+			break
+		}
+	}
+
+	if negative {
+		result = -result
+	}
+
+	return result
+}
+
+// parseFloat64FromString 从字符串解析float64
+func parseFloat64FromString(s string) float64 {
+	if s == "" {
+		return 0.0
+	}
+
+	// 简单的浮点数解析
+	var result float64
+	var negative bool
+	var decimal bool
+	var decimalPlaces float64 = 1.0
+	start := 0
+
+	// 处理符号
+	if s[0] == '-' {
+		negative = true
+		start = 1
+	} else if s[0] == '+' {
+		start = 1
+	}
+
+	// 解析数字
+	for i := start; i < len(s); i++ {
+		if s[i] >= '0' && s[i] <= '9' {
+			if decimal {
+				decimalPlaces *= 10.0
+				result += float64(s[i]-'0') / decimalPlaces
+			} else {
+				result = result*10.0 + float64(s[i]-'0')
+			}
+		} else if s[i] == '.' && !decimal {
+			decimal = true
+		} else {
+			// 遇到非数字字符停止
+			break
+		}
+	}
+
+	if negative {
+		result = -result
+	}
+
+	return result
 }

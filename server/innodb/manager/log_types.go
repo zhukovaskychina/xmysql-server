@@ -7,6 +7,7 @@ type UndoLogEntry struct {
 	LSN       uint64    // 日志序列号
 	TrxID     int64     // 事务ID
 	TableID   uint64    // 表ID
+	RecordID  uint64    // 记录ID
 	Type      uint8     // 操作类型
 	Data      []byte    // 操作数据
 	Timestamp time.Time // 时间戳
@@ -24,10 +25,34 @@ type RedoLogEntry struct {
 
 // 日志操作类型
 const (
-	LOG_TYPE_INSERT uint8 = iota + 1
-	LOG_TYPE_UPDATE
-	LOG_TYPE_DELETE
-	LOG_TYPE_COMPENSATE // 补偿日志
+	LOG_TYPE_INSERT     uint8 = iota + 1 // INSERT操作
+	LOG_TYPE_UPDATE                      // UPDATE操作
+	LOG_TYPE_DELETE                      // DELETE操作
+	LOG_TYPE_COMPENSATE                  // 补偿日志（CLR）
+
+	// 页面操作类型
+	LOG_TYPE_PAGE_CREATE // 创建页面
+	LOG_TYPE_PAGE_DELETE // 删除页面
+	LOG_TYPE_PAGE_MODIFY // 修改页面
+	LOG_TYPE_PAGE_SPLIT  // 页面分裂
+	LOG_TYPE_PAGE_MERGE  // 页面合并
+
+	// 索引操作类型
+	LOG_TYPE_INDEX_INSERT // 索引插入
+	LOG_TYPE_INDEX_DELETE // 索引删除
+	LOG_TYPE_INDEX_UPDATE // 索引更新
+
+	// 事务操作类型
+	LOG_TYPE_TXN_BEGIN     // 事务开始
+	LOG_TYPE_TXN_COMMIT    // 事务提交
+	LOG_TYPE_TXN_ROLLBACK  // 事务回滚
+	LOG_TYPE_TXN_SAVEPOINT // 保存点
+
+	// 系统操作类型
+	LOG_TYPE_CHECKPOINT  // 检查点
+	LOG_TYPE_FILE_CREATE // 文件创建
+	LOG_TYPE_FILE_DELETE // 文件删除
+	LOG_TYPE_FILE_EXTEND // 文件扩展
 )
 
 // LogStats 日志统计信息

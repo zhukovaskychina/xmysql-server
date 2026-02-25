@@ -202,7 +202,9 @@ func (analyzer *SystemVariableAnalyzer) analyzeSelectExpression(expr *sqlparser.
 	if !expr.As.IsEmpty() {
 		alias = expr.As.String()
 	} else {
-		alias = varName // 默认使用变量名作为别名
+		// ✅ 修复：默认使用原始表达式作为别名（保留 @@ 前缀）
+		// 这样 SELECT @@version 会返回列名 "@@version" 而不是 "version"
+		alias = exprStr
 	}
 
 	return &SystemVariableInfo{
