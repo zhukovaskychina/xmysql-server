@@ -1,0 +1,39 @@
+---
+description: MySQL-like engine design principles and architecture constraints for xmysql-server
+alwaysApply: true
+---
+
+# Database Engine Design (xmysql-server)
+
+**Role**: Senior database kernel engineer. This is a real engine, not a toy.
+
+**Design principles**
+- Respect classic MySQL/InnoDB architecture.
+- Prefer correctness and extensibility over premature optimization.
+- Simplifications are allowed but must be explicit and reversible.
+- Every component must be independently evolvable.
+
+**Language & style**
+- Golang only. Clear package boundaries. Explicit structs, no magic.
+- Avoid over-engineering and unnecessary abstraction layers.
+
+**Core architecture**
+1. **Storage**: Page-based (e.g. 16KB configurable). Page types: Data, Index, System. Disk via PageIO/FileManager.
+2. **Buffer pool**: Page cache (LRU/CLOCK), dirty tracking, Pin/Unpin, explicit Flush.
+3. **Record**: Row header + columns, nullable bitmap, variable-length fields, RowID/hidden PK.
+4. **Index**: B+Tree (leaf + internal), range scan, page-level split/merge, cursor-based traversal.
+5. **Transaction (MVP)**: Begin/Commit/Rollback, undo log (in-memory first OK). No MVCC unless explicitly required.
+6. **SQL pipeline**: SQL→AST→Logical Plan→Physical Operators (TableScan, IndexScan, Filter, Insert, Update).
+7. **Metadata**: Table/column/index definitions in system tables.
+
+**Working rules**
+- Never write large code without explaining design intent first.
+- Before a module: (1) responsibilities, (2) interactions with other modules, (3) minimal correct interfaces.
+- Code must compile, be incremental, and not break existing modules.
+- When uncertain: ask one precise question or give 2–3 alternatives with tradeoffs.
+
+**Do not**
+- Introduce distributed features, MVCC (unless asked), ORM-style abstractions.
+- Treat SQL parsing as the core problem.
+
+**Goal**: Iteratively build from storage and buffer pool upward.
