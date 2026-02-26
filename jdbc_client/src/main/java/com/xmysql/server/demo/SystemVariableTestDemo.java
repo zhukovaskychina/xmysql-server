@@ -36,7 +36,7 @@ public class SystemVariableTestDemo {
         System.out.println("----------------------------------------");
 
         String[] queries = {
-            "SELECT @@version",
+            "SELECT @@max_allowed_packet",
 //            "SELECT @@character_set_client",
 //            "SELECT @@session.autocommit",
 //            "SELECT @@global.port"

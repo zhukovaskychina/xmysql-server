@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 )

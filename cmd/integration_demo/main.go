@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/integration"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 )
@@ -305,21 +306,19 @@ func displayStatistics(manager *integration.IntegrationManager) {
 	if globalStats.StorageStats != nil {
 		fmt.Println()
 		fmt.Println("   存储引擎统计:")
-		logger.Debugf("   - 处理查询: %d\n", globalStats.StorageStats.QueriesProcessed)
-		logger.Debugf("   - 索引扫描: %d\n", globalStats.StorageStats.IndexScansPerformed)
-		logger.Debugf("   - 表扫描: %d\n", globalStats.StorageStats.TableScansPerformed)
-		logger.Debugf("   - 缓存命中: %d\n", globalStats.StorageStats.CacheHits)
-		logger.Debugf("   - 缓存未命中: %d\n", globalStats.StorageStats.CacheMisses)
+		logger.Debugf("   - 存储访问次数: %d\n", globalStats.StorageStats.StorageAccessCount)
+		logger.Debugf("   - 索引下推次数: %d\n", globalStats.StorageStats.IndexPushdownCount)
+		logger.Debugf("   - 优化查询数: %d\n", globalStats.StorageStats.OptimizedQueries)
+		logger.Debugf("   - 缓存命中率: %.2f%%\n", globalStats.StorageStats.CacheHitRate*100)
 	}
 
 	if globalStats.ParserStats != nil {
 		fmt.Println()
 		fmt.Println("   解析器统计:")
-		logger.Debugf("   - 解析查询: %d\n", globalStats.ParserStats.QueriesParsed)
-		logger.Debugf("   - 优化查询: %d\n", globalStats.ParserStats.QueriesOptimized)
-		logger.Debugf("   - 重写查询: %d\n", globalStats.ParserStats.QueriesRewritten)
-		logger.Debugf("   - 计划缓存命中: %d\n", globalStats.ParserStats.PlanCacheHits)
-		logger.Debugf("   - 计划缓存未命中: %d\n", globalStats.ParserStats.PlanCacheMisses)
+		logger.Debugf("   - 解析查询: %d\n", globalStats.ParserStats.ParsedQueries)
+		logger.Debugf("   - 优化查询: %d\n", globalStats.ParserStats.OptimizedQueries)
+		logger.Debugf("   - 解析错误: %d\n", globalStats.ParserStats.ParseErrors)
+		logger.Debugf("   - 优化错误: %d\n", globalStats.ParserStats.OptimizationErrors)
 	}
 
 	if globalStats.ExecutionStats != nil {

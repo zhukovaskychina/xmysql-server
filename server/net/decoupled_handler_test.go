@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/protocol"
 )
@@ -14,6 +15,7 @@ type MockSession struct {
 	id         string
 	attributes map[string]interface{}
 	closed     bool
+	written    [][]byte
 }
 
 func NewMockSession(id string) *MockSession {
@@ -21,6 +23,7 @@ func NewMockSession(id string) *MockSession {
 		id:         id,
 		attributes: make(map[string]interface{}),
 		closed:     false,
+		written:    make([][]byte, 0),
 	}
 }
 
@@ -37,7 +40,13 @@ func (s *MockSession) GetAttribute(key interface{}) interface{} {
 }
 
 func (s *MockSession) WriteBytes(data []byte) error {
-	// 模拟写入数据
+	// 模拟写入数据并记录内容，便于测试验证
+	if data != nil {
+		// 复制一份数据，避免后续修改影响记录
+		buf := make([]byte, len(data))
+		copy(buf, data)
+		s.written = append(s.written, buf)
+	}
 	return nil
 }
 
@@ -217,6 +226,115 @@ func TestProtocolEncoderIntegration(t *testing.T) {
 
 	if len(data) == 0 {
 		t.Fatal("Encoded data is empty")
+	}
+}
+
+// TestSendQueryResultSet_ClientDeprecateEOFUsesOK 验证在协商了 CLIENT_DEPRECATE_EOF 时
+// sendQueryResultSet 会使用 OK 包而不是 EOF 包作为列定义结束和结果集结束标记，
+// 并且整体包数量与 19 列单行结果集的预期一致。
+func TestSendQueryResultSet_ClientDeprecateEOFUsesOK(t *testing.T) {
+	config := conf.NewCfg()
+	// 使用真实的处理器，但通过 MockSession 捕获输出
+	handler := NewDecoupledMySQLMessageHandler(config)
+	session := NewMockSession("test_sendQueryResultSet_deprecateEOF")
+
+	// 模拟客户端能力：开启 CLIENT_DEPRECATE_EOF
+	session.SetAttribute("client_capabilities", common.CLIENT_DEPRECATE_EOF)
+
+	// 构造与 JDBC init 查询等价的 19 列系统变量结果集
+	columns := []string{
+		"auto_increment_increment",
+		"character_set_client",
+		"character_set_connection",
+		"character_set_results",
+		"character_set_server",
+		"collation_server",
+		"collation_connection",
+		"init_connect",
+		"interactive_timeout",
+		"license",
+		"lower_case_table_names",
+		"max_allowed_packet",
+		"net_write_timeout",
+		"performance_schema",
+		"sql_mode",
+		"system_time_zone",
+		"time_zone",
+		"transaction_isolation",
+		"wait_timeout",
+	}
+
+	row := []interface{}{
+		int64(1),             // auto_increment_increment
+		"utf8mb4",            // character_set_client
+		"utf8mb4",            // character_set_connection
+		"utf8mb4",            // character_set_results
+		"utf8mb4",            // character_set_server
+		"utf8mb4_general_ci", // collation_server
+		"utf8mb4_general_ci", // collation_connection
+		"",                   // init_connect
+		int64(28800),         // interactive_timeout
+		"GPL",                // license
+		int64(0),             // lower_case_table_names
+		int64(67108864),      // max_allowed_packet
+		int64(60),            // net_write_timeout
+		"ON",                 // performance_schema
+		"STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO", // sql_mode
+		"CST",             // system_time_zone
+		"SYSTEM",          // time_zone
+		"REPEATABLE-READ", // transaction_isolation
+		int64(28800),      // wait_timeout
+	}
+
+	result := &protocol.MessageQueryResult{
+		Columns: columns,
+		Rows:    [][]interface{}{row},
+		Type:    "select",
+	}
+
+	// 调用 sendQueryResultSet，从 seqID=1 开始
+	if err := handler.sendQueryResultSet(session, result, 1); err != nil {
+		t.Fatalf("sendQueryResultSet failed: %v", err)
+	}
+
+	// 对于 19 列、1 行的结果集，预期包数量：
+	// 1 (ColumnCount) + 19 (ColumnDefinitions) + 1 (列结束 OK) + 1 (Row) + 1 (结果集结束 OK) = 23
+	if len(session.written) != 23 {
+		t.Fatalf("unexpected packet count: got %d, want 23", len(session.written))
+	}
+
+	// 第一个包是列数包，检查长度和序号是否合理
+	colCountPkt := session.written[0]
+	if len(colCountPkt) < 5 {
+		t.Fatalf("column count packet too short: %d bytes", len(colCountPkt))
+	}
+	// 包头长度应等于 payload 长度
+	payloadLen := int(colCountPkt[0]) | int(colCountPkt[1])<<8 | int(colCountPkt[2])<<16
+	if payloadLen != len(colCountPkt)-4 {
+		t.Fatalf("column count packet header length = %d, want %d", payloadLen, len(colCountPkt)-4)
+	}
+	// payload 中的列数应为 19
+	if colCountPkt[4] != byte(len(columns)) {
+		t.Fatalf("column count mismatch in payload: got %d, want %d", colCountPkt[4], len(columns))
+	}
+
+	// 列定义结束包位于第 1+len(columns) 个位置
+	colTermPkt := session.written[1+len(columns)]
+	if len(colTermPkt) < 5 {
+		t.Fatalf("column terminator packet too short: %d bytes", len(colTermPkt))
+	}
+	// payload 第一个字节应该是 OK 标记 0x00，而不是 EOF 标记 0xFE
+	if colTermPkt[4] != 0x00 {
+		t.Fatalf("expected OK packet (0x00) as column terminator, got 0x%02X", colTermPkt[4])
+	}
+
+	// 结果集结束包是最后一个包
+	rowTermPkt := session.written[len(session.written)-1]
+	if len(rowTermPkt) < 5 {
+		t.Fatalf("row terminator packet too short: %d bytes", len(rowTermPkt))
+	}
+	if rowTermPkt[4] != 0x00 {
+		t.Fatalf("expected OK packet (0x00) as row terminator, got 0x%02X", rowTermPkt[4])
 	}
 }
 

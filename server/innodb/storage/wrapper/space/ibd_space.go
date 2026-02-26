@@ -168,7 +168,14 @@ func (s *IBDSpace) AllocateExtent(purpose basic.ExtentPurpose) (basic.Extent, er
 	)
 
 	// Update next page number (each extent has 64 pages)
+	startPage := s.nextPage
 	s.nextPage += PagesPerExtent
+
+	// Mark all pages in the extent as allocated
+	for i := uint32(0); i < PagesPerExtent; i++ {
+		s.pageAllocs[startPage+i] = true
+		s.pageCount++
+	}
 
 	// Save extent
 	s.extents[extentID] = newExtent

@@ -1320,27 +1320,44 @@ type StorageProviderAdapter struct {
 
 // ReadPage 从存储中读取页面
 func (spa *StorageProviderAdapter) ReadPage(spaceID, pageNo uint32) ([]byte, error) {
-	// 简化实现：返回一个空页面
-	pageSize := uint32(16384) // 16KB页面
-	data := make([]byte, pageSize)
-	return data, nil
+	space, err := spa.spaceManager.GetSpace(spaceID)
+	if err != nil {
+		return nil, fmt.Errorf("space %d not found: %v", spaceID, err)
+	}
+	return space.LoadPageByPageNumber(pageNo)
 }
 
 // WritePage 将页面写入存储
 func (spa *StorageProviderAdapter) WritePage(spaceID, pageNo uint32, data []byte) error {
-	// 简化实现：暂时不做实际写入
-	return nil
+	space, err := spa.spaceManager.GetSpace(spaceID)
+	if err != nil {
+		return fmt.Errorf("space %d not found: %v", spaceID, err)
+	}
+	return space.FlushToDisk(pageNo, data)
 }
 
 // AllocatePage 分配新页面
 func (spa *StorageProviderAdapter) AllocatePage(spaceID uint32) (uint32, error) {
-	// 简化实现：返回一个固定的页面号
-	return 1, nil
+	space, err := spa.spaceManager.GetSpace(spaceID)
+	if err != nil {
+		return 0, fmt.Errorf("space %d not found: %v", spaceID, err)
+	}
+
+	// 分配一个新的extent
+	// 注意：这种实现非常浪费，每次只使用extent的第一个页面
+	// 在完整的实现中，应该维护一个空闲页面列表或部分使用的extent列表
+	ext, err := space.AllocateExtent(basic.ExtentPurposeData)
+	if err != nil {
+		return 0, fmt.Errorf("failed to allocate extent: %v", err)
+	}
+
+	return uint32(ext.StartPage()), nil
 }
 
 // FreePage 释放页面
 func (spa *StorageProviderAdapter) FreePage(spaceID, pageNo uint32) error {
-	// 简化实现：暂时不做实际释放
+	// 目前只支持Extent级别的释放，不支持单个页面释放
+	// 未来需要实现更细粒度的空间管理
 	return nil
 }
 

@@ -45,6 +45,10 @@ type XMySQLEngine struct {
 	compressManager *manager.CompressionManager
 
 	indexManager *manager.IndexManager
+
+	// Reliability & Recovery
+	checkpointManager *CheckpointManager
+	crashRecovery     *manager.CrashRecovery
 }
 
 func NewXMySQLEngine(conf *conf.Cfg) *XMySQLEngine {
@@ -58,7 +62,50 @@ func NewXMySQLEngine(conf *conf.Cfg) *XMySQLEngine {
 	engine.initUtilityManagers()
 	engine.initQueryExecutor()
 
+	// 初始化恢复与检查点层
+	engine.initRecoveryLayer()
+
 	return engine
+}
+
+// Start 启动引擎，执行崩溃恢复并启动后台服务
+func (e *XMySQLEngine) Start(ctx context.Context) error {
+	logger.Info("🚀 Starting XMySQL Engine...")
+
+	// 1. 执行崩溃恢复
+	logger.Info("🏥 Performing crash recovery...")
+	if err := e.crashRecovery.Recover(); err != nil {
+		return fmt.Errorf("crash recovery failed: %v", err)
+	}
+	logger.Info("✅ Crash recovery completed successfully")
+
+	// 2. 启动检查点管理器
+	logger.Info("💾 Starting Checkpoint Manager...")
+	if err := e.checkpointManager.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start checkpoint manager: %v", err)
+	}
+
+	logger.Info("✅ XMySQL Engine started successfully")
+	return nil
+}
+
+// Close 关闭引擎
+func (e *XMySQLEngine) Close() error {
+	logger.Info("🛑 Stopping XMySQL Engine...")
+
+	if e.checkpointManager != nil {
+		e.checkpointManager.Stop()
+	}
+
+	if e.txManager != nil {
+		e.txManager.Close()
+	}
+
+	if e.storageMgr != nil {
+		// storageMgr 没有 Close 方法，但如果有资源需释放可在此处理
+	}
+
+	return nil
 }
 
 func (e *XMySQLEngine) initStorageLayer() {
@@ -132,6 +179,43 @@ func (e *XMySQLEngine) initUtilityManagers() {
 	e.encryptManager = manager.NewEncryptionManager(masterKey, encCfg)
 
 	e.compressManager = manager.NewCompressionManager()
+}
+
+func (e *XMySQLEngine) initRecoveryLayer() {
+	// 1. 初始化 CheckpointManager
+	dataDir := e.conf.GetString("innodb.data_dir")
+	if dataDir == "" {
+		dataDir = e.conf.DataDir
+	}
+
+	bufferPoolMgr := e.storageMgr.GetBufferPoolManager()
+	e.checkpointManager = NewCheckpointManager(dataDir, bufferPoolMgr)
+
+	// 2. 初始化 CrashRecovery
+	// 需要从 CheckpointManager 获取最新的 Checkpoint LSN
+	var checkpointLSN uint64 = 0
+
+	// 尝试读取最新的 Checkpoint
+	// 注意：这里不应该调用 Start，只读取元数据
+	// 如果没有 Checkpoint 文件，LSN 为 0，表示从头开始
+	if latestCP, err := e.checkpointManager.ReadLatestCheckpoint(); err == nil && latestCP != nil {
+		checkpointLSN = latestCP.LSN
+		logger.Infof("Found latest checkpoint at LSN: %d", checkpointLSN)
+	} else {
+		logger.Infof("No checkpoint found, starting recovery from LSN 0")
+	}
+
+	e.crashRecovery = manager.NewCrashRecovery(
+		e.txManager.GetRedoLogManager(),
+		e.txManager.GetUndoLogManager(),
+		checkpointLSN,
+	)
+
+	// 设置 CrashRecovery 的依赖
+	e.crashRecovery.SetBufferPoolManager(&RecoveryBufferPoolAdapter{bpm: bufferPoolMgr})
+
+	// 设置 StorageManager
+	e.crashRecovery.SetStorageManager(&RecoveryStorageAdapter{sm: e.storageMgr})
 }
 
 func (e *XMySQLEngine) initQueryExecutor() {

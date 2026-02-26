@@ -3,7 +3,7 @@ package net
 import (
 	"context"
 	"encoding/binary"
-	// "encoding/hex" // 临时注释 - 密码验证被跳过时不需要
+	"encoding/hex" // 临时注释 - 密码验证被跳过时不需要
 	"fmt"
 	"strings"
 	"sync"
@@ -11,6 +11,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/auth"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/dispatcher"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
@@ -803,6 +804,16 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	// 使用复用的协议编码器（避免重复创建，提升性能）
 	encoder := h.resultSetEncoder
 
+	// 检查客户端能力标志，确定是否需要使用 OK 包替代 EOF 包（CLIENT_DEPRECATE_EOF）
+	useDeprecatedEOF := true
+	if capsVal := session.GetAttribute("client_capabilities"); capsVal != nil {
+		if caps, ok := capsVal.(uint32); ok {
+			if (caps & common.CLIENT_DEPRECATE_EOF) != 0 {
+				useDeprecatedEOF = false
+			}
+		}
+	}
+
 	// ========================================================================
 	// Step 1: 发送 Column Count Packet
 	// ========================================================================
@@ -846,23 +857,46 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	}
 
 	// ========================================================================
-	// Step 3: 发送第一个 EOF Packet（结束列定义）
+	// Step 3: 发送列定义结束标记（EOF 或 OK，取决于 CLIENT_DEPRECATE_EOF）
 	// ========================================================================
-	eofPacket1 := protocol.EncodeEOFPacketWithSeq(0, protocol.SERVER_STATUS_AUTOCOMMIT, seqID)
+	if useDeprecatedEOF {
+		eofPacket1 := protocol.EncodeEOFPacketWithSeq(0, protocol.SERVER_STATUS_AUTOCOMMIT, seqID)
 
-	logger.Debugf("[sendQueryResultSet] 发送第一个 EOF 包（列定义结束）")
-	err = session.WriteBytes(eofPacket1)
-	if err != nil {
-		logger.Errorf("发送第一个 EOF 包失败: %v", err)
-		return err
+		logger.Debugf("[sendQueryResultSet] 发送第一个 EOF 包（列定义结束）")
+		err = session.WriteBytes(eofPacket1)
+		if err != nil {
+			logger.Errorf("发送第一个 EOF 包失败: %v", err)
+			return err
+		}
+		seqID++
+	} else {
+		// 如果启用了 CLIENT_DEPRECATE_EOF，则列定义后不发送任何包（既不是 EOF 也不是 OK）
+		// 直接进入 Row Data 阶段
+		logger.Debugf("[sendQueryResultSet] 跳过第一个 EOF 包（CLIENT_DEPRECATE_EOF 已启用）")
 	}
-	seqID++
 
 	// ========================================================================
 	// Step 4: 发送 Row Data Packets（文本协议）
 	// ========================================================================
 	for rowIdx, row := range result.Rows {
 		rowPacket := encoder.EncodeRowDataPacket(row, seqID)
+
+		rowPacketHex := hex.EncodeToString(rowPacket)
+		logger.Debugf("ROW_PACKET_HEX: %s", rowPacketHex)
+
+		if len(rowPacket) >= 4 {
+			payloadLen := int(rowPacket[0]) |
+				int(rowPacket[1])<<8 |
+				int(rowPacket[2])<<16
+			seq := rowPacket[3]
+			bodyHex := hex.EncodeToString(rowPacket[4:])
+
+			logger.Debugf("ROW_PACKET_LENGTH: %d", payloadLen)
+			logger.Debugf("ROW_PACKET_SEQ: %d", seq)
+			logger.Debugf("ROW_PACKET_BODY_HEX: %s", bodyHex)
+		} else {
+			logger.Errorf("ROW_PACKET_TOO_SHORT: len=%d", len(rowPacket))
+		}
 
 		logger.Debugf("[sendQueryResultSet] 发送行数据 %d: %v", rowIdx, row)
 
@@ -884,15 +918,46 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	}
 
 	// ========================================================================
-	// Step 5: 发送第二个 EOF Packet（结束行数据）
+	// Step 5: 发送结果集结束标记（EOF 或 OK，结束行数据）
 	// ========================================================================
-	eofPacket2 := protocol.EncodeEOFPacketWithSeq(0, protocol.SERVER_STATUS_AUTOCOMMIT, seqID)
+	if useDeprecatedEOF {
+		eofPacket2 := protocol.EncodeEOFPacketWithSeq(0, protocol.SERVER_STATUS_AUTOCOMMIT, seqID)
 
-	logger.Debugf("[sendQueryResultSet] 发送第二个 EOF 包（行数据结束）")
-	err = session.WriteBytes(eofPacket2)
-	if err != nil {
-		logger.Errorf("发送第二个 EOF 包失败: %v", err)
-		return err
+		logger.Debugf("[sendQueryResultSet] 发送第二个 EOF 包（行数据结束）")
+		err = session.WriteBytes(eofPacket2)
+		if err != nil {
+			logger.Errorf("发送第二个 EOF 包失败: %v", err)
+			return err
+		}
+	} else {
+		// CLIENT_DEPRECATE_EOF 启用时，使用 OK 包替代 EOF 包结束结果集
+		// 注意：此处的 OK 包必须以 0xFE 开头（而不是 0x00），以区别于行数据包
+
+		// 手动构建 0xFE 开头的 OK 包
+		payload := []byte{0xFE} // OK marker (EOF style)
+
+		// affected_rows (lenenc-int) -> 0
+		payload = h.appendLengthEncodedInt(payload, 0)
+
+		// last_insert_id (lenenc-int) -> 0
+		payload = h.appendLengthEncodedInt(payload, 0)
+
+		// status_flags (2 bytes, little-endian)
+		statusFlags := protocol.SERVER_STATUS_AUTOCOMMIT
+		payload = append(payload, byte(statusFlags), byte(statusFlags>>8))
+
+		// warnings (2 bytes, little-endian)
+		warnings := uint16(0)
+		payload = append(payload, byte(warnings), byte(warnings>>8))
+
+		okPacket2 := h.addPacketHeader(payload, seqID)
+
+		logger.Debugf("[sendQueryResultSet] 发送结果集结束 OK 包（CLIENT_DEPRECATE_EOF, Header=0xFE）")
+		err = session.WriteBytes(okPacket2)
+		if err != nil {
+			logger.Errorf("发送结果集结束 OK 包失败: %v", err)
+			return err
+		}
 	}
 
 	logger.Debugf("[sendQueryResultSet] ✅ 查询结果集发送完成: %d 列, %d 行", len(result.Columns), len(result.Rows))
