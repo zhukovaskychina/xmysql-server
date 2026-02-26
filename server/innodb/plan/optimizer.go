@@ -383,6 +383,9 @@ func mergePredicate(plan LogicalPlan, conditions []Expression) LogicalPlan {
 func splitJoinCondition(conditions []Expression, join *LogicalJoin) ([]Expression, []Expression, []Expression) {
 	var leftConds, rightConds, otherConds []Expression
 
+	// 若 Join 未设置 LeftSchema/RightSchema，从左右子计划推导列集（谓词下推 OPT-001）
+	leftColSet, rightColSet := getJoinChildColumnSets(join)
+
 	for _, cond := range conditions {
 		cols := collectUsedColumns([]Expression{cond})
 		if len(cols) == 0 {
@@ -392,19 +395,30 @@ func splitJoinCondition(conditions []Expression, join *LogicalJoin) ([]Expressio
 
 		allLeft := true
 		allRight := true
+		anyLeft := false
+		anyRight := false
 		for _, c := range cols {
-			if join.LeftSchema == nil || !columnInSchema(join.LeftSchema, c) {
+			inLeft := leftColSet[c]
+			inRight := rightColSet[c]
+			if inLeft {
+				anyLeft = true
+			}
+			if inRight {
+				anyRight = true
+			}
+			if !inLeft {
 				allLeft = false
 			}
-			if join.RightSchema == nil || !columnInSchema(join.RightSchema, c) {
+			if !inRight {
 				allRight = false
 			}
 		}
 
+		// 仅属于左表 -> 下推左子；仅属于右表 -> 下推右子；跨表或歧义 -> 保留在 Join 上
 		switch {
-		case allLeft && !allRight:
+		case allLeft && !anyRight:
 			leftConds = append(leftConds, cond)
-		case allRight && !allLeft:
+		case allRight && !anyLeft:
 			rightConds = append(rightConds, cond)
 		default:
 			otherConds = append(otherConds, cond)
@@ -412,6 +426,89 @@ func splitJoinCondition(conditions []Expression, join *LogicalJoin) ([]Expressio
 	}
 
 	return leftConds, rightConds, otherConds
+}
+
+// getJoinChildColumnSets 从 Join 的左右子计划得到左/右输出列名集合；用于谓词下推时划分条件。
+func getJoinChildColumnSets(join *LogicalJoin) (map[string]bool, map[string]bool) {
+	leftSet := make(map[string]bool)
+	rightSet := make(map[string]bool)
+
+	if join.LeftSchema != nil {
+		for _, tbl := range join.LeftSchema.Tables {
+			for _, col := range tbl.Columns {
+				leftSet[col.Name] = true
+			}
+		}
+	}
+	if join.RightSchema != nil {
+		for _, tbl := range join.RightSchema.Tables {
+			for _, col := range tbl.Columns {
+				rightSet[col.Name] = true
+			}
+		}
+	}
+
+	if len(leftSet) > 0 && len(rightSet) > 0 {
+		return leftSet, rightSet
+	}
+
+	// 未设置 Schema 时从子计划推导
+	leftCols := getPlanOutputColumnNames(join.Children()[0])
+	rightCols := getPlanOutputColumnNames(join.Children()[1])
+	for _, c := range leftCols {
+		leftSet[c] = true
+	}
+	for _, c := range rightCols {
+		rightSet[c] = true
+	}
+	return leftSet, rightSet
+}
+
+// getPlanOutputColumnNames 返回该逻辑计划输出中的列名（用于谓词下推时判断条件归属）。
+func getPlanOutputColumnNames(plan LogicalPlan) []string {
+	if plan == nil {
+		return nil
+	}
+	switch p := plan.(type) {
+	case *LogicalTableScan:
+		if p.Table == nil {
+			return nil
+		}
+		names := make([]string, 0, len(p.Table.Columns))
+		for _, col := range p.Table.Columns {
+			names = append(names, col.Name)
+		}
+		return names
+	case *LogicalIndexScan:
+		if p.Table == nil {
+			return nil
+		}
+		names := make([]string, 0, len(p.Table.Columns))
+		for _, col := range p.Table.Columns {
+			names = append(names, col.Name)
+		}
+		return names
+	case *LogicalSelection:
+		if len(p.Children()) > 0 {
+			return getPlanOutputColumnNames(p.Children()[0])
+		}
+		return nil
+	case *LogicalProjection:
+		if len(p.Children()) > 0 {
+			return getPlanOutputColumnNames(p.Children()[0])
+		}
+		return nil
+	case *LogicalJoin:
+		ch := p.Children()
+		if len(ch) < 2 {
+			return nil
+		}
+		left := getPlanOutputColumnNames(ch[0])
+		right := getPlanOutputColumnNames(ch[1])
+		return append(append([]string{}, left...), right...)
+	default:
+		return nil
+	}
 }
 
 // isSafeForPredicatePushdown 检查是否可以安全地下推谓词
@@ -513,6 +610,14 @@ func collectUsedColumns(exprs []Expression) []string {
 			for _, arg := range v.Args() {
 				collect(arg)
 			}
+		case *InExpression:
+			collect(v.Column)
+		case *LikeExpression:
+			collect(v.Column)
+		case *IsNullExpression:
+			collect(v.Column)
+		case *BetweenExpression:
+			collect(v.Column)
 		default:
 			for _, c := range e.Children() {
 				collect(c)

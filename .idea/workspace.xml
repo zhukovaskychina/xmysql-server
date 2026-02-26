@@ -4,25 +4,11 @@
     <option name="autoReloadType" value="ALL" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="cebb430f-c076-4984-8043-b00b7330fdf5" name="Changes" comment="fix(protocol): resolve issues with ResultSet handling and session ID generation&#10;&#10;### 📄 详细修改内容&#10;- 修改文件：decoupled_handler.go, mysql_codec.go, mysql_protocol_encoding.go, resultset_encoder.go, system_variable_analyzer.go, system_variable_engine.go, system_variables_manager.go&#10;- 主要改动：&#10;  - 修复了 ResultSet 重复发送的问题，确保每个查询结果集只发送一次。&#10;  - 更新了会话 ID 生成逻辑，确保每个连接的会话 ID 唯一，包含远程地址信息。&#10;  - 调整了 OK Packet 和 EOF Packet 的编码方式，确保符合 MySQL 协议规范。&#10;&#10;### 💡 修改原因&#10;- 解决了在处理查询结果时可能导致的协议错误，提升了系统的稳定性和可靠性。&#10;- 改进了会话管理，确保在多用户环境下的唯一性，避免潜在的会话冲突。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：协议处理、会话管理&#10;- 受影响接口或服务：ResultSet 处理、会话 ID 生成&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试，确保所有修改的功能正常。&#10;- 更新相关文档以反映新的协议处理逻辑。">
-      <change afterPath="$PROJECT_DIR$/cmd/demo_mysql_client_test/mysql_test.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/jdbc_client/.idea/copilot.data.migration.agent.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/jdbc_client/.idea/copilot.data.migration.ask.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/jdbc_client/.idea/copilot.data.migration.ask2agent.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/jdbc_client/.idea/copilot.data.migration.edit.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/logs/log2.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/AugmentWebviewStateStore.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/AugmentWebviewStateStore.xml" afterDir="false" />
+    <list default="true" id="cebb430f-c076-4984-8043-b00b7330fdf5" name="Changes" comment="### 🧩 提交摘要&#10;feat(crash_recovery): integrate crash recovery and checkpoint management&#10;&#10;### 📄 详细修改内容&#10;- 修改文件或模块：enginx.go, crash_recovery.go, buffer_page.go, main.go&#10;- 主要改动：集成崩溃恢复机制，初始化检查点管理器，更新页面分配和写入逻辑。&#10;&#10;### 💡 修改原因&#10;此次修改旨在增强系统的可靠性，通过集成崩溃恢复和检查点管理，确保在系统宕机时能够自动恢复数据，减少数据丢失风险。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：崩溃恢复、存储管理、引擎启动&#10;- 受影响接口或服务：XMySQL引擎的启动和关闭流程&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面测试以验证崩溃恢复功能的有效性&#10;- 优化页面分配逻辑以提高性能">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.sum" beforeDir="false" afterPath="$PROJECT_DIR$/go.sum" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/jdbc_client/.idea/AugmentWebviewStateStore.xml" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/.idea/AugmentWebviewStateStore.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/SystemVariableTestDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/SystemVariableTestDemo.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/innodb/integration/storage_engine_integration.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/integration/storage_engine_integration.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/decoupled_handler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/net/decoupled_handler.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/mysql_server.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/net/mysql_server.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/protocol/handshake.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/protocol/handshake.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/protocol/mysql_protocol_encoding.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/protocol/mysql_protocol_encoding.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/xmysql-server" beforeDir="false" afterPath="$PROJECT_DIR$/xmysql-server" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/未实现功能梳理.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/未实现功能梳理.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/volcano_executor.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/volcano_executor.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/plan/logical_plan.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/plan/logical_plan.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -66,36 +52,36 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "DefaultGoTemplateProperty": "Go Application",
-    "Go Build.go build github.com/zhukovaskychina/xmysql-server.executor": "Run",
-    "Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/mysql_test_client.executor": "Run",
-    "Go Test.go test github.com/zhukovaskychina/xmysql-server/cmd/demo_mysql_client_test.executor": "Run",
-    "RunOnceActivity.GoLinterPluginOnboarding": "true",
-    "RunOnceActivity.GoLinterPluginStorageMigration": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.go.formatter.settings.were.checked": "true",
-    "RunOnceActivity.go.migrated.go.modules.settings": "true",
-    "RunOnceActivity.go.modules.go.list.on.any.changes.was.set": "true",
-    "git-widget-placeholder": "dev",
-    "go.import.settings.migrated": "true",
-    "go.sdk.automatically.set": "true",
-    "last_opened_file_path": "/Users/zhukovasky",
-    "node.js.detected.package.eslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;DefaultGoTemplateProperty&quot;: &quot;Go Application&quot;,
+    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server.executor&quot;: &quot;Run&quot;,
+    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/mysql_test_client.executor&quot;: &quot;Run&quot;,
+    &quot;Go Test.go test github.com/zhukovaskychina/xmysql-server/cmd/demo_mysql_client_test.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.GoLinterPluginOnboarding&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.GoLinterPluginStorageMigration&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.formatter.settings.were.checked&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.migrated.go.modules.settings&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.modules.go.list.on.any.changes.was.set&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;dev&quot;,
+    &quot;go.import.settings.migrated&quot;: &quot;true&quot;,
+    &quot;go.sdk.automatically.set&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/zhukovasky&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/docs" />
     </key>
   </component>
-  <component name="RunManager" selected="Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/mysql_test_client">
+  <component name="RunManager" selected="Go Build.go build github.com/zhukovaskychina/xmysql-server">
     <configuration name="go build github.com/zhukovaskychina/xmysql-server" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
       <module name="xmysql-server" />
       <working_directory value="$PROJECT_DIR$" />
@@ -154,6 +140,47 @@
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="OPEN_GENERIC_TABS">
+      <map>
+        <entry key="e989a79b-8964-4f9c-9a71-2d148fca086f" value="TOOL_WINDOW" />
+      </map>
+    </option>
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+        <entry key="e989a79b-8964-4f9c-9a71-2d148fca086f">
+          <value>
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="HEAD" />
+                      </list>
+                    </value>
+                  </entry>
+                  <entry key="roots">
+                    <value>
+                      <list>
+                        <option value="$PROJECT_DIR$" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+              <option name="SHOW_ONLY_AFFECTED_CHANGES" value="true" />
+            </State>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="feat(cnf): implement CNF converter and integrate with query optimizer&#10;&#10;###  详细修改内容&#10;- 新增文件：`cnf_converter.go`, `cnf_converter_test.go`, `cnf_integration_test.go`, `main.go`&#10;- 主要改动：实现了CNF转换器，支持双重否定消除、德摩根定律、运算符取反、分配律展开等功能，并集成到查询优化器中。&#10;&#10;###  修改原因&#10;实现CNF转换器以规范化复杂的WHERE子句，为后续的谓词下推和索引优化提供支持。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：查询优化器&#10;- 受影响接口或服务：`pushDownPredicates`函数&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 完善单元测试和集成测试，确保转换器的稳定性和性能。" />
     <MESSAGE value="feat(statistics): refactor atomic operations for page statistics&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：base.go, fsp.go, trx.go, dict.go, ibuf.go, xdes.go, extent.go&#10;- 主要改动：将页面统计信息的原子操作从使用自定义的 atomic 类型改为使用 Go 的 sync/atomic 包，确保线程安全性和性能优化。&#10;&#10;###  修改原因&#10;此修改旨在提高代码的可读性和一致性，同时利用 Go 的内置原子操作来增强性能和安全性，避免潜在的竞争条件。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：页面管理和统计模块&#10;- 受影响接口或服务：所有涉及页面统计的功能&#10;- 向后兼容性：兼容&#10;- 风险等级：低&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证统计信息的准确性和性能。" />
@@ -165,7 +192,9 @@
     <MESSAGE value="feat(mvcc): implement MVCC adjustment plan and related documentation&#10;&#10;###  提交摘要&#10;feat(mvcc): implement MVCC adjustment plan and related documentation&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：STAGE3_MVCC_ADJUSTMENT_PLAN.md, STAGE3_COMPLETION_REPORT.md&#10;- 主要改动：新增了MVCC调整计划和完成报告，详细描述了可见性逻辑的修正、ReadView的接入以及验证策略。&#10;&#10;###  修改原因&#10;此次修改旨在修正和对齐MVCC可见性判定逻辑，确保与事务管理层的逻辑一致，并提供安全的验证策略以避免大规模变更。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MVCC管理和事务管理&#10;- 受影响接口或服务：TransactionManager, MVCCManager&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行集成测试以验证新逻辑的正确性&#10;- 监控相关功能的性能表现" />
     <MESSAGE value="feat(protocol): optimize package structure and improve code quality&#10;&#10;###  详细修改内容&#10;- 修改文件：`advanced_features_example.go`, `mysql_protocol_encoder_test.go`, `handshake.go`, `resultset_encoder.go`&#10;- 主要改动：统一包名，删除冗余文件，修复测试引用，优化代码风格&#10;&#10;###  修改原因&#10;修复了包名混乱和类型重复定义的问题，提升了代码的可读性和可维护性。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：protocol&#10;- 受影响接口或服务：MySQL协议处理&#10;- 向后兼容性：兼容&#10;- 风险等级：低&#10;&#10;### ✅ 后续计划 / TODO&#10;- 继续完善测试覆盖率&#10;- 监控优化后的性能表现" />
     <MESSAGE value="fix(protocol): resolve issues with ResultSet handling and session ID generation&#10;&#10;###  详细修改内容&#10;- 修改文件：decoupled_handler.go, mysql_codec.go, mysql_protocol_encoding.go, resultset_encoder.go, system_variable_analyzer.go, system_variable_engine.go, system_variables_manager.go&#10;- 主要改动：&#10;  - 修复了 ResultSet 重复发送的问题，确保每个查询结果集只发送一次。&#10;  - 更新了会话 ID 生成逻辑，确保每个连接的会话 ID 唯一，包含远程地址信息。&#10;  - 调整了 OK Packet 和 EOF Packet 的编码方式，确保符合 MySQL 协议规范。&#10;&#10;###  修改原因&#10;- 解决了在处理查询结果时可能导致的协议错误，提升了系统的稳定性和可靠性。&#10;- 改进了会话管理，确保在多用户环境下的唯一性，避免潜在的会话冲突。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：协议处理、会话管理&#10;- 受影响接口或服务：ResultSet 处理、会话 ID 生成&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试，确保所有修改的功能正常。&#10;- 更新相关文档以反映新的协议处理逻辑。" />
-    <option name="LAST_COMMIT_MESSAGE" value="fix(protocol): resolve issues with ResultSet handling and session ID generation&#10;&#10;###  详细修改内容&#10;- 修改文件：decoupled_handler.go, mysql_codec.go, mysql_protocol_encoding.go, resultset_encoder.go, system_variable_analyzer.go, system_variable_engine.go, system_variables_manager.go&#10;- 主要改动：&#10;  - 修复了 ResultSet 重复发送的问题，确保每个查询结果集只发送一次。&#10;  - 更新了会话 ID 生成逻辑，确保每个连接的会话 ID 唯一，包含远程地址信息。&#10;  - 调整了 OK Packet 和 EOF Packet 的编码方式，确保符合 MySQL 协议规范。&#10;&#10;###  修改原因&#10;- 解决了在处理查询结果时可能导致的协议错误，提升了系统的稳定性和可靠性。&#10;- 改进了会话管理，确保在多用户环境下的唯一性，避免潜在的会话冲突。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：协议处理、会话管理&#10;- 受影响接口或服务：ResultSet 处理、会话 ID 生成&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试，确保所有修改的功能正常。&#10;- 更新相关文档以反映新的协议处理逻辑。" />
+    <MESSAGE value="###  提交摘要&#10;feat(migration): 添加数据迁移状态服务的 XML 配置文件&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：copilot.data.migration.ask.xml, copilot.data.migration.edit.xml, copilot.data.migration.agent.xml, copilot.data.migration.ask2agent.xml, mysql_test.go, main.go&#10;- 主要改动：新增了多个 XML 配置文件以记录数据迁移状态，并添加了 MySQL 测试代码。&#10;&#10;###  修改原因&#10;此次修改旨在支持数据迁移过程中的状态管理，确保在迁移完成后能够准确记录和查询状态。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：数据迁移管理&#10;- 受影响接口或服务：数据迁移状态查询&#10;- 向后兼容性：兼容&#10;- 风险等级：低&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行单元测试以验证新配置文件的正确性&#10;- 更新相关文档以反映新的迁移状态管理逻辑" />
+    <MESSAGE value="###  提交摘要&#10;feat(crash_recovery): integrate crash recovery and checkpoint management&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：enginx.go, crash_recovery.go, buffer_page.go, main.go&#10;- 主要改动：集成崩溃恢复机制，初始化检查点管理器，更新页面分配和写入逻辑。&#10;&#10;###  修改原因&#10;此次修改旨在增强系统的可靠性，通过集成崩溃恢复和检查点管理，确保在系统宕机时能够自动恢复数据，减少数据丢失风险。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：崩溃恢复、存储管理、引擎启动&#10;- 受影响接口或服务：XMySQL引擎的启动和关闭流程&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面测试以验证崩溃恢复功能的有效性&#10;- 优化页面分配逻辑以提高性能" />
+    <option name="LAST_COMMIT_MESSAGE" value="###  提交摘要&#10;feat(crash_recovery): integrate crash recovery and checkpoint management&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：enginx.go, crash_recovery.go, buffer_page.go, main.go&#10;- 主要改动：集成崩溃恢复机制，初始化检查点管理器，更新页面分配和写入逻辑。&#10;&#10;###  修改原因&#10;此次修改旨在增强系统的可靠性，通过集成崩溃恢复和检查点管理，确保在系统宕机时能够自动恢复数据，减少数据丢失风险。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：崩溃恢复、存储管理、引擎启动&#10;- 受影响接口或服务：XMySQL引擎的启动和关闭流程&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面测试以验证崩溃恢复功能的有效性&#10;- 优化页面分配逻辑以提高性能" />
   </component>
   <component name="VgoProject">
     <settings-migrated>true</settings-migrated>
@@ -175,7 +204,7 @@
       <breakpoints>
         <line-breakpoint enabled="true" type="DlvLineBreakpoint">
           <url>file://$PROJECT_DIR$/server/net/decoupled_handler.go</url>
-          <line>397</line>
+          <line>398</line>
           <option name="timeStamp" value="6" />
         </line-breakpoint>
       </breakpoints>
