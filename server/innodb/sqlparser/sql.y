@@ -255,7 +255,8 @@ func forceEOF(yylex interface{}) {
 %type <str> extended_opt full_opt from_database_opt tables_or_processlist
 %type <showFilter> like_or_where_opt
 %type <byt> exists_opt
-%type <empty> not_exists_opt non_add_drop_or_rename_operation to_opt index_opt constraint_opt
+%type <byt> not_exists_opt
+%type <empty> non_add_drop_or_rename_operation to_opt index_opt constraint_opt
 %type <bytes> reserved_keyword non_reserved_keyword
 %type <colIdent> sql_id reserved_sql_id col_alias as_ci_opt using_opt
 %type <expr> charset_value
@@ -558,19 +559,11 @@ create_statement:
   }
 | CREATE DATABASE not_exists_opt ID ddl_force_eof
   {
-    ifNotExists := false
-    if $3 != nil {
-      ifNotExists = true
-    }
-    $$ = &DBDDL{Action: CreateStr, DBName: string($4), IfExists: ifNotExists}
+    $$ = &DBDDL{Action: CreateStr, DBName: string($4), IfExists: $3 != 0}
   }
 | CREATE SCHEMA not_exists_opt ID ddl_force_eof
   {
-    ifNotExists := false
-    if $3 != nil {
-      ifNotExists = true
-    }
-    $$ = &DBDDL{Action: CreateStr, DBName: string($4), IfExists: ifNotExists}
+    $$ = &DBDDL{Action: CreateStr, DBName: string($4), IfExists: $3 != 0}
   }
 
 vindex_type_opt:
@@ -2833,9 +2826,9 @@ exists_opt:
   { $$ = 1 }
 
 not_exists_opt:
-  { $$ = nil }
+  { $$ = 0 }
 | IF NOT EXISTS
-  { $$ = struct{}{} }
+  { $$ = 1 }
 
 ignore_opt:
   { $$ = "" }

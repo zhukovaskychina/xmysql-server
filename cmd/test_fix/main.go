@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	_ "1/go-sql-driver/mysql"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 )
 
 func main() {

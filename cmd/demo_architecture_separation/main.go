@@ -8,6 +8,7 @@ import (
 
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/util"
 )
 
 func main() {
@@ -36,9 +37,9 @@ func main() {
 	}
 
 	fmt.Println("\n 演示配置:")
-	util.Debugf("  - 数据目录: %s\n", cfg.DataDir)
-	util.Debugf("  - 系统表空间: %s\n", cfg.InnodbDataFilePath)
-	util.Debugf("  - 缓冲池大小: %d MB\n", cfg.InnodbBufferPoolSize/1024/1024)
+	logger.Debugf("  - 数据目录: %s\n", cfg.DataDir)
+	logger.Debugf("  - 系统表空间: %s\n", cfg.InnodbDataFilePath)
+	logger.Debugf("  - 缓冲池大小: %d MB\n", cfg.InnodbBufferPoolSize/1024/1024)
 
 	// 第一次运行：创建全新的存储系统
 	fmt.Println("\n🚀 第一次运行：创建全新的存储系统")
@@ -46,7 +47,7 @@ func main() {
 
 	storageManager1 := manager.NewStorageManager(cfg)
 	if storageManager1 == nil {
-		util.Debugf(" 创建StorageManager失败\n")
+		logger.Debugf(" 创建StorageManager失败\n")
 		return
 	}
 
@@ -63,7 +64,7 @@ func main() {
 
 	storageManager2 := manager.NewStorageManager(cfg)
 	if storageManager2 == nil {
-		util.Debugf(" 重新打开StorageManager失败\n")
+		logger.Debugf(" 重新打开StorageManager失败\n")
 		return
 	}
 
@@ -90,7 +91,7 @@ func displayManagerStatus(sm *manager.StorageManager, cfg *conf.Cfg) {
 
 		// 检查系统表空间
 		if systemSpace, err := spaceManager.GetSpace(0); err == nil {
-			util.Debugf("    - 系统表空间(Space ID 0): %s\n",
+			logger.Debugf("    - 系统表空间(Space ID 0): %s\n",
 				getSpaceStatus(systemSpace))
 		}
 
@@ -100,14 +101,14 @@ func displayManagerStatus(sm *manager.StorageManager, cfg *conf.Cfg) {
 		for _, spaceID := range userSpaces {
 			if userSpace, err := spaceManager.GetSpace(spaceID); err == nil {
 				if existingSpaces < 3 { // 只显示前3个
-					util.Debugf("    - 用户表空间(Space ID %d): %s\n",
+					logger.Debugf("    - 用户表空间(Space ID %d): %s\n",
 						spaceID, getSpaceStatus(userSpace))
 				}
 				existingSpaces++
 			}
 		}
 		if existingSpaces > 3 {
-			util.Debugf("    - ... 还有 %d 个用户表空间\n", existingSpaces-3)
+			logger.Debugf("    - ... 还有 %d 个用户表空间\n", existingSpaces-3)
 		}
 	} else {
 		fmt.Println("   SpaceManager: 未初始化")
@@ -126,7 +127,7 @@ func displayManagerStatus(sm *manager.StorageManager, cfg *conf.Cfg) {
 
 	// 显示表空间缓存状态
 	if spaces, err := sm.ListSpaces(); err == nil {
-		util.Debugf("   表空间缓存: %d 个表空间\n", len(spaces))
+		logger.Debugf("   表空间缓存: %d 个表空间\n", len(spaces))
 		systemSpaces := 0
 		userSpaces := 0
 		for _, space := range spaces {
@@ -136,22 +137,22 @@ func displayManagerStatus(sm *manager.StorageManager, cfg *conf.Cfg) {
 				userSpaces++
 			}
 		}
-		util.Debugf("    - 系统表空间: %d 个\n", systemSpaces)
-		util.Debugf("    - 用户表空间: %d 个\n", userSpaces)
+		logger.Debugf("    - 系统表空间: %d 个\n", systemSpaces)
+		logger.Debugf("    - 用户表空间: %d 个\n", userSpaces)
 	}
 
 	// 显示文件状态
 	fmt.Println("  📁 文件系统状态:")
 	files, _ := filepath.Glob(filepath.Join(cfg.DataDir, "*.ibd"))
-	util.Debugf("    - IBD文件数量: %d\n", len(files))
+	logger.Debugf("    - IBD文件数量: %d\n", len(files))
 	for _, file := range files[:min(5, len(files))] { // 只显示前5个
 		basename := filepath.Base(file)
 		if info, err := os.Stat(file); err == nil {
-			util.Debugf("    - %s: %d KB\n", basename, info.Size()/1024)
+			logger.Debugf("    - %s: %d KB\n", basename, info.Size()/1024)
 		}
 	}
 	if len(files) > 5 {
-		util.Debugf("    - ... 还有 %d 个文件\n", len(files)-5)
+		logger.Debugf("    - ... 还有 %d 个文件\n", len(files)-5)
 	}
 }
 
@@ -165,17 +166,17 @@ func demonstrateResponsibilitySeparation(sm *manager.StorageManager) {
 
 		// 演示创建新表空间
 		testSpaceID := uint32(999)
-		util.Debugf("   - 尝试创建测试表空间(Space ID %d)...\n", testSpaceID)
+		logger.Debugf("   - 尝试创建测试表空间(Space ID %d)...\n", testSpaceID)
 
 		if testSpace, err := spaceManager.CreateSpace(testSpaceID, "test_table", false); err == nil {
-			util.Debugf("    SpaceManager成功创建表空间: %s\n", getSpaceStatus(testSpace))
+			logger.Debugf("    SpaceManager成功创建表空间: %s\n", getSpaceStatus(testSpace))
 		} else {
-			util.Debugf("     表空间创建失败或已存在: %v\n", err)
+			logger.Debugf("     表空间创建失败或已存在: %v\n", err)
 		}
 
 		// 显示系统表空间也由SpaceManager管理
 		if systemSpace, err := spaceManager.GetSpace(0); err == nil {
-			util.Debugf("   - 系统表空间(Space ID 0)也由SpaceManager统一管理: %s\n",
+			logger.Debugf("   - 系统表空间(Space ID 0)也由SpaceManager统一管理: %s\n",
 				getSpaceStatus(systemSpace))
 		}
 	}
@@ -184,14 +185,14 @@ func demonstrateResponsibilitySeparation(sm *manager.StorageManager) {
 	fmt.Println("   - 顶层统一协调器，管理所有存储组件")
 	fmt.Println("   - 协调SpaceManager、SegmentManager、BufferPool等")
 	fmt.Println("   - 管理表空间缓存和生命周期")
-	util.Debugf("   - 当前管理的表空间缓存数量: %d\n", getTablespaceCount(sm))
+	logger.Debugf("   - 当前管理的表空间缓存数量: %d\n", getTablespaceCount(sm))
 
 	// 新增：展示SystemSpaceManager功能
 	fmt.Println("\n3. 🏛️  SystemSpaceManager职责演示:")
 	systemSpaceManager := sm.GetSystemSpaceManager()
 	if systemSpaceManager != nil {
 		fmt.Println("    SystemSpaceManager正常运行")
-		util.Debugf("   - 独立表空间模式: %v (innodb_file_per_table=ON)\n",
+		logger.Debugf("   - 独立表空间模式: %v (innodb_file_per_table=ON)\n",
 			systemSpaceManager.IsFilePerTableEnabled())
 
 		// 展示ibdata1组件
@@ -211,23 +212,23 @@ func demonstrateResponsibilitySeparation(sm *manager.StorageManager) {
 		mysqlSystemCount := 0
 		for spaceID, info := range independentSpaces {
 			if mysqlSystemCount < 5 { // 只显示前5个MySQL系统表
-				util.Debugf("     - %s -> Space ID %d (%s)\n",
+				logger.Debugf("     - %s -> Space ID %d (%s)\n",
 					info.Name, spaceID, info.FilePath)
 				mysqlSystemCount++
 			}
 		}
 		if len(independentSpaces) > 5 {
-			util.Debugf("     - ... 还有 %d 个独立表空间\n", len(independentSpaces)-5)
+			logger.Debugf("     - ... 还有 %d 个独立表空间\n", len(independentSpaces)-5)
 		}
 
 		// 展示统计信息
 		if stats := systemSpaceManager.GetTablespaceStats(); stats != nil {
 			fmt.Println("   - 表空间统计信息:")
-			util.Debugf("     - 系统表空间: Space ID %d (ibdata1)\n", stats.SystemSpaceID)
-			util.Debugf("     - MySQL系统表: %d 个独立表空间\n", stats.MySQLSystemTableCount)
-			util.Debugf("     - 用户表: %d 个独立表空间\n", stats.UserTableCount)
-			util.Debugf("     - information_schema: %d 个表空间\n", stats.InformationSchemaTableCount)
-			util.Debugf("     - performance_schema: %d 个表空间\n", stats.PerformanceSchemaTableCount)
+			logger.Debugf("     - 系统表空间: Space ID %d (ibdata1)\n", stats.SystemSpaceID)
+			logger.Debugf("     - MySQL系统表: %d 个独立表空间\n", stats.MySQLSystemTableCount)
+			logger.Debugf("     - 用户表: %d 个独立表空间\n", stats.UserTableCount)
+			logger.Debugf("     - information_schema: %d 个表空间\n", stats.InformationSchemaTableCount)
+			logger.Debugf("     - performance_schema: %d 个表空间\n", stats.PerformanceSchemaTableCount)
 		}
 	}
 

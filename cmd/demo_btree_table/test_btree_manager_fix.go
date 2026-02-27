@@ -38,18 +38,18 @@ func main() {
 	// 测试获取mysql.user表的存储信息
 	userTableInfo, err := tableStorageManager.GetTableStorageInfo("mysql", "user")
 	if err != nil {
-		util.Debugf(" 获取mysql.user表存储信息失败: %v\n", err)
+		logger.Debugf(" 获取mysql.user表存储信息失败: %v\n", err)
 		return
 	}
 
-	util.Debugf("✓ mysql.user表存储信息: SpaceID=%d, RootPage=%d\n",
+	logger.Debugf("✓ mysql.user表存储信息: SpaceID=%d, RootPage=%d\n",
 		userTableInfo.SpaceID, userTableInfo.RootPageNo)
 
 	// 测试创建表特定的B+树管理器
 	ctx := context.Background()
 	userBTreeManager, err := tableStorageManager.CreateBTreeManagerForTable(ctx, "mysql", "user")
 	if err != nil {
-		util.Debugf(" 创建mysql.user表B+树管理器失败: %v\n", err)
+		logger.Debugf(" 创建mysql.user表B+树管理器失败: %v\n", err)
 		return
 	}
 
@@ -61,19 +61,19 @@ func main() {
 	// 测试获取第一个叶子页面
 	firstLeafPage, err := userBTreeManager.GetFirstLeafPage(ctx)
 	if err != nil {
-		util.Debugf(" 获取第一个叶子页面失败: %v\n", err)
+		logger.Debugf(" 获取第一个叶子页面失败: %v\n", err)
 	} else {
-		util.Debugf("✓ 第一个叶子页面: %d\n", firstLeafPage)
+		logger.Debugf("✓ 第一个叶子页面: %d\n", firstLeafPage)
 	}
 
 	// 测试获取所有叶子页面
 	leafPages, err := userBTreeManager.GetAllLeafPages(ctx)
 	if err != nil {
-		util.Debugf(" 获取所有叶子页面失败: %v\n", err)
+		logger.Debugf(" 获取所有叶子页面失败: %v\n", err)
 	} else {
-		util.Debugf("✓ 叶子页面数量: %d\n", len(leafPages))
+		logger.Debugf("✓ 叶子页面数量: %d\n", len(leafPages))
 		if len(leafPages) > 0 {
-			util.Debugf("  叶子页面: %v\n", leafPages)
+			logger.Debugf("  叶子页面: %v\n", leafPages)
 		}
 	}
 
@@ -84,27 +84,27 @@ func main() {
 
 	err = userBTreeManager.Insert(ctx, testKey, testValue)
 	if err != nil {
-		util.Debugf(" 插入数据失败: %v\n", err)
+		logger.Debugf(" 插入数据失败: %v\n", err)
 	} else {
-		util.Debugf("✓ 成功插入数据: key=%s\n", testKey)
+		logger.Debugf("✓ 成功插入数据: key=%s\n", testKey)
 	}
 
 	// 测试搜索数据
 	fmt.Println("\n7. 测试搜索数据...")
 	pageNo, slot, err := userBTreeManager.Search(ctx, testKey)
 	if err != nil {
-		util.Debugf(" 搜索数据失败: %v\n", err)
+		logger.Debugf(" 搜索数据失败: %v\n", err)
 	} else {
-		util.Debugf("✓ 找到数据: page=%d, slot=%d\n", pageNo, slot)
+		logger.Debugf("✓ 找到数据: page=%d, slot=%d\n", pageNo, slot)
 	}
 
 	// 测试范围查询
 	fmt.Println("\n8. 测试范围查询...")
 	rows, err := userBTreeManager.RangeSearch(ctx, "a", "z")
 	if err != nil {
-		util.Debugf(" 范围查询失败: %v\n", err)
+		logger.Debugf(" 范围查询失败: %v\n", err)
 	} else {
-		util.Debugf("✓ 范围查询结果数量: %d\n", len(rows))
+		logger.Debugf("✓ 范围查询结果数量: %d\n", len(rows))
 	}
 
 	fmt.Println("\n 增强版B+树管理器测试完成！")

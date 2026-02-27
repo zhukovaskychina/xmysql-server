@@ -24,11 +24,11 @@ func main() {
 		InnodbPageSize:       16384,             // 16KB
 	}
 
-	util.Debugf(" 配置信息:\n")
-	util.Debugf("   - 数据目录: %s\n", cfg.DataDir)
-	util.Debugf("   - Buffer Pool大小: %dMB\n", cfg.InnodbBufferPoolSize/(1024*1024))
-	util.Debugf("   - 页面大小: %dKB\n", cfg.InnodbPageSize/1024)
-	util.Debugf("   - 独立表空间: 启用\n")
+	logger.Debugf(" 配置信息:\n")
+	logger.Debugf("   - 数据目录: %s\n", cfg.DataDir)
+	logger.Debugf("   - Buffer Pool大小: %dMB\n", cfg.InnodbBufferPoolSize/(1024*1024))
+	logger.Debugf("   - 页面大小: %dKB\n", cfg.InnodbPageSize/1024)
+	logger.Debugf("   - 独立表空间: 启用\n")
 
 	// 创建存储管理器
 	fmt.Println("\n🚀 正在初始化存储管理器...")
@@ -81,12 +81,12 @@ func demonstrateArchitectureAdvantages(ssm *manager.SystemSpaceManager) {
 	count := 0
 	for spaceID, info := range tablespaces {
 		if count < 5 { // 只显示前5个
-			util.Debugf("   - Space ID %d: %s (%s)\n", spaceID, info.Name, info.TableType)
+			logger.Debugf("   - Space ID %d: %s (%s)\n", spaceID, info.Name, info.TableType)
 		}
 		count++
 	}
 	if count > 5 {
-		util.Debugf("   ... 还有 %d 个表空间\n", count-5)
+		logger.Debugf("   ... 还有 %d 个表空间\n", count-5)
 	}
 
 	// 3. 系统组件分离
@@ -159,7 +159,7 @@ func demonstrateDataPersistenceFlow(ssm *manager.SystemSpaceManager) {
 	fmt.Println("   🧵 后台线程将稍后处理脏页刷盘")
 
 	elapsed := time.Since(startTime)
-	util.Debugf("\n⏱️  总耗时: %v\n", elapsed)
+	logger.Debugf("\n⏱️  总耗时: %v\n", elapsed)
 
 	fmt.Println("\n 关键点:")
 	fmt.Println("    数据已持久化（通过Redo Log）")
@@ -176,14 +176,14 @@ func showSystemStatistics(ssm *manager.SystemSpaceManager) {
 	// 获取统计信息
 	stats := ssm.GetTablespaceStats()
 	if stats != nil {
-		util.Debugf("📈 表空间统计:\n")
-		util.Debugf("   - 系统表空间ID: %d (ibdata1)\n", stats.SystemSpaceID)
-		util.Debugf("   - 系统表空间大小: %d bytes\n", stats.SystemSpaceSize)
-		util.Debugf("   - 独立表空间总数: %d\n", stats.IndependentSpaceCount)
-		util.Debugf("   - MySQL系统表: %d\n", stats.MySQLSystemTableCount)
-		util.Debugf("   - 用户表: %d\n", stats.UserTableCount)
-		util.Debugf("   - information_schema表: %d\n", stats.InformationSchemaTableCount)
-		util.Debugf("   - performance_schema表: %d\n", stats.PerformanceSchemaTableCount)
+		logger.Debugf("📈 表空间统计:\n")
+		logger.Debugf("   - 系统表空间ID: %d (ibdata1)\n", stats.SystemSpaceID)
+		logger.Debugf("   - 系统表空间大小: %d bytes\n", stats.SystemSpaceSize)
+		logger.Debugf("   - 独立表空间总数: %d\n", stats.IndependentSpaceCount)
+		logger.Debugf("   - MySQL系统表: %d\n", stats.MySQLSystemTableCount)
+		logger.Debugf("   - 用户表: %d\n", stats.UserTableCount)
+		logger.Debugf("   - information_schema表: %d\n", stats.InformationSchemaTableCount)
+		logger.Debugf("   - performance_schema表: %d\n", stats.PerformanceSchemaTableCount)
 	}
 
 	// 展示space ID分配策略
@@ -209,9 +209,9 @@ func showSystemStatistics(ssm *manager.SystemSpaceManager) {
 
 	for _, table := range systemTables {
 		if spaceID, exists := ssm.GetMySQLSystemTableSpaceID(table.name); exists {
-			util.Debugf("    %s → Space ID %d\n", table.name, spaceID)
+			logger.Debugf("    %s → Space ID %d\n", table.name, spaceID)
 		} else {
-			util.Debugf("     %s → Space ID %d (预期)\n", table.name, table.spaceID)
+			logger.Debugf("     %s → Space ID %d (预期)\n", table.name, table.spaceID)
 		}
 	}
 

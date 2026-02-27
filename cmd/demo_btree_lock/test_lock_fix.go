@@ -36,18 +36,18 @@ func main() {
 	fmt.Println("4. 测试获取表信息...")
 	userTableInfo, err := tableStorageManager.GetTableStorageInfo("mysql", "user")
 	if err != nil {
-		util.Debugf(" 获取mysql.user表存储信息失败: %v\n", err)
+		logger.Debugf(" 获取mysql.user表存储信息失败: %v\n", err)
 		return
 	}
 
-	util.Debugf("✓ mysql.user表存储信息: SpaceID=%d, RootPage=%d\n",
+	logger.Debugf("✓ mysql.user表存储信息: SpaceID=%d, RootPage=%d\n",
 		userTableInfo.SpaceID, userTableInfo.RootPageNo)
 
 	fmt.Println("5. 测试创建B+树管理器...")
 	ctx := context.Background()
 	userBTreeManager, err := tableStorageManager.CreateBTreeManagerForTable(ctx, "mysql", "user")
 	if err != nil {
-		util.Debugf(" 创建mysql.user表B+树管理器失败: %v\n", err)
+		logger.Debugf(" 创建mysql.user表B+树管理器失败: %v\n", err)
 		return
 	}
 
@@ -59,20 +59,20 @@ func main() {
 	fmt.Println("  测试GetFirstLeafPage...")
 	firstLeafPage, err := userBTreeManager.GetFirstLeafPage(ctx)
 	if err != nil {
-		util.Debugf(" 获取第一个叶子页面失败（可能是预期的）: %v\n", err)
+		logger.Debugf(" 获取第一个叶子页面失败（可能是预期的）: %v\n", err)
 	} else {
-		util.Debugf("✓ 第一个叶子页面: %d\n", firstLeafPage)
+		logger.Debugf("✓ 第一个叶子页面: %d\n", firstLeafPage)
 	}
 
 	// 测试获取所有叶子页面
 	fmt.Println("  测试GetAllLeafPages...")
 	leafPages, err := userBTreeManager.GetAllLeafPages(ctx)
 	if err != nil {
-		util.Debugf(" 获取所有叶子页面失败（可能是预期的）: %v\n", err)
+		logger.Debugf(" 获取所有叶子页面失败（可能是预期的）: %v\n", err)
 	} else {
-		util.Debugf("✓ 总共有 %d 个叶子页面\n", len(leafPages))
+		logger.Debugf("✓ 总共有 %d 个叶子页面\n", len(leafPages))
 		if len(leafPages) > 0 && len(leafPages) <= 5 {
-			util.Debugf("  叶子页面: %v\n", leafPages)
+			logger.Debugf("  叶子页面: %v\n", leafPages)
 		}
 	}
 
@@ -80,9 +80,9 @@ func main() {
 	fmt.Println("  测试Search...")
 	pageNum, slot, err := userBTreeManager.Search(ctx, "root")
 	if err != nil {
-		util.Debugf(" 搜索失败（可能是预期的）: %v\n", err)
+		logger.Debugf(" 搜索失败（可能是预期的）: %v\n", err)
 	} else {
-		util.Debugf("✓ 找到记录: PageNum=%d, Slot=%d\n", pageNum, slot)
+		logger.Debugf("✓ 找到记录: PageNum=%d, Slot=%d\n", pageNum, slot)
 	}
 
 	fmt.Println("\n=== 锁修复测试完成 ===")

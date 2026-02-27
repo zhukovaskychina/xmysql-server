@@ -47,12 +47,12 @@ func testOptimizedLRU() {
 	}
 
 	elapsed := time.Since(start)
-	util.Debugf("优化LRU缓存操作耗时: %v\n", elapsed)
+	logger.Debugf("优化LRU缓存操作耗时: %v\n", elapsed)
 
 	// 显示统计信息
-	util.Debugf("命中次数: %d, 未命中次数: %d, 命中率: %.2f%%\n",
+	logger.Debugf("命中次数: %d, 未命中次数: %d, 命中率: %.2f%%\n",
 		cache.HitCount(), cache.MissCount(), cache.HitRate()*100)
-	util.Debugf("缓存大小: %d\n", cache.Len())
+	logger.Debugf("缓存大小: %d\n", cache.Len())
 }
 
 func testConcurrentOptimized() {
@@ -90,13 +90,13 @@ func testConcurrentOptimized() {
 	wg.Wait()
 	elapsed := time.Since(start)
 
-	util.Debugf("  %d个goroutine，每个%d次操作\n", numGoroutines, operationsPerGoroutine)
-	util.Debugf("  总耗时: %v\n", elapsed)
-	util.Debugf("  平均每次操作: %v\n", elapsed/time.Duration(numGoroutines*operationsPerGoroutine))
+	logger.Debugf("  %d个goroutine，每个%d次操作\n", numGoroutines, operationsPerGoroutine)
+	logger.Debugf("  总耗时: %v\n", elapsed)
+	logger.Debugf("  平均每次操作: %v\n", elapsed/time.Duration(numGoroutines*operationsPerGoroutine))
 
 	// 显示优化缓存的统计信息
-	util.Debugf("  命中率: %.2f%%\n", cache.HitRate()*100)
-	util.Debugf("  缓存大小: %d\n", cache.Len())
+	logger.Debugf("  命中率: %.2f%%\n", cache.HitRate()*100)
+	logger.Debugf("  缓存大小: %d\n", cache.Len())
 }
 
 func testOptimizedBufferPoolManager() {
@@ -119,7 +119,7 @@ func testOptimizedBufferPoolManager() {
 	// 创建优化的BufferPoolManager
 	bpm, err := manager.NewOptimizedBufferPoolManager(config)
 	if err != nil {
-		util.Debugf("创建OptimizedBufferPoolManager失败: %v\n", err)
+		logger.Debugf("创建OptimizedBufferPoolManager失败: %v\n", err)
 		return
 	}
 	defer bpm.Close()
@@ -133,7 +133,7 @@ func testOptimizedBufferPoolManager() {
 	for i := uint32(0); i < 20; i++ {
 		page, err := bpm.GetPage(1, i)
 		if err != nil {
-			util.Debugf("获取页面失败: %v\n", err)
+			logger.Debugf("获取页面失败: %v\n", err)
 			continue
 		}
 
@@ -148,23 +148,23 @@ func testOptimizedBufferPoolManager() {
 
 	// 刷新所有脏页
 	if err := bpm.FlushAllPages(); err != nil {
-		util.Debugf("刷新脏页失败: %v\n", err)
+		logger.Debugf("刷新脏页失败: %v\n", err)
 	}
 
 	elapsed := time.Since(start)
-	util.Debugf("BufferPoolManager操作耗时: %v\n", elapsed)
+	logger.Debugf("BufferPoolManager操作耗时: %v\n", elapsed)
 
 	// 显示统计信息
 	stats := bpm.GetStats()
-	util.Debugf("统计信息:\n")
+	logger.Debugf("统计信息:\n")
 	for key, value := range stats {
-		util.Debugf("  %s: %v\n", key, value)
+		logger.Debugf("  %s: %v\n", key, value)
 	}
 
 	// 内存使用情况
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	util.Debugf("内存使用: %.2f MB\n", float64(m.Alloc)/1024/1024)
+	logger.Debugf("内存使用: %.2f MB\n", float64(m.Alloc)/1024/1024)
 }
 
 // MockStorageProvider 模拟存储提供者
