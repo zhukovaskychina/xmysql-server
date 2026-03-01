@@ -392,7 +392,28 @@ func (h *DecoupledMySQLMessageHandler) handlePacket(session Session, currentMysq
 	logger.Debugf(h.formatLog(session, "handlePacket", cmdName, cmdDetail,
 		fmt.Sprintf("包体前20字节: %v", recMySQLPkg.Body[:localMin(len(recMySQLPkg.Body), 20)])))
 
-	//  特殊处理查询包（绕过协议解析器）
+	// 特殊处理 COM_INIT_DB (0x02)：切换当前数据库并更新 session 状态
+	if len(recMySQLPkg.Body) >= 2 && firstByte == 0x02 { // COM_INIT_DB
+		dbName := string(recMySQLPkg.Body[1:])
+		dbName = strings.TrimSpace(dbName)
+		logger.Debugf(h.formatLog(session, "handlePacket", "COM_INIT_DB", dbName, "切换数据库并更新 session"))
+
+		// 可选：校验数据库是否存在（通过业务层或 authService）
+		if h.authService != nil {
+			if err := h.authService.ValidateDatabase(context.Background(), dbName); err != nil {
+				logger.Warnf(h.formatLog(session, "handlePacket", "COM_INIT_DB", dbName, fmt.Sprintf("数据库校验失败(继续): %v", err)))
+				// 仍更新 session，由后续 DDL/DML 再报错
+			}
+		}
+
+		(*currentMysqlSession).SetParamByName("database", dbName)
+		logger.Debugf(h.formatLog(session, "handlePacket", "COM_INIT_DB", dbName, "session.currentDB 已更新"))
+
+		okPacket := protocol.EncodeOK(nil, 0, 0, nil)
+		return session.WriteBytes(okPacket)
+	}
+
+	// 特殊处理查询包（绕过协议解析器）
 	if len(recMySQLPkg.Body) >= 2 && firstByte == 0x03 { // COM_QUERY
 		query := string(recMySQLPkg.Body[1:])
 		logger.Debugf(h.formatLog(session, "handlePacket", "COM_QUERY", query, "检测到查询包，直接处理"))
@@ -405,8 +426,8 @@ func (h *DecoupledMySQLMessageHandler) handlePacket(session Session, currentMysq
 
 		logger.Debugf(h.formatLog(session, "handlePacket", "COM_QUERY", query, "查询消息创建成功，调用handleQueryMessageDirect"))
 
-		// 直接处理查询
-		err := h.handleQueryMessageDirect(session, queryMsg)
+		// 直接处理查询（传入真实 session，保证 USE 等语句能更新 currentDB）
+		err := h.handleQueryMessageDirect(session, currentMysqlSession, queryMsg)
 		if err != nil {
 			logger.Errorf(h.formatLog(session, "handlePacket", "COM_QUERY", query, fmt.Sprintf("查询处理失败: %v", err)))
 			return err
@@ -439,9 +460,9 @@ func (h *DecoupledMySQLMessageHandler) handleBusinessMessageSync(session Session
 		return nil
 	}
 
-	// 查询消息使用专用处理逻辑
+	// 查询消息使用专用处理逻辑（传 nil 会从 sessionMap 查找 currentMysqlSession）
 	if message.Type() == protocol.MSG_QUERY_REQUEST {
-		return h.handleQueryMessageDirect(session, message)
+		return h.handleQueryMessageDirect(session, nil, message)
 	}
 
 	// COM_QUIT 不发送响应，只标记关闭
@@ -480,8 +501,8 @@ func (h *DecoupledMySQLMessageHandler) handleBusinessMessageSync(session Session
 	}
 }
 
-// handleQueryMessageDirect 直接处理查询消息
-func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session, message protocol.Message) error {
+// handleQueryMessageDirect 直接处理查询消息。传入 currentMysqlSession 以保证 USE/COM_INIT_DB 等能更新同一会话的 currentDB。
+func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session, currentMysqlSession *server.MySQLServerSession, message protocol.Message) error {
 	logger.Debugf("[handleQueryMessageDirect] 开始处理查询消息")
 
 	if session.IsClosed() {
@@ -497,18 +518,37 @@ func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session,
 	logger.Debugf("[handleQueryMessageDirect] SQL: %s", query)
 	session.SetAttribute("__result_sent__", false)
 
-	h.rwlock.RLock()
-	_, exists := h.sessionMap[session]
-	h.rwlock.RUnlock()
-	if !exists {
-		return h.sendErrorResponse(session, 1064, "42000", "Session not found")
+	if currentMysqlSession == nil {
+		h.rwlock.RLock()
+		ms, exists := h.sessionMap[session]
+		h.rwlock.RUnlock()
+		if !exists {
+			return h.sendErrorResponse(session, 1064, "42000", "Session not found")
+		}
+		currentMysqlSession = &ms
 	}
+
+	// 从真实 session 取当前 database，供引擎和 USE 语句更新同一会话
+	database := ""
+	if p := (*currentMysqlSession).GetParamByName("database"); p != nil {
+		if s, ok := p.(string); ok {
+			database = s
+		}
+	}
+	logger.Debugf("[handleQueryMessageDirect] 当前 session database: %q", database)
 
 	if h.businessHandler == nil {
 		return h.sendMySQLOKPacket(session, 0, 0, 1)
 	}
 
-	response, err := h.businessHandler.HandleMessage(message)
+	var response protocol.Message
+	var err error
+	// 优先使用真实 session 执行，这样 USE 等语句会更新 session.currentDB
+	if enh, ok := h.businessHandler.(*dispatcher.EnhancedBusinessMessageHandler); ok {
+		response, err = enh.HandleQueryWithRealSession(*currentMysqlSession, query, database)
+	} else {
+		response, err = h.businessHandler.HandleMessage(message)
+	}
 	if err != nil {
 		return h.sendErrorResponse(session, 1064, "42000", err.Error())
 	}

@@ -5,9 +5,14 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="cebb430f-c076-4984-8043-b00b7330fdf5" name="Changes" comment="feat(logger): add logger import to main.go">
-      <change afterPath="$PROJECT_DIR$/server/net/mysql_pkg_handler.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/server/net/mysql_pkg_handler_test.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/MySQLDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/MySQLDemo.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/auth/engine_access.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/auth/engine_access.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/dispatcher/enhanced_message_handler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/dispatcher/enhanced_message_handler.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/dispatcher/message_handler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/dispatcher/message_handler.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/decoupled_handler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/net/decoupled_handler.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/session.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/net/session.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/session.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/session.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -41,16 +46,16 @@
     &quot;assignee&quot;: &quot;zhukovaskychina&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/zhukovaskychina/xmysql-server.git",
-    "accountId": "002448ed-9f28-4727-8558-6e54404cefb2"
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/zhukovaskychina/xmysql-server.git&quot;,
+    &quot;accountId&quot;: &quot;149cac8e-8a04-4196-a08e-68beb09d5a81&quot;
   }
-}]]></component>
-  <component name="KubernetesApiPersistence"><![CDATA[{}]]></component>
-  <component name="KubernetesApiProvider"><![CDATA[{
-  "isMigrated": true
-}]]></component>
+}</component>
+  <component name="KubernetesApiPersistence">{}</component>
+  <component name="KubernetesApiProvider">{
+  &quot;isMigrated&quot;: true
+}</component>
   <component name="ProjectColorInfo">{
   &quot;customColor&quot;: &quot;&quot;,
   &quot;associatedIndex&quot;: 6
@@ -60,38 +65,38 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "DefaultGoTemplateProperty": "Go Application",
-    "Go Build.go build github.com/zhukovaskychina/xmysql-server.executor": "Run",
-    "Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_executor.executor": "Run",
-    "Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_space_manager_optimization.executor": "Run",
-    "Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/mysql_test_client.executor": "Run",
-    "Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/query_optimizer_demo.executor": "Run",
-    "Go Test.go test github.com/zhukovaskychina/xmysql-server/cmd/demo_mysql_client_test.executor": "Run",
-    "RunOnceActivity.GoLinterPluginOnboarding": "true",
-    "RunOnceActivity.GoLinterPluginStorageMigration": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.go.formatter.settings.were.checked": "true",
-    "RunOnceActivity.go.migrated.go.modules.settings": "true",
-    "RunOnceActivity.go.modules.go.list.on.any.changes.was.set": "true",
-    "git-widget-placeholder": "dev",
-    "go.import.settings.migrated": "true",
-    "go.sdk.automatically.set": "true",
-    "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "/Users/zhukovasky/GolandProjects/xmysql-server",
-    "node.js.detected.package.eslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "run.configurations.included.in.services": "true",
-    "vue.rearranger.settings.migration": "true",
-    "应用程序.DDLTestDemo.executor": "Run",
-    "应用程序.InsertDataTestDemo.executor": "Run",
-    "应用程序.MySQLDemo.executor": "Run"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;DefaultGoTemplateProperty&quot;: &quot;Go Application&quot;,
+    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server.executor&quot;: &quot;Run&quot;,
+    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_executor.executor&quot;: &quot;Run&quot;,
+    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_space_manager_optimization.executor&quot;: &quot;Run&quot;,
+    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/mysql_test_client.executor&quot;: &quot;Run&quot;,
+    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/query_optimizer_demo.executor&quot;: &quot;Run&quot;,
+    &quot;Go Test.go test github.com/zhukovaskychina/xmysql-server/cmd/demo_mysql_client_test.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.GoLinterPluginOnboarding&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.GoLinterPluginStorageMigration&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.formatter.settings.were.checked&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.migrated.go.modules.settings&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.modules.go.list.on.any.changes.was.set&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;dev&quot;,
+    &quot;go.import.settings.migrated&quot;: &quot;true&quot;,
+    &quot;go.sdk.automatically.set&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/zhukovasky/GolandProjects/xmysql-server&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;run.configurations.included.in.services&quot;: &quot;true&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;,
+    &quot;应用程序.DDLTestDemo.executor&quot;: &quot;Run&quot;,
+    &quot;应用程序.InsertDataTestDemo.executor&quot;: &quot;Run&quot;,
+    &quot;应用程序.MySQLDemo.executor&quot;: &quot;Debug&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/docs" />
@@ -108,14 +113,15 @@
         <entry key="GoApplicationRunConfiguration">
           <value>
             <map>
-              <entry key="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_space_manager_optimization" value="STOPPED" />
+              <entry key="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_executor" value="FAILED" />
+              <entry key="go build main.go" value="STOPPED" />
             </map>
           </value>
         </entry>
       </map>
     </option>
   </component>
-  <component name="RunManager" selected="Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_space_manager_optimization">
+  <component name="RunManager" selected="Go Build.go build github.com/zhukovaskychina/xmysql-server">
     <configuration name="InsertDataTestDemo" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
       <option name="MAIN_CLASS_NAME" value="com.xmysql.server.demo.InsertDataTestDemo" />
       <module name="mysql-connect-demo" />
@@ -142,6 +148,15 @@
         <option name="Make" enabled="true" />
       </method>
     </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$/main.go" />
+      <method v="2" />
+    </configuration>
     <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_executor" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
       <module name="xmysql-server" />
       <working_directory value="$PROJECT_DIR$" />
@@ -149,15 +164,6 @@
       <package value="github.com/zhukovaskychina/xmysql-server/cmd/demo_executor" />
       <directory value="$PROJECT_DIR$" />
       <filePath value="$PROJECT_DIR$/cmd/demo_executor/test_select_simple.go" />
-      <method v="2" />
-    </configuration>
-    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_space_manager_optimization" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
-      <module name="xmysql-server" />
-      <working_directory value="$PROJECT_DIR$" />
-      <kind value="PACKAGE" />
-      <package value="github.com/zhukovaskychina/xmysql-server/cmd/demo_space_manager_optimization" />
-      <directory value="$PROJECT_DIR$" />
-      <filePath value="$PROJECT_DIR$/cmd/demo_space_manager_optimization/test_space_manager_optimization.go" />
       <method v="2" />
     </configuration>
     <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/query_optimizer_demo" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
@@ -171,8 +177,7 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_space_manager_optimization" />
-        <item itemvalue="Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/query_optimizer_demo" />
+        <item itemvalue="Go Build.go build github.com/zhukovaskychina/xmysql-server" />
         <item itemvalue="Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_executor" />
       </list>
     </recent_temporary>
@@ -180,8 +185,8 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-gosdk-f466f9b0953e-3d2cccfc42a2-org.jetbrains.plugins.go.sharedIndexes.bundled-GO-252.23892.449" />
-        <option value="bundled-js-predefined-d6986cc7102b-e03c56caf84a-JavaScript-GO-252.23892.449" />
+        <option value="bundled-jdk-9823dce3aa75-bf35d07a577b-intellij.indexing.shared.core-IU-252.26830.84" />
+        <option value="bundled-js-predefined-d6986cc7102b-3aa1da707db6-JavaScript-IU-252.26830.84" />
       </set>
     </attachedChunks>
   </component>
@@ -193,6 +198,8 @@
       <option name="presentableId" value="Default" />
       <updated>1761557760992</updated>
       <workItem from="1772103180941" duration="1032000" />
+      <workItem from="1772176597435" duration="941000" />
+      <workItem from="1772244086898" duration="1170000" />
     </task>
     <servers />
   </component>
@@ -262,7 +269,8 @@
     <MESSAGE value="###  提交摘要&#10;refactor(join): enhance join logic and optimize handling of join conditions&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：logical_plan.go, optimizer.go, volcano_executor.go, hash_operators_test.go&#10;- 主要改动：重构了连接逻辑，优化了连接条件的处理，增加了对外连接的支持，改进了谓词下推的实现。&#10;&#10;###  修改原因&#10;此次修改旨在提升连接操作的性能和可读性，通过重构代码和优化逻辑，确保在处理复杂查询时的效率和准确性。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：连接操作、查询优化&#10;- 受影响接口或服务：连接执行器、查询计划生成&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证连接逻辑的正确性&#10;- 更新相关文档以反映新的连接处理逻辑" />
     <MESSAGE value="###  提交摘要&#10;feat(logger): replace util logging with logger for improved consistency&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：main.go, event_write_rows.go, test_deadlock_fix.go, test_lru_cache_fix.go, test_space_manager_optimization.go, test_simple_table_mapping.go, test_btree_manager_fix.go, MySQLDemo.java&#10;- 主要改动：将 util.Debugf 替换为 logger.Debugf，以统一日志记录方式。&#10;&#10;###  修改原因&#10;为了提高代码的一致性和可维护性，所有日志记录功能已从 util 包迁移到 logger 包。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：日志记录模块&#10;- 受影响接口或服务：所有使用 util.Debugf 的地方&#10;- 向后兼容性：兼容&#10;- 风险等级：低&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面测试以确保日志记录功能正常" />
     <MESSAGE value="feat(logger): add logger import to main.go" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat(logger): add logger import to main.go" />
+    <MESSAGE value="###  提交摘要&#10;feat(mysql): implement MySQL package handler for protocol data processing&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：mysql_pkg_handler.go, mysql_pkg_handler_test.go&#10;- 主要改动：新增 MySQLPkgHandler 结构体，支持 MySQL 协议数据包的编解码，包含 Read 和 Write 方法。&#10;&#10;###  修改原因&#10;此次修改旨在实现对 MySQL 协议数据包的处理，提供灵活的读取和写入功能，以支持后续的数据库操作。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MySQL 数据包处理&#10;- 受影响接口或服务：所有使用 MySQLPkgHandler 的地方&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证 MySQLPkgHandler 的正确性&#10;- 更新相关文档以反映新的数据包处理逻辑" />
+    <option name="LAST_COMMIT_MESSAGE" value="###  提交摘要&#10;feat(mysql): implement MySQL package handler for protocol data processing&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：mysql_pkg_handler.go, mysql_pkg_handler_test.go&#10;- 主要改动：新增 MySQLPkgHandler 结构体，支持 MySQL 协议数据包的编解码，包含 Read 和 Write 方法。&#10;&#10;###  修改原因&#10;此次修改旨在实现对 MySQL 协议数据包的处理，提供灵活的读取和写入功能，以支持后续的数据库操作。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MySQL 数据包处理&#10;- 受影响接口或服务：所有使用 MySQLPkgHandler 的地方&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证 MySQLPkgHandler 的正确性&#10;- 更新相关文档以反映新的数据包处理逻辑" />
   </component>
   <component name="VgoProject">
     <settings-migrated>true</settings-migrated>
