@@ -319,12 +319,23 @@ func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sql
 		}
 	}
 
-	// 创建SELECT执行器
+	// 创建SELECT执行器（传入 dataDir：表未在表管理器注册时从 .frm 加载表定义）
+	dataDir := ""
+	if e.conf != nil {
+		dataDir = e.conf.DataDir
+		if dataDir == "" && e.conf.InnodbDataDir != "" {
+			dataDir = e.conf.InnodbDataDir
+		}
+		if dataDir == "" {
+			dataDir = "data"
+		}
+	}
 	selectExecutor := NewSelectExecutor(
 		optimizerManager,
 		bufferPoolManager,
 		btreeManager,
 		tableManager,
+		dataDir,
 	)
 
 	// 执行SELECT查询
@@ -1284,9 +1295,18 @@ func boolishToInt(value interface{}) int64 {
 	}
 }
 
+// getCreateTableName 返回 CREATE TABLE 解析出的表名与库名。parser 将 CREATE TABLE 的表名放在 NewName，不是 Table。
+func getCreateTableName(stmt *sqlparser.DDL) (tableName, dbQualifier string) {
+	if stmt.Action == sqlparser.CreateStr {
+		return stmt.NewName.Name.String(), stmt.NewName.Qualifier.String()
+	}
+	return stmt.Table.Name.String(), stmt.Table.Qualifier.String()
+}
+
 // executeCreateTableStatement 执行 CREATE TABLE
 func (e *XMySQLExecutor) executeCreateTableStatement(ctx *ExecutionContext, databaseName string, stmt *sqlparser.DDL) {
-	logger.Debugf(" Executing CREATE TABLE: %s", stmt.Table.Name.String())
+	tableName, qualifier := getCreateTableName(stmt)
+	logger.Debugf(" Executing CREATE TABLE: %s", tableName)
 	logger.Debugf(" [executeCreateTableStatement] DDL语句详细信息:")
 	logger.Debugf("   - Action: %s", stmt.Action)
 	logger.Debugf("   - Table.Name: '%s'", stmt.Table.Name.String())
@@ -1295,20 +1315,18 @@ func (e *XMySQLExecutor) executeCreateTableStatement(ctx *ExecutionContext, data
 	logger.Debugf("   - IfExists: %v", stmt.IfExists)
 	logger.Debugf("   - TableSpec: %v", stmt.TableSpec != nil)
 
-	// 1. 获取当前数据库名称
+	// 1. 获取当前数据库名称（会话库优先；若表名带库限定符则用限定符）
 	currentDB := databaseName
+	if qualifier != "" {
+		currentDB = qualifier
+	}
 	if currentDB == "" {
-		// 如果没有指定数据库，尝试从表名中解析
-		if stmt.Table.Qualifier.String() != "" {
-			currentDB = stmt.Table.Qualifier.String()
-		} else {
-			ctx.Results <- &Result{
-				Err:        fmt.Errorf("no database selected"),
-				ResultType: common.RESULT_TYPE_DDL,
-				Message:    "CREATE TABLE failed: no database selected",
-			}
-			return
+		ctx.Results <- &Result{
+			Err:        fmt.Errorf("no database selected"),
+			ResultType: common.RESULT_TYPE_DDL,
+			Message:    "CREATE TABLE failed: no database selected",
 		}
+		return
 	}
 
 	// 2. 验证数据库是否存在
@@ -1321,8 +1339,7 @@ func (e *XMySQLExecutor) executeCreateTableStatement(ctx *ExecutionContext, data
 		return
 	}
 
-	// 3. 解析表名
-	tableName := stmt.Table.Name.String()
+	// 3. 表名非空校验（CREATE 时表名在 NewName 中）
 	if tableName == "" {
 		ctx.Results <- &Result{
 			Err:        fmt.Errorf("table name cannot be empty"),
@@ -1400,10 +1417,17 @@ func (e *XMySQLExecutor) createTableStorageMapping(dbName, tableName string) err
 	// 创建表空间名称
 	spaceName := fmt.Sprintf("%s/%s", dbName, tableName)
 
-	// 创建表空间
+	// 创建表空间（若已存在则复用，兼容 CREATE TABLE IF NOT EXISTS 或重试场景）
 	handle, err := storageManager.CreateTablespace(spaceName)
 	if err != nil {
-		return fmt.Errorf("failed to create tablespace: %v", err)
+		if strings.Contains(err.Error(), "already exists") {
+			handle, err = storageManager.GetTablespace(spaceName)
+			if err != nil {
+				return fmt.Errorf("tablespace %s already exists but get failed: %v", spaceName, err)
+			}
+		} else {
+			return fmt.Errorf("failed to create tablespace: %v", err)
+		}
 	}
 
 	// 获取表存储映射管理器
@@ -1423,8 +1447,12 @@ func (e *XMySQLExecutor) createTableStorageMapping(dbName, tableName string) err
 		Type:          manager.TableTypeUser,
 	}
 
-	// 注册表存储信息
+	// 注册表存储信息（若已注册则视为成功，兼容 IF NOT EXISTS / 重试）
 	if err := tableStorageManager.RegisterTable(context.Background(), info); err != nil {
+		if strings.Contains(err.Error(), "already registered") {
+			logger.Debugf("Table storage already registered: %s.%s", dbName, tableName)
+			return nil
+		}
 		return fmt.Errorf("failed to register table storage: %v", err)
 	}
 
@@ -1625,6 +1653,12 @@ func isSystemDatabase(name string) bool {
 	return false
 }
 
+// virtualUserDatabases 在 INFORMATION_SCHEMA.SCHEMATA 中展示、但可能尚未在磁盘创建的库名。
+// 首次被引用时自动创建目录，避免 "database 'xxx' does not exist"。
+var virtualUserDatabases = map[string]struct{ charset, collation string }{
+	"demo_db": {"utf8mb4", "utf8mb4_general_ci"},
+}
+
 // validateDatabaseExists 验证数据库是否存在
 func (e *XMySQLExecutor) validateDatabaseExists(dbName string) error {
 	// 获取数据目录
@@ -1638,6 +1672,18 @@ func (e *XMySQLExecutor) validateDatabaseExists(dbName string) error {
 
 	// 检查数据库目录是否存在
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		// 若为“虚拟”用户库（在 SCHEMATA 中展示），首次使用时自动创建目录
+		if opt, ok := virtualUserDatabases[dbName]; ok {
+			if err := os.MkdirAll(dbPath, 0755); err != nil {
+				return fmt.Errorf("database '%s' does not exist", dbName)
+			}
+			if err := createDatabaseMetadataFile(dbPath, opt.charset, opt.collation); err != nil {
+				_ = os.RemoveAll(dbPath)
+				return fmt.Errorf("database '%s' does not exist", dbName)
+			}
+			logger.Infof("Auto-created database directory for '%s' (advertised in SCHEMATA)", dbName)
+			return nil
+		}
 		return fmt.Errorf("database '%s' does not exist", dbName)
 	}
 

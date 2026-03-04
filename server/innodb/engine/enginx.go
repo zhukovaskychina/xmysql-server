@@ -252,6 +252,13 @@ func (e *XMySQLEngine) initQueryExecutor() {
 			tableStorageManager, // 创建新的表存储映射管理器
 		)
 
+		// 将管理器注入 StorageManager，供集成层等通过 GetTableManager/GetTableStorageManager 等统一获取
+		e.storageMgr.SetTableManager(tableManager)
+		e.storageMgr.SetTableStorageManager(tableStorageManager)
+		e.storageMgr.SetIndexManager(e.indexManager)
+		e.storageMgr.SetTransactionManager(e.txManager)
+		e.storageMgr.SetBTreeManager(e.btreeMgr)
+
 		logger.Debugf(" QueryExecutor initialized with all managers")
 	}
 }
