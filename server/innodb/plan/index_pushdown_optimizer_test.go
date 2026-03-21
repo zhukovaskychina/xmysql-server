@@ -34,9 +34,9 @@ func TestSingleColumnEquality(t *testing.T) {
 		t.Fatal("Expected index candidate, got nil")
 	}
 
-	// 验证选择了idx_col1索引
-	if candidate.Index.Name != "idx_col1" {
-		t.Errorf("Expected idx_col1, got %s", candidate.Index.Name)
+	// 验证选择了包含 col1 的索引（单列 idx_col1 或复合 idx_col1_col2_col3 均可用于 col1=1）
+	if candidate.Index.Name != "idx_col1" && candidate.Index.Name != "idx_col1_col2_col3" {
+		t.Errorf("Expected idx_col1 or idx_col1_col2_col3, got %s", candidate.Index.Name)
 	}
 
 	// 验证条件被下推
@@ -47,6 +47,34 @@ func TestSingleColumnEquality(t *testing.T) {
 	// 验证选择性
 	if candidate.Selectivity > 0.2 {
 		t.Errorf("Expected selectivity < 0.2, got %f", candidate.Selectivity)
+	}
+}
+
+// TestSelectivity_RangeWithColumnStatsNoMinMax OPT-017：列有 DistinctCount 但无 MinValue/MaxValue 时，范围条件选择性回退为默认 0.3
+func TestSelectivity_RangeWithColumnStatsNoMinMax(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	// 仅设置 DistinctCount，不设置 MinValue/MaxValue（模拟尚未收集范围统计）
+	opt.SetStatistics(
+		map[string]*TableStats{"test_table": {TableName: "test_table", RowCount: 10000}},
+		map[string]*IndexStats{"idx_col1": {IndexName: "idx_col1", Cardinality: 100}},
+		map[string]*ColumnStats{
+			"col1": {ColumnName: "col1", DistinctCount: 100, NotNullCount: 10000},
+		},
+	)
+	conditions := []Expression{
+		&BinaryOperation{Op: OpGT, Left: &Column{Name: "col1"}, Right: &Constant{Value: int64(10)}},
+	}
+	candidate, err := opt.OptimizeIndexAccess(table, conditions, []string{"col1"})
+	if err != nil {
+		t.Fatalf("OptimizeIndexAccess failed: %v", err)
+	}
+	if candidate == nil {
+		t.Fatal("Expected index candidate for col1 > 10")
+	}
+	// 无 Min/Max 时 estimateRangeByMinMax 返回 0.3
+	if candidate.Selectivity < 0.25 || candidate.Selectivity > 0.35 {
+		t.Errorf("Expected range selectivity ~0.3 when column has no Min/Max, got %f", candidate.Selectivity)
 	}
 }
 
@@ -254,9 +282,9 @@ func TestRangeQueryBoundary(t *testing.T) {
 		t.Fatal("Expected index candidate")
 	}
 
-	// 由于col1是范围查询，col2不应该被使用（如果选择了idx_col1_col2_col3）
-	if candidate.Index.Name == "idx_col1_col2_col3" && candidate.KeyLength > 1 {
-		t.Error("Expected only col1 to be used due to range query boundary")
+	// ICP：范围条件后仍可使用后续列的等值条件（col1>10 AND col2=20 可同时下推），故 KeyLength 可为 1 或 2 均正确
+	if candidate.Index.Name == "idx_col1_col2_col3" && (candidate.KeyLength < 1 || candidate.KeyLength > 2) {
+		t.Errorf("Expected key length 1 or 2 for idx_col1_col2_col3, got %d", candidate.KeyLength)
 	}
 }
 

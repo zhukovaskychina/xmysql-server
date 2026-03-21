@@ -76,6 +76,22 @@ func TestSetCheckpointLSN(t *testing.T) {
 	}
 }
 
+// TestGetCheckpointLSN TDD: 检查点 LSN 可读回；初始为 0，SetCheckpointLSN 后 GetCheckpointLSN 返回该值
+func TestGetCheckpointLSN(t *testing.T) {
+	lm := NewLSNManager(1)
+	if got := lm.GetCheckpointLSN(); got != 0 {
+		t.Errorf("initial GetCheckpointLSN = %v, want 0", got)
+	}
+	lm.SetCheckpointLSN(100)
+	if got := lm.GetCheckpointLSN(); got != 100 {
+		t.Errorf("after SetCheckpointLSN(100) GetCheckpointLSN = %v, want 100", got)
+	}
+	lm.SetCheckpointLSN(200)
+	if got := lm.GetCheckpointLSN(); got != 200 {
+		t.Errorf("after SetCheckpointLSN(200) GetCheckpointLSN = %v, want 200", got)
+	}
+}
+
 func TestLSNRange(t *testing.T) {
 	r := &LSNRange{Start: 10, End: 20}
 	if !r.IsValid() {

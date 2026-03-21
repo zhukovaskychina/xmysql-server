@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
@@ -547,16 +547,25 @@ func (e *SystemVariableEngine) executeShowStatement(session server.MySQLServerSe
 	logger.Debugf(" [executeShowStatement] SHOW类型: %s", showType)
 
 	sessionID := e.getSessionID(session)
+	showScope := strings.ToLower(strings.TrimSpace(showStmt.Scope))
 
 	switch showType {
 	case "variables", "session variables":
-		return e.executeShowVariables(sessionID, showStmt, manager.SessionScope)
+		scope := manager.SessionScope
+		if showScope == "global" {
+			scope = manager.GlobalScope
+		}
+		return e.executeShowVariables(sessionID, scope, engine.ResolveShowLikePattern("variables", showStmt, query), engine.ResolveShowWhereExpr("variables", showStmt, query))
 	case "global variables":
-		return e.executeShowVariables(sessionID, showStmt, manager.GlobalScope)
+		return e.executeShowVariables(sessionID, manager.GlobalScope, engine.ResolveShowLikePattern("variables", showStmt, query), engine.ResolveShowWhereExpr("variables", showStmt, query))
 	case "status", "session status":
-		return e.executeShowStatus(sessionID, showStmt, manager.SessionScope)
+		scope := manager.SessionScope
+		if showScope == "global" {
+			scope = manager.GlobalScope
+		}
+		return e.executeShowStatus(sessionID, scope, engine.ResolveShowLikePattern("status", showStmt, query), engine.ResolveShowWhereExpr("status", showStmt, query))
 	case "global status":
-		return e.executeShowStatus(sessionID, showStmt, manager.GlobalScope)
+		return e.executeShowStatus(sessionID, manager.GlobalScope, engine.ResolveShowLikePattern("status", showStmt, query), engine.ResolveShowWhereExpr("status", showStmt, query))
 	case "engines":
 		return e.executeShowEngines()
 	case "charset", "character set":
@@ -570,31 +579,24 @@ func (e *SystemVariableEngine) executeShowStatement(session server.MySQLServerSe
 }
 
 // executeShowVariables 执行SHOW VARIABLES
-func (e *SystemVariableEngine) executeShowVariables(sessionID string, showStmt *sqlparser.Show, scope manager.SystemVariableScope) *SQLResult {
+func (e *SystemVariableEngine) executeShowVariables(sessionID string, scope manager.SystemVariableScope, likePattern string, whereExpr sqlparser.Expr) *SQLResult {
 	logger.Debugf(" [executeShowVariables] 执行SHOW VARIABLES，作用域: %s", scope)
 
 	variables := e.sysVarManager.ListVariables(sessionID, scope)
 
 	columns := []string{"Variable_name", "Value"}
 	rows := make([][]interface{}, 0, len(variables))
-
-	// 处理LIKE过滤 - Show结构可能有ShowTablesOpt字段
-	pattern := ""
-	if showStmt.ShowTablesOpt != nil && showStmt.ShowTablesOpt.Filter != nil && showStmt.ShowTablesOpt.Filter.Like != "" {
-		pattern = strings.ToLower(strings.Trim(showStmt.ShowTablesOpt.Filter.Like, "'\""))
-		pattern = strings.ReplaceAll(pattern, "%", "*")
+	orderedNames := make([]string, 0, len(variables))
+	for varName := range variables {
+		orderedNames = append(orderedNames, varName)
 	}
-
-	for varName, value := range variables {
-		// 应用LIKE过滤
-		if pattern != "" {
-			matched, _ := filepath.Match(pattern, strings.ToLower(varName))
-			if !matched {
-				continue
-			}
-		}
-
-		rows = append(rows, []interface{}{varName, fmt.Sprintf("%v", value)})
+	sort.Strings(orderedNames)
+	for _, varName := range orderedNames {
+		rows = append(rows, []interface{}{varName, fmt.Sprintf("%v", variables[varName])})
+	}
+	rows = engine.FilterShowRowsByLike(rows, likePattern)
+	if whereExpr != nil {
+		rows = engine.FilterShowRowsByWhere(rows, columns, whereExpr)
 	}
 
 	logger.Debugf(" [executeShowVariables] 返回 %d 个变量", len(rows))
@@ -608,43 +610,34 @@ func (e *SystemVariableEngine) executeShowVariables(sessionID string, showStmt *
 }
 
 // executeShowStatus 执行SHOW STATUS
-func (e *SystemVariableEngine) executeShowStatus(sessionID string, showStmt *sqlparser.Show, scope manager.SystemVariableScope) *SQLResult {
+func (e *SystemVariableEngine) executeShowStatus(sessionID string, scope manager.SystemVariableScope, likePattern string, whereExpr sqlparser.Expr) *SQLResult {
 	logger.Debugf(" [executeShowStatus] 执行SHOW STATUS，作用域: %s", scope)
 
-	// 模拟一些状态变量
 	statusVars := map[string]interface{}{
-		"Connections":            1000,
-		"Uptime":                 86400,
-		"Threads_connected":      5,
-		"Threads_running":        2,
-		"Questions":              50000,
-		"Slow_queries":           10,
-		"Opens":                  200,
-		"Flush_commands":         5,
-		"Open_tables":            100,
-		"Queries_per_second_avg": 0.58,
+		"Threads_connected": 5,
+		"Threads_running":   2,
+	}
+	if scope == manager.SessionScope {
+		statusVars["Com_select"] = 10
+		statusVars["Com_insert"] = 2
+	} else {
+		statusVars["Uptime"] = 86400
+		statusVars["Questions"] = 50000
 	}
 
 	columns := []string{"Variable_name", "Value"}
 	rows := make([][]interface{}, 0, len(statusVars))
-
-	// 处理LIKE过滤
-	pattern := ""
-	if showStmt.ShowTablesOpt != nil && showStmt.ShowTablesOpt.Filter != nil && showStmt.ShowTablesOpt.Filter.Like != "" {
-		pattern = strings.ToLower(strings.Trim(showStmt.ShowTablesOpt.Filter.Like, "'\""))
-		pattern = strings.ReplaceAll(pattern, "%", "*")
+	orderedNames := make([]string, 0, len(statusVars))
+	for varName := range statusVars {
+		orderedNames = append(orderedNames, varName)
 	}
-
-	for varName, value := range statusVars {
-		// 应用LIKE过滤
-		if pattern != "" {
-			matched, _ := filepath.Match(pattern, strings.ToLower(varName))
-			if !matched {
-				continue
-			}
-		}
-
-		rows = append(rows, []interface{}{varName, fmt.Sprintf("%v", value)})
+	sort.Strings(orderedNames)
+	for _, varName := range orderedNames {
+		rows = append(rows, []interface{}{varName, fmt.Sprintf("%v", statusVars[varName])})
+	}
+	rows = engine.FilterShowRowsByLike(rows, likePattern)
+	if whereExpr != nil {
+		rows = engine.FilterShowRowsByWhere(rows, columns, whereExpr)
 	}
 
 	return &SQLResult{
@@ -662,11 +655,11 @@ func (e *SystemVariableEngine) executeShowEngines() *SQLResult {
 	columns := []string{"Engine", "Support", "Comment", "Transactions", "XA", "Savepoints"}
 	rows := [][]interface{}{
 		{"InnoDB", "DEFAULT", "Supports transactions, row-level locking, and foreign keys", "YES", "YES", "YES"},
-		{"MyISAM", "YES", "MyISAM storage engine", "NO", "NO", "NO"},
-		{"MEMORY", "YES", "Hash based, stored in memory, useful for temporary tables", "NO", "NO", "NO"},
-		{"CSV", "YES", "CSV storage engine", "NO", "NO", "NO"},
-		{"ARCHIVE", "YES", "Archive storage engine", "NO", "NO", "NO"},
-		{"PERFORMANCE_SCHEMA", "YES", "Performance Schema", "NO", "NO", "NO"},
+		{"MyISAM", "NO", "MyISAM storage engine", "NO", "NO", "NO"},
+		{"MEMORY", "NO", "Hash based, stored in memory, useful for temporary tables", "NO", "NO", "NO"},
+		{"CSV", "NO", "CSV storage engine", "NO", "NO", "NO"},
+		{"ARCHIVE", "NO", "Archive storage engine", "NO", "NO", "NO"},
+		{"PERFORMANCE_SCHEMA", "NO", "Performance Schema", "NO", "NO", "NO"},
 		{"FEDERATED", "NO", "Federated MySQL storage engine", "NULL", "NULL", "NULL"},
 	}
 

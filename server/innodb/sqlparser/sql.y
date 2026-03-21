@@ -1358,9 +1358,9 @@ show_statement:
   {
     $$ = &Show{Type: string($2) + " " + string($3)}
   }
-| SHOW DATABASES ddl_force_eof
+| SHOW DATABASES like_or_where_opt ddl_force_eof
   {
-    $$ = &Show{Type: string($2)}
+    $$ = &Show{Type: string($2), Filter: $3}
   }
 | SHOW INDEX ddl_force_eof
   {
@@ -1374,9 +1374,9 @@ show_statement:
   {
     $$ = &Show{Type: string($2)}
   }
-| SHOW show_session_or_global STATUS ddl_force_eof
+| SHOW show_session_or_global STATUS like_or_where_opt ddl_force_eof
   {
-    $$ = &Show{Scope: $2, Type: string($3)}
+    $$ = &Show{Scope: $2, Type: string($3), Filter: $4}
   }
 | SHOW TABLE ddl_force_eof
   {
@@ -1392,9 +1392,9 @@ show_statement:
       $$ = &Show{Type: $4, ShowTablesOpt: showTablesOpt}
     }
   }
-| SHOW show_session_or_global VARIABLES ddl_force_eof
+| SHOW show_session_or_global VARIABLES like_or_where_opt ddl_force_eof
   {
-    $$ = &Show{Scope: $2, Type: string($3)}
+    $$ = &Show{Scope: $2, Type: string($3), Filter: $4}
   }
 | SHOW VINDEXES
   {

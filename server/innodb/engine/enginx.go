@@ -9,6 +9,8 @@ package engine
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
@@ -139,10 +141,19 @@ func (e *XMySQLEngine) initTxnLayer() {
 		SnapshotRetention: time.Hour,
 	})
 
-	txManager, err := manager.NewTransactionManager(
-		e.conf.GetString("innodb.redo_log_dir"),
-		e.conf.GetString("innodb.undo_log_dir"),
-	)
+	// 处理空目录：为测试与默认配置提供安全的临时目录
+	redoDir := e.conf.GetString("innodb.redo_log_dir")
+	undoDir := e.conf.GetString("innodb.undo_log_dir")
+	if redoDir == "" {
+		redoDir = filepath.Join(os.TempDir(), "xmysql-server", "redo")
+	}
+	if undoDir == "" {
+		undoDir = filepath.Join(os.TempDir(), "xmysql-server", "undo")
+	}
+	_ = os.MkdirAll(redoDir, 0755)
+	_ = os.MkdirAll(undoDir, 0755)
+
+	txManager, err := manager.NewTransactionManager(redoDir, undoDir)
 	if err != nil {
 		panic(fmt.Errorf("failed to init TransactionManager: %w", err))
 	}

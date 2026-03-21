@@ -20,11 +20,11 @@ func TestHashKey(t *testing.T) {
 	a := []byte("a1232")
 	b := []byte("b1232")
 	c := []byte("csfd")
-	if !bytes.Equal(a, b) {
-		t.Error("a != b")
+	if bytes.Equal(a, b) {
+		t.Error("a == b")
 	}
-	if hash64a(a) != hash64a(b) {
-		t.Error("hash64a(a) != hash64a(b)")
+	if hash64a(a) == hash64a(b) {
+		t.Error("hash64a(a) == hash64a(b)")
 	}
 	if bytes.Equal(a, c) {
 		t.Error("a == c")

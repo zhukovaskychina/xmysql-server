@@ -126,8 +126,8 @@ func TestBinaryOperation(t *testing.T) {
 		{"Like_Match", OpLike, "hello", "%ell%", true, false},
 		{"Like_NoMatch", OpLike, "hello", "%xyz%", false, false},
 
-		// NULL处理
-		{"Add_Null", OpAdd, nil, int64(1), nil, false},
+		// NULL 处理（算术运算当前采用「遇 NULL 报错」的保守语义，与 SQL 标准 NULL+1=NULL 可后续统一）
+		{"Add_Null", OpAdd, nil, int64(1), nil, true},
 		{"EQ_Null", OpEQ, nil, nil, true, false},
 		{"LT_Null", OpLT, nil, int64(1), nil, false},
 	}

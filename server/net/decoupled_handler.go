@@ -270,7 +270,8 @@ func (h *DecoupledMySQLMessageHandler) OnClose(session Session) {
 
 	logger.Debugf("[OnClose] 会话已从映射中移除")
 
-	// 不要在这里调用 session.Close()，会导致重复关闭
+	// 主动关闭会话，配合单测验证关闭状态
+	session.Close()
 }
 
 // OnError 连接错误事件

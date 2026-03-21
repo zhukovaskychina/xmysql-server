@@ -114,13 +114,13 @@ func TestEncodeColumnDefinitionPacket(t *testing.T) {
 func TestEncodeRowDataPacket(t *testing.T) {
 	tests := []struct {
 		name     string
-		row      []any
+		row      []interface{}
 		seq      byte
 		validate func(t *testing.T, packet []byte)
 	}{
 		{
 			name: "Single string value",
-			row:  []any{"8.0.32"},
+			row:  []interface{}{"8.0.32"},
 			seq:  3,
 			validate: func(t *testing.T, packet []byte) {
 				// 包头 (4 bytes) + lenenc(6) + "8.0.32" (6 bytes)
@@ -148,7 +148,7 @@ func TestEncodeRowDataPacket(t *testing.T) {
 		},
 		{
 			name: "Multiple values with NULL",
-			row:  []any{"test", 123, nil, true},
+			row:  []interface{}{"test", 123, nil, true},
 			seq:  4,
 			validate: func(t *testing.T, packet []byte) {
 				if len(packet) < 10 {
@@ -175,7 +175,7 @@ func TestEncodeRowDataPacket(t *testing.T) {
 		},
 		{
 			name: "Integer values",
-			row:  []any{int64(3309), int32(100), int16(50), int8(10)},
+			row:  []interface{}{int64(3309), int32(100), int16(50), int8(10)},
 			seq:  5,
 			validate: func(t *testing.T, packet []byte) {
 				if len(packet) < 15 {
@@ -190,7 +190,7 @@ func TestEncodeRowDataPacket(t *testing.T) {
 		},
 		{
 			name: "Float values",
-			row:  []any{float64(3.14), float32(2.71)},
+			row:  []interface{}{float64(3.14), float32(2.71)},
 			seq:  6,
 			validate: func(t *testing.T, packet []byte) {
 				if len(packet) < 10 {
@@ -375,7 +375,7 @@ func BenchmarkEncodeColumnDefinitionPacket(b *testing.B) {
 
 // BenchmarkEncodeRowDataPacket 性能测试
 func BenchmarkEncodeRowDataPacket(b *testing.B) {
-	row := []any{"test", 123, "value", true, nil}
+	row := []interface{}{"test", 123, "value", true, nil}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

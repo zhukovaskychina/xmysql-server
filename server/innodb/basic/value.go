@@ -614,6 +614,11 @@ func (v *basicValue) Time() interface{} {
 }
 
 func (v *basicValue) Bool() bool {
+	// 整数/布尔在存储时可能为大端，不能仅看 data[0]；按类型解析整数值
+	switch v.valueType {
+	case ValueTypeTinyInt, ValueTypeSmallInt, ValueTypeMediumInt, ValueTypeInt, ValueTypeBigInt, ValueTypeBool, ValueTypeBoolean:
+		return v.Int() != 0
+	}
 	return len(v.data) > 0 && v.data[0] != 0
 }
 

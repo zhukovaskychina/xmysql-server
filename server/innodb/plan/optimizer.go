@@ -20,6 +20,8 @@ func OptimizeLogicalPlan(plan LogicalPlan) LogicalPlan {
 
 	// 3. 聚合消除
 	plan = eliminateAggregation(plan)
+	// 3.1 若根为 Proj(MAX/MIN(col)) 且子节点为 Proj(col)（聚合消除结果），则用子节点作为根
+	plan = simplifyProjMinMaxRoot(plan)
 
 	// 4. 子查询优化
 	plan = optimizeSubquery(plan)
@@ -741,4 +743,34 @@ func convertAggToProj(agg *LogicalAggregation) []Expression {
 		return nil
 	}
 	return []Expression{fn.Args()[0]}
+}
+
+// simplifyProjMinMaxRoot 当根为 Proj(MAX(col)/MIN(col)) 且子为 Proj(col)（聚合消除产生）时，用子节点作为新根
+func simplifyProjMinMaxRoot(plan LogicalPlan) LogicalPlan {
+	proj, ok := plan.(*LogicalProjection)
+	if !ok || len(proj.Exprs) != 1 {
+		return plan
+	}
+	fn, ok := proj.Exprs[0].(*Function)
+	if !ok || len(fn.Args()) != 1 {
+		return plan
+	}
+	name := strings.ToUpper(fn.Name())
+	if name != "MIN" && name != "MAX" {
+		return plan
+	}
+	col, ok := fn.Args()[0].(*Column)
+	if !ok {
+		return plan
+	}
+	child := proj.Children()[0]
+	childProj, ok := child.(*LogicalProjection)
+	if !ok || len(childProj.Exprs) != 1 {
+		return plan
+	}
+	childCol, ok := childProj.Exprs[0].(*Column)
+	if !ok || childCol.Name != col.Name {
+		return plan
+	}
+	return child
 }

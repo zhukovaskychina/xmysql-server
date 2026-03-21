@@ -384,15 +384,19 @@ func TestSendResultSetPackets_NullValues(t *testing.T) {
 	}
 
 	packets := encoder.SendResultSetPackets(data)
+	// 包顺序: 0=列数, 1..N=列定义, N+1=EOF, N+2..=行数据, 最后=EOF
+	// 2 列 => 0=colCount, 1=col1, 2=col2, 3=EOF, 4=row1, 5=row2, 6=EOF
+	row1Idx := len(data.Columns) + 2 // +1 colCount + 1 EOF
+	row2Idx := row1Idx + 1
 
 	// 验证第一行包含 NULL marker (0xFB)
-	row1 := packets[5]
+	row1 := packets[row1Idx]
 	if !bytes.Contains(row1, []byte{0xFB}) {
 		t.Error("first row should contain NULL marker (0xFB)")
 	}
 
 	// 验证第二行包含 "value"
-	row2 := packets[6]
+	row2 := packets[row2Idx]
 	if !bytes.Contains(row2, []byte("value")) {
 		t.Error("second row should contain 'value'")
 	}

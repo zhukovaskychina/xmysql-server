@@ -211,14 +211,10 @@ func TestHashAggregateOperator_SumAvg(t *testing.T) {
 	}
 	childOp := NewMockDataOperator(data, schema)
 
-	// GROUP BY category, SUM(amount), AVG(amount)
+	// GROUP BY category(0), SUM(amount)=列1, AVG(amount)=列1
 	groupByExprs := []int{0}
-	aggFuncs := []AggregateFunc{
-		&SumAgg{},
-		&AvgAgg{},
-	}
-
-	hashAgg := NewHashAggregateOperator(childOp, groupByExprs, aggFuncs)
+	aggFuncs := []AggregateFunc{&SumAgg{}, &AvgAgg{}}
+	hashAgg := NewHashAggregateOperatorWithColIndexes(childOp, groupByExprs, aggFuncs, []int{1, 1})
 	err := hashAgg.Open(ctx)
 	assert.NoError(t, err)
 
@@ -274,14 +270,10 @@ func TestHashAggregateOperator_MinMax(t *testing.T) {
 	}
 	childOp := NewMockDataOperator(data, schema)
 
-	// GROUP BY category, MIN(score), MAX(score)
+	// GROUP BY category(0), MIN(score)=列1, MAX(score)=列1
 	groupByExprs := []int{0}
-	aggFuncs := []AggregateFunc{
-		&MinAgg{},
-		&MaxAgg{},
-	}
-
-	hashAgg := NewHashAggregateOperator(childOp, groupByExprs, aggFuncs)
+	aggFuncs := []AggregateFunc{&MinAgg{}, &MaxAgg{}}
+	hashAgg := NewHashAggregateOperatorWithColIndexes(childOp, groupByExprs, aggFuncs, []int{1, 1})
 	err := hashAgg.Open(ctx)
 	assert.NoError(t, err)
 
@@ -334,14 +326,10 @@ func TestHashAggregateOperator_NoGroupBy(t *testing.T) {
 	}
 	childOp := NewMockDataOperator(data, schema)
 
-	// 无分组，全表聚合: COUNT(*), SUM(amount)
-	groupByExprs := []int{} // 空分组
-	aggFuncs := []AggregateFunc{
-		&CountAgg{},
-		&SumAgg{},
-	}
-
-	hashAgg := NewHashAggregateOperator(childOp, groupByExprs, aggFuncs)
+	// 无分组，全表聚合: COUNT(*), SUM(amount)；仅一列 amount 在索引 0
+	groupByExprs := []int{}
+	aggFuncs := []AggregateFunc{&CountAgg{}, &SumAgg{}}
+	hashAgg := NewHashAggregateOperatorWithColIndexes(childOp, groupByExprs, aggFuncs, []int{0, 0})
 	err := hashAgg.Open(ctx)
 	assert.NoError(t, err)
 

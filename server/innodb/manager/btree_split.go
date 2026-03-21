@@ -52,7 +52,8 @@ func (s *NodeSplitter) SplitLeafNode(ctx context.Context, node *BPlusTreeNode) (
 		return 0, nil, fmt.Errorf("node %d is not a leaf node", node.PageNum)
 	}
 
-	if len(node.Keys) <= s.maxKeys {
+	// 节点已满（keys >= maxKeys）时需分裂，以便插入新键
+	if len(node.Keys) < s.maxKeys {
 		return 0, nil, fmt.Errorf("node %d does not need splitting (keys=%d, max=%d)",
 			node.PageNum, len(node.Keys), s.maxKeys)
 	}
@@ -120,7 +121,8 @@ func (s *NodeSplitter) SplitNonLeafNode(ctx context.Context, node *BPlusTreeNode
 		return 0, nil, fmt.Errorf("node %d is a leaf node", node.PageNum)
 	}
 
-	if len(node.Keys) <= s.maxKeys {
+	// 内部节点已满时需分裂
+	if len(node.Keys) < s.maxKeys {
 		return 0, nil, fmt.Errorf("node %d does not need splitting (keys=%d, max=%d)",
 			node.PageNum, len(node.Keys), s.maxKeys)
 	}

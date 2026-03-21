@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"testing"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
@@ -50,6 +51,42 @@ func TestVolcanoExecutor_BuildTableScan(t *testing.T) {
 
 	if tableScan.tableName != "users" {
 		t.Errorf("expected tableName 'users', got '%s'", tableScan.tableName)
+	}
+}
+
+// TestVolcanoExecutor_BuildMergeJoin EXE-004：PhysicalMergeJoin 能成功构建算子树（当前退化为 NestedLoopJoin）
+func TestVolcanoExecutor_BuildMergeJoin(t *testing.T) {
+	ctx := context.Background()
+	table := &metadata.Table{
+		Name:   "t",
+		Schema: metadata.NewSchema("testdb"),
+	}
+	left := &plan.PhysicalTableScan{BasePhysicalPlan: plan.BasePhysicalPlan{}, Table: table}
+	right := &plan.PhysicalTableScan{BasePhysicalPlan: plan.BasePhysicalPlan{}, Table: table}
+	merge := &plan.PhysicalMergeJoin{
+		BasePhysicalPlan: plan.BasePhysicalPlan{},
+		JoinType:         "INNER",
+		Conditions:       nil,
+	}
+	merge.SetChildren([]plan.PhysicalPlan{left, right})
+
+	executor := &VolcanoExecutor{
+		tableManager:      nil,
+		bufferPoolManager: nil,
+		storageManager:    nil,
+		indexManager:      nil,
+	}
+
+	op, err := executor.buildOperatorTree(ctx, merge)
+	if err != nil {
+		t.Fatalf("buildMergeJoin (buildOperatorTree) failed: %v", err)
+	}
+	if op == nil {
+		t.Fatal("buildOperatorTree returned nil operator for PhysicalMergeJoin")
+	}
+	// 当前实现退化为 NestedLoopJoin
+	if _, ok := op.(*NestedLoopJoinOperator); !ok {
+		t.Logf("PhysicalMergeJoin currently builds as %T (NestedLoopJoin fallback expected)", op)
 	}
 }
 
