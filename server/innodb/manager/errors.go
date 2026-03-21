@@ -50,6 +50,7 @@ var (
 // Lock manager errors
 var (
 	ErrLockTimeout      = errors.New("lock timeout")
+	ErrLockConflict     = errors.New("lock conflict")
 	ErrDeadlockDetected = errors.New("deadlock detected")
 	ErrLockNotFound     = errors.New("lock not found")
 )
@@ -66,6 +67,7 @@ var (
 	ErrTableNotFound    = errors.New("table not found")
 	ErrColumnNotFound   = errors.New("column not found")
 	ErrIndexNotFound    = errors.New("index not found")
+	ErrTablespaceExists = errors.New("tablespace exists")
 	ErrDuplicateSchema  = errors.New("duplicate schema")
 	ErrDuplicateTable   = errors.New("duplicate table")
 	ErrDuplicateColumn  = errors.New("duplicate column")
@@ -73,4 +75,6 @@ var (
 	ErrIndexExists      = errors.New("index already exists")
 	ErrForeignKeyExists = errors.New("foreign key already exists")
 	ErrRefTableNotFound = errors.New("referenced table not found")
+
+	ErrTableStorageAlreadyRegistered = errors.New("table storage already registered")
 )

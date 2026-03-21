@@ -9,18 +9,85 @@ import (
 // MockStorageManager 模拟存储管理器
 type MockStorageManager struct{}
 
-func (m *MockStorageManager) GetSpace(spaceID uint32) (basic.Space, error) {
-	return &MockSpace{spaceID: spaceID}, nil
+func (m *MockStorageManager) CreateSpace(spaceID uint32, name string, isSystem bool) (basic.Space, error) {
+	return &MockSpace{spaceID: spaceID, name: name, active: true}, nil
 }
 
-// MockSpace 模拟表空间
+func (m *MockStorageManager) GetSpace(spaceID uint32) (basic.Space, error) {
+	return &MockSpace{spaceID: spaceID, name: "mock_space", active: true}, nil
+}
+
+func (m *MockStorageManager) DropSpace(spaceID uint32) error { return nil }
+
+func (m *MockStorageManager) AllocateExtent(spaceID uint32, purpose basic.ExtentPurpose) (basic.Extent, error) {
+	return nil, nil
+}
+
+func (m *MockStorageManager) FreeExtent(spaceID, extentID uint32) error { return nil }
+
+func (m *MockStorageManager) Begin() (basic.Tx, error) { return nil, nil }
+
+func (m *MockStorageManager) CreateNewTablespace(name string) uint32 { return 1 }
+
+func (m *MockStorageManager) CreateTableSpace(name string) (uint32, error) { return 1, nil }
+
+func (m *MockStorageManager) GetTableSpace(spaceID uint32) (basic.FileTableSpace, error) {
+	return &MockFileTableSpace{spaceID: spaceID}, nil
+}
+
+func (m *MockStorageManager) GetTableSpaceByName(name string) (basic.FileTableSpace, error) {
+	return &MockFileTableSpace{spaceID: 1}, nil
+}
+
+func (m *MockStorageManager) GetTableSpaceInfo(spaceID uint32) (*basic.TableSpaceInfo, error) {
+	return &basic.TableSpaceInfo{SpaceID: spaceID, Name: "mock_space"}, nil
+}
+
+func (m *MockStorageManager) DropTableSpace(spaceID uint32) error { return nil }
+
+func (m *MockStorageManager) Close() error { return nil }
+
+type MockFileTableSpace struct {
+	spaceID uint32
+}
+
+func (m *MockFileTableSpace) FlushToDisk(pageNo uint32, content []byte) {}
+
+func (m *MockFileTableSpace) LoadPageByPageNumber(pageNo uint32) ([]byte, error) {
+	return make([]byte, 16384), nil
+}
+
+func (m *MockFileTableSpace) GetSpaceId() uint32 { return m.spaceID }
+
 type MockSpace struct {
 	spaceID uint32
+	name    string
+	active  bool
 }
 
 func (m *MockSpace) ID() uint32 {
 	return m.spaceID
 }
+
+func (m *MockSpace) Name() string { return m.name }
+
+func (m *MockSpace) IsSystem() bool { return false }
+
+func (m *MockSpace) AllocateExtent(purpose basic.ExtentPurpose) (basic.Extent, error) {
+	return nil, nil
+}
+
+func (m *MockSpace) FreeExtent(extentID uint32) error { return nil }
+
+func (m *MockSpace) GetPageCount() uint32 { return 0 }
+
+func (m *MockSpace) GetExtentCount() uint32 { return 0 }
+
+func (m *MockSpace) GetUsedSpace() uint64 { return 0 }
+
+func (m *MockSpace) IsActive() bool { return m.active }
+
+func (m *MockSpace) SetActive(active bool) { m.active = active }
 
 func (m *MockSpace) LoadPageByPageNumber(pageNo uint32) ([]byte, error) {
 	// 返回模拟的页面数据

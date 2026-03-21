@@ -128,18 +128,18 @@ func (pm *PrefetchManager) addPrefetchRequest(request *PrefetchRequest) {
 		}
 	}
 
-	// 按优先级插入队列
-	var insertAfter *list.Element
+	// 按优先级插入队列（高优先级在前）
+	var insertBefore *list.Element
 	for e := pm.prefetchQueue.Front(); e != nil; e = e.Next() {
 		req := e.Value.(*PrefetchRequest)
 		if request.Priority > req.Priority {
-			insertAfter = e
+			insertBefore = e
 			break
 		}
 	}
 
-	if insertAfter != nil {
-		pm.prefetchQueue.InsertAfter(request, insertAfter)
+	if insertBefore != nil {
+		pm.prefetchQueue.InsertBefore(request, insertBefore)
 	} else {
 		pm.prefetchQueue.PushBack(request)
 	}

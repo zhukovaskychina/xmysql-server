@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -698,7 +699,7 @@ func (sm *StorageManager) createMySQLSystemTablespaces() error {
 		_, err := sm.spaceMgr.CreateSpace(spaceID, tableName, true)
 		if err != nil {
 			// 如果创建失败但是错误是已存在，则尝试获取已存在的表空间
-			if strings.Contains(err.Error(), "already exists") {
+			if errors.Is(err, ErrTablespaceExists) {
 				logger.Debugf("System table already exists (caught in CreateSpace): %s (Space ID: %d)", tableName, spaceID)
 				// 创建handle
 				handle := &TablespaceHandle{
@@ -783,7 +784,7 @@ func (sm *StorageManager) createInformationSchemaTablespaces() error {
 		_, err := sm.spaceMgr.CreateSpace(spaceID, tableName, true)
 		if err != nil {
 			// 如果创建失败但是错误是已存在，则尝试获取已存在的表空间
-			if strings.Contains(err.Error(), "already exists") {
+			if errors.Is(err, ErrTablespaceExists) {
 				logger.Debugf("Information_schema table already exists (caught in CreateSpace): %s (Space ID: %d)", tableName, spaceID)
 				// 创建handle
 				handle := &TablespaceHandle{
@@ -881,7 +882,7 @@ func (sm *StorageManager) createPerformanceSchemaTablespaces() error {
 		_, err := sm.spaceMgr.CreateSpace(spaceID, tableName, true)
 		if err != nil {
 			// 如果创建失败但是错误是已存在，则尝试获取已存在的表空间
-			if strings.Contains(err.Error(), "already exists") {
+			if errors.Is(err, ErrTablespaceExists) {
 				logger.Debugf("Performance_schema table already exists (caught in CreateSpace): %s (Space ID: %d)", tableName, spaceID)
 				// 创建handle
 				handle := &TablespaceHandle{
@@ -1226,7 +1227,7 @@ func (sm *StorageManager) CreateTablespace(name string) (*TablespaceHandle, erro
 	spaceID, err := sm.spaceMgr.CreateTableSpace(name)
 	if err != nil {
 		// SpaceManager 侧已存在（如重启后从磁盘加载）：按名称取已有 space，加入 map 后返回
-		if strings.Contains(err.Error(), "already exists") {
+		if errors.Is(err, ErrTablespaceExists) {
 			ts, getErr := sm.spaceMgr.GetTableSpaceByName(name)
 			if getErr != nil {
 				return nil, fmt.Errorf("tablespace %s already exists but get by name failed: %v", name, getErr)

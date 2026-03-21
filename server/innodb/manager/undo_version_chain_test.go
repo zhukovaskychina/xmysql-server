@@ -2,7 +2,6 @@ package manager
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	formatmvcc "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/format/mvcc"
@@ -29,11 +28,9 @@ func TestTraverseVersionChain(t *testing.T) {
 
 	// 版本1: 事务100创建
 	chain.AddVersion(100, 1000, 1000, []byte("version1_data"))
-	time.Sleep(1 * time.Millisecond)
 
 	// 版本2: 事务101更新
 	chain.AddVersion(101, 1001, 1001, []byte("version2_data"))
-	time.Sleep(1 * time.Millisecond)
 
 	// 版本3: 事务102更新
 	chain.AddVersion(102, 1002, 1002, []byte("version3_data"))

@@ -134,6 +134,68 @@ func (m *MockStorageProvider) ResetCounters() {
 	m.readCount = 0
 }
 
+func waitUntil(t *testing.T, timeout time.Duration, description string, condition func() bool) {
+	t.Helper()
+
+	if condition() {
+		return
+	}
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if condition() {
+				return
+			}
+		case <-timer.C:
+			t.Fatalf("Timed out waiting for %s", description)
+		}
+	}
+}
+
+func TestBufferPoolManagerGetDirtyPageUsesStorageProvider(t *testing.T) {
+	storage := NewMockStorageProvider()
+
+	config := &BufferPoolConfig{
+		PoolSize:        16,
+		PageSize:        PAGE_SIZE,
+		FlushInterval:   100 * time.Millisecond,
+		StorageProvider: storage,
+		YoungListRatio:  YOUNG_LIST_RATIO,
+		OldListRatio:    OLD_LIST_RATIO,
+		OldBlockTime:    OLD_BLOCK_TIME,
+	}
+
+	bpm, err := NewBufferPoolManager(config)
+	if err != nil {
+		t.Fatalf("Failed to create buffer pool manager: %v", err)
+	}
+	defer bpm.Close()
+
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			t.Fatalf("GetDirtyPage should not panic when only StorageProvider is configured: %v", recovered)
+		}
+	}()
+
+	page, err := bpm.GetDirtyPage(1, 1)
+	if err != nil {
+		t.Fatalf("GetDirtyPage returned unexpected error: %v", err)
+	}
+	if page == nil {
+		t.Fatal("GetDirtyPage returned nil page")
+	}
+	if !page.IsDirty() {
+		t.Fatal("GetDirtyPage should mark page as dirty")
+	}
+}
+
 // TestAdaptiveFlushStrategy 测试自适应刷新策略
 func TestAdaptiveFlushStrategy(t *testing.T) {
 	storage := NewMockStorageProvider()
@@ -339,8 +401,9 @@ func TestBackgroundFlushThread(t *testing.T) {
 	initialWriteCount := storage.GetWriteCount()
 	t.Logf("Initial write count: %d", initialWriteCount)
 
-	// 等待后台刷新线程执行
-	time.Sleep(1 * time.Second)
+	// 直接触发后台刷新逻辑，避免依赖 ticker 调度时机。
+	bpm.lastFlushTime = time.Now().Add(-1 * time.Second)
+	bpm.backgroundFlush()
 
 	finalWriteCount := storage.GetWriteCount()
 	t.Logf("Final write count: %d", finalWriteCount)

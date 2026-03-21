@@ -87,13 +87,18 @@ func TestDirtyPageManagerGetByLSN(t *testing.T) {
 // TestDirtyPageManagerGetByTime 测试按时间排序获取脏页
 func TestDirtyPageManagerGetByTime(t *testing.T) {
 	dpm := NewDirtyPageManager(nil)
+	baseTime := time.Now()
 
 	// 添加多个脏页（时间不同）
 	for i := 0; i < 5; i++ {
 		page := buffer_pool.NewBufferPage(1, uint32(100+i))
 		page.SetDirty(true)
 		dpm.AddDirtyPage(page, uint64(1000+i))
-		time.Sleep(10 * time.Millisecond) // 确保时间不同
+
+		dpm.mu.Lock()
+		dpm.dirtyPages[makePageID(page.GetSpaceID(), page.GetPageNo())].ModifyTime = baseTime.Add(time.Duration(i) * time.Millisecond)
+		dpm.timeOrderedPages = nil
+		dpm.mu.Unlock()
 	}
 
 	// 按时间排序获取
@@ -172,8 +177,6 @@ func TestDirtyPageManagerGetFlushBatchSize(t *testing.T) {
 		FlushBatchSize: 100,
 		EnableAdaptive: true,
 	}
-
-	dpm := NewDirtyPageManager(config)
 
 	// 测试不同脏页比例的批量大小
 	testCases := []struct {

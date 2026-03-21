@@ -131,6 +131,7 @@ func NewBufferPoolManager(config *BufferPoolConfig) (*BufferPoolManager, error) 
 		BufferPoolSize: uint64(config.PoolSize) * uint64(config.PageSize),
 
 		// Storage provider
+		StorageManager:  newStorageProviderSpaceManager(config.StorageProvider),
 		StorageProvider: config.StorageProvider,
 
 		// LRU configuration

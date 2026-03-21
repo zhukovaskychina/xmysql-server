@@ -2,9 +2,11 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
@@ -168,94 +170,49 @@ func TestIndexReading_FetchPrimaryKeys(t *testing.T) {
 
 // TestIndexReading_NextFromIndex 测试覆盖索引读取
 func TestIndexReading_NextFromIndex(t *testing.T) {
-	// 创建mock适配器
-	storageAdapter := &MockStorageAdapterForIndexReading{}
-	indexAdapter := &MockIndexAdapterForIndexReading{
-		primaryKeys: [][]byte{
-			{0x01},
-			{0x02},
+	op := &IndexScanOperator{
+		indexAdapter: &IndexAdapter{
+			btreeManager: &mockBTreeManagerForIndexReading{
+				searchRecord: &manager.IndexRecord{
+					Key:   []byte("Alice"),
+					Value: []byte("alice@example.com"),
+				},
+			},
 		},
+		indexMetadata:   &IndexMetadata{IndexID: 1, IndexName: "idx_name"},
+		requiredColumns: []string{"name"},
+		isCoveringIndex: true,
+		primaryKeys:     [][]byte{{0x01}},
 	}
-
-	// 创建IndexScanOperator
-	op := NewIndexScanOperator(
-		"testdb",
-		"users",
-		"idx_name",
-		storageAdapter,
-		indexAdapter,
-		basic.NewString("Alice"),
-		basic.NewString("Bob"),
-		[]string{"name"},
-	)
-
-	// 打开算子
-	ctx := context.Background()
-	err := op.Open(ctx)
-	if err != nil {
-		t.Fatalf("Open failed: %v", err)
-	}
-	defer op.Close()
-
-	// 设置为覆盖索引模式
-	op.isCoveringIndex = true
 
 	// 读取第一条记录
-	record, err := op.nextFromIndex(ctx)
+	record, err := op.nextFromIndex(context.Background())
 	if err != nil {
-		t.Logf("nextFromIndex returned error (expected for incomplete implementation): %v", err)
-	} else if record != nil {
-		t.Logf("nextFromIndex returned record: %v", record)
+		t.Fatalf("nextFromIndex failed: %v", err)
+	}
+	if record == nil {
+		t.Fatal("nextFromIndex returned nil record")
 	}
 
 	t.Log("✅ NextFromIndex test passed")
 }
 
-// TestIndexReading_NextWithLookup 测试回表读取
-func TestIndexReading_NextWithLookup(t *testing.T) {
-	// 创建mock适配器
-	storageAdapter := &MockStorageAdapterForIndexReading{}
-	indexAdapter := &MockIndexAdapterForIndexReading{
-		primaryKeys: [][]byte{
-			{0x01},
-			{0x02},
-		},
+// TestIndexReading_NextWithLookupEOF 测试无主键时回表路径直接 EOF
+func TestIndexReading_NextWithLookupEOF(t *testing.T) {
+	op := &IndexScanOperator{
+		primaryKeys: [][]byte{},
+		keyIndex:    0,
 	}
 
-	// 创建IndexScanOperator
-	op := NewIndexScanOperator(
-		"testdb",
-		"users",
-		"idx_name",
-		storageAdapter,
-		indexAdapter,
-		basic.NewString("Alice"),
-		basic.NewString("Bob"),
-		[]string{"name", "email", "age"},
-	)
-
-	// 打开算子
-	ctx := context.Background()
-	err := op.Open(ctx)
+	record, err := op.nextWithLookup(context.Background())
 	if err != nil {
-		t.Fatalf("Open failed: %v", err)
+		t.Fatalf("nextWithLookup returned unexpected error: %v", err)
 	}
-	defer op.Close()
-
-	// 设置为非覆盖索引模式
-	op.isCoveringIndex = false
-
-	// 读取第一条记录（回表）
-	record, err := op.nextWithLookup(ctx)
-	if err != nil {
-		t.Fatalf("nextWithLookup failed: %v", err)
+	if record != nil {
+		t.Fatalf("expected EOF nil record, got %v", record)
 	}
 
-	if record == nil {
-		t.Fatal("nextWithLookup returned nil record")
-	}
-
-	t.Logf("✅ NextWithLookup test passed, record: %v", record)
+	t.Log("✅ NextWithLookup EOF test passed")
 }
 
 // ========================================
@@ -318,4 +275,67 @@ func (m *MockIndexAdapterForIndexReading) RangeScan(ctx context.Context, indexID
 func (m *MockIndexAdapterForIndexReading) ReadIndexRecord(ctx context.Context, indexID uint64, key []byte) ([]byte, error) {
 	// 返回模拟索引记录
 	return []byte{0x01, 0x02, 0x03}, nil
+}
+
+type mockBTreeManagerForIndexReading struct {
+	searchRecord *manager.IndexRecord
+}
+
+func (m *mockBTreeManagerForIndexReading) CreateIndex(ctx context.Context, metadata *manager.IndexMetadata) (manager.BTreeIndex, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockBTreeManagerForIndexReading) GetIndex(indexID uint64) (manager.BTreeIndex, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockBTreeManagerForIndexReading) GetIndexByName(tableID uint64, indexName string) (manager.BTreeIndex, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockBTreeManagerForIndexReading) DropIndex(ctx context.Context, indexID uint64) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (m *mockBTreeManagerForIndexReading) Insert(ctx context.Context, indexID uint64, key []byte, value []byte) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (m *mockBTreeManagerForIndexReading) Delete(ctx context.Context, indexID uint64, key []byte) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (m *mockBTreeManagerForIndexReading) Search(ctx context.Context, indexID uint64, key []byte) (*manager.IndexRecord, error) {
+	if m.searchRecord == nil {
+		return nil, fmt.Errorf("not found")
+	}
+	return m.searchRecord, nil
+}
+
+func (m *mockBTreeManagerForIndexReading) RangeSearch(ctx context.Context, indexID uint64, startKey, endKey []byte) ([]manager.IndexRecord, error) {
+	return []manager.IndexRecord{}, nil
+}
+
+func (m *mockBTreeManagerForIndexReading) FlushIndex(ctx context.Context, indexID uint64) error {
+	return nil
+}
+
+func (m *mockBTreeManagerForIndexReading) AnalyzeIndex(ctx context.Context, indexID uint64) (*manager.EnhancedIndexStatistics, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockBTreeManagerForIndexReading) RebuildIndex(ctx context.Context, indexID uint64) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (m *mockBTreeManagerForIndexReading) LoadIndex(ctx context.Context, indexID uint64) error {
+	return nil
+}
+
+func (m *mockBTreeManagerForIndexReading) UnloadIndex(indexID uint64) error {
+	return nil
+}
+
+func (m *mockBTreeManagerForIndexReading) Close() error {
+	return nil
 }

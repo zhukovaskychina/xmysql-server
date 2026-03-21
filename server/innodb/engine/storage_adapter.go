@@ -76,6 +76,8 @@ func (sa *StorageAdapter) ParseRecords(ctx context.Context, page *buffer_pool.Bu
 		return nil, fmt.Errorf("invalid page content size: %d", len(content))
 	}
 
+	querySchema := metadata.FromTable(schema)
+
 	// 解析页面头部信息
 	pageType := common.PageType(binary.LittleEndian.Uint16(content[24:26]))
 	recordCount := binary.LittleEndian.Uint16(content[40:42])
@@ -116,7 +118,7 @@ func (sa *StorageAdapter) ParseRecords(ctx context.Context, page *buffer_pool.Bu
 		}
 
 		// 创建记录
-		record := NewExecutorRecordFromValues(values, nil) // TODO: Fix schema parameter
+		record := NewExecutorRecordFromValues(values, querySchema)
 		records = append(records, record)
 	}
 
@@ -242,7 +244,7 @@ func (sa *StorageAdapter) getFallbackRecord(schema *metadata.Table) Record {
 			values[i] = basic.NewString("")
 		}
 	}
-	return NewExecutorRecordFromValues(values, nil)
+	return NewExecutorRecordFromValues(values, metadata.FromTable(schema))
 }
 
 // TableScanMetadata 表扫描元数据

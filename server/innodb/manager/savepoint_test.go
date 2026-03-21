@@ -8,6 +8,12 @@ import (
 	"time"
 )
 
+func setSavepointCreatedAt(trx *Transaction, name string, createdAt time.Time) {
+	if sp, ok := trx.Savepoints[name]; ok {
+		sp.CreatedAt = createdAt
+	}
+}
+
 // mockRollbackExecutor 模拟回滚执行器
 type mockRollbackExecutor struct{}
 
@@ -70,25 +76,26 @@ func TestSavepoint_BasicOperations(t *testing.T) {
 			t.Fatalf("Failed to begin transaction: %v", err)
 		}
 
+		baseTime := time.Now()
+
 		// 创建多个保存点
 		err = tm.Savepoint(trx, "sp1")
 		if err != nil {
 			t.Errorf("Failed to create savepoint sp1: %v", err)
 		}
-
-		time.Sleep(10 * time.Millisecond) // 确保时间戳不同
+		setSavepointCreatedAt(trx, "sp1", baseTime)
 
 		err = tm.Savepoint(trx, "sp2")
 		if err != nil {
 			t.Errorf("Failed to create savepoint sp2: %v", err)
 		}
-
-		time.Sleep(10 * time.Millisecond)
+		setSavepointCreatedAt(trx, "sp2", baseTime.Add(time.Millisecond))
 
 		err = tm.Savepoint(trx, "sp3")
 		if err != nil {
 			t.Errorf("Failed to create savepoint sp3: %v", err)
 		}
+		setSavepointCreatedAt(trx, "sp3", baseTime.Add(2*time.Millisecond))
 
 		// 验证所有保存点都存在
 		if len(trx.Savepoints) != 3 {
@@ -302,9 +309,9 @@ func TestSavepoint_NestedSavepoints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create savepoint sp1: %v", err)
 	}
+	baseTime := time.Now()
+	setSavepointCreatedAt(trx, "sp1", baseTime)
 	t.Logf("Created sp1 with %d undo logs", len(trx.UndoLogs))
-
-	time.Sleep(10 * time.Millisecond)
 
 	// 操作2
 	undoLog2 := &UndoLogEntry{TrxID: trx.ID, LSN: 2, Type: LOG_TYPE_INSERT, TableID: 1, Data: []byte("data2")}
@@ -316,9 +323,8 @@ func TestSavepoint_NestedSavepoints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create savepoint sp2: %v", err)
 	}
+	setSavepointCreatedAt(trx, "sp2", baseTime.Add(time.Millisecond))
 	t.Logf("Created sp2 with %d undo logs", len(trx.UndoLogs))
-
-	time.Sleep(10 * time.Millisecond)
 
 	// 操作3
 	undoLog3 := &UndoLogEntry{TrxID: trx.ID, LSN: 3, Type: LOG_TYPE_INSERT, TableID: 1, Data: []byte("data3")}
@@ -330,6 +336,7 @@ func TestSavepoint_NestedSavepoints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create savepoint sp3: %v", err)
 	}
+	setSavepointCreatedAt(trx, "sp3", baseTime.Add(2*time.Millisecond))
 	t.Logf("Created sp3 with %d undo logs", len(trx.UndoLogs))
 
 	// 操作4

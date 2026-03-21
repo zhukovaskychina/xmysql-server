@@ -108,9 +108,21 @@ func (s *SimpleExecutorRecord) GetValueByIndex(index int) basic.Value {
 }
 
 func (s *SimpleExecutorRecord) GetValueByName(name string) (basic.Value, error) {
-	// Simple implementation - just return nil for now
-	// TODO: Implement proper column name lookup
-	return nil, nil
+	if s.schema == nil {
+		return nil, fmt.Errorf("schema is nil")
+	}
+
+	col, ok := s.schema.GetColumn(name)
+	if !ok || col == nil {
+		return nil, fmt.Errorf("column %s not found", name)
+	}
+
+	index := col.OrdinalPosition - 1
+	if index < 0 || index >= len(s.values) {
+		return nil, fmt.Errorf("column %s index out of range", name)
+	}
+
+	return s.values[index], nil
 }
 
 func (s *SimpleExecutorRecord) SetValueByIndex(index int, value basic.Value) error {
@@ -122,9 +134,22 @@ func (s *SimpleExecutorRecord) SetValueByIndex(index int, value basic.Value) err
 }
 
 func (s *SimpleExecutorRecord) SetValueByName(name string, value basic.Value) error {
-	// Simple implementation - just return error for now
-	// TODO: Implement proper column name lookup
-	return fmt.Errorf("SetValueByName not implemented")
+	if s.schema == nil {
+		return fmt.Errorf("schema is nil")
+	}
+
+	col, ok := s.schema.GetColumn(name)
+	if !ok || col == nil {
+		return fmt.Errorf("column %s not found", name)
+	}
+
+	index := col.OrdinalPosition - 1
+	if index < 0 || index >= len(s.values) {
+		return fmt.Errorf("column %s index out of range", name)
+	}
+
+	s.values[index] = value
+	return nil
 }
 
 // ========================================
@@ -559,12 +584,74 @@ func (p *ProjectionOperator) Open(ctx context.Context) error {
 	// 从子算子获取schema并投影
 	childSchema := p.child.Schema()
 	if childSchema != nil {
-		p.schema = metadata.ProjectSchema(childSchema, p.projections)
+		switch {
+		case len(p.projections) > 0:
+			p.schema = metadata.ProjectSchema(childSchema, p.projections)
+		case len(p.exprs) > 0:
+			p.schema = p.buildExprSchema(childSchema)
+		default:
+			p.schema = childSchema.Clone()
+		}
 	} else {
 		p.schema = metadata.NewQuerySchema()
 	}
 
 	return nil
+}
+
+func (p *ProjectionOperator) buildExprSchema(childSchema *metadata.QuerySchema) *metadata.QuerySchema {
+	schema := metadata.NewQuerySchema()
+	if childSchema != nil {
+		schema.TableName = childSchema.TableName
+		schema.SchemaName = childSchema.SchemaName
+	}
+
+	for _, expr := range p.exprs {
+		schema.AddColumn(p.buildExprColumn(expr, childSchema))
+	}
+
+	return schema
+}
+
+func (p *ProjectionOperator) buildExprColumn(expr plan.Expression, childSchema *metadata.QuerySchema) *metadata.QueryColumn {
+	if colExpr, ok := expr.(*plan.Column); ok {
+		if childSchema != nil {
+			if childCol, found := childSchema.GetColumn(colExpr.Name); found && childCol != nil {
+				return &metadata.QueryColumn{
+					Name:            childCol.Name,
+					DataType:        childCol.DataType,
+					IsNullable:      childCol.IsNullable,
+					TableName:       childCol.TableName,
+					SchemaName:      childCol.SchemaName,
+					OrdinalPosition: childCol.OrdinalPosition,
+					CharMaxLength:   childCol.CharMaxLength,
+					Comment:         childCol.Comment,
+				}
+			}
+		}
+		return metadata.NewQueryColumn(colExpr.Name, metadata.TypeVarchar)
+	}
+
+	return metadata.NewQueryColumn(expr.String(), convertPlanDataTypeToMetadata(expr.GetType()))
+}
+
+func convertPlanDataTypeToMetadata(dataType plan.DataType) metadata.DataType {
+	switch dataType {
+	case plan.TypeInt:
+		return metadata.TypeInt
+	case plan.TypeFloat:
+		return metadata.TypeDouble
+	case plan.TypeDateTime:
+		return metadata.TypeDateTime
+	case plan.TypeBoolean:
+		return metadata.TypeBoolean
+	case plan.TypeNull:
+		return metadata.TypeVarchar
+	case plan.TypeString, plan.TypeUnknown:
+		fallthrough
+	default:
+		return metadata.TypeVarchar
+	}
 }
 
 func (p *ProjectionOperator) Next(ctx context.Context) (Record, error) {
@@ -1466,9 +1553,7 @@ func (h *HashAggregateOperator) computeAggregates(ctx context.Context) error {
 		// 更新聚合状态
 		values := record.GetValues()
 		for i, aggState := range aggStates {
-			if i < len(values) {
-				aggState.Update(values[i])
-			}
+			aggState.Update(h.getAggregateInputValue(values, i))
 		}
 	}
 
@@ -1484,6 +1569,25 @@ func (h *HashAggregateOperator) computeAggregates(ctx context.Context) error {
 
 	logger.Debugf("HashAggregate: computed %d groups", len(h.results))
 	return nil
+}
+
+func (h *HashAggregateOperator) getAggregateInputValue(values []basic.Value, aggIndex int) basic.Value {
+	if len(values) == 0 {
+		return basic.NewNull()
+	}
+
+	firstAggColumn := len(h.groupByExprs)
+	if firstAggColumn < len(values) {
+		candidateIdx := firstAggColumn + aggIndex
+		if candidateIdx < len(values) {
+			return values[candidateIdx]
+		}
+	}
+
+	// Fallback for the current simplified aggregate API: if aggregate expressions
+	// are not explicitly tracked, apply non-grouped aggregates to the last input
+	// column so multiple aggregate functions can still consume the same measure.
+	return values[len(values)-1]
 }
 
 func (h *HashAggregateOperator) computeGroupKey(record Record) string {

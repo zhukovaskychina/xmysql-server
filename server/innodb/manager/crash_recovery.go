@@ -593,6 +593,10 @@ func (cr *CrashRecovery) undoPhase() error {
 
 // rollbackTransaction 回滚单个事务
 func (cr *CrashRecovery) rollbackTransaction(txID int64) error {
+	if cr.undoLogManager == nil {
+		return fmt.Errorf("undo log manager not set")
+	}
+
 	// 使用UndoLogManager回滚事务
 	if err := cr.undoLogManager.Rollback(txID); err != nil {
 		return err

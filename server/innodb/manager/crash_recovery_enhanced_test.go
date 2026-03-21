@@ -146,14 +146,15 @@ func (m *MockStorage) WritePage(pageID uint64, data []byte) error {
 	return nil
 }
 
-func (m *MockStorage) CreatePage() (uint64, error) {
+func (m *MockStorage) CreatePage(pageID uint64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	pageID := m.nextPageID
-	m.nextPageID++
 	m.pages[pageID] = make([]byte, 16384)
-	return pageID, nil
+	if pageID >= m.nextPageID {
+		m.nextPageID = pageID + 1
+	}
+	return nil
 }
 
 func (m *MockStorage) DeletePage(pageID uint64) error {
@@ -162,6 +163,44 @@ func (m *MockStorage) DeletePage(pageID uint64) error {
 
 	delete(m.pages, pageID)
 	return nil
+}
+
+func TestMockStorageCreatePageUsesRequestedPageID(t *testing.T) {
+	storage := NewMockStorage()
+
+	err := storage.CreatePage(42)
+	assert.NoError(t, err)
+
+	data, err := storage.ReadPage(42)
+	assert.NoError(t, err)
+	assert.Len(t, data, 16384)
+	assert.Equal(t, uint64(43), storage.nextPageID)
+}
+
+func TestCrashRecoveryWithoutUndoLogManagerReturnsError(t *testing.T) {
+	logDir := t.TempDir()
+
+	redoLogManager, err := NewRedoLogManager(logDir, 100)
+	assert.NoError(t, err)
+	defer redoLogManager.Close()
+
+	recovery := NewCrashRecovery(redoLogManager, nil, 0)
+	recovery.SetBufferPoolManager(NewMockBufferPool())
+	recovery.SetStorageManager(NewMockStorage())
+
+	_, err = redoLogManager.Append(&RedoLogEntry{TrxID: 1, Type: LOG_TYPE_TXN_BEGIN})
+	assert.NoError(t, err)
+	_, err = redoLogManager.Append(&RedoLogEntry{TrxID: 1, PageID: 1, Type: LOG_TYPE_INSERT, Data: []byte("data")})
+	assert.NoError(t, err)
+	err = redoLogManager.Flush(0)
+	assert.NoError(t, err)
+
+	err = recovery.Recover()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "undo log manager not set")
+	assert.True(t, recovery.analysisComplete)
+	assert.True(t, recovery.redoComplete)
+	assert.False(t, recovery.undoComplete)
 }
 
 // TestRedoLogReplay 测试Redo日志重放

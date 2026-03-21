@@ -7,8 +7,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 // TestStorageAdapter 测试存储适配器基本功能
@@ -54,7 +57,7 @@ func TestTransactionAdapter(t *testing.T) {
 	require.NotNil(t, storageManager)
 
 	t.Run("BeginTransaction", func(t *testing.T) {
-		adapter := NewTransactionAdapter(storageManager)
+		adapter := NewTransactionAdapter(storageManager, nil)
 		assert.NotNil(t, adapter, "TransactionAdapter should not be nil")
 
 		ctx := context.Background()
@@ -108,7 +111,7 @@ func TestIndexScanOperator(t *testing.T) {
 func TestDMLOperators(t *testing.T) {
 	storageAdapter := NewStorageAdapter(nil, nil, nil, nil)
 	indexAdapter := NewIndexAdapter(nil, nil, storageAdapter)
-	transactionAdapter := NewTransactionAdapter(nil)
+	transactionAdapter := NewTransactionAdapter(nil, nil)
 
 	t.Run("CreateInsertOperator", func(t *testing.T) {
 		op := NewInsertOperator(
@@ -180,7 +183,7 @@ func TestUnifiedExecutor(t *testing.T) {
 	require.NotNil(t, storageManager)
 
 	// 创建InfoSchemaManager（简化版本）
-	infoSchemaManager := metadata.NewInfoSchemaManager()
+	infoSchemaManager := manager.NewInfoSchemaManager(nil, nil, nil)
 	require.NotNil(t, infoSchemaManager)
 
 	tableManager := manager.NewTableManagerWithStorage(infoSchemaManager, storageManager)
@@ -199,6 +202,181 @@ func TestUnifiedExecutor(t *testing.T) {
 		assert.NotNil(t, executor.storageAdapter)
 		assert.NotNil(t, executor.indexAdapter)
 		assert.NotNil(t, executor.transactionAdapter)
+	})
+
+	t.Run("BuildOperatorTreeRejectsNilPlan", func(t *testing.T) {
+		executor := NewUnifiedExecutor(
+			tableManager,
+			nil,
+			storageManager.GetBufferPoolManager(),
+			storageManager,
+			nil,
+		)
+
+		op, err := executor.BuildOperatorTree(context.Background(), nil)
+		require.Error(t, err)
+		assert.Nil(t, op)
+		assert.Contains(t, err.Error(), "physical plan is nil")
+	})
+
+	t.Run("BuildOperatorTreeBuildsPhysicalTableScan", func(t *testing.T) {
+		executor := NewUnifiedExecutor(
+			tableManager,
+			nil,
+			storageManager.GetBufferPoolManager(),
+			storageManager,
+			nil,
+		)
+
+		physicalPlan := &plan.PhysicalTableScan{
+			Table: &metadata.Table{
+				Name:   "users",
+				Schema: metadata.NewSchema("testdb"),
+			},
+		}
+
+		op, err := executor.BuildOperatorTree(context.Background(), physicalPlan)
+		require.NoError(t, err)
+
+		tableScan, ok := op.(*TableScanOperator)
+		require.True(t, ok, "expected *TableScanOperator, got %T", op)
+		assert.Equal(t, "testdb", tableScan.schemaName)
+		assert.Equal(t, "users", tableScan.tableName)
+		assert.NotNil(t, tableScan.storageAdapter)
+	})
+
+	t.Run("CollectSelectResultIncludesRecordsAndColumns", func(t *testing.T) {
+		executor := NewUnifiedExecutor(
+			tableManager,
+			nil,
+			storageManager.GetBufferPoolManager(),
+			storageManager,
+			nil,
+		)
+
+		schema := metadata.NewQuerySchema()
+		schema.AddColumn(metadata.NewQueryColumn("id", metadata.TypeInt))
+		schema.AddColumn(metadata.NewQueryColumn("name", metadata.TypeVarchar))
+
+		record := NewExecutorRecordFromValues(
+			[]basic.Value{basic.NewInt64(1), basic.NewString("alice")},
+			schema,
+		)
+		rootOperator := &ExpressionMockOperator{
+			records: []Record{record},
+			schema:  schema,
+		}
+
+		result, err := executor.collectSelectResult(context.Background(), rootOperator)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Len(t, result.Records, 1)
+		assert.Equal(t, record, result.Records[0])
+		assert.Equal(t, 1, result.RowCount)
+		assert.Equal(t, []string{"id", "name"}, result.Columns)
+		assert.Equal(t, "SELECT", result.ResultType)
+		assert.Equal(t, "Success", result.Message)
+	})
+
+	t.Run("BuildOperatorTreeBuildsPhysicalProjection", func(t *testing.T) {
+		executor := NewUnifiedExecutor(
+			tableManager,
+			nil,
+			storageManager.GetBufferPoolManager(),
+			storageManager,
+			nil,
+		)
+
+		child := &plan.PhysicalTableScan{
+			Table: &metadata.Table{
+				Name:   "users",
+				Schema: metadata.NewSchema("testdb"),
+			},
+		}
+		projection := &plan.PhysicalProjection{}
+		projection.SetChildren([]plan.PhysicalPlan{child})
+
+		op, err := executor.BuildOperatorTree(context.Background(), projection)
+		require.NoError(t, err)
+		_, ok := op.(*ProjectionOperator)
+		require.True(t, ok, "expected *ProjectionOperator, got %T", op)
+	})
+
+	t.Run("BuildOperatorTreeBuildsPhysicalSelection", func(t *testing.T) {
+		executor := NewUnifiedExecutor(
+			tableManager,
+			nil,
+			storageManager.GetBufferPoolManager(),
+			storageManager,
+			nil,
+		)
+
+		child := &plan.PhysicalTableScan{
+			Table: &metadata.Table{
+				Name:   "users",
+				Schema: metadata.NewSchema("testdb"),
+			},
+		}
+		selection := &plan.PhysicalSelection{}
+		selection.SetChildren([]plan.PhysicalPlan{child})
+
+		op, err := executor.BuildOperatorTree(context.Background(), selection)
+		require.NoError(t, err)
+		_, ok := op.(*FilterOperator)
+		require.True(t, ok, "expected *FilterOperator, got %T", op)
+	})
+
+	t.Run("BuildSelectOperatorTreeAddsProjectionForColumnSelect", func(t *testing.T) {
+		executor := &UnifiedExecutor{
+			storageAdapter: NewStorageAdapter(nil, nil, nil, nil),
+		}
+
+		stmt, err := sqlparser.Parse("select id from users")
+		require.NoError(t, err)
+
+		selectStmt, ok := stmt.(*sqlparser.Select)
+		require.True(t, ok, "expected *sqlparser.Select, got %T", stmt)
+
+		op, err := executor.buildSelectOperatorTree(context.Background(), selectStmt, "testdb")
+		require.NoError(t, err)
+		_, ok = op.(*ProjectionOperator)
+		require.True(t, ok, "expected *ProjectionOperator, got %T", op)
+	})
+
+	t.Run("BuildSelectOperatorTreeKeepsTableScanForSelectStar", func(t *testing.T) {
+		executor := &UnifiedExecutor{
+			storageAdapter: NewStorageAdapter(nil, nil, nil, nil),
+		}
+
+		stmt, err := sqlparser.Parse("select * from users")
+		require.NoError(t, err)
+
+		selectStmt, ok := stmt.(*sqlparser.Select)
+		require.True(t, ok, "expected *sqlparser.Select, got %T", stmt)
+
+		op, err := executor.buildSelectOperatorTree(context.Background(), selectStmt, "testdb")
+		require.NoError(t, err)
+		_, ok = op.(*TableScanOperator)
+		require.True(t, ok, "expected *TableScanOperator, got %T", op)
+	})
+
+	t.Run("BuildSelectOperatorTreeAddsLimitOperator", func(t *testing.T) {
+		executor := &UnifiedExecutor{
+			storageAdapter: NewStorageAdapter(nil, nil, nil, nil),
+		}
+
+		stmt, err := sqlparser.Parse("select * from users limit 5")
+		require.NoError(t, err)
+
+		selectStmt, ok := stmt.(*sqlparser.Select)
+		require.True(t, ok, "expected *sqlparser.Select, got %T", stmt)
+
+		op, err := executor.buildSelectOperatorTree(context.Background(), selectStmt, "testdb")
+		require.NoError(t, err)
+		limitOp, ok := op.(*LimitOperator)
+		require.True(t, ok, "expected *LimitOperator, got %T", op)
+		assert.Equal(t, int64(0), limitOp.offset)
+		assert.Equal(t, int64(5), limitOp.limit)
 	})
 }
 
@@ -219,22 +397,61 @@ func TestOperatorInterface(t *testing.T) {
 // TestRecordInterface 测试Record接口
 func TestRecordInterface(t *testing.T) {
 	t.Run("SimpleExecutorRecord", func(t *testing.T) {
-		schema := &metadata.Schema{
-			Columns: []*metadata.Column{
-				{Name: "id", Type: "INT"},
-				{Name: "name", Type: "VARCHAR"},
-			},
-		}
+		schema := metadata.NewQuerySchema()
+		schema.AddColumn(metadata.NewQueryColumn("id", metadata.TypeInt))
+		schema.AddColumn(metadata.NewQueryColumn("name", metadata.TypeVarchar))
 
-		values := []interface{}{1, "test"}
-		// 注意：这里需要实际的basic.Value类型
-		// record := NewExecutorRecordFromValues(values, schema)
+		values := []basic.Value{basic.NewInt64(1), basic.NewString("test")}
+		record := NewExecutorRecordFromValues(values, schema)
 
-		// assert.NotNil(t, record)
-		// assert.Equal(t, len(values), len(record.GetValues()))
+		require.NotNil(t, record)
+		assert.Equal(t, len(values), record.GetColumnCount())
+		assert.Equal(t, int64(1), record.GetValueByIndex(0).Int())
+		assert.Equal(t, "test", record.GetValueByIndex(1).ToString())
 
-		t.Log("Record interface test placeholder")
+		valueByName, err := record.GetValueByName("name")
+		require.NoError(t, err)
+		assert.Equal(t, "test", valueByName.ToString())
+
+		err = record.SetValueByName("name", basic.NewString("updated"))
+		require.NoError(t, err)
+		assert.Equal(t, "updated", record.GetValueByIndex(1).ToString())
 	})
+}
+
+func TestProjectionOperatorWithExprsDerivesSchemaFromChildColumns(t *testing.T) {
+	childSchema := metadata.NewQuerySchema()
+	childSchema.AddColumn(metadata.NewQueryColumn("id", metadata.TypeInt))
+	childSchema.AddColumn(metadata.NewQueryColumn("name", metadata.TypeVarchar))
+
+	child := &ExpressionMockOperator{
+		records: []Record{
+			NewExecutorRecordFromValues(
+				[]basic.Value{basic.NewInt64(1), basic.NewString("alice")},
+				childSchema,
+			),
+		},
+		schema: childSchema,
+	}
+
+	op := NewProjectionOperatorWithExprs(child, []plan.Expression{
+		&plan.Column{Name: "name"},
+	})
+
+	err := op.Open(context.Background())
+	require.NoError(t, err)
+	defer op.Close()
+
+	schema := op.Schema()
+	require.NotNil(t, schema)
+	require.Len(t, schema.Columns, 1)
+	assert.Equal(t, "name", schema.Columns[0].Name)
+	assert.Equal(t, metadata.TypeVarchar, schema.Columns[0].DataType)
+
+	record, err := op.Next(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, record)
+	assert.Equal(t, "alice", record.GetValueByIndex(0).ToString())
 }
 
 // BenchmarkTableScanOperator 表扫描算子性能测试
@@ -258,7 +475,7 @@ func BenchmarkUnifiedExecutorCreation(b *testing.B) {
 	}
 
 	storageManager := manager.NewStorageManager(cfg)
-	infoSchemaManager := metadata.NewInfoSchemaManager()
+	infoSchemaManager := manager.NewInfoSchemaManager(nil, nil, nil)
 	tableManager := manager.NewTableManagerWithStorage(infoSchemaManager, storageManager)
 
 	b.ResetTimer()

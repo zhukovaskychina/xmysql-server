@@ -1,13 +1,51 @@
 package buffer_pool
 
 import (
+	"sync"
 	"testing"
 	"time"
 )
 
-func TestPrefetchManager(t *testing.T) {
+func newTestBufferPool() *BufferPool {
+	return NewBufferPool(&BufferPoolConfig{
+		TotalPages:       100,
+		PageSize:         16384,
+		BufferPoolSize:   16384 * 100,
+		YoungListPercent: 0.8,
+		OldListPercent:   0.2,
+		OldBlocksTime:    1000,
+		PrefetchSize:     4,
+		MaxQueueSize:     10,
+		PrefetchWorkers:  2,
+		StorageManager:   &MockStorageManager{},
+	})
+}
+
+func waitUntil(t *testing.T, timeout time.Duration, condition func() bool, description string) {
+	t.Helper()
+
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	for {
+		if condition() {
+			return
+		}
+
+		select {
+		case <-ticker.C:
+		case <-timer.C:
+			t.Fatalf("timed out waiting for %s", description)
+		}
+	}
+}
+
+func TestPrefetchManagerBehavior(t *testing.T) {
 	// 创建BufferPool
-	bufferPool := NewBufferPool(16384*100, 0.8, 0.2, 1000, nil)
+	bufferPool := newTestBufferPool()
 
 	// 测试预读请求队列
 	t.Run("TestPrefetchQueue", func(t *testing.T) {
@@ -69,43 +107,48 @@ func TestPrefetchManager(t *testing.T) {
 		// 添加一个立即过期的请求
 		pm.TriggerPrefetchWithPriority(1, 100, 5, -time.Second)
 
-		// 等待一小段时间让工作线程处理
-		time.Sleep(time.Millisecond * 100)
-
-		// 验证过期请求被移除
-		if length := pm.GetQueueLength(); length != 0 {
-			t.Errorf("Expected expired request to be removed, got queue length %d", length)
-		}
+		waitUntil(t, time.Second, func() bool {
+			return pm.GetQueueLength() == 0
+		}, "expired prefetch request removal")
 	})
 }
 
 func TestPrefetchIntegration(t *testing.T) {
 	// 创建BufferPool
-	bufferPool := NewBufferPool(16384*100, 0.8, 0.2, 1000, nil)
+	bufferPool := newTestBufferPool()
 
 	// 测试RangePageLoad触发预读
 	t.Run("TestRangePageLoadPrefetch", func(t *testing.T) {
 		// 加载一段页面
-		bufferPool.RangePageLoad(1, 0, 10)
-
-		// 验证预读队列中包含后续页面的预读请求
-		length := bufferPool.prefetchManager.GetQueueLength()
-		if length == 0 {
-			t.Error("Expected prefetch requests in queue after RangePageLoad")
+		if err := bufferPool.RangePageLoad(1, 0, 10); err != nil {
+			t.Fatalf("RangePageLoad failed: %v", err)
 		}
+
+		// 验证后续页面最终被预读进缓存，而不是依赖队列瞬时状态。
+		waitUntil(t, 2*time.Second, func() bool {
+			for pageNo := uint32(10); pageNo < 14; pageNo++ {
+				if _, err := bufferPool.lruCache.Get(1, pageNo); err != nil {
+					return false
+				}
+			}
+			return true
+		}, "prefetched pages to appear in cache after range load")
 	})
 
 	// 测试并发预读
 	t.Run("TestConcurrentPrefetch", func(t *testing.T) {
+		var wg sync.WaitGroup
+
 		// 并发触发多个预读请求
 		for i := 0; i < 10; i++ {
+			wg.Add(1)
 			go func(i int) {
+				defer wg.Done()
 				bufferPool.prefetchManager.TriggerPrefetchWithPriority(1, uint32(i*100), 5, time.Second)
 			}(i)
 		}
 
-		// 等待所有请求被处理
-		time.Sleep(time.Millisecond * 500)
+		wg.Wait()
 
 		// 验证队列状态
 		length := bufferPool.prefetchManager.GetQueueLength()

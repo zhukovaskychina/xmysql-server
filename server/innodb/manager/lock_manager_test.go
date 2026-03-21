@@ -1,9 +1,9 @@
 package manager
 
 import (
+	"errors"
 	"sync"
 	"testing"
-	"time"
 )
 
 func TestLockManager_BasicLocking(t *testing.T) {
@@ -24,8 +24,8 @@ func TestLockManager_BasicLocking(t *testing.T) {
 
 	// Test exclusive lock conflict
 	err = lm.AcquireLock(3, 1, 1, 1, LOCK_X)
-	if err == nil {
-		t.Error("Expected conflict with exclusive lock, but got none")
+	if !errors.Is(err, ErrLockConflict) {
+		t.Errorf("Expected lock conflict, got %v", err)
 	}
 
 	// Release locks
@@ -43,45 +43,25 @@ func TestLockManager_DeadlockDetection(t *testing.T) {
 	lm := NewLockManager()
 	defer lm.Close()
 
-	// Create a deadlock scenario
-	var wg sync.WaitGroup
-	wg.Add(2)
+	err := lm.AcquireLock(1, 1, 1, 1, LOCK_X) // Resource A
+	if err != nil {
+		t.Fatalf("T1: Failed to acquire first lock: %v", err)
+	}
 
-	// Transaction 1: Get S lock on A, then try X lock on B
-	go func() {
-		defer wg.Done()
-		err := lm.AcquireLock(1, 1, 1, 1, LOCK_S) // Resource A
-		if err != nil {
-			t.Errorf("T1: Failed to acquire first lock: %v", err)
-			return
-		}
+	err = lm.AcquireLock(2, 1, 1, 2, LOCK_X) // Resource B
+	if err != nil {
+		t.Fatalf("T2: Failed to acquire first lock: %v", err)
+	}
 
-		time.Sleep(100 * time.Millisecond) // Ensure T2 gets its first lock
+	err = lm.AcquireLock(1, 1, 1, 2, LOCK_X) // T1 waits on B
+	if !errors.Is(err, ErrLockConflict) {
+		t.Fatalf("T1: Expected lock conflict while waiting on B, got %v", err)
+	}
 
-		err = lm.AcquireLock(1, 1, 1, 2, LOCK_X) // Resource B
-		if err != nil && err.Error() != "deadlock detected" {
-			t.Errorf("T1: Expected deadlock detection, got: %v", err)
-		}
-	}()
-
-	// Transaction 2: Get X lock on B, then try S lock on A
-	go func() {
-		defer wg.Done()
-		err := lm.AcquireLock(2, 1, 1, 2, LOCK_X) // Resource B
-		if err != nil {
-			t.Errorf("T2: Failed to acquire first lock: %v", err)
-			return
-		}
-
-		time.Sleep(100 * time.Millisecond) // Ensure T1 gets its first lock
-
-		err = lm.AcquireLock(2, 1, 1, 1, LOCK_S) // Resource A
-		if err != nil && err.Error() != "deadlock detected" {
-			t.Errorf("T2: Expected deadlock detection, got: %v", err)
-		}
-	}()
-
-	wg.Wait()
+	err = lm.AcquireLock(2, 1, 1, 1, LOCK_X) // T2 forms cycle on A
+	if !errors.Is(err, ErrDeadlockDetected) {
+		t.Fatalf("T2: Expected deadlock detection, got %v", err)
+	}
 }
 
 func TestLockManager_LockUpgrade(t *testing.T) {
@@ -102,8 +82,8 @@ func TestLockManager_LockUpgrade(t *testing.T) {
 
 	// Another transaction should not be able to acquire any lock
 	err = lm.AcquireLock(2, 1, 1, 1, LOCK_S)
-	if err == nil {
-		t.Error("Expected lock conflict after upgrade, but got none")
+	if !errors.Is(err, ErrLockConflict) {
+		t.Errorf("Expected lock conflict after upgrade, got %v", err)
 	}
 }
 
@@ -126,7 +106,6 @@ func TestLockManager_ConcurrentAccess(t *testing.T) {
 					t.Errorf("TX%d failed to acquire S lock on resource %d: %v", txID, j, err)
 					return
 				}
-				time.Sleep(10 * time.Millisecond)
 			}
 			// Release all locks
 			lm.ReleaseLocks(txID)
@@ -148,8 +127,8 @@ func TestLockManager_LockRelease(t *testing.T) {
 
 	// Try to acquire shared lock (should fail)
 	err = lm.AcquireLock(2, 1, 1, 1, LOCK_S)
-	if err == nil {
-		t.Error("Expected lock conflict, but got none")
+	if !errors.Is(err, ErrLockConflict) {
+		t.Errorf("Expected lock conflict, got %v", err)
 	}
 
 	// Release exclusive lock

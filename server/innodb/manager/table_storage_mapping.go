@@ -125,7 +125,7 @@ func (tsm *TableStorageManager) RegisterTable(ctx context.Context, info *TableSt
 
 	// 检查表是否已存在
 	if _, exists := tsm.tableStorageMap[key]; exists {
-		return fmt.Errorf("table %s already registered", key)
+		return fmt.Errorf("%w: %s", ErrTableStorageAlreadyRegistered, key)
 	}
 
 	// 检查表空间ID是否已被使用

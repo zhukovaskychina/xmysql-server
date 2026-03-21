@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -86,7 +87,6 @@ func (e *XMySQLExecutor) ExecuteWithQuery(mysqlSession server.MySQLServerSession
 // executeQuery 是实际的 SQL 执行过程，包括解析和语义分派
 func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server.MySQLServerSession, query string, databaseName string, results chan *Result) {
 	defer close(results)
-	defer e.recover(query, results)
 
 	// SQL语法解析
 	stmt, err := sqlparser.Parse(query)
@@ -153,9 +153,10 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 	case *sqlparser.DDL:
 		e.executeDDL(stmt, mysqlSession, databaseName, results)
 	case *sqlparser.DBDDL:
+		e.normalizeDBDDLOptions(stmt, query)
 		e.executeDBDDL(stmt, results)
 	case *sqlparser.Show:
-		results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Message: "SHOW statement executed (simplified implementation)"}
+		e.executeShowStatement(ctx, stmt, mysqlSession)
 	case *sqlparser.Set:
 		results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Message: "SET statement executed (simplified implementation)"}
 	case *sqlparser.Use:
@@ -176,6 +177,24 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		}
 	default:
 		results <- &Result{Err: fmt.Errorf("unsupported statement type: %T", stmt), ResultType: common.RESULT_TYPE_QUERY, Message: "Unsupported statement type"}
+	}
+}
+
+func (e *XMySQLExecutor) normalizeDBDDLOptions(stmt *sqlparser.DBDDL, query string) {
+	if stmt == nil {
+		return
+	}
+
+	lowerQuery := strings.ToLower(query)
+	switch stmt.Action {
+	case sqlparser.DropStr:
+		if strings.Contains(lowerQuery, "if exists") {
+			stmt.IfExists = true
+		}
+	case sqlparser.CreateStr:
+		if strings.Contains(lowerQuery, "if not exists") {
+			stmt.IfExists = true
+		}
 	}
 }
 
@@ -277,13 +296,6 @@ func (e *XMySQLExecutor) buildExecutorTree(ctx context.Context, physicalPlan pla
 	}
 
 	return volcanoExec, nil
-}
-
-// recover 用于捕获 panic，避免系统崩溃
-func (e *XMySQLExecutor) recover(query string, results chan *Result) {
-	if err := recover(); err != nil {
-		results <- &Result{StatementID: -1, Err: fmt.Errorf("%s [panic:%v]", query, err)}
-	}
 }
 
 // executeSelectStatement 执行 SELECT 查询
@@ -1028,10 +1040,7 @@ func (e *XMySQLExecutor) createDatabaseImpl(dbName, charset, collation string, i
 	}
 
 	// 2. 获取数据目录
-	dataDir := e.conf.DataDir
-	if dataDir == "" {
-		dataDir = "data" // 默认数据目录
-	}
+	dataDir := e.getDataDir()
 
 	// 3. 构建数据库路径
 	dbPath := filepath.Join(dataDir, dbName)
@@ -1420,7 +1429,7 @@ func (e *XMySQLExecutor) createTableStorageMapping(dbName, tableName string) err
 	// 创建表空间（若已存在则复用，兼容 CREATE TABLE IF NOT EXISTS 或重试场景）
 	handle, err := storageManager.CreateTablespace(spaceName)
 	if err != nil {
-		if strings.Contains(err.Error(), "already exists") {
+		if isTablespaceAlreadyExistsError(err) {
 			handle, err = storageManager.GetTablespace(spaceName)
 			if err != nil {
 				return fmt.Errorf("tablespace %s already exists but get failed: %v", spaceName, err)
@@ -1449,7 +1458,7 @@ func (e *XMySQLExecutor) createTableStorageMapping(dbName, tableName string) err
 
 	// 注册表存储信息（若已注册则视为成功，兼容 IF NOT EXISTS / 重试）
 	if err := tableStorageManager.RegisterTable(context.Background(), info); err != nil {
-		if strings.Contains(err.Error(), "already registered") {
+		if isTableStorageAlreadyRegisteredError(err) {
 			logger.Debugf("Table storage already registered: %s.%s", dbName, tableName)
 			return nil
 		}
@@ -1457,6 +1466,14 @@ func (e *XMySQLExecutor) createTableStorageMapping(dbName, tableName string) err
 	}
 
 	return nil
+}
+
+func isTablespaceAlreadyExistsError(err error) bool {
+	return errors.Is(err, manager.ErrTablespaceExists)
+}
+
+func isTableStorageAlreadyRegisteredError(err error) bool {
+	return errors.Is(err, manager.ErrTableStorageAlreadyRegistered)
 }
 
 // executeDropTableStatement 执行 DROP TABLE
@@ -1575,6 +1592,18 @@ func (e *XMySQLExecutor) SetAdditionalManagers(
 		indexManager != nil, storageManager != nil, tableStorageManager != nil)
 }
 
+func (e *XMySQLExecutor) getDataDir() string {
+	if e != nil && e.conf != nil {
+		if e.conf.DataDir != "" {
+			return e.conf.DataDir
+		}
+		if e.conf.InnodbDataDir != "" {
+			return e.conf.InnodbDataDir
+		}
+	}
+	return "data"
+}
+
 // executeDropDatabaseStatement 执行 DROP DATABASE
 func (e *XMySQLExecutor) executeDropDatabaseStatement(ctx *ExecutionContext, stmt *sqlparser.DBDDL) {
 	logger.Debugf("🗑️ Executing DROP DATABASE: %s", stmt.DBName)
@@ -1609,10 +1638,7 @@ func (e *XMySQLExecutor) dropDatabaseImpl(dbName string, ifExists bool) error {
 	}
 
 	// 2. 获取数据目录
-	dataDir := e.conf.DataDir
-	if dataDir == "" {
-		dataDir = "data" // 默认数据目录
-	}
+	dataDir := e.getDataDir()
 
 	// 3. 构建数据库路径
 	dbPath := filepath.Join(dataDir, dbName)
@@ -1662,10 +1688,7 @@ var virtualUserDatabases = map[string]struct{ charset, collation string }{
 // validateDatabaseExists 验证数据库是否存在
 func (e *XMySQLExecutor) validateDatabaseExists(dbName string) error {
 	// 获取数据目录
-	dataDir := e.conf.DataDir
-	if dataDir == "" {
-		dataDir = "data"
-	}
+	dataDir := e.getDataDir()
 
 	// 构建数据库路径
 	dbPath := filepath.Join(dataDir, dbName)
@@ -1693,10 +1716,7 @@ func (e *XMySQLExecutor) validateDatabaseExists(dbName string) error {
 // checkTableExists 检查表是否存在
 func (e *XMySQLExecutor) checkTableExists(dbName, tableName string) (bool, error) {
 	// 获取数据目录
-	dataDir := e.conf.DataDir
-	if dataDir == "" {
-		dataDir = "data"
-	}
+	dataDir := e.getDataDir()
 
 	// 构建表文件路径 (.frm文件或.ibd文件)
 	dbPath := filepath.Join(dataDir, dbName)
@@ -1719,10 +1739,7 @@ func (e *XMySQLExecutor) createTableImpl(dbName, tableName string, stmt *sqlpars
 	logger.Debugf(" Creating table %s.%s", dbName, tableName)
 
 	// 获取数据目录
-	dataDir := e.conf.DataDir
-	if dataDir == "" {
-		dataDir = "data"
-	}
+	dataDir := e.getDataDir()
 
 	dbPath := filepath.Join(dataDir, dbName)
 
@@ -1747,10 +1764,7 @@ func (e *XMySQLExecutor) dropTableImpl(dbName, tableName string) error {
 	logger.Debugf("🗑️ Dropping table %s.%s", dbName, tableName)
 
 	// 获取数据目录
-	dataDir := e.conf.DataDir
-	if dataDir == "" {
-		dataDir = "data"
-	}
+	dataDir := e.getDataDir()
 
 	dbPath := filepath.Join(dataDir, dbName)
 
@@ -1986,10 +2000,7 @@ func (e *XMySQLExecutor) executeShowDatabases(ctx *ExecutionContext) {
 	logger.Debugf(" [executeShowDatabases] 执行SHOW DATABASES")
 
 	// 获取数据目录
-	dataDir := e.conf.DataDir
-	if dataDir == "" {
-		dataDir = "data"
-	}
+	dataDir := e.getDataDir()
 
 	// 读取数据目录下的所有子目录（每个子目录代表一个数据库）
 	var databases []string
@@ -2034,6 +2045,14 @@ func (e *XMySQLExecutor) executeShowDatabases(ctx *ExecutionContext) {
 // executeShowTables 执行 SHOW TABLES
 func (e *XMySQLExecutor) executeShowTables(ctx *ExecutionContext, session server.MySQLServerSession) {
 	logger.Debugf(" [executeShowTables] 执行SHOW TABLES")
+
+	if session == nil {
+		ctx.Results <- &Result{
+			Err:        fmt.Errorf("session is required for SHOW TABLES"),
+			ResultType: "ERROR",
+		}
+		return
+	}
 
 	// 获取当前数据库
 	currentDB := session.GetParamByName("database")

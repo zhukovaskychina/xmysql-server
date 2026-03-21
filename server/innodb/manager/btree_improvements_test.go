@@ -6,7 +6,148 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
+
+type mockOptimizedStorageProvider struct {
+	mu         sync.RWMutex
+	pages      map[uint64][]byte
+	nextPageNo uint32
+}
+
+func newMockOptimizedStorageProvider() *mockOptimizedStorageProvider {
+	return &mockOptimizedStorageProvider{
+		pages:      make(map[uint64][]byte),
+		nextPageNo: 1,
+	}
+}
+
+func (m *mockOptimizedStorageProvider) ReadPage(spaceID uint32, pageNo uint32) ([]byte, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	pageID := makePageID(spaceID, pageNo)
+	if data, exists := m.pages[pageID]; exists {
+		cloned := make([]byte, len(data))
+		copy(cloned, data)
+		return cloned, nil
+	}
+
+	return make([]byte, PAGE_SIZE), nil
+}
+
+func (m *mockOptimizedStorageProvider) WritePage(spaceID uint32, pageNo uint32, data []byte) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	pageID := makePageID(spaceID, pageNo)
+	m.pages[pageID] = make([]byte, len(data))
+	copy(m.pages[pageID], data)
+	return nil
+}
+
+func (m *mockOptimizedStorageProvider) AllocatePage(spaceID uint32) (uint32, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	pageNo := m.nextPageNo
+	m.nextPageNo++
+	return pageNo, nil
+}
+
+func (m *mockOptimizedStorageProvider) FreePage(spaceID uint32, pageNo uint32) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	delete(m.pages, makePageID(spaceID, pageNo))
+	return nil
+}
+
+func (m *mockOptimizedStorageProvider) CreateSpace(name string, pageSize uint32) (uint32, error) {
+	return 1, nil
+}
+
+func (m *mockOptimizedStorageProvider) OpenSpace(spaceID uint32) error {
+	return nil
+}
+
+func (m *mockOptimizedStorageProvider) CloseSpace(spaceID uint32) error {
+	return nil
+}
+
+func (m *mockOptimizedStorageProvider) DeleteSpace(spaceID uint32) error {
+	return nil
+}
+
+func (m *mockOptimizedStorageProvider) GetSpaceInfo(spaceID uint32) (*basic.SpaceInfo, error) {
+	return &basic.SpaceInfo{
+		SpaceID:    spaceID,
+		Name:       "mock_space",
+		PageSize:   PAGE_SIZE,
+		TotalPages: uint64(len(m.pages)),
+	}, nil
+}
+
+func (m *mockOptimizedStorageProvider) ListSpaces() ([]basic.SpaceInfo, error) {
+	return []basic.SpaceInfo{}, nil
+}
+
+func (m *mockOptimizedStorageProvider) BeginTransaction() (uint64, error) {
+	return 1, nil
+}
+
+func (m *mockOptimizedStorageProvider) CommitTransaction(txID uint64) error {
+	return nil
+}
+
+func (m *mockOptimizedStorageProvider) RollbackTransaction(txID uint64) error {
+	return nil
+}
+
+func (m *mockOptimizedStorageProvider) Sync(spaceID uint32) error {
+	return nil
+}
+
+func (m *mockOptimizedStorageProvider) Close() error {
+	return nil
+}
+
+func newTestOptimizedBufferPoolManager(tb testing.TB) *OptimizedBufferPoolManager {
+	tb.Helper()
+
+	bpm, err := NewOptimizedBufferPoolManager(&BufferPoolConfig{
+		PoolSize:        128,
+		PageSize:        PAGE_SIZE,
+		FlushInterval:   time.Second,
+		StorageProvider: newMockOptimizedStorageProvider(),
+		YoungListRatio:  YOUNG_LIST_RATIO,
+		OldListRatio:    OLD_LIST_RATIO,
+		OldBlockTime:    OLD_BLOCK_TIME,
+	})
+	if err != nil {
+		tb.Fatalf("Failed to create optimized buffer pool manager: %v", err)
+	}
+
+	tb.Cleanup(func() {
+		if err := bpm.Close(); err != nil {
+			tb.Fatalf("Failed to close optimized buffer pool manager: %v", err)
+		}
+	})
+
+	return bpm
+}
+
+func newTestBPlusTreeManager(tb testing.TB, config *BPlusTreeConfig) *DefaultBPlusTreeManager {
+	tb.Helper()
+
+	btree := NewBPlusTreeManager(newTestOptimizedBufferPoolManager(tb), config)
+	tb.Cleanup(func() {
+		btree.Close()
+	})
+
+	return btree
+}
 
 /*
 B+树实现问题解决方案集成测试
@@ -22,13 +163,7 @@ B+树实现问题解决方案集成测试
 
 // TestConcurrentInsert 测试并发插入（验证节点级锁）
 func TestConcurrentInsert(t *testing.T) {
-	// 创建缓冲池管理器（模拟）
-	bpm := &OptimizedBufferPoolManager{
-		// 简化实现，仅用于测试
-	}
-
-	// 创建B+树管理器
-	btree := NewBPlusTreeManager(bpm, nil)
+	btree := newTestBPlusTreeManager(t, nil)
 	ctx := context.Background()
 
 	// 初始化（使用模拟的rootPage）
@@ -72,8 +207,7 @@ func TestCacheEviction(t *testing.T) {
 		EvictionPolicy: "LRU",
 	}
 
-	bpm := &OptimizedBufferPoolManager{}
-	btree := NewBPlusTreeManager(bpm, config)
+	btree := newTestBPlusTreeManager(t, config)
 	ctx := context.Background()
 
 	err := btree.Init(ctx, 1, 100)
@@ -88,8 +222,7 @@ func TestCacheEviction(t *testing.T) {
 		_ = btree.Insert(ctx, key, value)
 	}
 
-	// 等待后台清理
-	time.Sleep(2 * time.Second)
+	btree.cleanCache()
 
 	// 检查缓存大小
 	btree.mutex.RLock()
@@ -105,8 +238,7 @@ func TestCacheEviction(t *testing.T) {
 
 // TestPageAllocation 测试页面分配器集成
 func TestPageAllocation(t *testing.T) {
-	bpm := &OptimizedBufferPoolManager{}
-	btree := NewBPlusTreeManager(bpm, nil)
+	btree := newTestBPlusTreeManager(t, nil)
 	ctx := context.Background()
 
 	err := btree.Init(ctx, 1, 100)
@@ -136,8 +268,7 @@ func TestPageAllocation(t *testing.T) {
 
 // TestDeleteAndRebalance 测试删除和重平衡
 func TestDeleteAndRebalance(t *testing.T) {
-	bpm := &OptimizedBufferPoolManager{}
-	btree := NewBPlusTreeManager(bpm, nil)
+	btree := newTestBPlusTreeManager(t, nil)
 	ctx := context.Background()
 
 	err := btree.Init(ctx, 1, 100)
@@ -167,8 +298,7 @@ func TestDeleteAndRebalance(t *testing.T) {
 
 // TestRangeQueryOptimization 测试范围查询优化
 func TestRangeQueryOptimization(t *testing.T) {
-	bpm := &OptimizedBufferPoolManager{}
-	btree := NewBPlusTreeManager(bpm, nil)
+	btree := newTestBPlusTreeManager(t, nil)
 	ctx := context.Background()
 
 	err := btree.Init(ctx, 1, 100)
@@ -197,8 +327,7 @@ func TestRangeQueryOptimization(t *testing.T) {
 
 // TestTransactionSupport 测试事务支持
 func TestTransactionSupport(t *testing.T) {
-	bpm := &OptimizedBufferPoolManager{}
-	btree := NewBPlusTreeManager(bpm, nil)
+	btree := newTestBPlusTreeManager(t, nil)
 	ctx := context.Background()
 
 	err := btree.Init(ctx, 1, 100)
@@ -239,8 +368,7 @@ func TestTransactionSupport(t *testing.T) {
 
 // BenchmarkConcurrentInsert 并发插入性能基准测试
 func BenchmarkConcurrentInsert(b *testing.B) {
-	bpm := &OptimizedBufferPoolManager{}
-	btree := NewBPlusTreeManager(bpm, nil)
+	btree := newTestBPlusTreeManager(b, nil)
 	ctx := context.Background()
 
 	_ = btree.Init(ctx, 1, 100)
@@ -259,8 +387,7 @@ func BenchmarkConcurrentInsert(b *testing.B) {
 
 // BenchmarkRangeQuery 范围查询性能基准测试
 func BenchmarkRangeQuery(b *testing.B) {
-	bpm := &OptimizedBufferPoolManager{}
-	btree := NewBPlusTreeManager(bpm, nil)
+	btree := newTestBPlusTreeManager(b, nil)
 	ctx := context.Background()
 
 	_ = btree.Init(ctx, 1, 100)

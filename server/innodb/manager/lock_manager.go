@@ -201,15 +201,28 @@ func (lm *LockManager) AcquireLock(txID uint64, tableID, pageID uint32, rowID ui
 	for _, req := range info.Requests {
 		if req.TxID == txID {
 			if req.LockType == lockType {
-				return nil // 已持有相同类型的锁
+				if req.Granted {
+					return nil // 已持有相同类型的锁
+				}
+				return ErrLockConflict
 			}
 			// 升级锁
 			if req.LockType == LOCK_S && lockType == LOCK_X {
 				// 检查是否有其他事务持有共享锁
+				var holdingTxIDs []uint64
 				for _, r := range info.Requests {
 					if r.TxID != txID && r.Granted {
-						return fmt.Errorf("cannot upgrade lock: other transactions hold shared lock")
+						holdingTxIDs = append(holdingTxIDs, r.TxID)
 					}
+				}
+				if len(holdingTxIDs) > 0 {
+					lm.updateWaitGraph(txID, holdingTxIDs)
+					visited := make(map[uint64]bool)
+					if lm.checkDeadlock(txID, visited) {
+						lm.removeFromWaitGraph(txID)
+						return ErrDeadlockDetected
+					}
+					return ErrLockConflict
 				}
 				req.LockType = LOCK_X
 				return nil
@@ -246,12 +259,17 @@ func (lm *LockManager) AcquireLock(txID uint64, tableID, pageID uint32, rowID ui
 		if lm.checkDeadlock(txID, visited) {
 			// 移除请求
 			info.Requests = info.Requests[:len(info.Requests)-1]
-			return fmt.Errorf("deadlock detected")
+			lm.removeFromWaitGraph(txID)
+			return ErrDeadlockDetected
 		}
 	}
 
 	// 记录事务持有的锁
 	lm.txnLocks[txID] = append(lm.txnLocks[txID], resourceID)
+
+	if len(holdingTxIDs) > 0 {
+		return ErrLockConflict
+	}
 
 	return nil
 }

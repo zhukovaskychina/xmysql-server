@@ -10,6 +10,28 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
+func waitForCondition(t *testing.T, timeout time.Duration, condition func() bool, description string) {
+	t.Helper()
+
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	for {
+		if condition() {
+			return
+		}
+
+		select {
+		case <-ticker.C:
+		case <-timer.C:
+			t.Fatalf("timed out waiting for %s", description)
+		}
+	}
+}
+
 // MockSpaceManager 模拟空间管理器
 type MockSpaceManager struct {
 	sync.RWMutex
@@ -411,6 +433,7 @@ func TestConcurrentAsyncExpand(t *testing.T) {
 	const spaceID = uint32(1)
 
 	var wg sync.WaitGroup
+	var submitted uint64
 
 	for i := 0; i < numGoroutines; i++ {
 		wg.Add(1)
@@ -418,14 +441,19 @@ func TestConcurrentAsyncExpand(t *testing.T) {
 			defer wg.Done()
 			if err := sem.ExpandSpace(spaceID, 1); err != nil {
 				t.Logf("Goroutine %d error: %v", id, err)
+			} else {
+				atomic.AddUint64(&submitted, 1)
 			}
 		}(i)
 	}
 
 	wg.Wait()
 
-	// 等待异步扩展完成
-	time.Sleep(2 * time.Second)
+	waitForCondition(t, 2*time.Second, func() bool {
+		stats := sem.GetStats()
+		processed := stats.TotalExpansions + stats.FailedExpansions
+		return len(sem.expandChan) == 0 && processed >= atomic.LoadUint64(&submitted)
+	}, "async expansions to be processed")
 
 	// 验证统计信息
 	stats := sem.GetStats()
@@ -476,7 +504,6 @@ func TestConcurrentGetStats(t *testing.T) {
 			for j := 0; j < 20; j++ {
 				spaceID := uint32(id + 1)
 				_ = sem.ExpandSpace(spaceID, 1)
-				time.Sleep(10 * time.Millisecond)
 			}
 		}(i)
 	}
@@ -510,6 +537,7 @@ func TestRaceConditionDetection(t *testing.T) {
 	defer sem.Stop()
 
 	var wg sync.WaitGroup
+	var submitted uint64
 
 	// 混合操作
 	for i := 0; i < 20; i++ {
@@ -522,7 +550,9 @@ func TestRaceConditionDetection(t *testing.T) {
 			_ = sem.CheckAndExpand(spaceID)
 
 			// ExpandSpace
-			_ = sem.ExpandSpace(spaceID, 1)
+			if err := sem.ExpandSpace(spaceID, 1); err == nil {
+				atomic.AddUint64(&submitted, 1)
+			}
 
 			// PredictiveExpand
 			_ = sem.PredictiveExpand(spaceID)
@@ -536,7 +566,11 @@ func TestRaceConditionDetection(t *testing.T) {
 	}
 
 	wg.Wait()
-	time.Sleep(1 * time.Second) // 等待异步操作完成
+	waitForCondition(t, 2*time.Second, func() bool {
+		stats := sem.GetStats()
+		processed := stats.TotalExpansions + stats.FailedExpansions
+		return len(sem.expandChan) == 0 && processed >= atomic.LoadUint64(&submitted)
+	}, "async expansion work to drain")
 }
 
 // TestExpansionLockEffectiveness 测试扩展锁的有效性
