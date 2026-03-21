@@ -85,6 +85,20 @@ mvn surefire-report:report
 
 ## 📚 测试类说明
 
+### 0. JdbcConnectionTest.java（JDBC 连接专项）
+**连接过程专项测试**，仅覆盖 JDBC 协议连接生命周期，不依赖 BaseIntegrationTest。
+
+**测试用例：** (7 个)
+- ✅ 有效账号密码应成功建立连接
+- ✅ 连接后元数据应反映服务端（URL、产品名、版本）
+- ✅ close 后 isClosed 应为 true
+- ✅ 错误密码应抛出 SQLException（服务端应返回 Access denied/1045）
+- ✅ URL 中带默认库时 getCatalog 应一致
+- ✅ 无默认库连接后 getCatalog 可为空或空串
+- ✅ 连接后能执行简单查询（验证握手+认证完整）
+
+**说明：** 需 XMySQL 运行在 `localhost:3309`，否则上述用例会被跳过（`assumeTrue(SERVER_AVAILABLE)`）。
+
 ### 1. BaseIntegrationTest.java
 **基础测试类**，所有测试类的父类。
 
@@ -275,6 +289,7 @@ mvn surefire-report:report
 
 | 功能模块 | 测试类 | 测试用例数 | 覆盖率 |
 |---------|--------|-----------|--------|
+| JDBC 连接 | JdbcConnectionTest | 7 | ✅ 高 |
 | DDL操作 | DDLOperationsTest | 11 | ✅ 高 |
 | DML操作 | DMLOperationsTest | 13 | ✅ 高 |
 | SELECT查询 | SelectQueryTest | 19 | ✅ 高 |
@@ -285,7 +300,7 @@ mvn surefire-report:report
 | 索引约束 | IndexAndConstraintTest | 12 | ✅ 高 |
 | PreparedStatement | PreparedStatementTest | 12 | ✅ 高 |
 | 性能测试 | PerformanceTest | 8 | ✅ 中 |
-| **总计** | **10个测试类** | **119个测试** | **✅ 高** |
+| **总计** | **11个测试类** | **126个测试** | **✅ 高** |
 
 ### SQL语句类型覆盖
 
@@ -378,6 +393,7 @@ assertThatThrownBy(() -> executeUpdate("INVALID SQL"))
 
 ### 待添加的测试
 
+- [x] JDBC 连接过程专项测试（见 JdbcConnectionTest）
 - [ ] 存储过程测试
 - [ ] 触发器测试
 - [ ] 视图测试
@@ -400,7 +416,7 @@ assertThatThrownBy(() -> executeUpdate("INVALID SQL"))
 
 ---
 
-**最后更新：** 2024-01-15
+**最后更新：** 2026-03-17
 **测试框架版本：** JUnit 5.10.1
-**总测试用例数：** 119个
+**总测试用例数：** 126个（含 JdbcConnectionTest 7 个连接专项用例）
 
