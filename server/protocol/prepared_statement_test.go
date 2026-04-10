@@ -209,8 +209,6 @@ func TestEncodePrepareResponse(t *testing.T) {
 }
 
 func TestBindParameters(t *testing.T) {
-	handler := &MySQLProtocolHandler{}
-
 	tests := []struct {
 		name     string
 		sql      string
@@ -257,7 +255,7 @@ func TestBindParameters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := handler.bindParameters(tt.sql, tt.params)
+			result := BindPreparedSQL(tt.sql, tt.params)
 			if result != tt.expected {
 				t.Errorf("Expected:\n%s\nGot:\n%s", tt.expected, result)
 			}
@@ -266,8 +264,6 @@ func TestBindParameters(t *testing.T) {
 }
 
 func TestReadLengthEncodedInteger(t *testing.T) {
-	handler := &MySQLProtocolHandler{}
-
 	tests := []struct {
 		name          string
 		data          []byte
@@ -302,7 +298,7 @@ func TestReadLengthEncodedInteger(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			value, bytes := handler.readLengthEncodedInteger(tt.data)
+			value, bytes := ReadLengthEncodedInteger(tt.data)
 			if value != tt.expectedValue {
 				t.Errorf("Expected value = %d, got %d", tt.expectedValue, value)
 			}

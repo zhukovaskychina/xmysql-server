@@ -15,8 +15,8 @@ func OptimizeLogicalPlan(plan LogicalPlan) LogicalPlan {
 	// 1. 谓词下推
 	plan = pushDownPredicates(plan)
 
-	// 2. 列裁剪
-	plan = columnPruning(plan)
+	// 2. 列裁剪（自顶向下合并「上层算子所需列」，避免 Proj 与 Sel 各自裁剪导致丢失列）
+	plan = columnPruning(plan, nil)
 
 	// 3. 聚合消除
 	plan = eliminateAggregation(plan)
@@ -228,65 +228,142 @@ func pushDownPredicates(plan LogicalPlan) LogicalPlan {
 	return plan
 }
 
-// columnPruning 列裁剪优化
-func columnPruning(plan LogicalPlan) LogicalPlan {
+// columnPruning 列裁剪：parentRequired 为上层算子仍需要的列名（已排序去重可调用 unionSortedCols）。
+func columnPruning(plan LogicalPlan, parentRequired []string) LogicalPlan {
+	if plan == nil {
+		return nil
+	}
+
 	switch v := plan.(type) {
 	case *LogicalProjection:
-		// 收集投影中使用的列
-		usedCols := collectUsedColumns(v.Exprs)
-
-		// 递归优化子节点
-		child := columnPruning(v.Children()[0])
-
-		// 更新子节点的输出列
-		updateOutputColumns(child, usedCols)
-
+		self := collectUsedColumns(v.Exprs)
+		req := unionSortedCols(self, parentRequired)
+		child := columnPruning(v.Children()[0], req)
 		v.SetChildren([]LogicalPlan{child})
 		return v
 
 	case *LogicalSelection:
-		// 收集过滤条件中使用的列
-		usedCols := collectUsedColumns(v.Conditions)
-
-		// 递归优化子节点
-		child := columnPruning(v.Children()[0])
-
-		// 更新子节点的输出列
-		updateOutputColumns(child, usedCols)
-
+		self := collectUsedColumns(v.Conditions)
+		req := unionSortedCols(self, parentRequired)
+		child := columnPruning(v.Children()[0], req)
 		v.SetChildren([]LogicalPlan{child})
 		return v
 
 	case *LogicalJoin:
-		// 递归优化左右子树
-		newLeft := columnPruning(v.Children()[0])
-		newRight := columnPruning(v.Children()[1])
-
-		// 收集连接条件中使用的列
-		usedCols := collectUsedColumns(v.Conditions)
-
-		// 更新左右子节点的输出列
-		updateOutputColumns(newLeft, usedCols)
-		updateOutputColumns(newRight, usedCols)
-
+		condCols := collectUsedColumns(v.Conditions)
+		all := unionSortedCols(parentRequired, condCols)
+		leftReq, rightReq := splitColsForJoin(v, all)
+		newLeft := columnPruning(v.Children()[0], leftReq)
+		newRight := columnPruning(v.Children()[1], rightReq)
 		v.SetChildren([]LogicalPlan{newLeft, newRight})
 		return v
 
 	case *LogicalAggregation:
-		// 收集分组和聚合函数中使用的列
-		usedCols := collectUsedColumns(append(v.GroupByItems, collectAggFuncCols(v.AggFuncs)...))
-
-		// 递归优化子节点
-		child := columnPruning(v.Children()[0])
-
-		// 更新子节点的输出列
-		updateOutputColumns(child, usedCols)
-
+		self := collectUsedColumns(append(v.GroupByItems, collectAggFuncCols(v.AggFuncs)...))
+		req := unionSortedCols(self, parentRequired)
+		child := columnPruning(v.Children()[0], req)
 		v.SetChildren([]LogicalPlan{child})
 		return v
-	}
 
-	return plan
+	case *LogicalTableScan:
+		applyPrunedSchemaToTableScan(v, parentRequired)
+		return v
+
+	case *LogicalIndexScan:
+		applyPrunedSchemaToIndexScan(v, parentRequired)
+		return v
+
+	default:
+		children := plan.Children()
+		if len(children) == 0 {
+			return plan
+		}
+		newCh := make([]LogicalPlan, len(children))
+		for i, c := range children {
+			newCh[i] = columnPruning(c, parentRequired)
+		}
+		plan.SetChildren(newCh)
+		return plan
+	}
+}
+
+func unionSortedCols(a, b []string) []string {
+	if len(a) == 0 {
+		return b
+	}
+	if len(b) == 0 {
+		return a
+	}
+	set := make(map[string]struct{})
+	for _, s := range a {
+		set[s] = struct{}{}
+	}
+	for _, s := range b {
+		set[s] = struct{}{}
+	}
+	out := make([]string, 0, len(set))
+	for s := range set {
+		out = append(out, s)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// splitColsForJoin 将列名划分到 Join 左右子树；无法唯一归属时保守地同时下推（避免丢列）。
+func splitColsForJoin(j *LogicalJoin, cols []string) (left []string, right []string) {
+	if len(cols) == 0 {
+		return nil, nil
+	}
+	leftSet, rightSet := getJoinChildColumnSets(j)
+	var onlyLeft, onlyRight, both, unknown []string
+	for _, c := range cols {
+		inL := leftSet[c]
+		inR := rightSet[c]
+		switch {
+		case inL && inR:
+			both = append(both, c)
+		case inL:
+			onlyLeft = append(onlyLeft, c)
+		case inR:
+			onlyRight = append(onlyRight, c)
+		default:
+			unknown = append(unknown, c)
+		}
+	}
+	// 双边列与未知列：两侧都保留，避免错误裁剪
+	for _, c := range both {
+		onlyLeft = append(onlyLeft, c)
+		onlyRight = append(onlyRight, c)
+	}
+	for _, c := range unknown {
+		onlyLeft = append(onlyLeft, c)
+		onlyRight = append(onlyRight, c)
+	}
+	sort.Strings(onlyLeft)
+	sort.Strings(onlyRight)
+	return onlyLeft, onlyRight
+}
+
+func applyPrunedSchemaToTableScan(ts *LogicalTableScan, cols []string) {
+	if ts == nil || ts.Table == nil {
+		return
+	}
+	if len(cols) == 0 {
+		ts.BaseLogicalPlan.schema = ts.Table.Schema
+		return
+	}
+	ts.BaseLogicalPlan.schema = buildPrunedSchema(ts.Table.Schema, cols)
+}
+
+func applyPrunedSchemaToIndexScan(ix *LogicalIndexScan, cols []string) {
+	if ix == nil || ix.Table == nil {
+		return
+	}
+	if len(cols) == 0 {
+		ix.BaseLogicalPlan.schema = ix.Table.Schema
+		return
+	}
+	ix.BaseLogicalPlan.schema = buildPrunedSchema(ix.Table.Schema, cols)
 }
 
 // eliminateAggregation 聚合消除优化
@@ -637,28 +714,6 @@ func collectUsedColumns(exprs []Expression) []string {
 	}
 	sort.Strings(cols)
 	return cols
-}
-
-func updateOutputColumns(plan LogicalPlan, usedCols []string) {
-	if len(usedCols) == 0 {
-		return
-	}
-
-	switch p := plan.(type) {
-	case *LogicalTableScan:
-		p.BaseLogicalPlan.schema = buildPrunedSchema(p.Table.Schema, usedCols)
-	case *LogicalIndexScan:
-		p.BaseLogicalPlan.schema = buildPrunedSchema(p.Table.Schema, usedCols)
-	case *LogicalSelection, *LogicalProjection, *LogicalAggregation:
-		if len(p.Children()) > 0 {
-			updateOutputColumns(p.Children()[0], usedCols)
-		}
-	case *LogicalJoin:
-		if len(p.Children()) >= 2 {
-			updateOutputColumns(p.Children()[0], usedCols)
-			updateOutputColumns(p.Children()[1], usedCols)
-		}
-	}
 }
 
 func collectAggFuncCols(funcs []AggregateFunc) []Expression {

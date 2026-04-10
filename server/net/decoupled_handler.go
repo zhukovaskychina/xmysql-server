@@ -149,6 +149,8 @@ func (h *DecoupledMySQLMessageHandler) OnOpen(session Session) error {
 	// 保存challenge到session属性（用于后续密码验证）
 	challenge := handshakePacket.GetAuthData()
 	session.SetAttribute("auth_challenge", challenge)
+	session.SetAttribute("server_auth_plugin", handshakePacket.AuthPluginName)
+	session.SetAttribute("prepared_stmt_mgr", protocol.NewPreparedStatementManager())
 	logger.Debugf("保存challenge到session: %x", challenge)
 
 	// 发送握手包
@@ -438,6 +440,20 @@ func (h *DecoupledMySQLMessageHandler) handlePacket(session Session, currentMysq
 		return nil
 	}
 
+	// 预编译语句：走与 COM_QUERY 相同的执行器路径
+	if len(recMySQLPkg.Body) >= 1 {
+		switch recMySQLPkg.Body[0] {
+		case common.COM_STMT_PREPARE:
+			return h.handleComStmtPrepare(session, currentMysqlSession, recMySQLPkg)
+		case common.COM_STMT_EXECUTE:
+			return h.handleComStmtExecute(session, currentMysqlSession, recMySQLPkg)
+		case common.COM_STMT_CLOSE:
+			return h.handleComStmtClose(session, recMySQLPkg)
+		case common.COM_STMT_RESET:
+			return h.handleComStmtReset(session, recMySQLPkg)
+		}
+	}
+
 	logger.Debugf(h.formatLog(session, "handlePacket", cmdName, cmdDetail, "非查询包，使用协议解析器处理"))
 
 	// 使用协议解析器解析包
@@ -647,24 +663,11 @@ func (h *DecoupledMySQLMessageHandler) handleAuthentication(session Session, cur
 
 	logger.Debugf("用户名: %s, 当前偏移: %d", username, offset)
 
-	// 读取认证响应长度
-	if offset >= len(payload) {
-		logger.Errorf("无法读取认证响应长度，当前偏移: %d, 总长度: %d", offset, len(payload))
-		return h.sendErrorResponse(session, 1045, "28000", "Missing auth response length")
+	authResponse, offset, err := readClientAuthResponse(payload, offset, clientFlags)
+	if err != nil {
+		logger.Errorf("读取认证响应失败: %v", err)
+		return h.sendErrorResponse(session, 1045, "28000", "Invalid auth response format")
 	}
-	authResponseLen := payload[offset]
-	offset++
-
-	logger.Debugf("认证响应长度: %d, 当前偏移: %d", authResponseLen, offset)
-
-	// 读取认证响应数据
-	if offset+int(authResponseLen) > len(payload) {
-		logger.Errorf("认证响应数据长度不足，需要%d字节(offset=%d + len=%d)，只有%d字节",
-			offset+int(authResponseLen), offset, int(authResponseLen), len(payload))
-		return h.sendErrorResponse(session, 1045, "28000", "Invalid auth response length")
-	}
-	authResponse := payload[offset : offset+int(authResponseLen)]
-	offset += int(authResponseLen)
 
 	logger.Debugf("认证响应数据: %x, 当前偏移: %d", authResponse, offset)
 
@@ -759,7 +762,7 @@ func (h *DecoupledMySQLMessageHandler) handleAuthentication(session Session, cur
 	return nil
 }
 
-// authenticateWithChallenge 使用 challenge 进行密码验证（恢复自 HEAD，当前仍临时跳过密码校验）
+// authenticateWithChallenge 握手阶段认证：mysql_native_password（*HEX40）或 caching_sha2 快速路径（authentication_string 为 64 位十六进制 stage2）。
 func (h *DecoupledMySQLMessageHandler) authenticateWithChallenge(
 	ctx context.Context,
 	username string,
@@ -768,7 +771,18 @@ func (h *DecoupledMySQLMessageHandler) authenticateWithChallenge(
 	host string,
 	database string,
 ) (*auth.AuthResult, error) {
-	// 获取用户信息
+	// 开发环境可配置免密：仅用于本地联调，生产应关闭。
+	if h.cfg != nil && h.cfg.DevBypassPasswordAuth {
+		logger.Warnf("⚠️ dev_bypass_password_auth=true，已跳过口令校验（user=%s）", username)
+		return &auth.AuthResult{Success: true, User: username, Host: host}, nil
+	}
+
+	denied := &auth.AuthResult{
+		Success:      false,
+		ErrorCode:    1045,
+		ErrorMessage: fmt.Sprintf("Access denied for user '%s'@'%s' (using password: YES)", username, host),
+	}
+
 	userInfo, err := h.authService.GetUserInfo(ctx, username, host)
 	if err != nil {
 		logger.Errorf("获取用户信息失败: %v", err)
@@ -779,41 +793,124 @@ func (h *DecoupledMySQLMessageHandler) authenticateWithChallenge(
 		}, err
 	}
 
-	// 如果密码为空（用户没有密码）
-	if userInfo.Password == "" || userInfo.Password == "*" {
-		if len(authResponse) == 0 {
-			// 空密码且客户端也发送空密码，认证成功
-			return &auth.AuthResult{
-				Success: true,
-				User:    username,
-				Host:    host,
-			}, nil
-		}
-		// 用户无密码但客户端发送了密码，认证失败
+	if userInfo.AccountLocked {
 		return &auth.AuthResult{
 			Success:      false,
 			ErrorCode:    1045,
-			ErrorMessage: fmt.Sprintf("Access denied for user '%s'@'%s'", username, host),
+			ErrorMessage: fmt.Sprintf("Account '%s'@'%s' is locked", username, host),
+		}, nil
+	}
+	if userInfo.PasswordExpired {
+		return &auth.AuthResult{
+			Success:      false,
+			ErrorCode:    1045,
+			ErrorMessage: "Your password has expired. To log in you must change it using a client that supports expired passwords.",
 		}, nil
 	}
 
-	// ========== 临时注释：跳过密码验证 ==========
-	// TODO: 修复密码验证逻辑后恢复
-	logger.Warnf("⚠️  临时跳过密码验证 - 仅用于调试！")
+	if userInfo.Password == "" || userInfo.Password == "*" {
+		if len(authResponse) == 0 {
+			return &auth.AuthResult{Success: true, User: username, Host: host}, nil
+		}
+		return denied, nil
+	}
 
-	// 认证成功（临时跳过验证）
-	return &auth.AuthResult{
-		Success: true,
-		User:    username,
-		Host:    host,
-	}, nil
+	nativeV := &auth.MySQLNativePasswordValidator{}
+	sha2V := &auth.CachingSHA2PasswordValidator{}
 
-	/* 原始密码验证代码 - 已临时注释（需要时可从 HEAD 完整恢复）
-	// 验证密码逻辑使用 MySQL native password 算法：
-	// authResponse = XOR(SHA1(password), SHA1(challenge + SHA1(SHA1(password))))
-	// 其中 SHA1(SHA1(password)) 就是 storedHash
-	// 具体实现参见 verifyMySQLNativePassword
-	*/
+	if strings.HasPrefix(userInfo.Password, "*") && len(userInfo.Password) == 41 {
+		if nativeV.ValidateNativeHandshakeResponse(authResponse, challenge, userInfo.Password) {
+			return &auth.AuthResult{Success: true, User: username, Host: host}, nil
+		}
+		return denied, nil
+	}
+
+	if len(authResponse) == 32 {
+		if sha2V.ValidateCachingSHA2FastAuth(authResponse, challenge, userInfo.Password) {
+			return &auth.AuthResult{Success: true, User: username, Host: host}, nil
+		}
+	}
+
+	logger.Debugf("认证失败: 不支持的 authentication_string 格式或错误口令 (user=%s)", username)
+	return denied, nil
+}
+
+func (h *DecoupledMySQLMessageHandler) preparedStmtMgrFromSession(session Session) *protocol.PreparedStatementManager {
+	v := session.GetAttribute("prepared_stmt_mgr")
+	if v == nil {
+		m := protocol.NewPreparedStatementManager()
+		session.SetAttribute("prepared_stmt_mgr", m)
+		return m
+	}
+	return v.(*protocol.PreparedStatementManager)
+}
+
+func (h *DecoupledMySQLMessageHandler) handleComStmtPrepare(session Session, _ *server.MySQLServerSession, recMySQLPkg *MySQLPackage) error {
+	if len(recMySQLPkg.Body) < 2 {
+		return h.sendErrorResponse(session, 1064, "42000", "Invalid COM_STMT_PREPARE")
+	}
+	sqlText := string(recMySQLPkg.Body[1:])
+	mgr := h.preparedStmtMgrFromSession(session)
+	stmt, err := mgr.Prepare(sqlText)
+	if err != nil {
+		return h.sendErrorResponse(session, 1064, "42000", err.Error())
+	}
+	seq := recMySQLPkg.Header.PacketId + 1
+	for _, pkt := range protocol.EncodePrepareResponse(stmt, seq) {
+		if werr := session.WriteBytes(pkt); werr != nil {
+			return werr
+		}
+	}
+	return nil
+}
+
+func (h *DecoupledMySQLMessageHandler) handleComStmtExecute(session Session, currentMysqlSession *server.MySQLServerSession, recMySQLPkg *MySQLPackage) error {
+	body := recMySQLPkg.Body
+	if len(body) < 10 {
+		return h.sendErrorResponse(session, 1064, "42000", "Invalid COM_STMT_EXECUTE")
+	}
+	stmtID := binary.LittleEndian.Uint32(body[1:5])
+	mgr := h.preparedStmtMgrFromSession(session)
+	stmt, err := mgr.Get(stmtID)
+	if err != nil {
+		return h.sendErrorResponse(session, common.ErrUnknownStmtHandler, "HY000", err.Error())
+	}
+	params, typeBlock, perr := protocol.ParseBinaryStmtExecuteParams(body[10:], stmt.ParamCount, stmt.LastParamTypes)
+	if perr != nil {
+		return h.sendErrorResponse(session, 1210, "HY000", perr.Error())
+	}
+	stmt.LastParamTypes = typeBlock
+	boundSQL := protocol.BindPreparedSQL(stmt.SQL, params)
+	queryMsg := &protocol.QueryMessage{
+		BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_REQUEST, session.Stat(), boundSQL),
+		SQL:         boundSQL,
+	}
+	return h.handleQueryMessageDirect(session, currentMysqlSession, queryMsg)
+}
+
+func (h *DecoupledMySQLMessageHandler) handleComStmtClose(session Session, recMySQLPkg *MySQLPackage) error {
+	if len(recMySQLPkg.Body) < 5 {
+		return nil
+	}
+	stmtID := binary.LittleEndian.Uint32(recMySQLPkg.Body[1:5])
+	mgr := h.preparedStmtMgrFromSession(session)
+	_ = mgr.Close(stmtID)
+	return nil
+}
+
+func (h *DecoupledMySQLMessageHandler) handleComStmtReset(session Session, recMySQLPkg *MySQLPackage) error {
+	if len(recMySQLPkg.Body) < 5 {
+		return h.sendErrorResponse(session, 1064, "42000", "Invalid COM_STMT_RESET")
+	}
+	stmtID := binary.LittleEndian.Uint32(recMySQLPkg.Body[1:5])
+	mgr := h.preparedStmtMgrFromSession(session)
+	stmt, err := mgr.Peek(stmtID)
+	if err != nil {
+		return h.sendErrorResponse(session, common.ErrUnknownStmtHandler, "HY000", err.Error())
+	}
+	stmt.LastParamTypes = nil
+	okData := h.createOKPacket(0, 0, recMySQLPkg.Header.PacketId+1)
+	return session.WriteBytes(okData)
 }
 
 // sendQueryResultSet 发送查询结果集
@@ -1149,4 +1246,76 @@ func (h *DecoupledMySQLMessageHandler) formatLogSimple(session Session, method, 
 			method, session.Stat(), session.RemoteAddr(), message)
 	}
 	return fmt.Sprintf("[%s] %s", method, message)
+}
+
+// readClientAuthResponse 读取握手响应中的认证数据（支持 CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA 与 CLIENT_SECURE_CONNECTION）。
+func readClientAuthResponse(payload []byte, offset int, clientFlags uint32) (auth []byte, next int, err error) {
+	if offset > len(payload) {
+		return nil, offset, fmt.Errorf("offset past end")
+	}
+	if clientFlags&common.CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA != 0 {
+		length, n := readLenEncUintClientAuth(payload[offset:])
+		if n <= 0 {
+			return nil, offset, fmt.Errorf("invalid length-encoded auth length")
+		}
+		start := offset + n
+		if start+int(length) > len(payload) {
+			return nil, offset, fmt.Errorf("auth payload truncated")
+		}
+		if length == 0 {
+			return []byte{}, start + int(length), nil
+		}
+		return payload[start : start+int(length)], start + int(length), nil
+	}
+	if clientFlags&common.CLIENT_SECURE_CONNECTION != 0 {
+		if offset >= len(payload) {
+			return nil, offset, fmt.Errorf("missing secure auth length")
+		}
+		l := int(payload[offset])
+		offset++
+		if offset+l > len(payload) {
+			return nil, offset, fmt.Errorf("secure auth truncated")
+		}
+		return payload[offset : offset+l], offset + l, nil
+	}
+	start := offset
+	for offset < len(payload) && payload[offset] != 0 {
+		offset++
+	}
+	if offset > len(payload) {
+		return nil, start, fmt.Errorf("unterminated auth string")
+	}
+	return payload[start:offset], offset + 1, nil
+}
+
+func readLenEncUintClientAuth(b []byte) (length uint64, consumed int) {
+	if len(b) == 0 {
+		return 0, 0
+	}
+	switch b[0] {
+	case 0xfc:
+		if len(b) < 3 {
+			return 0, 0
+		}
+		return uint64(b[1]) | uint64(b[2])<<8, 3
+	case 0xfd:
+		if len(b) < 4 {
+			return 0, 0
+		}
+		return uint64(b[1]) | uint64(b[2])<<8 | uint64(b[3])<<16, 4
+	case 0xfe:
+		if len(b) < 9 {
+			return 0, 0
+		}
+		var v uint64
+		for i := 0; i < 8; i++ {
+			v |= uint64(b[1+i]) << (8 * i)
+		}
+		return v, 9
+	default:
+		if b[0] < 0xfb {
+			return uint64(b[0]), 1
+		}
+		return 0, 0
+	}
 }

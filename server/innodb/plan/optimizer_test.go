@@ -297,3 +297,76 @@ func TestColumnPruning_ProjectionOverTableScan(t *testing.T) {
 		t.Errorf("column pruning: expected column id, got %s", tbl.Columns[0].Name)
 	}
 }
+
+// TestColumnPruning_ProjectionOverSelectionOverTableScan OPT-012：SELECT name WHERE id=1 需同时保留 id 与 name，不能只留谓词列或只留投影列。
+func TestColumnPruning_ProjectionOverSelectionOverTableScan(t *testing.T) {
+	table := createTestTable()
+	dbSchema := metadata.NewSchema("test")
+	if err := dbSchema.AddTable(table); err != nil {
+		t.Fatalf("AddTable: %v", err)
+	}
+	scan := &LogicalTableScan{
+		BaseLogicalPlan: BaseLogicalPlan{schema: table.Schema},
+		Table:           table,
+	}
+	sel := &LogicalSelection{
+		BaseLogicalPlan: BaseLogicalPlan{children: []LogicalPlan{scan}},
+		Conditions: []Expression{
+			&BinaryOperation{Op: OpEQ, Left: &Column{Name: "id"}, Right: &Constant{Value: int64(1)}},
+		},
+	}
+	proj := &LogicalProjection{
+		BaseLogicalPlan: BaseLogicalPlan{children: []LogicalPlan{sel}},
+		Exprs:           []Expression{&Column{Name: "name"}},
+	}
+	optimized := OptimizeLogicalPlan(proj)
+
+	var findLeafScan func(LogicalPlan) (LogicalPlan, bool)
+	findLeafScan = func(p LogicalPlan) (LogicalPlan, bool) {
+		switch n := p.(type) {
+		case *LogicalTableScan, *LogicalIndexScan:
+			return n, true
+		default:
+			for _, c := range p.Children() {
+				if leaf, ok := findLeafScan(c); ok {
+					return leaf, true
+				}
+			}
+		}
+		return nil, false
+	}
+	leaf, ok := findLeafScan(optimized)
+	if !ok {
+		t.Fatalf("no TableScan/IndexScan in optimized plan")
+	}
+	var sch *metadata.DatabaseSchema
+	switch s := leaf.(type) {
+	case *LogicalTableScan:
+		sch = s.Schema()
+	case *LogicalIndexScan:
+		sch = s.Schema()
+	default:
+		t.Fatalf("unexpected leaf %T", leaf)
+	}
+	if sch == nil {
+		t.Fatalf("leaf scan has nil schema")
+	}
+	var tbl *metadata.Table
+	for _, tdef := range sch.Tables {
+		tbl = tdef
+		break
+	}
+	if tbl == nil {
+		t.Fatalf("no table in schema")
+	}
+	if len(tbl.Columns) != 2 {
+		t.Fatalf("expected 2 columns (id,name), got %d", len(tbl.Columns))
+	}
+	names := []string{tbl.Columns[0].Name, tbl.Columns[1].Name}
+	if names[0] > names[1] {
+		names[0], names[1] = names[1], names[0]
+	}
+	if names[0] != "id" || names[1] != "name" {
+		t.Errorf("expected columns id+name, got %v %v", tbl.Columns[0].Name, tbl.Columns[1].Name)
+	}
+}
