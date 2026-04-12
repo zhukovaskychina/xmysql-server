@@ -1,5 +1,7 @@
 # InnoDB Storage架构文档
 
+> **相关文档**：代码级问题清单与统计见 [STORAGE_MODULE_ARCHITECTURE_ANALYSIS.md](./STORAGE_MODULE_ARCHITECTURE_ANALYSIS.md)（与本文**互补**：本文偏设计分层，该文偏模块审计）。
+
 ## 📋 概述
 
 本文档描述了XMySQL Server中InnoDB存储引擎的架构设计，包括分层结构、职责划分、接口定义和使用指南。

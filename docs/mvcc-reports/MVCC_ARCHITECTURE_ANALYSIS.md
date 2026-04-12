@@ -1,5 +1,7 @@
 # MVCC架构分析报告
 
+> **文档导航（2026-04）**：本目录索引见 [MVCC_DOCUMENTATION_INDEX.md](./MVCC_DOCUMENTATION_INDEX.md)；重构落地进度见 [MVCC_REFACTORING_PROGRESS.md](./MVCC_REFACTORING_PROGRESS.md)。
+
 ## 📋 概述
 
 **分析目标**: 分析XMySQL Server中MVCC相关实现的架构设计问题  

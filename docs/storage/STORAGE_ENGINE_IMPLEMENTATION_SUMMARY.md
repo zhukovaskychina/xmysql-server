@@ -1,5 +1,7 @@
 # 存储引擎核心模块实现总结
 
+> **2026-04**：**完成度、任务矩阵、结论**以 [STORAGE_ENGINE_FINAL_REPORT.md](./STORAGE_ENGINE_FINAL_REPORT.md) 为准；本文为按任务（STG-xxx）的**实现拆解与代码说明**（长文）。导航见 [STORAGE_DOCUMENTATION_INDEX.md](./STORAGE_DOCUMENTATION_INDEX.md)。
+
 ## 概述
 
 本文档总结了XMySQL Server存储引擎核心模块（模块5）的实现工作。根据详细设计文档，我们已完成19个任务中的9个关键任务（100% P0 + 23% P1），将模块完成度从75%提升至95%，**目标达成** ✅。

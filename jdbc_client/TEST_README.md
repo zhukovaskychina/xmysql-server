@@ -86,9 +86,11 @@ mvn surefire-report:report
 ## 📚 测试类说明
 
 ### 0. JdbcConnectionTest.java（JDBC 连接专项）
+
 **连接过程专项测试**，仅覆盖 JDBC 协议连接生命周期，不依赖 BaseIntegrationTest。
 
 **测试用例：** (7 个)
+
 - ✅ 有效账号密码应成功建立连接
 - ✅ 连接后元数据应反映服务端（URL、产品名、版本）
 - ✅ close 后 isClosed 应为 true
@@ -100,14 +102,17 @@ mvn surefire-report:report
 **说明：** 需 XMySQL 运行在 `localhost:3309`，否则上述用例会被跳过（`assumeTrue(SERVER_AVAILABLE)`）。
 
 ### 1. BaseIntegrationTest.java
+
 **基础测试类**，所有测试类的父类。
 
 **功能：**
+
 - 管理数据库连接
 - 提供通用的测试工具方法
 - 处理测试前后的初始化和清理
 
 **主要方法：**
+
 - `executeUpdate(String sql)` - 执行更新语句
 - `executeQuery(String sql)` - 执行查询语句
 - `tableExists(String tableName)` - 检查表是否存在
@@ -115,9 +120,11 @@ mvn surefire-report:report
 - `getTableRowCount(String tableName)` - 获取表行数
 
 ### 2. DDLOperationsTest.java
+
 **DDL操作测试类** - 测试数据定义语言操作
 
 **测试用例：** (11个测试)
+
 - ✅ 创建数据库
 - ✅ 创建数据库 (IF NOT EXISTS)
 - ✅ 创建数据库 (指定字符集)
@@ -131,9 +138,11 @@ mvn surefire-report:report
 - ✅ TRUNCATE TABLE
 
 ### 3. DMLOperationsTest.java
+
 **DML操作测试类** - 测试数据操作语言
 
 **测试用例：** (13个测试)
+
 - ✅ INSERT 单行插入
 - ✅ INSERT 批量插入
 - ✅ INSERT PreparedStatement
@@ -149,9 +158,11 @@ mvn surefire-report:report
 - ✅ UNIQUE约束违反
 
 ### 4. SelectQueryTest.java
+
 **SELECT查询测试类** - 测试各种查询语句
 
 **测试用例：** (19个测试)
+
 - ✅ SELECT * (所有列)
 - ✅ SELECT 指定列
 - ✅ WHERE 条件
@@ -173,9 +184,11 @@ mvn surefire-report:report
 - ✅ BETWEEN 条件
 
 ### 5. JoinQueryTest.java
+
 **JOIN查询测试类** - 测试表连接查询
 
 **测试用例：** (10个测试)
+
 - ✅ INNER JOIN 基本连接
 - ✅ LEFT JOIN 左连接
 - ✅ RIGHT JOIN 右连接
@@ -188,9 +201,11 @@ mvn surefire-report:report
 - ✅ JOIN with 聚合函数和HAVING
 
 ### 6. TransactionTest.java
+
 **事务测试类** - 测试事务处理
 
 **测试用例：** (8个测试)
+
 - ✅ COMMIT 提交事务
 - ✅ ROLLBACK 回滚事务
 - ✅ 转账事务 (成功场景)
@@ -201,9 +216,11 @@ mvn surefire-report:report
 - ✅ BEGIN/START TRANSACTION
 
 ### 7. SystemVariableTest.java
+
 **系统变量测试类** - 测试系统变量查询和设置
 
 **测试用例：** (15个测试)
+
 - ✅ SELECT @@version
 - ✅ SELECT @@character_set_client
 - ✅ SELECT @@session.autocommit
@@ -221,9 +238,11 @@ mvn surefire-report:report
 - ✅ SET 多个变量
 
 ### 8. DataTypeTest.java
+
 **数据类型测试类** - 测试各种MySQL数据类型
 
 **测试用例：** (11个测试)
+
 - ✅ 整数类型 (INT, BIGINT, SMALLINT, TINYINT)
 - ✅ 浮点类型 (FLOAT, DOUBLE, DECIMAL)
 - ✅ 字符串类型 (VARCHAR, CHAR, TEXT)
@@ -237,9 +256,11 @@ mvn surefire-report:report
 - ✅ DEFAULT值
 
 ### 9. IndexAndConstraintTest.java
+
 **索引和约束测试类** - 测试索引和各种约束
 
 **测试用例：** (12个测试)
+
 - ✅ PRIMARY KEY约束
 - ✅ 复合PRIMARY KEY
 - ✅ UNIQUE约束
@@ -254,9 +275,11 @@ mvn surefire-report:report
 - ✅ ON UPDATE CASCADE
 
 ### 10. PreparedStatementTest.java
+
 **PreparedStatement测试类** - 测试预编译语句
 
 **测试用例：** (12个测试)
+
 - ✅ 基本INSERT
 - ✅ 批量INSERT
 - ✅ SELECT查询
@@ -271,9 +294,11 @@ mvn surefire-report:report
 - ✅ 事务中使用
 
 ### 11. PerformanceTest.java
+
 **性能测试类** - 测试大批量数据操作性能
 
 **测试用例：** (8个测试)
+
 - ✅ 批量插入1000条记录
 - ✅ 查询大量数据 (5000条)
 - ✅ 带WHERE条件的查询 (10000条)
@@ -287,20 +312,22 @@ mvn surefire-report:report
 
 ### 功能覆盖
 
-| 功能模块 | 测试类 | 测试用例数 | 覆盖率 |
-|---------|--------|-----------|--------|
-| JDBC 连接 | JdbcConnectionTest | 7 | ✅ 高 |
-| DDL操作 | DDLOperationsTest | 11 | ✅ 高 |
-| DML操作 | DMLOperationsTest | 13 | ✅ 高 |
-| SELECT查询 | SelectQueryTest | 19 | ✅ 高 |
-| JOIN查询 | JoinQueryTest | 10 | ✅ 高 |
-| 事务处理 | TransactionTest | 8 | ✅ 高 |
-| 系统变量 | SystemVariableTest | 15 | ✅ 高 |
-| 数据类型 | DataTypeTest | 11 | ✅ 高 |
-| 索引约束 | IndexAndConstraintTest | 12 | ✅ 高 |
-| PreparedStatement | PreparedStatementTest | 12 | ✅ 高 |
-| 性能测试 | PerformanceTest | 8 | ✅ 中 |
-| **总计** | **11个测试类** | **126个测试** | **✅ 高** |
+
+| 功能模块              | 测试类                    | 测试用例数      | 覆盖率     |
+| ----------------- | ---------------------- | ---------- | ------- |
+| JDBC 连接           | JdbcConnectionTest     | 7          | ✅ 高     |
+| DDL操作             | DDLOperationsTest      | 11         | ✅ 高     |
+| DML操作             | DMLOperationsTest      | 13         | ✅ 高     |
+| SELECT查询          | SelectQueryTest        | 19         | ✅ 高     |
+| JOIN查询            | JoinQueryTest          | 10         | ✅ 高     |
+| 事务处理              | TransactionTest        | 8          | ✅ 高     |
+| 系统变量              | SystemVariableTest     | 15         | ✅ 高     |
+| 数据类型              | DataTypeTest           | 11         | ✅ 高     |
+| 索引约束              | IndexAndConstraintTest | 12         | ✅ 高     |
+| PreparedStatement | PreparedStatementTest  | 12         | ✅ 高     |
+| 性能测试              | PerformanceTest        | 8          | ✅ 中     |
+| **总计**            | **11个测试类**             | **126个测试** | **✅ 高** |
+
 
 ### SQL语句类型覆盖
 
@@ -393,13 +420,13 @@ assertThatThrownBy(() -> executeUpdate("INVALID SQL"))
 
 ### 待添加的测试
 
-- [x] JDBC 连接过程专项测试（见 JdbcConnectionTest）
-- [ ] 存储过程测试
-- [ ] 触发器测试
-- [ ] 视图测试
-- [ ] 用户权限测试
-- [ ] 并发测试
-- [ ] 压力测试
+- JDBC 连接过程专项测试（见 JdbcConnectionTest）
+- 存储过程测试
+- 触发器测试
+- 视图测试
+- 用户权限测试
+- 并发测试
+- 压力测试
 
 ### 贡献指南
 
@@ -419,4 +446,3 @@ assertThatThrownBy(() -> executeUpdate("INVALID SQL"))
 **最后更新：** 2026-03-17
 **测试框架版本：** JUnit 5.10.1
 **总测试用例数：** 126个（含 JdbcConnectionTest 7 个连接专项用例）
-

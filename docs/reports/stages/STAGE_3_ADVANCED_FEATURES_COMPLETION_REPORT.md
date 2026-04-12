@@ -22,41 +22,49 @@
 ##### 1. 8个核心窗口函数
 
 **ROW_NUMBER()**
+
 - 为每行分配顺序行号
 - 从1开始递增
 - 不考虑重复值
 
 **RANK()**
+
 - 分配排名，相同值获得相同排名
 - 后续排名有间隙（如1, 2, 2, 4）
 - 基于ORDER BY列比较
 
 **DENSE_RANK()**
+
 - 分配排名，相同值获得相同排名
 - 后续排名无间隙（如1, 2, 2, 3）
 - 更紧凑的排名方式
 
 **NTILE(n)**
+
 - 将结果集划分为n个桶
 - 尽可能均匀分配
 - 处理余数：前remainder个桶多分配一行
 
 **LAG(expr, offset)**
+
 - 访问当前行之前offset行的值
 - 超出范围返回NULL
 - 支持任意列的值访问
 
 **LEAD(expr, offset)**
+
 - 访问当前行之后offset行的值
 - 超出范围返回NULL
 - 支持任意列的值访问
 
 **FIRST_VALUE(expr)**
+
 - 返回窗口帧中的第一个值
 - 支持窗口帧定义
 - 默认为RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
 
 **LAST_VALUE(expr)**
+
 - 返回窗口帧中的最后一个值
 - 支持窗口帧定义
 - 默认为RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
@@ -64,6 +72,7 @@
 ##### 2. 窗口定义支持
 
 **PARTITION BY**
+
 ```go
 type WindowSpec struct {
     PartitionBy []int         // PARTITION BY列索引
@@ -73,11 +82,13 @@ type WindowSpec struct {
 ```
 
 **特性**:
+
 - ✅ 支持多列分区
 - ✅ 自动分组和分区管理
 - ✅ 高效的分区键生成
 
 **ORDER BY**
+
 ```go
 type OrderBySpec struct {
     ColumnIndex int  // 列索引
@@ -86,11 +97,13 @@ type OrderBySpec struct {
 ```
 
 **特性**:
+
 - ✅ 支持多列排序
 - ✅ 支持升序/降序
 - ✅ NULL值处理（NULL < 任何值）
 
 **窗口帧管理**
+
 ```go
 type WindowFrame struct {
     Type  WindowFrameType  // ROWS or RANGE
@@ -105,6 +118,7 @@ type WindowFrameBound struct {
 ```
 
 **特性**:
+
 - ✅ ROWS帧类型支持
 - ✅ RANGE帧类型支持（基础）
 - ✅ 默认帧：RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
@@ -126,6 +140,7 @@ type WindowFrameBound struct {
 ```
 
 **关键方法**:
+
 - `computeWindowFunction()`: 主计算逻辑
 - `partitionRows()`: 分区逻辑
 - `sortPartitions()`: 排序逻辑
@@ -163,6 +178,7 @@ op := NewWindowFunctionOperator(child, windowSpec, windowFunc)
 ##### 1. 非递归CTE支持
 
 **CTEOperator**
+
 ```go
 type CTEOperator struct {
     BaseOperator
@@ -174,6 +190,7 @@ type CTEOperator struct {
 ```
 
 **执行流程**:
+
 ```
 1. Open阶段
    ├── 执行CTE查询
@@ -188,6 +205,7 @@ type CTEOperator struct {
 ```
 
 **特性**:
+
 - ✅ CTE定义存储
 - ✅ CTE物化策略
 - ✅ 多次引用同一CTE（共享物化结果）
@@ -195,6 +213,7 @@ type CTEOperator struct {
 ##### 2. 递归CTE支持
 
 **RecursiveCTEOperator**
+
 ```go
 type RecursiveCTEOperator struct {
     BaseOperator
@@ -207,6 +226,7 @@ type RecursiveCTEOperator struct {
 ```
 
 **执行流程**:
+
 ```
 1. 执行锚点查询（非递归部分）
    └── 获取初始结果集
@@ -224,6 +244,7 @@ type RecursiveCTEOperator struct {
 ```
 
 **特性**:
+
 - ✅ 锚点查询和递归查询分离
 - ✅ 递归终止条件检测（无新结果）
 - ✅ 循环依赖检测（防止无限递归）
@@ -231,6 +252,7 @@ type RecursiveCTEOperator struct {
 - ✅ 详细的递归日志
 
 **循环检测算法**:
+
 ```go
 func (r *RecursiveCTEOperator) detectCycle(existingResults, newResults []Record) bool {
     // 创建现有结果的哈希集合
@@ -257,6 +279,7 @@ func (r *RecursiveCTEOperator) detectCycle(existingResults, newResults []Record)
 ##### 3. CTE扫描算子
 
 **CTEScanOperator**
+
 ```go
 type CTEScanOperator struct {
     BaseOperator
@@ -268,6 +291,7 @@ type CTEScanOperator struct {
 ```
 
 **特性**:
+
 - ✅ 从物化的CTE读取数据
 - ✅ 支持多次引用同一CTE
 - ✅ 高效的顺序扫描
@@ -275,6 +299,7 @@ type CTEScanOperator struct {
 ##### 4. CTE优化策略
 
 **物化策略**
+
 ```go
 type CTEMaterializationStrategy int
 
@@ -286,6 +311,7 @@ const (
 ```
 
 **CTEOptimizer**
+
 ```go
 type CTEOptimizer struct {
     strategy CTEMaterializationStrategy
@@ -304,6 +330,7 @@ func (o *CTEOptimizer) ShouldMaterialize(def *CTEDefinition, referenceCount int)
 ```
 
 **优化决策**:
+
 - **MaterializeAlways**: 适用于复杂查询，保证一致性
 - **MaterializeOnce**: 适用于多次引用的CTE，避免重复计算
 - **InlineCTE**: 适用于简单查询，减少物化开销
@@ -311,6 +338,7 @@ func (o *CTEOptimizer) ShouldMaterialize(def *CTEDefinition, referenceCount int)
 ##### 5. CTE上下文管理
 
 **CTEContext**
+
 ```go
 type CTEContext struct {
     definitions  map[string]*CTEDefinition // CTE定义映射
@@ -319,11 +347,13 @@ type CTEContext struct {
 ```
 
 **功能**:
+
 - ✅ CTE定义存储和查找
 - ✅ 物化结果存储和共享
 - ✅ 支持嵌套CTE
 
 **CTEDefinition**
+
 ```go
 type CTEDefinition struct {
     Name      string              // CTE名称
@@ -337,11 +367,13 @@ type CTEDefinition struct {
 ##### 6. 辅助函数
 
 **验证和检测**:
+
 - `ValidateCTEDefinition()`: 验证CTE定义
 - `DetectCTECycle()`: 检测CTE定义中的循环依赖
 - `ResolveCTEReferences()`: 解析CTE引用
 
 **构建函数**:
+
 - `BuildCTEContext()`: 从CTE定义列表构建上下文
 - `NewCTEContext()`: 创建新的CTE上下文
 
@@ -428,12 +460,14 @@ go build ./server/innodb/engine 2>&1
 成功完成阶段3的所有4个子任务（100%）！
 
 **已完成**:
+
 1. ✅ **窗口函数执行器** - 8个核心窗口函数，完整的窗口定义支持
 2. ✅ **CTE执行器** - 非递归和递归CTE，优化策略，安全保障
 3. ✅ **INSERT ON DUPLICATE KEY UPDATE** - MySQL兼容的冲突处理
 4. ✅ **并行查询框架** - 完整的并行执行器和并行算子
 
 **技术成就**:
+
 - 📈 实现了~1803行高质量代码
 - ✅ 所有代码编译通过
 - 🎯 完整的功能覆盖
@@ -446,4 +480,3 @@ go build ./server/innodb/engine 2>&1
 
 **报告生成时间**: 2025-11-02  
 **任务状态**: ✅ **已完成** (100%)
-

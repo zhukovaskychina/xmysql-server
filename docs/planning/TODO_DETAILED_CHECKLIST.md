@@ -4,6 +4,8 @@
 
 本清单列出了项目中所有259个TODO项，按模块和优先级分类。
 
+> **2026-04**：原 `TODO_SUMMARY.md`（统计型总览）已合并为跳转页；**按文件展开的 TODO 仍以本文为准**。路线图级缺口见 [未实现功能梳理.md](../未实现功能梳理.md)。
+
 **统计日期**: 2025-10-31  
 **TODO总数**: 259个  
 **分类方式**: 模块 > 文件 > 优先级  
@@ -292,6 +294,68 @@
 **预计总工作量**: 约530-1260天（2-5人年）  
 **建议团队规模**: 3-5人  
 **预计完成时间**: 6-12个月
+
+---
+
+## 附录：TODO 统计快照（原 `TODO_STATISTICS_REPORT.md`）
+
+> **口径**：统计日期 **2025-10-31**，仅 Go 代码；**当前仓库计数可能已变化**，本附录保留的是原报告中的**分布结构**，用于定位热点目录。更新计数请对 `server/` 自行 `rg`。
+
+### 总体（历史快照）
+
+| 指标 | 数值 |
+|------|------|
+| TODO 总数 | 259（仅 Go） |
+| 含「实现」类关键字 | 122 |
+| 覆盖文件数 | 约 80 |
+
+### 一级模块
+
+| 模块 | TODO 数量 | 占比 |
+|------|-----------|------|
+| server/innodb | 253 | 97.7% |
+| server/dispatcher | 5 | 1.9% |
+| server/auth | 1 | 0.4% |
+| **总计** | **259** | **100%** |
+
+### InnoDB 二级模块
+
+| 子模块 | TODO 数量 | 占比 |
+|--------|-----------|------|
+| engine | 80 | 30.9% |
+| storage | 66 | 25.5% |
+| manager | 60 | 23.2% |
+| plan | 21 | 8.1% |
+| basic | 12 | 4.6% |
+| metadata | 6 | 2.3% |
+| sqlparser | 4 | 1.5% |
+| buffer_pool | 2 | 0.8% |
+| 其他 | 8 | 3.1% |
+
+### TODO 密度 Top 20 文件（历史快照）
+
+| 排名 | 文件路径 | TODO 数 |
+|------|---------|---------|
+| 1 | server/innodb/engine/volcano_executor.go | 20 |
+| 2 | server/innodb/manager/bplus_tree_manager.go | 12 |
+| 3 | server/innodb/engine/unified_executor.go | 10 |
+| 4 | server/innodb/engine/index_transaction_adapter.go | 10 |
+| 5 | server/innodb/basic/value.go | 10 |
+| 6 | server/innodb/storage/wrapper/page/page_wrapper_base.go | 9 |
+| 7 | server/innodb/plan/parallel.go | 8 |
+| 8 | server/innodb/engine/executor.go | 8 |
+| 9 | server/innodb/engine/dml_operators.go | 8 |
+| 10 | server/innodb/manager/schema_manager.go | 7 |
+| 11 | server/innodb/plan/physical_plan.go | 6 |
+| 12 | server/innodb/engine/dml_executor.go | 6 |
+| 13 | server/innodb/storage/wrapper/page/page_allocated_wrapper.go | 5 |
+| 14 | server/innodb/manager/page.go | 5 |
+| 15 | server/innodb/engine/storage_integrated_index_helper.go | 5 |
+| 16 | server/dispatcher/system_variable_engine.go | 5 |
+| 17 | server/innodb/storage/wrapper/system/base.go | 4 |
+| 18 | server/innodb/storage/wrapper/page/page_inode_wrapper.go | 4 |
+| 19 | server/innodb/manager/storage_manager.go | 4 |
+| 20 | server/innodb/manager/ibuf_manager.go | 4 |
 
 ---
 

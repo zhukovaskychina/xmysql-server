@@ -1,5 +1,7 @@
 # B+树核心功能实施报告
 
+> **2026-04 维护说明**：本文为**早期实施交付记录**（规划+示例代码等），与 [BTREE_IMPLEMENTATION_SUMMARY.md](./BTREE_IMPLEMENTATION_SUMMARY.md) / [BTREE_IMPLEMENTATION_SUMMARY_V2.md](./BTREE_IMPLEMENTATION_SUMMARY_V2.md) 有重叠；**当前以路线图与索引为准**。索引：[BTREE_DOCUMENTATION_INDEX.md](./BTREE_DOCUMENTATION_INDEX.md)。
+
 ## 项目概况
 
 **项目名称**: XMySQL Server B+树核心功能完善  

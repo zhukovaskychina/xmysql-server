@@ -1,5 +1,7 @@
 # Storage 模块架构分析报告
 
+> **相关文档**：分层设计与使用指南见 [STORAGE_ARCHITECTURE.md](./STORAGE_ARCHITECTURE.md)。
+
 **分析日期**: 2025-10-29  
 **分析范围**: `server/innodb/storage` 目录  
 **分析者**: Augment Agent  

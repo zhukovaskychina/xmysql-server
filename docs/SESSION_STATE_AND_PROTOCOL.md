@@ -1,13 +1,17 @@
 # MySQL 协议会话状态与 handlePacket 逻辑说明
 
+> **文档状态（2026-04）**：技术说明仍有效；**总索引**见 [protocol/PROTOCOL_DOCUMENTATION_INDEX.md](./protocol/PROTOCOL_DOCUMENTATION_INDEX.md)。与预处理、握手细节并列阅读 [development/NET-001-PREPARED-STATEMENT-SUMMARY.md](./development/NET-001-PREPARED-STATEMENT-SUMMARY.md)。
+
 ## 1. COM_INIT_DB (0x02) 与 COM_QUERY (0x03) 的差异
 
-| 项目 | COM_INIT_DB (0x02) | COM_QUERY (0x03) |
-|------|--------------------|------------------|
-| **含义** | 协议层“切换当前数据库”命令 | 执行任意 SQL 文本（包括 `USE db`） |
-| **包体** | `[0x02][db_name]`（无 null 结尾） | `[0x03][SQL 文本]` |
-| **典型来源** | 部分客户端在连接后发 INIT_DB；或 UI 切换库时 | JDBC/CLI 执行 `USE demo_db` 时通常发 COM_QUERY |
+
+| 项目        | COM_INIT_DB (0x02)                        | COM_QUERY (0x03)                                       |
+| --------- | ----------------------------------------- | ------------------------------------------------------ |
+| **含义**    | 协议层“切换当前数据库”命令                            | 执行任意 SQL 文本（包括 `USE db`）                               |
+| **包体**    | `[0x02][db_name]`（无 null 结尾）              | `[0x03][SQL 文本]`                                       |
+| **典型来源**  | 部分客户端在连接后发 INIT_DB；或 UI 切换库时              | JDBC/CLI 执行 `USE demo_db` 时通常发 COM_QUERY               |
 | **服务端必须** | 解析 db 名 → **更新 session.currentDB** → 回 OK | 解析 SQL → 执行（若为 USE 则引擎内 **更新 session.currentDB**）→ 回结果 |
+
 
 要点：
 
@@ -79,31 +83,30 @@ func (h *DecoupledMySQLMessageHandler) handlePacket(session Session, currentMysq
 
 ## 4. 调试建议
 
-1. **打日志确认 currentDB 是否被写入/读出**  
-   - 在 COM_INIT_DB 分支里：打完 `SetParamByName("database", dbName)` 后打一条日志，带上 `dbName` 和 `session.Stat()`（或连接 ID）。  
-   - 在 `handleQueryMessageDirect` 里：从 `currentMysqlSession.GetParamByName("database")` 取出当前库，每条 COM_QUERY 打一条日志（query 前几字 + currentDB）。  
-   - 在引擎执行 USE 时：打一条 “USE 已设置 session.database = xxx”。  
-   - 在 CREATE TABLE 入口：打一条 “executeCreateTableStatement databaseName=xxx”。
-
-2. **确认 JDBC 发的是 COM_QUERY 还是 COM_INIT_DB**  
-   - 抓包或服务端在 `handlePacket` 里对 `firstByte` 打日志；若看到 `0x03` + “USE demo_db”，说明是 COM_QUERY，必须用真实 session 执行 USE。
-
-3. **确认是否走了“真实 session”路径**  
-   - 在 `HandleQueryWithRealSession` 入口打日志；在 `Dispatch(realSession, query, database)` 处打 `database` 和 `session` 的标识（如指针或 sessionID），确认和上一句 USE 是同一 session。
-
-4. **单测**  
-   - 建一个连接，发 COM_INIT_DB "demo_db"，再发 COM_QUERY "CREATE TABLE t1(id int)"，断言成功且表在 demo_db。  
-   - 同一连接先发 COM_QUERY "USE demo_db"，再发 COM_QUERY "CREATE TABLE t2(id int)"，同样断言成功。
+1. **打日志确认 currentDB 是否被写入/读出**
+  - 在 COM_INIT_DB 分支里：打完 `SetParamByName("database", dbName)` 后打一条日志，带上 `dbName` 和 `session.Stat()`（或连接 ID）。  
+  - 在 `handleQueryMessageDirect` 里：从 `currentMysqlSession.GetParamByName("database")` 取出当前库，每条 COM_QUERY 打一条日志（query 前几字 + currentDB）。  
+  - 在引擎执行 USE 时：打一条 “USE 已设置 session.database = xxx”。  
+  - 在 CREATE TABLE 入口：打一条 “executeCreateTableStatement databaseName=xxx”。
+2. **确认 JDBC 发的是 COM_QUERY 还是 COM_INIT_DB**
+  - 抓包或服务端在 `handlePacket` 里对 `firstByte` 打日志；若看到 `0x03` + “USE demo_db”，说明是 COM_QUERY，必须用真实 session 执行 USE。
+3. **确认是否走了“真实 session”路径**
+  - 在 `HandleQueryWithRealSession` 入口打日志；在 `Dispatch(realSession, query, database)` 处打 `database` 和 `session` 的标识（如指针或 sessionID），确认和上一句 USE 是同一 session。
+4. **单测**
+  - 建一个连接，发 COM_INIT_DB "demo_db"，再发 COM_QUERY "CREATE TABLE t1(id int)"，断言成功且表在 demo_db。  
+  - 同一连接先发 COM_QUERY "USE demo_db"，再发 COM_QUERY "CREATE TABLE t2(id int)"，同样断言成功。
 
 ---
 
 ## 5. 当前 xmysql-server 中的“上下文状态”实现情况
 
-| 状态项 | 是否实现 | 存放位置 | 说明 |
-|--------|----------|----------|------|
-| **currentDB** | ✅ 已实现 | `session.SetParamByName("database", name)` / 底层 `Session.SetAttribute("database", name)` | 认证、COM_INIT_DB、USE 语句都会写入；CREATE TABLE 等从同一 session 读取。修复后 COM_QUERY 使用真实 session，USE 会正确更新。 |
-| **user** | ✅ 已实现 | `session.SetParamByName("user", username)` | 认证时写入，权限/审计等处读取。 |
-| **autocommit** | ⚠️ 部分实现 | 引擎/系统变量层有解析与 SetParamByName(autocommit)；部分从 session 读 | 在 executor 的 SET 处理里有 `session.SetParamByName("autocommit", ...)`；是否所有路径都从 session 读需再确认。 |
-| **txStatus**（事务是否开启） | ❓ 未显式见 | - | 未见统一的 “in_transaction” 会话状态；若要做事务语义，需要在 BEGIN/COMMIT/ROLLBACK 及 autocommit 路径维护。 |
+
+| 状态项                  | 是否实现    | 存放位置                                                                                     | 说明                                                                                           |
+| -------------------- | ------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| **currentDB**        | ✅ 已实现   | `session.SetParamByName("database", name)` / 底层 `Session.SetAttribute("database", name)` | 认证、COM_INIT_DB、USE 语句都会写入；CREATE TABLE 等从同一 session 读取。修复后 COM_QUERY 使用真实 session，USE 会正确更新。 |
+| **user**             | ✅ 已实现   | `session.SetParamByName("user", username)`                                               | 认证时写入，权限/审计等处读取。                                                                             |
+| **autocommit**       | ⚠️ 部分实现 | 引擎/系统变量层有解析与 SetParamByName(autocommit)；部分从 session 读                                    | 在 executor 的 SET 处理里有 `session.SetParamByName("autocommit", ...)`；是否所有路径都从 session 读需再确认。    |
+| **txStatus**（事务是否开启） | ❓ 未显式见  | -                                                                                        | 未见统一的 “in_transaction” 会话状态；若要做事务语义，需要在 BEGIN/COMMIT/ROLLBACK 及 autocommit 路径维护。             |
+
 
 结论：**currentDB** 和 **user** 已按“会话状态”维护；**autocommit** 有写入和部分使用；**txStatus** 若需要，建议在事务边界（BEGIN/COMMIT/ROLLBACK）和 autocommit 逻辑里显式维护一个 session 级标志并在需要处读取。

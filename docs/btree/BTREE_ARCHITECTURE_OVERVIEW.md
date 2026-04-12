@@ -1,5 +1,7 @@
 # B+树索引架构概览
 
+> **文档导航（2026-04）**：总索引 [BTREE_DOCUMENTATION_INDEX.md](./BTREE_DOCUMENTATION_INDEX.md)；路线图 [../development/DEVELOPMENT_ROADMAP_TASKS.md](../development/DEVELOPMENT_ROADMAP_TASKS.md)。
+
 ## 设计理念
 
 XMySQL Server的B+树索引模块采用分层架构设计，将索引管理、B+树操作、缓存策略和存储管理解耦，实现高性能、高可靠、高可维护的数据库索引系统。

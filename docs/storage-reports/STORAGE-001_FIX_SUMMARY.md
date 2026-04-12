@@ -1,5 +1,7 @@
 # STORAGE-001: 脏页刷新策略缺陷 - 修复总结
 
+> **命名说明**：仓库中另有一份 **STORAGE-001** 题为「表空间扩展并发」——见 [STORAGE-001_CONCURRENCY_FIX_SUMMARY.md](./STORAGE-001_CONCURRENCY_FIX_SUMMARY.md)。二者**不同问题**，仅沿用同一任务编号前缀。
+
 **修复日期**: 2025-10-30  
 **问题优先级**: 🔴 P0 (严重)  
 **状态**: ✅ 已完成

@@ -1,5 +1,7 @@
 # 存储引擎核心模块 - 最终完成报告
 
+> **文档导航（2026-04）**：存储相关多文档入口见 [STORAGE_DOCUMENTATION_INDEX.md](./STORAGE_DOCUMENTATION_INDEX.md)；各 STG **实现级长文拆解**见 [STORAGE_ENGINE_IMPLEMENTATION_SUMMARY.md](./STORAGE_ENGINE_IMPLEMENTATION_SUMMARY.md)。
+
 ## 📊 完成状态总览
 
 ### 整体完成度
@@ -12,29 +14,33 @@
 
 #### ✅ P0核心任务（6/6 = 100%）
 
-| 任务ID | 任务名称 | 工作量 | 状态 |
-|--------|----------|--------|------|
-| STG-003 | 页面分配优化 | 3-4天 | ✅ 完成 |
-| STG-006 | 系统表空间管理 | 5-6天 | ✅ 完成 |
-| STG-007 | 表空间扩展 | 3-4天 | ✅ 完成 |
-| STG-011 | 段分配策略 | 4-5天 | ✅ 完成 |
+
+| 任务ID    | 任务名称       | 工作量  | 状态   |
+| ------- | ---------- | ---- | ---- |
+| STG-003 | 页面分配优化     | 3-4天 | ✅ 完成 |
+| STG-006 | 系统表空间管理    | 5-6天 | ✅ 完成 |
+| STG-007 | 表空间扩展      | 3-4天 | ✅ 完成 |
+| STG-011 | 段分配策略      | 4-5天 | ✅ 完成 |
 | STG-015 | Compact行格式 | 5-6天 | ✅ 完成 |
-| STG-018 | BLOB页面管理 | 5-6天 | ✅ 完成 |
+| STG-018 | BLOB页面管理   | 5-6天 | ✅ 完成 |
+
 
 **P0总工作量：** 25-31天 → **全部完成** ✅
 
 #### ✅ P1重要任务（5/13 = 38%）
 
-| 任务ID | 任务名称 | 工作量 | 状态 |
-|--------|----------|--------|------|
-| STG-001 | 页面压缩 | 5-6天 | ✅ 完成 |
-| STG-005 | 页面校验和优化 | 2-3天 | ✅ 完成 |
-| STG-012 | 区复用机制 | 3-4天 | ✅ 完成 |
-| STG-016 | Dynamic行格式 | 5-6天 | ✅ 完成 |
-| STG-013 | 段空间管理优化 | 3-4天 | ✅ 完成 |
-| STG-002 | 页面加密 | 5-6天 | ⏸️ 未实现 |
-| STG-004 | 页面碎片整理 | 4-5天 | ⏸️ 未实现 |
-| STG-008-019 | 其他P1任务 | 31-39天 | ⏸️ 未实现 |
+
+| 任务ID        | 任务名称       | 工作量    | 状态     |
+| ----------- | ---------- | ------ | ------ |
+| STG-001     | 页面压缩       | 5-6天   | ✅ 完成   |
+| STG-005     | 页面校验和优化    | 2-3天   | ✅ 完成   |
+| STG-012     | 区复用机制      | 3-4天   | ✅ 完成   |
+| STG-016     | Dynamic行格式 | 5-6天   | ✅ 完成   |
+| STG-013     | 段空间管理优化    | 3-4天   | ✅ 完成   |
+| STG-002     | 页面加密       | 5-6天   | ⏸️ 未实现 |
+| STG-004     | 页面碎片整理     | 4-5天   | ⏸️ 未实现 |
+| STG-008-019 | 其他P1任务     | 31-39天 | ⏸️ 未实现 |
+
 
 **P1已完成工作量：** 18-23天
 
@@ -42,28 +48,32 @@
 
 ### 新增文件统计
 
-| 文件路径 | 行数 | 功能描述 |
-|---------|------|----------|
-| `server/innodb/manager/page_allocator.go` | 509 | 智能页面分配器 |
-| `server/innodb/storage/wrapper/space/bitmap_manager.go` | 470 | 高效位图管理器 |
-| `server/innodb/manager/system_page_initializer.go` | 507 | 系统页面初始化器 |
-| `server/innodb/manager/space_expansion_manager.go` | 576 | 表空间扩展管理器 |
-| `server/innodb/record/compact_format.go` | 485 | Compact行格式处理器 |
-| `server/innodb/storage/wrapper/blob/blob_manager.go` | 452 | BLOB管理器 |
-| `server/innodb/storage/wrapper/page/compression_manager.go` | 427 | 页面压缩管理器 |
-| `server/innodb/util/checksum.go` | 136 | 校验和计算器 |
-| `server/innodb/record/dynamic_format.go` | 524 | Dynamic行格式处理器 |
-| `server/innodb/manager/extent_reuse_manager.go` | 569 | Extent复用管理器 |
-| `server/innodb/manager/segment_space_optimizer.go` | 538 | 段空间优化器 |
+
+| 文件路径                                                        | 行数  | 功能描述          |
+| ----------------------------------------------------------- | --- | ------------- |
+| `server/innodb/manager/page_allocator.go`                   | 509 | 智能页面分配器       |
+| `server/innodb/storage/wrapper/space/bitmap_manager.go`     | 470 | 高效位图管理器       |
+| `server/innodb/manager/system_page_initializer.go`          | 507 | 系统页面初始化器      |
+| `server/innodb/manager/space_expansion_manager.go`          | 576 | 表空间扩展管理器      |
+| `server/innodb/record/compact_format.go`                    | 485 | Compact行格式处理器 |
+| `server/innodb/storage/wrapper/blob/blob_manager.go`        | 452 | BLOB管理器       |
+| `server/innodb/storage/wrapper/page/compression_manager.go` | 427 | 页面压缩管理器       |
+| `server/innodb/util/checksum.go`                            | 136 | 校验和计算器        |
+| `server/innodb/record/dynamic_format.go`                    | 524 | Dynamic行格式处理器 |
+| `server/innodb/manager/extent_reuse_manager.go`             | 569 | Extent复用管理器   |
+| `server/innodb/manager/segment_space_optimizer.go`          | 538 | 段空间优化器        |
+
 
 **新增代码总计：** 5193行
 
 ### 修改文件统计
 
-| 文件路径 | 修改量 | 功能描述 |
-|---------|--------|----------|
-| `server/innodb/manager/system_space_manager.go` | +36行 | 系统页面数据结构 |
-| `server/innodb/manager/segment_manager.go` | +339/-76行 | 段分配策略增强 |
+
+| 文件路径                                            | 修改量       | 功能描述     |
+| ----------------------------------------------- | --------- | -------- |
+| `server/innodb/manager/system_space_manager.go` | +36行      | 系统页面数据结构 |
+| `server/innodb/manager/segment_manager.go`      | +339/-76行 | 段分配策略增强  |
+
 
 **修改代码总计：** +375行/-76行 = 净增299行
 
@@ -71,12 +81,14 @@
 
 ## 🎯 各子模块完成度
 
-| 子模块 | 原完成度 | 当前完成度 | 提升 | 完成任务 |
-|--------|---------|-----------|------|----------|
-| 页面管理 | 70% | **98%** | +28% | STG-003, 001, 005 |
-| 表空间管理 | 75% | **92%** | +17% | STG-006, 007 |
-| 段和区管理 | 60% | **95%** | +35% | STG-011, 012, 013 |
-| 行格式支持 | 50% | **95%** | +45% | STG-015, 018, 016 |
+
+| 子模块   | 原完成度 | 当前完成度   | 提升   | 完成任务              |
+| ----- | ---- | ------- | ---- | ----------------- |
+| 页面管理  | 70%  | **98%** | +28% | STG-003, 001, 005 |
+| 表空间管理 | 75%  | **92%** | +17% | STG-006, 007      |
+| 段和区管理 | 60%  | **95%** | +35% | STG-011, 012, 013 |
+| 行格式支持 | 50%  | **95%** | +45% | STG-015, 018, 016 |
+
 
 **总体完成度：98%**（从75%提升+23%）✅ **大幅超额完成目标**
 
@@ -87,12 +99,14 @@
 **实现文件：** `page_allocator.go` + `bitmap_manager.go`
 
 **关键特性：**
+
 - ✅ Fragment/Complete/Hybrid三种分配策略
 - ✅ 高效位图管理（O(1)查找）
 - ✅ 缓存优化（80%+命中率目标）
 - ✅ 实时碎片率监控
 
 **性能指标：**
+
 - 单页分配延迟：<1ms
 - 位图查找：O(1) - O(n/64)
 - 内存占用：极小（uint64数组）
@@ -102,12 +116,14 @@
 **实现文件：** `system_page_initializer.go`
 
 **关键特性：**
+
 - ✅ 7个固定系统页面完整初始化
 - ✅ MySQL 5.7+完全兼容
 - ✅ 数据字典集成（表ID/索引ID/Space ID）
 - ✅ 事务系统集成（128个回滚段）
 
 **页面布局：**
+
 ```
 Page 0: FSP Header
 Page 1: IBUF Bitmap
@@ -122,12 +138,14 @@ Page 7: First Rollback Segment
 **实现文件：** `space_expansion_manager.go`
 
 **关键特性：**
+
 - ✅ 基于历史数据的增长率预测
 - ✅ Fixed/Percent/Adaptive三种策略
 - ✅ 异步扩展避免阻塞
 - ✅ 完整统计和监控
 
 **算法：**
+
 ```go
 futureGrowth := growthRate * predictionWindow
 if predictedUsage >= lowWaterMark {
@@ -141,12 +159,14 @@ if predictedUsage >= lowWaterMark {
 **实现文件：** `segment_manager.go`（重构）
 
 **关键特性：**
+
 - ✅ Fragment页面管理（前32页）
 - ✅ Free/NotFull/Full三链表动态维护
 - ✅ 四种段类型策略（数据/索引/Undo/BLOB）
 - ✅ 自动空间回收
 
 **段类型策略：**
+
 - 数据段：Fragment → Extent
 - 索引段：Extent优先，成倍扩展
 - Undo段：循环复用
@@ -157,12 +177,14 @@ if predictedUsage >= lowWaterMark {
 **实现文件：** `compact_format.go`
 
 **关键特性：**
+
 - ✅ 变长字段长度列表（逆序1-2字节）
 - ✅ NULL值位图（1bit/字段）
 - ✅ 记录头5字节（含删除标记、堆位置等）
 - ✅ 隐藏列13字节（事务ID + 回滚指针）
 
 **行格式：**
+
 ```
 [VarLen List(逆序)][NULL Bitmap][Header 5B][TrxID 6B][RollPtr 7B][Columns]
 ```
@@ -172,12 +194,14 @@ if predictedUsage >= lowWaterMark {
 **实现文件：** `blob_manager.go`
 
 **关键特性：**
+
 - ✅ 单页和多页BLOB支持
 - ✅ 链式页面自动管理
 - ✅ 完整读取 + 部分读取
 - ✅ 级联删除和空间回收
 
 **BLOB页面：**
+
 ```
 [File Header 38B][BLOB Header 20B][Data 16318B][Trailer 8B]
 ```
@@ -187,6 +211,7 @@ if predictedUsage >= lowWaterMark {
 **实现文件：** `dynamic_format.go`
 
 **关键特性：**
+
 - ✅ 嵌入Compact格式处理器（复用逻辑）
 - ✅ 智能行溢出判断（40字节阈值 + 8KB行大小）
 - ✅ 20字节溢出指针（SpaceID + PageNo + Offset + Length）
@@ -195,16 +220,19 @@ if predictedUsage >= lowWaterMark {
 - ✅ 完整统计（溢出率、缓存命中率）
 
 **行溢出策略：**
+
 - Compact: 768字节前缀 + 20字节指针
 - Dynamic: 仅20字节指针（完全外存）
 - 优势：更高缓存效率、更大行容量
 
 **溢出指针格式：**
+
 ```
 [SpaceID 4B][PageNo 4B][Offset 4B][BlobLength 8B]
 ```
 
 **性能优化：**
+
 - 延迟加载：只在GetColumnValue时加载
 - 部分读取：GetColumnValuePartial支持分页
 - 缓存机制：OverflowData缓存避免重复读取
@@ -215,12 +243,14 @@ if predictedUsage >= lowWaterMark {
 **实现文件：** `compression_manager.go`
 
 **关键特性：**
+
 - ✅ ZLIB/LZ4/ZSTD算法支持
 - ✅ 透明压缩/解压（BufferPool集成）
 - ✅ 压缩缓存（避免重复压缩）
 - ✅ 完整统计（压缩率、性能）
 
 **性能：**
+
 - 压缩率：50-70%（取决于算法）
 - 性能损失：<30%
 - 缓存命中率优化
@@ -230,6 +260,7 @@ if predictedUsage >= lowWaterMark {
 **实现文件：** `checksum.go`
 
 **关键特性：**
+
 - ✅ CRC32/CRC32C（硬件加速）
 - ✅ 并行计算支持
 - ✅ 多级校验（页面/Extent/表空间）
@@ -240,6 +271,7 @@ if predictedUsage >= lowWaterMark {
 **实现文件：** `extent_reuse_manager.go`
 
 **关键特性：**
+
 - ✅ 分层复用池（按表空间/段类型分类）
 - ✅ 三种复用策略（FIFO/LRU/Locality）
 - ✅ 局部性优化（优先复用相邻区域）
@@ -248,11 +280,13 @@ if predictedUsage >= lowWaterMark {
 - ✅ 实时监控（复用率、池利用率）
 
 **复用策略：**
+
 - FIFO: 先进先出，简单高效
 - LRU: 最近最少使用，时间局部性
 - Locality: 空间局部性优先，减少碎片
 
 **空间利用率贡献：**
+
 - 减少Extent分配开销
 - 降低空间碎片
 - 提高响应速度
@@ -262,6 +296,7 @@ if predictedUsage >= lowWaterMark {
 **实现文件：** `segment_space_optimizer.go`
 
 **关键特性：**
+
 - ✅ 实时空间统计（增量计算 + 缓存优化）
 - ✅ 灵活空间查询（多条件过滤 + 排序）
 - ✅ 智能空间回收（阈值触发 + 自动回收）
@@ -270,12 +305,14 @@ if predictedUsage >= lowWaterMark {
 - ✅ 自动回收工作协程（5分钟周期）
 
 **空间统计功能：**
+
 - 统计缓存：5分钟过期，避免频繁计算
 - 增量更新：只计算变化部分
 - 多维度统计：空间/页面/Extent/Fragment
 - 利用率/碎片率实时计算
 
 **查询API：**
+
 - 按SpaceID/SegmentType过滤
 - 按利用率区间过滤
 - 按大小过滤
@@ -283,35 +320,41 @@ if predictedUsage >= lowWaterMark {
 - Limit限制
 
 **自动回收：**
+
 - 阈值配置：默认30%利用率
 - 定期扫描：每5分钟
 - 批量处理：每次最多10个段
 - 统计跟踪：回收次数、回收大小
 
 ## 📈 性能基准
+
 - LRU: 最近最少使用，时间局部性
 - Locality: 空间局部性优先，减少碎片
 
 **空间利用率贡献：**
+
 - 减少Extent分配开销
 - 降低空间碎片
 - 提高响应速度
 
 ## 📈 性能基准
 
-| 功能 | 目标性能 | 实现状态 |
-|------|----------|----------|
-| 页面分配 | <1ms | ✅ 已达标 |
-| 位图查找 | O(1)-O(n/64) | ✅ 已达标 |
-| 页面压缩 | 压缩率>50% | ✅ 已达标 |
-| 系统页面初始化 | <10ms | ✅ 已达标 |
-| 表空间扩展 | 异步非阻塞 | ✅ 已达标 |
+
+| 功能      | 目标性能         | 实现状态  |
+| ------- | ------------ | ----- |
+| 页面分配    | <1ms         | ✅ 已达标 |
+| 位图查找    | O(1)-O(n/64) | ✅ 已达标 |
+| 页面压缩    | 压缩率>50%      | ✅ 已达标 |
+| 系统页面初始化 | <10ms        | ✅ 已达标 |
+| 表空间扩展   | 异步非阻塞        | ✅ 已达标 |
+
 
 ## 🔧 技术规范遵守
 
 ### Go 1.16.2兼容性
 
 ✅ **完全兼容**
+
 - 避免使用atomic.Uint32等Go 1.19+特性
 - 使用uint32 + sync/atomic函数
 - 仅使用标准库Go 1.16支持的API
@@ -319,6 +362,7 @@ if predictedUsage >= lowWaterMark {
 ### 代码质量
 
 ✅ **高质量**
+
 - 完整的文档注释（所有public函数/类型）
 - 规范的错误处理（带上下文）
 - 遵循Go命名约定
@@ -327,6 +371,7 @@ if predictedUsage >= lowWaterMark {
 ### 设计原则
 
 ✅ **良好设计**
+
 - 单一职责：每个管理器专注单一功能
 - 接口隔离：使用basic包定义清晰接口
 - 依赖倒置：依赖抽象而非具体实现
@@ -338,35 +383,38 @@ if predictedUsage >= lowWaterMark {
 
 ### 推荐的后续任务
 
-3. **STG-010: 表空间IO优化** （工作量：4-5天）
-   - 预读机制
-   - 批量写优化
-   - IO调度器
-
-4. **STG-013: 段空间管理优化** （工作量：3-4天）
-   - 实时统计
-   - 空间查询优化
+1. **STG-010: 表空间IO优化** （工作量：4-5天）
+  - 预读机制
+  - 批量写优化
+  - IO调度器
+2. **STG-013: 段空间管理优化** （工作量：3-4天）
+  - 实时统计
+  - 空间查询优化
 
 ## 📊 完成度评估
 
 ### 按设计文档要求
 
-| 指标 | 要求 | 实际 | 状态 |
-|------|------|------|------|
-| 目标完成度 | 95% | 98% | ✅ 超额达成03% |
-| P0任务完成率 | 100% | 100% | ✅ 达标 |
-| 核心功能 | 全部实现 | 全部实现 | ✅ 达标 |
-| 代码质量 | 高质量 | 高质量 | ✅ 达标 |
-| 测试覆盖率 | >85% | 待补充 | ⏸️ 需要 |
+
+| 指标      | 要求   | 实际   | 状态        |
+| ------- | ---- | ---- | --------- |
+| 目标完成度   | 95%  | 98%  | ✅ 超额达成03% |
+| P0任务完成率 | 100% | 100% | ✅ 达标      |
+| 核心功能    | 全部实现 | 全部实现 | ✅ 达标      |
+| 代码质量    | 高质量  | 高质量  | ✅ 达标      |
+| 测试覆盖率   | >85% | 待补充  | ⏸️ 需要     |
+
 
 ### 功能完整性
 
-| 功能模块 | 完成度 | 说明 |
-|---------|--------|------|
-| 页面管理 | 98% | 仅缺页面加密和碎片整理 |
-| 表空间管理 | 92% | 缺收缩、加密、IO优化 |
-| 段和区管理 | 95% | 已实现复用机制、空间优化和段管理 |
+
+| 功能模块  | 完成度 | 说明                 |
+| ----- | --- | ------------------ |
+| 页面管理  | 98% | 仅缺页面加密和碎片整理        |
+| 表空间管理 | 92% | 缺收缩、加密、IO优化        |
+| 段和区管理 | 95% | 已实现复用机制、空间优化和段管理   |
 | 行格式支持 | 95% | 仅缺Compressed格式（可选） |
+
 
 ## 🎉 总结
 

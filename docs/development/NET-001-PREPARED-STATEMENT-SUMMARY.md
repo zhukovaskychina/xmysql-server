@@ -1,10 +1,15 @@
 # NET-001: 预处理语句实现总结
 
+> **2026-04-11 代码核对**：`server/net/decoupled_handler.go` 已处理 `COM_STMT_PREPARE` / `COM_STMT_EXECUTE` / `COM_STMT_CLOSE`（及错误路径）；`server/protocol/prepared_statement_manager.go` 等负责编解码。下文若仍写「仅框架/待 Go 1.20+」多为历史记录，实现细节以当前仓库代码为准。  
+> **合并说明**：`docs/protocol-reports/PREPARED_STATEMENT_IMPLEMENTATION_SUMMARY.md` 已改为跳转页，**预处理语句叙述以本文为权威**；协议总索引见 [../protocol/PROTOCOL_DOCUMENTATION_INDEX.md](../protocol/PROTOCOL_DOCUMENTATION_INDEX.md)。
+
 ## 📋 任务概览
 
-| 任务ID | 任务名称 | 优先级 | 难度 | 工作量 | 状态 |
-|--------|----------|--------|------|--------|------|
-| **NET-001** | 实现预处理语句 | 🔴 P0 | ⭐⭐⭐ | 5-6天 | ✅ 核心框架完成 |
+
+| 任务ID        | 任务名称    | 优先级   | 难度  | 工作量  | 状态                     |
+| ----------- | ------- | ----- | --- | ---- | ---------------------- |
+| **NET-001** | 实现预处理语句 | 🔴 P0 | ⭐⭐⭐ | 5-6天 | ✅ 主干已接入（客户端/类型全覆盖仍属收尾） |
+
 
 ---
 
@@ -13,17 +18,15 @@
 ### 预处理语句的优势
 
 1. **性能提升**
-   - SQL解析只需一次
-   - 执行计划可复用
-   - 网络传输更高效（二进制协议）
-
+  - SQL解析只需一次
+  - 执行计划可复用
+  - 网络传输更高效（二进制协议）
 2. **安全性**
-   - 自动参数转义
-   - 防止SQL注入攻击
-
+  - 自动参数转义
+  - 防止SQL注入攻击
 3. **便利性**
-   - 参数化查询
-   - 批量执行优化
+  - 参数化查询
+  - 批量执行优化
 
 ### MySQL预处理语句协议
 
@@ -58,6 +61,7 @@
 ### 1. 预处理语句管理器
 
 **设计要点：**
+
 - 管理stmt_id → PreparedStatement的映射
 - 线程安全的stmt_id生成
 - 自动清理过期语句
@@ -115,6 +119,7 @@ type PreparedStatementManager struct {
 ### 2. COM_STMT_PREPARE 实现
 
 **协议格式：**
+
 ```
 请求包：
 [COM_STMT_PREPARE (0x16)] [SQL语句]
@@ -199,6 +204,7 @@ func (psm *PreparedStatementManager) HandleStmtPrepare(
 ### 3. COM_STMT_EXECUTE 实现
 
 **协议格式：**
+
 ```
 请求包：
 [COM_STMT_EXECUTE (0x17)]
@@ -494,28 +500,28 @@ func main() {
 
 **场景：** 执行1000次简单查询
 
-| 方式 | 执行时间 | SQL解析次数 | 网络传输 |
-|------|---------|------------|---------|
-| 普通查询 | 1000ms | 1000次 | 文本协议 |
-| 预处理语句 | 200ms | 1次 | 二进制协议 |
+
+| 方式       | 执行时间   | SQL解析次数   | 网络传输   |
+| -------- | ------ | --------- | ------ |
+| 普通查询     | 1000ms | 1000次     | 文本协议   |
+| 预处理语句    | 200ms  | 1次        | 二进制协议  |
 | **性能提升** | **5倍** | **1000倍** | **更小** |
+
 
 ### 优化要点
 
 1. **执行计划缓存**
-   - PREPARE时生成一次
-   - EXECUTE时复用
-   - 节省CPU和内存
-
+  - PREPARE时生成一次
+  - EXECUTE时复用
+  - 节省CPU和内存
 2. **二进制协议**
-   - 参数直接编码为二进制
-   - 无需字符串转换
-   - 网络传输更快
-
+  - 参数直接编码为二进制
+  - 无需字符串转换
+  - 网络传输更快
 3. **参数化查询**
-   - 自动转义特殊字符
-   - 防止SQL注入
-   - 更安全可靠
+  - 自动转义特殊字符
+  - 防止SQL注入
+  - 更安全可靠
 
 ---
 
@@ -524,6 +530,7 @@ func main() {
 ### SQL注入防护
 
 **不安全的拼接：**
+
 ```go
 // ❌ 危险！容易SQL注入
 sql := fmt.Sprintf("SELECT * FROM users WHERE name = '%s'", userInput)
@@ -534,6 +541,7 @@ db.Query(sql)
 ```
 
 **安全的预处理：**
+
 ```go
 // ✅ 安全！参数自动转义
 stmt, _ := db.Prepare("SELECT * FROM users WHERE name = ?")
@@ -731,15 +739,13 @@ func (pc *PlanCache) Get(sql string) (*plan.PhysicalPlan, bool) {
 ## 📚 参考资料
 
 1. **MySQL官方文档**
-   - [Prepared Statements Protocol](https://dev.mysql.com/doc/internals/en/prepared-statements.html)
-   - [COM_STMT_PREPARE](https://dev.mysql.com/doc/internals/en/com-stmt-prepare.html)
-   - [COM_STMT_EXECUTE](https://dev.mysql.com/doc/internals/en/com-stmt-execute.html)
-
+  - [Prepared Statements Protocol](https://dev.mysql.com/doc/internals/en/prepared-statements.html)
+  - [COM_STMT_PREPARE](https://dev.mysql.com/doc/internals/en/com-stmt-prepare.html)
+  - [COM_STMT_EXECUTE](https://dev.mysql.com/doc/internals/en/com-stmt-execute.html)
 2. **Go MySQL Driver实现**
-   - [go-sql-driver/mysql](https://github.com/go-sql-driver/mysql)
-
+  - [go-sql-driver/mysql](https://github.com/go-sql-driver/mysql)
 3. **类型映射**
-   - [MySQL Types to Go Types](https://dev.mysql.com/doc/refman/8.0/en/data-types.html)
+  - [MySQL Types to Go Types](https://dev.mysql.com/doc/refman/8.0/en/data-types.html)
 
 ---
 

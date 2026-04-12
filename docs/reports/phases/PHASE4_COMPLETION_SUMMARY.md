@@ -17,12 +17,14 @@
 ### 1. **OPT-001: 谓词下推优化（Predicate Pushdown）** ✅
 
 #### 实现状态
+
 - **状态**: ✅ **已完整实现**（在之前的开发中）
 - **文件**: `server/innodb/plan/optimizer.go`
 - **函数**: `pushDownPredicates()`
 - **行数**: 102-227
 
 #### 已实现功能
+
 1. ✅ **CNF 转换集成** - 使用 CNFConverter 将条件转换为合取范式
 2. ✅ **基本下推逻辑** - 支持下推到 TableScan 和 IndexScan
 3. ✅ **JOIN 条件分离** - 将 JOIN 条件分解为左右表的过滤条件
@@ -30,40 +32,38 @@
 5. ✅ **外连接安全检查** - 只对 INNER JOIN 进行下推
 
 #### 关键代码
-<augment_code_snippet path="server/innodb/plan/optimizer.go" mode="EXCERPT">
-````go
-// pushDownPredicates 谓词下推优化
-func pushDownPredicates(plan LogicalPlan) LogicalPlan {
-    switch v := plan.(type) {
-    case *LogicalSelection:
-        // 创建CNF转换器
-        cnfConverter := NewCNFConverter()
-        
-        // 将过滤条件转换为CNF形式
-        normalizedConds := make([]Expression, len(v.Conditions))
-        for i, cond := range v.Conditions {
-            normalizedConds[i] = cnfConverter.ConvertToCNF(cond)
-        }
-        
-        // 提取CNF中的合取子句
-        var allConjuncts []Expression
-        for _, cond := range normalizedConds {
-            conjuncts := cnfConverter.ExtractConjuncts(cond)
-            allConjuncts = append(allConjuncts, conjuncts...)
-        }
-        
-        // 尝试将选择条件下推到子节点
-        child := v.Children()[0]
-        switch childPlan := child.(type) {
-        case *LogicalTableScan, *LogicalIndexScan:
-            return mergePredicate(childPlan, v.Conditions)
-        case *LogicalJoin:
-            leftConds, rightConds, otherConds := splitJoinCondition(v.Conditions, childPlan)
-            // 递归下推左右表的过滤条件
-        }
+
+````go // pushDownPredicates 谓词下推优化 func pushDownPredicates(plan LogicalPlan) LogicalPlan { switch v := plan.(type) { case *LogicalSelection: // 创建CNF转换器 cnfConverter := NewCNFConverter()
+
+```
+    // 将过滤条件转换为CNF形式
+    normalizedConds := make([]Expression, len(v.Conditions))
+    for i, cond := range v.Conditions {
+        normalizedConds[i] = cnfConverter.ConvertToCNF(cond)
+    }
+    
+    // 提取CNF中的合取子句
+    var allConjuncts []Expression
+    for _, cond := range normalizedConds {
+        conjuncts := cnfConverter.ExtractConjuncts(cond)
+        allConjuncts = append(allConjuncts, conjuncts...)
+    }
+    
+    // 尝试将选择条件下推到子节点
+    child := v.Children()[0]
+    switch childPlan := child.(type) {
+    case *LogicalTableScan, *LogicalIndexScan:
+        return mergePredicate(childPlan, v.Conditions)
+    case *LogicalJoin:
+        leftConds, rightConds, otherConds := splitJoinCondition(v.Conditions, childPlan)
+        // 递归下推左右表的过滤条件
     }
 }
-````
+```
+
+}
+
+```
 </augment_code_snippet>
 
 #### 性能提升
@@ -118,10 +118,12 @@ func columnPruning(plan LogicalPlan) LogicalPlan {
         updateOutputColumns(newRight, usedCols)
     }
 }
-````
-</augment_code_snippet>
+```
+
+
 
 #### 性能提升
+
 - **场景**: `SELECT id, name FROM users` (表有 20 列)
 - **优化前**: 读取所有 20 列
 - **优化后**: 只读取 2 列
@@ -132,6 +134,7 @@ func columnPruning(plan LogicalPlan) LogicalPlan {
 ### 3. **OPT-003: 子查询优化（Subquery Optimization）** ✅
 
 #### 实现状态
+
 - **状态**: ✅ **新实现完成**
 - **文件**: `server/innodb/plan/subquery_optimizer.go` (新建)
 - **行数**: 300+ 行
@@ -141,6 +144,7 @@ func columnPruning(plan LogicalPlan) LogicalPlan {
 **文件**: `server/innodb/plan/logical_plan.go`
 
 1. **LogicalSubquery** - 子查询逻辑计划
+
 ```go
 type LogicalSubquery struct {
     BaseLogicalPlan
@@ -151,7 +155,8 @@ type LogicalSubquery struct {
 }
 ```
 
-2. **LogicalApply** - Apply算子（用于关联子查询）
+1. **LogicalApply** - Apply算子（用于关联子查询）
+
 ```go
 type LogicalApply struct {
     BaseLogicalPlan
@@ -164,60 +169,54 @@ type LogicalApply struct {
 #### 已实现功能
 
 1. ✅ **子查询去关联（Decorrelation）**
-   - 将关联子查询转换为非关联子查询 + JOIN
-   - 识别关联列并转换为 JOIN 条件
-
+  - 将关联子查询转换为非关联子查询 + JOIN
+  - 识别关联列并转换为 JOIN 条件
 2. ✅ **IN 子查询优化**
-   - 将 `IN` 子查询转换为 SEMI JOIN
-   - 减少重复计算
-
+  - 将 `IN` 子查询转换为 SEMI JOIN
+  - 减少重复计算
 3. ✅ **EXISTS 子查询优化**
-   - 将 `EXISTS` 子查询转换为 SEMI JOIN
-   - 支持提前终止
-
+  - 将 `EXISTS` 子查询转换为 SEMI JOIN
+  - 支持提前终止
 4. ✅ **标量子查询优化**
-   - 优化返回单值的子查询
-   - 递归优化子查询内部
-
+  - 优化返回单值的子查询
+  - 递归优化子查询内部
 5. ✅ **量化子查询优化（ANY/ALL）**
-   - 支持 ANY/ALL 子查询的优化
-
+  - 支持 ANY/ALL 子查询的优化
 6. ✅ **Apply 节点优化**
-   - 将非关联 Apply 转换为普通 JOIN
-   - 提升执行效率
+  - 将非关联 Apply 转换为普通 JOIN
+  - 提升执行效率
 
 #### 关键代码
-<augment_code_snippet path="server/innodb/plan/subquery_optimizer.go" mode="EXCERPT">
-````go
-// decorrelateSubquery 去关联子查询
-func (opt *SubqueryOptimizer) decorrelateSubquery(subquery *LogicalSubquery) LogicalPlan {
-    if !subquery.Correlated || len(subquery.OuterRefs) == 0 {
-        return nil
-    }
-    
-    // 1. 识别关联列
-    correlatedCols := subquery.OuterRefs
-    
-    // 2. 将关联列转换为JOIN条件
-    joinConditions := make([]Expression, 0, len(correlatedCols))
-    for _, col := range correlatedCols {
-        joinConditions = append(joinConditions, &BinaryOperation{
-            Op:    OpEQ,
-            Left:  &Column{Name: "outer_" + col},
-            Right: &Column{Name: "inner_" + col},
-        })
-    }
-    
-    // 3. 创建Apply算子（关联JOIN）
-    apply := &LogicalApply{
-        ApplyType:  "INNER",
-        Correlated: false, // 去关联后变为非关联
-        JoinConds:  joinConditions,
-    }
-    
-    return apply
+
+````go // decorrelateSubquery 去关联子查询 func (opt *SubqueryOptimizer) decorrelateSubquery(subquery *LogicalSubquery) LogicalPlan { if !subquery.Correlated || len(subquery.OuterRefs) == 0 { return nil }
+
+```
+// 1. 识别关联列
+correlatedCols := subquery.OuterRefs
+
+// 2. 将关联列转换为JOIN条件
+joinConditions := make([]Expression, 0, len(correlatedCols))
+for _, col := range correlatedCols {
+    joinConditions = append(joinConditions, &BinaryOperation{
+        Op:    OpEQ,
+        Left:  &Column{Name: "outer_" + col},
+        Right: &Column{Name: "inner_" + col},
+    })
 }
-````
+
+// 3. 创建Apply算子（关联JOIN）
+apply := &LogicalApply{
+    ApplyType:  "INNER",
+    Correlated: false, // 去关联后变为非关联
+    JoinConds:  joinConditions,
+}
+
+return apply
+```
+
+}
+
+```
 </augment_code_snippet>
 
 #### 性能提升
@@ -345,11 +344,11 @@ SQL 解析树
 ## 📚 相关文档
 
 - ✅ [第4阶段优化规则分析](PHASE4_OPTIMIZER_RULES_ANALYSIS.md)
-- ✅ [崩溃恢复实现总结](CRASH_RECOVERY_IMPLEMENTATION_SUMMARY.md)
+- ✅ [崩溃恢复实现总结](../../transaction-reports/CRASH_RECOVERY_IMPLEMENTATION_SUMMARY.md)
 - ✅ [第3阶段完成总结](PHASE3_COMPLETION_SUMMARY.md)
-- ✅ [B+树修复验证报告](BTREE_FIXES_VERIFICATION_REPORT.md)
-- ✅ [预编译语句实现总结](PREPARED_STATEMENT_IMPLEMENTATION_SUMMARY.md)
-- ✅ [开发路线图](DEVELOPMENT_ROADMAP.md)
+- ✅ [B+树修复验证报告](../../btree-reports/BTREE_FIXES_VERIFICATION_REPORT.md)
+- ✅ [预编译语句（NET-001，权威）](../../development/NET-001-PREPARED-STATEMENT-SUMMARY.md)
+- ✅ [开发路线图（规划导航）](../../planning/DEVELOPMENT_ROADMAP.md)
 
 ---
 
@@ -401,4 +400,6 @@ SQL 解析树
 **审核者**: 待审核  
 **状态**: ✅ 第4阶段已完成  
 **下一步**: 开始第5阶段 - 清理旧代码（可选）
+
+```
 

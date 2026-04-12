@@ -6,15 +6,18 @@
   <component name="ChangeListManager">
     <list default="true" id="cebb430f-c076-4984-8043-b00b7330fdf5" name="Changes" comment="### 🧩 提交摘要&#10;feat(mysql): implement MySQL session context for enhanced state management&#10;&#10;### 📄 详细修改内容&#10;- 修改文件或模块：decoupled_handler.go, engine_access.go, enhanced_message_handler.go, message_handler.go, session.go, session_context.go&#10;- 主要改动：引入 SessionContext 结构体，优化 MySQL 会话状态管理，确保在处理 COM_INIT_DB 和 COM_QUERY 时使用同一会话实例。&#10;&#10;### 💡 修改原因&#10;此次修改旨在提升 MySQL 协议处理的准确性和一致性，通过引入 SessionContext 来集中管理会话状态，避免因使用不同会话实例导致的状态不一致问题。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MySQL 协议处理、会话管理&#10;- 受影响接口或服务：所有涉及会话状态的操作，如数据库切换、查询执行等&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证 SessionContext 的正确性&#10;- 更新相关文档以反映新的会话管理逻辑">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/innodb/engine/enginx.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/enginx.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/innodb/engine/executor.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/executor.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/innodb/engine/select_executor.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/select_executor.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/innodb/integration/execution_engine_integration.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/integration/execution_engine_integration.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/innodb/manager/storage_manager.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/manager/storage_manager.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/innodb/manager/table_manager.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/manager/table_manager.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/sql.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/sql.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/sql.y" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/sql.y" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/y.output" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/y.output" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/conf/default.ini" beforeDir="false" afterPath="$PROJECT_DIR$/conf/default.ini" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/conf/my.ini" beforeDir="false" afterPath="$PROJECT_DIR$/conf/my.ini" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/development/DEVELOPMENT_ROADMAP_TASKS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/development/DEVELOPMENT_ROADMAP_TASKS.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/auth/password_validator.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/auth/password_validator.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/conf/config.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/conf/config.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/manager/record_row_adapter_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/manager/record_row_adapter_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/plan/optimizer.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/plan/optimizer.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/plan/optimizer_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/plan/optimizer_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/decoupled_handler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/net/decoupled_handler.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/protocol/mysql_protocol.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/protocol/mysql_protocol.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/protocol/prepared_statement_manager.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/protocol/prepared_statement_manager.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/protocol/prepared_statement_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/protocol/prepared_statement_test.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -67,38 +70,38 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "DefaultGoTemplateProperty": "Go Application",
-    "Go Build.go build github.com/zhukovaskychina/xmysql-server.executor": "Run",
-    "Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_executor.executor": "Run",
-    "Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_space_manager_optimization.executor": "Run",
-    "Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/mysql_test_client.executor": "Run",
-    "Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/query_optimizer_demo.executor": "Run",
-    "Go Test.go test github.com/zhukovaskychina/xmysql-server/cmd/demo_mysql_client_test.executor": "Run",
-    "RunOnceActivity.GoLinterPluginOnboarding": "true",
-    "RunOnceActivity.GoLinterPluginStorageMigration": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.go.formatter.settings.were.checked": "true",
-    "RunOnceActivity.go.migrated.go.modules.settings": "true",
-    "RunOnceActivity.go.modules.go.list.on.any.changes.was.set": "true",
-    "git-widget-placeholder": "dev",
-    "go.import.settings.migrated": "true",
-    "go.sdk.automatically.set": "true",
-    "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "/Users/zhukovasky/GolandProjects/xmysql-server",
-    "node.js.detected.package.eslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "run.configurations.included.in.services": "true",
-    "vue.rearranger.settings.migration": "true",
-    "应用程序.DDLTestDemo.executor": "Run",
-    "应用程序.InsertDataTestDemo.executor": "Run",
-    "应用程序.MySQLDemo.executor": "Debug"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;DefaultGoTemplateProperty&quot;: &quot;Go Application&quot;,
+    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server.executor&quot;: &quot;Run&quot;,
+    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_executor.executor&quot;: &quot;Run&quot;,
+    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_space_manager_optimization.executor&quot;: &quot;Run&quot;,
+    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/mysql_test_client.executor&quot;: &quot;Run&quot;,
+    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/query_optimizer_demo.executor&quot;: &quot;Run&quot;,
+    &quot;Go Test.go test github.com/zhukovaskychina/xmysql-server/cmd/demo_mysql_client_test.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.GoLinterPluginOnboarding&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.GoLinterPluginStorageMigration&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.formatter.settings.were.checked&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.migrated.go.modules.settings&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.modules.go.list.on.any.changes.was.set&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;dev&quot;,
+    &quot;go.import.settings.migrated&quot;: &quot;true&quot;,
+    &quot;go.sdk.automatically.set&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/zhukovasky/GolandProjects/xmysql-server&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;run.configurations.included.in.services&quot;: &quot;true&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;,
+    &quot;应用程序.DDLTestDemo.executor&quot;: &quot;Run&quot;,
+    &quot;应用程序.InsertDataTestDemo.executor&quot;: &quot;Run&quot;,
+    &quot;应用程序.MySQLDemo.executor&quot;: &quot;Debug&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/docs" />
@@ -220,10 +223,36 @@
     <option name="OPEN_GENERIC_TABS">
       <map>
         <entry key="e989a79b-8964-4f9c-9a71-2d148fca086f" value="TOOL_WINDOW" />
+        <entry key="0e8bf87d-7407-4ae5-bd28-84e91ee017cd" value="TOOL_WINDOW" />
       </map>
     </option>
     <option name="TAB_STATES">
       <map>
+        <entry key="0e8bf87d-7407-4ae5-bd28-84e91ee017cd">
+          <value>
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="HEAD" />
+                      </list>
+                    </value>
+                  </entry>
+                  <entry key="roots">
+                    <value>
+                      <list>
+                        <option value="$PROJECT_DIR$" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+              <option name="SHOW_ONLY_AFFECTED_CHANGES" value="true" />
+            </State>
+          </value>
+        </entry>
         <entry key="MAIN">
           <value>
             <State />

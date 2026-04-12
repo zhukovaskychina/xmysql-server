@@ -44,7 +44,7 @@ docs/
 ├── storage-reports/                   # 💾 存储报告 (9 个文件)
 ├── storage/                           # 存储详细文档 (12 个文件)
 │
-├── transaction-reports/               # 🔄 事务报告 (8 个文件)
+├── transaction-reports/               # 🔄 事务报告 (9 个文件，含 TRANSACTION_DOCUMENTATION_INDEX)
 │
 ├── mvcc-reports/                      # 🔒 MVCC 和锁报告 (8 个文件)
 │
@@ -80,7 +80,7 @@ docs/
 | **任务报告** | `reports/` | 66 | P0/P1/P2/P3 任务、阶段、Stage 报告 |
 | **B+树** | `btree-reports/`, `btree/` | 15 | B+树实现、优化、修复报告 |
 | **存储** | `storage-reports/`, `storage/` | 21 | 存储引擎、表空间、页管理 |
-| **事务** | `transaction-reports/` | 8 | Redo/Undo 日志、崩溃恢复 |
+| **事务** | `transaction-reports/` | 9 | Redo/Undo、崩溃恢复；索引 `TRANSACTION_DOCUMENTATION_INDEX.md` |
 | **MVCC/锁** | `mvcc-reports/` | 8 | MVCC、Gap 锁、Next-Key 锁 |
 | **协议** | `protocol-reports/`, `protocol/` | 10 | JDBC、预编译语句、协议修复 |
 | **执行器** | `executor-reports/` | 3 | 执行器架构、重构 |

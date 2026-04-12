@@ -15,7 +15,7 @@
 
 **EXEC-001: 清理旧版执行器代码已经在之前的开发中完成！**
 
-根据文档 `docs/EXECUTOR_REFACTOR_SUMMARY.md` 和 `docs/implementation/OLD_INTERFACE_REMOVAL_SUMMARY.md`，执行器代码整合重构已经成功完成。
+根据文档 [`executor-reports/EXECUTOR_REFACTOR_COMPLETION_REPORT.md`](../../executor-reports/EXECUTOR_REFACTOR_COMPLETION_REPORT.md)（及 [`implementation/OLD_INTERFACE_REMOVAL_SUMMARY.md`](../../implementation/OLD_INTERFACE_REMOVAL_SUMMARY.md)），执行器代码整合重构已经成功完成。
 
 ---
 
@@ -289,20 +289,20 @@ func (ue *UnifiedExecutor) ExecuteDelete(ctx, stmt, schema) (*DMLResult, error)
 
 ## 📚 相关文档
 
-所有文档已保存在 `docs/` 目录：
+所有文档已保存在 `docs/` 目录（下列路径与仓库一致；阶段总结位于 `docs/reports/phases/`）：
 
 ```
 docs/
-├── PHASE5_COMPLETION_SUMMARY.md                (新建 - 第5阶段完成总结)
-├── EXECUTOR_REFACTOR_SUMMARY.md                (执行器重构总结)
+├── reports/phases/PHASE5_COMPLETION_SUMMARY.md   (本文件)
+├── executor-reports/EXECUTOR_REFACTOR_COMPLETION_REPORT.md (执行器重构完成报告；SUMMARY 为跳转)
 ├── implementation/OLD_INTERFACE_REMOVAL_SUMMARY.md (旧接口删除总结)
 ├── volcano/VOLCANO_MODEL_CLEANUP_PLAN.md       (火山模型清理计划)
-├── PHASE4_COMPLETION_SUMMARY.md                (第4阶段完成总结)
-├── CRASH_RECOVERY_IMPLEMENTATION_SUMMARY.md    (崩溃恢复实现总结)
-├── PHASE3_COMPLETION_SUMMARY.md                (第3阶段完成总结)
-├── BTREE_FIXES_VERIFICATION_REPORT.md          (B+树修复验证报告)
-├── PREPARED_STATEMENT_IMPLEMENTATION_SUMMARY.md (预编译语句实现总结)
-└── DEVELOPMENT_ROADMAP.md                      (开发路线图)
+├── reports/phases/PHASE4_COMPLETION_SUMMARY.md   (第4阶段完成总结)
+├── transaction-reports/CRASH_RECOVERY_IMPLEMENTATION_SUMMARY.md (崩溃恢复实现总结)
+├── reports/phases/PHASE3_COMPLETION_SUMMARY.md   (第3阶段完成总结)
+├── btree-reports/BTREE_FIXES_VERIFICATION_REPORT.md (B+树修复验证报告)
+├── development/NET-001-PREPARED-STATEMENT-SUMMARY.md (预编译语句权威；protocol-reports 为跳转)
+└── planning/DEVELOPMENT_ROADMAP.md             (规划导航 → development/*)
 ```
 
 ---

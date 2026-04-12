@@ -612,10 +612,12 @@ mv server/innodb/storage/store/mvcc/version_chain.go server/innodb/transaction/m
 
 #### 任务 6.2: 更新文档
 
-**文档列表**:
-1. `docs/STORAGE_ARCHITECTURE.md` - 架构文档
-2. `docs/STORAGE_API.md` - API 文档
-3. `docs/STORAGE_MIGRATION_GUIDE.md` - 迁移指南
+**文档列表（2026-04 路径校正）**:
+1. [STORAGE_ARCHITECTURE.md](./STORAGE_ARCHITECTURE.md)（`docs/storage-reports/`）
+2. [STORAGE_DOCUMENTATION_INDEX.md](../storage/STORAGE_DOCUMENTATION_INDEX.md) — 存储文档总入口
+3. [STORAGE_ENGINE_INTEGRATION.md](../storage/STORAGE_ENGINE_INTEGRATION.md) — 集成与对外接口主线
+
+> **说明**：历史上计划的 `docs/STORAGE_API.md`、`STORAGE_MIGRATION_GUIDE.md` **未创建**；若需独立 API/迁移手册，应以 `STORAGE_ENGINE_INTEGRATION.md` 与 `server/innodb/storage/` 代码为准另开任务。
 
 **工作量**: 2-3 天
 

@@ -1,5 +1,7 @@
 # B+树核心功能实施进度更新
 
+> **文档导航（2026-04）**：B+树文档总索引见 [BTREE_DOCUMENTATION_INDEX.md](./BTREE_DOCUMENTATION_INDEX.md)；路线图任务见 [../development/DEVELOPMENT_ROADMAP_TASKS.md](../development/DEVELOPMENT_ROADMAP_TASKS.md)。
+
 **更新日期**: 2025-10-28  
 **更新人**: AI开发助手  
 **当前阶段**: 阶段1 - 核心功能完善

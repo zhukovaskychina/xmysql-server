@@ -15,7 +15,7 @@
 |---------|---------|---------|---------|---------|
 | **MVCC-001** | ReadView创建逻辑缺陷 | ✅ 已修复 | 代码修复 | [MVCC_001_READVIEW_FIX_REPORT.md](./MVCC_001_READVIEW_FIX_REPORT.md) |
 | **TXN-001** | Redo日志重放不完整 | ✅ 已修复 | 集成修复 | [TXN_001_REDO_LOG_FIX_REPORT.md](./TXN_001_REDO_LOG_FIX_REPORT.md) |
-| **TXN-002** | Undo日志回滚不完整 | ✅ 已验证 | 无需修复 | [TXN_002_UNDO_LOG_FIX_REPORT.md](./TXN_002_UNDO_LOG_FIX_REPORT.md) |
+| **TXN-002** | Undo日志回滚不完整 | ✅ 已验证 | 无需修复 | [TXN_002_ROLLBACK_FIX_REPORT.md](../../transaction-reports/TXN_002_ROLLBACK_FIX_REPORT.md) |
 | **LOCK-001** | Gap锁实现不完整 | ✅ 已验证 | 无需修复 | [LOCK_001_GAP_LOCK_FIX_REPORT.md](./LOCK_001_GAP_LOCK_FIX_REPORT.md) |
 | **INDEX-001** | 二级索引维护缺失 | ✅ 已验证 | 无需修复 | [INDEX_001_SECONDARY_INDEX_VERIFICATION_REPORT.md](./INDEX_001_SECONDARY_INDEX_VERIFICATION_REPORT.md) |
 
@@ -42,7 +42,7 @@
 - **创建的文档**: 5个
   - `docs/MVCC_001_READVIEW_FIX_REPORT.md`
   - `docs/TXN_001_REDO_LOG_FIX_REPORT.md`
-  - `docs/TXN_002_UNDO_LOG_FIX_REPORT.md`
+  - `docs/transaction-reports/TXN_002_ROLLBACK_FIX_REPORT.md`（TXN-002 权威；验证/重应用报告为跳转页）
   - `docs/LOCK_001_GAP_LOCK_FIX_REPORT.md`
   - `docs/INDEX_001_SECONDARY_INDEX_VERIFICATION_REPORT.md`
 

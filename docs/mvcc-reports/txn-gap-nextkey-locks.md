@@ -1,5 +1,7 @@
 # Gap锁和Next-Key锁实现文档
 
+> **文档导航（2026-04）**：任务勾选式总结见 [txn-gap-nextkey-locks-summary.md](./txn-gap-nextkey-locks-summary.md)（**跳转页**）；MVCC/锁总索引见 [MVCC_DOCUMENTATION_INDEX.md](./MVCC_DOCUMENTATION_INDEX.md)；修复类报告见 [LOCK_001_GAP_LOCK_FIX_REPORT.md](./LOCK_001_GAP_LOCK_FIX_REPORT.md)。
+
 ## 概述
 
 本文档描述了XMySQL Server中Gap锁（间隙锁）和Next-Key锁的实现，这两种锁机制是InnoDB存储引擎中用于防止幻读的核心技术。

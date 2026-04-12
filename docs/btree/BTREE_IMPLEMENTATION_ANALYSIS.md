@@ -1,5 +1,7 @@
 # XMySQL Server B+树实现深度分析报告
 
+> **文档导航（2026-04）**：B+树文档总索引见 [BTREE_DOCUMENTATION_INDEX.md](./BTREE_DOCUMENTATION_INDEX.md)；路线图任务见 [../development/DEVELOPMENT_ROADMAP_TASKS.md](../development/DEVELOPMENT_ROADMAP_TASKS.md)。
+
 > **分析日期**: 2025-10-28  
 > **分析范围**: server/innodb/manager 包中所有B+树相关代码  
 > **报告类型**: 问题识别、风险评估、改进建议

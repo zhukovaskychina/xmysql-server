@@ -1,5 +1,7 @@
 # B+树核心功能实施执行摘要
 
+> **2026-04 维护说明**：本文为**项目级执行摘要**（目标、完成度表、风险等）。**同阶段会话的进度快照**见 [BTREE_IMPLEMENTATION_SUMMARY_V2.md](./BTREE_IMPLEMENTATION_SUMMARY_V2.md)；**当前路线图任务状态**以 [../development/DEVELOPMENT_ROADMAP_TASKS.md](../development/DEVELOPMENT_ROADMAP_TASKS.md) 为准。总索引见 [BTREE_DOCUMENTATION_INDEX.md](./BTREE_DOCUMENTATION_INDEX.md)。
+
 ## 项目概况
 
 | 项目名称 | B+树核心功能完善 |
