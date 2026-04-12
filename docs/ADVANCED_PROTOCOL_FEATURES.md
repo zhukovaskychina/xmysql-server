@@ -1,5 +1,7 @@
 # MySQL协议高级特性实现文档
 
+> **文档状态（2026-04）**：特性清单与实现说明；总索引见 [protocol/PROTOCOL_DOCUMENTATION_INDEX.md](./protocol/PROTOCOL_DOCUMENTATION_INDEX.md)。
+
 ## 概述
 
 本文档描述了xmysql-server中实现的MySQL协议高级特性，包括大包分片、压缩协议、字符集支持、连接属性和会话状态跟踪。

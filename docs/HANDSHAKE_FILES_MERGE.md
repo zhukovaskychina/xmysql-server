@@ -1,5 +1,7 @@
 # handshake.go 和 handshark.go 文件合并总结
 
+> **文档状态（2026-04）**：历史合并记录；协议入口见 [protocol/PROTOCOL_DOCUMENTATION_INDEX.md](./protocol/PROTOCOL_DOCUMENTATION_INDEX.md)。
+
 ## 🎯 合并目标
 
 将 `handshark.go`（拼写错误的旧版本文件）合并到 `handshake.go`（正确的新版本文件）中，保持向后兼容性。

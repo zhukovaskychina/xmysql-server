@@ -1,5 +1,7 @@
 # SessionContext 设计文档
 
+> **文档状态（2026-04）**：设计文档；与协议包行为对照见 [SESSION_STATE_AND_PROTOCOL.md](./SESSION_STATE_AND_PROTOCOL.md)；协议总索引 [protocol/PROTOCOL_DOCUMENTATION_INDEX.md](./protocol/PROTOCOL_DOCUMENTATION_INDEX.md)。
+
 ## 1. 目标与背景
 
 ### 1.1 为什么要引入 SessionContext
