@@ -71,7 +71,7 @@
 - `BTREE_FIXES_VERIFICATION_REPORT.md` - 修复验证报告
 - `BTREE_IMPLEMENTATION_SUMMARY.md` - 实现总结
 
-`**btree/**`: 架构、任务清单、实现摘要/分析等（约 11 个文件；阅读顺序见索引）
+`**btree/`**: 架构、任务清单、实现摘要/分析等（约 11 个文件；阅读顺序见索引）
 
 ---
 
