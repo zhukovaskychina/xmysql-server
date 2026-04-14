@@ -78,6 +78,7 @@ MySQL 协议相关文档
 - [JDBC_CONNECTION_COMMUNICATION_FIX.md](./protocol/JDBC_CONNECTION_COMMUNICATION_FIX.md) - JDBC 连接通信修复（**后读**）
 - `protocol-reports/PREPARED_STATEMENT_IMPLEMENTATION_SUMMARY.md` 已合并为跳转页 → `development/NET-001-PREPARED-STATEMENT-SUMMARY.md`，见索引
 - 会话 / `COM_INIT_DB` / `USE` 与 `docs/` 根目录补充说明：见索引 **「`docs/` 根目录」** 小节，或直接 [SESSION_STATE_AND_PROTOCOL.md](./SESSION_STATE_AND_PROTOCOL.md)
+- [SHOW_DROP_IMPLEMENTATION.md](./SHOW_DROP_IMPLEMENTATION.md) — SHOW / DROP DATABASE 实现（亦见协议索引根目录表）
 
 ### 🔍 query-optimizer - 查询优化器
 
