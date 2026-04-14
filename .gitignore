@@ -1,1 +1,4 @@
 .worktrees/
+
+# Local drill logs (do not commit)
+reports/crash_recovery_drill_*.log
