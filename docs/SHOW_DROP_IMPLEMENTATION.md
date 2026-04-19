@@ -1,6 +1,6 @@
 # SHOW 和 DROP 命令实现文档
 
-> **文档状态（2026-04）**：实现说明仍有效；协议与 JDBC 总索引见 [protocol/PROTOCOL_DOCUMENTATION_INDEX.md](./protocol/PROTOCOL_DOCUMENTATION_INDEX.md)。
+> **文档状态（2026-04）**：实现说明仍有效；协议与 JDBC 总索引见 [protocol/PROTOCOL_DOCUMENTATION_INDEX.md](./protocol/PROTOCOL_DOCUMENTATION_INDEX.md)。**JDBC 全量测试中 DDL/多库类失败**的归类与修复阶段见 [planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md](./planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md)。
 
 ## 📋 问题描述
 
@@ -72,26 +72,26 @@ func (e *XMySQLExecutor) executeShowStatement(ctx *ExecutionContext, stmt *sqlpa
 
 #### 实现的子方法
 
-1. **`executeShowDatabases`** — 显示所有数据库
-   - 返回系统数据库: `information_schema`, `mysql`, `performance_schema`, `sys`
-   - 扫描数据目录获取用户数据库
-2. **`executeShowTables`** — 显示当前数据库的表
-   - 检查是否选择了数据库
-   - 返回表列表（当前简化实现返回空列表）
-3. **`executeShowColumns`** — 显示表的列信息
-   - 返回列: `Field`, `Type`, `Null`, `Key`, `Default`, `Extra`
-4. **`executeShowVariables`** — 显示系统变量
-   - 返回常见变量如字符集、版本等
-5. **`executeShowStatus`** — 显示服务器状态
-   - 返回连接数、运行时间等状态信息
-6. **`executeShowEngines`** — 显示存储引擎
-   - 返回 InnoDB 引擎信息
-7. **`executeShowWarnings`** — 显示警告
-   - 返回空列表（当前无警告）
-8. **`executeShowErrors`** — 显示错误
-   - 返回空列表（当前无错误）
-9. **`executeShowCreateTable`** — 显示建表语句
-   - 当前返回未实现错误
+1. `**executeShowDatabases**` — 显示所有数据库
+  - 返回系统数据库: `information_schema`, `mysql`, `performance_schema`, `sys`
+  - 扫描数据目录获取用户数据库
+2. `**executeShowTables**` — 显示当前数据库的表
+  - 检查是否选择了数据库
+  - 返回表列表（当前简化实现返回空列表）
+3. `**executeShowColumns**` — 显示表的列信息
+  - 返回列: `Field`, `Type`, `Null`, `Key`, `Default`, `Extra`
+4. `**executeShowVariables**` — 显示系统变量
+  - 返回常见变量如字符集、版本等
+5. `**executeShowStatus**` — 显示服务器状态
+  - 返回连接数、运行时间等状态信息
+6. `**executeShowEngines**` — 显示存储引擎
+  - 返回 InnoDB 引擎信息
+7. `**executeShowWarnings**` — 显示警告
+  - 返回空列表（当前无警告）
+8. `**executeShowErrors**` — 显示错误
+  - 返回空列表（当前无错误）
+9. `**executeShowCreateTable**` — 显示建表语句
+  - 当前返回未实现错误
 
 ## 📊 Result 结构说明
 

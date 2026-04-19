@@ -1,5 +1,7 @@
 # JDBC连接修复总结
 
+> **2026-04 关联文档**：[协议与 JDBC 索引](./PROTOCOL_DOCUMENTATION_INDEX.md)；**全量 `jdbc_client` 集成测试修复计划**（阶段、`jdbc-connectivity` 门禁）→ [planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md](../planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md)。
+
 ## 问题描述
 
 在使用MySQL JDBC驱动（mysql-connector-java-5.1.49）连接XMySQL服务器时，出现以下错误：

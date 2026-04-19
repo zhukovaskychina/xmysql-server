@@ -37,11 +37,14 @@ B+树索引实现的完整文档集
 项目开发路线图与任务管理
 
 - [未实现功能梳理.md](./未实现功能梳理.md) - 与代码同步的缺口与优先级总览
+- [PRODUCTION_GAP_LIST.md](./planning/PRODUCTION_GAP_LIST.md) - 面向生产灰度的差距清单（推荐先读）
+- [PRODUCTION_GAP_EXECUTION_TABLE.md](./planning/PRODUCTION_GAP_EXECUTION_TABLE.md) - 生产差距执行表（排期/负责人/验收用）
 - [PROJECT_STATUS_AND_NEXT_STEPS.md](./development/PROJECT_STATUS_AND_NEXT_STEPS.md) - 项目状态与下一步计划
 - [DEVELOPMENT_ROADMAP_TASKS.md](./development/DEVELOPMENT_ROADMAP_TASKS.md) - 开发路线图任务
 - [ROADMAP_README.md](./development/ROADMAP_README.md) - 路线图说明
 - [TASKS_SUMMARY.md](./development/TASKS_SUMMARY.md) - 任务总结
 - [JDBC_DDL_TEST_RESULTS.md](./development/JDBC_DDL_TEST_RESULTS.md) - JDBC DDL 测试结果
+- [JDBC_INTEGRATION_TEST_FIX_PLAN.md](./planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md) - JDBC 全量集成测试失败修复计划（阶段与验收）
 
 ### 🔧 implementation - 功能实现
 
@@ -157,6 +160,9 @@ MySQL 协议相关文档
 ### 开发者指南
 
 - [规划导航](./planning/DEVELOPMENT_ROADMAP.md)（指向 16 周计划、114 项任务、P0 上线文档）
+- [生产差距清单](./planning/PRODUCTION_GAP_LIST.md)
+- [生产差距执行表](./planning/PRODUCTION_GAP_EXECUTION_TABLE.md)
+- [JDBC 集成测试修复计划](./planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md)
 - [未实现功能梳理](./未实现功能梳理.md)
 - [开发任务清单](./development/DEVELOPMENT_ROADMAP_TASKS.md)
 - [任务总结](./development/TASKS_SUMMARY.md)
@@ -164,7 +170,7 @@ MySQL 协议相关文档
 
 ## 🔄 文档更新
 
-文档最后整理时间: 2026-04-12（CREATE DATABASE 正文恢复、协议根目录文档纳入索引、执行器/存储「重估」归档说明已与代码对齐）
+文档最后整理时间: 2026-04-19（JDBC 修复计划链入：总索引、README、`jdbc_client`/`protocol`/会话/根 README、`run-tests` 菜单项 13 等一次性收敛）
 
 ---
 

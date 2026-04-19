@@ -1,6 +1,10 @@
 #!/bin/bash
 
 # XMySQL Server 测试运行脚本
+#
+# 非交互连接/变量门禁（需 XMySQL 监听 localhost:3309）：
+#   mvn test -Pjdbc-connectivity
+# 全量失败修复计划：仓库 docs/planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md
 
 echo "=========================================="
 echo "  XMySQL Server 测试套件"
@@ -35,10 +39,11 @@ echo "9. 运行索引和约束测试"
 echo "10. 运行PreparedStatement测试"
 echo "11. 运行性能测试"
 echo "12. 生成测试报告"
+echo "13. 运行连接与系统变量专项（jdbc-connectivity，需 localhost:3309）"
 echo "0. 退出"
 echo ""
 
-read -p "请输入选项 (0-12): " choice
+read -p "请输入选项 (0-13): " choice
 
 case $choice in
     1)
@@ -91,6 +96,10 @@ case $choice in
         mvn surefire-report:report
         echo ""
         echo "✅ 测试报告已生成在: target/surefire-reports/"
+        ;;
+    13)
+        echo "🚀 运行连接与系统变量专项（jdbc-connectivity）..."
+        mvn test -Pjdbc-connectivity
         ;;
     0)
         echo "👋 退出"

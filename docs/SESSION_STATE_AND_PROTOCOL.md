@@ -1,6 +1,6 @@
 # MySQL 协议会话状态与 handlePacket 逻辑说明
 
-> **文档状态（2026-04）**：技术说明仍有效；**总索引**见 [protocol/PROTOCOL_DOCUMENTATION_INDEX.md](./protocol/PROTOCOL_DOCUMENTATION_INDEX.md)。与预处理、握手细节并列阅读 [development/NET-001-PREPARED-STATEMENT-SUMMARY.md](./development/NET-001-PREPARED-STATEMENT-SUMMARY.md)。
+> **文档状态（2026-04）**：技术说明仍有效；**总索引**见 [protocol/PROTOCOL_DOCUMENTATION_INDEX.md](./protocol/PROTOCOL_DOCUMENTATION_INDEX.md)。与预处理、握手细节并列阅读 [development/NET-001-PREPARED-STATEMENT-SUMMARY.md](./development/NET-001-PREPARED-STATEMENT-SUMMARY.md)。**JDBC 客户端全量集成测试修复路线**（含 `jdbc-connectivity` 门禁）见 [planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md](./planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md)。
 
 ## 1. COM_INIT_DB (0x02) 与 COM_QUERY (0x03) 的差异
 

@@ -155,4 +155,25 @@
         </plugins>
     </build>
 
+    <!-- 仅验证 JDBC 与 XMySQL 协议/连接是否畅通（需服务监听 localhost:3309） -->
+    <profiles>
+        <profile>
+            <id>jdbc-connectivity</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <includes>
+                                <include>**/JdbcConnectionTest.java</include>
+                                <include>**/SystemVariableTest.java</include>
+                            </includes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
 </project>

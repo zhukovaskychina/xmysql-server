@@ -134,6 +134,19 @@ go build ./...
 go test ./server/dispatcher ./server/innodb/engine
 ```
 
+### JDBC 客户端集成测试（可选）
+
+- **连接 + 系统变量门禁**（需服务监听 `localhost:3309`；本地联调配置示例：`conf/jdbc_local.ini`）：
+  ```bash
+  # 终端 A：启动服务
+  go run . -configPath=conf/jdbc_local.ini
+
+  # 终端 B：仅跑连接/变量专项
+  cd jdbc_client && mvn test -Pjdbc-connectivity
+  ```
+- **全量 `mvn test` 当前缺口与修复阶段**：[docs/planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md](docs/planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md)  
+- **更多命令与用例说明**：[jdbc_client/TEST_README.md](jdbc_client/TEST_README.md)
+
 ### 运行
 
 请按仓库现有配置文件与启动脚本执行（参考 `conf/`、`scripts/` 与相关文档）。

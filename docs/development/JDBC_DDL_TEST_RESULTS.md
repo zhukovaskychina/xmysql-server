@@ -1,5 +1,7 @@
 # JDBC DDL测试结果总结
 
+> **2026-04 补充**：[全量 `jdbc_client` 失败修复计划（阶段/验收）](../planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md)；日常连接与系统变量回归可在 `jdbc_client` 目录执行 `mvn test -Pjdbc-connectivity`。本文档记录的历史「100% 成功」与当前全量套件状态可能不一致，以 Surefire 与修复计划为准。
+
 ##  测试概述
 
 通过JDBC客户端对XMySQL服务器进行了完整的DDL操作测试，验证了CREATE DATABASE、DROP DATABASE、CREATE TABLE、DROP TABLE等核心功能。

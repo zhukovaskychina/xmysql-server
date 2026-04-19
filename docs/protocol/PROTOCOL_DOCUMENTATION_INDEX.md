@@ -1,6 +1,7 @@
 # MySQL 协议与 JDBC 文档索引
 
-> **2026-04**：协议相关文档分散在 `docs/protocol/`（连接/字符集修复）与 `docs/protocol-reports/`（PROTO-*、JDBC 深度分析）。本页为 **推荐入口**；预处理语句的**维护说明**以 `development/NET-001` 为准。
+> **2026-04**：协议相关文档分散在 `docs/protocol/`（连接/字符集修复）与 `docs/protocol-reports/`（PROTO-*、JDBC 深度分析）。本页为 **推荐入口**；预处理语句的**维护说明**以 `development/NET-001` 为准。  
+> **JDBC 全量集成测试修复**（阶段计划、`jdbc-connectivity` 门禁）：[planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md](../planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md)。
 
 ---
 
@@ -42,6 +43,7 @@
 | [ADVANCED_PROTOCOL_FEATURES.md](../ADVANCED_PROTOCOL_FEATURES.md) | 高级协议特性备忘 |
 | [HANDSHAKE_FILES_MERGE.md](../HANDSHAKE_FILES_MERGE.md) | 握手相关合并说明 |
 | [SHOW_DROP_IMPLEMENTATION.md](../SHOW_DROP_IMPLEMENTATION.md) | SHOW / DROP DATABASE 与 `enginx.go` 实现说明 |
+| [JDBC_INTEGRATION_TEST_FIX_PLAN.md](../planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md) | `jdbc_client` 全量失败分类、内核/测试分阶段修复与验收里程碑 |
 
 ---
 

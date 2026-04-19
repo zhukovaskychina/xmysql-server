@@ -2,7 +2,8 @@
 
 > **分析日期**: 2025-10-29  
 > **分析范围**: JDBC 协议完整性和正确性评估  
-> **报告类型**: 协议实现问题识别、兼容性评估、修复建议
+> **报告类型**: 协议实现问题识别、兼容性评估、修复建议  
+> **2026-04**：`jdbc_client` 全量失败项的分阶段修复与验收见 [JDBC_INTEGRATION_TEST_FIX_PLAN.md](../planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md)；连接/变量日常回归：`jdbc_client` 下 `mvn test -Pjdbc-connectivity`。
 
 ---
 
@@ -10,16 +11,18 @@
 
 ### 核心发现
 
-| 协议阶段 | 实现状态 | 问题数量 | 严重性 |
-|---------|---------|---------|--------|
-| **连接握手** | ✅ 完整 | 0个 | 🟢 正常 |
-| **认证流程** | ✅ 完整 | 1个 | 🟡 轻微 |
-| **COM_QUERY** | ✅ 完整 | 2个 | 🟡 轻微 |
-| **COM_STMT_PREPARE** | ✅ **已实现** | 0个 | 🟢 正常 |
-| **COM_STMT_EXECUTE** | ✅ **已实现** | 0个 | 🟢 正常 |
-| **COM_STMT_CLOSE** | ✅ **已实现** | 0个 | 🟢 正常 |
-| **结果集返回** | ✅ 基本完整 | 3个 | 🟡 中等 |
-| **包序列号管理** | ✅ 已修复 | 0个 | 🟢 正常 |
+
+| 协议阶段                 | 实现状态      | 问题数量 | 严重性   |
+| -------------------- | --------- | ---- | ----- |
+| **连接握手**             | ✅ 完整      | 0个   | 🟢 正常 |
+| **认证流程**             | ✅ 完整      | 1个   | 🟡 轻微 |
+| **COM_QUERY**        | ✅ 完整      | 2个   | 🟡 轻微 |
+| **COM_STMT_PREPARE** | ✅ **已实现** | 0个   | 🟢 正常 |
+| **COM_STMT_EXECUTE** | ✅ **已实现** | 0个   | 🟢 正常 |
+| **COM_STMT_CLOSE**   | ✅ **已实现** | 0个   | 🟢 正常 |
+| **结果集返回**            | ✅ 基本完整    | 3个   | 🟡 中等 |
+| **包序列号管理**           | ✅ 已修复     | 0个   | 🟢 正常 |
+
 
 **总体评估**: JDBC 基本协议**已实现**，**预编译语句（Prepared Statement）已完成实现** ✅，JDBC 兼容性显著提升。
 
@@ -34,6 +37,7 @@
 #### 1.1 握手包结构
 
 **实现代码**:
+
 ```go
 // server/protocol/handshark.go:15-27
 type HandsharkProtocol struct {
@@ -52,6 +56,7 @@ type HandsharkProtocol struct {
 ```
 
 **协议字段完整性**:
+
 - ✅ Protocol Version (10)
 - ✅ Server Version ("5.7.32")
 - ✅ Connection ID (动态生成)
@@ -69,6 +74,7 @@ type HandsharkProtocol struct {
 #### 1.2 能力标志（Capability Flags）
 
 **实现代码**:
+
 ```go
 // server/net/handshake.go:163-181
 handshake := &HandshakePacket{
@@ -89,6 +95,7 @@ handshake := &HandshakePacket{
 ```
 
 **支持的能力标志**:
+
 - ✅ CLIENT_LONG_PASSWORD (0x0001)
 - ✅ CLIENT_FOUND_ROWS (0x0002)
 - ✅ CLIENT_LONG_FLAG (0x0004)
@@ -98,6 +105,7 @@ handshake := &HandshakePacket{
 - ✅ CLIENT_PLUGIN_AUTH (0x00080000)
 
 **缺失的能力标志**:
+
 - ⚠️ CLIENT_DEPRECATE_EOF (0x01000000) - 新版MySQL使用OK包替代EOF包
 - ⚠️ CLIENT_QUERY_ATTRIBUTES (0x08000000) - 查询属性支持
 
@@ -112,6 +120,7 @@ handshake := &HandshakePacket{
 #### 2.1 认证包解析
 
 **实现代码**:
+
 ```go
 // server/protocol/mysql_protocol.go:76-105
 func (h *MySQLProtocolHandler) handleAuth(conn net.Conn, packet *MySQLRawPacket) error {
@@ -148,6 +157,7 @@ func (h *MySQLProtocolHandler) handleAuth(conn net.Conn, packet *MySQLRawPacket)
 **位置**: `server/protocol/mysql_protocol.go:76-105`
 
 **问题描述**:
+
 - 当前实现直接接受所有认证请求
 - 没有验证密码哈希
 - 没有检查用户权限
@@ -155,6 +165,7 @@ func (h *MySQLProtocolHandler) handleAuth(conn net.Conn, packet *MySQLRawPacket)
 **影响**: 🟡 **中等** - 安全性问题，任何用户都能连接
 
 **修复建议**:
+
 ```go
 func (h *MySQLProtocolHandler) handleAuth(conn net.Conn, packet *MySQLRawPacket) error {
     authPacket := &AuthPacket{}
@@ -206,6 +217,7 @@ func (h *MySQLProtocolHandler) handleAuth(conn net.Conn, packet *MySQLRawPacket)
 #### 3.1 COM_QUERY 命令处理
 
 **实现代码**:
+
 ```go
 // server/protocol/mysql_protocol.go:108-131
 func (h *MySQLProtocolHandler) handleQuery(conn net.Conn, packet *MySQLRawPacket) error {
@@ -241,6 +253,7 @@ func (h *MySQLProtocolHandler) handleQuery(conn net.Conn, packet *MySQLRawPacket
 **位置**: `server/protocol/mysql_protocol.go:128`
 
 **问题描述**:
+
 - 使用 `go h.handleQueryResults(conn, resultChan)` 异步处理结果
 - 如果客户端连续发送多个查询，可能导致响应顺序错乱
 - MySQL 协议要求严格的请求-响应顺序
@@ -248,6 +261,7 @@ func (h *MySQLProtocolHandler) handleQuery(conn net.Conn, packet *MySQLRawPacket
 **影响**: 🟡 **中等** - 可能导致JDBC驱动混淆
 
 **修复建议**:
+
 ```go
 func (h *MySQLProtocolHandler) handleQuery(conn net.Conn, packet *MySQLRawPacket) error {
     if len(packet.Body) < 2 {
@@ -310,6 +324,7 @@ func (h *MySQLProtocolHandler) handleQueryResults(conn net.Conn, resultChan <-ch
 **实现状态**: ✅ **已实现** (2025-10-29)
 
 **实现文件**:
+
 - `server/protocol/prepared_statement_manager.go` - 预编译语句管理器
 - `server/protocol/mysql_protocol.go` - 协议处理器（已添加 COM_STMT_PREPARE 处理）
 
@@ -318,6 +333,7 @@ func (h *MySQLProtocolHandler) handleQueryResults(conn net.Conn, resultChan <-ch
 **位置**: `server/protocol/mysql_protocol.go:229-262`
 
 **实现描述**:
+
 - ✅ 实现了 COM_STMT_PREPARE (0x16) 的处理代码
 - ✅ 实现了 PreparedStatementManager 管理器
 - ✅ 实现了参数提取和元数据生成机制
@@ -326,6 +342,7 @@ func (h *MySQLProtocolHandler) handleQueryResults(conn net.Conn, resultChan <-ch
 **影响**: 🟢 **已解决** - JDBC PreparedStatement 功能完整可用
 
 **当前行为**:
+
 ```java
 // JDBC 客户端代码
 PreparedStatement pstmt = conn.prepareStatement("SELECT * FROM users WHERE id = ?");
@@ -336,12 +353,14 @@ ResultSet rs = pstmt.executeQuery();  // ❌ 会失败
 **需要实现的协议**:
 
 **COM_STMT_PREPARE 请求包**:
+
 ```
 [0x16]                    // COM_STMT_PREPARE
 [SQL语句]                 // 带?占位符的SQL
 ```
 
 **COM_STMT_PREPARE 响应包**:
+
 ```
 [0x00]                    // OK标识
 [stmt_id (4字节)]         // 语句ID
@@ -376,6 +395,7 @@ ResultSet rs = pstmt.executeQuery();  // ❌ 会失败
 **位置**: `server/protocol/mysql_protocol.go:264-357`
 
 **实现描述**:
+
 - ✅ 实现了 COM_STMT_EXECUTE (0x17) 的处理代码
 - ✅ 实现了参数绑定和类型转换逻辑（支持 TINY, SHORT, LONG, LONGLONG, VARCHAR 等类型）
 - ✅ 实现了 NULL 位图解析
@@ -386,6 +406,7 @@ ResultSet rs = pstmt.executeQuery();  // ❌ 会失败
 **需要实现的协议**:
 
 **COM_STMT_EXECUTE 请求包**:
+
 ```
 [0x17]                    // COM_STMT_EXECUTE
 [stmt_id (4字节)]         // 语句ID
@@ -398,6 +419,7 @@ ResultSet rs = pstmt.executeQuery();  // ❌ 会失败
 ```
 
 **COM_STMT_EXECUTE 响应包**:
+
 ```
 // 与COM_QUERY相同的结果集格式
 [Result Set] 或 [OK Packet] 或 [Error Packet]
@@ -416,6 +438,7 @@ ResultSet rs = pstmt.executeQuery();  // ❌ 会失败
 #### 6.1 列元数据（Column Definition）
 
 **实现代码**:
+
 ```go
 // server/net/decoupled_handler.go:1010-1030
 func (h *DecoupledMySQLMessageHandler) createColumnDefinitionPacket(columnName string) []byte {
@@ -459,6 +482,7 @@ func (h *DecoupledMySQLMessageHandler) createColumnDefinitionPacket(columnName s
 **位置**: `server/net/decoupled_handler.go:1027`
 
 **问题描述**:
+
 - 所有列都返回类型 0xFD (VAR_STRING)
 - 没有根据实际数据类型设置正确的类型码
 - JDBC 驱动可能无法正确解析数值类型
@@ -466,6 +490,7 @@ func (h *DecoupledMySQLMessageHandler) createColumnDefinitionPacket(columnName s
 **影响**: 🟡 **中等** - 类型转换可能出错
 
 **修复建议**:
+
 ```go
 func (h *DecoupledMySQLMessageHandler) createColumnDefinitionPacket(column *ColumnInfo) []byte {
     var data []byte
@@ -499,6 +524,7 @@ func (h *DecoupledMySQLMessageHandler) createColumnDefinitionPacket(column *Colu
 ```
 
 **MySQL 类型码参考**:
+
 ```go
 const (
     MYSQL_TYPE_DECIMAL     = 0x00
@@ -536,6 +562,7 @@ const (
 #### 6.2 行数据（Row Data）编码
 
 **实现代码**:
+
 ```go
 // server/net/decoupled_handler.go:1064-1078
 func (h *DecoupledMySQLMessageHandler) createRowDataPacket(values []interface{}) []byte {
@@ -566,6 +593,7 @@ func (h *DecoupledMySQLMessageHandler) createRowDataPacket(values []interface{})
 #### 6.3 EOF/OK/ERR 包处理
 
 **实现代码**:
+
 ```go
 // server/protocol/mysql_codec.go:117-125
 func EncodeEOFPacket(warnings, statusFlags uint16) []byte {
@@ -591,6 +619,7 @@ func EncodeEOFPacket(warnings, statusFlags uint16) []byte {
 **实现文件**: `server/net/decoupled_handler.go`
 
 **实现代码**:
+
 ```go
 // server/net/decoupled_handler.go:1228-1313
 func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, result *protocol.MessageQueryResult, seqID byte) error {
@@ -653,13 +682,15 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 
 ## 📊 问题优先级汇总
 
-| 问题ID | 问题描述 | 位置 | 严重性 | 优先级 | 工作量 |
-|--------|---------|------|--------|--------|--------|
-| **JDBC-PREPARE-001** | COM_STMT_PREPARE未实现 | 整个项目 | 🔴 严重 | P0 | 5-7天 |
-| **JDBC-EXECUTE-001** | COM_STMT_EXECUTE未实现 | 整个项目 | 🔴 严重 | P0 | 4-6天 |
-| **JDBC-AUTH-001** | 缺少密码验证逻辑 | mysql_protocol.go:76-105 | 🟡 中等 | P1 | 2-3天 |
-| **JDBC-QUERY-001** | 异步结果处理顺序问题 | mysql_protocol.go:128 | 🟡 中等 | P1 | 1天 |
-| **JDBC-COLUMN-001** | 列类型固定为VAR_STRING | decoupled_handler.go:1027 | 🟡 中等 | P2 | 2-3天 |
+
+| 问题ID                 | 问题描述                | 位置                        | 严重性   | 优先级 | 工作量  |
+| -------------------- | ------------------- | ------------------------- | ----- | --- | ---- |
+| **JDBC-PREPARE-001** | COM_STMT_PREPARE未实现 | 整个项目                      | 🔴 严重 | P0  | 5-7天 |
+| **JDBC-EXECUTE-001** | COM_STMT_EXECUTE未实现 | 整个项目                      | 🔴 严重 | P0  | 4-6天 |
+| **JDBC-AUTH-001**    | 缺少密码验证逻辑            | mysql_protocol.go:76-105  | 🟡 中等 | P1  | 2-3天 |
+| **JDBC-QUERY-001**   | 异步结果处理顺序问题          | mysql_protocol.go:128     | 🟡 中等 | P1  | 1天   |
+| **JDBC-COLUMN-001**  | 列类型固定为VAR_STRING    | decoupled_handler.go:1027 | 🟡 中等 | P2  | 2-3天 |
+
 
 ---
 
@@ -670,6 +701,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 #### Week 1-2: 实现预编译语句支持
 
 **任务1**: 实现 COM_STMT_PREPARE (5-7天)
+
 ```
 - 创建 PreparedStatementManager
 - 实现语句解析和参数提取
@@ -678,6 +710,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 ```
 
 **任务2**: 实现 COM_STMT_EXECUTE (4-6天)
+
 ```
 - 实现参数绑定机制
 - 实现二进制协议解析
@@ -688,6 +721,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 ### 第2阶段: P1问题修复 (3-4天)
 
 **任务3**: 添加认证验证 (2-3天)
+
 ```
 - 实现密码哈希验证
 - 实现用户权限检查
@@ -695,6 +729,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 ```
 
 **任务4**: 修复查询结果处理 (1天)
+
 ```
 - 改为同步处理
 - 添加错误传播
@@ -704,6 +739,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 ### 第3阶段: P2问题修复 (2-3天)
 
 **任务5**: 完善列类型支持 (2-3天)
+
 ```
 - 实现类型映射
 - 设置正确的类型码
@@ -765,17 +801,18 @@ while (rs3.next()) {
 
 ## 📈 预期收益
 
-| 指标 | 当前 | 修复后 | 提升 |
-|------|------|--------|------|
-| **JDBC兼容性** | 60% | 95% | +35% |
-| **PreparedStatement支持** | ❌ 不支持 | ✅ 完全支持 | 100% |
-| **SQL注入防护** | ⚠️ 弱 | ✅ 强 | 100% |
-| **查询性能** | 基准 | 2-3倍 | +200% |
-| **类型转换准确性** | 70% | 95% | +25% |
+
+| 指标                      | 当前    | 修复后    | 提升    |
+| ----------------------- | ----- | ------ | ----- |
+| **JDBC兼容性**             | 60%   | 95%    | +35%  |
+| **PreparedStatement支持** | ❌ 不支持 | ✅ 完全支持 | 100%  |
+| **SQL注入防护**             | ⚠️ 弱  | ✅ 强    | 100%  |
+| **查询性能**                | 基准    | 2-3倍   | +200% |
+| **类型转换准确性**             | 70%   | 95%    | +25%  |
+
 
 ---
 
 **报告结束**
 
 此报告详细分析了XMySQL Server的JDBC协议实现，识别了5个主要问题，并提供了具体的修复建议和路线图。建议优先实现预编译语句支持（P0），以提升JDBC兼容性和安全性。
-

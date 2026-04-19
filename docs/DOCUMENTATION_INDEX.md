@@ -1,7 +1,7 @@
 # XMySQL Server 文档索引
 
-> **最后更新**: 2026-04-12  
-> **文档总数**: 120+ 个 Markdown 文件
+> **最后更新**: 2026-04-19  
+> **文档总数**: 121+ 个 Markdown 文件
 
 ---
 
@@ -129,6 +129,7 @@
 `**protocol/`**（6 个 Markdown，含索引）
 
 - `JDBC_CONNECTION_FIX_SUMMARY.md` → `JDBC_CONNECTION_COMMUNICATION_FIX.md`（**请按序联读**）
+- **全量 JDBC 集成测试失败修复路线**（`TRUNCATE`/主键/DDL/ResultSet 等）→ `planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md`
 - `SET_NAMES_PROTOCOL_ANALYSIS.md` / `SET_NAMES_UTF8_FIX_SUMMARY.md`
 - `TX_READ_ONLY_FIX_SUMMARY.md`
 
@@ -157,10 +158,14 @@
 
 ---
 
-### 9. 📋 规划文档 (`planning/`) - 6+ 个文件
+### 9. 📋 规划文档 (`planning/`) - 7+ 个文件
 
 - `DEVELOPMENT_ROADMAP.md` - **规划导航入口**（链到任务清单、16 周计划、生产 P0、TODO 主清单等）
+- `PRODUCTION_GAP_LIST.md` - **生产差距清单**（面向灰度上线的统一 Gap List，推荐先读）
+- `PRODUCTION_GAP_EXECUTION_TABLE.md` - **生产差距执行表**（面向排期、负责人、验收）
+- `JDBC_INTEGRATION_TEST_FIX_PLAN.md` - **JDBC 全量 `mvn test` 失败修复计划**（阶段划分、验收里程碑；与 `jdbc_client` profile `jdbc-connectivity` 对照）
 - `P0_PRODUCTION_TASKS.md` / `P0_PRODUCTION_CHECKLIST.md` - 生产上线任务与验收（见 `DEVELOPMENT_ROADMAP` 表）
+- `P0_PRODUCTION_GAP_ANALYSIS.md` - P0 缺口长表（偏细节与任务拆解）
 - `PRIORITY_TASK_LIST.md` - 优先任务导航短页（→ 生产文档与 `DEVELOPMENT_ROADMAP_TASKS`）
 - `TODO_DETAILED_CHECKLIST.md` - **代码内 TODO 主清单**（含文末统计附录）
 - `TODO_EXECUTION_PLAN.md` / `TODO_STATISTICS_REPORT.md` / `TODO_SUMMARY.md` - **已合并为跳转页** → 上文 + `development/开发计划.md` / `DEVELOPMENT_ROADMAP_TASKS.md`
@@ -236,7 +241,7 @@
 | **协议**      | `protocol/`（`PROTOCOL_DOCUMENTATION_INDEX.md`）、`protocol-reports/` | 11  |
 | **执行器**     | `executor-reports/`（`EXECUTOR_DOCUMENTATION_INDEX.md`）             | 4   |
 | **查询优化器**   | `query-optimizer/`                                                 | 3   |
-| **规划**      | `planning/`                                                        | 6   |
+| **规划**      | `planning/`（含 `JDBC_INTEGRATION_TEST_FIX_PLAN.md`）                | 7+  |
 
 
 ---
@@ -263,4 +268,4 @@
 
 ---
 
-**文档整理完成时间**: 2026-04-12
+**文档整理完成时间**: 2026-04-19

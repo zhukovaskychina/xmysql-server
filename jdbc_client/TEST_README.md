@@ -13,6 +13,8 @@
 
 本项目使用 **JUnit 5** 作为测试框架，配合 **AssertJ** 进行断言，**Mockito** 进行模拟测试。测试代码覆盖了 XMySQL Server 的主要功能模块。
 
+**连接与协议回归（推荐 PR / 本地门禁）**：在 `jdbc_client` 目录执行 `mvn test -Pjdbc-connectivity`（仅 `JdbcConnectionTest` + `SystemVariableTest`）。全量 `mvn test` 已知缺口与分阶段修复路线见仓库文档 `[docs/planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md](../docs/planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md)`。
+
 ### 测试框架和工具
 
 - **JUnit 5** (5.10.1) - 测试框架
@@ -48,6 +50,13 @@ protected static final String PASSWORD = "root@1234";
 ```bash
 cd jdbc_client
 mvn test
+```
+
+### 运行连接与系统变量专项（`jdbc-connectivity`）
+
+```bash
+cd jdbc_client
+mvn test -Pjdbc-connectivity
 ```
 
 ### 运行特定测试类
