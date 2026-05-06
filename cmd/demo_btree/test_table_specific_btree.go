@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
+	"github.com/zhukovaskychina/xmysql-server/util"
+
 	"os"
 
+	_ "github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
@@ -25,7 +28,7 @@ func main() {
 
 	// 确保测试目录存在
 	if err := os.MkdirAll(config.InnodbDataDir, 0755); err != nil {
-		util.Debugf("Failed to create test_simple_protocol directory: %v\n", err)
+		logger.Debugf("Failed to create test_simple_protocol directory: %v\n", err)
 		return
 	}
 
@@ -58,12 +61,12 @@ func testTableStorageMapping(engine *engine.XMySQLEngine) {
 
 	// 测试获取系统表信息
 	systemTables := tableStorageManager.GetSystemTableInfo()
-	util.Debugf("✓ 找到 %d 个系统表\n", len(systemTables))
+	logger.Debugf("✓ 找到 %d 个系统表\n", len(systemTables))
 
 	// 显示部分系统表信息
 	for i, table := range systemTables {
 		if i < 5 { // 只显示前5个
-			util.Debugf("  - %s.%s: SpaceID=%d, RootPage=%d\n",
+			logger.Debugf("  - %s.%s: SpaceID=%d, RootPage=%d\n",
 				table.SchemaName, table.TableName, table.SpaceID, table.RootPageNo)
 		}
 	}
@@ -72,21 +75,21 @@ func testTableStorageMapping(engine *engine.XMySQLEngine) {
 	fmt.Println("\n测试获取mysql.user表的存储信息...")
 	userTableInfo, err := tableStorageManager.GetTableStorageInfo("mysql", "user")
 	if err != nil {
-		util.Debugf(" 获取mysql.user表存储信息失败: %v\n", err)
+		logger.Debugf(" 获取mysql.user表存储信息失败: %v\n", err)
 		return
 	}
 
-	util.Debugf("✓ mysql.user表存储信息:\n")
-	util.Debugf("  - SpaceID: %d\n", userTableInfo.SpaceID)
-	util.Debugf("  - RootPage: %d\n", userTableInfo.RootPageNo)
-	util.Debugf("  - Type: %v\n", userTableInfo.Type)
+	logger.Debugf("✓ mysql.user表存储信息:\n")
+	logger.Debugf("  - SpaceID: %d\n", userTableInfo.SpaceID)
+	logger.Debugf("  - RootPage: %d\n", userTableInfo.RootPageNo)
+	logger.Debugf("  - Type: %v\n", userTableInfo.Type)
 
 	// 测试创建表特定的B+树管理器
 	fmt.Println("\n测试为mysql.user表创建B+树管理器...")
 	ctx := context.Background()
 	userBTreeManager, err := tableStorageManager.CreateBTreeManagerForTable(ctx, "mysql", "user")
 	if err != nil {
-		util.Debugf(" 创建mysql.user表B+树管理器失败: %v\n", err)
+		logger.Debugf(" 创建mysql.user表B+树管理器失败: %v\n", err)
 		return
 	}
 
@@ -95,19 +98,19 @@ func testTableStorageMapping(engine *engine.XMySQLEngine) {
 	// 测试获取第一个叶子页面
 	firstLeafPage, err := userBTreeManager.GetFirstLeafPage(ctx)
 	if err != nil {
-		util.Debugf(" 获取第一个叶子页面失败: %v\n", err)
+		logger.Debugf(" 获取第一个叶子页面失败: %v\n", err)
 	} else {
-		util.Debugf("✓ 第一个叶子页面: %d\n", firstLeafPage)
+		logger.Debugf("✓ 第一个叶子页面: %d\n", firstLeafPage)
 	}
 
 	// 测试获取所有叶子页面
 	leafPages, err := userBTreeManager.GetAllLeafPages(ctx)
 	if err != nil {
-		util.Debugf(" 获取所有叶子页面失败: %v\n", err)
+		logger.Debugf(" 获取所有叶子页面失败: %v\n", err)
 	} else {
-		util.Debugf("✓ 总共有 %d 个叶子页面\n", len(leafPages))
+		logger.Debugf("✓ 总共有 %d 个叶子页面\n", len(leafPages))
 		if len(leafPages) > 0 {
-			util.Debugf("  叶子页面: %v\n", leafPages)
+			logger.Debugf("  叶子页面: %v\n", leafPages)
 		}
 	}
 }
@@ -124,11 +127,11 @@ func testSelectQuery(engine *engine.XMySQLEngine) {
 
 	// 测试解析和执行SELECT语句
 	sql := "SELECT * FROM user"
-	util.Debugf("执行SQL: %s\n", sql)
+	logger.Debugf("执行SQL: %s\n", sql)
 
 	_, err := sqlparser.Parse(sql)
 	if err != nil {
-		util.Debugf(" SQL解析失败: %v\n", err)
+		logger.Debugf(" SQL解析失败: %v\n", err)
 		return
 	}
 

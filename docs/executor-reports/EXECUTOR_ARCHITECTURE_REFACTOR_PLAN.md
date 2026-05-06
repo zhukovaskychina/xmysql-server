@@ -5,6 +5,12 @@
 > **优先级**: P0（严重）  
 > **预计工作量**: 3-5天
 
+> **文档导航（2026-04）**：执行结果与闭环见 [EXECUTOR_REFACTOR_COMPLETION_REPORT.md](./EXECUTOR_REFACTOR_COMPLETION_REPORT.md)；总索引见 [EXECUTOR_DOCUMENTATION_INDEX.md](./EXECUTOR_DOCUMENTATION_INDEX.md)。
+
+## 文档状态（2026-04 重估）
+
+**EXEC-001 已在代码与完成报告中闭环**；下文为 **2025-10 前后的问题分析归档**，其中的行数、文件规模、接口名称可能与**当前** `server/innodb/**/executor` 不一致。当前架构与测试覆盖请以 **完成报告 + 源码** 为准；本文件**不再作为待办计划维护**。
+
 ---
 
 ## 📋 问题分析
@@ -16,11 +22,13 @@
 #### 1️⃣ executor.go（旧实现 - 1437行）
 
 **职责**:
+
 - SQL执行入口（XMySQLExecutor）
 - SQL语句解析和分派
 - 基础执行器接口定义（BaseExecutor, Executor）
 
 **问题**:
+
 ```go
 // ❌ 问题1: 定义了基础执行器接口，但未真正实现火山模型
 type BaseExecutor struct {
@@ -51,11 +59,13 @@ func (e *XMySQLExecutor) executeDeleteStatement(...)
 #### 2️⃣ volcano_executor.go（新实现 - 1451行）
 
 **职责**:
+
 - 火山模型算子定义（Operator接口）
 - 具体算子实现（TableScanOperator, IndexScanOperator, FilterOperator等）
 - 流式迭代执行（Open-Next-Close模式）
 
 **实现**:
+
 ```go
 // ✅ 标准火山模型算子接口
 type Operator interface {
@@ -84,13 +94,15 @@ type VolcanoExecutor struct {
 
 #### 3️⃣ 其他执行器文件
 
-| 文件 | 职责 | 状态 |
-|------|------|------|
-| `select_executor.go` | SELECT专用执行器 | 🟡 保留，重构为Operator |
-| `dml_executor.go` | DML执行器 | 🟡 保留，重构为Operator |
-| `storage_integrated_dml_executor.go` | 存储引擎集成DML | 🟡 保留 |
-| `show_executor.go` | SHOW语句执行器 | ✅ 保留（特殊处理） |
-| `unified_executor.go` | 统一执行器 | 🟡 待评估 |
+
+| 文件                                   | 职责          | 状态                |
+| ------------------------------------ | ----------- | ----------------- |
+| `select_executor.go`                 | SELECT专用执行器 | 🟡 保留，重构为Operator |
+| `dml_executor.go`                    | DML执行器      | 🟡 保留，重构为Operator |
+| `storage_integrated_dml_executor.go` | 存储引擎集成DML   | 🟡 保留             |
+| `show_executor.go`                   | SHOW语句执行器   | ✅ 保留（特殊处理）        |
+| `unified_executor.go`                | 统一执行器       | 🟡 待评估            |
+
 
 ---
 
@@ -127,6 +139,7 @@ type VolcanoExecutor struct {
 #### 1.1 删除executor.go中的重复定义
 
 **删除内容**:
+
 ```go
 // ❌ 删除 - 已被volcano_executor.go的Operator替代
 type BaseExecutor struct {
@@ -143,6 +156,7 @@ type Executor interface {
 ```
 
 **保留内容**:
+
 ```go
 // ✅ 保留 - SQL执行入口
 type XMySQLExecutor struct {
@@ -161,6 +175,7 @@ func (e *XMySQLExecutor) executeDBDDL(...)
 #### 1.2 重构buildExecutorTree方法
 
 **当前（executor.go）**:
+
 ```go
 func (e *XMySQLExecutor) buildExecutorTree(ctx context.Context, physicalPlan plan.PhysicalPlan) (*VolcanoExecutor, error) {
     // ...类型断言
@@ -173,6 +188,7 @@ func (e *XMySQLExecutor) buildExecutorTree(ctx context.Context, physicalPlan pla
 ```
 
 **重构后（移动到volcano_executor.go）**:
+
 ```go
 // volcano_executor.go中新增工厂方法
 func NewVolcanoExecutorFromPlan(
@@ -199,6 +215,7 @@ func NewVolcanoExecutorFromPlan(
 ```
 
 **executor.go中简化调用**:
+
 ```go
 func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sqlparser.Select, databaseName string) (*SelectResult, error) {
     // 步骤1: 生成物理计划
@@ -232,6 +249,7 @@ func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sql
 #### 2.1 统一执行流程
 
 **目标架构**:
+
 ```
                      XMySQLExecutor (executor.go)
                             │
@@ -412,6 +430,7 @@ func TestVolcanoExecutorRefactor(t *testing.T) {
 #### 3.2 集成测试
 
 使用现有测试：
+
 - `executor_test.go` - 基础执行器测试
 - `dml_executor_test.go` - DML操作测试
 - `unified_executor_test.go` - 统一执行器测试
@@ -423,6 +442,7 @@ func TestVolcanoExecutorRefactor(t *testing.T) {
 ### 文件: executor.go
 
 **删除（约50行）**:
+
 ```diff
 - // BaseExecutor 基础执行器，提供公共字段
 - type BaseExecutor struct {
@@ -439,6 +459,7 @@ func TestVolcanoExecutorRefactor(t *testing.T) {
 ```
 
 **修改（约100行）**:
+
 ```diff
 // buildExecutorTree 从物理计划构建VolcanoExecutor
 func (e *XMySQLExecutor) buildExecutorTree(ctx context.Context, physicalPlan plan.PhysicalPlan) (*VolcanoExecutor, error) {
@@ -467,6 +488,7 @@ func (e *XMySQLExecutor) buildExecutorTree(ctx context.Context, physicalPlan pla
 ### 文件: volcano_executor.go
 
 **新增（约200行）**:
+
 ```go
 // NewVolcanoExecutorFromPlan 工厂方法：从物理计划创建VolcanoExecutor
 func NewVolcanoExecutorFromPlan(...) (*VolcanoExecutor, error) {
@@ -489,12 +511,14 @@ func (f *OperatorFactory) CreateOperator(...) (Operator, error) {
 
 ### 代码质量提升
 
-| 指标 | 重构前 | 重构后 | 改进 |
-|------|--------|--------|------|
-| 代码重复 | 2套执行器 | 1套统一 | ✅ 消除重复 |
+
+| 指标            | 重构前   | 重构后   | 改进       |
+| ------------- | ----- | ----- | -------- |
+| 代码重复          | 2套执行器 | 1套统一  | ✅ 消除重复   |
 | executor.go行数 | 1437行 | 1200行 | ⬇️ 减少16% |
-| 职责清晰度 | 混乱 | 清晰 | ✅ 提升 |
-| 可维护性 | 低 | 高 | ✅ 显著提升 |
+| 职责清晰度         | 混乱    | 清晰    | ✅ 提升     |
+| 可维护性          | 低     | 高     | ✅ 显著提升   |
+
 
 ### 架构优势
 
@@ -508,44 +532,54 @@ func (f *OperatorFactory) CreateOperator(...) (Operator, error) {
 ## 🚀 实施步骤
 
 ### Day 1: 代码清理
-- [x] 删除executor.go中的BaseExecutor和Executor接口
-- [x] 重构buildExecutorTree方法
-- [x] 修复编译错误
+
+- 删除executor.go中的BaseExecutor和Executor接口
+- 重构buildExecutorTree方法
+- 修复编译错误
 
 ### Day 2-3: 架构优化
-- [ ] 实现OperatorFactory
-- [ ] 实现NewVolcanoExecutorFromPlan工厂方法
-- [ ] 重构executeSelectStatement使用新架构
-- [ ] 重构executeDML方法
+
+- 实现OperatorFactory
+- 实现NewVolcanoExecutorFromPlan工厂方法
+- 重构executeSelectStatement使用新架构
+- 重构executeDML方法
 
 ### Day 4: 测试验证
-- [ ] 运行所有现有测试
-- [ ] 编写新的单元测试
-- [ ] 性能回归测试
+
+- 运行所有现有测试
+- 编写新的单元测试
+- 性能回归测试
 
 ### Day 5: 文档和清理
-- [ ] 更新代码注释
-- [ ] 更新开发文档
-- [ ] 代码格式化和Lint检查
+
+- 更新代码注释
+- 更新开发文档
+- 代码格式化和Lint检查
 
 ---
 
 ## ⚠️ 风险和注意事项
 
 ### 风险1: 现有功能破坏
+
 **缓解措施**: 
+
 - 每次修改后立即运行测试
 - 保留原有代码备份
 - 增量重构，分步提交
 
 ### 风险2: 性能退化
+
 **缓解措施**:
+
 - 运行基准测试对比
 - 监控查询执行时间
 - 必要时回滚
 
 ### 风险3: 其他模块依赖
+
 **缓解措施**:
+
 - 搜索所有对BaseExecutor和Executor的引用
 - 逐一修改依赖代码
 - 保持接口兼容性

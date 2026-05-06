@@ -25,55 +25,47 @@ func TestOperatorToExecutorAdapter(t *testing.T) {
 		index: 0,
 	}
 
-	// 创建执行上下文
-	execCtx := &ExecutionContext{
-		Context: context.Background(),
+	ctx := context.Background()
+
+	if err := mockOp.Open(ctx); err != nil {
+		t.Fatalf("Open failed: %v", err)
 	}
 
-	// 创建适配器
-	adapter := NewOperatorToExecutorAdapter(mockOp, execCtx)
-
-	// 测试Init
-	if err := adapter.Init(); err != nil {
-		t.Fatalf("Init failed: %v", err)
-	}
-
-	// 测试Next和GetRow
-	err := adapter.Next()
+	// 测试Next
+	record, err := mockOp.Next(ctx)
 	if err != nil {
 		t.Fatalf("Next failed: %v", err)
 	}
-
-	row := adapter.GetRow()
-	if row == nil {
-		t.Fatal("GetRow returned nil")
+	if record == nil {
+		t.Fatal("Next returned nil record")
 	}
-	if len(row) != 2 {
-		t.Fatalf("Expected 2 columns, got %d", len(row))
+	if record.GetColumnCount() != 2 {
+		t.Fatalf("Expected 2 columns, got %d", record.GetColumnCount())
 	}
-	if row[0].(int64) != 1 {
-		t.Fatalf("Expected first column to be 1, got %v", row[0])
+	if record.GetValueByIndex(0).Int() != 1 {
+		t.Fatalf("Expected first column to be 1, got %v", record.GetValueByIndex(0))
 	}
 
 	// 测试第二行
-	err = adapter.Next()
+	record, err = mockOp.Next(ctx)
 	if err != nil {
 		t.Fatalf("Next failed: %v", err)
 	}
-
-	row = adapter.GetRow()
-	if row[0].(int64) != 2 {
-		t.Fatalf("Expected first column to be 2, got %v", row[0])
+	if record.GetValueByIndex(0).Int() != 2 {
+		t.Fatalf("Expected first column to be 2, got %v", record.GetValueByIndex(0))
 	}
 
 	// 测试EOF
-	err = adapter.Next()
-	if err == nil {
-		t.Fatal("Expected EOF error")
+	record, err = mockOp.Next(ctx)
+	if err != nil {
+		t.Fatalf("Expected nil error at EOF, got %v", err)
+	}
+	if record != nil {
+		t.Fatal("Expected nil record at EOF")
 	}
 
 	// 测试Close
-	if err := adapter.Close(); err != nil {
+	if err := mockOp.Close(); err != nil {
 		t.Fatalf("Close failed: %v", err)
 	}
 }
@@ -109,11 +101,11 @@ func (m *MockOperator) Close() error {
 	return nil
 }
 
-func (m *MockOperator) Schema() *metadata.Schema {
-	return &metadata.Schema{
-		Columns: []*metadata.Column{
-			{Name: "id", DataType: "INT"},
-			{Name: "name", DataType: "VARCHAR"},
+func (m *MockOperator) Schema() *metadata.QuerySchema {
+	return &metadata.QuerySchema{
+		Columns: []*metadata.QueryColumn{
+			{Name: "id", DataType: metadata.TypeInt},
+			{Name: "name", DataType: metadata.TypeVarchar},
 		},
 	}
 }
@@ -143,17 +135,17 @@ func TestRecordConversion(t *testing.T) {
 	}
 
 	// 验证每个值
-	if retrievedValues[0].ToInt64() != 42 {
-		t.Errorf("Expected int64 42, got %v", retrievedValues[0].ToInt64())
+	if retrievedValues[0].Int() != 42 {
+		t.Errorf("Expected int64 42, got %v", retrievedValues[0].Int())
 	}
 	if retrievedValues[1].ToString() != "hello" {
 		t.Errorf("Expected string 'hello', got %v", retrievedValues[1].ToString())
 	}
-	if retrievedValues[2].ToFloat64() != 3.14 {
-		t.Errorf("Expected float64 3.14, got %v", retrievedValues[2].ToFloat64())
+	if retrievedValues[2].Float64() != 3.14 {
+		t.Errorf("Expected float64 3.14, got %v", retrievedValues[2].Float64())
 	}
-	if !retrievedValues[3].ToBool() {
-		t.Errorf("Expected bool true")
+	if retrievedValues[3].Int() != 1 {
+		t.Errorf("Expected bool true to be stored as 1, got %v", retrievedValues[3].Int())
 	}
 	if !retrievedValues[4].IsNull() {
 		t.Errorf("Expected NULL value")

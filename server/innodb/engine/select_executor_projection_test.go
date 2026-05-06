@@ -62,7 +62,7 @@ func TestMySQLUserTableProjection(t *testing.T) {
 
 	// 验证投影后的字段数
 	for i, record := range projectedRecords {
-		fieldCount := record.GetFieldLength()
+		fieldCount := record.GetColumnCount()
 		if fieldCount != len(expectedColumns) {
 			t.Errorf("Record %d: expected %d fields, got %d", i, len(expectedColumns), fieldCount)
 		}
@@ -70,7 +70,7 @@ func TestMySQLUserTableProjection(t *testing.T) {
 		// 验证字段值
 		t.Logf("Record %d:", i)
 		for j := 0; j < fieldCount; j++ {
-			value := record.ReadValueByIndex(j)
+			value := record.GetValueByIndex(j)
 			if value != nil {
 				t.Logf("  Field %d (%s): %v", j, expectedColumns[j], value.Raw())
 			} else {
@@ -120,21 +120,22 @@ func TestMySQLUserTableSelectAll(t *testing.T) {
 
 	// 应用投影（SELECT * 不应该改变字段数）
 	projectedRecords := se.applyProjection(se.resultSet)
+	expectedFieldCount := len(se.getMySQLUserTableMeta().Columns)
 
-	// 验证字段数（应该是所有40个字段）
+	// 验证字段数（应该与当前 mysql.user 元数据一致）
 	for i, record := range projectedRecords {
-		fieldCount := record.GetFieldLength()
-		if fieldCount != 40 {
-			t.Errorf("Record %d: expected 40 fields for SELECT *, got %d", i, fieldCount)
+		fieldCount := record.GetColumnCount()
+		if fieldCount != expectedFieldCount {
+			t.Errorf("Record %d: expected %d fields for SELECT *, got %d", i, expectedFieldCount, fieldCount)
 		}
 	}
 
 	// 构建最终结果
 	result := se.buildSelectResult()
 
-	// 验证结果列数（应该是40列）
-	if len(result.Columns) != 40 {
-		t.Errorf("Expected 40 columns in result for SELECT *, got %d", len(result.Columns))
+	// 验证结果列数（应该与当前 mysql.user 元数据一致）
+	if len(result.Columns) != expectedFieldCount {
+		t.Errorf("Expected %d columns in result for SELECT *, got %d", expectedFieldCount, len(result.Columns))
 	}
 
 	t.Logf("SELECT * result columns count: %d", len(result.Columns))

@@ -206,6 +206,7 @@ func createTestCrashRecovery(t *testing.T) *CrashRecovery {
 	bufferPool := NewMockBufferPool()
 	cr := NewCrashRecovery(redoMgr, undoMgr, 0)
 	cr.bufferPoolManager = bufferPool
+	cr.storageManager = NewMockStorage()
 
 	return cr
 }

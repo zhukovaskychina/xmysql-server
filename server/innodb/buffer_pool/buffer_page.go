@@ -64,6 +64,13 @@ func (bp *BufferPage) GetLSN() uint64 {
 	return uint64(bp.newestModification)
 }
 
+// SetLSN 设置LSN
+func (bp *BufferPage) SetLSN(lsn uint64) {
+	bp.mu.Lock()
+	defer bp.mu.Unlock()
+	bp.newestModification = common.LSNT(lsn)
+}
+
 // IsDirty 检查是否为脏页
 func (bp *BufferPage) IsDirty() bool {
 	bp.mu.RLock()

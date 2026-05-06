@@ -59,14 +59,22 @@ func (tm *TableManager) CreateTable(ctx context.Context, schemaName string, tabl
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
+	if table == nil {
+		return fmt.Errorf("table is nil")
+	}
+	tableName := table.Name
+	if tableName == "" {
+		return fmt.Errorf("table name is empty")
+	}
+
 	// 检查schema是否存在
 	if !tm.schemaManager.HasSchema(ctx, schemaName) {
 		return fmt.Errorf("schema %s not exists", schemaName)
 	}
 
 	// 检查表是否已存在
-	if tm.schemaManager.HasTable(ctx, schemaName, "table_name") {
-		return fmt.Errorf("table %s already exists in schema %s", "table_name", schemaName)
+	if tm.schemaManager.HasTable(ctx, schemaName, tableName) {
+		return fmt.Errorf("table %s already exists in schema %s", tableName, schemaName)
 	}
 
 	// 创建表
@@ -74,15 +82,15 @@ func (tm *TableManager) CreateTable(ctx context.Context, schemaName string, tabl
 		return fmt.Errorf("create table failed: %v", err)
 	}
 
-	// 初始化表的元数据
+	// 初始化表的元数据（从 table 转换列与索引信息，此处仅做占位，实际可由 schemaManager 返回或后续从 InfoSchema 拉取）
 	tableMeta := &metadata.TableMeta{
-		Name:    "table_name",
+		Name:    tableName,
 		Columns: make([]*metadata.ColumnMeta, 0),
 		Indices: make([]metadata.IndexMeta, 0),
 	}
 
 	// 缓存表的元数据
-	cacheKey := tm.getCacheKey(schemaName, "table_name")
+	cacheKey := tm.getCacheKey(schemaName, tableName)
 	tm.tableMetaCache[cacheKey] = tableMeta
 	tm.tableIndexCache[cacheKey] = make([]*Index, 0)
 

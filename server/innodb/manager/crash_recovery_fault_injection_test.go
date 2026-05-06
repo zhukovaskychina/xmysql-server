@@ -227,11 +227,11 @@ func TestFaultInjection_CrashDuringCommit(t *testing.T) {
 
 		// 验证事务2在回滚列表中
 		found := false
-		for txID := range crashRecovery.undoTransactions {
-			if txID == 5001 {
-				found = true
-				break
-			}
+			for _, txID := range crashRecovery.undoTransactions {
+				if txID == 5001 {
+					found = true
+					break
+				}
 		}
 		assert.True(t, found, "事务5001应该在回滚列表中")
 

@@ -256,6 +256,9 @@ func (pa *PageAllocator) allocateFromExtent() (uint32, error) {
 	}
 
 	// 需要扩展表空间
+	if pa.spaceManager == nil {
+		return 0, fmt.Errorf("space manager is not configured")
+	}
 	extent, err := pa.spaceManager.AllocateExtent(pa.spaceID, basic.ExtentPurposeData)
 	if err != nil {
 		return 0, fmt.Errorf("failed to allocate extent: %v", err)

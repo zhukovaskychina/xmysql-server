@@ -133,7 +133,8 @@ func TestRedoReplayPageOperations(t *testing.T) {
 
 	t.Run("页面删除", func(t *testing.T) {
 		// 先创建一个页面
-		mockStorage.CreatePage()
+		err := mockStorage.CreatePage(2)
+		assert.NoError(t, err)
 
 		entry := &RedoLogEntry{
 			LSN:    400,
@@ -142,7 +143,7 @@ func TestRedoReplayPageOperations(t *testing.T) {
 			Type:   LOG_TYPE_PAGE_DELETE,
 		}
 
-		err := recovery.redoPageDelete(entry)
+		err = recovery.redoPageDelete(entry)
 		assert.NoError(t, err)
 
 		t.Log("✓ 页面删除重放测试通过")

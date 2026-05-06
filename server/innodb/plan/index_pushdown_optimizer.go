@@ -2,6 +2,7 @@ package plan
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
@@ -223,32 +224,33 @@ func (opt *IndexPushdownOptimizer) evaluateIndex(
 	usedKeyLength := 0
 	totalSelectivity := 1.0
 	hasRangeCondition := false
+	rangeColumnIndex := -1 // 已有范围条件的列下标，用于同列双范围（如 age>18 AND age<60）与禁止后续列范围
 
 	for i, indexCol := range index.Columns {
 		found := false
 		for _, cond := range conditions {
-			if cond.Column == indexCol && cond.CanPush {
-				// 检查范围查询边界：范围查询后的列不可用
-				if hasRangeCondition {
-					break
-				}
-
-				// 添加条件并设置其位置
-				condCopy := *cond
-				condCopy.IndexPosition = i
-				condCopy.Priority = opt.calculateConditionPriority(&condCopy)
-				candidate.Conditions = append(candidate.Conditions, &condCopy)
-				totalSelectivity *= cond.Selectivity
-				usedKeyLength = i + 1
-
-				// 检测是否为范围条件
-				if opt.isRangeCondition(cond.Operator) {
-					hasRangeCondition = true
-				}
-
-				found = true
-				break
+			if cond.Column != indexCol || !cond.CanPush {
+				continue
 			}
+			// 已有范围条件时：仅禁止在「前一列」已有范围后再在本列加范围；同列可再加范围（双范围）
+			if hasRangeCondition && opt.isRangeCondition(cond.Operator) && rangeColumnIndex >= 0 && rangeColumnIndex != i {
+				continue
+			}
+
+			// 添加条件并设置其位置
+			condCopy := *cond
+			condCopy.IndexPosition = i
+			condCopy.Priority = opt.calculateConditionPriority(&condCopy)
+			candidate.Conditions = append(candidate.Conditions, &condCopy)
+			totalSelectivity *= cond.Selectivity
+			usedKeyLength = i + 1
+
+			if opt.isRangeCondition(cond.Operator) {
+				hasRangeCondition = true
+				rangeColumnIndex = i
+			}
+
+			found = true
 		}
 
 		// 如果某一列没有匹配的条件，后续列无法使用（最左前缀原则）
@@ -368,44 +370,25 @@ func (opt *IndexPushdownOptimizer) calculateMergeCost(c1, c2 *IndexCandidate) fl
 	return mergeCost
 }
 
-// isCoveringIndex 检查是否为覆盖索引
+// isCoveringIndex 检查是否为覆盖索引，委托给包级 IsCoveringIndex；selectColumns 可为列名或表达式（如 COUNT(col)），由 extractColumnFromExpression 解析。
 func (opt *IndexPushdownOptimizer) isCoveringIndex(index *metadata.Index, selectColumns []string) bool {
-	if len(selectColumns) == 0 {
+	if len(selectColumns) == 0 || index.Table == nil {
 		return false
 	}
-
-	// 创建索引列集合
-	indexCols := make(map[string]bool)
-	for _, col := range index.Columns {
-		indexCols[col] = true
-	}
-
-	// 如果是二级索引，需要添加隐式的主键列
-	if !index.IsPrimary && index.Table != nil && index.Table.PrimaryKey != nil {
-		for _, pkCol := range index.Table.PrimaryKey.Columns {
-			indexCols[pkCol] = true
-		}
-	}
-
-	// 检查所有选择列是否都在索引中
+	var requiredNames []string
 	for _, col := range selectColumns {
-		// SELECT * 不能被覆盖
 		if col == "*" {
 			return false
 		}
-
-		// 处理聚合函数场景（如 COUNT(col), SUM(col)）
-		colName := opt.extractColumnFromExpression(col)
-		if colName == "" {
-			continue // 跳过常量或复杂表达式
-		}
-
-		if !indexCols[colName] {
-			return false
+		name := opt.extractColumnFromExpression(col)
+		if name != "" {
+			requiredNames = append(requiredNames, name)
 		}
 	}
-
-	return true
+	if len(requiredNames) == 0 {
+		return false
+	}
+	return IsCoveringIndex(index.Table, index, requiredNames)
 }
 
 // extractColumnFromExpression 从表达式中提取列名（支持聚合函数）
@@ -437,9 +420,12 @@ func (opt *IndexPushdownOptimizer) selectBestIndex(candidates []*IndexCandidate)
 	}
 
 	var best *IndexCandidate
-	bestScore := float64(-1)
+	bestScore := math.Inf(-1) // 允许负分（非覆盖索引代价高时 score 可能为负），保证有候选时必选其一
 
 	for _, candidate := range candidates {
+		if candidate == nil {
+			continue
+		}
 		score := opt.calculateIndexScore(candidate)
 		if score > bestScore {
 			bestScore = score
@@ -572,14 +558,53 @@ func (opt *IndexPushdownOptimizer) estimateRangeByMinMax(
 		return 0.3 // 默认范围选择性
 	}
 
-	// 简化实现：仅处理数值类型
+	minVal, minOk := toFloat64Safe(colStats.MinValue)
+	val, valOk := toFloat64Safe(value)
+	maxVal, maxOk := toFloat64Safe(colStats.MaxValue)
+	if !minOk || !valOk || !maxOk || maxVal <= minVal {
+		return 0.3
+	}
+
+	span := maxVal - minVal
 	switch operator {
-	case "<", "<=":
-		// 估算 (value - min) / (max - min)
-		return opt.estimateRangeFraction(colStats.MinValue, value, colStats.MaxValue)
-	case ">", ">=":
-		// 估算 (max - value) / (max - min)
-		return opt.estimateRangeFraction(value, colStats.MaxValue, colStats.MaxValue)
+	case "<":
+		// 比例 (value - min) / (max - min)，value 以下
+		f := (val - minVal) / span
+		if f <= 0 {
+			return 0.01
+		}
+		if f >= 1 {
+			return 1.0
+		}
+		return f
+	case "<=":
+		f := (val - minVal) / span
+		if f < 0 {
+			return 0.01
+		}
+		if f >= 1 {
+			return 1.0
+		}
+		return f
+	case ">":
+		// 比例 (max - value) / (max - min)，value 以上
+		f := (maxVal - val) / span
+		if f <= 0 {
+			return 0.01
+		}
+		if f >= 1 {
+			return 1.0
+		}
+		return f
+	case ">=":
+		f := (maxVal - val) / span
+		if f <= 0 {
+			return 0.01
+		}
+		if f > 1 {
+			return 1.0
+		}
+		return f
 	default:
 		return 0.3
 	}

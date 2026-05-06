@@ -23,7 +23,7 @@ func main() {
 
 	// 确保测试目录存在
 	if err := os.MkdirAll(config.InnodbDataDir, 0755); err != nil {
-		util.Debugf(" 无法创建测试目录: %v\n", err)
+		logger.Debugf(" 无法创建测试目录: %v\n", err)
 		return
 	}
 
@@ -31,15 +31,15 @@ func main() {
 	defer func() {
 		fmt.Println("\n🧹 清理测试数据...")
 		if err := os.RemoveAll("test_data_btree"); err != nil {
-			util.Debugf("  清理测试数据失败: %v\n", err)
+			logger.Debugf("  清理测试数据失败: %v\n", err)
 		} else {
 			fmt.Println(" 测试数据清理完成")
 		}
 	}()
 
-	util.Debugf("📁 测试目录: %s\n", config.DataDir)
-	util.Debugf("💾 缓冲池大小: %d MB\n", config.InnodbBufferPoolSize/1024/1024)
-	util.Debugf("📄 页面大小: %d KB\n", config.InnodbPageSize/1024)
+	logger.Debugf("📁 测试目录: %s\n", config.DataDir)
+	logger.Debugf("💾 缓冲池大小: %d MB\n", config.InnodbBufferPoolSize/1024/1024)
+	logger.Debugf("📄 页面大小: %d KB\n", config.InnodbPageSize/1024)
 	fmt.Println()
 
 	// 1. 创建存储管理器
@@ -88,23 +88,23 @@ func testBTreeUserQuery(sm *manager.StorageManager) {
 	}
 
 	for _, userTest := range users {
-		util.Debugf("    🔎 查询用户: %s@%s\n", userTest.username, userTest.host)
+		logger.Debugf("    🔎 查询用户: %s@%s\n", userTest.username, userTest.host)
 
 		user, err := sm.QueryMySQLUserViaBTree(userTest.username, userTest.host)
 
 		if userTest.shouldExist {
 			if err != nil {
-				util.Debugf("     期望用户存在，但查询失败: %v\n", err)
+				logger.Debugf("     期望用户存在，但查询失败: %v\n", err)
 			} else {
-				util.Debugf("     找到用户: %s@%s\n", user.User, user.Host)
-				util.Debugf("       - 权限: SELECT=%s, SUPER=%s\n", user.SelectPriv, user.SuperPriv)
-				util.Debugf("       - 密码哈希: %s\n", user.AuthenticationString[:20]+"...")
+				logger.Debugf("     找到用户: %s@%s\n", user.User, user.Host)
+				logger.Debugf("       - 权限: SELECT=%s, SUPER=%s\n", user.SelectPriv, user.SuperPriv)
+				logger.Debugf("       - 密码哈希: %s\n", user.AuthenticationString[:20]+"...")
 			}
 		} else {
 			if err != nil {
-				util.Debugf("     用户正确不存在\n")
+				logger.Debugf("     用户正确不存在\n")
 			} else {
-				util.Debugf("     用户不应该存在但被找到\n")
+				logger.Debugf("     用户不应该存在但被找到\n")
 			}
 		}
 	}
@@ -116,20 +116,20 @@ func testTraditionalUserQuery(sm *manager.StorageManager) {
 	users := []string{"root@localhost", "root@%"}
 
 	for _, userKey := range users {
-		util.Debugf("    🔎 传统查询: %s\n", userKey)
+		logger.Debugf("    🔎 传统查询: %s\n", userKey)
 
 		// 解析用户名和主机
 		parts := parseUserKey(userKey)
 		if len(parts) != 2 {
-			util.Debugf("     无效的用户格式: %s\n", userKey)
+			logger.Debugf("     无效的用户格式: %s\n", userKey)
 			continue
 		}
 
 		user, err := sm.QueryMySQLUser(parts[0], parts[1])
 		if err != nil {
-			util.Debugf("     传统查询失败: %v\n", err)
+			logger.Debugf("     传统查询失败: %v\n", err)
 		} else {
-			util.Debugf("     传统方法找到用户: %s@%s\n", user.User, user.Host)
+			logger.Debugf("     传统方法找到用户: %s@%s\n", user.User, user.Host)
 		}
 	}
 }
@@ -150,18 +150,18 @@ func testUserAuthentication(sm *manager.StorageManager) {
 	}
 
 	for _, test := range authTests {
-		util.Debugf("    🔑 验证: %s@%s 密码: %s\n", test.username, test.host, test.password)
+		logger.Debugf("    🔑 验证: %s@%s 密码: %s\n", test.username, test.host, test.password)
 
 		isValid := sm.VerifyUserPassword(test.username, test.host, test.password)
 
 		if isValid == test.expected {
 			if test.expected {
-				util.Debugf("     密码验证成功\n")
+				logger.Debugf("     密码验证成功\n")
 			} else {
-				util.Debugf("     密码正确被拒绝\n")
+				logger.Debugf("     密码正确被拒绝\n")
 			}
 		} else {
-			util.Debugf("     密码验证结果不符合期望\n")
+			logger.Debugf("     密码验证结果不符合期望\n")
 		}
 	}
 }
@@ -173,7 +173,7 @@ func testPerformanceComparison(sm *manager.StorageManager) {
 	parts := parseUserKey(userKey)
 
 	if len(parts) != 2 {
-		util.Debugf("     无效的用户格式: %s\n", userKey)
+		logger.Debugf("     无效的用户格式: %s\n", userKey)
 		return
 	}
 
@@ -181,7 +181,7 @@ func testPerformanceComparison(sm *manager.StorageManager) {
 	iterations := 100
 
 	// B+树查询性能测试
-	util.Debugf("     执行 %d 次B+树查询...\n", iterations)
+	logger.Debugf("     执行 %d 次B+树查询...\n", iterations)
 	btreeSuccessCount := 0
 	for i := 0; i < iterations; i++ {
 		_, err := sm.QueryMySQLUserViaBTree(username, host)
@@ -191,7 +191,7 @@ func testPerformanceComparison(sm *manager.StorageManager) {
 	}
 
 	// 传统查询性能测试
-	util.Debugf("     执行 %d 次传统查询...\n", iterations)
+	logger.Debugf("     执行 %d 次传统查询...\n", iterations)
 	traditionalSuccessCount := 0
 	for i := 0; i < iterations; i++ {
 		_, err := sm.QueryMySQLUser(username, host)
@@ -200,16 +200,16 @@ func testPerformanceComparison(sm *manager.StorageManager) {
 		}
 	}
 
-	util.Debugf("    📈 结果对比:\n")
-	util.Debugf("       - B+树查询成功率: %d/%d (%.1f%%)\n",
+	logger.Debugf("    📈 结果对比:\n")
+	logger.Debugf("       - B+树查询成功率: %d/%d (%.1f%%)\n",
 		btreeSuccessCount, iterations, float64(btreeSuccessCount)*100/float64(iterations))
-	util.Debugf("       - 传统查询成功率: %d/%d (%.1f%%)\n",
+	logger.Debugf("       - 传统查询成功率: %d/%d (%.1f%%)\n",
 		traditionalSuccessCount, iterations, float64(traditionalSuccessCount)*100/float64(iterations))
 
 	if btreeSuccessCount > 0 {
-		util.Debugf("     B+树索引查询功能正常\n")
+		logger.Debugf("     B+树索引查询功能正常\n")
 	} else {
-		util.Debugf("      B+树索引查询需要进一步优化\n")
+		logger.Debugf("      B+树索引查询需要进一步优化\n")
 	}
 }
 

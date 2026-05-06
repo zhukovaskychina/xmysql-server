@@ -163,6 +163,16 @@ func NewTransactionManager(redoDir, undoDir string) (*TransactionManager, error)
 	return tm, nil
 }
 
+// GetRedoLogManager 获取Redo日志管理器
+func (tm *TransactionManager) GetRedoLogManager() *RedoLogManager {
+	return tm.redoManager
+}
+
+// GetUndoLogManager 获取Undo日志管理器
+func (tm *TransactionManager) GetUndoLogManager() *UndoLogManager {
+	return tm.undoManager
+}
+
 // Begin 开始新事务
 func (tm *TransactionManager) Begin(isReadOnly bool, isolationLevel uint8) (*Transaction, error) {
 	tm.mu.Lock()

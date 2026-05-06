@@ -3,7 +3,7 @@ package com.xmysql.server.demo;
 import java.sql.*;
 
 public class InsertDataTestDemo {
-    private static final String URL = "jdbc:mysql://localhost:3309/mysql?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
+    private static final String URL = "jdbc:mysql://localhost:33090/mysql?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
     private static final String USERNAME = "root";
     private static final String PASSWORD = "123456";
 

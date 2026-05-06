@@ -57,6 +57,9 @@ type DefaultBPlusTreeManager struct {
 
 	// LSN管理器（新增）
 	lsnManager *LSNManager
+
+	stopCleaner chan struct{}
+	cleanerOnce sync.Once
 }
 
 // BPlusTreeConfig B+树配置
@@ -93,7 +96,8 @@ func NewBPlusTreeManager(bpm *OptimizedBufferPoolManager, config *BPlusTreeConfi
 			cacheMisses: 0,
 			dirtyNodes:  0,
 		},
-		lastAccess: make(map[uint32]time.Time),
+		lastAccess:  make(map[uint32]time.Time),
+		stopCleaner: make(chan struct{}),
 	}
 
 	// 初始化页面分配器（如果有SpaceManager）
@@ -135,8 +139,16 @@ func (m *DefaultBPlusTreeManager) backgroundCleaner() {
 		select {
 		case <-ticker.C:
 			m.cleanCache()
+		case <-m.stopCleaner:
+			return
 		}
 	}
+}
+
+func (m *DefaultBPlusTreeManager) Close() {
+	m.cleanerOnce.Do(func() {
+		close(m.stopCleaner)
+	})
 }
 
 // cleanCache 清理缓存
@@ -928,14 +940,18 @@ func (m *DefaultBPlusTreeManager) getNode(ctx context.Context, pageNum uint32) (
 	// 1. 先读缓存（读锁）
 	m.mutex.RLock()
 	node, ok := m.nodeCache[pageNum]
-	if ok {
-		m.lastAccess[pageNum] = time.Now()
-		atomic.AddUint64(&m.stats.cacheHits, 1)
-		m.mutex.RUnlock()
-		return node, nil
-	}
 	currentCacheSize := uint32(len(m.nodeCache))
 	m.mutex.RUnlock()
+	if ok {
+		m.mutex.Lock()
+		if cachedNode, exists := m.nodeCache[pageNum]; exists {
+			node = cachedNode
+			m.lastAccess[pageNum] = time.Now()
+		}
+		m.mutex.Unlock()
+		atomic.AddUint64(&m.stats.cacheHits, 1)
+		return node, nil
+	}
 
 	atomic.AddUint64(&m.stats.cacheMisses, 1)
 

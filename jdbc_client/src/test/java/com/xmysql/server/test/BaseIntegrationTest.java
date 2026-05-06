@@ -22,8 +22,8 @@ public abstract class BaseIntegrationTest {
      */
     @BeforeAll
     public static void setUpClass() throws Exception {
-        // 加载JDBC驱动
-        Class.forName("com.mysql.jdbc.Driver");
+        // 加载 JDBC 驱动（Connector/J 8.x 使用 com.mysql.cj.jdbc.Driver；JDBC 4+ 也可省略，会自动加载）
+        Class.forName("com.mysql.cj.jdbc.Driver");
         // 建立数据库连接
         connection = DriverManager.getConnection(BASE_URL, USER, PASSWORD);
         System.out.println("✅ 数据库连接已建立");

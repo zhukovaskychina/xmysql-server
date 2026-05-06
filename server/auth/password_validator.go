@@ -3,7 +3,11 @@ package auth
 import (
 	"crypto/rand"
 	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"fmt"
+	"strings"
 )
 
 // PasswordValidator 密码验证器接口
@@ -204,6 +208,21 @@ func (v *MySQLNativePasswordValidator) VerifyAuthResponse(authResponse, challeng
 	return v.bytesEqual(stage2Hash, storedHash)
 }
 
+// ValidateNativeHandshakeResponse 校验握手阶段客户端给出的 20 字节 native 答复与 mysql.user 中 *HEX40 存储。
+func (v *MySQLNativePasswordValidator) ValidateNativeHandshakeResponse(authResponse, challenge []byte, storedMySQLPassword string) bool {
+	if len(challenge) != 20 {
+		return false
+	}
+	if len(authResponse) != 20 {
+		return false
+	}
+	storedHash, err := v.extractHashFromStoredPassword(storedMySQLPassword)
+	if err != nil {
+		return false
+	}
+	return v.VerifyAuthResponse(authResponse, challenge, storedHash)
+}
+
 // CachingSHA2PasswordValidator SHA2密码验证器（简化实现）
 type CachingSHA2PasswordValidator struct{}
 
@@ -212,11 +231,42 @@ func NewCachingSHA2PasswordValidator() PasswordValidator {
 	return &CachingSHA2PasswordValidator{}
 }
 
-// ValidatePassword SHA2密码验证（简化实现）
+// ValidatePassword 明文密码校验（非握手路径）；仍委托 native，因系统表默认存储 native 格式。
 func (v *CachingSHA2PasswordValidator) ValidatePassword(inputPassword, storedPassword string, challenge []byte) bool {
-	// 简化实现，实际应该使用SHA256
 	nativeValidator := &MySQLNativePasswordValidator{}
 	return nativeValidator.ValidatePassword(inputPassword, storedPassword, challenge)
+}
+
+// ValidateCachingSHA2FastAuth 校验 caching_sha2_password 快速认证路径（32 字节 XOR 响应）。
+// storedStage2Hex 为 64 位十六进制，表示 SHA256(SHA256(明文密码))（与 MySQL 8 缓存阶段一致），
+// 便于在尚未完整实现 authentication_string 二进制格式时使用。
+func (v *CachingSHA2PasswordValidator) ValidateCachingSHA2FastAuth(authResponse, scramble []byte, storedStage2Hex string) bool {
+	if len(authResponse) != 32 || len(scramble) != 20 {
+		return false
+	}
+	stage2, err := decodeHex32(storedStage2Hex)
+	if err != nil || len(stage2) != sha256.Size {
+		return false
+	}
+	m := sha256.New()
+	_, _ = m.Write(scramble)
+	_, _ = m.Write(stage2)
+	sha := m.Sum(nil)
+
+	xorStage1 := make([]byte, 32)
+	for i := range xorStage1 {
+		xorStage1[i] = authResponse[i] ^ sha[i]
+	}
+	check := sha256.Sum256(xorStage1)
+	return subtle.ConstantTimeCompare(check[:], stage2) == 1
+}
+
+func decodeHex32(s string) ([]byte, error) {
+	s = strings.TrimSpace(s)
+	if len(s) != 64 {
+		return nil, fmt.Errorf("expected 64 hex chars")
+	}
+	return hex.DecodeString(s)
 }
 
 // GenerateChallenge 生成挑战字符串

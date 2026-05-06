@@ -1,5 +1,7 @@
 # B+树核心功能实施计划
 
+> **文档导航（2026-04）**：总索引 [BTREE_DOCUMENTATION_INDEX.md](./BTREE_DOCUMENTATION_INDEX.md)；路线图 [../development/DEVELOPMENT_ROADMAP_TASKS.md](../development/DEVELOPMENT_ROADMAP_TASKS.md)。
+
 ## 执行摘要
 
 本计划基于《B+树核心功能设计文档》，针对XMySQL Server的B+树索引模块进行完善和优化。目标是将节点分裂、合并、删除、范围扫描和二级索引创建五大核心功能的完成度从当前的60-75%提升至95%。
@@ -384,7 +386,7 @@
 ### 内部文档
 - `B+树核心功能设计文档` (本次输入)
 - `PROJECT_STATUS_AND_NEXT_STEPS.md`
-- `STORAGE_ENGINE_COMPLETION_SUMMARY.md`
+- `STORAGE_ENGINE_FINAL_REPORT.md`（`STORAGE_ENGINE_COMPLETION_SUMMARY.md` 已合并为跳转页）
 
 ### 外部资料
 - 《数据库系统内部原理》- B+树索引章节

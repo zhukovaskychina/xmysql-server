@@ -22,11 +22,16 @@ func NewIndexAdapter(
 	btreeManager interface{},
 	storageAdapter *StorageAdapter,
 ) *IndexAdapter {
+	var tableStorageManager *manager.TableStorageManager
+	if storageAdapter != nil {
+		tableStorageManager = storageAdapter.tableStorageManager
+	}
+
 	return &IndexAdapter{
 		indexManager:        indexManager,
 		btreeManager:        btreeManager,
 		storageAdapter:      storageAdapter,
-		tableStorageManager: storageAdapter.tableStorageManager,
+		tableStorageManager: tableStorageManager,
 	}
 }
 
@@ -341,12 +346,12 @@ func (ta *TransactionAdapter) BeginTransaction(ctx context.Context, readOnly boo
 
 // CommitTransaction 提交事务
 func (ta *TransactionAdapter) CommitTransaction(ctx context.Context, txn *Transaction) error {
-	logger.Debugf("Commit transaction: txnID=%d", txn.TxnID)
-
 	// 验证事务对象
 	if txn == nil {
 		return fmt.Errorf("transaction is nil")
 	}
+
+	logger.Debugf("Commit transaction: txnID=%d", txn.TxnID)
 
 	// 如果有存储管理器，调用其提交方法
 	if ta.storageManager != nil {
@@ -369,12 +374,12 @@ func (ta *TransactionAdapter) CommitTransaction(ctx context.Context, txn *Transa
 
 // RollbackTransaction 回滚事务
 func (ta *TransactionAdapter) RollbackTransaction(ctx context.Context, txn *Transaction) error {
-	logger.Debugf("Rollback transaction: txnID=%d", txn.TxnID)
-
 	// 验证事务对象
 	if txn == nil {
 		return fmt.Errorf("transaction is nil")
 	}
+
+	logger.Debugf("Rollback transaction: txnID=%d", txn.TxnID)
 
 	// 如果有存储管理器，调用其回滚方法
 	if ta.storageManager != nil {

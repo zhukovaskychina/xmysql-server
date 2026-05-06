@@ -6,6 +6,10 @@
 > **修复日期**: 2025-10-31  
 > **优先级**: P0（严重 - 影响数据一致性）
 
+> **合并说明（2026-04）**：`TXN_002_UNDO_LOG_FIX_REPORT.md`（验证视角）与 `TXN_002_REAPPLY_COMPLETION_REPORT.md`（重新应用事件）已改为**跳转页**，**TXN-002 技术叙述以本文为唯一维护正文**。历史全文可在 Git 中查看已替换前的上述两个文件。
+
+> **本目录索引**：[TRANSACTION_DOCUMENTATION_INDEX.md](./TRANSACTION_DOCUMENTATION_INDEX.md)
+
 ---
 
 ## 📋 问题分析回顾

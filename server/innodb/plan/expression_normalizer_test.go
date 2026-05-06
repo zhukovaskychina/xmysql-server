@@ -4,6 +4,93 @@ import (
 	"testing"
 )
 
+// TestConstantComparisonFolding 测试常量比较折叠：1=1 -> true, 1=2 -> false（TDD：先写失败测试）
+func TestConstantComparisonFolding(t *testing.T) {
+	normalizer := NewExpressionNormalizer()
+
+	tests := []struct {
+		name     string
+		expr     Expression
+		expected interface{}
+	}{
+		{
+			name: "1=1 折叠为 true",
+			expr: &BinaryOperation{
+				Op:    OpEQ,
+				Left:  &Constant{Value: int64(1)},
+				Right: &Constant{Value: int64(1)},
+			},
+			expected: true,
+		},
+		{
+			name: "1=2 折叠为 false",
+			expr: &BinaryOperation{
+				Op:    OpEQ,
+				Left:  &Constant{Value: int64(1)},
+				Right: &Constant{Value: int64(2)},
+			},
+			expected: false,
+		},
+		{
+			name: "2<5 折叠为 true",
+			expr: &BinaryOperation{
+				Op:    OpLT,
+				Left:  &Constant{Value: int64(2)},
+				Right: &Constant{Value: int64(5)},
+			},
+			expected: true,
+		},
+		{
+			name: "5<2 折叠为 false",
+			expr: &BinaryOperation{
+				Op:    OpLT,
+				Left:  &Constant{Value: int64(5)},
+				Right: &Constant{Value: int64(2)},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizer.Normalize(tt.expr)
+			if cons, ok := result.(*Constant); ok {
+				if cons.Value != tt.expected {
+					t.Errorf("expected Constant(%v), got Constant(%v)", tt.expected, cons.Value)
+				}
+			} else {
+				t.Errorf("expected *Constant, got %T: %v", result, result)
+			}
+		})
+	}
+}
+
+// TestNotConstantBooleanFolding TDD：NOT true -> false, NOT false -> true（先写失败测试）
+func TestNotConstantBooleanFolding(t *testing.T) {
+	normalizer := NewExpressionNormalizer()
+
+	tests := []struct {
+		name     string
+		expr     Expression
+		expected bool
+	}{
+		{"NOT true -> false", &NotExpression{Operand: &Constant{Value: true}}, false},
+		{"NOT false -> true", &NotExpression{Operand: &Constant{Value: false}}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizer.Normalize(tt.expr)
+			cons, ok := result.(*Constant)
+			if !ok {
+				t.Fatalf("expected *Constant, got %T: %v", result, result)
+			}
+			if cons.Value != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, cons.Value)
+			}
+		})
+	}
+}
+
 // TestConstantFolding 测试常量折叠
 func TestConstantFolding(t *testing.T) {
 	normalizer := NewExpressionNormalizer()

@@ -34,6 +34,7 @@ type PreparedStatement struct {
 	ColumnCount  uint16            // 列数量
 	Params       []*ParamMetadata  // 参数元数据
 	Columns      []*ColumnMetadata // 列元数据
+	LastParamTypes []byte          // 最近一次 EXECUTE 的参数字节（每条 2 字节），供 new_params_bound_flag=0 复用
 	CreatedAt    time.Time         // 创建时间
 	LastUsedAt   time.Time         // 最后使用时间
 	ExecuteCount uint64            // 执行次数
@@ -115,6 +116,18 @@ func (m *PreparedStatementManager) Get(stmtID uint32) (*PreparedStatement, error
 	stmt.LastUsedAt = time.Now()
 	atomic.AddUint64(&stmt.ExecuteCount, 1)
 
+	return stmt, nil
+}
+
+// Peek 获取预编译语句但不计入执行次数（用于 COM_STMT_RESET 等）。
+func (m *PreparedStatementManager) Peek(stmtID uint32) (*PreparedStatement, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	stmt, exists := m.statements[stmtID]
+	if !exists {
+		return nil, fmt.Errorf("prepared statement %d not found", stmtID)
+	}
 	return stmt, nil
 }
 

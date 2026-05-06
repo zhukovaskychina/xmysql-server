@@ -108,9 +108,21 @@ func (s *SimpleExecutorRecord) GetValueByIndex(index int) basic.Value {
 }
 
 func (s *SimpleExecutorRecord) GetValueByName(name string) (basic.Value, error) {
-	// Simple implementation - just return nil for now
-	// TODO: Implement proper column name lookup
-	return nil, nil
+	if s.schema == nil {
+		return nil, fmt.Errorf("schema is nil")
+	}
+
+	col, ok := s.schema.GetColumn(name)
+	if !ok || col == nil {
+		return nil, fmt.Errorf("column %s not found", name)
+	}
+
+	index := col.OrdinalPosition - 1
+	if index < 0 || index >= len(s.values) {
+		return nil, fmt.Errorf("column %s index out of range", name)
+	}
+
+	return s.values[index], nil
 }
 
 func (s *SimpleExecutorRecord) SetValueByIndex(index int, value basic.Value) error {
@@ -122,9 +134,22 @@ func (s *SimpleExecutorRecord) SetValueByIndex(index int, value basic.Value) err
 }
 
 func (s *SimpleExecutorRecord) SetValueByName(name string, value basic.Value) error {
-	// Simple implementation - just return error for now
-	// TODO: Implement proper column name lookup
-	return fmt.Errorf("SetValueByName not implemented")
+	if s.schema == nil {
+		return fmt.Errorf("schema is nil")
+	}
+
+	col, ok := s.schema.GetColumn(name)
+	if !ok || col == nil {
+		return fmt.Errorf("column %s not found", name)
+	}
+
+	index := col.OrdinalPosition - 1
+	if index < 0 || index >= len(s.values) {
+		return fmt.Errorf("column %s index out of range", name)
+	}
+
+	s.values[index] = value
+	return nil
 }
 
 // ========================================
@@ -559,12 +584,74 @@ func (p *ProjectionOperator) Open(ctx context.Context) error {
 	// 从子算子获取schema并投影
 	childSchema := p.child.Schema()
 	if childSchema != nil {
-		p.schema = metadata.ProjectSchema(childSchema, p.projections)
+		switch {
+		case len(p.projections) > 0:
+			p.schema = metadata.ProjectSchema(childSchema, p.projections)
+		case len(p.exprs) > 0:
+			p.schema = p.buildExprSchema(childSchema)
+		default:
+			p.schema = childSchema.Clone()
+		}
 	} else {
 		p.schema = metadata.NewQuerySchema()
 	}
 
 	return nil
+}
+
+func (p *ProjectionOperator) buildExprSchema(childSchema *metadata.QuerySchema) *metadata.QuerySchema {
+	schema := metadata.NewQuerySchema()
+	if childSchema != nil {
+		schema.TableName = childSchema.TableName
+		schema.SchemaName = childSchema.SchemaName
+	}
+
+	for _, expr := range p.exprs {
+		schema.AddColumn(p.buildExprColumn(expr, childSchema))
+	}
+
+	return schema
+}
+
+func (p *ProjectionOperator) buildExprColumn(expr plan.Expression, childSchema *metadata.QuerySchema) *metadata.QueryColumn {
+	if colExpr, ok := expr.(*plan.Column); ok {
+		if childSchema != nil {
+			if childCol, found := childSchema.GetColumn(colExpr.Name); found && childCol != nil {
+				return &metadata.QueryColumn{
+					Name:            childCol.Name,
+					DataType:        childCol.DataType,
+					IsNullable:      childCol.IsNullable,
+					TableName:       childCol.TableName,
+					SchemaName:      childCol.SchemaName,
+					OrdinalPosition: childCol.OrdinalPosition,
+					CharMaxLength:   childCol.CharMaxLength,
+					Comment:         childCol.Comment,
+				}
+			}
+		}
+		return metadata.NewQueryColumn(colExpr.Name, metadata.TypeVarchar)
+	}
+
+	return metadata.NewQueryColumn(expr.String(), convertPlanDataTypeToMetadata(expr.GetType()))
+}
+
+func convertPlanDataTypeToMetadata(dataType plan.DataType) metadata.DataType {
+	switch dataType {
+	case plan.TypeInt:
+		return metadata.TypeInt
+	case plan.TypeFloat:
+		return metadata.TypeDouble
+	case plan.TypeDateTime:
+		return metadata.TypeDateTime
+	case plan.TypeBoolean:
+		return metadata.TypeBoolean
+	case plan.TypeNull:
+		return metadata.TypeVarchar
+	case plan.TypeString, plan.TypeUnknown:
+		fallthrough
+	default:
+		return metadata.TypeVarchar
+	}
 }
 
 func (p *ProjectionOperator) Next(ctx context.Context) (Record, error) {
@@ -717,8 +804,14 @@ type NestedLoopJoinOperator struct {
 	condition func(leftRow, rightRow Record) bool
 
 	// 状态
-	leftRow  Record
-	rightEOF bool
+	leftRow       Record
+	rightEOF      bool
+	hadMatch      bool   // 当前左行/右行是否已有匹配（LEFT/RIGHT 用）
+	phase         int    // FULL 时：1=LEFT 阶段，2=输出未匹配的右行
+	rightRow      Record // RIGHT/FULL 阶段 2 的当前右行
+	leftEOF       bool   // RIGHT 时右表为 outer，左表扫完标记
+	leftColCount  int    // 左表列数，用于生成 NULL 行
+	rightColCount int    // 右表列数
 }
 
 func NewNestedLoopJoinOperator(
@@ -747,10 +840,14 @@ func (n *NestedLoopJoinOperator) Open(ctx context.Context) error {
 	rightSchema := n.right.Schema()
 	if leftSchema != nil && rightSchema != nil {
 		n.schema = metadata.MergeSchemas(leftSchema, rightSchema)
+		n.leftColCount = leftSchema.ColumnCount()
+		n.rightColCount = rightSchema.ColumnCount()
 	} else if leftSchema != nil {
 		n.schema = leftSchema.Clone()
+		n.leftColCount = leftSchema.ColumnCount()
 	} else if rightSchema != nil {
 		n.schema = rightSchema.Clone()
+		n.rightColCount = rightSchema.ColumnCount()
 	} else {
 		n.schema = metadata.NewQuerySchema()
 	}
@@ -763,29 +860,39 @@ func (n *NestedLoopJoinOperator) Next(ctx context.Context) (Record, error) {
 		return nil, fmt.Errorf("operator not opened")
 	}
 
+	switch n.joinType {
+	case "RIGHT":
+		return n.nextRight(ctx)
+	case "FULL":
+		return n.nextFull(ctx)
+	case "LEFT", "LEFT OUTER":
+		return n.nextLeft(ctx)
+	default:
+		// INNER 或空
+		return n.nextInner(ctx)
+	}
+}
+
+// nextInner 内连接：仅输出有匹配的行
+func (n *NestedLoopJoinOperator) nextInner(ctx context.Context) (Record, error) {
 	for {
-		// 如果左表当前行为空，获取下一行
 		if n.leftRow == nil {
 			leftRow, err := n.left.Next(ctx)
 			if err != nil {
 				return nil, err
 			}
 			if leftRow == nil {
-				return nil, nil // 左表遍历完，连接结束
+				return nil, nil
 			}
 			n.leftRow = leftRow
 			n.rightEOF = false
 		}
 
-		// 获取右表下一行
 		rightRow, err := n.right.Next(ctx)
 		if err != nil {
 			return nil, err
 		}
-
-		// 右表遍历完，重置右表，获取左表下一行
 		if rightRow == nil {
-			n.rightEOF = true
 			n.right.Close()
 			if err := n.right.Open(ctx); err != nil {
 				return nil, fmt.Errorf("failed to reopen right child: %w", err)
@@ -794,10 +901,144 @@ func (n *NestedLoopJoinOperator) Next(ctx context.Context) (Record, error) {
 			continue
 		}
 
-		// 检查连接条件
 		if n.condition == nil || n.condition(n.leftRow, rightRow) {
-			// 合并左右记录
 			return n.mergeRecords(n.leftRow, rightRow), nil
+		}
+	}
+}
+
+// nextLeft 左外连接：左表每行至少输出一行，无匹配时右表填 NULL
+func (n *NestedLoopJoinOperator) nextLeft(ctx context.Context) (Record, error) {
+	for {
+		if n.leftRow == nil {
+			leftRow, err := n.left.Next(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if leftRow == nil {
+				return nil, nil
+			}
+			n.leftRow = leftRow
+			n.rightEOF = false
+			n.hadMatch = false
+		}
+
+		rightRow, err := n.right.Next(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if rightRow == nil {
+			n.right.Close()
+			if err := n.right.Open(ctx); err != nil {
+				return nil, fmt.Errorf("failed to reopen right child: %w", err)
+			}
+			if !n.hadMatch {
+				out := n.mergeRecordsWithRightNull(n.leftRow)
+				n.leftRow = nil
+				return out, nil
+			}
+			n.leftRow = nil
+			continue
+		}
+
+		if n.condition == nil || n.condition(n.leftRow, rightRow) {
+			n.hadMatch = true
+			return n.mergeRecords(n.leftRow, rightRow), nil
+		}
+	}
+}
+
+// nextRight 右外连接：右表为 outer，无匹配时左表填 NULL
+func (n *NestedLoopJoinOperator) nextRight(ctx context.Context) (Record, error) {
+	for {
+		if n.rightRow == nil {
+			rightRow, err := n.right.Next(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if rightRow == nil {
+				return nil, nil
+			}
+			n.rightRow = rightRow
+			n.leftEOF = false
+			n.hadMatch = false
+		}
+
+		leftRow, err := n.left.Next(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if leftRow == nil {
+			n.left.Close()
+			if err := n.left.Open(ctx); err != nil {
+				return nil, fmt.Errorf("failed to reopen left child: %w", err)
+			}
+			if !n.hadMatch {
+				out := n.mergeRecordsWithLeftNull(n.rightRow)
+				n.rightRow = nil
+				return out, nil
+			}
+			n.rightRow = nil
+			continue
+		}
+
+		if n.condition == nil || n.condition(leftRow, n.rightRow) {
+			n.hadMatch = true
+			return n.mergeRecords(leftRow, n.rightRow), nil
+		}
+	}
+}
+
+// nextFull 全外连接：LEFT 阶段 + 未匹配的右行补 NULL
+func (n *NestedLoopJoinOperator) nextFull(ctx context.Context) (Record, error) {
+	if n.phase == 0 {
+		n.phase = 1
+	}
+	if n.phase == 1 {
+		rec, err := n.nextLeft(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if rec != nil {
+			return rec, nil
+		}
+		// LEFT 阶段结束，进入阶段 2：输出未匹配的右行
+		n.phase = 2
+		n.right.Close()
+		if err := n.right.Open(ctx); err != nil {
+			return nil, fmt.Errorf("failed to reopen right for FULL phase 2: %w", err)
+		}
+	}
+	// phase 2: 对每个右行检查是否有左行与之匹配，无则输出 (NULLs, right)
+	for {
+		rightRow, err := n.right.Next(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if rightRow == nil {
+			return nil, nil
+		}
+		// 扫描左表看是否有匹配
+		n.left.Close()
+		if err := n.left.Open(ctx); err != nil {
+			return nil, err
+		}
+		matched := false
+		for {
+			leftRow, err := n.left.Next(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if leftRow == nil {
+				break
+			}
+			if n.condition != nil && n.condition(leftRow, rightRow) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return n.mergeRecordsWithLeftNull(rightRow), nil
 		}
 	}
 }
@@ -813,6 +1054,28 @@ func (n *NestedLoopJoinOperator) mergeRecords(left, right Record) Record {
 	return NewExecutorRecordFromValues(mergedValues, n.schema)
 }
 
+// mergeRecordsWithRightNull 左表有值、右表填 NULL（用于 LEFT 无匹配）
+func (n *NestedLoopJoinOperator) mergeRecordsWithRightNull(left Record) Record {
+	leftValues := left.GetValues()
+	mergedValues := make([]basic.Value, len(leftValues)+n.rightColCount)
+	copy(mergedValues, leftValues)
+	for i := len(leftValues); i < len(mergedValues); i++ {
+		mergedValues[i] = basic.NewNull()
+	}
+	return NewExecutorRecordFromValues(mergedValues, n.schema)
+}
+
+// mergeRecordsWithLeftNull 左表填 NULL、右表有值（用于 RIGHT/FULL 无匹配）
+func (n *NestedLoopJoinOperator) mergeRecordsWithLeftNull(right Record) Record {
+	rightValues := right.GetValues()
+	mergedValues := make([]basic.Value, n.leftColCount+len(rightValues))
+	for i := 0; i < n.leftColCount; i++ {
+		mergedValues[i] = basic.NewNull()
+	}
+	copy(mergedValues[n.leftColCount:], rightValues)
+	return NewExecutorRecordFromValues(mergedValues, n.schema)
+}
+
 // ========================================
 // HashJoinOperator - 哈希连接算子
 // ========================================
@@ -824,16 +1087,26 @@ type HashJoinOperator struct {
 	probeSide Operator
 	joinType  string
 
-	// 哈希表构建
-	buildKey  func(Record) string
-	probeKey  func(Record) string
-	hashTable map[string][]Record
+	// 哈希表构建：key -> build 行在 buildRowsList 中的下标
+	buildKey      func(Record) string
+	probeKey      func(Record) string
+	hashTable     map[string][]int
+	buildRowsList []Record
 
 	// 探测状态
 	built       bool
 	probeRow    Record
-	matchedRows []Record
+	matchedRows []int // 当前 probe 匹配的 build 行下标
 	matchedIdx  int
+
+	// 外连接：输出顺序及补 NULL
+	outputProbeFirst bool // true=LEFT 时输出 (probe, build)
+	buildColCount    int
+	probeColCount    int
+	// FULL 阶段 2
+	matchedBuild     []bool // 对应 build 行是否被匹配过
+	fullPhase        int    // 1=probe 阶段，2=输出未匹配 build
+	fullUnmatchedIdx int
 }
 
 func NewHashJoinOperator(
@@ -845,12 +1118,13 @@ func NewHashJoinOperator(
 		BaseOperator: BaseOperator{
 			children: []Operator{buildSide, probeSide},
 		},
-		buildSide: buildSide,
-		probeSide: probeSide,
-		joinType:  joinType,
-		buildKey:  buildKey,
-		probeKey:  probeKey,
-		hashTable: make(map[string][]Record),
+		buildSide:     buildSide,
+		probeSide:     probeSide,
+		joinType:      joinType,
+		buildKey:      buildKey,
+		probeKey:      probeKey,
+		hashTable:     make(map[string][]int),
+		buildRowsList: nil,
 	}
 }
 
@@ -859,18 +1133,25 @@ func (h *HashJoinOperator) Open(ctx context.Context) error {
 		return err
 	}
 
-	// 合并build和probe端的schema
 	buildSchema := h.buildSide.Schema()
 	probeSchema := h.probeSide.Schema()
 	if buildSchema != nil && probeSchema != nil {
 		h.schema = metadata.MergeSchemas(buildSchema, probeSchema)
+		h.buildColCount = buildSchema.ColumnCount()
+		h.probeColCount = probeSchema.ColumnCount()
 	} else if buildSchema != nil {
 		h.schema = buildSchema.Clone()
+		h.buildColCount = buildSchema.ColumnCount()
 	} else if probeSchema != nil {
 		h.schema = probeSchema.Clone()
+		h.probeColCount = probeSchema.ColumnCount()
 	} else {
 		h.schema = metadata.NewQuerySchema()
 	}
+
+	// LEFT/FULL 时 build=右表、probe=左表，输出顺序为 (probe, build) = (左, 右)
+	h.outputProbeFirst = (h.joinType == "LEFT" || h.joinType == "LEFT OUTER" ||
+		h.joinType == "FULL" || h.joinType == "FULL OUTER")
 
 	return nil
 }
@@ -880,25 +1161,45 @@ func (h *HashJoinOperator) Next(ctx context.Context) (Record, error) {
 		return nil, fmt.Errorf("operator not opened")
 	}
 
-	// 第一次调用时构建哈希表
 	if !h.built {
 		if err := h.buildHashTable(ctx); err != nil {
 			return nil, fmt.Errorf("failed to build hash table: %w", err)
 		}
 		h.built = true
+		h.fullPhase = 1
+		if h.joinType == "FULL" || h.joinType == "FULL OUTER" {
+			h.fullUnmatchedIdx = 0
+		}
 		logger.Debugf("HashJoin: built hash table with %d keys", len(h.hashTable))
+	}
+
+	// FULL 阶段 2：输出未匹配的 build 行 (NULLs, build)
+	if (h.joinType == "FULL" || h.joinType == "FULL OUTER") && h.fullPhase == 2 {
+		for h.fullUnmatchedIdx < len(h.buildRowsList) {
+			if !h.matchedBuild[h.fullUnmatchedIdx] {
+				buildRow := h.buildRowsList[h.fullUnmatchedIdx]
+				h.fullUnmatchedIdx++
+				return h.mergeRecordsWithLeftNull(h.probeColCount, buildRow), nil
+			}
+			h.fullUnmatchedIdx++
+		}
+		return nil, nil
 	}
 
 	// 探测阶段
 	for {
-		// 如果当前探测行的匹配已经遍历完，获取下一个探测行
 		if h.matchedIdx >= len(h.matchedRows) {
 			probeRow, err := h.probeSide.Next(ctx)
 			if err != nil {
 				return nil, err
 			}
 			if probeRow == nil {
-				return nil, nil // EOF
+				if (h.joinType == "FULL" || h.joinType == "FULL OUTER") && h.fullPhase == 1 {
+					h.fullPhase = 2
+					h.fullUnmatchedIdx = 0
+					return h.Next(ctx)
+				}
+				return nil, nil
 			}
 
 			h.probeRow = probeRow
@@ -906,21 +1207,36 @@ func (h *HashJoinOperator) Next(ctx context.Context) (Record, error) {
 			h.matchedRows = h.hashTable[key]
 			h.matchedIdx = 0
 
-			// 如果没有匹配，继续下一个探测行
 			if len(h.matchedRows) == 0 {
-				continue
+				switch h.joinType {
+				case "LEFT", "LEFT OUTER":
+					return h.mergeRecordsWithRightNull(probeRow), nil
+				case "RIGHT", "RIGHT OUTER":
+					return h.mergeRecordsWithLeftNull(h.buildColCount, probeRow), nil
+				case "FULL", "FULL OUTER":
+					return h.mergeRecordsWithRightNull(probeRow), nil
+				default:
+					continue
+				}
 			}
 		}
 
-		// 返回匹配的记录
-		buildRow := h.matchedRows[h.matchedIdx]
+		buildIdx := h.matchedRows[h.matchedIdx]
 		h.matchedIdx++
+		buildRow := h.buildRowsList[buildIdx]
+		if h.joinType == "FULL" || h.joinType == "FULL OUTER" {
+			h.matchedBuild[buildIdx] = true
+		}
 
+		if h.outputProbeFirst {
+			return h.mergeRecords(h.probeRow, buildRow), nil
+		}
 		return h.mergeRecords(buildRow, h.probeRow), nil
 	}
 }
 
 func (h *HashJoinOperator) buildHashTable(ctx context.Context) error {
+	h.buildRowsList = make([]Record, 0)
 	for {
 		record, err := h.buildSide.Next(ctx)
 		if err != nil {
@@ -930,8 +1246,13 @@ func (h *HashJoinOperator) buildHashTable(ctx context.Context) error {
 			break
 		}
 
+		idx := len(h.buildRowsList)
+		h.buildRowsList = append(h.buildRowsList, record)
 		key := h.buildKey(record)
-		h.hashTable[key] = append(h.hashTable[key], record)
+		h.hashTable[key] = append(h.hashTable[key], idx)
+	}
+	if h.joinType == "FULL" || h.joinType == "FULL OUTER" {
+		h.matchedBuild = make([]bool, len(h.buildRowsList))
 	}
 	return nil
 }
@@ -945,6 +1266,28 @@ func (h *HashJoinOperator) mergeRecords(build, probe Record) Record {
 	mergedValues = append(mergedValues, probeValues...)
 
 	return NewExecutorRecordFromValues(mergedValues, h.schema)
+}
+
+// mergeRecordsWithRightNull 左有值、右补 NULL（probe 端 + buildColCount 个 NULL）
+func (h *HashJoinOperator) mergeRecordsWithRightNull(probe Record) Record {
+	vals := probe.GetValues()
+	merged := make([]basic.Value, len(vals)+h.buildColCount)
+	copy(merged, vals)
+	for i := len(vals); i < len(merged); i++ {
+		merged[i] = basic.NewNull()
+	}
+	return NewExecutorRecordFromValues(merged, h.schema)
+}
+
+// mergeRecordsWithLeftNull 左补 NULL、右有值（leftNullCount 个 NULL + record）
+func (h *HashJoinOperator) mergeRecordsWithLeftNull(leftNullCount int, record Record) Record {
+	vals := record.GetValues()
+	merged := make([]basic.Value, leftNullCount+len(vals))
+	for i := 0; i < leftNullCount; i++ {
+		merged[i] = basic.NewNull()
+	}
+	copy(merged[leftNullCount:], vals)
+	return NewExecutorRecordFromValues(merged, h.schema)
 }
 
 // ========================================
@@ -1210,9 +1553,7 @@ func (h *HashAggregateOperator) computeAggregates(ctx context.Context) error {
 		// 更新聚合状态
 		values := record.GetValues()
 		for i, aggState := range aggStates {
-			if i < len(values) {
-				aggState.Update(values[i])
-			}
+			aggState.Update(h.getAggregateInputValue(values, i))
 		}
 	}
 
@@ -1228,6 +1569,25 @@ func (h *HashAggregateOperator) computeAggregates(ctx context.Context) error {
 
 	logger.Debugf("HashAggregate: computed %d groups", len(h.results))
 	return nil
+}
+
+func (h *HashAggregateOperator) getAggregateInputValue(values []basic.Value, aggIndex int) basic.Value {
+	if len(values) == 0 {
+		return basic.NewNull()
+	}
+
+	firstAggColumn := len(h.groupByExprs)
+	if firstAggColumn < len(values) {
+		candidateIdx := firstAggColumn + aggIndex
+		if candidateIdx < len(values) {
+			return values[candidateIdx]
+		}
+	}
+
+	// Fallback for the current simplified aggregate API: if aggregate expressions
+	// are not explicitly tracked, apply non-grouped aggregates to the last input
+	// column so multiple aggregate functions can still consume the same measure.
+	return values[len(values)-1]
 }
 
 func (h *HashAggregateOperator) computeGroupKey(record Record) string {
@@ -2058,10 +2418,14 @@ func (v *VolcanoExecutor) buildHashJoin(ctx context.Context, p *plan.PhysicalHas
 		return nil, err
 	}
 
-	// 从Conditions构建hash key函数
 	buildKey, probeKey := v.buildHashKeyFunctions(p.Conditions, p.LeftSchema, p.RightSchema)
 
-	return NewHashJoinOperator(left, right, p.JoinType, buildKey, probeKey), nil
+	// LEFT/FULL 时用右表做 build、左表做 probe，保证左表每行都输出
+	joinType := p.JoinType
+	if joinType == "LEFT" || joinType == "LEFT OUTER" || joinType == "FULL" || joinType == "FULL OUTER" {
+		return NewHashJoinOperator(right, left, joinType, probeKey, buildKey), nil
+	}
+	return NewHashJoinOperator(left, right, joinType, buildKey, probeKey), nil
 }
 
 func (v *VolcanoExecutor) buildMergeJoin(ctx context.Context, p *plan.PhysicalMergeJoin) (Operator, error) {

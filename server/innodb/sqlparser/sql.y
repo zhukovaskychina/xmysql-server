@@ -255,7 +255,8 @@ func forceEOF(yylex interface{}) {
 %type <str> extended_opt full_opt from_database_opt tables_or_processlist
 %type <showFilter> like_or_where_opt
 %type <byt> exists_opt
-%type <empty> not_exists_opt non_add_drop_or_rename_operation to_opt index_opt constraint_opt
+%type <byt> not_exists_opt
+%type <empty> non_add_drop_or_rename_operation to_opt index_opt constraint_opt
 %type <bytes> reserved_keyword non_reserved_keyword
 %type <colIdent> sql_id reserved_sql_id col_alias as_ci_opt using_opt
 %type <expr> charset_value
@@ -558,19 +559,11 @@ create_statement:
   }
 | CREATE DATABASE not_exists_opt ID ddl_force_eof
   {
-    ifNotExists := false
-    if $3 != nil {
-      ifNotExists = true
-    }
-    $$ = &DBDDL{Action: CreateStr, DBName: string($4), IfExists: ifNotExists}
+    $$ = &DBDDL{Action: CreateStr, DBName: string($4), IfExists: $3 != 0}
   }
 | CREATE SCHEMA not_exists_opt ID ddl_force_eof
   {
-    ifNotExists := false
-    if $3 != nil {
-      ifNotExists = true
-    }
-    $$ = &DBDDL{Action: CreateStr, DBName: string($4), IfExists: ifNotExists}
+    $$ = &DBDDL{Action: CreateStr, DBName: string($4), IfExists: $3 != 0}
   }
 
 vindex_type_opt:
@@ -652,6 +645,16 @@ column_definition:
     $2.OnUpdate = $5
     $2.Autoincrement = $6
     $2.KeyOpt = $7
+    $2.Comment = $8
+    $$ = &ColumnDefinition{Name: NewColIdent(string($1)), Type: $2}
+  }
+| ID column_type null_opt column_default_opt on_update_opt column_key_opt auto_increment_opt column_comment_opt
+  {
+    $2.NotNull = $3
+    $2.Default = $4
+    $2.OnUpdate = $5
+    $2.KeyOpt = $6
+    $2.Autoincrement = $7
     $2.Comment = $8
     $$ = &ColumnDefinition{Name: NewColIdent(string($1)), Type: $2}
   }
@@ -1355,9 +1358,9 @@ show_statement:
   {
     $$ = &Show{Type: string($2) + " " + string($3)}
   }
-| SHOW DATABASES ddl_force_eof
+| SHOW DATABASES like_or_where_opt ddl_force_eof
   {
-    $$ = &Show{Type: string($2)}
+    $$ = &Show{Type: string($2), Filter: $3}
   }
 | SHOW INDEX ddl_force_eof
   {
@@ -1371,9 +1374,9 @@ show_statement:
   {
     $$ = &Show{Type: string($2)}
   }
-| SHOW show_session_or_global STATUS ddl_force_eof
+| SHOW show_session_or_global STATUS like_or_where_opt ddl_force_eof
   {
-    $$ = &Show{Scope: $2, Type: string($3)}
+    $$ = &Show{Scope: $2, Type: string($3), Filter: $4}
   }
 | SHOW TABLE ddl_force_eof
   {
@@ -1389,9 +1392,9 @@ show_statement:
       $$ = &Show{Type: $4, ShowTablesOpt: showTablesOpt}
     }
   }
-| SHOW show_session_or_global VARIABLES ddl_force_eof
+| SHOW show_session_or_global VARIABLES like_or_where_opt ddl_force_eof
   {
-    $$ = &Show{Scope: $2, Type: string($3)}
+    $$ = &Show{Scope: $2, Type: string($3), Filter: $4}
   }
 | SHOW VINDEXES
   {
@@ -2833,9 +2836,9 @@ exists_opt:
   { $$ = 1 }
 
 not_exists_opt:
-  { $$ = nil }
+  { $$ = 0 }
 | IF NOT EXISTS
-  { $$ = struct{}{} }
+  { $$ = 1 }
 
 ignore_opt:
   { $$ = "" }

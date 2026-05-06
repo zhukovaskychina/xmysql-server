@@ -380,7 +380,7 @@ RELEASE SAVEPOINT sp1;       -- 释放sp1
 
 ## 🔍 验证标准
 
-根据`docs/PRIORITY_TASK_LIST.md`的验证标准：
+根据 `docs/planning/P0_PRODUCTION_CHECKLIST.md` 与路线图任务的验证思路（原 `PRIORITY_TASK_LIST.md` 已合并为跳转页）：
 
 | 验证项 | 状态 | 说明 |
 |--------|------|------|

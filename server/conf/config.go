@@ -38,6 +38,8 @@ type Cfg struct {
 	BaseDir     string
 	DataDir     string
 	AppName     string
+	// 开发环境认证开关：true=免密（跳过口令校验），false=执行真实口令校验
+	DevBypassPasswordAuth bool
 
 	ProfilePort int
 	// session
@@ -107,6 +109,8 @@ func NewCfg() *Cfg {
 		BindAddress: "127.0.0.1",
 		Port:        3308,
 		DataDir:     "data",
+		// 默认开发环境免密，便于本地联调；生产请显式置为 false
+		DevBypassPasswordAuth: true,
 		// Logs 默认配置
 		LogError: "/var/log/mysql/error.log",
 		LogInfos: "/var/log/mysql/mysql.log",
@@ -346,6 +350,7 @@ func (cfg *Cfg) parseMysqldCfg(section *ini.Section) *Cfg {
 
 	cfg.BaseDir = baseDirValue.Value()
 	cfg.DataDir = dataDirValue.Value()
+	cfg.DevBypassPasswordAuth = section.Key("dev_bypass_password_auth").MustBool(cfg.DevBypassPasswordAuth)
 	failFastTimeout, err := section.GetKey("fail_fast_timeout")
 
 	cfg.FailFastTimeout = failFastTimeout.Value()

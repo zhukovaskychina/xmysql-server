@@ -1,5 +1,7 @@
 # B+树核心功能实施总结报告 V2
 
+> **2026-04 维护说明**：本文为**2025-10-28 会话阶段快照**（分裂/合并等进度表）。**项目总览摘要**见 [BTREE_IMPLEMENTATION_SUMMARY.md](./BTREE_IMPLEMENTATION_SUMMARY.md)；**最新任务 ID 与模块完成度**见 [../development/DEVELOPMENT_ROADMAP_TASKS.md](../development/DEVELOPMENT_ROADMAP_TASKS.md)。索引见 [BTREE_DOCUMENTATION_INDEX.md](./BTREE_DOCUMENTATION_INDEX.md)。
+
 **报告日期**: 2025-10-28  
 **项目阶段**: 核心功能完善 - 第一阶段  
 **整体进度**: 35% → 目标95%

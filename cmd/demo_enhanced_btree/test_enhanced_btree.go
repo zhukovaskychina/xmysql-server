@@ -23,7 +23,7 @@ func main() {
 
 	// 确保测试目录存在
 	if err := os.MkdirAll(config.InnodbDataDir, 0755); err != nil {
-		util.Debugf(" 无法创建测试目录: %v\n", err)
+		logger.Debugf(" 无法创建测试目录: %v\n", err)
 		return
 	}
 
@@ -31,15 +31,15 @@ func main() {
 	defer func() {
 		fmt.Println("\n🧹 清理测试数据...")
 		if err := os.RemoveAll("test_data_enhanced"); err != nil {
-			util.Debugf("  清理测试数据失败: %v\n", err)
+			logger.Debugf("  清理测试数据失败: %v\n", err)
 		} else {
 			fmt.Println(" 测试数据清理完成")
 		}
 	}()
 
-	util.Debugf("📁 测试目录: %s\n", config.DataDir)
-	util.Debugf("💾 缓冲池大小: %d MB\n", config.InnodbBufferPoolSize/1024/1024)
-	util.Debugf("📄 页面大小: %d KB\n", config.InnodbPageSize/1024)
+	logger.Debugf("📁 测试目录: %s\n", config.DataDir)
+	logger.Debugf("💾 缓冲池大小: %d MB\n", config.InnodbBufferPoolSize/1024/1024)
+	logger.Debugf("📄 页面大小: %d KB\n", config.InnodbPageSize/1024)
 	fmt.Println()
 
 	// 1. 创建存储管理器
@@ -88,16 +88,16 @@ func testEnhancedBTreeManager(sm *manager.StorageManager) {
 	btreeManager := manager.NewEnhancedBTreeManager(sm, manager.DefaultBTreeConfig)
 	defer btreeManager.Close()
 
-	util.Debugf("   增强版B+树管理器创建成功\n")
-	util.Debugf("     - 已加载索引数: %d\n", btreeManager.GetLoadedIndexCount())
+	logger.Debugf("   增强版B+树管理器创建成功\n")
+	logger.Debugf("     - 已加载索引数: %d\n", btreeManager.GetLoadedIndexCount())
 
 	// 获取统计信息
 	stats := btreeManager.GetStats()
-	util.Debugf("  📈 管理器统计信息:\n")
-	util.Debugf("     - 索引缓存命中: %d\n", stats.IndexCacheHits)
-	util.Debugf("     - 索引缓存未命中: %d\n", stats.IndexCacheMisses)
-	util.Debugf("     - 搜索操作数: %d\n", stats.SearchOperations)
-	util.Debugf("     - 插入操作数: %d\n", stats.InsertOperations)
+	logger.Debugf("  📈 管理器统计信息:\n")
+	logger.Debugf("     - 索引缓存命中: %d\n", stats.IndexCacheHits)
+	logger.Debugf("     - 索引缓存未命中: %d\n", stats.IndexCacheMisses)
+	logger.Debugf("     - 搜索操作数: %d\n", stats.SearchOperations)
+	logger.Debugf("     - 插入操作数: %d\n", stats.InsertOperations)
 }
 
 func testIndexMetadataManager() {
@@ -132,34 +132,34 @@ func testIndexMetadataManager() {
 	// 注册索引
 	err := metadataManager.RegisterIndex(testIndexMetadata)
 	if err != nil {
-		util.Debugf("   注册索引失败: %v\n", err)
+		logger.Debugf("   注册索引失败: %v\n", err)
 		return
 	}
 
-	util.Debugf("   成功注册索引 %d '%s'\n", testIndexMetadata.IndexID, testIndexMetadata.IndexName)
+	logger.Debugf("   成功注册索引 %d '%s'\n", testIndexMetadata.IndexID, testIndexMetadata.IndexName)
 
 	// 查询索引
 	retrievedIndex, err := metadataManager.GetIndexMetadata(testIndexMetadata.IndexID)
 	if err != nil {
-		util.Debugf("   查询索引失败: %v\n", err)
+		logger.Debugf("   查询索引失败: %v\n", err)
 		return
 	}
 
-	util.Debugf("   成功查询索引: %s (表ID: %d, 状态: %d)\n",
+	logger.Debugf("   成功查询索引: %s (表ID: %d, 状态: %d)\n",
 		retrievedIndex.IndexName, retrievedIndex.TableID, retrievedIndex.IndexState)
 
 	// 按名称查询索引
 	indexByName, err := metadataManager.GetIndexByName(testIndexMetadata.TableID, testIndexMetadata.IndexName)
 	if err != nil {
-		util.Debugf("   按名称查询索引失败: %v\n", err)
+		logger.Debugf("   按名称查询索引失败: %v\n", err)
 		return
 	}
 
-	util.Debugf("   按名称查询索引成功: ID %d\n", indexByName.IndexID)
+	logger.Debugf("   按名称查询索引成功: ID %d\n", indexByName.IndexID)
 
 	// 列出所有索引
 	allIndexes := metadataManager.ListAllIndexes()
-	util.Debugf("   总共有 %d 个索引\n", len(allIndexes))
+	logger.Debugf("   总共有 %d 个索引\n", len(allIndexes))
 }
 
 func testEnhancedBTreeUserQuery(sm *manager.StorageManager) {
@@ -177,23 +177,23 @@ func testEnhancedBTreeUserQuery(sm *manager.StorageManager) {
 	}
 
 	for _, userTest := range users {
-		util.Debugf("    🔎 查询用户: %s@%s\n", userTest.username, userTest.host)
+		logger.Debugf("    🔎 查询用户: %s@%s\n", userTest.username, userTest.host)
 
 		user, err := sm.QueryMySQLUserViaBTree(userTest.username, userTest.host)
 
 		if userTest.shouldExist {
 			if err != nil {
-				util.Debugf("     期望用户存在，但查询失败: %v\n", err)
+				logger.Debugf("     期望用户存在，但查询失败: %v\n", err)
 			} else {
-				util.Debugf("     找到用户: %s@%s\n", user.User, user.Host)
-				util.Debugf("       - 权限: SELECT=%s, SUPER=%s\n", user.SelectPriv, user.SuperPriv)
-				util.Debugf("       - 密码哈希: %s\n", user.AuthenticationString[:20]+"...")
+				logger.Debugf("     找到用户: %s@%s\n", user.User, user.Host)
+				logger.Debugf("       - 权限: SELECT=%s, SUPER=%s\n", user.SelectPriv, user.SuperPriv)
+				logger.Debugf("       - 密码哈希: %s\n", user.AuthenticationString[:20]+"...")
 			}
 		} else {
 			if err != nil {
-				util.Debugf("     用户正确不存在\n")
+				logger.Debugf("     用户正确不存在\n")
 			} else {
-				util.Debugf("     用户不应该存在但被找到\n")
+				logger.Debugf("     用户不应该存在但被找到\n")
 			}
 		}
 	}
@@ -205,20 +205,20 @@ func testTraditionalUserQuery(sm *manager.StorageManager) {
 	users := []string{"root@localhost", "root@%"}
 
 	for _, userKey := range users {
-		util.Debugf("    🔎 传统查询: %s\n", userKey)
+		logger.Debugf("    🔎 传统查询: %s\n", userKey)
 
 		// 解析用户名和主机
 		parts := parseUserKey(userKey)
 		if len(parts) != 2 {
-			util.Debugf("     无效的用户格式: %s\n", userKey)
+			logger.Debugf("     无效的用户格式: %s\n", userKey)
 			continue
 		}
 
 		user, err := sm.QueryMySQLUser(parts[0], parts[1])
 		if err != nil {
-			util.Debugf("     传统查询失败: %v\n", err)
+			logger.Debugf("     传统查询失败: %v\n", err)
 		} else {
-			util.Debugf("     传统方法找到用户: %s@%s\n", user.User, user.Host)
+			logger.Debugf("     传统方法找到用户: %s@%s\n", user.User, user.Host)
 		}
 	}
 }
@@ -239,18 +239,18 @@ func testUserAuthentication(sm *manager.StorageManager) {
 	}
 
 	for _, test := range authTests {
-		util.Debugf("    🔑 验证: %s@%s 密码: %s\n", test.username, test.host, test.password)
+		logger.Debugf("    🔑 验证: %s@%s 密码: %s\n", test.username, test.host, test.password)
 
 		isValid := sm.VerifyUserPassword(test.username, test.host, test.password)
 
 		if isValid == test.expected {
 			if test.expected {
-				util.Debugf("     密码验证成功\n")
+				logger.Debugf("     密码验证成功\n")
 			} else {
-				util.Debugf("     密码正确被拒绝\n")
+				logger.Debugf("     密码正确被拒绝\n")
 			}
 		} else {
-			util.Debugf("     密码验证结果不符合期望\n")
+			logger.Debugf("     密码验证结果不符合期望\n")
 		}
 	}
 }
@@ -262,7 +262,7 @@ func testPerformanceComparison(sm *manager.StorageManager) {
 	parts := parseUserKey(userKey)
 
 	if len(parts) != 2 {
-		util.Debugf("     无效的用户格式: %s\n", userKey)
+		logger.Debugf("     无效的用户格式: %s\n", userKey)
 		return
 	}
 
@@ -270,7 +270,7 @@ func testPerformanceComparison(sm *manager.StorageManager) {
 	iterations := 100
 
 	// 增强版B+树查询性能测试
-	util.Debugf("     执行 %d 次增强版B+树查询...\n", iterations)
+	logger.Debugf("     执行 %d 次增强版B+树查询...\n", iterations)
 	enhancedSuccessCount := 0
 	for i := 0; i < iterations; i++ {
 		_, err := sm.QueryMySQLUserViaBTree(username, host)
@@ -280,7 +280,7 @@ func testPerformanceComparison(sm *manager.StorageManager) {
 	}
 
 	// 传统查询性能测试
-	util.Debugf("     执行 %d 次传统查询...\n", iterations)
+	logger.Debugf("     执行 %d 次传统查询...\n", iterations)
 	traditionalSuccessCount := 0
 	for i := 0; i < iterations; i++ {
 		_, err := sm.QueryMySQLUser(username, host)
@@ -289,25 +289,25 @@ func testPerformanceComparison(sm *manager.StorageManager) {
 		}
 	}
 
-	util.Debugf("    📈 结果对比:\n")
-	util.Debugf("       - 增强版B+树查询成功率: %d/%d (%.1f%%)\n",
+	logger.Debugf("    📈 结果对比:\n")
+	logger.Debugf("       - 增强版B+树查询成功率: %d/%d (%.1f%%)\n",
 		enhancedSuccessCount, iterations, float64(enhancedSuccessCount)*100/float64(iterations))
-	util.Debugf("       - 传统查询成功率: %d/%d (%.1f%%)\n",
+	logger.Debugf("       - 传统查询成功率: %d/%d (%.1f%%)\n",
 		traditionalSuccessCount, iterations, float64(traditionalSuccessCount)*100/float64(iterations))
 
 	if enhancedSuccessCount > 0 {
-		util.Debugf("     增强版B+树索引查询功能正常\n")
+		logger.Debugf("     增强版B+树索引查询功能正常\n")
 	} else {
-		util.Debugf("      增强版B+树索引查询需要进一步优化\n")
+		logger.Debugf("      增强版B+树索引查询需要进一步优化\n")
 	}
 
 	// 显示架构优势
-	util.Debugf("      架构优势:\n")
-	util.Debugf("       - 按需加载索引，减少内存占用\n")
-	util.Debugf("       - 专业的索引元信息管理\n")
-	util.Debugf("       - 完整的B+树生命周期管理\n")
-	util.Debugf("       - 支持多种索引类型和统计信息\n")
-	util.Debugf("       - 异步后台任务优化性能\n")
+	logger.Debugf("      架构优势:\n")
+	logger.Debugf("       - 按需加载索引，减少内存占用\n")
+	logger.Debugf("       - 专业的索引元信息管理\n")
+	logger.Debugf("       - 完整的B+树生命周期管理\n")
+	logger.Debugf("       - 支持多种索引类型和统计信息\n")
+	logger.Debugf("       - 异步后台任务优化性能\n")
 }
 
 // parseUserKey 解析 "user@host" 格式的字符串

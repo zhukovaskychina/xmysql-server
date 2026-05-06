@@ -288,18 +288,22 @@ func (dml *StorageIntegratedDMLExecutor) commitStorageTransaction(ctx context.Co
 	}
 
 	// 刷新所有修改的页面到磁盘
-	for spacePageKey, pageNo := range txnCtx.ModifiedPages {
-		parts := strings.Split(spacePageKey, ":")
-		if len(parts) == 2 {
-			if spaceID, err := strconv.ParseUint(parts[0], 10, 32); err == nil {
-				err = dml.bufferPoolManager.FlushPage(uint32(spaceID), pageNo)
-				if err != nil {
-					logger.Debugf("  警告: 刷新页面失败: %v", err)
-				} else {
-					logger.Debugf(" 页面已刷新: SpaceID=%d, PageNo=%d", spaceID, pageNo)
+	if dml.bufferPoolManager != nil {
+		for spacePageKey, pageNo := range txnCtx.ModifiedPages {
+			parts := strings.Split(spacePageKey, ":")
+			if len(parts) == 2 {
+				if spaceID, err := strconv.ParseUint(parts[0], 10, 32); err == nil {
+					err = dml.bufferPoolManager.FlushPage(uint32(spaceID), pageNo)
+					if err != nil {
+						logger.Debugf("  警告: 刷新页面失败: %v", err)
+					} else {
+						logger.Debugf(" 页面已刷新: SpaceID=%d, PageNo=%d", spaceID, pageNo)
+					}
 				}
 			}
 		}
+	} else if len(txnCtx.ModifiedPages) > 0 {
+		logger.Debugf("⚠️ bufferPoolManager 未初始化，跳过 %d 个脏页刷新", len(txnCtx.ModifiedPages))
 	}
 
 	txnCtx.Status = "COMMITTED"
@@ -325,8 +329,12 @@ func (dml *StorageIntegratedDMLExecutor) rollbackStorageTransaction(ctx context.
 		// 使用事务管理器回滚真实事务
 		err := dml.txManager.Rollback(txnCtx.RealTransaction)
 		if err != nil {
-			logger.Errorf(" 事务管理器回滚失败: %v", err)
-			return fmt.Errorf("事务管理器回滚失败: %v", err)
+			if strings.Contains(err.Error(), "no undo logs for transaction") {
+				logger.Debugf("⚠️ 事务 %d 没有 Undo 日志，按空回滚处理", txnCtx.RealTransaction.ID)
+			} else {
+				logger.Errorf(" 事务管理器回滚失败: %v", err)
+				return fmt.Errorf("事务管理器回滚失败: %v", err)
+			}
 		}
 
 		logger.Debugf(" 事务管理器回滚成功: TrxID=%d, Duration=%v",

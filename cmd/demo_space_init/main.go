@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 )
@@ -49,9 +50,9 @@ func main() {
 	for _, tableName := range testSpaces {
 		spaceID, err := spaceManager.CreateTableSpace(tableName)
 		if err != nil {
-			util.Debugf(" 创建表空间 %s 失败: %v\n", tableName, err)
+			logger.Debugf(" 创建表空间 %s 失败: %v\n", tableName, err)
 		} else {
-			util.Debugf(" 创建表空间: %s (Space ID: %d)\n", tableName, spaceID)
+			logger.Debugf(" 创建表空间: %s (Space ID: %d)\n", tableName, spaceID)
 			createdSpaceIDs = append(createdSpaceIDs, spaceID)
 		}
 	}
@@ -77,33 +78,33 @@ func main() {
 	for i, tableName := range testSpaces {
 		space, err := spaceManager2.GetTableSpaceByName(tableName)
 		if err != nil {
-			util.Debugf(" 表空间 %s 未找到: %v\n", tableName, err)
+			logger.Debugf(" 表空间 %s 未找到: %v\n", tableName, err)
 		} else {
-			util.Debugf(" 表空间 %s 已加载 (Space ID: %d)\n", tableName, space.GetSpaceId())
+			logger.Debugf(" 表空间 %s 已加载 (Space ID: %d)\n", tableName, space.GetSpaceId())
 		}
 
 		// 验证文件是否存在
 		filePath := filepath.Join(testDir, tableName+".ibd")
 		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			util.Debugf(" 文件不存在: %s\n", filePath)
+			logger.Debugf(" 文件不存在: %s\n", filePath)
 		} else {
-			util.Debugf(" 文件存在: %s\n", filePath)
+			logger.Debugf(" 文件存在: %s\n", filePath)
 		}
 
 		// 尝试再次创建同名表空间（应该失败）
 		_, err = spaceManager2.CreateTableSpace(tableName)
 		if err != nil {
-			util.Debugf(" 正确阻止重复创建: %s (%v)\n", tableName, err)
+			logger.Debugf(" 正确阻止重复创建: %s (%v)\n", tableName, err)
 		} else {
-			util.Debugf(" 应该阻止重复创建但没有: %s\n", tableName)
+			logger.Debugf(" 应该阻止重复创建但没有: %s\n", tableName)
 		}
 
 		if i < len(createdSpaceIDs) && space != nil {
 			// 验证Space ID是否一致
 			if space.GetSpaceId() == createdSpaceIDs[i] {
-				util.Debugf(" Space ID 一致: %d\n", space.GetSpaceId())
+				logger.Debugf(" Space ID 一致: %d\n", space.GetSpaceId())
 			} else {
-				util.Debugf(" Space ID 不一致: 期望 %d, 实际 %d\n", createdSpaceIDs[i], space.GetSpaceId())
+				logger.Debugf(" Space ID 不一致: 期望 %d, 实际 %d\n", createdSpaceIDs[i], space.GetSpaceId())
 			}
 		}
 		fmt.Println()

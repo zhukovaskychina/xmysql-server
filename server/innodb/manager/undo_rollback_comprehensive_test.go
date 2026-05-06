@@ -416,14 +416,7 @@ func TestTXN002_PurgeOldVersions(t *testing.T) {
 		// 标记事务为非活跃
 		undoManager.Cleanup(txID)
 
-		// 等待Purge阈值
-		time.Sleep(150 * time.Millisecond)
-
 		// 触发Purge
 		undoManager.SchedulePurge(txID)
-
-		// 验证事务已被清理
-		// 注意：由于异步Purge，可能需要等待
-		time.Sleep(100 * time.Millisecond)
 	})
 }

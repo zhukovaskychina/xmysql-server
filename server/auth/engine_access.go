@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
+	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
@@ -514,6 +515,7 @@ func (ea *InnoDBEngineAccess) matchHost(host, pattern string) bool {
 type MockEngineSession struct {
 	sessionID string
 	database  string
+	ctx       *server.SessionContext
 }
 
 func (s *MockEngineSession) GetSessionId() string {
@@ -522,6 +524,14 @@ func (s *MockEngineSession) GetSessionId() string {
 
 func (s *MockEngineSession) GetLastActiveTime() time.Time {
 	return time.Now()
+}
+
+func (s *MockEngineSession) SessionContext() *server.SessionContext {
+	if s.ctx == nil {
+		s.ctx = server.NewSessionContext(s.sessionID)
+		s.ctx.SetCurrentDB(s.database)
+	}
+	return s.ctx
 }
 
 func (s *MockEngineSession) SetParamByName(name string, value interface{}) {

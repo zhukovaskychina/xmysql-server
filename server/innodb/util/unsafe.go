@@ -46,16 +46,54 @@ func StringToBytes(s string) []byte {
 
 // ToJSONString format v to the JSON encoding, return a string.
 func ToJSONString(v interface{}, escapeHTML bool, prefix, indent string) (string, error) {
-	bf := bytes.NewBuffer([]byte{})
-	jsonEncoder := json.NewEncoder(bf)
-	jsonEncoder.SetEscapeHTML(escapeHTML)
-	jsonEncoder.SetIndent(prefix, indent)
-	if err := jsonEncoder.Encode(v); err != nil {
+	// 生成紧凑的单行 JSON
+	bf := bytes.NewBuffer(nil)
+	enc := json.NewEncoder(bf)
+	enc.SetEscapeHTML(escapeHTML)
+	if err := enc.Encode(v); err != nil {
 		return "", err
 	}
-	// Remove the newline added by (*Encoder).Encode.
-	bf.Truncate(bf.Len() - 1)
-	return bf.String(), nil
+	s := bf.String()
+	if len(s) > 0 && s[len(s)-1] == '\n' {
+		s = s[:len(s)-1]
+	}
+	// 未指定缩进时直接返回紧凑格式
+	if indent == "" {
+		return s, nil
+	}
+	// 单行 JSON：在 { 之后、逗号之后插入缩进；在 } 之前插入缩进；在冒号后插入空格
+	var out bytes.Buffer
+	inString := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		// 处理字符串边界（考虑转义）
+		if c == '"' {
+			if i == 0 || s[i-1] != '\\' {
+				inString = !inString
+			}
+			out.WriteByte(c)
+			continue
+		}
+		if inString {
+			out.WriteByte(c)
+			continue
+		}
+		switch c {
+		case '{':
+			out.WriteByte(c)
+			out.WriteString(indent)
+		case ',':
+			out.WriteByte(c)
+			out.WriteString(indent)
+		case '}':
+			out.WriteByte(c)
+		case ':':
+			out.WriteString(": ")
+		default:
+			out.WriteByte(c)
+		}
+	}
+	return out.String(), nil
 }
 
 // 生成md5

@@ -1093,11 +1093,20 @@ var (
 		input:  "show status",
 		output: "show status",
 	}, {
+		input:  "show status like 'Up%'",
+		output: "show status like 'Up%'",
+	}, {
 		input:  "show global status",
 		output: "show global status",
 	}, {
+		input:  "show global status like 'Thr%'",
+		output: "show global status like 'Thr%'",
+	}, {
 		input:  "show session status",
 		output: "show session status",
+	}, {
+		input:  "show session status like 'Com_%'",
+		output: "show session status like 'Com_%'",
 	}, {
 		input:  "show table status",
 		output: "show table",
@@ -1135,11 +1144,20 @@ var (
 		input:  "show variables",
 		output: "show variables",
 	}, {
+		input:  "show variables like 'version%'",
+		output: "show variables like 'version%'",
+	}, {
 		input:  "show global variables",
 		output: "show global variables",
 	}, {
+		input:  "show global variables like 'char%'",
+		output: "show global variables like 'char%'",
+	}, {
 		input:  "show session variables",
 		output: "show session variables",
+	}, {
+		input:  "show session variables like 'sql_%'",
+		output: "show session variables like 'sql_%'",
 	}, {
 		input:  "show vindexes",
 		output: "show vindexes",

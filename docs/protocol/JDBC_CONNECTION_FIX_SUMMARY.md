@@ -1,5 +1,7 @@
 # JDBC连接修复总结
 
+> **2026-04 关联文档**：[协议与 JDBC 索引](./PROTOCOL_DOCUMENTATION_INDEX.md)；**全量 `jdbc_client` 集成测试修复计划**（阶段、`jdbc-connectivity` 门禁）→ [planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md](../planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md)。
+
 ## 问题描述
 
 在使用MySQL JDBC驱动（mysql-connector-java-5.1.49）连接XMySQL服务器时，出现以下错误：
@@ -17,9 +19,7 @@ java.sql.SQLException: ResultSet is from UPDATE. No Data.
 ## 问题根因分析
 
 1. **系统变量查询结果格式错误**: JDBC驱动在连接时执行系统变量查询，但服务器返回的结果集缺少列信息，导致JDBC驱动认为这是UPDATE结果而不是SELECT结果。
-
 2. **Schema信息缺失**: 系统变量查询的Schema信息没有正确设置，导致列信息丢失。
-
 3. **网络协议处理问题**: 在`sendQueryResult`方法中，当没有列信息时仍然发送EOF包，这可能导致协议混乱。
 
 ## 修复方案
@@ -168,16 +168,19 @@ go run cmd/test_jdbc_connection/main.go
 ## 技术特性
 
 ### 火山模型执行
+
 - 使用高效的迭代器模式执行查询
 - 支持流式数据处理
 - 内存使用优化
 
 ### SQL解析器集成
+
 - 使用sqlparser进行精确的SQL语句分析
 - 支持复杂的系统变量表达式解析
 - 兼容MySQL语法
 
 ### 系统变量管理
+
 - 支持全局和会话级别的变量作用域
 - 动态变量值管理
 - 完整的变量定义和验证

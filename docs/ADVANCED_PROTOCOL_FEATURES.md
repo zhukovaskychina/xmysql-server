@@ -1,5 +1,8 @@
 # MySQL协议高级特性实现文档
 
+> **文档状态（2026-04）**：特性清单与实现说明；总索引见 [protocol/PROTOCOL_DOCUMENTATION_INDEX.md](./protocol/PROTOCOL_DOCUMENTATION_INDEX.md)。  
+> **JDBC 联调**：全量 `jdbc_client` 失败项的分阶段修复与验收见 [planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md](./planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md)（日常连接/变量回归可用 Maven profile `jdbc-connectivity`）。
+
 ## 概述
 
 本文档描述了xmysql-server中实现的MySQL协议高级特性，包括大包分片、压缩协议、字符集支持、连接属性和会话状态跟踪。
@@ -7,14 +10,17 @@
 ## 1. 大包分片处理（16MB限制）
 
 ### 功能描述
+
 MySQL协议规定单个包的最大长度为 `0xFFFFFF` (16,777,215 bytes ≈ 16MB)。当数据超过此限制时，需要分片传输。
 
 ### 实现文件
+
 - `server/protocol/packet_splitter.go`
 
 ### 核心功能
 
 #### PacketSplitter
+
 ```go
 splitter := NewPacketSplitter()
 
@@ -26,6 +32,7 @@ merged, err := splitter.MergePackets(packets)
 ```
 
 #### 主要方法
+
 - `SplitPacket()` - 将大payload分片为多个MySQL包
 - `MergePackets()` - 合并多个分片包
 - `ReadPacketWithSplit()` - 自动处理分片包的读取
@@ -34,12 +41,14 @@ merged, err := splitter.MergePackets(packets)
 - `CalculatePacketCount()` - 计算需要的包数量
 
 #### 分片规则
+
 1. 每个包最大 16MB
 2. 如果最后一个包正好是 16MB，需要发送一个空包表示结束
 3. 序列号连续递增
 4. 接收方根据包长度判断是否还有后续包
 
 ### 使用示例
+
 ```go
 // 发送大数据
 largeData := make([]byte, 20*1024*1024) // 20MB
@@ -57,14 +66,17 @@ payload, sequenceId, err := splitter.ReadPacketWithSplit(reader)
 ## 2. 压缩协议支持
 
 ### 功能描述
+
 MySQL压缩协议使用zlib算法压缩数据包，减少网络传输量。适用于慢速网络或大数据传输场景。
 
 ### 实现文件
+
 - `server/protocol/compression.go`
 
 ### 核心功能
 
 #### CompressionHandler
+
 ```go
 handler := NewCompressionHandler(true) // 启用压缩
 
@@ -76,6 +88,7 @@ decompressed, sequenceId, err := handler.DecompressPacket(compressed)
 ```
 
 #### 压缩包格式
+
 ```
 +-------------------+
 | 压缩后长度 (3字节) |
@@ -89,12 +102,14 @@ decompressed, sequenceId, err := handler.DecompressPacket(compressed)
 ```
 
 #### 主要特性
+
 - **压缩阈值**: 小于50字节的包不压缩
 - **智能压缩**: 如果压缩后反而更大，使用原始数据
 - **统计信息**: 跟踪压缩率和节省的字节数
 - **批量压缩**: 支持合并多个小包后一起压缩
 
 #### 压缩统计
+
 ```go
 stats := &CompressionStats{}
 stats.UpdateStats(originalSize, compressedSize, wasCompressed)
@@ -105,6 +120,7 @@ saved := stats.GetBytesSaved()
 ```
 
 ### 使用示例
+
 ```go
 // 启用压缩
 handler := NewCompressionHandler(true)
@@ -123,14 +139,17 @@ data, sequenceId, _ := reader.ReadPacket()
 ## 3. 完整的字符集支持
 
 ### 功能描述
+
 支持MySQL的所有标准字符集和校对规则，包括UTF-8、UTF-8MB4、GBK、Latin1等。
 
 ### 实现文件
+
 - `server/protocol/charset_manager.go`
 
 ### 核心功能
 
 #### CharsetManager
+
 ```go
 manager := GetGlobalCharsetManager()
 
@@ -145,16 +164,20 @@ collation, err := manager.GetDefaultCollation("utf8mb4")
 ```
 
 #### 支持的字符集（部分）
-| ID  | 名称      | 默认校对规则              | 最大字节长度 |
-|-----|-----------|--------------------------|-------------|
-| 8   | latin1    | latin1_swedish_ci        | 1           |
-| 28  | gbk       | gbk_chinese_ci           | 2           |
-| 33  | utf8      | utf8_general_ci          | 3           |
-| 45  | utf8mb4   | utf8mb4_general_ci       | 4           |
-| 63  | binary    | binary                   | 1           |
-| 255 | utf8mb4   | utf8mb4_0900_ai_ci       | 4           |
+
+
+| ID  | 名称      | 默认校对规则             | 最大字节长度 |
+| --- | ------- | ------------------ | ------ |
+| 8   | latin1  | latin1_swedish_ci  | 1      |
+| 28  | gbk     | gbk_chinese_ci     | 2      |
+| 33  | utf8    | utf8_general_ci    | 3      |
+| 45  | utf8mb4 | utf8mb4_general_ci | 4      |
+| 63  | binary  | binary             | 1      |
+| 255 | utf8mb4 | utf8mb4_0900_ai_ci | 4      |
+
 
 #### 字符集信息
+
 ```go
 type CharsetInfo struct {
     ID          uint8   // 字符集ID
@@ -166,6 +189,7 @@ type CharsetInfo struct {
 ```
 
 #### 主要方法
+
 - `GetCharsetByID()` - 根据ID获取字符集
 - `GetCharsetByName()` - 根据名称获取字符集
 - `GetCollationByID()` - 根据ID获取校对规则
@@ -175,6 +199,7 @@ type CharsetInfo struct {
 - `GetCollationsByCharset()` - 获取指定字符集的所有校对规则
 
 ### 使用示例
+
 ```go
 manager := GetGlobalCharsetManager()
 
@@ -199,14 +224,17 @@ if manager.IsValidCharset(255) {
 ## 4. 连接属性（CLIENT_CONNECT_ATTRS）
 
 ### 功能描述
+
 连接属性允许客户端在握手阶段发送元数据信息，如客户端名称、版本、操作系统等。
 
 ### 实现文件
+
 - `server/protocol/connection_attributes.go`
 
 ### 核心功能
 
 #### ConnectionAttributes
+
 ```go
 attrs := NewConnectionAttributes()
 
@@ -223,6 +251,7 @@ clientInfo := attrs.GetClientInfo()
 ```
 
 #### 标准属性键名
+
 ```go
 const (
     AttrClientName        = "_client_name"        // 客户端名称
@@ -238,6 +267,7 @@ const (
 ```
 
 #### 编码格式
+
 ```
 +-------------------------+
 | 总长度 (length-encoded) |
@@ -255,6 +285,7 @@ const (
 ```
 
 #### 主要方法
+
 - `ParseConnectionAttributes()` - 解析连接属性
 - `EncodeConnectionAttributes()` - 编码连接属性
 - `ValidateAttributes()` - 验证属性（大小限制）
@@ -262,6 +293,7 @@ const (
 - `MergeAttributes()` - 合并属性
 
 ### 使用示例
+
 ```go
 // 创建连接属性
 attrs := NewConnectionAttributes()
@@ -293,14 +325,17 @@ if err := parser.ValidateAttributes(attrs); err != nil {
 ## 5. 会话状态跟踪（CLIENT_SESSION_TRACK）
 
 ### 功能描述
+
 会话状态跟踪允许服务器在OK包中返回会话状态变更信息，如系统变量变更、数据库切换、事务状态等。
 
 ### 实现文件
+
 - `server/protocol/session_track.go`
 
 ### 核心功能
 
 #### SessionTracker
+
 ```go
 tracker := NewSessionTracker(true) // 启用跟踪
 
@@ -318,6 +353,7 @@ trackData := tracker.EncodeForOKPacket()
 ```
 
 #### 跟踪类型
+
 ```go
 const (
     SessionTrackSystemVariables            = 0x00  // 系统变量
@@ -330,6 +366,7 @@ const (
 ```
 
 #### SessionStateManager
+
 ```go
 manager := NewSessionStateManager(true)
 
@@ -350,6 +387,7 @@ trackData := manager.GetTrackingData()
 ```
 
 #### 事务状态字符串
+
 ```go
 const (
     TxStateIdle                       = "________"  // 空闲
@@ -361,6 +399,7 @@ const (
 ```
 
 #### OK包中的会话跟踪格式
+
 ```
 OK包:
 +------------------+
@@ -396,6 +435,7 @@ session_track格式:
 ```
 
 ### 使用示例
+
 ```go
 // 创建会话状态管理器
 manager := NewSessionStateManager(true)
@@ -436,6 +476,7 @@ fmt.Printf("会话变更: %s\n", info.String())
 ## 集成使用
 
 ### AdvancedProtocolHandler
+
 提供了一个统一的高级协议处理器，集成所有功能：
 
 ```go
@@ -459,6 +500,7 @@ packets, err := handler.ProcessPacket(largePayload, sequenceId)
 ```
 
 ### 完整示例
+
 ```go
 // 1. 初始化
 handler := NewAdvancedProtocolHandler(nil) // 使用默认配置
@@ -503,6 +545,7 @@ conn.Write(okPacket)
 ## 性能考虑
 
 ### 压缩协议
+
 - **优点**: 减少网络传输量，适合慢速网络
 - **缺点**: 增加CPU开销
 - **建议**: 
@@ -511,6 +554,7 @@ conn.Write(okPacket)
   - 根据实际测试调整压缩阈值
 
 ### 大包分片
+
 - **开销**: 每个包4字节包头
 - **建议**: 
   - 尽量避免发送超大数据包
@@ -518,6 +562,7 @@ conn.Write(okPacket)
   - 对于大结果集，使用游标或分页
 
 ### 会话状态跟踪
+
 - **开销**: 每个OK包增加少量字节
 - **建议**:
   - 只跟踪真正变化的状态
@@ -529,12 +574,14 @@ conn.Write(okPacket)
 ## 兼容性
 
 ### MySQL版本兼容性
+
 - **压缩协议**: MySQL 3.23+
 - **字符集支持**: MySQL 4.1+
 - **连接属性**: MySQL 5.6+
 - **会话状态跟踪**: MySQL 5.7+
 
 ### 客户端兼容性
+
 所有实现都向后兼容，不支持的客户端会自动忽略这些特性。
 
 ---
@@ -542,6 +589,7 @@ conn.Write(okPacket)
 ## 测试建议
 
 ### 单元测试
+
 ```go
 // 测试大包分片
 func TestPacketSplitter(t *testing.T) {
@@ -563,7 +611,9 @@ func TestCompression(t *testing.T) {
 ```
 
 ### 集成测试
+
 使用真实的MySQL客户端连接测试：
+
 ```bash
 # 测试压缩协议
 mysql -h localhost -P 3306 -u root --compress
@@ -582,24 +632,21 @@ mysql -h localhost -P 3306 -u root --connect-attrs="app=myapp,version=1.0"
 ### 常见问题
 
 1. **压缩失败**
-   - 检查zlib库是否正确安装
-   - 验证压缩阈值设置
-   - 查看压缩统计信息
-
+  - 检查zlib库是否正确安装
+  - 验证压缩阈值设置
+  - 查看压缩统计信息
 2. **分片错误**
-   - 验证包序号是否连续
-   - 检查包长度是否正确
-   - 确认最后是否有空包
-
+  - 验证包序号是否连续
+  - 检查包长度是否正确
+  - 确认最后是否有空包
 3. **字符集问题**
-   - 确认客户端和服务器字符集一致
-   - 检查字符集ID是否有效
-   - 验证多字节字符处理
-
+  - 确认客户端和服务器字符集一致
+  - 检查字符集ID是否有效
+  - 验证多字节字符处理
 4. **会话跟踪不生效**
-   - 确认客户端支持SESSION_TRACK
-   - 检查是否正确编码到OK包
-   - 验证跟踪是否已启用
+  - 确认客户端支持SESSION_TRACK
+  - 检查是否正确编码到OK包
+  - 验证跟踪是否已启用
 
 ---
 
@@ -616,6 +663,7 @@ mysql -h localhost -P 3306 -u root --connect-attrs="app=myapp,version=1.0"
 ## 更新日志
 
 ### v1.0.0 (2025-11-14)
+
 - ✅ 实现大包分片处理
 - ✅ 实现压缩协议支持
 - ✅ 实现完整的字符集支持

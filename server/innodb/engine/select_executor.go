@@ -2,8 +2,11 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
@@ -28,6 +31,9 @@ type SelectExecutor struct {
 	btreeManager      basic.BPlusTreeManager
 	tableManager      *manager.TableManager
 
+	// dataDir 用于在无 tableManager 时从 .frm 文件加载表定义（与 executor 写入的 CREATE TABLE 一致）
+	dataDir string
+
 	// 查询相关
 	logicalPlan     plan.LogicalPlan
 	physicalPlan    *manager.PlanNode
@@ -45,18 +51,20 @@ type SelectExecutor struct {
 	isInitialized   bool
 }
 
-// NewSelectExecutor 创建SELECT执行器
+// NewSelectExecutor 创建SELECT执行器。dataDir 可选，非空时在无 tableManager 时从 dataDir/schema/table.frm 加载表定义。
 func NewSelectExecutor(
 	optimizerManager *manager.OptimizerManager,
 	bufferPoolManager *manager.OptimizedBufferPoolManager,
 	btreeManager basic.BPlusTreeManager,
 	tableManager *manager.TableManager,
+	dataDir string,
 ) *SelectExecutor {
 	return &SelectExecutor{
 		optimizerManager:  optimizerManager,
 		bufferPoolManager: bufferPoolManager,
 		btreeManager:      btreeManager,
 		tableManager:      tableManager,
+		dataDir:           dataDir,
 		currentRowIndex:   0,
 		resultSet:         make([]Record, 0),
 		isInitialized:     false,
@@ -284,14 +292,33 @@ func (se *SelectExecutor) executeQuery(ctx context.Context) error {
 	// 通用查询处理逻辑
 	logger.Debugf(" [SelectExecutor] 执行通用表查询")
 
-	// 从表管理器获取表数据
+	// 优先从表管理器获取表元数据（列与表结构准确）
 	if se.tableManager != nil {
-		logger.Debugf(" [SelectExecutor] 使用表管理器获取表数据")
-		// TODO: 实现通用表查询逻辑
+		meta, err := se.tableManager.GetTableMetadata(ctx, se.schemaName, se.tableName)
+		if err == nil && meta != nil && len(meta.Columns) > 0 {
+			logger.Debugf(" [SelectExecutor] 使用表管理器元数据: %s.%s, 列数=%d", se.schemaName, se.tableName, len(meta.Columns))
+			// 使用表管理器时暂不扫表，返回正确列结构、空结果集；后续可在此接入 BTree/存储扫描
+			se.resultSet = []Record{}
+			logger.Debugf(" [SelectExecutor] 查询执行完成，返回 %d 行数据", len(se.resultSet))
+			return nil
+		}
+		if err != nil {
+			logger.Debugf(" [SelectExecutor] 表管理器未找到表 %s.%s: %v，尝试 .frm 或示例数据", se.schemaName, se.tableName, err)
+		}
 	}
 
-	// 如果没有表管理器，创建示例数据
-	logger.Debugf("  [SelectExecutor] 没有表管理器，创建示例数据")
+	// 无表管理器或表中未在表管理器注册时：从 .frm 加载表定义（与 CREATE TABLE 写入一致）
+	if se.dataDir != "" {
+		if frmMeta, err := se.loadTableMetaFromFrm(se.dataDir, se.schemaName, se.tableName); err == nil && frmMeta != nil {
+			logger.Debugf(" [SelectExecutor] 从 .frm 使用表定义，返回 0 行（列: %v）", frmMeta.Columns)
+			se.resultSet = []Record{}
+			logger.Debugf(" [SelectExecutor] 查询执行完成，返回 %d 行数据", len(se.resultSet))
+			return nil
+		}
+	}
+
+	// 无表管理器且无 .frm 时，退回示例数据
+	logger.Debugf("  [SelectExecutor] 没有表管理器且无 .frm，创建示例数据")
 	se.resultSet = []Record{
 		NewExecutorRecordFromInterface([]interface{}{1, "sample_user", "sample_value"}, se.getDefaultTableMeta()),
 		NewExecutorRecordFromInterface([]interface{}{2, "test_user", "test_value"}, se.getDefaultTableMeta()),
@@ -622,7 +649,7 @@ func (se *SelectExecutor) parsePageRecords(bufferPage interface{}) ([]Record, er
 	return records, nil
 }
 
-// getTableMetadata 获取表元数据
+// getTableMetadata 获取表元数据。优先 tableManager；若无或失败则从 dataDir 下的 .frm 加载（与 CREATE TABLE 写入格式一致）；否则返回默认表结构。
 func (se *SelectExecutor) getTableMetadata() (*metadata.TableMeta, error) {
 	if se.tableManager != nil {
 		tableMeta, err := se.tableManager.GetTableMetadata(context.Background(), se.schemaName, se.tableName)
@@ -631,8 +658,68 @@ func (se *SelectExecutor) getTableMetadata() (*metadata.TableMeta, error) {
 		}
 	}
 
-	// 使用默认表结构
+	if se.dataDir != "" {
+		if meta, err := se.loadTableMetaFromFrm(se.dataDir, se.schemaName, se.tableName); err == nil && meta != nil {
+			return meta, nil
+		}
+	}
+
 	return se.getDefaultTableMeta(), nil
+}
+
+// frmTableInfo 与 executor.createTableStructureFile 写入的 JSON 结构一致
+type frmTableInfo struct {
+	TableName string                   `json:"table_name"`
+	Columns   []map[string]interface{} `json:"columns"`
+}
+
+// loadTableMetaFromFrm 从 dataDir/schema/table.frm（JSON）加载表定义，与 executor 写入格式一致。
+func (se *SelectExecutor) loadTableMetaFromFrm(dataDir, schemaName, tableName string) (*metadata.TableMeta, error) {
+	if dataDir == "" || schemaName == "" || tableName == "" {
+		return nil, fmt.Errorf("missing dataDir, schema or table name")
+	}
+	frmPath := filepath.Join(dataDir, schemaName, tableName+".frm")
+	data, err := os.ReadFile(frmPath)
+	if err != nil {
+		return nil, err
+	}
+	var info frmTableInfo
+	if err := json.Unmarshal(data, &info); err != nil {
+		return nil, err
+	}
+	if len(info.Columns) == 0 {
+		return nil, fmt.Errorf("no columns in .frm")
+	}
+	meta := &metadata.TableMeta{
+		Name:    tableName,
+		Columns: make([]*metadata.ColumnMeta, 0, len(info.Columns)),
+	}
+	for _, col := range info.Columns {
+		name, _ := col["name"].(string)
+		if name == "" {
+			continue
+		}
+		typeStr, _ := col["type"].(string)
+		if typeStr == "" {
+			typeStr = "VARCHAR"
+		}
+		length := 0
+		if n, ok := col["length"].(float64); ok {
+			length = int(n)
+		}
+		nullable := true
+		if b, ok := col["nullable"].(bool); ok {
+			nullable = b
+		}
+		meta.Columns = append(meta.Columns, &metadata.ColumnMeta{
+			Name:       name,
+			Type:       metadata.DataType(typeStr),
+			Length:     length,
+			IsNullable: nullable,
+		})
+	}
+	logger.Debugf(" [SelectExecutor] 从 .frm 加载表定义: %s.%s, 列数=%d", schemaName, tableName, len(meta.Columns))
+	return meta, nil
 }
 
 // determineRequiredColumns 确定需要解析的列
@@ -1169,22 +1256,19 @@ func (se *SelectExecutor) applyLimitOffset(records []Record) []Record {
 	return records[start:end]
 }
 
-// getColumnNames 获取列名
+// getColumnNames 获取列名。SELECT * 时从 getTableMetadata 取列（含从 .frm 加载）；否则用解析出的 select 表达式。
 func (se *SelectExecutor) getColumnNames() []string {
 	if len(se.selectExprs) == 1 && se.selectExprs[0] == "*" {
-		// 如果是SELECT *，需要从表元数据获取所有列名
-		tableMeta, err := se.tableManager.GetTableMetadata(context.Background(), se.schemaName, se.tableName)
-		if err != nil {
-			return []string{"id", "name"} // 默认列名
+		tableMeta, err := se.getTableMetadata()
+		if err != nil || tableMeta == nil {
+			return []string{"id", "name"}
 		}
-
-		var columnNames []string
+		names := make([]string, 0, len(tableMeta.Columns))
 		for _, col := range tableMeta.Columns {
-			columnNames = append(columnNames, col.Name)
+			names = append(names, col.Name)
 		}
-		return columnNames
+		return names
 	}
-
 	return se.selectExprs
 }
 

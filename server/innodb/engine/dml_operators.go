@@ -2,9 +2,11 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
@@ -350,41 +352,23 @@ func (i *InsertOperator) toInt64(val interface{}) (int64, bool) {
 
 // isDuplicateKeyError 检查是否是主键/唯一键冲突错误
 func (i *InsertOperator) isDuplicateKeyError(err error) bool {
-	// 简化实现：检查错误消息
 	if err == nil {
 		return false
 	}
-	errMsg := err.Error()
-	return containsSubstring(errMsg, "duplicate") || containsSubstring(errMsg, "unique") || containsSubstring(errMsg, "primary key")
-}
 
-// containsSubstring 检查字符串是否包含子串（不区分大小写）
-func containsSubstring(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && containsIgnoreCase(s, substr))
-}
+	if errors.Is(err, basic.ErrDuplicateKey) {
+		return true
+	}
 
-func containsIgnoreCase(s, substr string) bool {
-	// 简化实现
-	sLower := toLowerString(s)
-	substrLower := toLowerString(substr)
-	for i := 0; i <= len(sLower)-len(substrLower); i++ {
-		if sLower[i:i+len(substrLower)] == substrLower {
+	var sqlErr *common.SQLError
+	if errors.As(err, &sqlErr) {
+		switch sqlErr.Code {
+		case common.ErrDupEntry, common.ErrDupEntryWithKeyName, common.ErrDupEntryAutoincrementCase:
 			return true
 		}
 	}
-	return false
-}
 
-func toLowerString(s string) string {
-	result := make([]byte, len(s))
-	for i := 0; i < len(s); i++ {
-		if s[i] >= 'A' && s[i] <= 'Z' {
-			result[i] = s[i] + 32
-		} else {
-			result[i] = s[i]
-		}
-	}
-	return string(result)
+	return false
 }
 
 // findDuplicateRecord 查找冲突的记录

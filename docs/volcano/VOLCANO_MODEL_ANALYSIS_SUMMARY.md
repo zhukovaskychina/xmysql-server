@@ -309,7 +309,7 @@ git revert <commit-hash>
 |------|------|--------|
 | `VOLCANO_MODEL_CLEANUP_PLAN.md` | 详细执行计划 | 🔴 必读 |
 | `VOLCANO_MODEL_IMPLEMENTATION.md` | 新版实现文档 | 🟡 推荐 |
-| `VOLCANO_MODEL_REFACTOR_SUMMARY.md` | 重构总结 | 🟢 参考 |
+| `VOLCANO_MODEL_REFACTOR_SUMMARY.md` | 重构总结 | **→ 跳转** `VOLCANO_MODEL_IMPLEMENTATION.md` |
 
 ---
 

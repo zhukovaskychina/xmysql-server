@@ -104,6 +104,7 @@ func (eei *ExecutionEngineIntegrator) initializeExecutors() {
 		eei.bufferPoolManager,
 		eei.btreeManager,
 		eei.tableManager,
+		"", // dataDir：集成层未传，依赖 tableManager
 	)
 
 	// 创建DML执行器

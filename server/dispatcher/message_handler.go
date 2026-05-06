@@ -182,6 +182,7 @@ type MockMySQLServerSession struct {
 	sessionID      string
 	database       string
 	params         map[string]interface{}
+	ctx            *server.SessionContext
 	lastActiveTime time.Time
 }
 
@@ -191,6 +192,14 @@ func (s *MockMySQLServerSession) GetSessionId() string {
 
 func (s *MockMySQLServerSession) GetLastActiveTime() time.Time {
 	return s.lastActiveTime
+}
+
+func (s *MockMySQLServerSession) SessionContext() *server.SessionContext {
+	if s.ctx == nil {
+		s.ctx = server.NewSessionContext(s.sessionID)
+		s.ctx.SetCurrentDB(s.database)
+	}
+	return s.ctx
 }
 
 func (s *MockMySQLServerSession) SetParamByName(name string, value interface{}) {

@@ -10,7 +10,7 @@ import java.util.List;
  */
 public class DDLTestDemo {
     // 数据库连接信息
-    private static final String BASE_URL = "jdbc:mysql://localhost:3309?useSSL=false&allowPublicKeyRetrieval=true";
+    private static final String BASE_URL = "jdbc:mysql://localhost:33090?useSSL=false&allowPublicKeyRetrieval=true";
     private static final String USER = "root";
     private static final String PASSWORD = "root@1234";
     

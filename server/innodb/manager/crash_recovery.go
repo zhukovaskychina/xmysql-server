@@ -69,7 +69,7 @@ type PageInterface interface {
 type StorageInterface interface {
 	ReadPage(pageID uint64) ([]byte, error)
 	WritePage(pageID uint64, data []byte) error
-	CreatePage() (uint64, error)
+	CreatePage(pageID uint64) error
 	DeletePage(pageID uint64) error
 }
 
@@ -495,19 +495,13 @@ func (cr *CrashRecovery) redoPageCreate(entry *RedoLogEntry) error {
 	}
 
 	// 创建新页面
-	pageID, err := cr.storageManager.CreatePage()
-	if err != nil {
+	if err := cr.storageManager.CreatePage(entry.PageID); err != nil {
 		return fmt.Errorf("创建页面失败: %v", err)
-	}
-
-	// 验证页面ID是否匹配
-	if pageID != entry.PageID {
-		return fmt.Errorf("页面ID不匹配: 期望%d, 实际%d", entry.PageID, pageID)
 	}
 
 	// 如果有初始数据，写入页面
 	if len(entry.Data) > 0 {
-		if err := cr.storageManager.WritePage(pageID, entry.Data); err != nil {
+		if err := cr.storageManager.WritePage(entry.PageID, entry.Data); err != nil {
 			return fmt.Errorf("写入页面数据失败: %v", err)
 		}
 	}
@@ -599,6 +593,10 @@ func (cr *CrashRecovery) undoPhase() error {
 
 // rollbackTransaction 回滚单个事务
 func (cr *CrashRecovery) rollbackTransaction(txID int64) error {
+	if cr.undoLogManager == nil {
+		return fmt.Errorf("undo log manager not set")
+	}
+
 	// 使用UndoLogManager回滚事务
 	if err := cr.undoLogManager.Rollback(txID); err != nil {
 		return err
@@ -892,19 +890,13 @@ func (cr *CrashRecovery) redoFileExtend(entry *RedoLogEntry) error {
 	}
 
 	// 页面不存在，创建新页面
-	pageID, err := cr.storageManager.CreatePage()
-	if err != nil {
+	if err := cr.storageManager.CreatePage(entry.PageID); err != nil {
 		return fmt.Errorf("创建扩展页面失败: %v", err)
-	}
-
-	// 验证页面ID
-	if pageID != entry.PageID {
-		fmt.Printf("警告: 扩展页面ID不匹配 (期望=%d, 实际=%d)\n", entry.PageID, pageID)
 	}
 
 	// 如果有初始数据，写入页面
 	if len(entry.Data) > 0 {
-		if err := cr.storageManager.WritePage(pageID, entry.Data); err != nil {
+		if err := cr.storageManager.WritePage(entry.PageID, entry.Data); err != nil {
 			return fmt.Errorf("写入扩展页面数据失败: %v", err)
 		}
 	}

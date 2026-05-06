@@ -189,11 +189,11 @@ func (c *MySQLClient) executeNonSelect(query string) (*QueryResult, error) {
 
 // StartCLI 启动命令行界面
 func (c *MySQLClient) StartCLI() {
-	util.Debugf("欢迎使用 XMySQL 客户端!\n")
-	util.Debugf("连接到: %s:%d\n", c.config.Host, c.config.Port)
-	util.Debugf("用户: %s\n", c.config.User)
-	util.Debugf("数据库: %s\n\n", c.config.Database)
-	util.Debugf("输入 'help' 查看帮助，输入 'quit' 或 'exit' 退出。\n\n")
+	logger.Debugf("欢迎使用 XMySQL 客户端!\n")
+	logger.Debugf("连接到: %s:%d\n", c.config.Host, c.config.Port)
+	logger.Debugf("用户: %s\n", c.config.User)
+	logger.Debugf("数据库: %s\n\n", c.config.Database)
+	logger.Debugf("输入 'help' 查看帮助，输入 'quit' 或 'exit' 退出。\n\n")
 
 	scanner := bufio.NewScanner(os.Stdin)
 
@@ -229,7 +229,7 @@ func (c *MySQLClient) StartCLI() {
 		// 执行SQL查询
 		result, err := c.ExecuteQuery(input)
 		if err != nil {
-			util.Debugf("错误: %v\n\n", err)
+			logger.Debugf("错误: %v\n\n", err)
 			continue
 		}
 
@@ -359,7 +359,7 @@ func (c *MySQLClient) printTable(columns []string, rows [][]string) {
 	// 打印表头
 	fmt.Print("|")
 	for i, col := range columns {
-		util.Debugf(" %-*s |", colWidths[i], col)
+		logger.Debugf(" %-*s |", colWidths[i], col)
 	}
 	fmt.Println()
 
@@ -370,7 +370,7 @@ func (c *MySQLClient) printTable(columns []string, rows [][]string) {
 		fmt.Print("|")
 		for i, cell := range row {
 			if i < len(colWidths) {
-				util.Debugf(" %-*s |", colWidths[i], cell)
+				logger.Debugf(" %-*s |", colWidths[i], cell)
 			}
 		}
 		fmt.Println()
@@ -416,12 +416,12 @@ func (c *MySQLClient) showStatus() {
 
 	if c.db != nil {
 		if err := c.db.Ping(); err == nil {
-			util.Debugf("  状态: 已连接\n")
+			logger.Debugf("  状态: 已连接\n")
 		} else {
-			util.Debugf("  状态: 连接断开 (%v)\n", err)
+			logger.Debugf("  状态: 连接断开 (%v)\n", err)
 		}
 	} else {
-		util.Debugf("  状态: 未连接\n")
+		logger.Debugf("  状态: 未连接\n")
 	}
 	fmt.Println()
 }
@@ -513,7 +513,7 @@ func main() {
 	client := NewMySQLClient(config, isGUI)
 
 	// 连接到服务器
-	util.Debugf("正在连接到 %s:%d...\n", config.Host, config.Port)
+	logger.Debugf("正在连接到 %s:%d...\n", config.Host, config.Port)
 	if err := client.Connect(); err != nil {
 		log.Fatalf("连接失败: %v", err)
 	}

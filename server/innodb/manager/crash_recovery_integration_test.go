@@ -202,7 +202,6 @@ func TestCrashRecoveryConcurrentTransactions(t *testing.T) {
 						Type:   LOG_TYPE_INSERT,
 						Data:   []byte(fmt.Sprintf("tx%d_insert_%d", txID, j)),
 					})
-					time.Sleep(1 * time.Millisecond)
 				}
 
 				// 只有偶数事务提交

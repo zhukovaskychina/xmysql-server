@@ -254,9 +254,6 @@ func TestIBufManager_BackgroundMerge(t *testing.T) {
 	// 停止后台合并
 	ibufMgr.StopBackgroundMerge()
 
-	// 等待一小段时间确保停止
-	time.Sleep(100 * time.Millisecond)
-
 	if ibufMgr.running {
 		t.Error("Background merge should be stopped")
 	}

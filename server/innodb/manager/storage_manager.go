@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -142,6 +143,13 @@ type StorageManager struct {
 
 	// 事务管理
 	nextTxID uint64
+
+	// 可选注入的管理器（由引擎层在初始化时设置，供集成层等通过 StorageManager 统一获取）
+	tableManager        *TableManager
+	tableStorageManager *TableStorageManager
+	indexManager        *IndexManager
+	transactionManager  *TransactionManager
+	btreeManager        basic.BPlusTreeManager
 }
 
 func (sm *StorageManager) Init() {
@@ -194,29 +202,54 @@ func (sm *StorageManager) GetSystemVariableAnalyzer() *SystemVariableAnalyzer {
 	return sm.sysVarAnalyzer
 }
 
-// GetBTreeManager returns the B+Tree manager if available.
+// GetBTreeManager returns the B+Tree manager if available (injected by engine).
 func (sm *StorageManager) GetBTreeManager() basic.BPlusTreeManager {
-	return nil
+	return sm.btreeManager
 }
 
-// GetTableManager returns the table manager if available.
+// GetTableManager returns the table manager if available (injected by engine).
 func (sm *StorageManager) GetTableManager() *TableManager {
-	return nil
+	return sm.tableManager
 }
 
-// GetIndexManager returns the index manager if available.
+// GetIndexManager returns the index manager if available (injected by engine).
 func (sm *StorageManager) GetIndexManager() *IndexManager {
-	return nil
+	return sm.indexManager
 }
 
-// GetTransactionManager returns the transaction manager if available.
+// GetTransactionManager returns the transaction manager if available (injected by engine).
 func (sm *StorageManager) GetTransactionManager() *TransactionManager {
-	return nil
+	return sm.transactionManager
 }
 
-// GetTableStorageManager returns the table storage manager if available.
+// GetTableStorageManager returns the table storage manager if available (injected by engine).
 func (sm *StorageManager) GetTableStorageManager() *TableStorageManager {
-	return nil
+	return sm.tableStorageManager
+}
+
+// SetTableManager 注入表管理器，供集成层通过 StorageManager 获取。
+func (sm *StorageManager) SetTableManager(tm *TableManager) {
+	sm.tableManager = tm
+}
+
+// SetTableStorageManager 注入表存储映射管理器。
+func (sm *StorageManager) SetTableStorageManager(tsm *TableStorageManager) {
+	sm.tableStorageManager = tsm
+}
+
+// SetIndexManager 注入索引管理器。
+func (sm *StorageManager) SetIndexManager(im *IndexManager) {
+	sm.indexManager = im
+}
+
+// SetTransactionManager 注入事务管理器。
+func (sm *StorageManager) SetTransactionManager(tm *TransactionManager) {
+	sm.transactionManager = tm
+}
+
+// SetBTreeManager 注入 B+ 树管理器。
+func (sm *StorageManager) SetBTreeManager(bm basic.BPlusTreeManager) {
+	sm.btreeManager = bm
 }
 
 func (sm *StorageManager) OpenSpace(spaceID uint32) error {
@@ -666,7 +699,7 @@ func (sm *StorageManager) createMySQLSystemTablespaces() error {
 		_, err := sm.spaceMgr.CreateSpace(spaceID, tableName, true)
 		if err != nil {
 			// 如果创建失败但是错误是已存在，则尝试获取已存在的表空间
-			if strings.Contains(err.Error(), "already exists") {
+			if errors.Is(err, ErrTablespaceExists) {
 				logger.Debugf("System table already exists (caught in CreateSpace): %s (Space ID: %d)", tableName, spaceID)
 				// 创建handle
 				handle := &TablespaceHandle{
@@ -751,7 +784,7 @@ func (sm *StorageManager) createInformationSchemaTablespaces() error {
 		_, err := sm.spaceMgr.CreateSpace(spaceID, tableName, true)
 		if err != nil {
 			// 如果创建失败但是错误是已存在，则尝试获取已存在的表空间
-			if strings.Contains(err.Error(), "already exists") {
+			if errors.Is(err, ErrTablespaceExists) {
 				logger.Debugf("Information_schema table already exists (caught in CreateSpace): %s (Space ID: %d)", tableName, spaceID)
 				// 创建handle
 				handle := &TablespaceHandle{
@@ -849,7 +882,7 @@ func (sm *StorageManager) createPerformanceSchemaTablespaces() error {
 		_, err := sm.spaceMgr.CreateSpace(spaceID, tableName, true)
 		if err != nil {
 			// 如果创建失败但是错误是已存在，则尝试获取已存在的表空间
-			if strings.Contains(err.Error(), "already exists") {
+			if errors.Is(err, ErrTablespaceExists) {
 				logger.Debugf("Performance_schema table already exists (caught in CreateSpace): %s (Space ID: %d)", tableName, spaceID)
 				// 创建handle
 				handle := &TablespaceHandle{
@@ -1180,19 +1213,34 @@ func (sm *StorageManager) OptimizeStorage(spaceID uint32) error {
 	return nil
 }
 
-// CreateTablespace creates a new tablespace
+// CreateTablespace creates a new tablespace. 若同名表空间已存在则直接返回其 handle（幂等，支持 CREATE TABLE IF NOT EXISTS / 重试）。
 func (sm *StorageManager) CreateTablespace(name string) (*TablespaceHandle, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	// 检查是否已存在
-	if _, exists := sm.tablespaces[name]; exists {
-		return nil, fmt.Errorf("tablespace %s already exists", name)
+	// 已存在则直接返回，不报错
+	if handle, exists := sm.tablespaces[name]; exists {
+		return handle, nil
 	}
 
 	// 创建新的表空间
 	spaceID, err := sm.spaceMgr.CreateTableSpace(name)
 	if err != nil {
+		// SpaceManager 侧已存在（如重启后从磁盘加载）：按名称取已有 space，加入 map 后返回
+		if errors.Is(err, ErrTablespaceExists) {
+			ts, getErr := sm.spaceMgr.GetTableSpaceByName(name)
+			if getErr != nil {
+				return nil, fmt.Errorf("tablespace %s already exists but get by name failed: %v", name, getErr)
+			}
+			spaceID = ts.GetSpaceId()
+			handle := &TablespaceHandle{
+				SpaceID:       spaceID,
+				DataSegmentID: uint64(spaceID),
+				Name:          name,
+			}
+			sm.tablespaces[name] = handle
+			return handle, nil
+		}
 		return nil, fmt.Errorf("failed to create tablespace: %v", err)
 	}
 
@@ -1202,13 +1250,11 @@ func (sm *StorageManager) CreateTablespace(name string) (*TablespaceHandle, erro
 		return nil, fmt.Errorf("failed to create data segment: %v", err)
 	}
 
-	// 创建handle
 	handle := &TablespaceHandle{
 		SpaceID:       spaceID,
-		DataSegmentID: uint64(spaceID), // 暂时使用spaceID作为segmentID
+		DataSegmentID: uint64(spaceID),
 		Name:          name,
 	}
-
 	sm.tablespaces[name] = handle
 	return handle, nil
 }
@@ -1320,27 +1366,44 @@ type StorageProviderAdapter struct {
 
 // ReadPage 从存储中读取页面
 func (spa *StorageProviderAdapter) ReadPage(spaceID, pageNo uint32) ([]byte, error) {
-	// 简化实现：返回一个空页面
-	pageSize := uint32(16384) // 16KB页面
-	data := make([]byte, pageSize)
-	return data, nil
+	space, err := spa.spaceManager.GetSpace(spaceID)
+	if err != nil {
+		return nil, fmt.Errorf("space %d not found: %v", spaceID, err)
+	}
+	return space.LoadPageByPageNumber(pageNo)
 }
 
 // WritePage 将页面写入存储
 func (spa *StorageProviderAdapter) WritePage(spaceID, pageNo uint32, data []byte) error {
-	// 简化实现：暂时不做实际写入
-	return nil
+	space, err := spa.spaceManager.GetSpace(spaceID)
+	if err != nil {
+		return fmt.Errorf("space %d not found: %v", spaceID, err)
+	}
+	return space.FlushToDisk(pageNo, data)
 }
 
 // AllocatePage 分配新页面
 func (spa *StorageProviderAdapter) AllocatePage(spaceID uint32) (uint32, error) {
-	// 简化实现：返回一个固定的页面号
-	return 1, nil
+	space, err := spa.spaceManager.GetSpace(spaceID)
+	if err != nil {
+		return 0, fmt.Errorf("space %d not found: %v", spaceID, err)
+	}
+
+	// 分配一个新的extent
+	// 注意：这种实现非常浪费，每次只使用extent的第一个页面
+	// 在完整的实现中，应该维护一个空闲页面列表或部分使用的extent列表
+	ext, err := space.AllocateExtent(basic.ExtentPurposeData)
+	if err != nil {
+		return 0, fmt.Errorf("failed to allocate extent: %v", err)
+	}
+
+	return uint32(ext.StartPage()), nil
 }
 
 // FreePage 释放页面
 func (spa *StorageProviderAdapter) FreePage(spaceID, pageNo uint32) error {
-	// 简化实现：暂时不做实际释放
+	// 目前只支持Extent级别的释放，不支持单个页面释放
+	// 未来需要实现更细粒度的空间管理
 	return nil
 }
 

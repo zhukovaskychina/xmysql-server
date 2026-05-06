@@ -1,5 +1,7 @@
 # InnoDB Storage架构文档
 
+> **相关文档**：代码级问题清单与统计见 [STORAGE_MODULE_ARCHITECTURE_ANALYSIS.md](./STORAGE_MODULE_ARCHITECTURE_ANALYSIS.md)（与本文**互补**：本文偏设计分层，该文偏模块审计）。
+
 ## 📋 概述
 
 本文档描述了XMySQL Server中InnoDB存储引擎的架构设计，包括分层结构、职责划分、接口定义和使用指南。
@@ -59,6 +61,7 @@ XMySQL Server的InnoDB存储引擎采用三层架构设计：
 **位置**: `server/innodb/storage/format/`
 
 **职责**:
+
 - 定义InnoDB存储格式（符合MySQL InnoDB规范）
 - 提供序列化/反序列化方法
 - 实现校验和计算和验证
@@ -67,6 +70,7 @@ XMySQL Server的InnoDB存储引擎采用三层架构设计：
 **核心组件**:
 
 #### PageFormat - 页面格式
+
 ```go
 // 16KB页面格式
 type PageFormat struct {
@@ -77,6 +81,7 @@ type PageFormat struct {
 ```
 
 #### FileHeaderFormat - 文件头格式（38字节）
+
 ```go
 type FileHeaderFormat struct {
     Checksum       uint32 // 0-3: 页面校验和
@@ -91,6 +96,7 @@ type FileHeaderFormat struct {
 ```
 
 #### FileTrailerFormat - 文件尾格式（8字节）
+
 ```go
 type FileTrailerFormat struct {
     Checksum uint32 // 0-3: 校验和（与Header一致）
@@ -99,6 +105,7 @@ type FileTrailerFormat struct {
 ```
 
 **特点**:
+
 - ✅ 纯数据结构，无状态
 - ✅ 纯函数，无副作用
 - ✅ 高度可测试
@@ -111,6 +118,7 @@ type FileTrailerFormat struct {
 **位置**: `server/innodb/storage/wrapper/`
 
 **职责**:
+
 - 提供高级API和业务逻辑
 - 管理页面状态（dirty, lsn, state等）
 - 实现并发控制（RWMutex）
@@ -120,6 +128,7 @@ type FileTrailerFormat struct {
 **核心接口**:
 
 #### IPageWrapper - 页面包装器接口
+
 ```go
 type IPageWrapper interface {
     // 基本信息
@@ -171,6 +180,7 @@ type IPageWrapper interface {
 ```
 
 #### UnifiedPage - 统一页面实现
+
 ```go
 type UnifiedPage struct {
     // 并发控制
@@ -199,6 +209,7 @@ type UnifiedPage struct {
 ```
 
 **特点**:
+
 - ✅ 有状态管理
 - ✅ 有业务逻辑
 - ✅ 管理生命周期
@@ -211,6 +222,7 @@ type UnifiedPage struct {
 **位置**: `server/innodb/storage/io/`
 
 **职责**:
+
 - 文件I/O操作（读写IBD文件）
 - Buffer Pool管理（页面缓存）
 - 日志文件管理
@@ -219,6 +231,7 @@ type UnifiedPage struct {
 **核心组件**:
 
 #### IBD_File - IBD文件管理
+
 ```go
 type IBD_File struct {
     path       string
@@ -236,6 +249,7 @@ func (ibd *IBD_File) WritePage(pageNo uint32, data []byte) error
 ```
 
 **特点**:
+
 - ✅ 专注于I/O操作
 - ✅ 不解析页面格式
 - ✅ 不包含业务逻辑
@@ -403,6 +417,7 @@ if err := pf2.ValidateChecksum(); err != nil {
 ### 1. 单一职责原则（SRP）
 
 每一层只负责一类功能：
+
 - Format层：只负责数据格式
 - Wrapper层：只负责业务逻辑
 - I/O层：只负责文件操作
@@ -410,12 +425,14 @@ if err := pf2.ValidateChecksum(); err != nil {
 ### 2. 依赖倒置原则（DIP）
 
 高层不依赖低层的具体实现：
+
 - Wrapper层依赖Format层的接口，不依赖具体实现
 - Application层依赖Wrapper层的接口，不依赖具体实现
 
 ### 3. 接口隔离原则（ISP）
 
 接口定义清晰，职责单一：
+
 - IPageWrapper：页面操作接口
 - PageFormat：页面格式接口
 - 不混合不相关的方法
@@ -423,6 +440,7 @@ if err := pf2.ValidateChecksum(); err != nil {
 ### 4. 开闭原则（OCP）
 
 对扩展开放，对修改关闭：
+
 - 新增页面类型：继承UnifiedPage，不修改现有代码
 - 新增格式：实现Format接口，不修改现有代码
 
@@ -474,6 +492,7 @@ err := pageManager.WritePages(pages)
 ### 从旧架构迁移
 
 #### 旧代码（使用AbstractPage）
+
 ```go
 import "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
 
@@ -484,6 +503,7 @@ page := &pages.AbstractPage{
 ```
 
 #### 新代码（使用UnifiedPage）
+
 ```go
 import "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/types"
 
@@ -501,6 +521,7 @@ page := types.NewUnifiedPage(spaceID, pageNo, pageType)
 ## 📝 总结
 
 **新架构优势**:
+
 - ✅ 职责清晰：三层分离，各司其职
 - ✅ 接口统一：只有1个IPageWrapper接口
 - ✅ 代码简洁：消除~800行重复代码
@@ -510,6 +531,7 @@ page := types.NewUnifiedPage(spaceID, pageNo, pageType)
 - ✅ 高性能：零拷贝、Buffer Pool、批量操作
 
 **适用场景**:
+
 - ✅ 所有InnoDB存储操作
 - ✅ 页面管理
 - ✅ Extent/Segment管理
@@ -522,4 +544,3 @@ page := types.NewUnifiedPage(spaceID, pageNo, pageType)
 **更新时间**: 2025-10-31  
 **作者**: Augment Agent  
 **状态**: ✅ 完成
-

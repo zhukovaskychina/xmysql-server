@@ -171,9 +171,11 @@ func (u *UndoLogManager) GetCurrentLSN(txID int64) uint64 {
 func (u *UndoLogManager) Rollback(txID int64) error {
 	u.mu.Lock()
 	logs, exists := u.logs[txID]
-	if !exists {
+	if !exists || len(logs) == 0 {
+		delete(u.logs, txID)
+		delete(u.activeTxns, txID)
 		u.mu.Unlock()
-		return fmt.Errorf("no undo logs for transaction %d", txID)
+		return nil
 	}
 
 	// 复制日志列表以便在锁外处理

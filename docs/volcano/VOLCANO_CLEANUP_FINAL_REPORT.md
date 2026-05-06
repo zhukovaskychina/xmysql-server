@@ -329,7 +329,7 @@ buildSelectResult
 | 文档名称 | 路径 | 用途 |
 |---------|------|------|
 | 设计文档 | VOLCANO_MODEL_CLEANUP_PLAN.md | 重构设计和规划 |
-| 实施总结 | VOLCANO_CLEANUP_IMPLEMENTATION_SUMMARY.md | 详细实施过程 |
+| 实施总结 | ~~VOLCANO_CLEANUP_IMPLEMENTATION_SUMMARY.md~~ → **已合并**：过程性说明已收入本文；原文件为跳转页 |
 | 变更日志 | VOLCANO_CLEANUP_CHANGELOG.md | 代码变更记录 |
 | 最终报告 | VOLCANO_CLEANUP_FINAL_REPORT.md | 本文档 |
 | 核心代码 | server/innodb/engine/operator_adapter.go | 适配器实现 |

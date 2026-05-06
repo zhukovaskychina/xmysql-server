@@ -6,6 +6,8 @@ import (
 	"io"
 	"net"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/logger"
 )
 
 func main() {

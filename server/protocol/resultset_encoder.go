@@ -272,16 +272,48 @@ func (e *MySQLResultSetEncoder) WriteRowDataPacket(values []interface{}) []byte 
 
 	for _, value := range values {
 		if value == nil {
-			// NULL 值
 			data = append(data, 0xFB)
 		} else {
-			// 将值转换为字符串
-			strValue := e.valueToString(value)
-			data = append(data, e.WriteLenEncString(strValue)...)
+			strValue := fmt.Sprintf("%v", value)
+			data = append(data, WriteLenEncString(strValue)...)
 		}
 	}
 
 	return data
+}
+
+// WriteLenEncInt 写入 Length-Encoded Integer
+func WriteLenEncInt(n uint64) []byte {
+	switch {
+	case n < 251:
+		return []byte{byte(n)}
+
+	case n < (1 << 16):
+		return append([]byte{0xFC}, byte(n), byte(n>>8))
+
+	case n < (1 << 24):
+		return append([]byte{0xFD}, byte(n), byte(n>>8), byte(n>>16))
+
+	default:
+		return append([]byte{
+			0xFE,
+			byte(n),
+			byte(n >> 8),
+			byte(n >> 16),
+			byte(n >> 24),
+			byte(n >> 32),
+			byte(n >> 40),
+			byte(n >> 48),
+			byte(n >> 56),
+		})
+	}
+}
+
+// WriteLenEncString 写入 Length-Encoded String
+func WriteLenEncString(s string) []byte {
+	b := []byte(s)
+	lenEnc := WriteLenEncInt(uint64(len(b)))
+	return append(lenEnc, b...)
 }
 
 // EncodeRowDataPacket 编码行数据并附加包头

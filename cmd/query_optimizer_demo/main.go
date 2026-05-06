@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
 )
@@ -176,8 +177,8 @@ func (demo *QueryOptimizerDemo) demonstrateIndexPushdown() error {
 
 	complexConditions := []plan.Expression{
 		&plan.Function{
-			Name: "LIKE",
-			Args: []plan.Expression{
+			FuncName: "LIKE",
+			FuncArgs: []plan.Expression{
 				&plan.Column{Name: "name"},
 				&plan.Constant{Value: "John%"},
 			},

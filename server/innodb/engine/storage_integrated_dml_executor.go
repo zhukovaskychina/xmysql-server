@@ -644,7 +644,7 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForUpdate(
 		}
 
 		// 调用IndexManager的标准方法同步所有二级索引
-		logger.Debugf("  📝 调用IndexManager.SyncSecondaryIndexesOnUpdate，tableID=%d, rowID=%s",
+		logger.Debugf("  📝 调用IndexManager.SyncSecondaryIndexesOnUpdate，tableID=%d, rowID=%d",
 			tableStorageInfo.SpaceID, rowInfo.RowId)
 		if err := dml.indexManager.SyncSecondaryIndexesOnUpdate(
 			uint64(tableStorageInfo.SpaceID),
@@ -681,7 +681,7 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForDelete(
 		rowData := dml.convertUpdateRowInfoToMap(rowInfo)
 
 		// 调用IndexManager的标准方法同步所有二级索引
-		logger.Debugf("  📝 调用IndexManager.SyncSecondaryIndexesOnDelete，tableID=%d, rowID=%s",
+		logger.Debugf("  📝 调用IndexManager.SyncSecondaryIndexesOnDelete，tableID=%d, rowID=%d",
 			tableStorageInfo.SpaceID, rowInfo.RowId)
 		if err := dml.indexManager.SyncSecondaryIndexesOnDelete(
 			uint64(tableStorageInfo.SpaceID),

@@ -4,30 +4,30 @@
     <option name="autoReloadType" value="ALL" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="cebb430f-c076-4984-8043-b00b7330fdf5" name="Changes" comment="fix(protocol): resolve issues with ResultSet handling and session ID generation&#10;&#10;### 📄 详细修改内容&#10;- 修改文件：decoupled_handler.go, mysql_codec.go, mysql_protocol_encoding.go, resultset_encoder.go, system_variable_analyzer.go, system_variable_engine.go, system_variables_manager.go&#10;- 主要改动：&#10;  - 修复了 ResultSet 重复发送的问题，确保每个查询结果集只发送一次。&#10;  - 更新了会话 ID 生成逻辑，确保每个连接的会话 ID 唯一，包含远程地址信息。&#10;  - 调整了 OK Packet 和 EOF Packet 的编码方式，确保符合 MySQL 协议规范。&#10;&#10;### 💡 修改原因&#10;- 解决了在处理查询结果时可能导致的协议错误，提升了系统的稳定性和可靠性。&#10;- 改进了会话管理，确保在多用户环境下的唯一性，避免潜在的会话冲突。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：协议处理、会话管理&#10;- 受影响接口或服务：ResultSet 处理、会话 ID 生成&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试，确保所有修改的功能正常。&#10;- 更新相关文档以反映新的协议处理逻辑。">
-      <change afterPath="$PROJECT_DIR$/cmd/demo_mysql_client_test/mysql_test.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/jdbc_client/.idea/copilot.data.migration.agent.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/jdbc_client/.idea/copilot.data.migration.ask.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/jdbc_client/.idea/copilot.data.migration.ask2agent.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/jdbc_client/.idea/copilot.data.migration.edit.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/logs/log2.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/AugmentWebviewStateStore.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/AugmentWebviewStateStore.xml" afterDir="false" />
+    <list default="true" id="cebb430f-c076-4984-8043-b00b7330fdf5" name="Changes" comment="### 🧩 提交摘要&#10;feat(mysql): implement MySQL session context for enhanced state management&#10;&#10;### 📄 详细修改内容&#10;- 修改文件或模块：decoupled_handler.go, engine_access.go, enhanced_message_handler.go, message_handler.go, session.go, session_context.go&#10;- 主要改动：引入 SessionContext 结构体，优化 MySQL 会话状态管理，确保在处理 COM_INIT_DB 和 COM_QUERY 时使用同一会话实例。&#10;&#10;### 💡 修改原因&#10;此次修改旨在提升 MySQL 协议处理的准确性和一致性，通过引入 SessionContext 来集中管理会话状态，避免因使用不同会话实例导致的状态不一致问题。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MySQL 协议处理、会话管理&#10;- 受影响接口或服务：所有涉及会话状态的操作，如数据库切换、查询执行等&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证 SessionContext 的正确性&#10;- 更新相关文档以反映新的会话管理逻辑">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.sum" beforeDir="false" afterPath="$PROJECT_DIR$/go.sum" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/jdbc_client/.idea/AugmentWebviewStateStore.xml" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/.idea/AugmentWebviewStateStore.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/SystemVariableTestDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/SystemVariableTestDemo.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/innodb/integration/storage_engine_integration.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/integration/storage_engine_integration.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/conf/default.ini" beforeDir="false" afterPath="$PROJECT_DIR$/conf/default.ini" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/conf/my.ini" beforeDir="false" afterPath="$PROJECT_DIR$/conf/my.ini" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/development/DEVELOPMENT_ROADMAP_TASKS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/development/DEVELOPMENT_ROADMAP_TASKS.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/auth/password_validator.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/auth/password_validator.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/conf/config.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/conf/config.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/manager/record_row_adapter_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/manager/record_row_adapter_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/plan/optimizer.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/plan/optimizer.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/plan/optimizer_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/plan/optimizer_test.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/server/net/decoupled_handler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/net/decoupled_handler.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/mysql_server.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/net/mysql_server.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/protocol/handshake.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/protocol/handshake.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/protocol/mysql_protocol_encoding.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/protocol/mysql_protocol_encoding.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/xmysql-server" beforeDir="false" afterPath="$PROJECT_DIR$/xmysql-server" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/protocol/mysql_protocol.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/protocol/mysql_protocol.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/protocol/prepared_statement_manager.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/protocol/prepared_statement_manager.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/protocol/prepared_statement_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/protocol/prepared_statement_test.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="CopilotPersistence">
+    <persistenceIdMap>
+      <entry key="_/Users/zhukovasky/GolandProjects/xmysql-server" value="34dyUfHs3t7sE91mYs6TKQe1Zz3" />
+    </persistenceIdMap>
   </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
@@ -57,6 +57,10 @@
     &quot;accountId&quot;: &quot;002448ed-9f28-4727-8558-6e54404cefb2&quot;
   }
 }</component>
+  <component name="KubernetesApiPersistence">{}</component>
+  <component name="KubernetesApiProvider">{
+  &quot;isMigrated&quot;: true
+}</component>
   <component name="ProjectColorInfo">{
   &quot;customColor&quot;: &quot;&quot;,
   &quot;associatedIndex&quot;: 6
@@ -66,36 +70,89 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "DefaultGoTemplateProperty": "Go Application",
-    "Go Build.go build github.com/zhukovaskychina/xmysql-server.executor": "Run",
-    "Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/mysql_test_client.executor": "Run",
-    "Go Test.go test github.com/zhukovaskychina/xmysql-server/cmd/demo_mysql_client_test.executor": "Run",
-    "RunOnceActivity.GoLinterPluginOnboarding": "true",
-    "RunOnceActivity.GoLinterPluginStorageMigration": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.go.formatter.settings.were.checked": "true",
-    "RunOnceActivity.go.migrated.go.modules.settings": "true",
-    "RunOnceActivity.go.modules.go.list.on.any.changes.was.set": "true",
-    "git-widget-placeholder": "dev",
-    "go.import.settings.migrated": "true",
-    "go.sdk.automatically.set": "true",
-    "last_opened_file_path": "/Users/zhukovasky",
-    "node.js.detected.package.eslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;DefaultGoTemplateProperty&quot;: &quot;Go Application&quot;,
+    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server.executor&quot;: &quot;Run&quot;,
+    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_executor.executor&quot;: &quot;Run&quot;,
+    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_space_manager_optimization.executor&quot;: &quot;Run&quot;,
+    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/mysql_test_client.executor&quot;: &quot;Run&quot;,
+    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/query_optimizer_demo.executor&quot;: &quot;Run&quot;,
+    &quot;Go Test.go test github.com/zhukovaskychina/xmysql-server/cmd/demo_mysql_client_test.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.GoLinterPluginOnboarding&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.GoLinterPluginStorageMigration&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.formatter.settings.were.checked&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.migrated.go.modules.settings&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.modules.go.list.on.any.changes.was.set&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;dev&quot;,
+    &quot;go.import.settings.migrated&quot;: &quot;true&quot;,
+    &quot;go.sdk.automatically.set&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/zhukovasky/GolandProjects/xmysql-server&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;run.configurations.included.in.services&quot;: &quot;true&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;,
+    &quot;应用程序.DDLTestDemo.executor&quot;: &quot;Run&quot;,
+    &quot;应用程序.InsertDataTestDemo.executor&quot;: &quot;Run&quot;,
+    &quot;应用程序.MySQLDemo.executor&quot;: &quot;Debug&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/docs" />
     </key>
   </component>
-  <component name="RunManager" selected="Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/mysql_test_client">
+  <component name="RunDashboard">
+    <option name="configurationTypes">
+      <set>
+        <option value="GoApplicationRunConfiguration" />
+      </set>
+    </option>
+    <option name="configurationStatuses">
+      <map>
+        <entry key="GoApplicationRunConfiguration">
+          <value>
+            <map>
+              <entry key="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_executor" value="FAILED" />
+              <entry key="go build github.com/zhukovaskychina/xmysql-server/cmd/query_optimizer_demo" value="STOPPED" />
+            </map>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="RunManager" selected="Go Build.go build github.com/zhukovaskychina/xmysql-server">
+    <configuration name="InsertDataTestDemo" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="com.xmysql.server.demo.InsertDataTestDemo" />
+      <module name="mysql-connect-demo" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="com.xmysql.server.demo.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="MySQLDemo" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="com.xmysql.server.demo.MySQLDemo" />
+      <module name="mysql-connect-demo" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="com.xmysql.server.demo.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
     <configuration name="go build github.com/zhukovaskychina/xmysql-server" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
       <module name="xmysql-server" />
       <working_directory value="$PROJECT_DIR$" />
@@ -105,31 +162,29 @@
       <filePath value="$PROJECT_DIR$/main.go" />
       <method v="2" />
     </configuration>
-    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/mysql_test_client" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_executor" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
       <module name="xmysql-server" />
       <working_directory value="$PROJECT_DIR$" />
       <kind value="PACKAGE" />
-      <package value="github.com/zhukovaskychina/xmysql-server/cmd/mysql_test_client" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/demo_executor" />
       <directory value="$PROJECT_DIR$" />
-      <filePath value="$PROJECT_DIR$/cmd/mysql_test_client/main.go" />
+      <filePath value="$PROJECT_DIR$/cmd/demo_executor/test_select_simple.go" />
       <method v="2" />
     </configuration>
-    <configuration name="go test github.com/zhukovaskychina/xmysql-server/cmd/demo_mysql_client_test" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/query_optimizer_demo" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
       <module name="xmysql-server" />
-      <working_directory value="$PROJECT_DIR$/cmd/demo_mysql_client_test" />
-      <root_directory value="$PROJECT_DIR$" />
+      <working_directory value="$PROJECT_DIR$" />
       <kind value="PACKAGE" />
-      <package value="github.com/zhukovaskychina/xmysql-server/cmd/demo_mysql_client_test" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/query_optimizer_demo" />
       <directory value="$PROJECT_DIR$" />
-      <filePath value="$PROJECT_DIR$" />
-      <framework value="gotest" />
+      <filePath value="$PROJECT_DIR$/cmd/query_optimizer_demo/main.go" />
       <method v="2" />
     </configuration>
     <recent_temporary>
       <list>
         <item itemvalue="Go Build.go build github.com/zhukovaskychina/xmysql-server" />
-        <item itemvalue="Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/mysql_test_client" />
-        <item itemvalue="Go Test.go test github.com/zhukovaskychina/xmysql-server/cmd/demo_mysql_client_test" />
+        <item itemvalue="Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/query_optimizer_demo" />
+        <item itemvalue="Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_executor" />
       </list>
     </recent_temporary>
   </component>
@@ -148,11 +203,88 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1761557760992</updated>
+      <workItem from="1772103180941" duration="1032000" />
+      <workItem from="1772176597435" duration="941000" />
+      <workItem from="1772244086898" duration="3080000" />
+      <workItem from="1772346262138" duration="768000" />
+      <workItem from="1772363335339" duration="1060000" />
     </task>
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="UnknownFeatures">
+    <option featureType="dependencySupport" implementationName="executable:docker" />
+    <option featureType="dependencySupport" implementationName="executable:kubectl" />
+    <option featureType="com.intellij.configurationType" implementationName="Application" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="OPEN_GENERIC_TABS">
+      <map>
+        <entry key="e989a79b-8964-4f9c-9a71-2d148fca086f" value="TOOL_WINDOW" />
+        <entry key="0e8bf87d-7407-4ae5-bd28-84e91ee017cd" value="TOOL_WINDOW" />
+      </map>
+    </option>
+    <option name="TAB_STATES">
+      <map>
+        <entry key="0e8bf87d-7407-4ae5-bd28-84e91ee017cd">
+          <value>
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="HEAD" />
+                      </list>
+                    </value>
+                  </entry>
+                  <entry key="roots">
+                    <value>
+                      <list>
+                        <option value="$PROJECT_DIR$" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+              <option name="SHOW_ONLY_AFFECTED_CHANGES" value="true" />
+            </State>
+          </value>
+        </entry>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+        <entry key="e989a79b-8964-4f9c-9a71-2d148fca086f">
+          <value>
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="HEAD" />
+                      </list>
+                    </value>
+                  </entry>
+                  <entry key="roots">
+                    <value>
+                      <list>
+                        <option value="$PROJECT_DIR$" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+              <option name="SHOW_ONLY_AFFECTED_CHANGES" value="true" />
+            </State>
+          </value>
+        </entry>
+      </map>
+    </option>
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="feat(cnf): implement CNF converter and integrate with query optimizer&#10;&#10;###  详细修改内容&#10;- 新增文件：`cnf_converter.go`, `cnf_converter_test.go`, `cnf_integration_test.go`, `main.go`&#10;- 主要改动：实现了CNF转换器，支持双重否定消除、德摩根定律、运算符取反、分配律展开等功能，并集成到查询优化器中。&#10;&#10;###  修改原因&#10;实现CNF转换器以规范化复杂的WHERE子句，为后续的谓词下推和索引优化提供支持。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：查询优化器&#10;- 受影响接口或服务：`pushDownPredicates`函数&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 完善单元测试和集成测试，确保转换器的稳定性和性能。" />
@@ -165,20 +297,25 @@
     <MESSAGE value="feat(mvcc): implement MVCC adjustment plan and related documentation&#10;&#10;###  提交摘要&#10;feat(mvcc): implement MVCC adjustment plan and related documentation&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：STAGE3_MVCC_ADJUSTMENT_PLAN.md, STAGE3_COMPLETION_REPORT.md&#10;- 主要改动：新增了MVCC调整计划和完成报告，详细描述了可见性逻辑的修正、ReadView的接入以及验证策略。&#10;&#10;###  修改原因&#10;此次修改旨在修正和对齐MVCC可见性判定逻辑，确保与事务管理层的逻辑一致，并提供安全的验证策略以避免大规模变更。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MVCC管理和事务管理&#10;- 受影响接口或服务：TransactionManager, MVCCManager&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行集成测试以验证新逻辑的正确性&#10;- 监控相关功能的性能表现" />
     <MESSAGE value="feat(protocol): optimize package structure and improve code quality&#10;&#10;###  详细修改内容&#10;- 修改文件：`advanced_features_example.go`, `mysql_protocol_encoder_test.go`, `handshake.go`, `resultset_encoder.go`&#10;- 主要改动：统一包名，删除冗余文件，修复测试引用，优化代码风格&#10;&#10;###  修改原因&#10;修复了包名混乱和类型重复定义的问题，提升了代码的可读性和可维护性。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：protocol&#10;- 受影响接口或服务：MySQL协议处理&#10;- 向后兼容性：兼容&#10;- 风险等级：低&#10;&#10;### ✅ 后续计划 / TODO&#10;- 继续完善测试覆盖率&#10;- 监控优化后的性能表现" />
     <MESSAGE value="fix(protocol): resolve issues with ResultSet handling and session ID generation&#10;&#10;###  详细修改内容&#10;- 修改文件：decoupled_handler.go, mysql_codec.go, mysql_protocol_encoding.go, resultset_encoder.go, system_variable_analyzer.go, system_variable_engine.go, system_variables_manager.go&#10;- 主要改动：&#10;  - 修复了 ResultSet 重复发送的问题，确保每个查询结果集只发送一次。&#10;  - 更新了会话 ID 生成逻辑，确保每个连接的会话 ID 唯一，包含远程地址信息。&#10;  - 调整了 OK Packet 和 EOF Packet 的编码方式，确保符合 MySQL 协议规范。&#10;&#10;###  修改原因&#10;- 解决了在处理查询结果时可能导致的协议错误，提升了系统的稳定性和可靠性。&#10;- 改进了会话管理，确保在多用户环境下的唯一性，避免潜在的会话冲突。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：协议处理、会话管理&#10;- 受影响接口或服务：ResultSet 处理、会话 ID 生成&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试，确保所有修改的功能正常。&#10;- 更新相关文档以反映新的协议处理逻辑。" />
-    <option name="LAST_COMMIT_MESSAGE" value="fix(protocol): resolve issues with ResultSet handling and session ID generation&#10;&#10;###  详细修改内容&#10;- 修改文件：decoupled_handler.go, mysql_codec.go, mysql_protocol_encoding.go, resultset_encoder.go, system_variable_analyzer.go, system_variable_engine.go, system_variables_manager.go&#10;- 主要改动：&#10;  - 修复了 ResultSet 重复发送的问题，确保每个查询结果集只发送一次。&#10;  - 更新了会话 ID 生成逻辑，确保每个连接的会话 ID 唯一，包含远程地址信息。&#10;  - 调整了 OK Packet 和 EOF Packet 的编码方式，确保符合 MySQL 协议规范。&#10;&#10;###  修改原因&#10;- 解决了在处理查询结果时可能导致的协议错误，提升了系统的稳定性和可靠性。&#10;- 改进了会话管理，确保在多用户环境下的唯一性，避免潜在的会话冲突。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：协议处理、会话管理&#10;- 受影响接口或服务：ResultSet 处理、会话 ID 生成&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试，确保所有修改的功能正常。&#10;- 更新相关文档以反映新的协议处理逻辑。" />
+    <MESSAGE value="###  提交摘要&#10;feat(migration): 添加数据迁移状态服务的 XML 配置文件&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：copilot.data.migration.ask.xml, copilot.data.migration.edit.xml, copilot.data.migration.agent.xml, copilot.data.migration.ask2agent.xml, mysql_test.go, main.go&#10;- 主要改动：新增了多个 XML 配置文件以记录数据迁移状态，并添加了 MySQL 测试代码。&#10;&#10;###  修改原因&#10;此次修改旨在支持数据迁移过程中的状态管理，确保在迁移完成后能够准确记录和查询状态。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：数据迁移管理&#10;- 受影响接口或服务：数据迁移状态查询&#10;- 向后兼容性：兼容&#10;- 风险等级：低&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行单元测试以验证新配置文件的正确性&#10;- 更新相关文档以反映新的迁移状态管理逻辑" />
+    <MESSAGE value="###  提交摘要&#10;feat(crash_recovery): integrate crash recovery and checkpoint management&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：enginx.go, crash_recovery.go, buffer_page.go, main.go&#10;- 主要改动：集成崩溃恢复机制，初始化检查点管理器，更新页面分配和写入逻辑。&#10;&#10;###  修改原因&#10;此次修改旨在增强系统的可靠性，通过集成崩溃恢复和检查点管理，确保在系统宕机时能够自动恢复数据，减少数据丢失风险。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：崩溃恢复、存储管理、引擎启动&#10;- 受影响接口或服务：XMySQL引擎的启动和关闭流程&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面测试以验证崩溃恢复功能的有效性&#10;- 优化页面分配逻辑以提高性能" />
+    <MESSAGE value="feat(join): implement support for LEFT, RIGHT, and FULL OUTER JOINs&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：logical_plan.go, volcano_executor.go&#10;- 主要改动：重构连接操作符以支持左、右和全外连接，增加相应的逻辑处理和合并记录的功能。&#10;&#10;###  修改原因&#10;此修改旨在增强查询引擎的连接能力，支持更复杂的 SQL 查询场景，提升数据处理的灵活性。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：连接操作符（NestedLoopJoinOperator, HashJoinOperator）&#10;- 受影响接口或服务：查询执行接口&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行单元测试以验证新连接类型的正确性。" />
+    <MESSAGE value="###  提交摘要&#10;refactor(join): enhance join logic and optimize handling of join conditions&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：logical_plan.go, optimizer.go, volcano_executor.go, hash_operators_test.go&#10;- 主要改动：重构了连接逻辑，优化了连接条件的处理，增加了对外连接的支持，改进了谓词下推的实现。&#10;&#10;###  修改原因&#10;此次修改旨在提升连接操作的性能和可读性，通过重构代码和优化逻辑，确保在处理复杂查询时的效率和准确性。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：连接操作、查询优化&#10;- 受影响接口或服务：连接执行器、查询计划生成&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证连接逻辑的正确性&#10;- 更新相关文档以反映新的连接处理逻辑" />
+    <MESSAGE value="###  提交摘要&#10;feat(logger): replace util logging with logger for improved consistency&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：main.go, event_write_rows.go, test_deadlock_fix.go, test_lru_cache_fix.go, test_space_manager_optimization.go, test_simple_table_mapping.go, test_btree_manager_fix.go, MySQLDemo.java&#10;- 主要改动：将 util.Debugf 替换为 logger.Debugf，以统一日志记录方式。&#10;&#10;###  修改原因&#10;为了提高代码的一致性和可维护性，所有日志记录功能已从 util 包迁移到 logger 包。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：日志记录模块&#10;- 受影响接口或服务：所有使用 util.Debugf 的地方&#10;- 向后兼容性：兼容&#10;- 风险等级：低&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面测试以确保日志记录功能正常" />
+    <MESSAGE value="feat(logger): add logger import to main.go" />
+    <MESSAGE value="###  提交摘要&#10;feat(mysql): implement MySQL package handler for protocol data processing&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：mysql_pkg_handler.go, mysql_pkg_handler_test.go&#10;- 主要改动：新增 MySQLPkgHandler 结构体，支持 MySQL 协议数据包的编解码，包含 Read 和 Write 方法。&#10;&#10;###  修改原因&#10;此次修改旨在实现对 MySQL 协议数据包的处理，提供灵活的读取和写入功能，以支持后续的数据库操作。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MySQL 数据包处理&#10;- 受影响接口或服务：所有使用 MySQLPkgHandler 的地方&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证 MySQLPkgHandler 的正确性&#10;- 更新相关文档以反映新的数据包处理逻辑" />
+    <MESSAGE value="###  提交摘要&#10;feat(mysql): implement MySQL session context for enhanced state management&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：decoupled_handler.go, engine_access.go, enhanced_message_handler.go, message_handler.go, session.go, session_context.go&#10;- 主要改动：引入 SessionContext 结构体，优化 MySQL 会话状态管理，确保在处理 COM_INIT_DB 和 COM_QUERY 时使用同一会话实例。&#10;&#10;###  修改原因&#10;此次修改旨在提升 MySQL 协议处理的准确性和一致性，通过引入 SessionContext 来集中管理会话状态，避免因使用不同会话实例导致的状态不一致问题。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MySQL 协议处理、会话管理&#10;- 受影响接口或服务：所有涉及会话状态的操作，如数据库切换、查询执行等&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证 SessionContext 的正确性&#10;- 更新相关文档以反映新的会话管理逻辑" />
+    <option name="LAST_COMMIT_MESSAGE" value="###  提交摘要&#10;feat(mysql): implement MySQL session context for enhanced state management&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：decoupled_handler.go, engine_access.go, enhanced_message_handler.go, message_handler.go, session.go, session_context.go&#10;- 主要改动：引入 SessionContext 结构体，优化 MySQL 会话状态管理，确保在处理 COM_INIT_DB 和 COM_QUERY 时使用同一会话实例。&#10;&#10;###  修改原因&#10;此次修改旨在提升 MySQL 协议处理的准确性和一致性，通过引入 SessionContext 来集中管理会话状态，避免因使用不同会话实例导致的状态不一致问题。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MySQL 协议处理、会话管理&#10;- 受影响接口或服务：所有涉及会话状态的操作，如数据库切换、查询执行等&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证 SessionContext 的正确性&#10;- 更新相关文档以反映新的会话管理逻辑" />
   </component>
   <component name="VgoProject">
     <settings-migrated>true</settings-migrated>
   </component>
-  <component name="XDebuggerManager">
-    <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
-          <url>file://$PROJECT_DIR$/server/net/decoupled_handler.go</url>
-          <line>397</line>
-          <option name="timeStamp" value="6" />
-        </line-breakpoint>
-      </breakpoints>
-    </breakpoint-manager>
+  <component name="github-copilot-workspace">
+    <instructionFileLocations>
+      <option value=".github/instructions" />
+    </instructionFileLocations>
+    <promptFileLocations>
+      <option value=".github/prompts" />
+    </promptFileLocations>
   </component>
 </project>

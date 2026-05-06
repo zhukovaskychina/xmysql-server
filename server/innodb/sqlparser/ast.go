@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//go:generate goyacc -o sql.go ./sql.y
+
 package sqlparser
 
 import (
@@ -1279,6 +1281,7 @@ type Show struct {
 	Type          string
 	OnTable       TableName
 	ShowTablesOpt *ShowTablesOpt
+	Filter        *ShowFilter
 	Scope         string
 }
 
@@ -1308,6 +1311,9 @@ func (node *Show) Format(buf *TrackedBuffer) {
 	}
 	if node.HasOnTable() {
 		buf.Myprintf(" on %v", node.OnTable)
+	}
+	if node.Filter != nil {
+		buf.Myprintf(" %v", node.Filter)
 	}
 }
 

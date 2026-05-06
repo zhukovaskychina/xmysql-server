@@ -305,7 +305,7 @@ type CostModel struct {
 - `docs/query-optimizer/query_optimizer_p0_implementation.md`
 - `docs/query-optimizer/query_optimizer_integration_summary.md`
 - `docs/PHASE4_OPTIMIZER_RULES_ANALYSIS.md`
-- `docs/implementation/CNF_CONVERTER_IMPLEMENTATION.md`
+- `docs/query-optimizer/query_optimizer_p0_implementation.md`（含 CNF，原 `CNF_CONVERTER_IMPLEMENTATION.md` 已合并）
 
 ---
 

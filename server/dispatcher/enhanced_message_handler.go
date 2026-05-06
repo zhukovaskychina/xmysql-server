@@ -273,9 +273,12 @@ func (h *EnhancedBusinessMessageHandler) handleQueryMessage(ctx context.Context,
 	logger.Debugf(" 权限检查通过，准备执行SQL查询")
 
 	// 创建一个临时的session（实际应该从消息中获取）
+	sessionCtx := server.NewSessionContext(msg.SessionID())
+	sessionCtx.SetCurrentDB(queryMsg.Database)
 	session := &EnhancedMockMySQLServerSession{
 		sessionID: msg.SessionID(),
 		database:  queryMsg.Database,
+		ctx:       sessionCtx,
 	}
 
 	logger.Debugf(" 分发SQL查询到SQLDispatcher")
@@ -459,6 +462,7 @@ type EnhancedMockMySQLServerSession struct {
 	sessionID      string
 	database       string
 	params         map[string]interface{}
+	ctx            *server.SessionContext
 	lastActiveTime time.Time
 	session        Session // 添加session字段用于网络通信
 }
@@ -476,18 +480,68 @@ func (s *EnhancedMockMySQLServerSession) GetLastActiveTime() time.Time {
 	return s.lastActiveTime
 }
 
+func (s *EnhancedMockMySQLServerSession) SessionContext() *server.SessionContext {
+	if s.ctx == nil {
+		s.ctx = server.NewSessionContext(s.sessionID)
+		s.ctx.SetCurrentDB(s.database)
+	}
+	return s.ctx
+}
+
 func (s *EnhancedMockMySQLServerSession) SetParamByName(name string, value interface{}) {
 	if s.params == nil {
 		s.params = make(map[string]interface{})
 	}
 	s.params[name] = value
+	// 双写 SessionContext，与真实 session 行为一致
+	if s.ctx != nil {
+		switch name {
+		case "database":
+			s.ctx.SetCurrentDB(toString(value))
+		case "user":
+			s.ctx.SetUsername(toString(value))
+		case "autocommit":
+			s.ctx.SetAutocommit(toBool(value))
+		}
+	}
 }
 
 func (s *EnhancedMockMySQLServerSession) GetParamByName(name string) interface{} {
 	if s.params == nil {
+		if s.ctx != nil {
+			switch name {
+			case "database":
+				return s.ctx.GetCurrentDB()
+			case "user":
+				return s.ctx.GetUsername()
+			}
+		}
 		return nil
 	}
 	return s.params[name]
+}
+
+func toString(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return fmt.Sprintf("%v", v)
+}
+
+func toBool(v interface{}) bool {
+	if v == nil {
+		return true
+	}
+	switch val := v.(type) {
+	case bool:
+		return val
+	case string:
+		return val == "1" || val == "ON" || val == "on" || val == "true"
+	}
+	return true
 }
 
 func (s *EnhancedMockMySQLServerSession) SendOK() {
@@ -619,10 +673,13 @@ func (s *EnhancedMockMySQLServerSession) SendResultSet(columns []string, rows []
 
 // NewEnhancedMockMySQLServerSessionWithSession 创建一个带有实际网络会话的MySQLServerSession实例
 func NewEnhancedMockMySQLServerSessionWithSession(sessionID string, database string, netSession Session) *EnhancedMockMySQLServerSession {
+	ctx := server.NewSessionContext(sessionID)
+	ctx.SetCurrentDB(database)
 	return &EnhancedMockMySQLServerSession{
 		sessionID:      sessionID,
 		database:       database,
 		params:         make(map[string]interface{}),
+		ctx:            ctx,
 		lastActiveTime: time.Now(),
 		session:        netSession,
 	}
@@ -630,10 +687,13 @@ func NewEnhancedMockMySQLServerSessionWithSession(sessionID string, database str
 
 // NewEnhancedMockMySQLServerSession 创建一个没有网络会话的MySQLServerSession实例（仅用于测试）
 func NewEnhancedMockMySQLServerSession(sessionID string, database string) *EnhancedMockMySQLServerSession {
+	ctx := server.NewSessionContext(sessionID)
+	ctx.SetCurrentDB(database)
 	return &EnhancedMockMySQLServerSession{
 		sessionID:      sessionID,
 		database:       database,
 		params:         make(map[string]interface{}),
+		ctx:            ctx,
 		lastActiveTime: time.Now(),
 		session:        nil, // 没有实际的网络会话
 	}

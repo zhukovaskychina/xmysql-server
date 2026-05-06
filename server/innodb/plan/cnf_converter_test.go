@@ -244,6 +244,26 @@ func TestExtractDisjuncts(t *testing.T) {
 	}
 }
 
+// TestConvertToCNF_AlreadyCNF_Unchanged 边界：已是 CNF 的 (a AND b) 经 ConvertToCNF 后结构保持不变
+func TestConvertToCNF_AlreadyCNF_Unchanged(t *testing.T) {
+	converter := NewCNFConverter()
+	a := &Column{Name: "a"}
+	b := &Column{Name: "b"}
+	andExpr := &BinaryOperation{Op: OpAnd, Left: a, Right: b}
+	result := converter.ConvertToCNF(andExpr)
+	if result == nil {
+		t.Fatal("ConvertToCNF(AND(a,b)) returned nil")
+	}
+	bin, ok := result.(*BinaryOperation)
+	if !ok || bin.Op != OpAnd {
+		op := BinaryOp(0)
+		if b, o := result.(*BinaryOperation); o {
+			op = b.Op
+		}
+		t.Errorf("expected AND, got %T op=%v", result, op)
+	}
+}
+
 // TestIsCNF 测试CNF检测
 func TestIsCNF(t *testing.T) {
 	converter := NewCNFConverter()

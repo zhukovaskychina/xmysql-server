@@ -44,7 +44,7 @@ func main() {
 	os.MkdirAll(cfg.InnodbRedoLogDir, 0755)
 	os.MkdirAll(cfg.InnodbUndoLogDir, 0755)
 
-	util.Debugf("演示目录: %s\n", demoDir)
+	logger.Debugf("演示目录: %s\n", demoDir)
 	fmt.Println()
 
 	// === 1. 初始化 StorageManager ===
@@ -73,7 +73,7 @@ func main() {
 	// 验证系统表空间
 	systemSpace, err := spaceManager.GetSpace(0)
 	if err == nil {
-		util.Debugf("   - 系统表空间: space_id=0, name=%s, active=%v\n",
+		logger.Debugf("   - 系统表空间: space_id=0, name=%s, active=%v\n",
 			systemSpace.Name(), systemSpace.IsActive())
 	}
 	fmt.Println()
@@ -89,7 +89,7 @@ func main() {
 		for pageNo := uint32(0); pageNo <= 7; pageNo++ {
 			pageInfo := systemSpaceManager.GetSystemPageInfo(pageNo)
 			if pageInfo != nil {
-				util.Debugf("   - 系统页面%d: 类型=%d, 已加载=%v\n",
+				logger.Debugf("   - 系统页面%d: 类型=%d, 已加载=%v\n",
 					pageNo, pageInfo.PageType, pageInfo.IsLoaded)
 			}
 		}
@@ -97,7 +97,7 @@ func main() {
 		// 加载数据字典根页面
 		dictRootPage, err := systemSpaceManager.LoadDictRootPage()
 		if err == nil {
-			util.Debugf("   - 数据字典根页面: MaxTableID=%d, MaxIndexID=%d\n",
+			logger.Debugf("   - 数据字典根页面: MaxTableID=%d, MaxIndexID=%d\n",
 				dictRootPage.MaxTableID, dictRootPage.MaxIndexID)
 		}
 	}
@@ -111,7 +111,7 @@ func main() {
 
 	if dictManager != nil {
 		stats := dictManager.GetStats()
-		util.Debugf("   - 统计: 总表数=%d, 总索引数=%d, 缓存命中=%d\n",
+		logger.Debugf("   - 统计: 总表数=%d, 总索引数=%d, 缓存命中=%d\n",
 			stats.TotalTables, stats.TotalIndexes, stats.CacheHits)
 	}
 	fmt.Println()
@@ -121,7 +121,7 @@ func main() {
 	fmt.Println(" SegmentManager (段管理器):")
 	fmt.Println("   - 职责: 管理表空间内的段(数据段、索引段)")
 	fmt.Println("   - 协调: 与ExtentManager合作管理区和页面")
-	util.Debugf("   - 实例: %T\n", segmentManager)
+	logger.Debugf("   - 实例: %T\n", segmentManager)
 	fmt.Println()
 
 	// === 3. 演示创建用户表空间 ===
@@ -131,15 +131,15 @@ func main() {
 	// 创建用户表空间
 	tablespace, err := sm.CreateTablespace("test_db/user_table")
 	if err != nil {
-		util.Debugf(" 创建用户表空间失败: %v\n", err)
+		logger.Debugf(" 创建用户表空间失败: %v\n", err)
 	} else {
-		util.Debugf(" 创建用户表空间成功: space_id=%d, name=%s\n",
+		logger.Debugf(" 创建用户表空间成功: space_id=%d, name=%s\n",
 			tablespace.SpaceID, tablespace.Name)
 
 		// 验证表空间已被SpaceManager管理
 		userSpace, err := spaceManager.GetSpace(tablespace.SpaceID)
 		if err == nil {
-			util.Debugf("   - SpaceManager中的表空间: name=%s, active=%v\n",
+			logger.Debugf("   - SpaceManager中的表空间: name=%s, active=%v\n",
 				userSpace.Name(), userSpace.IsActive())
 		}
 	}
@@ -170,19 +170,19 @@ func main() {
 
 		table, err := dictManager.CreateTable("user_table", tablespace.SpaceID, columns)
 		if err != nil {
-			util.Debugf(" 创建表定义失败: %v\n", err)
+			logger.Debugf(" 创建表定义失败: %v\n", err)
 		} else {
-			util.Debugf(" 创建表定义成功: table_id=%d, name=%s\n",
+			logger.Debugf(" 创建表定义成功: table_id=%d, name=%s\n",
 				table.TableID, table.Name)
-			util.Debugf("   - 表空间ID: %d\n", table.SpaceID)
-			util.Debugf("   - 列数: %d\n", len(table.Columns))
-			util.Debugf("   - 段ID: %d\n", table.SegmentID)
+			logger.Debugf("   - 表空间ID: %d\n", table.SpaceID)
+			logger.Debugf("   - 列数: %d\n", len(table.Columns))
+			logger.Debugf("   - 段ID: %d\n", table.SegmentID)
 
 			// 验证数据字典根页面已更新
 			if systemSpaceManager != nil {
 				dictRootPage, err := systemSpaceManager.LoadDictRootPage()
 				if err == nil {
-					util.Debugf("   - 更新后的MaxTableID: %d\n", dictRootPage.MaxTableID)
+					logger.Debugf("   - 更新后的MaxTableID: %d\n", dictRootPage.MaxTableID)
 				}
 			}
 		}
@@ -210,7 +210,7 @@ func main() {
 	fmt.Println("🧹 第六步: 资源清理")
 	err = sm.Close()
 	if err != nil {
-		util.Debugf("  关闭StorageManager时出现警告: %v\n", err)
+		logger.Debugf("  关闭StorageManager时出现警告: %v\n", err)
 	} else {
 		fmt.Println(" StorageManager 已正常关闭")
 	}

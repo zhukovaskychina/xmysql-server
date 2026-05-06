@@ -58,6 +58,7 @@
 ### 1. StorageIntegratedDMLExecutor
 
 #### 主要功能
+
 - **INSERT操作**: 完整的数据插入和索引维护
 - **UPDATE操作**: 数据更新和相关索引同步
 - **DELETE操作**: 数据删除和索引清理
@@ -88,6 +89,7 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForInsert(ctx context.Cont
 ```
 
 #### 支持的数据类型
+
 - **NULL值**: 类型标记 0
 - **字符串**: 类型标记 1 + UTF-8编码数据
 - **整数**: 类型标记 2 + 8字节小端序
@@ -140,18 +142,16 @@ deserializedRow, err := dml.deserializeRowData(pageContent)
 #### 索引维护策略
 
 1. **INSERT操作**
-   - 插入主表数据到B+树
-   - 为所有二级索引构建索引键
-   - 将索引项插入到相应的索引B+树
-
+  - 插入主表数据到B+树
+  - 为所有二级索引构建索引键
+  - 将索引项插入到相应的索引B+树
 2. **UPDATE操作**
-   - 检查哪些索引列被修改
-   - 从受影响的索引中删除旧的索引项
-   - 插入新的索引项
-
+  - 检查哪些索引列被修改
+  - 从受影响的索引中删除旧的索引项
+  - 插入新的索引项
 3. **DELETE操作**
-   - 从主表B+树中标记删除
-   - 从所有二级索引中删除相应的索引项
+  - 从主表B+树中标记删除
+  - 从所有二级索引中删除相应的索引项
 
 #### 索引键构建
 

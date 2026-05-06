@@ -1,6 +1,7 @@
 package net
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -40,7 +41,7 @@ const logBanner = `
 `
 
 var (
-	mysqlPkgHandler = NewMySQLEchoPkgHandler() //Marsh Unmarsh
+	mysqlPkgHandler = NewMySQLPkgHandler() // 正式的 MySQL 协议包处理器
 )
 
 type MySQLServer struct {
@@ -69,6 +70,14 @@ func NewMySQLServer(conf *conf.Cfg) *MySQLServer {
 
 func (srv *MySQLServer) Start() {
 	initProfiling(srv.conf)
+
+	// 启动 XMySQL 引擎 (包括恢复和后台任务)
+	if srv.xmysqlEngine != nil {
+		if err := srv.xmysqlEngine.Start(context.Background()); err != nil {
+			panic(fmt.Sprintf("Failed to start XMySQL Engine: %v", err))
+		}
+	}
+
 	srv.taskPool = gxsync.NewTaskPoolSimple(0)
 	srv.initServer(srv.conf)
 
@@ -157,8 +166,7 @@ func (srv *MySQLServer) uninitServer() {
 
 	// 清理XMySQL引擎资源
 	if srv.xmysqlEngine != nil {
-		// 如果 XMySQLEngine 有 Close 方法，调用它
-		// srv.xmysqlEngine.Close()
+		srv.xmysqlEngine.Close()
 	}
 }
 

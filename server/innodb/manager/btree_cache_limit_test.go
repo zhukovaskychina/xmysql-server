@@ -163,8 +163,8 @@ func TestBTREE006_CacheSizeLimit(t *testing.T) {
 			}
 		}
 
-		// 等待后台清理
-		time.Sleep(time.Second * 2)
+		// 显式触发缓存清理，避免依赖后台 ticker。
+		btm.cleanCache()
 
 		// 检查缓存大小
 		btm.mutex.RLock()
@@ -204,12 +204,20 @@ func TestBTREE006_CacheSizeLimit(t *testing.T) {
 			if err != nil {
 				t.Errorf("Failed to insert key %s: %v", key, err)
 			}
-			time.Sleep(time.Millisecond * 100) // 确保访问时间不同
 		}
+
+		// 直接设置访问时间，避免依赖 wall clock 差异。
+		btm.mutex.Lock()
+		base := time.Now().Add(-time.Minute)
+		offset := 0
+		for pageNum := range btm.lastAccess {
+			btm.lastAccess[pageNum] = base.Add(time.Duration(offset) * time.Millisecond)
+			offset++
+		}
+		btm.mutex.Unlock()
 
 		// 访问第一个节点，使其成为最近访问
 		btm.getNode(ctx, 1)
-		time.Sleep(time.Millisecond * 100)
 
 		// 插入第4个节点，应该淘汰最久未访问的节点
 		err = btm.Insert(ctx, "key_004", []byte("value_004"))
@@ -257,8 +265,8 @@ func TestBTREE006_CacheSizeLimit(t *testing.T) {
 			}
 		}
 
-		// 等待后台清理
-		time.Sleep(time.Second * 6)
+		// 显式触发缓存清理和脏页刷新，避免等待后台任务。
+		btm.cleanCache()
 
 		// 检查缓存大小和脏节点数
 		btm.mutex.RLock()
@@ -309,7 +317,6 @@ func TestBTREE006_CacheSizeLimit(t *testing.T) {
 					if err != nil {
 						t.Logf("Goroutine %d failed to insert key %s: %v", goroutineID, key, err)
 					}
-					time.Sleep(time.Millisecond * 10)
 				}
 				done <- true
 			}(g)
@@ -320,8 +327,8 @@ func TestBTREE006_CacheSizeLimit(t *testing.T) {
 			<-done
 		}
 
-		// 等待后台清理
-		time.Sleep(time.Second * 2)
+		// 显式触发缓存清理，避免依赖后台 ticker。
+		btm.cleanCache()
 
 		// 检查缓存大小
 		btm.mutex.RLock()

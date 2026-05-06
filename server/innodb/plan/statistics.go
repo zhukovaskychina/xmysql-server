@@ -199,8 +199,14 @@ func (b *StatsBuilder) BuildColumnStats(columnName string, values []interface{})
 	// 构建TopN
 	stats.TopN = buildTopN(distinct, 10)
 
-	// 构建直方图
-	stats.Histogram = buildHistogram(values, 100)
+	// 构建直方图（仅非空值，与 NotNullCount 一致）
+	nonNullValues := make([]interface{}, 0, len(values))
+	for _, v := range values {
+		if v != nil {
+			nonNullValues = append(nonNullValues, v)
+		}
+	}
+	stats.Histogram = buildHistogram(nonNullValues, 100)
 
 	// 计算最大最小值
 	stats.MaxValue, stats.MinValue = findMinMax(values)
@@ -301,7 +307,10 @@ func buildHistogram(values []interface{}, numBuckets int) *Histogram {
 
 	// 构建桶
 	buckets := make([]Bucket, 0, numBuckets)
-	currentBucket := Bucket{}
+	currentBucket := Bucket{
+		LowerBound: sortedVals[0], // 第一个桶的下界
+		Count:      0,
+	}
 	distinctValues := make(map[interface{}]struct{})
 
 	for i, v := range sortedVals {

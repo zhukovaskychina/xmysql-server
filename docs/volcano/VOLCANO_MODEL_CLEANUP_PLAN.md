@@ -1433,7 +1433,7 @@ git commit -m "docs: update volcano model documentation
 
 - Add VOLCANO_MODEL_CLEANUP_PLAN.md
 - Update VOLCANO_MODEL_IMPLEMENTATION.md
-- Update VOLCANO_MODEL_REFACTOR_SUMMARY.md"
+- Update VOLCANO_MODEL_IMPLEMENTATION.md (REFACTOR_SUMMARY 已合并为跳转)"
 ```
 
 ### 15.2 发布流程

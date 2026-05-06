@@ -812,16 +812,18 @@ func (s *session) Close() {
 type MySQLServerSessionImpl struct {
 	server.MySQLServerSession
 	session        Session
+	ctx            *server.SessionContext
 	reqNum         int32
 	lastActiveTime time.Time //最后活动时间
 }
 
 func NewMySQLServerSession(session Session) server.MySQLServerSession {
-	var mysqlSession = new(MySQLServerSessionImpl)
-	mysqlSession.lastActiveTime = time.Now()
-	mysqlSession.reqNum = 0
-	mysqlSession.session = session
-	return mysqlSession
+	impl := &MySQLServerSessionImpl{
+		lastActiveTime: time.Now(),
+		session:        session,
+		ctx:            server.NewSessionContext(session.Stat()),
+	}
+	return impl
 }
 
 func (m *MySQLServerSessionImpl) GetLastActiveTime() time.Time {
@@ -840,10 +842,114 @@ func (m *MySQLServerSessionImpl) SendHandleOk() {
 	m.session.WriteBytes(buff)
 }
 
+func (m *MySQLServerSessionImpl) SessionContext() *server.SessionContext {
+	return m.ctx
+}
+
 func (m *MySQLServerSessionImpl) GetParamByName(name string) interface{} {
+	// 优先从 SessionContext 读已升格字段，保证类型一致
+	switch name {
+	case "database":
+		if v := m.ctx.GetCurrentDB(); v != "" {
+			return v
+		}
+	case "user":
+		if v := m.ctx.GetUsername(); v != "" {
+			return v
+		}
+	case "autocommit":
+		if m.ctx.GetAutocommit() {
+			return "1"
+		}
+		return "0"
+	case "character_set_client", "character_set_connection", "character_set_results",
+		"character_set_database", "character_set_server":
+		if v := m.ctx.GetCharacterSet(); v != "" {
+			return v
+		}
+	case "sql_mode":
+		if v := m.ctx.GetSQLMode(); v != "" {
+			return v
+		}
+	case "time_zone":
+		if v := m.ctx.GetTimeZone(); v != "" {
+			return v
+		}
+	case "transaction_isolation", "tx_isolation":
+		if v := m.ctx.GetTransactionIsolation(); v != "" {
+			return v
+		}
+	default:
+		if m.ctx != nil && m.ctx.GetExtra(name) != nil {
+			return m.ctx.GetExtra(name)
+		}
+	}
 	return m.session.GetAttribute(name)
 }
 
 func (m *MySQLServerSessionImpl) SetParamByName(name string, value interface{}) {
-	m.session.SetAttribute(name, value)
+	// 双写：SessionContext + attrs，兼容现有读取路径
+	switch name {
+	case "database":
+		m.ctx.SetCurrentDB(attrString(value))
+		m.session.SetAttribute(name, value)
+		return
+	case "user":
+		m.ctx.SetUsername(attrString(value))
+		m.session.SetAttribute(name, value)
+		return
+	case "autocommit":
+		m.ctx.SetAutocommit(attrBool(value))
+		m.session.SetAttribute(name, value)
+		return
+	case "character_set_client", "character_set_connection", "character_set_results",
+		"character_set_database", "character_set_server":
+		m.ctx.SetCharacterSet(attrString(value))
+		m.session.SetAttribute(name, value)
+		return
+	case "sql_mode":
+		m.ctx.SetSQLMode(attrString(value))
+		m.session.SetAttribute(name, value)
+		return
+	case "time_zone":
+		m.ctx.SetTimeZone(attrString(value))
+		m.session.SetAttribute(name, value)
+		return
+	case "transaction_isolation", "tx_isolation":
+		m.ctx.SetTransactionIsolation(attrString(value))
+		m.session.SetAttribute(name, value)
+		return
+	default:
+		if m.ctx != nil {
+			m.ctx.SetExtra(name, value)
+		}
+		m.session.SetAttribute(name, value)
+	}
+}
+
+func attrString(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return fmt.Sprintf("%v", v)
+}
+
+func attrBool(v interface{}) bool {
+	if v == nil {
+		return true
+	}
+	switch val := v.(type) {
+	case bool:
+		return val
+	case string:
+		return val == "1" || val == "ON" || val == "on" || val == "true" || val == "yes"
+	case int, int8, int16, int32, int64:
+		return fmt.Sprintf("%d", val) != "0"
+	case uint, uint8, uint16, uint32, uint64:
+		return fmt.Sprintf("%d", val) != "0"
+	}
+	return true
 }

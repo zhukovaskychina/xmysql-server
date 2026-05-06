@@ -79,9 +79,9 @@ func TestHashJoinOperator_InnerJoin(t *testing.T) {
 	// 验证第一条记录: (1, Alice, 1, 25)
 	values0 := results[0].GetValues()
 	assert.Equal(t, 4, len(values0))
-	assert.Equal(t, int64(1), values0[0].ToInt64())
+	assert.Equal(t, int64(1), values0[0].Int())
 	assert.Equal(t, "Alice", values0[1].ToString())
-	assert.Equal(t, int64(25), values0[3].ToInt64())
+	assert.Equal(t, int64(25), values0[3].Int())
 
 	// 关闭算子
 	err = hashJoin.Close()
@@ -176,7 +176,7 @@ func TestHashAggregateOperator_Count(t *testing.T) {
 	for _, result := range results {
 		values := result.GetValues()
 		assert.Equal(t, 1, len(values)) // 只有COUNT列
-		count := values[0].ToInt64()
+		count := values[0].Int()
 		// A组应该有3条，B组应该有2条
 		if count == 3 || count == 2 {
 			if count == 3 {
@@ -211,14 +211,10 @@ func TestHashAggregateOperator_SumAvg(t *testing.T) {
 	}
 	childOp := NewMockDataOperator(data, schema)
 
-	// GROUP BY category, SUM(amount), AVG(amount)
+	// GROUP BY category(0), SUM(amount)=列1, AVG(amount)=列1
 	groupByExprs := []int{0}
-	aggFuncs := []AggregateFunc{
-		&SumAgg{},
-		&AvgAgg{},
-	}
-
-	hashAgg := NewHashAggregateOperator(childOp, groupByExprs, aggFuncs)
+	aggFuncs := []AggregateFunc{&SumAgg{}, &AvgAgg{}}
+	hashAgg := NewHashAggregateOperatorWithColIndexes(childOp, groupByExprs, aggFuncs, []int{1, 1})
 	err := hashAgg.Open(ctx)
 	assert.NoError(t, err)
 
@@ -239,8 +235,8 @@ func TestHashAggregateOperator_SumAvg(t *testing.T) {
 		values := result.GetValues()
 		assert.Equal(t, 2, len(values)) // SUM和AVG
 
-		sum := values[0].ToFloat64()
-		avg := values[1].ToFloat64()
+		sum := values[0].Float64()
+		avg := values[1].Float64()
 
 		// A组: SUM=60, AVG=20
 		// B组: SUM=40, AVG=20
@@ -274,14 +270,10 @@ func TestHashAggregateOperator_MinMax(t *testing.T) {
 	}
 	childOp := NewMockDataOperator(data, schema)
 
-	// GROUP BY category, MIN(score), MAX(score)
+	// GROUP BY category(0), MIN(score)=列1, MAX(score)=列1
 	groupByExprs := []int{0}
-	aggFuncs := []AggregateFunc{
-		&MinAgg{},
-		&MaxAgg{},
-	}
-
-	hashAgg := NewHashAggregateOperator(childOp, groupByExprs, aggFuncs)
+	aggFuncs := []AggregateFunc{&MinAgg{}, &MaxAgg{}}
+	hashAgg := NewHashAggregateOperatorWithColIndexes(childOp, groupByExprs, aggFuncs, []int{1, 1})
 	err := hashAgg.Open(ctx)
 	assert.NoError(t, err)
 
@@ -302,8 +294,8 @@ func TestHashAggregateOperator_MinMax(t *testing.T) {
 		values := result.GetValues()
 		assert.Equal(t, 2, len(values))
 
-		min := values[0].ToFloat64()
-		max := values[1].ToFloat64()
+		min := values[0].Float64()
+		max := values[1].Float64()
 
 		// A组: MIN=75, MAX=90
 		// B组: MIN=88, MAX=92
@@ -334,14 +326,10 @@ func TestHashAggregateOperator_NoGroupBy(t *testing.T) {
 	}
 	childOp := NewMockDataOperator(data, schema)
 
-	// 无分组，全表聚合: COUNT(*), SUM(amount)
-	groupByExprs := []int{} // 空分组
-	aggFuncs := []AggregateFunc{
-		&CountAgg{},
-		&SumAgg{},
-	}
-
-	hashAgg := NewHashAggregateOperator(childOp, groupByExprs, aggFuncs)
+	// 无分组，全表聚合: COUNT(*), SUM(amount)；仅一列 amount 在索引 0
+	groupByExprs := []int{}
+	aggFuncs := []AggregateFunc{&CountAgg{}, &SumAgg{}}
+	hashAgg := NewHashAggregateOperatorWithColIndexes(childOp, groupByExprs, aggFuncs, []int{0, 0})
 	err := hashAgg.Open(ctx)
 	assert.NoError(t, err)
 
@@ -352,8 +340,8 @@ func TestHashAggregateOperator_NoGroupBy(t *testing.T) {
 
 	values := record.GetValues()
 	assert.Equal(t, 2, len(values))
-	assert.Equal(t, int64(3), values[0].ToInt64()) // COUNT = 3
-	assert.Equal(t, 60.0, values[1].ToFloat64())   // SUM = 60
+	assert.Equal(t, int64(3), values[0].Int()) // COUNT = 3
+	assert.Equal(t, 60.0, values[1].Float64()) // SUM = 60
 
 	// 第二次调用应该返回nil
 	record, err = hashAgg.Next(ctx)

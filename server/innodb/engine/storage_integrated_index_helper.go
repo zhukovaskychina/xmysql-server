@@ -1,11 +1,13 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
@@ -292,9 +294,9 @@ func (dml *StorageIntegratedDMLExecutor) handleIndexError(
 
 	// 根据错误类型进行不同处理
 	switch {
-	case strings.Contains(err.Error(), "duplicate"):
+	case errors.Is(err, basic.ErrDuplicateKey):
 		return fmt.Errorf("索引键重复: %s (索引: %s, 键: %v)", err.Error(), indexName, indexKey)
-	case strings.Contains(err.Error(), "not found"):
+	case errors.Is(err, manager.ErrIndexNotFound):
 		return fmt.Errorf("索引键未找到: %s (索引: %s, 键: %v)", err.Error(), indexName, indexKey)
 	default:
 		return fmt.Errorf("索引操作失败: %s (索引: %s, 键: %v, 错误: %v)",

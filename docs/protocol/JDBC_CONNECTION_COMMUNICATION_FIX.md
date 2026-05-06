@@ -1,5 +1,7 @@
 # JDBC连接通信链路失败修复总结
 
+> **2026-04 关联文档**：与上文 [JDBC_CONNECTION_FIX_SUMMARY.md](./JDBC_CONNECTION_FIX_SUMMARY.md) 联读；**全量集成测试修复与回归门禁** → [planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md](../planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md)（`jdbc_client`：`mvn test -Pjdbc-connectivity`）。
+
 ## 问题描述
 
 在修复了系统变量查询的基础问题后，JDBC连接仍然出现通信链路失败错误：

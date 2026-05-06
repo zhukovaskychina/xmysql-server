@@ -6,6 +6,8 @@
 > **修复日期**: 2025-10-31  
 > **工作时间**: 实际用时 < 1天（比预估3-5天快）
 
+> **合并说明（2026-04）**：`EXECUTOR_REFACTOR_SUMMARY.md` 已改为跳转页，**执行器重构的权威叙述以本文为正文**；索引见 [EXECUTOR_DOCUMENTATION_INDEX.md](./EXECUTOR_DOCUMENTATION_INDEX.md)。
+
 ---
 
 ## 📋 修复概述
@@ -13,6 +15,7 @@
 ### 问题分析回顾
 
 **修复前状态**:
+
 ```
 ❌ executor.go (1437行)
    - 定义了 BaseExecutor 结构体
@@ -26,6 +29,7 @@
 ```
 
 **修复后状态**:
+
 ```
 ✅ executor.go (1422行，减少15行)
    - 移除了 BaseExecutor 结构体
@@ -53,6 +57,7 @@
 **位置**: `server/innodb/engine/executor.go` 第23-38行
 
 **删除代码**:
+
 ```go
 // BaseExecutor 基础执行器，提供公共字段
 type BaseExecutor struct {
@@ -69,6 +74,7 @@ type Executor interface {
 ```
 
 **新增注释**:
+
 ```go
 // XMySQLExecutor 是 SQL 执行器的核心结构，负责整个 SQL 的解析与执行
 // 支持解析 SELECT、DDL、SHOW 等语句，并调用相应执行逻辑
@@ -76,6 +82,7 @@ type Executor interface {
 ```
 
 **影响**:
+
 - ✅ 消除BaseExecutor重复定义
 - ✅ 统一使用volcano_executor.go的Operator接口
 - ✅ 代码行数减少15行
@@ -87,6 +94,7 @@ type Executor interface {
 **位置**: `server/innodb/engine/select_executor.go` 第22-24行
 
 **修改前**:
+
 ```go
 // SelectExecutor SELECT查询执行器
 type SelectExecutor struct {
@@ -99,6 +107,7 @@ type SelectExecutor struct {
 ```
 
 **修改后**:
+
 ```go
 // SelectExecutor SELECT查询执行器
 // 注意：此执行器是查询协调器，不是火山模型的Operator
@@ -111,6 +120,7 @@ type SelectExecutor struct {
 ```
 
 **删除代码**:
+
 ```go
 // select_executor.go 第1237-1250行
 // ❌ 删除：不再需要实现已删除的Executor接口
@@ -128,6 +138,7 @@ func (se *SelectExecutor) SetChildren(children []Executor) {
 ```
 
 **原因**:
+
 - SelectExecutor 是查询**协调器**（coordinator），不是算子（operator）
 - 不需要实现Operator接口的Open-Next-Close方法
 - 直接管理查询流程，调用volcano算子树执行
@@ -139,6 +150,7 @@ func (se *SelectExecutor) SetChildren(children []Executor) {
 **位置**: `server/innodb/engine/dml_executor.go` 第27-29行
 
 **修改前**:
+
 ```go
 // DMLExecutor DML操作执行器
 type DMLExecutor struct {
@@ -151,6 +163,7 @@ type DMLExecutor struct {
 ```
 
 **修改后**:
+
 ```go
 // DMLExecutor DML操作执行器
 // 注意：此执行器是DML操作协调器，不是火山模型的Operator
@@ -171,6 +184,7 @@ type DMLExecutor struct {
 **位置**: `server/innodb/engine/storage_integrated_dml_executor.go` 第16-19行
 
 **修改前**:
+
 ```go
 // StorageIntegratedDMLExecutor 存储引擎集成的DML执行器
 // 与实际的B+树存储引擎和索引管理器完全集成
@@ -181,6 +195,7 @@ type StorageIntegratedDMLExecutor struct {
 ```
 
 **修改后**:
+
 ```go
 // StorageIntegratedDMLExecutor 存储引擎集成的DML执行器
 // 与实际的B+树存储引擎和索引管理器完全集成
@@ -198,6 +213,7 @@ type StorageIntegratedDMLExecutor struct {
 **位置**: `server/innodb/engine/show_executor.go` 第11-26行
 
 **修改前**:
+
 ```go
 // ShowExecutor SHOW语句执行器
 type ShowExecutor struct {
@@ -218,6 +234,7 @@ func (e *XMySQLExecutor) buildShowExecutor(showType string) Executor {  // ❌ E
 ```
 
 **修改后**:
+
 ```go
 // ShowExecutor SHOW语句执行器
 // 注意：此执行器用于处理特殊的SHOW语句，不是火山模型的Operator
@@ -243,6 +260,7 @@ func (e *XMySQLExecutor) buildShowExecutor(showType string) *ShowExecutor {  // 
 ```
 
 **接口方法修改**:
+
 ```go
 // ✅ 修改为interface{}类型，保持兼容性
 func (e *ShowExecutor) Children() []interface{} {
@@ -267,13 +285,15 @@ PS D:\GolangProjects\github\xmysql-server> go build -o xmysql-server.exe main.go
 
 ### 代码质量对比
 
-| 指标 | 修复前 | 修复后 | 改进 |
-|------|--------|--------|------|
-| executor.go行数 | 1437行 | 1422行 | ⬇️ -15行 |
-| 重复接口定义 | 2个（Executor + Operator） | 1个（Operator） | ✅ 统一 |
-| 重复结构体定义 | BaseExecutor冗余 | 已删除 | ✅ 消除 |
-| 职责清晰度 | 混乱 | 清晰 | ✅ 提升 |
-| 编译状态 | ✅ 通过 | ✅ 通过 | ✅ 保持 |
+
+| 指标            | 修复前                     | 修复后          | 改进      |
+| ------------- | ----------------------- | ------------ | ------- |
+| executor.go行数 | 1437行                   | 1422行        | ⬇️ -15行 |
+| 重复接口定义        | 2个（Executor + Operator） | 1个（Operator） | ✅ 统一    |
+| 重复结构体定义       | BaseExecutor冗余          | 已删除          | ✅ 消除    |
+| 职责清晰度         | 混乱                      | 清晰           | ✅ 提升    |
+| 编译状态          | ✅ 通过                    | ✅ 通过         | ✅ 保持    |
+
 
 ---
 
@@ -342,14 +362,16 @@ executor.go                    volcano_executor.go
 
 ### 职责划分表
 
-| 文件 | 职责 | 类型 | 接口 |
-|------|------|------|------|
-| **executor.go** | SQL解析和分派 | 协调器 | - |
-| **volcano_executor.go** | 算子定义+执行引擎 | 执行器 | Operator |
-| **select_executor.go** | SELECT查询协调 | 协调器 | - |
-| **dml_executor.go** | DML操作协调 | 协调器 | - |
-| **storage_integrated_dml_executor.go** | 存储集成DML | 协调器 | - |
-| **show_executor.go** | SHOW语句处理 | 特殊处理器 | - |
+
+| 文件                                     | 职责         | 类型    | 接口       |
+| -------------------------------------- | ---------- | ----- | -------- |
+| **executor.go**                        | SQL解析和分派   | 协调器   | -        |
+| **volcano_executor.go**                | 算子定义+执行引擎  | 执行器   | Operator |
+| **select_executor.go**                 | SELECT查询协调 | 协调器   | -        |
+| **dml_executor.go**                    | DML操作协调    | 协调器   | -        |
+| **storage_integrated_dml_executor.go** | 存储集成DML    | 协调器   | -        |
+| **show_executor.go**                   | SHOW语句处理   | 特殊处理器 | -        |
+
 
 ---
 
@@ -358,6 +380,7 @@ executor.go                    volcano_executor.go
 ### 代码复杂度改善
 
 **重复代码消除**:
+
 ```
 修复前：
 - executor.go: BaseExecutor (15行) + Executor接口定义
@@ -371,6 +394,7 @@ executor.go                    volcano_executor.go
 ```
 
 **接口统一性**:
+
 ```
 修复前：
 - 2套接口（Executor + Operator）
@@ -413,6 +437,7 @@ func (f *OperatorFactory) CreateOperator(planNode plan.PhysicalPlan) (Operator, 
 ```
 
 **收益**:
+
 - 简化算子树构建
 - 集中管理算子创建逻辑
 - 便于未来扩展新算子
@@ -424,10 +449,12 @@ func (f *OperatorFactory) CreateOperator(planNode plan.PhysicalPlan) (Operator, 
 ### 优化点2: 统一DML为Operator（优先级：中）
 
 **当前状态**:
+
 - DMLExecutor和StorageIntegratedDMLExecutor是协调器
 - 未集成到Operator算子树中
 
 **建议**:
+
 ```go
 // InsertOperator 插入算子（实现Operator接口）
 type InsertOperator struct {
@@ -451,6 +478,7 @@ type DeleteOperator struct {
 ```
 
 **收益**:
+
 - DML操作也使用火山模型
 - 统一执行架构
 - 便于优化（如批量插入）
@@ -462,6 +490,7 @@ type DeleteOperator struct {
 ### 优化点3: 增加执行器性能统计（优先级：低）
 
 **建议**:
+
 ```go
 // OperatorStats 算子执行统计
 type OperatorStats struct {
@@ -483,6 +512,7 @@ func (t *TableScanOperator) Next(ctx context.Context) (Record, error) {
 ```
 
 **收益**:
+
 - 性能分析
 - 查询优化
 - 慢查询诊断
@@ -495,16 +525,14 @@ func (t *TableScanOperator) Next(ctx context.Context) (Record, error) {
 
 已创建的详细文档：
 
-1. **剩余问题分析文档**  
-   文件: `docs/REMAINING_ISSUES_ANALYSIS.md`  
+1. **剩余问题分析文档**
+  文件: `docs/REMAINING_ISSUES_ANALYSIS.md`  
    内容: 8个P0/P1/P2问题的详细分析和修复方案
-
-2. **执行器架构重构计划**  
-   文件: `docs/EXECUTOR_ARCHITECTURE_REFACTOR_PLAN.md`  
+2. **执行器架构重构计划**
+  文件: `docs/EXECUTOR_ARCHITECTURE_REFACTOR_PLAN.md`  
    内容: 详细的重构方案、步骤和风险分析
-
-3. **本修复报告**  
-   文件: `docs/EXECUTOR_REFACTOR_COMPLETION_REPORT.md`  
+3. **本修复报告**
+  文件: `docs/EXECUTOR_REFACTOR_COMPLETION_REPORT.md`  
    内容: 修复过程、代码变更和效果验证
 
 ---
@@ -513,14 +541,16 @@ func (t *TableScanOperator) Next(ctx context.Context) (Record, error) {
 
 ### 🎉 修复成果
 
-| 项目 | 状态 |
-|------|------|
+
+| 项目       | 状态         |
+| -------- | ---------- |
 | **问题解决** | ✅ **完全解决** |
-| **代码重复** | ✅ **已消除** |
-| **编译通过** | ✅ **无错误** |
+| **代码重复** | ✅ **已消除**  |
+| **编译通过** | ✅ **无错误**  |
 | **职责分离** | ✅ **清晰明确** |
 | **可维护性** | ✅ **显著提升** |
-| **后续扩展** | ✅ **更容易** |
+| **后续扩展** | ✅ **更容易**  |
+
 
 ### 📈 指标改善
 
@@ -543,19 +573,22 @@ func (t *TableScanOperator) Next(ctx context.Context) (Record, error) {
 按照REMAINING_ISSUES_ANALYSIS.md的优先级顺序：
 
 ### 第一阶段 - P0问题修复（1-2周）
+
 1. ✅ **EXEC-001: 火山执行器代码重复** - **已完成** ✅
 2. ⏭️ **TXN-002: Undo日志回滚不完整** - 下一步
 3. ⏭️ **INDEX-001: 二级索引维护缺失**
 
 ### 第二阶段 - P1问题修复（1-2周）
-4. ⏭️ BUFFER-001: 脏页刷新策略
-5. ⏭️ STORAGE-001: 表空间并发
-6. ⏭️ LOCK-001: Gap锁完善
+
+1. ⏭️ BUFFER-001: 脏页刷新策略
+2. ⏭️ STORAGE-001: 表空间并发
+3. ⏭️ LOCK-001: Gap锁完善
 
 ### 第三阶段 - P2优化（3-4周）
-7. ⏭️ OPT-016: 统计信息
-8. ⏭️ OPT-017: 选择性估算
-9. ⏭️ OPT-018: 连接顺序
+
+1. ⏭️ OPT-016: 统计信息
+2. ⏭️ OPT-017: 选择性估算
+3. ⏭️ OPT-018: 连接顺序
 
 ---
 

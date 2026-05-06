@@ -135,7 +135,7 @@ func main() {
 				}
 			}
 
-			util.Debugf(" Goroutine %d 完成 %d 次操作\n", id, operationsPerGoroutine)
+			logger.Debugf(" Goroutine %d 完成 %d 次操作\n", id, operationsPerGoroutine)
 		}(i)
 	}
 
@@ -169,11 +169,11 @@ func main() {
 				return
 			case <-ticker.C:
 				numGoroutines := runtime.NumGoroutine()
-				util.Debugf(" 当前goroutine数量: %d\n", numGoroutines)
+				logger.Debugf(" 当前goroutine数量: %d\n", numGoroutines)
 
 				// 如果goroutine数量异常增长，可能存在死锁
 				if numGoroutines > 200 {
-					util.Debugf("  警告: goroutine数量异常高: %d\n", numGoroutines)
+					logger.Debugf("  警告: goroutine数量异常高: %d\n", numGoroutines)
 				}
 			}
 		}
@@ -190,18 +190,18 @@ func main() {
 	fmt.Println("🎉 所有测试完成！")
 
 	finalGoroutines := runtime.NumGoroutine()
-	util.Debugf("📈 最终goroutine数量: %d\n", finalGoroutines)
+	logger.Debugf("📈 最终goroutine数量: %d\n", finalGoroutines)
 
 	if finalGoroutines < 20 { // 正常情况下应该很少
 		fmt.Println(" 死锁修复测试通过 - 没有检测到死锁!")
 	} else {
-		util.Debugf("  可能存在goroutine泄漏或死锁: %d\n", finalGoroutines)
+		logger.Debugf("  可能存在goroutine泄漏或死锁: %d\n", finalGoroutines)
 	}
 
 	fmt.Println(" 测试总结:")
-	util.Debugf("  - 总操作数: %d\n", goroutineCount*operationsPerGoroutine)
-	util.Debugf("  - 并发goroutine数: %d\n", goroutineCount)
-	util.Debugf("  - 最终goroutine数: %d\n", finalGoroutines)
+	logger.Debugf("  - 总操作数: %d\n", goroutineCount*operationsPerGoroutine)
+	logger.Debugf("  - 并发goroutine数: %d\n", goroutineCount)
+	logger.Debugf("  - 最终goroutine数: %d\n", finalGoroutines)
 	fmt.Println(" 测试完成")
 }
 

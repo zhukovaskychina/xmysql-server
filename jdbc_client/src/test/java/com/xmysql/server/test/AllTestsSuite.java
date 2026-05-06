@@ -13,6 +13,7 @@ import org.junit.platform.suite.api.SuiteDisplayName;
 @Suite
 @SuiteDisplayName("XMySQL Server 完整测试套件")
 @SelectClasses({
+    JdbcConnectionTest.class,
     DDLOperationsTest.class,
     DMLOperationsTest.class,
     SelectQueryTest.class,

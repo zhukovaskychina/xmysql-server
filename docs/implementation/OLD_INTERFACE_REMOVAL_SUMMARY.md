@@ -247,7 +247,7 @@ dispatcher包已成功迁移到Operator:
 | 文档 | 路径 | 说明 |
 |------|------|------|
 | 原始清理计划 | VOLCANO_MODEL_CLEANUP_PLAN.md | 设计文档 |
-| 清理实施总结 | VOLCANO_CLEANUP_IMPLEMENTATION_SUMMARY.md | 第一阶段总结 |
+| 清理实施总结 | [VOLCANO_CLEANUP_FINAL_REPORT.md](../volcano/VOLCANO_CLEANUP_FINAL_REPORT.md)（原 IMPLEMENTATION_SUMMARY 已合并为跳转） |
 | 变更日志 | VOLCANO_CLEANUP_CHANGELOG.md | 详细变更记录 |
 | 旧接口删除总结 | OLD_INTERFACE_REMOVAL_SUMMARY.md | 本文档 |
 

@@ -247,26 +247,72 @@ func (b *PlanBuilder) buildTableRefs(tableExprs sqlparser.TableExprs) (LogicalPl
 
 	var plan LogicalPlan
 	for _, expr := range tableExprs {
-		switch v := expr.(type) {
-		case *sqlparser.AliasedTableExpr:
-			tablePlan, err := b.buildTableSource(v)
-			if err != nil {
-				return nil, err
-			}
-			if plan == nil {
-				plan = tablePlan
-			} else {
-				// 构建JOIN
-				plan = &LogicalJoin{
-					BaseLogicalPlan: BaseLogicalPlan{
-						children: []LogicalPlan{plan, tablePlan},
-					},
-					JoinType: "INNER",
-				}
+		nextPlan, err := b.buildTableExpr(expr)
+		if err != nil {
+			return nil, err
+		}
+		if plan == nil {
+			plan = nextPlan
+		} else {
+			plan = &LogicalJoin{
+				BaseLogicalPlan: BaseLogicalPlan{
+					children: []LogicalPlan{plan, nextPlan},
+				},
+				JoinType: "INNER",
 			}
 		}
 	}
 	return plan, nil
+}
+
+// buildTableExpr 将 parser 的 TableExpr 转为逻辑计划（支持 JOIN 与单表）
+func (b *PlanBuilder) buildTableExpr(expr sqlparser.TableExpr) (LogicalPlan, error) {
+	switch v := expr.(type) {
+	case *sqlparser.AliasedTableExpr:
+		return b.buildTableSource(v)
+	case *sqlparser.JoinTableExpr:
+		leftPlan, err := b.buildTableExpr(v.LeftExpr)
+		if err != nil {
+			return nil, err
+		}
+		rightPlan, err := b.buildTableExpr(v.RightExpr)
+		if err != nil {
+			return nil, err
+		}
+		joinType := joinStrToJoinType(v.Join)
+		var conditions []Expression
+		if v.Condition.On != nil {
+			conditions = []Expression{b.buildExpr(v.Condition.On)}
+		}
+		// 设置左右 Schema 供谓词下推（OPT-001）使用
+		leftSchema := leftPlan.Schema()
+		rightSchema := rightPlan.Schema()
+		return &LogicalJoin{
+			BaseLogicalPlan: BaseLogicalPlan{
+				children: []LogicalPlan{leftPlan, rightPlan},
+			},
+			JoinType:    joinType,
+			Conditions:  conditions,
+			LeftSchema:  leftSchema,
+			RightSchema: rightSchema,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unsupported table expr: %T", expr)
+	}
+}
+
+// joinStrToJoinType 将 parser 的 Join 字符串转为逻辑计划 JoinType
+func joinStrToJoinType(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "left join", "left outer join":
+		return "LEFT"
+	case "right join", "right outer join":
+		return "RIGHT"
+	case "join", "inner join", "cross join", "straight_join":
+		return "INNER"
+	default:
+		return "INNER"
+	}
 }
 
 // buildTableSource 构建表数据源

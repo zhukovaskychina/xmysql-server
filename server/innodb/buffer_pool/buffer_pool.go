@@ -370,26 +370,13 @@ func (bp *BufferPool) RangePageLoad(spaceID uint32, startPageNo, endPageNo uint3
 
 // GetDirtyPages returns all dirty pages in the buffer pool
 func (bp *BufferPool) GetDirtyPages() []*BufferPage {
-	bp.mu.RLock()
-	defer bp.mu.RUnlock()
-
 	dirtyPages := make([]*BufferPage, 0)
-
-	// 遍历 young list
-	youngSize := uint32(float64(bp.totalPages) * bp.config.YoungListPercent)
-	for i := uint32(0); i < youngSize; i++ {
-		if block, err := bp.lruCache.GetYoung(0, i); err == nil && block != nil && block.BufferPage.IsDirty() {
-			dirtyPages = append(dirtyPages, block.BufferPage)
+	bp.lruCache.Range(func(page *BufferPage) bool {
+		if page != nil && page.IsDirty() {
+			dirtyPages = append(dirtyPages, page)
 		}
-	}
-
-	// 遍历 old list
-	oldSize := uint32(float64(bp.totalPages) * bp.config.OldListPercent)
-	for i := uint32(0); i < oldSize; i++ {
-		if block, err := bp.lruCache.GetOld(0, i); err == nil && block != nil && block.BufferPage.IsDirty() {
-			dirtyPages = append(dirtyPages, block.BufferPage)
-		}
-	}
+		return true
+	})
 
 	return dirtyPages
 }
@@ -558,11 +545,7 @@ func (fbl *FreeBlockList) GetPage(spaceID uint32, pageNo uint32) *BufferBlock {
 	// Create buffer block
 	block = NewBufferBlock(page)
 
-	// Add to free list
-	elem := fbl.list.PushBack(block)
-	fbl.freePageItems[key] = elem
-
-	return nil
+	return block
 }
 
 // RemoveBlock removes a block from the free list

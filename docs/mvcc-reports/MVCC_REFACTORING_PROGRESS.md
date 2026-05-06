@@ -1,5 +1,7 @@
 # MVCC架构重构进度报告
 
+> **文档导航（2026-04）**：问题背景与分析见 [MVCC_ARCHITECTURE_ANALYSIS.md](./MVCC_ARCHITECTURE_ANALYSIS.md)；总索引见 [MVCC_DOCUMENTATION_INDEX.md](./MVCC_DOCUMENTATION_INDEX.md)。
+
 ## 📋 概述
 
 **任务**: MVCC架构重构  

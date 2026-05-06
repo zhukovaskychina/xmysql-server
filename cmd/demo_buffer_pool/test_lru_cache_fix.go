@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 )
 
@@ -43,11 +44,11 @@ func testBasicFunctionality() {
 	cache.SetYoung(1, 1, mockBlock)
 	result, err := cache.GetYoung(1, 1)
 	if err != nil {
-		util.Debugf("ERROR: GetYoung failed: %v\n", err)
+		logger.Debugf("ERROR: GetYoung failed: %v\n", err)
 		return
 	}
 	if result != mockBlock {
-		util.Debugf("ERROR: GetYoung returned wrong value\n")
+		logger.Debugf("ERROR: GetYoung returned wrong value\n")
 		return
 	}
 
@@ -55,11 +56,11 @@ func testBasicFunctionality() {
 	cache.SetOld(2, 2, mockBlock)
 	result, err = cache.GetOld(2, 2)
 	if err != nil {
-		util.Debugf("ERROR: GetOld failed: %v\n", err)
+		logger.Debugf("ERROR: GetOld failed: %v\n", err)
 		return
 	}
 	if result != mockBlock {
-		util.Debugf("ERROR: GetOld returned wrong value\n")
+		logger.Debugf("ERROR: GetOld returned wrong value\n")
 		return
 	}
 
@@ -117,7 +118,7 @@ func testConcurrentAccess() {
 		// Print goroutine stack traces to help debug
 		buf := make([]byte, 1<<16)
 		stackSize := runtime.Stack(buf, true)
-		util.Debugf("Goroutine stack traces:\n%s\n", buf[:stackSize])
+		logger.Debugf("Goroutine stack traces:\n%s\n", buf[:stackSize])
 		return
 	}
 }
@@ -201,10 +202,10 @@ func testPerformance() {
 	duration := time.Since(start)
 	opsPerSecond := float64(numOperations) / duration.Seconds()
 
-	util.Debugf("✓ Performance test_simple_protocol: %.0f operations/second\n", opsPerSecond)
+	logger.Debugf("✓ Performance test_simple_protocol: %.0f operations/second\n", opsPerSecond)
 
 	// Print cache statistics
 	if len := cache.Len(); len > 0 {
-		util.Debugf("  Cache length: %d\n", len)
+		logger.Debugf("  Cache length: %d\n", len)
 	}
 }

@@ -26,6 +26,9 @@ type LSNManager struct {
 	// LSN范围管理
 	minLSN uint64 // 最小LSN（系统启动时的LSN）
 	maxLSN uint64 // 当前最大LSN
+
+	// 最近一次设置的检查点 LSN（供恢复/监控读回）
+	checkpointLSN uint64
 }
 
 // NewLSNManager 创建新的LSN管理器
@@ -98,6 +101,7 @@ func (lm *LSNManager) SetCheckpointLSN(lsn LSN) {
 	if lsn > 0 {
 		atomic.StoreUint64(&lm.currentLSN, uint64(lsn))
 		atomic.StoreUint64(&lm.maxLSN, uint64(lsn))
+		atomic.StoreUint64(&lm.checkpointLSN, uint64(lsn))
 
 		lm.mu.Lock()
 		if uint64(lsn) < lm.minLSN {
@@ -105,6 +109,11 @@ func (lm *LSNManager) SetCheckpointLSN(lsn LSN) {
 		}
 		lm.mu.Unlock()
 	}
+}
+
+// GetCheckpointLSN 返回最近一次设置的检查点 LSN；未设置过时返回 0
+func (lm *LSNManager) GetCheckpointLSN() LSN {
+	return LSN(atomic.LoadUint64(&lm.checkpointLSN))
 }
 
 // GetStats 获取LSN分配统计信息

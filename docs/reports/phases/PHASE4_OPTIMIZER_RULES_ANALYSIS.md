@@ -15,11 +15,13 @@
 ### 1. **OPT-001: 谓词下推优化（Predicate Pushdown）**
 
 #### 当前实现位置
+
 - **文件**: `server/innodb/plan/optimizer.go`
 - **函数**: `pushDownPredicates()`
 - **行数**: 102-227
 
 #### 已实现功能 ✅
+
 1. **CNF 转换集成** - 使用 CNFConverter 将条件转换为合取范式
 2. **基本下推逻辑** - 支持下推到 TableScan 和 IndexScan
 3. **JOIN 条件分离** - 将 JOIN 条件分解为左右表的过滤条件
@@ -27,11 +29,13 @@
 5. **外连接安全检查** - 只对 INNER JOIN 进行下推
 
 #### 实现质量评估
+
 - **完整性**: ⭐⭐⭐⭐⭐ (5/5) - 已完整实现
 - **正确性**: ⭐⭐⭐⭐⭐ (5/5) - 逻辑正确
 - **性能**: ⭐⭐⭐⭐☆ (4/5) - 可进一步优化
 
 #### 关键代码片段
+
 ```go
 // 将过滤条件转换为CNF形式
 cnfConverter := NewCNFConverter()
@@ -58,6 +62,7 @@ case *LogicalJoin:
 ```
 
 #### 需要增强的功能
+
 1. **性能监控** - 添加下推效果统计
 2. **复杂表达式** - 支持更多表达式类型的下推
 3. **子查询下推** - 支持子查询条件的下推
@@ -67,11 +72,13 @@ case *LogicalJoin:
 ### 2. **OPT-002: 列裁剪优化（Column Pruning）**
 
 #### 当前实现位置
+
 - **文件**: `server/innodb/plan/optimizer.go`
 - **函数**: `columnPruning()`
 - **行数**: 229-288
 
 #### 已实现功能 ✅
+
 1. **投影列收集** - 收集 SELECT 子句中使用的列
 2. **过滤条件列收集** - 收集 WHERE 子句中使用的列
 3. **JOIN 条件列收集** - 收集 JOIN 条件中使用的列
@@ -79,11 +86,13 @@ case *LogicalJoin:
 5. **Schema 裁剪** - 更新子节点的输出列
 
 #### 实现质量评估
+
 - **完整性**: ⭐⭐⭐⭐⭐ (5/5) - 已完整实现
 - **正确性**: ⭐⭐⭐⭐⭐ (5/5) - 逻辑正确
 - **性能**: ⭐⭐⭐⭐☆ (4/5) - 可进一步优化
 
 #### 关键代码片段
+
 ```go
 case *LogicalProjection:
     // 收集投影中使用的列
@@ -109,6 +118,7 @@ case *LogicalJoin:
 ```
 
 #### 辅助函数
+
 ```go
 // collectUsedColumns 收集表达式中使用的列
 func collectUsedColumns(exprs []Expression) []string
@@ -121,6 +131,7 @@ func buildPrunedSchema(schema *metadata.DatabaseSchema, cols []string) *metadata
 ```
 
 #### 需要增强的功能
+
 1. **覆盖索引检测** - 与索引下推优化器集成
 2. **列别名处理** - 正确处理列别名
 3. **通配符展开** - 处理 SELECT * 的情况
@@ -130,19 +141,23 @@ func buildPrunedSchema(schema *metadata.DatabaseSchema, cols []string) *metadata
 ### 3. **OPT-003: 子查询优化（Subquery Optimization）**
 
 #### 当前实现位置
+
 - **文件**: `server/innodb/plan/optimizer.go`
 - **函数**: `optimizeSubquery()`
 - **行数**: 319-333
 
 #### 已实现功能 ⚠️
+
 1. **递归处理** - 递归处理子计划节点
 
 #### 实现质量评估
+
 - **完整性**: ⭐☆☆☆☆ (1/5) - 仅有框架
 - **正确性**: ⭐⭐⭐☆☆ (3/5) - 基本正确但功能缺失
 - **性能**: ⭐☆☆☆☆ (1/5) - 无实际优化
 
 #### 当前代码
+
 ```go
 func optimizeSubquery(plan LogicalPlan) LogicalPlan {
     // 当前代码库尚未实现完整的子查询算子，这里仅递归处理子计划。
@@ -161,6 +176,7 @@ func optimizeSubquery(plan LogicalPlan) LogicalPlan {
 ```
 
 #### 需要实现的功能 🚧
+
 1. **子查询去关联（Decorrelation）** - 将关联子查询转换为非关联子查询
 2. **子查询上拉（Pull-up）** - 将子查询转换为 JOIN
 3. **子查询下推（Push-down）** - 将子查询下推到数据源
@@ -172,16 +188,19 @@ func optimizeSubquery(plan LogicalPlan) LogicalPlan {
 ## 📊 实现优先级
 
 ### P0（必须实现）
+
 1. ✅ **谓词下推** - 已完整实现
 2. ✅ **列裁剪** - 已完整实现
 3. 🚧 **子查询优化** - 需要完整实现
 
 ### P1（重要增强）
+
 1. **子查询去关联** - 性能提升 10-100 倍
 2. **子查询上拉** - 转换为 JOIN，利用索引
 3. **IN/EXISTS 优化** - 常见查询模式
 
 ### P2（性能优化）
+
 1. **谓词下推统计** - 监控优化效果
 2. **列裁剪与覆盖索引集成** - 减少回表
 3. **复杂表达式下推** - 支持更多表达式类型
@@ -193,6 +212,7 @@ func optimizeSubquery(plan LogicalPlan) LogicalPlan {
 ### 阶段 1: 完善子查询优化（5-6天）
 
 #### 1.1 定义子查询逻辑计划节点
+
 ```go
 // LogicalSubquery 子查询逻辑计划
 type LogicalSubquery struct {
@@ -204,6 +224,7 @@ type LogicalSubquery struct {
 ```
 
 #### 1.2 实现子查询去关联
+
 ```go
 // decorrelateSubquery 去关联子查询
 func decorrelateSubquery(subquery *LogicalSubquery) LogicalPlan {
@@ -214,6 +235,7 @@ func decorrelateSubquery(subquery *LogicalSubquery) LogicalPlan {
 ```
 
 #### 1.3 实现子查询上拉
+
 ```go
 // pullUpSubquery 上拉子查询
 func pullUpSubquery(subquery *LogicalSubquery) LogicalPlan {
@@ -224,6 +246,7 @@ func pullUpSubquery(subquery *LogicalSubquery) LogicalPlan {
 ```
 
 #### 1.4 实现 IN/EXISTS 优化
+
 ```go
 // optimizeInSubquery 优化 IN 子查询
 func optimizeInSubquery(subquery *LogicalSubquery) LogicalPlan {
@@ -243,6 +266,7 @@ func optimizeExistsSubquery(subquery *LogicalSubquery) LogicalPlan {
 ### 阶段 2: 增强谓词下推（1-2天）
 
 #### 2.1 添加性能监控
+
 ```go
 type PredicatePushdownStats struct {
     TotalPredicates    int
@@ -253,6 +277,7 @@ type PredicatePushdownStats struct {
 ```
 
 #### 2.2 支持更多表达式类型
+
 - CASE WHEN 表达式
 - 子查询表达式
 - 窗口函数（不可下推，需要识别）
@@ -262,6 +287,7 @@ type PredicatePushdownStats struct {
 ### 阶段 3: 增强列裁剪（1-2天）
 
 #### 3.1 覆盖索引检测集成
+
 ```go
 // 与 IndexPushdownOptimizer 集成
 func (opt *IndexPushdownOptimizer) DetectCoveringIndex(
@@ -273,6 +299,7 @@ func (opt *IndexPushdownOptimizer) DetectCoveringIndex(
 ```
 
 #### 3.2 列别名处理
+
 ```go
 // 正确处理 SELECT a AS b 的情况
 func resolveColumnAlias(expr Expression, aliases map[string]string) Expression
@@ -283,18 +310,21 @@ func resolveColumnAlias(expr Expression, aliases map[string]string) Expression
 ## 📈 预期性能提升
 
 ### 谓词下推
+
 - **场景**: `SELECT * FROM t1 JOIN t2 ON t1.id = t2.id WHERE t1.age > 18`
 - **优化前**: 先 JOIN 再过滤，处理 100 万行
 - **优化后**: 先过滤再 JOIN，处理 10 万行
 - **提升**: **10 倍**
 
 ### 列裁剪
+
 - **场景**: `SELECT id, name FROM users` (表有 20 列)
 - **优化前**: 读取所有 20 列
 - **优化后**: 只读取 2 列
 - **提升**: **10 倍** (I/O 减少)
 
 ### 子查询优化
+
 - **场景**: `SELECT * FROM t1 WHERE id IN (SELECT id FROM t2 WHERE ...)`
 - **优化前**: 对每行执行子查询，N × M 复杂度
 - **优化后**: 转换为 SEMI JOIN，N + M 复杂度
@@ -305,11 +335,13 @@ func resolveColumnAlias(expr Expression, aliases map[string]string) Expression
 ## 🧪 测试计划
 
 ### 单元测试
+
 1. **谓词下推测试** - `optimizer_test.go`
 2. **列裁剪测试** - `optimizer_test.go`
 3. **子查询优化测试** - 新建 `subquery_optimizer_test.go`
 
 ### 集成测试
+
 1. **TPC-H 查询测试** - 使用标准 TPC-H 查询
 2. **性能基准测试** - 对比优化前后的性能
 
@@ -326,4 +358,3 @@ func resolveColumnAlias(expr Expression, aliases map[string]string) Expression
 
 **状态**: 🚧 进行中  
 **下一步**: 实现子查询优化逻辑计划节点和去关联算法
-

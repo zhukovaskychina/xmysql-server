@@ -85,7 +85,7 @@ func (sm *SpaceManagerImpl) CreateSpace(spaceID uint32, name string, isSystem bo
 	defer sm.Unlock()
 
 	if _, exists := sm.nameToID[name]; exists {
-		return nil, fmt.Errorf("tablespace %s already exists", name)
+		return nil, fmt.Errorf("%w: %s", ErrTablespaceExists, name)
 	}
 
 	// 创建 IBD 文件实例
@@ -220,7 +220,7 @@ func (sm *SpaceManagerImpl) CreateTableSpace(name string) (uint32, error) {
 	defer sm.Unlock()
 
 	if _, exists := sm.nameToID[name]; exists {
-		return 0, fmt.Errorf("tablespace %s already exists", name)
+		return 0, fmt.Errorf("%w: %s", ErrTablespaceExists, name)
 	}
 
 	spaceID := sm.nextID

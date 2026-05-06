@@ -611,9 +611,7 @@ func (c *OptimizedLRUCache) Range(f func(page *BufferPage) bool) {
 	// 遍历年轻区域
 	for _, element := range c.youngItems {
 		item := element.Value.(*lruItemOptimized)
-		page := NewBufferPage(uint32(item.key>>32), uint32(item.key&0xFFFFFFFF))
-		page.SetContent(item.value.GetContent())
-		if !f(page) {
+		if !f(item.value.BufferPage) {
 			return
 		}
 	}
@@ -621,9 +619,7 @@ func (c *OptimizedLRUCache) Range(f func(page *BufferPage) bool) {
 	// 遍历老年区域
 	for _, element := range c.oldItems {
 		item := element.Value.(*lruItemOptimized)
-		page := NewBufferPage(uint32(item.key>>32), uint32(item.key&0xFFFFFFFF))
-		page.SetContent(item.value.GetContent())
-		if !f(page) {
+		if !f(item.value.BufferPage) {
 			return
 		}
 	}
@@ -631,9 +627,7 @@ func (c *OptimizedLRUCache) Range(f func(page *BufferPage) bool) {
 	// 遍历普通区域
 	for _, element := range c.items {
 		item := element.Value.(*lruItemOptimized)
-		page := NewBufferPage(uint32(item.key>>32), uint32(item.key&0xFFFFFFFF))
-		page.SetContent(item.value.GetContent())
-		if !f(page) {
+		if !f(item.value.BufferPage) {
 			return
 		}
 	}
