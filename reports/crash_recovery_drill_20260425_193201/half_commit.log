@@ -1,0 +1,55 @@
+=== [half_commit] 2026-04-25T19:32:11+08:00 ===
+pattern: ^(TestFaultInjection_CrashDuringCommit|TestFaultInjection_CrashDuringWrite|TestFaultInjection_CrashDuringRedo|TestCrashRecoveryThreePhases|TestCrashRecoveryFullCycle|TestFullCrashRecovery)$
+command: go test -count=1 -timeout=300s ./server/innodb/manager/ -run '^(TestFaultInjection_CrashDuringCommit|TestFaultInjection_CrashDuringWrite|TestFaultInjection_CrashDuringRedo|TestCrashRecoveryThreePhases|TestCrashRecoveryFullCycle|TestFullCrashRecovery)$' -v
+
+=== RUN   TestCrashRecoveryThreePhases
+=== RUN   TestCrashRecoveryThreePhases/测试完整的三阶段恢复
+恢复结果: Undo阶段失败: 回滚事务2失败: undo log manager not set
+恢复状态: &{Phase:Undo AnalysisComplete:true RedoComplete:true UndoComplete:false CheckpointLSN:0 RedoStartLSN:0 RedoEndLSN:6 ActiveTransactions:1 DirtyPages:2 UndoTransactions:1 RecoveryDuration:614.543µs}
+--- PASS: TestCrashRecoveryThreePhases (0.03s)
+    --- PASS: TestCrashRecoveryThreePhases/测试完整的三阶段恢复 (0.03s)
+=== RUN   TestFaultInjection_CrashDuringWrite
+=== RUN   TestFaultInjection_CrashDuringWrite/Phase1_WriteUntilCrash
+    crash_recovery_fault_injection_test.go:81: 💥 模拟崩溃: 在事务 4001 (LSN=4010) 时崩溃
+    crash_recovery_fault_injection_test.go:115: ✅ Phase1 完成: 在第 1 个事务时崩溃
+=== RUN   TestFaultInjection_CrashDuringWrite/Phase2_RecoveryAndVerify
+    crash_recovery_fault_injection_test.go:141: ✅ Phase2 完成: 恢复成功
+    crash_recovery_fault_injection_test.go:142:    - 活跃事务: 0
+    crash_recovery_fault_injection_test.go:143:    - 回滚事务: 0
+--- PASS: TestFaultInjection_CrashDuringWrite (0.02s)
+    --- PASS: TestFaultInjection_CrashDuringWrite/Phase1_WriteUntilCrash (0.02s)
+    --- PASS: TestFaultInjection_CrashDuringWrite/Phase2_RecoveryAndVerify (0.00s)
+=== RUN   TestFaultInjection_CrashDuringCommit
+=== RUN   TestFaultInjection_CrashDuringCommit/Phase1_CrashBeforeCommitLog
+    crash_recovery_fault_injection_test.go:205: 💥 模拟崩溃: 事务2在提交前崩溃
+=== RUN   TestFaultInjection_CrashDuringCommit/Phase2_RecoveryAndRollback
+    crash_recovery_fault_injection_test.go:238: ✅ Phase2 完成: 事务2已回滚
+--- PASS: TestFaultInjection_CrashDuringCommit (0.05s)
+    --- PASS: TestFaultInjection_CrashDuringCommit/Phase1_CrashBeforeCommitLog (0.02s)
+    --- PASS: TestFaultInjection_CrashDuringCommit/Phase2_RecoveryAndRollback (0.02s)
+=== RUN   TestFaultInjection_CrashDuringRedo
+=== RUN   TestFaultInjection_CrashDuringRedo/Phase1_WriteData
+    crash_recovery_fault_injection_test.go:285: ✅ Phase1 完成: 写入5个事务
+=== RUN   TestFaultInjection_CrashDuringRedo/Phase2_FirstRecoveryCrash
+    crash_recovery_fault_injection_test.go:308: ✅ Phase2 完成: 第一次恢复成功
+=== RUN   TestFaultInjection_CrashDuringRedo/Phase3_SecondRecoveryIdempotent
+    crash_recovery_fault_injection_test.go:332: ✅ Phase3 完成: 第二次恢复成功（幂等性验证）
+--- PASS: TestFaultInjection_CrashDuringRedo (0.02s)
+    --- PASS: TestFaultInjection_CrashDuringRedo/Phase1_WriteData (0.02s)
+    --- PASS: TestFaultInjection_CrashDuringRedo/Phase2_FirstRecoveryCrash (0.00s)
+    --- PASS: TestFaultInjection_CrashDuringRedo/Phase3_SecondRecoveryIdempotent (0.00s)
+=== RUN   TestCrashRecoveryFullCycle
+=== RUN   TestCrashRecoveryFullCycle/Phase1_NormalOperation
+    crash_recovery_integration_test.go:119: ✅ Phase1 完成: 写入 4 个事务 (2个已提交, 2个未提交)
+=== RUN   TestCrashRecoveryFullCycle/Phase2_CrashRecovery
+    crash_recovery_integration_test.go:158: ✅ Phase2 完成: 恢复成功
+    crash_recovery_integration_test.go:159:    - 活跃事务: 2
+    crash_recovery_integration_test.go:160:    - 回滚事务: 2
+    crash_recovery_integration_test.go:161:    - 脏页数量: 4
+--- PASS: TestCrashRecoveryFullCycle (0.04s)
+    --- PASS: TestCrashRecoveryFullCycle/Phase1_NormalOperation (0.02s)
+    --- PASS: TestCrashRecoveryFullCycle/Phase2_CrashRecovery (0.02s)
+=== RUN   TestFullCrashRecovery
+--- PASS: TestFullCrashRecovery (0.00s)
+PASS
+ok  	github.com/zhukovaskychina/xmysql-server/server/innodb/manager	0.877s

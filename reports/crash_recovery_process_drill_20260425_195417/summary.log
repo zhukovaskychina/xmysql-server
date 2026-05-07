@@ -1,0 +1,8 @@
+=== crash recovery process drill 2026-04-25T19:54:17+08:00 ===
+repo: /Users/zhukovasky/GolandProjects/xmysql-server
+go: go version go1.24.3 darwin/amd64
+run_dir: /Users/zhukovasky/GolandProjects/xmysql-server/reports/crash_recovery_process_drill_20260425_195417
+port: 3310
+
+server_pid=95107
+[STEP] setup redo

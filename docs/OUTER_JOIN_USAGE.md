@@ -6,12 +6,14 @@
 
 ## 一、支持的连接类型
 
-| 类型 | SQL 写法 | 语义 |
-|------|----------|------|
-| 内连接 | `JOIN` / `INNER JOIN` / `CROSS JOIN` | 只输出左右表都满足 ON 条件的行 |
-| 左外连接 | `LEFT JOIN` / `LEFT OUTER JOIN` | 左表每行至少出一行；无匹配时右表列填 NULL |
-| 右外连接 | `RIGHT JOIN` / `RIGHT OUTER JOIN` | 右表每行至少出一行；无匹配时左表列填 NULL |
-| 全外连接 | `FULL JOIN` / `FULL OUTER JOIN` | 左表、右表“独有”行都会出，无匹配一侧填 NULL |
+
+| 类型   | SQL 写法                               | 语义                        |
+| ---- | ------------------------------------ | ------------------------- |
+| 内连接  | `JOIN` / `INNER JOIN` / `CROSS JOIN` | 只输出左右表都满足 ON 条件的行         |
+| 左外连接 | `LEFT JOIN` / `LEFT OUTER JOIN`      | 左表每行至少出一行；无匹配时右表列填 NULL   |
+| 右外连接 | `RIGHT JOIN` / `RIGHT OUTER JOIN`    | 右表每行至少出一行；无匹配时左表列填 NULL   |
+| 全外连接 | `FULL JOIN` / `FULL OUTER JOIN`      | 左表、右表“独有”行都会出，无匹配一侧填 NULL |
+
 
 （注：当前 parser 已支持 LEFT/RIGHT；FULL 若未在语法中显式支持，执行器已实现，可在逻辑计划中直接使用 `JoinType: "FULL"`。）
 
@@ -97,3 +99,4 @@ go test ./server/innodb/engine -run "NestedLoopJoin_Left|NestedLoopJoin_Right|Ne
 - 未实现功能总览：`docs/未实现功能梳理.md`（EXEC-005 外连接）
 - 逻辑计划与 JOIN 类型：`server/innodb/plan/logical_plan.go`（`buildTableExpr`、`joinStrToJoinType`）
 - 执行器实现：`server/innodb/engine/volcano_executor.go`（NestedLoopJoin / HashJoin）
+

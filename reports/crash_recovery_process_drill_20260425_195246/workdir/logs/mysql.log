@@ -1,0 +1,234 @@
+[19:52:50 CST 2026/04/25] [INFO] (main.go:main.main:60) Logger initialized successfully with level: %s
+info
+[19:52:50 CST 2026/04/25] [INFO] (main.go:main.main:62) XMySQL Server starting...
+[19:52:50 CST 2026/04/25] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 128 record count mismatch
+[19:52:50 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:216) No checkpoint found, starting recovery from LSN 0
+[19:52:50 CST 2026/04/25] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[19:52:50 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:216) No checkpoint found, starting recovery from LSN 0
+[19:52:50 CST 2026/04/25] [INFO] (main.go:main.main:66) Starting MySQL server...
+[19:52:50 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:75) 🚀 Starting XMySQL Engine...
+[19:52:50 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:78) 🏥 Performing crash recovery...
+[19:52:50 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:82) ✅ Crash recovery completed successfully
+[19:52:50 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:85) 💾 Starting Checkpoint Manager...
+[19:52:50 CST 2026/04/25] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:103) 🚀 启动检查点管理器
+[19:52:50 CST 2026/04/25] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:117) 📄 没有找到有效的检查点，将从头开始
+[19:52:50 CST 2026/04/25] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:122)  检查点管理器启动成功
+[19:52:50 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:90) ✅ XMySQL Engine started successfully
+[19:52:50 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[19:52:52 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 69 184 18 238 146 100 206 42 210 118 183 235 110 9 103 228 153 12 49 190 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[19:52:52 CST 2026/04/25] [WARN] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).authenticateWithChallenge:776) ⚠️ dev_bypass_password_auth=true，已跳过口令校验（user=root）
+[19:52:52 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[19:52:52 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 52, 内容: [48 0 0 0 3 67 82 69 65 84 69 32 68 65 84 65 66 65 83 69 32 73 70 32 78 79 84 32 69 88 73 83 84 83 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98]
+
+[19:52:52 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[19:52:52 CST 2026/04/25] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).createDatabaseImpl:1069) 📂 Created database directory: /Users/zhukovasky/GolandProjects/xmysql-server/reports/crash_recovery_process_drill_20260425_195246/workdir/data/drill_recovery_db
+[19:52:52 CST 2026/04/25] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).executeCreateDatabaseStatement:1032)  CREATE DATABASE 'drill_recovery_db' executed successfully
+[19:52:52 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 26, 内容: [22 0 0 0 3 85 83 69 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98]
+
+[19:52:52 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[19:52:52 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 79, 内容: [75 0 0 0 3 67 82 69 65 84 69 32 84 65 66 76 69 32 73 70 32 78 79 84 32 69 88 73 83 84 83 32 100 114 105 108 108 95 116 120 110 32 40 105 100 32 73 78 84 32 80 82 73 77 65 82 89 32 75 69 89 44 32 118 97 108 32 86 65 82 67 72 65 82 40 54 52 41 41]
+
+[19:52:52 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[19:52:52 CST 2026/04/25] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).createTableImpl:1758)  Created table files for drill_recovery_db.drill_txn
+[19:52:52 CST 2026/04/25] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).executeCreateTableStatement:1415)  CREATE TABLE 'drill_recovery_db.drill_txn' executed successfully
+[19:52:52 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 46, 内容: [42 0 0 0 3 68 69 76 69 84 69 32 70 82 79 77 32 100 114 105 108 108 95 116 120 110 32 87 72 69 82 69 32 105 100 32 73 78 32 40 49 44 50 44 51 41]
+
+[19:52:52 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[19:52:52 CST 2026/04/25] [INFO] (dml_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*DMLExecutor).ExecuteDelete:200)  开始执行DELETE语句: delete from drill_txn where id in (1, 2, 3)
+[19:54:17 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[19:54:20 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 99 248 3 20 114 84 237 207 127 89 124 79 35 202 179 59 238 250 69 13 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[19:54:20 CST 2026/04/25] [WARN] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).authenticateWithChallenge:776) ⚠️ dev_bypass_password_auth=true，已跳过口令校验（user=root）
+[19:54:20 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[19:54:20 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 52, 内容: [48 0 0 0 3 67 82 69 65 84 69 32 68 65 84 65 66 65 83 69 32 73 70 32 78 79 84 32 69 88 73 83 84 83 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98]
+
+[19:54:20 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[19:54:20 CST 2026/04/25] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).executeCreateDatabaseStatement:1032)  CREATE DATABASE 'drill_recovery_db' executed successfully
+[19:54:20 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 26, 内容: [22 0 0 0 3 85 83 69 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98]
+
+[19:54:20 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[19:54:20 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 79, 内容: [75 0 0 0 3 67 82 69 65 84 69 32 84 65 66 76 69 32 73 70 32 78 79 84 32 69 88 73 83 84 83 32 100 114 105 108 108 95 116 120 110 32 40 105 100 32 73 78 84 32 80 82 73 77 65 82 89 32 75 69 89 44 32 118 97 108 32 86 65 82 67 72 65 82 40 54 52 41 41]
+
+[19:54:20 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[19:55:07 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[19:55:09 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 40 240 241 252 192 3 181 100 92 213 169 37 178 56 97 153 253 58 133 241 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[19:55:09 CST 2026/04/25] [WARN] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).authenticateWithChallenge:776) ⚠️ dev_bypass_password_auth=true，已跳过口令校验（user=root）
+[19:55:09 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[19:55:09 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 52, 内容: [48 0 0 0 3 67 82 69 65 84 69 32 68 65 84 65 66 65 83 69 32 73 70 32 78 79 84 32 69 88 73 83 84 83 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98]
+
+[19:55:09 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[19:55:09 CST 2026/04/25] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).executeCreateDatabaseStatement:1032)  CREATE DATABASE 'drill_recovery_db' executed successfully
+[19:55:09 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 26, 内容: [22 0 0 0 3 85 83 69 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98]
+
+[19:55:09 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[19:55:09 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 79, 内容: [75 0 0 0 3 67 82 69 65 84 69 32 84 65 66 76 69 32 73 70 32 78 79 84 32 69 88 73 83 84 83 32 100 114 105 108 108 95 116 120 110 32 40 105 100 32 73 78 84 32 80 82 73 77 65 82 89 32 75 69 89 44 32 118 97 108 32 86 65 82 67 72 65 82 40 54 52 41 41]
+
+[19:55:09 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[19:55:09 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 1]
+
+[19:55:09 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[19:55:10 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 126 214 140 243 71 60 223 39 104 80 220 7 6 21 28 157 205 72 185 219 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[19:55:10 CST 2026/04/25] [WARN] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).authenticateWithChallenge:776) ⚠️ dev_bypass_password_auth=true，已跳过口令校验（user=root）
+[19:55:10 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[19:55:10 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 89, 内容: [85 0 0 0 22 83 69 76 69 67 84 32 67 79 85 78 84 40 42 41 32 70 82 79 77 32 105 110 102 111 114 109 97 116 105 111 110 95 115 99 104 101 109 97 46 116 97 98 108 101 115 32 87 72 69 82 69 32 116 97 98 108 101 95 115 99 104 101 109 97 61 63 32 65 78 68 32 116 97 98 108 101 95 110 97 109 101 61 63]
+
+[19:55:10 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 48, 内容: [44 0 0 0 23 2 0 0 0 0 1 0 0 0 0 1 254 0 254 0 17 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98 9 100 114 105 108 108 95 116 120 110]
+
+[19:55:10 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[19:55:10 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 9, 内容: [5 0 0 0 25 2 0 0 0]
+
+[19:55:41 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[19:55:43 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 249 210 115 9 26 5 93 81 20 17 154 125 4 186 9 183 118 110 116 199 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[19:55:43 CST 2026/04/25] [WARN] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).authenticateWithChallenge:776) ⚠️ dev_bypass_password_auth=true，已跳过口令校验（user=root）
+[19:55:43 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[19:55:43 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 52, 内容: [48 0 0 0 3 67 82 69 65 84 69 32 68 65 84 65 66 65 83 69 32 73 70 32 78 79 84 32 69 88 73 83 84 83 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98]
+
+[19:55:43 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[19:55:43 CST 2026/04/25] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).executeCreateDatabaseStatement:1032)  CREATE DATABASE 'drill_recovery_db' executed successfully
+[19:55:43 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 26, 内容: [22 0 0 0 3 85 83 69 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98]
+
+[19:55:43 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[19:55:43 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 79, 内容: [75 0 0 0 3 67 82 69 65 84 69 32 84 65 66 76 69 32 73 70 32 78 79 84 32 69 88 73 83 84 83 32 100 114 105 108 108 95 116 120 110 32 40 105 100 32 73 78 84 32 80 82 73 77 65 82 89 32 75 69 89 44 32 118 97 108 32 86 65 82 67 72 65 82 40 54 52 41 41]
+
+[19:55:43 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[19:55:43 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 1]
+
+[19:55:43 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[19:55:44 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 9 105 65 95 135 147 196 115 106 224 242 167 95 215 14 192 125 94 12 59 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[19:55:44 CST 2026/04/25] [WARN] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).authenticateWithChallenge:776) ⚠️ dev_bypass_password_auth=true，已跳过口令校验（user=root）
+[19:55:44 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[19:55:44 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 56, 内容: [52 0 0 0 3 83 72 79 87 32 84 65 66 76 69 83 32 70 82 79 77 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98 32 76 73 75 69 32 39 100 114 105 108 108 95 116 120 110 39]
+
+[19:55:44 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[19:56:26 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[19:56:27 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 198 57 192 245 60 56 68 95 72 215 201 229 44 23 21 150 197 21 168 75 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[19:56:27 CST 2026/04/25] [WARN] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).authenticateWithChallenge:776) ⚠️ dev_bypass_password_auth=true，已跳过口令校验（user=root）
+[19:56:27 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[19:56:27 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 52, 内容: [48 0 0 0 3 67 82 69 65 84 69 32 68 65 84 65 66 65 83 69 32 73 70 32 78 79 84 32 69 88 73 83 84 83 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98]
+
+[19:56:27 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[19:56:27 CST 2026/04/25] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).executeCreateDatabaseStatement:1032)  CREATE DATABASE 'drill_recovery_db' executed successfully
+[19:56:27 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 26, 内容: [22 0 0 0 3 85 83 69 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98]
+
+[19:56:27 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[19:56:27 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 79, 内容: [75 0 0 0 3 67 82 69 65 84 69 32 84 65 66 76 69 32 73 70 32 78 79 84 32 69 88 73 83 84 83 32 100 114 105 108 108 95 116 120 110 32 40 105 100 32 73 78 84 32 80 82 73 77 65 82 89 32 75 69 89 44 32 118 97 108 32 86 65 82 67 72 65 82 40 54 52 41 41]
+
+[19:56:27 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[19:56:27 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 1]
+
+[19:56:27 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[19:56:27 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 167 49 96 166 140 85 62 75 86 116 91 238 171 218 246 200 147 46 153 184 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[19:56:27 CST 2026/04/25] [WARN] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).authenticateWithChallenge:776) ⚠️ dev_bypass_password_auth=true，已跳过口令校验（user=root）
+[19:56:27 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[19:56:27 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 56, 内容: [52 0 0 0 3 83 72 79 87 32 84 65 66 76 69 83 32 70 82 79 77 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98 32 76 73 75 69 32 39 100 114 105 108 108 95 116 120 110 39]
+
+[19:56:27 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[20:36:31 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[20:36:32 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 187 111 203 212 88 170 194 57 152 6 101 118 204 23 43 46 69 154 223 165 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[20:36:32 CST 2026/04/25] [WARN] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).authenticateWithChallenge:776) ⚠️ dev_bypass_password_auth=true，已跳过口令校验（user=root）
+[20:36:32 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[20:36:32 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 52, 内容: [48 0 0 0 3 67 82 69 65 84 69 32 68 65 84 65 66 65 83 69 32 73 70 32 78 79 84 32 69 88 73 83 84 83 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98]
+
+[20:36:32 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[20:36:32 CST 2026/04/25] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).executeCreateDatabaseStatement:1032)  CREATE DATABASE 'drill_recovery_db' executed successfully
+[20:36:32 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 26, 内容: [22 0 0 0 3 85 83 69 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98]
+
+[20:36:32 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[20:36:32 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 79, 内容: [75 0 0 0 3 67 82 69 65 84 69 32 84 65 66 76 69 32 73 70 32 78 79 84 32 69 88 73 83 84 83 32 100 114 105 108 108 95 116 120 110 32 40 105 100 32 73 78 84 32 80 82 73 77 65 82 89 32 75 69 89 44 32 118 97 108 32 86 65 82 67 72 65 82 40 54 52 41 41]
+
+[20:36:32 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[20:36:32 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 1]
+
+[20:36:32 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[20:38:08 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[20:38:09 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 96 7 221 169 149 164 66 182 238 84 150 179 208 161 184 60 87 87 175 37 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[20:38:09 CST 2026/04/25] [WARN] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).authenticateWithChallenge:776) ⚠️ dev_bypass_password_auth=true，已跳过口令校验（user=root）
+[20:38:09 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[20:38:09 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 52, 内容: [48 0 0 0 3 67 82 69 65 84 69 32 68 65 84 65 66 65 83 69 32 73 70 32 78 79 84 32 69 88 73 83 84 83 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98]
+
+[20:38:09 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[20:38:09 CST 2026/04/25] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).executeCreateDatabaseStatement:1032)  CREATE DATABASE 'drill_recovery_db' executed successfully
+[20:38:09 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 26, 内容: [22 0 0 0 3 85 83 69 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98]
+
+[20:38:09 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[20:38:09 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 79, 内容: [75 0 0 0 3 67 82 69 65 84 69 32 84 65 66 76 69 32 73 70 32 78 79 84 32 69 88 73 83 84 83 32 100 114 105 108 108 95 116 120 110 32 40 105 100 32 73 78 84 32 80 82 73 77 65 82 89 32 75 69 89 44 32 118 97 108 32 86 65 82 67 72 65 82 40 54 52 41 41]
+
+[20:38:09 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[20:38:09 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 1]
+
+[20:38:09 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[20:40:17 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[20:40:21 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 228 98 221 149 203 54 201 65 19 179 227 147 231 102 93 154 228 232 242 78 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[20:40:21 CST 2026/04/25] [WARN] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).authenticateWithChallenge:776) ⚠️ dev_bypass_password_auth=true，已跳过口令校验（user=root）
+[20:40:21 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[20:40:21 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 38, 内容: [34 0 0 0 3 67 82 69 65 84 69 32 68 65 84 65 66 65 83 69 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98]
+
+[20:40:21 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[20:40:21 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[20:45:25 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[20:45:28 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 210 11 133 70 169 204 123 43 0 149 132 37 60 155 80 220 90 102 10 127 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[20:45:28 CST 2026/04/25] [WARN] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).authenticateWithChallenge:776) ⚠️ dev_bypass_password_auth=true，已跳过口令校验（user=root）
+[20:45:28 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[20:45:28 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 54, 内容: [50 0 0 0 3 67 82 69 65 84 69 32 68 65 84 65 66 65 83 69 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98 95 50 48 50 54 48 52 50 53 95 50 48 52 53 50 53]
+
+[20:45:28 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[20:45:28 CST 2026/04/25] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).createDatabaseImpl:1069) 📂 Created database directory: /Users/zhukovasky/GolandProjects/xmysql-server/reports/crash_recovery_process_drill_20260425_195246/workdir/data/drill_recovery_db_20260425_204525
+[20:45:28 CST 2026/04/25] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).executeCreateDatabaseStatement:1032)  CREATE DATABASE 'drill_recovery_db_20260425_204525' executed successfully
+[20:45:28 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 42, 内容: [38 0 0 0 3 85 83 69 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98 95 50 48 50 54 48 52 50 53 95 50 48 52 53 50 53]
+
+[20:45:28 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[20:45:28 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 81, 内容: [77 0 0 0 3 67 82 69 65 84 69 32 84 65 66 76 69 32 100 114 105 108 108 95 116 120 110 95 50 48 50 54 48 52 50 53 95 50 48 52 53 50 53 32 40 105 100 32 73 78 84 32 80 82 73 77 65 82 89 32 75 69 89 44 32 118 97 108 32 86 65 82 67 72 65 82 40 54 52 41 41]
+
+[20:45:28 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[20:45:28 CST 2026/04/25] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).createTableImpl:1758)  Created table files for drill_recovery_db_20260425_204525.drill_txn_20260425_204525
+[20:45:28 CST 2026/04/25] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).executeCreateTableStatement:1415)  CREATE TABLE 'drill_recovery_db_20260425_204525.drill_txn_20260425_204525' executed successfully
+[20:45:28 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 1]
+
+[20:45:28 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[20:45:30 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 85 33 23 25 22 36 182 186 161 178 116 4 125 79 14 135 41 82 63 156 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[20:45:30 CST 2026/04/25] [WARN] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).authenticateWithChallenge:776) ⚠️ dev_bypass_password_auth=true，已跳过口令校验（user=root）
+[20:45:30 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[20:45:30 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 88, 内容: [84 0 0 0 3 83 72 79 87 32 84 65 66 76 69 83 32 70 82 79 77 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98 95 50 48 50 54 48 52 50 53 95 50 48 52 53 50 53 32 76 73 75 69 32 39 100 114 105 108 108 95 116 120 110 95 50 48 50 54 48 52 50 53 95 50 48 52 53 50 53 39]
+
+[20:45:30 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！

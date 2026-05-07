@@ -526,7 +526,7 @@ func (t *TableScanOperator) Next(ctx context.Context) (Record, error) {
 已创建的详细文档：
 
 1. **剩余问题分析文档**
-  文件: `docs/REMAINING_ISSUES_ANALYSIS.md`  
+  文件: `docs/analysis/REMAINING_ISSUES_ANALYSIS.md`（2025-10 快照；当前缺口见 `docs/planning/UNIMPLEMENTED_CAPABILITY_BASELINE_2026-04.md`）  
    内容: 8个P0/P1/P2问题的详细分析和修复方案
 2. **执行器架构重构计划**
   文件: `docs/EXECUTOR_ARCHITECTURE_REFACTOR_PLAN.md`  
@@ -570,7 +570,7 @@ func (t *TableScanOperator) Next(ctx context.Context) (Record, error) {
 
 ## 🔜 下一步计划
 
-按照REMAINING_ISSUES_ANALYSIS.md的优先级顺序：
+按照 `docs/analysis/REMAINING_ISSUES_ANALYSIS.md`（历史快照）中的优先级顺序；当前以 `docs/未实现功能梳理.md` 与基线文档为准：
 
 ### 第一阶段 - P0问题修复（1-2周）
 

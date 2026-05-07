@@ -1,0 +1,42 @@
+=== [undo] 2026-04-25T20:59:19+08:00 ===
+go test -count=1 -timeout=300s ./server/innodb/manager/ -run '^(TestTXN002_|TestUndoRollbackWithCLR|TestPartialRollback|TestSavepoint_)$' -v
+=== RUN   TestUndoRollbackWithCLR
+=== RUN   TestUndoRollbackWithCLR/测试INSERT回滚（生成DELETE）
+    undo_rollback_fix_test.go:107: ✓ INSERT回滚测试通过
+=== RUN   TestUndoRollbackWithCLR/测试CLR幂等性_-_同一事务内重复日志
+    undo_rollback_fix_test.go:148: ✓ CLR幂等性测试通过
+=== RUN   TestUndoRollbackWithCLR/测试DELETE回滚（重新插入）
+    undo_rollback_fix_test.go:179: ✓ DELETE回滚测试通过
+--- PASS: TestUndoRollbackWithCLR (0.08s)
+    --- PASS: TestUndoRollbackWithCLR/测试INSERT回滚（生成DELETE） (0.02s)
+    --- PASS: TestUndoRollbackWithCLR/测试CLR幂等性_-_同一事务内重复日志 (0.04s)
+    --- PASS: TestUndoRollbackWithCLR/测试DELETE回滚（重新插入） (0.02s)
+=== RUN   TestPartialRollback
+=== RUN   TestPartialRollback/测试回滚到保存点
+    undo_rollback_fix_test.go:287: ✓ 部分回滚测试通过
+--- PASS: TestPartialRollback (0.10s)
+    --- PASS: TestPartialRollback/测试回滚到保存点 (0.10s)
+PASS
+ok  	github.com/zhukovaskychina/xmysql-server/server/innodb/manager	1.204s
+
+=== [half_commit] 2026-04-25T20:59:22+08:00 ===
+go test -count=1 -timeout=300s ./server/innodb/manager/ -run '^(TestFaultInjection_CrashDuringCommit|TestCrashRecoveryThreePhases|TestFullCrashRecovery)$' -v
+=== RUN   TestCrashRecoveryThreePhases
+=== RUN   TestCrashRecoveryThreePhases/测试完整的三阶段恢复
+恢复结果: Undo阶段失败: 回滚事务2失败: undo log manager not set
+恢复状态: &{Phase:Undo AnalysisComplete:true RedoComplete:true UndoComplete:false CheckpointLSN:0 RedoStartLSN:0 RedoEndLSN:6 ActiveTransactions:1 DirtyPages:2 UndoTransactions:1 RecoveryDuration:344.283µs}
+--- PASS: TestCrashRecoveryThreePhases (0.02s)
+    --- PASS: TestCrashRecoveryThreePhases/测试完整的三阶段恢复 (0.02s)
+=== RUN   TestFaultInjection_CrashDuringCommit
+=== RUN   TestFaultInjection_CrashDuringCommit/Phase1_CrashBeforeCommitLog
+    crash_recovery_fault_injection_test.go:205: 💥 模拟崩溃: 事务2在提交前崩溃
+=== RUN   TestFaultInjection_CrashDuringCommit/Phase2_RecoveryAndRollback
+    crash_recovery_fault_injection_test.go:238: ✅ Phase2 完成: 事务2已回滚
+--- PASS: TestFaultInjection_CrashDuringCommit (0.04s)
+    --- PASS: TestFaultInjection_CrashDuringCommit/Phase1_CrashBeforeCommitLog (0.02s)
+    --- PASS: TestFaultInjection_CrashDuringCommit/Phase2_RecoveryAndRollback (0.02s)
+=== RUN   TestFullCrashRecovery
+--- PASS: TestFullCrashRecovery (0.00s)
+PASS
+ok  	github.com/zhukovaskychina/xmysql-server/server/innodb/manager	0.988s
+

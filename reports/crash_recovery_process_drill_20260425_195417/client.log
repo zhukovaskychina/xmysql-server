@@ -1,0 +1,2 @@
+mode=setup_redo failed: Error 1105: table 'drill_txn' already exists
+exit status 1

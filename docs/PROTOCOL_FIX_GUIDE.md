@@ -7,10 +7,12 @@
 ## ✅ 已修复的问题
 
 ### 1. **列数和列名错误**
+
 - **修复前**: 返回 2 列 `(Variable_name, Value)`
 - **修复后**: 返回正确的列数和列名，例如 `SELECT @@session.tx_read_only` 返回 1 列 `tx_read_only`
 
 ### 2. **字段类型错误**
+
 - **修复前**: 所有列都硬编码为 `VARCHAR` (0xFD)
 - **修复后**: 根据实际数据类型返回正确的 MySQL 字段类型码
   - `int/int32` → `MYSQL_TYPE_LONG` (0x03)
@@ -21,15 +23,18 @@
   - `bool` → `MYSQL_TYPE_TINY` (0x01)
 
 ### 3. **协议包格式错误**
+
 - **修复前**: 列定义包和行数据包格式不符合 MySQL 协议
 - **修复后**: 严格按照 MySQL Protocol::ColumnDefinition41 和文本协议格式编码
 
 ## 📦 新增文件
 
 ### 1. `server/net/mysql_protocol_encoder.go`
+
 完整的 MySQL 协议编码器，包含：
 
 #### 核心编码函数
+
 ```go
 // Length-Encoded Integer
 func WriteLenEncInt(value uint64) []byte
@@ -51,6 +56,7 @@ func WriteOKPacket(affectedRows, lastInsertID uint64, statusFlags, warnings uint
 ```
 
 #### 辅助函数
+
 ```go
 // 根据 Go 类型推断 MySQL 字段类型
 func InferMySQLType(value interface{}) byte
@@ -69,7 +75,9 @@ func SendResultSetPackets(data *ResultSetData) [][]byte
 ```
 
 ### 2. `server/net/mysql_protocol_encoder_test.go`
+
 完整的单元测试套件，包含：
+
 - Length-Encoded Integer 编码测试
 - Length-Encoded String 编码测试
 - 列定义包编码测试
@@ -82,6 +90,7 @@ func SendResultSetPackets(data *ResultSetData) [][]byte
 ## 🔧 修改的文件
 
 ### 1. `server/net/decoupled_handler.go`
+
 重写了 `sendQueryResultSet` 方法：
 
 ```go
@@ -124,6 +133,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(
 ```
 
 ### 2. `server/dispatcher/system_variable_engine.go`
+
 修复了列名获取逻辑：
 
 ```go
@@ -368,39 +378,37 @@ BenchmarkWriteRowDataPacket-8                20000000    65.2 ns/op   64 B/op   
 ### ✅ 必须满足的条件
 
 1. **JDBC 连接成功**
-   - MySQL Connector/J 5.1.x 可以成功连接
-   - 不再出现 `Invalid value 'null'` 错误
-   - 不再出现 `Could not retrieve transaction read-only status` 错误
-
+  - MySQL Connector/J 5.1.x 可以成功连接
+  - 不再出现 `Invalid value 'null'` 错误
+  - 不再出现 `Could not retrieve transaction read-only status` 错误
 2. **系统变量查询正确**
-   - `SELECT @@session.tx_read_only` 返回 1 列，列名为 `tx_read_only`
-   - 返回值为 `0`（int64 类型）
-   - 字段类型为 `MYSQL_TYPE_LONGLONG` (0x08)
-
+  - `SELECT @@session.tx_read_only` 返回 1 列，列名为 `tx_read_only`
+  - 返回值为 `0`（int64 类型）
+  - 字段类型为 `MYSQL_TYPE_LONGLONG` (0x08)
 3. **简单查询正确**
-   - `SELECT 1` 返回正确结果
-   - `SELECT 'abc'` 返回正确结果
-   - 多列查询返回正确结果
-
+  - `SELECT 1` 返回正确结果
+  - `SELECT 'abc'` 返回正确结果
+  - 多列查询返回正确结果
 4. **NULL 值处理正确**
-   - NULL 值编码为 0xFB
-   - JDBC 可以正确识别 NULL 值
-
+  - NULL 值编码为 0xFB
+  - JDBC 可以正确识别 NULL 值
 5. **工具兼容性**
-   - MySQL CLI 可以正常连接和查询
-   - IntelliJ Database Tools 可以连接
-   - DBeaver 可以连接
-   - Navicat 可以连接
+  - MySQL CLI 可以正常连接和查询
+  - IntelliJ Database Tools 可以连接
+  - DBeaver 可以连接
+  - Navicat 可以连接
 
 ## 🐛 故障排查
 
 ### 问题 1: JDBC 仍然报错 "Invalid value 'null'"
 
 **可能原因**:
+
 - 系统变量返回了 NULL 值
 - 列类型不正确
 
 **解决方法**:
+
 ```go
 // 确保系统变量有默认值
 func (m *SystemVariablesManager) GetVariable(sessionID, name string, scope SystemVariableScope) (interface{}, error) {
@@ -416,9 +424,11 @@ func (m *SystemVariablesManager) GetVariable(sessionID, name string, scope Syste
 ### 问题 2: 列数不匹配
 
 **可能原因**:
+
 - 业务层返回的列数与实际数据不一致
 
 **解决方法**:
+
 ```go
 // 在发送前验证
 if len(result.Columns) != len(result.Rows[0]) {
@@ -430,9 +440,11 @@ if len(result.Columns) != len(result.Rows[0]) {
 ### 问题 3: 字段类型推断错误
 
 **可能原因**:
+
 - 第一行数据为 NULL 或类型不代表
 
 **解决方法**:
+
 ```go
 // 遍历多行数据推断类型
 func inferColumnType(rows [][]interface{}, colIdx int) byte {
@@ -448,17 +460,14 @@ func inferColumnType(rows [][]interface{}, colIdx int) byte {
 ## 📚 参考资料
 
 1. **MySQL 官方协议文档**
-   - https://dev.mysql.com/doc/internals/en/client-server-protocol.html
-   - https://dev.mysql.com/doc/internals/en/com-query-response.html
-
+  - [https://dev.mysql.com/doc/internals/en/client-server-protocol.html](https://dev.mysql.com/doc/internals/en/client-server-protocol.html)
+  - [https://dev.mysql.com/doc/internals/en/com-query-response.html](https://dev.mysql.com/doc/internals/en/com-query-response.html)
 2. **MySQL Connector/J 源码**
-   - https://github.com/mysql/mysql-connector-j
-
+  - [https://github.com/mysql/mysql-connector-j](https://github.com/mysql/mysql-connector-j)
 3. **Wireshark MySQL 协议解析**
-   - 使用 Wireshark 抓包分析真实 MySQL 服务器的包结构
-
+  - 使用 Wireshark 抓包分析真实 MySQL 服务器的包结构
 4. **Go MySQL 驱动实现**
-   - https://github.com/go-sql-driver/mysql
+  - [https://github.com/go-sql-driver/mysql](https://github.com/go-sql-driver/mysql)
 
 ## 🎉 总结
 
@@ -472,6 +481,7 @@ func inferColumnType(rows [][]interface{}, colIdx int) byte {
 6. ✅ 高性能的编码实现
 
 现在 xmysql-server 可以正确处理：
+
 - ✅ `SELECT @@session.tx_read_only`
 - ✅ `SELECT @@time_zone`
 - ✅ `SELECT @@session.auto_increment_increment`

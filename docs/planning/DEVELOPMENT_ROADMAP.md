@@ -10,6 +10,7 @@
 | 用途 | 文档 |
 |------|------|
 | 缺口与优先级总览 | [未实现功能梳理.md](../未实现功能梳理.md) |
+| 能力矩阵 + 生产缺口合并基线（2026-04） | [UNIMPLEMENTED_CAPABILITY_BASELINE_2026-04.md](./UNIMPLEMENTED_CAPABILITY_BASELINE_2026-04.md) |
 | 114 项任务明细、模块完成度 | [development/DEVELOPMENT_ROADMAP_TASKS.md](../development/DEVELOPMENT_ROADMAP_TASKS.md) |
 | 16 周阶段与人天排期 | [development/开发计划.md](../development/开发计划.md) |
 | 任务摘要（PM 速览） | [development/TASKS_SUMMARY.md](../development/TASKS_SUMMARY.md) |

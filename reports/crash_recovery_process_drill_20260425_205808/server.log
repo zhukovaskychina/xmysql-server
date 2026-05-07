@@ -1,0 +1,162 @@
+Starting XMySQL Server...
+Parsing command line arguments...
+[20:58:10 CST 2026/04/25] [INFO] (main.go:main.main:60) Logger initialized successfully with level: %s
+info
+[20:58:10 CST 2026/04/25] [INFO] (main.go:main.main:62) XMySQL Server starting...
+[20:58:10 CST 2026/04/25] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 128 record count mismatch
+[20:58:10 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:216) No checkpoint found, starting recovery from LSN 0
+[20:58:10 CST 2026/04/25] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[20:58:10 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:216) No checkpoint found, starting recovery from LSN 0
+[20:58:10 CST 2026/04/25] [INFO] (main.go:main.main:66) Starting MySQL server...
+[20:58:10 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:75) 🚀 Starting XMySQL Engine...
+[20:58:10 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:78) 🏥 Performing crash recovery...
+[20:58:10 CST 2026/04/25] [INFO] (mysql_server.go:github.com/zhukovaskychina/xmysql-server/server/net.initProfiling:101) App Profiling startup on address{127.0.0.1:0/debug/pprof/}
+[20:58:10 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:82) ✅ Crash recovery completed successfully
+[20:58:10 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:85) 💾 Starting Checkpoint Manager...
+[20:58:10 CST 2026/04/25] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:103) 🚀 启动检查点管理器
+[20:58:10 CST 2026/04/25] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:117) 📄 没有找到有效的检查点，将从头开始
+[20:58:10 CST 2026/04/25] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:122)  检查点管理器启动成功
+[20:58:10 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:90) ✅ XMySQL Engine started successfully
+MySQL服务器正在初始化...
+MySQL服务器初始化完成！
+
+******************************************************************************************
+
+ __   ____  __        _____  ____  _          _____ ______ _______      ________ _____  
+ \ \ / /  \/  |      / ____|/ __ \| |        / ____|  ____|  __ \ \    / /  ____|  __ \ 
+  \ V /| \  / |_   _| (___ | |  | | |  _____| (___ | |__  | |__) \ \  / /| |__  | |__) |
+   > < | |\/| | | | |\___ \| |  | | | |______\___ \|  __| |  _  / \ \/ / |  __| |  _  / 
+  / . \| |  | | |_| |____) | |__| | |____    ____) | |____| | \ \  \  /  | |____| | \ \ 
+ /_/ \_\_|  |_|\__, |_____/ \___\_\______|  |_____/|______|_|  \_\  \/   |______|_|  \_\
+                __/ |                                                                   
+               |___/                                                                    
+******************************************************************************************
+
+启动成功
+ starts successfull! its version=1.3.0, its listen ends=127.0.0.1:3310
+[20:58:10 CST 2026/04/25] [INFO] (mysql_server.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MySQLServer).Start:88)  starts successfull! its version=1.3.0, its listen ends=127.0.0.1:3310
+[20:58:10 CST 2026/04/25] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:1:127.0.0.1:3310<->127.0.0.1:49862}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[20:58:10 CST 2026/04/25] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49862, now:2026-04-25 20:58:10.967963 +0800 CST m=+0.545172497, length:92, err:%!!(MISSING)s(<nil>)
+[20:58:10 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[20:58:10 CST 2026/04/25] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:1:127.0.0.1:3310<->127.0.0.1:49862}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49862: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[20:58:10 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:1:127.0.0.1:3310<->127.0.0.1:49862}, [session.handlePackage] gr will exit now, left gr num 1
+[20:58:10 CST 2026/04/25] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49862: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[20:58:10 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[20:58:10 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[20:58:10 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[20:58:10 CST 2026/04/25] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:281) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49862, Error=read tcp 127.0.0.1:3310->127.0.0.1:49862: read: connection reset by peer
+[20:58:16 CST 2026/04/25] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:2:127.0.0.1:3310<->127.0.0.1:49902}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[20:58:16 CST 2026/04/25] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49902, now:2026-04-25 20:58:16.01428 +0800 CST m=+5.591368397, length:92, err:%!!(MISSING)s(<nil>)
+[20:58:16 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 234 230 119 41 158 23 235 82 125 255 143 1 62 147 28 61 77 137 78 197 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[20:58:16 CST 2026/04/25] [WARN] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).authenticateWithChallenge:776) ⚠️ dev_bypass_password_auth=true，已跳过口令校验（user=root）
+[20:58:16 CST 2026/04/25] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49902, now:2026-04-25 20:58:16.015714 +0800 CST m=+5.592802796, length:11, err:%!!(MISSING)s(<nil>)
+[20:58:16 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[20:58:16 CST 2026/04/25] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49902, now:2026-04-25 20:58:16.016078 +0800 CST m=+5.593166554, length:11, err:%!!(MISSING)s(<nil>)
+[20:58:16 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 54, 内容: [50 0 0 0 3 67 82 69 65 84 69 32 68 65 84 65 66 65 83 69 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98 95 50 48 50 54 48 52 50 53 95 50 48 53 56 48 56]
+
+[20:58:16 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[20:58:16 CST 2026/04/25] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).createDatabaseImpl:1069) 📂 Created database directory: /Users/zhukovasky/GolandProjects/xmysql-server/reports/crash_recovery_process_drill_20260425_205808/workdir/data/drill_recovery_db_20260425_205808
+[20:58:16 CST 2026/04/25] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).executeCreateDatabaseStatement:1032)  CREATE DATABASE 'drill_recovery_db_20260425_205808' executed successfully
+[20:58:16 CST 2026/04/25] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49902, now:2026-04-25 20:58:16.020292 +0800 CST m=+5.597380228, length:11, err:%!!(MISSING)s(<nil>)
+[20:58:16 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 42, 内容: [38 0 0 0 3 85 83 69 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98 95 50 48 50 54 48 52 50 53 95 50 48 53 56 48 56]
+
+[20:58:16 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[20:58:16 CST 2026/04/25] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49902, now:2026-04-25 20:58:16.02136 +0800 CST m=+5.598447720, length:11, err:%!!(MISSING)s(<nil>)
+[20:58:16 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 81, 内容: [77 0 0 0 3 67 82 69 65 84 69 32 84 65 66 76 69 32 100 114 105 108 108 95 116 120 110 95 50 48 50 54 48 52 50 53 95 50 48 53 56 48 56 32 40 105 100 32 73 78 84 32 80 82 73 77 65 82 89 32 75 69 89 44 32 118 97 108 32 86 65 82 67 72 65 82 40 54 52 41 41]
+
+[20:58:16 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[20:58:16 CST 2026/04/25] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).createTableImpl:1758)  Created table files for drill_recovery_db_20260425_205808.drill_txn_20260425_205808
+[20:58:16 CST 2026/04/25] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).executeCreateTableStatement:1415)  CREATE TABLE 'drill_recovery_db_20260425_205808.drill_txn_20260425_205808' executed successfully
+[20:58:16 CST 2026/04/25] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49902, now:2026-04-25 20:58:16.024496 +0800 CST m=+5.601583947, length:11, err:%!!(MISSING)s(<nil>)
+[20:58:16 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 1]
+
+[20:58:16 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:692) {xmysql-server:TCP_SERVER:2:127.0.0.1:3310<->127.0.0.1:49902}, [session.conn.read] = error:EOF
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[20:58:16 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:2:127.0.0.1:3310<->127.0.0.1:49902}, [session.handlePackage] gr will exit now, left gr num 1
+[20:58:16 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 277, Write Bytes: 147, Read Pkgs: 5, Write Pkgs: 6, [session.handleLoop] got done signal. wQ is nil.
+[20:58:16 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[20:58:16 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 277, Write Bytes: 147, Read Pkgs: 5, Write Pkgs: 6, [session.handleLoop] goroutine exit now, left gr num 0
+[20:58:16 CST 2026/04/25] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:3:127.0.0.1:3310<->127.0.0.1:49909}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[20:58:16 CST 2026/04/25] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49909, now:2026-04-25 20:58:16.117452 +0800 CST m=+5.694538282, length:92, err:%!!(MISSING)s(<nil>)
+[20:58:16 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[20:58:16 CST 2026/04/25] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:3:127.0.0.1:3310<->127.0.0.1:49909}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49909: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[20:58:16 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:3:127.0.0.1:3310<->127.0.0.1:49909}, [session.handlePackage] gr will exit now, left gr num 1
+[20:58:16 CST 2026/04/25] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49909: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[20:58:16 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[20:58:16 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[20:58:16 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[20:58:16 CST 2026/04/25] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:281) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49909, Error=read tcp 127.0.0.1:3310->127.0.0.1:49909: read: connection reset by peer
+Starting XMySQL Server...
+Parsing command line arguments...
+[20:58:16 CST 2026/04/25] [INFO] (main.go:main.main:60) Logger initialized successfully with level: %s
+info
+[20:58:16 CST 2026/04/25] [INFO] (main.go:main.main:62) XMySQL Server starting...
+[20:58:16 CST 2026/04/25] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[20:58:16 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:216) No checkpoint found, starting recovery from LSN 0
+[20:58:16 CST 2026/04/25] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[20:58:16 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:216) No checkpoint found, starting recovery from LSN 0
+[20:58:16 CST 2026/04/25] [INFO] (main.go:main.main:66) Starting MySQL server...
+[20:58:16 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:75) 🚀 Starting XMySQL Engine...
+[20:58:16 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:78) 🏥 Performing crash recovery...
+[20:58:16 CST 2026/04/25] [INFO] (mysql_server.go:github.com/zhukovaskychina/xmysql-server/server/net.initProfiling:101) App Profiling startup on address{127.0.0.1:0/debug/pprof/}
+[20:58:16 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:82) ✅ Crash recovery completed successfully
+[20:58:16 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:85) 💾 Starting Checkpoint Manager...
+[20:58:16 CST 2026/04/25] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:103) 🚀 启动检查点管理器
+[20:58:16 CST 2026/04/25] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:117) 📄 没有找到有效的检查点，将从头开始
+[20:58:16 CST 2026/04/25] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:122)  检查点管理器启动成功
+[20:58:16 CST 2026/04/25] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:90) ✅ XMySQL Engine started successfully
+MySQL服务器正在初始化...
+panic: serverimpl.listen() = error:listen tcp 127.0.0.1:3310: bind: address already in use
+	/Users/zhukovasky/GolandProjects/xmysql-server/server/net/net_server.go:145: net.Listen(tcp, addr:127.0.0.1:3310)
+	/Users/zhukovasky/GolandProjects/xmysql-server/server/net/net_server.go:158: 
+
+goroutine 1 [running]:
+github.com/zhukovaskychina/xmysql-server/server/net.(*serverimpl).RunEventLoop(0xc0001af520, 0xc00019cd68)
+	/Users/zhukovasky/GolandProjects/xmysql-server/server/net/net_server.go:224 +0x8e
+github.com/zhukovaskychina/xmysql-server/server/net.(*MySQLServer).initServer(0xc0107e8c40, 0xc0001c8b48)
+	/Users/zhukovasky/GolandProjects/xmysql-server/server/net/mysql_server.go:123 +0x287
+github.com/zhukovaskychina/xmysql-server/server/net.(*MySQLServer).Start(0xc0107e8c40)
+	/Users/zhukovasky/GolandProjects/xmysql-server/server/net/mysql_server.go:82 +0x92
+main.main()
+	/Users/zhukovasky/GolandProjects/xmysql-server/main.go:67 +0x409
+exit status 2
+[20:58:17 CST 2026/04/25] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:4:127.0.0.1:3310<->127.0.0.1:49921}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[20:58:17 CST 2026/04/25] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49921, now:2026-04-25 20:58:17.324348 +0800 CST m=+6.901405064, length:92, err:%!!(MISSING)s(<nil>)
+[20:58:17 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 59 227 45 61 10 224 160 57 40 210 223 58 187 193 46 124 230 158 35 189 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[20:58:17 CST 2026/04/25] [WARN] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).authenticateWithChallenge:776) ⚠️ dev_bypass_password_auth=true，已跳过口令校验（user=root）
+[20:58:17 CST 2026/04/25] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49921, now:2026-04-25 20:58:17.324778 +0800 CST m=+6.901835239, length:11, err:%!!(MISSING)s(<nil>)
+[20:58:17 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[20:58:17 CST 2026/04/25] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49921, now:2026-04-25 20:58:17.325108 +0800 CST m=+6.902164983, length:11, err:%!!(MISSING)s(<nil>)
+[20:58:17 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 42, 内容: [38 0 0 0 3 85 83 69 32 100 114 105 108 108 95 114 101 99 111 118 101 114 121 95 100 98 95 50 48 50 54 48 52 50 53 95 50 48 53 56 48 56]
+
+[20:58:17 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[20:58:17 CST 2026/04/25] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49921, now:2026-04-25 20:58:17.32557 +0800 CST m=+6.902626936, length:11, err:%!!(MISSING)s(<nil>)
+[20:58:17 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 51, 内容: [47 0 0 0 3 83 69 76 69 67 84 32 67 79 85 78 84 40 42 41 32 70 82 79 77 32 100 114 105 108 108 95 116 120 110 95 50 48 50 54 48 52 50 53 95 50 48 53 56 48 56]
+
+[20:58:17 CST 2026/04/25] [WARN] (enhanced_message_handler.go:github.com/zhukovaskychina/xmysql-server/server/dispatcher.(*EnhancedBusinessMessageHandler).checkQueryPrivilege:391) ⚠️  临时跳过权限检查 - 仅用于调试！
+[20:58:17 CST 2026/04/25] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49921, now:2026-04-25 20:58:17.326346 +0800 CST m=+6.903402927, length:5, err:%!!(MISSING)s(<nil>)
+[20:58:17 CST 2026/04/25] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49921, now:2026-04-25 20:58:17.327185 +0800 CST m=+6.904241652, length:30, err:%!!(MISSING)s(<nil>)
+[20:58:17 CST 2026/04/25] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49921, now:2026-04-25 20:58:17.327232 +0800 CST m=+6.904288855, length:34, err:%!!(MISSING)s(<nil>)
+[20:58:17 CST 2026/04/25] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49921, now:2026-04-25 20:58:17.327252 +0800 CST m=+6.904308996, length:36, err:%!!(MISSING)s(<nil>)
+[20:58:17 CST 2026/04/25] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49921, now:2026-04-25 20:58:17.327287 +0800 CST m=+6.904343342, length:9, err:%!!(MISSING)s(<nil>)
+[20:58:17 CST 2026/04/25] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49921, now:2026-04-25 20:58:17.327311 +0800 CST m=+6.904368210, length:33, err:%!!(MISSING)s(<nil>)
+[20:58:17 CST 2026/04/25] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49921, now:2026-04-25 20:58:17.327326 +0800 CST m=+6.904383151, length:33, err:%!!(MISSING)s(<nil>)
+[20:58:17 CST 2026/04/25] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49921, now:2026-04-25 20:58:17.327353 +0800 CST m=+6.904409623, length:9, err:%!!(MISSING)s(<nil>)
+[20:58:17 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:692) {xmysql-server:TCP_SERVER:4:127.0.0.1:3310<->127.0.0.1:49921}, [session.conn.read] = error:EOF
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[20:58:17 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:4:127.0.0.1:3310<->127.0.0.1:49921}, [session.handlePackage] gr will exit now, left gr num 1
+[20:58:17 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 188, Write Bytes: 314, Read Pkgs: 4, Write Pkgs: 12, [session.handleLoop] got done signal. wQ is nil.
+[20:58:17 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[20:58:17 CST 2026/04/25] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 188, Write Bytes: 314, Read Pkgs: 4, Write Pkgs: 12, [session.handleLoop] goroutine exit now, left gr num 0

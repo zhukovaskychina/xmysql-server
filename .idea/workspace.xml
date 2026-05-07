@@ -5,19 +5,42 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="cebb430f-c076-4984-8043-b00b7330fdf5" name="Changes" comment="### 🧩 提交摘要&#10;feat(mysql): implement MySQL session context for enhanced state management&#10;&#10;### 📄 详细修改内容&#10;- 修改文件或模块：decoupled_handler.go, engine_access.go, enhanced_message_handler.go, message_handler.go, session.go, session_context.go&#10;- 主要改动：引入 SessionContext 结构体，优化 MySQL 会话状态管理，确保在处理 COM_INIT_DB 和 COM_QUERY 时使用同一会话实例。&#10;&#10;### 💡 修改原因&#10;此次修改旨在提升 MySQL 协议处理的准确性和一致性，通过引入 SessionContext 来集中管理会话状态，避免因使用不同会话实例导致的状态不一致问题。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MySQL 协议处理、会话管理&#10;- 受影响接口或服务：所有涉及会话状态的操作，如数据库切换、查询执行等&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证 SessionContext 的正确性&#10;- 更新相关文档以反映新的会话管理逻辑">
+      <change beforePath="$PROJECT_DIR$/.cursor/skills/xmysql-server-dev/SKILL.md" beforeDir="false" afterPath="$PROJECT_DIR$/.cursor/skills/xmysql-server-dev/SKILL.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/conf/default.ini" beforeDir="false" afterPath="$PROJECT_DIR$/conf/default.ini" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/conf/my.ini" beforeDir="false" afterPath="$PROJECT_DIR$/conf/my.ini" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/development/DEVELOPMENT_ROADMAP_TASKS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/development/DEVELOPMENT_ROADMAP_TASKS.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/auth/password_validator.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/auth/password_validator.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/conf/config.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/conf/config.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/innodb/manager/record_row_adapter_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/manager/record_row_adapter_test.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/innodb/plan/optimizer.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/plan/optimizer.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/innodb/plan/optimizer_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/plan/optimizer_test.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/decoupled_handler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/net/decoupled_handler.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/protocol/mysql_protocol.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/protocol/mysql_protocol.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/protocol/prepared_statement_manager.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/protocol/prepared_statement_manager.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/protocol/prepared_statement_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/protocol/prepared_statement_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/CODE_REVIEW_CHECKLIST.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/CODE_REVIEW_CHECKLIST.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/CODING_STANDARDS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/CODING_STANDARDS.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/DOCUMENTATION_INDEX.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DOCUMENTATION_INDEX.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/MYSQL_PROTOCOL_SET_ISSUE_ANALYSIS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/MYSQL_PROTOCOL_SET_ISSUE_ANALYSIS.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/OUTER_JOIN_USAGE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/OUTER_JOIN_USAGE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/PROTOCOL_FIX_GUIDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/PROTOCOL_FIX_GUIDE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/QUICK_REFERENCE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/QUICK_REFERENCE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/REORGANIZATION_SUMMARY.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/REORGANIZATION_SUMMARY.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/analysis/MISSING_FEATURES_LIST.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/analysis/MISSING_FEATURES_LIST.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/analysis/REMAINING_ISSUES_ANALYSIS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/analysis/REMAINING_ISSUES_ANALYSIS.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/btree-reports/BTREE_006_CACHE_LIMIT_FIX_REPORT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/btree-reports/BTREE_006_CACHE_LIMIT_FIX_REPORT.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/btree-reports/BTREE_IMPLEMENTATION_SUMMARY.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/btree-reports/BTREE_IMPLEMENTATION_SUMMARY.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/client/CLIENT_README.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/client/CLIENT_README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/development/HASH_OPERATORS_USAGE_GUIDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/development/HASH_OPERATORS_USAGE_GUIDE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/development/开发计划.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/development/开发计划.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/executor-reports/EXECUTOR_DOCUMENTATION_INDEX.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/executor-reports/EXECUTOR_DOCUMENTATION_INDEX.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/executor-reports/EXECUTOR_REFACTOR_COMPLETION_REPORT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/executor-reports/EXECUTOR_REFACTOR_COMPLETION_REPORT.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/executor-reports/EXECUTOR_REFACTOR_SUMMARY.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/executor-reports/EXECUTOR_REFACTOR_SUMMARY.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/implementation/OLD_INTERFACE_REMOVAL_SUMMARY.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/implementation/OLD_INTERFACE_REMOVAL_SUMMARY.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/innodb/IBD_README.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/innodb/IBD_README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/planning/DEVELOPMENT_ROADMAP.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/planning/DEVELOPMENT_ROADMAP.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/planning/P0_PRODUCTION_TASKS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/planning/P0_PRODUCTION_TASKS.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/transaction-reports/TXN_002_ROLLBACK_FIX_REPORT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/transaction-reports/TXN_002_ROLLBACK_FIX_REPORT.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/未实现功能梳理.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/未实现功能梳理.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/fix_atomic.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/DDLTestDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/DDLTestDemo.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/InsertDataTestDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/InsertDataTestDemo.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/InsertTestDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/InsertTestDemo.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/MySQLDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/MySQLDemo.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/SQLParserTestDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/SQLParserTestDemo.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/SystemVariableTestDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/SystemVariableTestDemo.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/crash_recovery_drill.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/crash_recovery_drill.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/manager/mvcc_readview_fix_test.go.bak" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/storage/format/mvcc/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/storage/format/mvcc/README.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -28,6 +51,15 @@
     <persistenceIdMap>
       <entry key="_/Users/zhukovasky/GolandProjects/xmysql-server" value="34dyUfHs3t7sE91mYs6TKQe1Zz3" />
     </persistenceIdMap>
+  </component>
+  <component name="CopilotUserSelectedChatMode">
+    <option name="chatModeId" value="Agent" />
+  </component>
+  <component name="CopilotUserSelectedModel">
+    <selectedModels>
+      <entry key="agent-panel" value="GPT-5.4" />
+      <entry key="chat-panel" value="GPT-5.4" />
+    </selectedModels>
   </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
@@ -84,9 +116,12 @@
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.analysis.ui.options.defaults&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.go.formatter.settings.were.checked&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.go.migrated.go.modules.settings&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.go.modules.go.list.on.any.changes.was.set&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
     &quot;git-widget-placeholder&quot;: &quot;dev&quot;,
     &quot;go.import.settings.migrated&quot;: &quot;true&quot;,
     &quot;go.sdk.automatically.set&quot;: &quot;true&quot;,
@@ -180,19 +215,12 @@
       <filePath value="$PROJECT_DIR$/cmd/query_optimizer_demo/main.go" />
       <method v="2" />
     </configuration>
-    <recent_temporary>
-      <list>
-        <item itemvalue="Go Build.go build github.com/zhukovaskychina/xmysql-server" />
-        <item itemvalue="Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/query_optimizer_demo" />
-        <item itemvalue="Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_executor" />
-      </list>
-    </recent_temporary>
   </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-gosdk-f466f9b0953e-3d2cccfc42a2-org.jetbrains.plugins.go.sharedIndexes.bundled-GO-252.23892.449" />
-        <option value="bundled-js-predefined-d6986cc7102b-e03c56caf84a-JavaScript-GO-252.23892.449" />
+        <option value="bundled-gosdk-72a9cf600ed8-3105c3b11fe0-org.jetbrains.plugins.go.sharedIndexes.bundled-GO-261.22158.291" />
+        <option value="bundled-js-predefined-d6986cc7102b-3bd3a6803838-JavaScript-GO-261.22158.291" />
       </set>
     </attachedChunks>
   </component>
@@ -208,6 +236,7 @@
       <workItem from="1772244086898" duration="3080000" />
       <workItem from="1772346262138" duration="768000" />
       <workItem from="1772363335339" duration="1060000" />
+      <workItem from="1776930312926" duration="480000" />
     </task>
     <servers />
   </component>
@@ -306,9 +335,6 @@
     <MESSAGE value="###  提交摘要&#10;feat(mysql): implement MySQL package handler for protocol data processing&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：mysql_pkg_handler.go, mysql_pkg_handler_test.go&#10;- 主要改动：新增 MySQLPkgHandler 结构体，支持 MySQL 协议数据包的编解码，包含 Read 和 Write 方法。&#10;&#10;###  修改原因&#10;此次修改旨在实现对 MySQL 协议数据包的处理，提供灵活的读取和写入功能，以支持后续的数据库操作。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MySQL 数据包处理&#10;- 受影响接口或服务：所有使用 MySQLPkgHandler 的地方&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证 MySQLPkgHandler 的正确性&#10;- 更新相关文档以反映新的数据包处理逻辑" />
     <MESSAGE value="###  提交摘要&#10;feat(mysql): implement MySQL session context for enhanced state management&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：decoupled_handler.go, engine_access.go, enhanced_message_handler.go, message_handler.go, session.go, session_context.go&#10;- 主要改动：引入 SessionContext 结构体，优化 MySQL 会话状态管理，确保在处理 COM_INIT_DB 和 COM_QUERY 时使用同一会话实例。&#10;&#10;###  修改原因&#10;此次修改旨在提升 MySQL 协议处理的准确性和一致性，通过引入 SessionContext 来集中管理会话状态，避免因使用不同会话实例导致的状态不一致问题。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MySQL 协议处理、会话管理&#10;- 受影响接口或服务：所有涉及会话状态的操作，如数据库切换、查询执行等&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证 SessionContext 的正确性&#10;- 更新相关文档以反映新的会话管理逻辑" />
     <option name="LAST_COMMIT_MESSAGE" value="###  提交摘要&#10;feat(mysql): implement MySQL session context for enhanced state management&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：decoupled_handler.go, engine_access.go, enhanced_message_handler.go, message_handler.go, session.go, session_context.go&#10;- 主要改动：引入 SessionContext 结构体，优化 MySQL 会话状态管理，确保在处理 COM_INIT_DB 和 COM_QUERY 时使用同一会话实例。&#10;&#10;###  修改原因&#10;此次修改旨在提升 MySQL 协议处理的准确性和一致性，通过引入 SessionContext 来集中管理会话状态，避免因使用不同会话实例导致的状态不一致问题。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MySQL 协议处理、会话管理&#10;- 受影响接口或服务：所有涉及会话状态的操作，如数据库切换、查询执行等&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证 SessionContext 的正确性&#10;- 更新相关文档以反映新的会话管理逻辑" />
-  </component>
-  <component name="VgoProject">
-    <settings-migrated>true</settings-migrated>
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>

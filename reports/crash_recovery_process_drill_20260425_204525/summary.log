@@ -1,0 +1,34 @@
+=== crash recovery process drill 2026-04-25T20:45:25+08:00 ===
+repo: /Users/zhukovasky/GolandProjects/xmysql-server
+go: go version go1.24.3 darwin/amd64
+run_dir: /Users/zhukovasky/GolandProjects/xmysql-server/reports/crash_recovery_process_drill_20260425_204525
+port: 3310
+db: drill_recovery_db_20260425_204525
+table: drill_txn_20260425_204525
+
+[STEP] start server
+server_pid=41151
+[OK]   start server
+[STEP] wait server port
+[OK]   wait server port
+[STEP] setup redo
+[OK]   setup redo
+[STEP] crash after redo commit
+[OK]   crash after redo commit
+[STEP] restart server for redo verify
+server_pid=41241
+[OK]   restart server for redo verify
+[STEP] wait server port (redo verify)
+[OK]   wait server port (redo verify)
+[STEP] verify redo
+[FAIL] verify redo
+[STEP] undo scenario via manager rollback/fault tests
+[OK]   undo scenario via manager rollback/fault tests
+[STEP] half-commit scenario via fault injection tests
+[OK]   half-commit scenario via fault injection tests
+
+RESULT: FAIL
+summary=/Users/zhukovasky/GolandProjects/xmysql-server/reports/crash_recovery_process_drill_20260425_204525/summary.log
+server_log=/Users/zhukovasky/GolandProjects/xmysql-server/reports/crash_recovery_process_drill_20260425_204525/server.log
+client_log=/Users/zhukovasky/GolandProjects/xmysql-server/reports/crash_recovery_process_drill_20260425_204525/client.log
+manager_test_log=/Users/zhukovasky/GolandProjects/xmysql-server/reports/crash_recovery_process_drill_20260425_204525/manager_tests.log

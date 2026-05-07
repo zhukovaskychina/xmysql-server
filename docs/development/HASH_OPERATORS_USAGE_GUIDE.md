@@ -127,6 +127,7 @@ func main() {
 ```
 
 **输出：**
+
 ```
 查询结果:
 ID      Name    Order ID        Amount
@@ -270,6 +271,7 @@ func main() {
 ```
 
 **输出：**
+
 ```
 聚合结果:
 Category        COUNT   SUM     AVG
@@ -338,6 +340,7 @@ func aggregateAllProducts() {
 ```
 
 **输出：**
+
 ```
 COUNT: 4, SUM: 379.96, MAX: 199.99, MIN: 29.99
 ```
@@ -497,7 +500,7 @@ func tpchQ1Example() {
 ### HashJoin最佳实践
 
 1. **选择合适的Build Side**
-   ```go
+  ```go
    // ✅ 好的做法：小表作为Build Side
    hashJoin := NewHashJoinOperator(
        smallTable,  // Build side
@@ -506,7 +509,7 @@ func tpchQ1Example() {
        buildKey,
        probeKey,
    )
-   
+
    // ❌ 不好的做法：大表作为Build Side
    hashJoin := NewHashJoinOperator(
        largeTable,  // 会消耗大量内存
@@ -515,15 +518,14 @@ func tpchQ1Example() {
        buildKey,
        probeKey,
    )
-   ```
-
+  ```
 2. **高效的键提取函数**
-   ```go
+  ```go
    // ✅ 好的做法：简单高效
    buildKey := func(r Record) string {
        return r.GetValues()[0].ToString()
    }
-   
+
    // ❌ 不好的做法：复杂计算
    buildKey := func(r Record) string {
        // 避免在键提取中进行复杂计算
@@ -531,37 +533,34 @@ func tpchQ1Example() {
        // 复杂的字符串操作...
        return complexStringOperation(v)
    }
-   ```
-
+  ```
 3. **内存管理**
-   ```go
+  ```go
    // 确保及时关闭算子释放资源
    defer hashJoin.Close()
-   ```
+  ```
 
 ### HashAggregate最佳实践
 
 1. **选择合适的聚合函数**
-   ```go
+  ```go
    // ✅ 根据需求选择合适的聚合函数
    aggFuncs := []AggregateFunc{
        &CountAgg{},  // 快速
        &SumAgg{},    // 快速
        &AvgAgg{},    // 中等（需要维护sum和count）
    }
-   ```
-
+  ```
 2. **控制分组数量**
-   ```go
+  ```go
    // ⚠️ 注意：分组数量过多会消耗大量内存
    // 建议：分组数 < 100万
-   ```
-
+  ```
 3. **利用无分组聚合**
-   ```go
+  ```go
    // 全表聚合时，使用空的groupByExprs
    groupByExprs := []int{} // 只有一个分组
-   ```
+  ```
 
 ---
 
@@ -570,53 +569,47 @@ func tpchQ1Example() {
 ### HashJoin性能调优
 
 1. **数据量评估**
-   - 小表 < 10MB：内存Hash Join性能最佳
-   - 中表 10MB - 100MB：需要考虑内存压力
-   - 大表 > 100MB：考虑分区或溢出策略
-
+  - 小表 < 10MB：内存Hash Join性能最佳
+  - 中表 10MB - 100MB：需要考虑内存压力
+  - 大表 > 100MB：考虑分区或溢出策略
 2. **键选择性**
-   - 高选择性（唯一键）：性能最佳
-   - 低选择性（重复键多）：可能产生大量结果
-
+  - 高选择性（唯一键）：性能最佳
+  - 低选择性（重复键多）：可能产生大量结果
 3. **内存预算**
-   ```go
+  ```go
    // 估算内存使用：
    // 内存 ≈ Build Side行数 × 每行大小 × 1.2（哈希表开销）
-   ```
+  ```
 
 ### HashAggregate性能调优
 
 1. **分组策略**
-   - 少分组（< 1000组）：最佳性能
-   - 中等分组（1000 - 10万组）：良好性能
-   - 大量分组（> 10万组）：需要考虑溢出
-
+  - 少分组（< 1000组）：最佳性能
+  - 中等分组（1000 - 10万组）：良好性能
+  - 大量分组（> 10万组）：需要考虑溢出
 2. **聚合函数选择**
-   - COUNT：最快
-   - SUM：快速
-   - AVG：中等（需要维护两个状态）
-   - MIN/MAX：中等（需要比较）
-
+  - COUNT：最快
+  - SUM：快速
+  - AVG：中等（需要维护两个状态）
+  - MIN/MAX：中等（需要比较）
 3. **内存管理**
-   ```go
+  ```go
    // 估算内存使用：
    // 内存 ≈ 分组数 × 聚合函数数 × 状态大小 × 1.2
-   ```
+  ```
 
 ---
 
 ## 📚 参考资料
 
 1. **算法原理**
-   - [数据库查询优化器的艺术](https://example.com)
-   - [Volcano火山模型](https://example.com)
-
+  - [数据库查询优化器的艺术](https://example.com)
+  - [Volcano火山模型](https://example.com)
 2. **代码实现**
-   - `server/innodb/engine/volcano_executor.go`
-   - `server/innodb/engine/hash_operators_test.go`
-
+  - `server/innodb/engine/volcano_executor.go`
+  - `server/innodb/engine/hash_operators_test.go`
 3. **性能测试**
-   - `server/innodb/engine/hash_operators_bench_test.go`
+  - `server/innodb/engine/hash_operators_bench_test.go`
 
 ---
 

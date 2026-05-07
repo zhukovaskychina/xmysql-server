@@ -1,0 +1,3 @@
+mode=setup_redo ok
+mode=verify_redo failed: redo verify failed: table drill_recovery_db_20260425_204853.drill_txn_20260425_204853 not found
+exit status 1

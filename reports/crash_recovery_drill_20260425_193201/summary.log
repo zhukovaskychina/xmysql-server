@@ -1,0 +1,14 @@
+=== crash recovery drill 2026-04-25T19:32:01+08:00 ===
+repo: /Users/zhukovasky/GolandProjects/xmysql-server
+go: go version go1.24.3 darwin/amd64
+pkg: ./server/innodb/manager/
+timeout: 300s
+run_dir: /Users/zhukovasky/GolandProjects/xmysql-server/reports/crash_recovery_drill_20260425_193201
+
+[PASS] redo -> /Users/zhukovasky/GolandProjects/xmysql-server/reports/crash_recovery_drill_20260425_193201/redo.log
+[PASS] undo -> /Users/zhukovasky/GolandProjects/xmysql-server/reports/crash_recovery_drill_20260425_193201/undo.log
+[PASS] half_commit -> /Users/zhukovasky/GolandProjects/xmysql-server/reports/crash_recovery_drill_20260425_193201/half_commit.log
+
+=== aggregate ===
+
+RESULT: PASS

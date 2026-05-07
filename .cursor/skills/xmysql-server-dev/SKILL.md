@@ -67,7 +67,7 @@ description: Assists development of XMySQL Server, a MySQL-compatible single-nod
 
 ## 领域参考文档（按需）
 
-- 事务/MVCC：`docs/innodb/MVCC_README.md`、`docs/REMAINING_ISSUES_ANALYSIS.md`
+- 事务/MVCC：`docs/innodb/MVCC_README.md`、`docs/analysis/REMAINING_ISSUES_ANALYSIS.md`（历史快照）、`docs/planning/UNIMPLEMENTED_CAPABILITY_BASELINE_2026-04.md`（合并基线）
 - 存储/页面/行格式：`docs/storage/`、`docs/innodb/`
 - B+Tree：`docs/btree/BTREE_DOCUMENTATION_INDEX.md`
 - 优化器/执行器：`docs/query-optimizer/`、`docs/volcano/`

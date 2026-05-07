@@ -1,0 +1,22 @@
+=== [redo] 2026-04-25T19:32:01+08:00 ===
+pattern: ^(TestTXN001_|TestRedoReplay|TestRedoLogManager|TestCrashRecoveryRedoPhase|TestRedoLogReplay)$
+command: go test -count=1 -timeout=300s ./server/innodb/manager/ -run '^(TestTXN001_|TestRedoReplay|TestRedoLogManager|TestCrashRecoveryRedoPhase|TestRedoLogReplay)$' -v
+
+=== RUN   TestRedoLogReplay
+=== RUN   TestRedoLogReplay/测试INSERT操作重放
+=== RUN   TestRedoLogReplay/测试幂等性_-_重复重放相同LSN
+=== RUN   TestRedoLogReplay/测试页面创建操作
+=== RUN   TestRedoLogReplay/测试使用存储管理器的重放
+--- PASS: TestRedoLogReplay (0.00s)
+    --- PASS: TestRedoLogReplay/测试INSERT操作重放 (0.00s)
+    --- PASS: TestRedoLogReplay/测试幂等性_-_重复重放相同LSN (0.00s)
+    --- PASS: TestRedoLogReplay/测试页面创建操作 (0.00s)
+    --- PASS: TestRedoLogReplay/测试使用存储管理器的重放 (0.00s)
+=== RUN   TestCrashRecoveryRedoPhase
+警告: 无法重做LSN=2的日志，缺少缓冲池和存储管理器
+--- PASS: TestCrashRecoveryRedoPhase (0.03s)
+=== RUN   TestRedoLogManager
+    log_recovery_example_test.go:157: Redo Log Stats: CurrentLSN=2, BufferedLogs=0
+--- PASS: TestRedoLogManager (0.02s)
+PASS
+ok  	github.com/zhukovaskychina/xmysql-server/server/innodb/manager	1.251s

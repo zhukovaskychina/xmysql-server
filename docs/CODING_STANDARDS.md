@@ -23,6 +23,7 @@
 ### Go语言惯例
 
 遵循Go语言官方编码规范：
+
 - [Effective Go](https://golang.org/doc/effective_go.html)
 - [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
 - [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md)
@@ -36,6 +37,7 @@
 **规则**: 所有接口使用`I`前缀 + 驼峰命名
 
 **✅ 正确示例**:
+
 ```go
 // 页面包装器接口
 type IPageWrapper interface {
@@ -56,6 +58,7 @@ type IRecord interface {
 ```
 
 **❌ 错误示例**:
+
 ```go
 // ❌ 缺少I前缀
 type PageWrapper interface { ... }
@@ -68,6 +71,7 @@ type TableManager interface { ... }
 ```
 
 **例外情况**:
+
 - 标准库接口（如`io.Reader`, `io.Writer`）
 - 单方法接口可以使用`-er`后缀（如`Stringer`, `Closer`）
 
@@ -78,6 +82,7 @@ type TableManager interface { ... }
 **规则**: 使用驼峰命名，避免使用`Impl`后缀
 
 **✅ 正确示例**:
+
 ```go
 // 接口
 type ISpaceManager interface { ... }
@@ -96,6 +101,7 @@ type SpaceManagerStats struct {
 ```
 
 **❌ 错误示例**:
+
 ```go
 // ❌ 使用Impl后缀
 type SpaceManagerImpl struct { ... }
@@ -113,6 +119,7 @@ type SpaceManager interface { ... }
 **规则**: 使用`GetXxx()`前缀
 
 **✅ 正确示例**:
+
 ```go
 func (p *Page) GetPageID() uint32 { ... }
 func (p *Page) GetSpaceID() uint32 { ... }
@@ -122,6 +129,7 @@ func (p *Page) GetContent() []byte { ... }
 ```
 
 **❌ 错误示例**:
+
 ```go
 // ❌ 缺少Get前缀
 func (p *Page) PageID() uint32 { ... }
@@ -138,6 +146,7 @@ func (ph *PageHeader) Bytes() []byte { ... }
 **规则**: 使用`SetXxx()`前缀
 
 **✅ 正确示例**:
+
 ```go
 func (p *Page) SetPageID(id uint32) { ... }
 func (p *Page) SetDirty(dirty bool) { ... }
@@ -149,6 +158,7 @@ func (p *Page) SetLSN(lsn uint64) { ... }
 **规则**: 使用`IsXxx()`, `HasXxx()`, `CanXxx()`前缀
 
 **✅ 正确示例**:
+
 ```go
 func (p *Page) IsDirty() bool { ... }
 func (p *Page) IsLeaf() bool { ... }
@@ -158,6 +168,7 @@ func (p *Page) CanSplit() bool { ... }
 ```
 
 **❌ 错误示例**:
+
 ```go
 // ❌ 使用Get前缀
 func (p *Page) GetIsDirty() bool { ... }
@@ -171,6 +182,7 @@ func (p *Page) GetDirty() bool { ... }
 **规则**: 使用`NewXxx()`前缀
 
 **✅ 正确示例**:
+
 ```go
 // NewPageHeader creates a new PageHeader instance with the given size.
 func NewPageHeader(size uint32) *PageHeader { ... }
@@ -186,6 +198,7 @@ func NewIndexPage(spaceID, pageNo uint32) *IndexPage { ... }
 **规则**: 使用驼峰命名或全大写+下划线
 
 **✅ 正确示例**:
+
 ```go
 // 驼峰命名（推荐）
 const (
@@ -209,6 +222,7 @@ const (
 **规则**: 使用驼峰命名，简短但有意义
 
 **✅ 正确示例**:
+
 ```go
 // 局部变量
 pageNo := uint32(0)
@@ -223,6 +237,7 @@ var (
 ```
 
 **❌ 错误示例**:
+
 ```go
 // ❌ 过于简短
 p := uint32(0)
@@ -242,6 +257,7 @@ space_id := uint32(1)
 **规则**: 使用预定义错误变量，每个包一个`errors.go`文件
 
 **✅ 正确示例**:
+
 ```go
 // server/innodb/storage/wrapper/types/errors.go
 package types
@@ -261,12 +277,14 @@ var (
 ```
 
 **错误命名规范**:
+
 - ✅ 使用`Err`前缀
 - ✅ 使用驼峰命名
 - ✅ 描述性强
 - ✅ 添加文档注释
 
 **错误分组**:
+
 ```go
 // 页面相关错误
 var (
@@ -288,11 +306,13 @@ var (
 ### 2. 错误返回
 
 **规则**: 
+
 1. 常见错误使用预定义错误
 2. 需要上下文信息使用`fmt.Errorf`
 3. 使用`%w`包装错误以支持`errors.Is`和`errors.As`
 
 **✅ 正确示例**:
+
 ```go
 // 1. 使用预定义错误
 func (m *PageManager) GetPage(pageNo uint32) (*Page, error) {
@@ -323,6 +343,7 @@ func (m *PageManager) LoadPage(pageNo uint32) (*Page, error) {
 ```
 
 **❌ 错误示例**:
+
 ```go
 // ❌ 使用errors.New（应该使用预定义错误）
 func (m *PageManager) GetPage(pageNo uint32) (*Page, error) {
@@ -350,6 +371,7 @@ func (m *PageManager) ReadPage(pageNo uint32) (*Page, error) {
 **规则**: 使用`errors.Is`和`errors.As`检查错误
 
 **✅ 正确示例**:
+
 ```go
 // 检查特定错误
 page, err := manager.GetPage(pageNo)
@@ -367,6 +389,7 @@ if errors.As(err, &pathErr) {
 ```
 
 **❌ 错误示例**:
+
 ```go
 // ❌ 使用==比较错误（无法处理包装的错误）
 if err == ErrPageNotFound {
@@ -388,6 +411,7 @@ if err.Error() == "page not found" {
 **规则**: 每个包必须有包注释
 
 **✅ 正确示例**:
+
 ```go
 // Package types defines the core types and interfaces for the storage layer.
 // It provides unified abstractions for pages, records, indexes, and other
@@ -402,6 +426,7 @@ package types
 **规则**: 所有导出类型必须有注释，注释以类型名开头
 
 **✅ 正确示例**:
+
 ```go
 // IPageWrapper is the unified page wrapper interface.
 // All page implementations should implement this interface.
@@ -426,6 +451,7 @@ type PageManager struct {
 **规则**: 所有导出函数/方法必须有注释，注释以函数名开头
 
 **✅ 正确示例**:
+
 ```go
 // NewPageHeader creates a new PageHeader instance with the given size.
 // The size parameter specifies the total size of the page header in bytes.
@@ -448,6 +474,7 @@ func (p *Page) GetPageID() uint32 {
 **规则**: 复杂逻辑添加行内注释
 
 **✅ 正确示例**:
+
 ```go
 func (m *PageManager) AllocatePage() (uint32, error) {
     m.mu.Lock()
@@ -477,11 +504,13 @@ func (m *PageManager) AllocatePage() (uint32, error) {
 ### 1. 文件组织
 
 **规则**: 
+
 - 每个文件专注于一个主要类型或功能
 - 相关类型可以放在同一个文件中
 - 测试文件使用`_test.go`后缀
 
 **示例**:
+
 ```
 wrapper/types/
 ├── page_wrapper.go      # IPageWrapper接口定义
@@ -499,6 +528,7 @@ wrapper/types/
 **规则**: 标准库 → 第三方库 → 项目内部包
 
 **✅ 正确示例**:
+
 ```go
 import (
     // 标准库
@@ -521,36 +551,35 @@ import (
 
 ### 命名检查
 
-- [ ] 接口使用`I`前缀
-- [ ] Getter方法使用`GetXxx()`
-- [ ] Setter方法使用`SetXxx()`
-- [ ] 布尔方法使用`IsXxx()`, `HasXxx()`, `CanXxx()`
-- [ ] 构造函数使用`NewXxx()`
-- [ ] 错误变量使用`Err`前缀
+- 接口使用`I`前缀
+- Getter方法使用`GetXxx()`
+- Setter方法使用`SetXxx()`
+- 布尔方法使用`IsXxx()`, `HasXxx()`, `CanXxx()`
+- 构造函数使用`NewXxx()`
+- 错误变量使用`Err`前缀
 
 ### 错误处理检查
 
-- [ ] 使用预定义错误而不是`errors.New`
-- [ ] 使用`%w`包装错误
-- [ ] 使用`errors.Is`和`errors.As`检查错误
-- [ ] 每个包有`errors.go`文件
+- 使用预定义错误而不是`errors.New`
+- 使用`%w`包装错误
+- 使用`errors.Is`和`errors.As`检查错误
+- 每个包有`errors.go`文件
 
 ### 注释检查
 
-- [ ] 所有导出类型有注释
-- [ ] 所有导出函数/方法有注释
-- [ ] 注释以类型/函数名开头
-- [ ] 复杂逻辑有行内注释
+- 所有导出类型有注释
+- 所有导出函数/方法有注释
+- 注释以类型/函数名开头
+- 复杂逻辑有行内注释
 
 ### 代码组织检查
 
-- [ ] 导入顺序正确
-- [ ] 文件组织合理
-- [ ] 测试文件使用`_test.go`后缀
+- 导入顺序正确
+- 文件组织合理
+- 测试文件使用`_test.go`后缀
 
 ---
 
 **文档版本**: 1.0  
 **更新时间**: 2025-10-31  
 **维护者**: Augment Agent
-

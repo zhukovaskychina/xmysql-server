@@ -5,6 +5,7 @@
 **现象**: JDBC 客户端连接 xmysql-server 时，能正常完成握手，但在执行 SET 语句时客户端自动断开连接。
 
 **影响范围**: 
+
 - JDBC 连接初始化失败
 - 所有依赖 SET 语句的操作无法正常工作
 - 客户端认为服务器响应异常而断开连接
@@ -28,6 +29,7 @@ case *sqlparser.Set:
 ```
 
 **问题分析**:
+
 1. 对每个 SET 表达式都调用 `session.SendOK()`
 2. 同时向 `results` channel 发送 Result
 3. 导致**双重响应**：一次来自 `SendOK()`，一次来自 Result 处理
@@ -35,6 +37,7 @@ case *sqlparser.Set:
 5. 客户端收到多个响应包会认为协议错误，主动断开连接
 
 **示例场景**:
+
 ```sql
 -- JDBC 连接时常见的 SET 语句
 SET autocommit=1;
@@ -77,6 +80,7 @@ Result 被统一处理
 ### 3. **SET 语句处理不完整**
 
 当前实现的问题：
+
 - ✅ 能识别 SET 语句
 - ✅ 能解析 SET 表达式
 - ❌ 没有实际设置变量值
@@ -271,6 +275,7 @@ func (h *DecoupledMySQLMessageHandler) handleBusinessMessageSync(session Session
 **修改位置**: 第 260-268 行
 
 **修改前**:
+
 ```go
 case *sqlparser.Set:
     for _, expr := range stmt.Exprs {
@@ -284,6 +289,7 @@ case *sqlparser.Set:
 ```
 
 **修改后**:
+
 ```go
 case *sqlparser.Set:
     // 处理 SET 语句
@@ -298,6 +304,7 @@ case *sqlparser.Set:
 **添加位置**: 在文件末尾，与其他 execute 方法一起
 
 **完整代码**:
+
 ```go
 // executeSetStatement 执行 SET 语句
 func (e *XMySQLExecutor) executeSetStatement(ctx *ExecutionContext, stmt *sqlparser.Set, session server.MySQLServerSession) {
@@ -620,6 +627,7 @@ logger.SetLevel(logger.DEBUG)
 ### 2. 关键日志点
 
 在以下位置添加日志：
+
 - `enginx.go` 的 SET case 入口
 - `executeSetStatement` 的开始和结束
 - 每个变量设置的成功/失败
@@ -651,14 +659,14 @@ Query OK, 0 rows affected (0.00 sec)
 
 ## ✅ 验收标准
 
-- [ ] JDBC 能成功连接并初始化
-- [ ] 单个 SET 语句只返回一个响应
-- [ ] 多变量 SET 语句只返回一个响应
-- [ ] 会话变量被正确存储
-- [ ] 特殊变量（autocommit, NAMES）被正确处理
-- [ ] 无效的 SET 语句返回错误而不是崩溃
-- [ ] 日志显示完整的处理流程
-- [ ] Wireshark 抓包显示正确的协议交互
+- JDBC 能成功连接并初始化
+- 单个 SET 语句只返回一个响应
+- 多变量 SET 语句只返回一个响应
+- 会话变量被正确存储
+- 特殊变量（autocommit, NAMES）被正确处理
+- 无效的 SET 语句返回错误而不是崩溃
+- 日志显示完整的处理流程
+- Wireshark 抓包显示正确的协议交互
 
 ## 📚 相关 MySQL 协议文档
 
@@ -672,6 +680,7 @@ Query OK, 0 rows affected (0.00 sec)
 **核心问题**: SET 语句处理时重复发送响应导致协议错误
 
 **解决方案**: 
+
 1. 移除 `session.SendOK()` 直接调用
 2. 统一通过 Result channel 发送响应
 3. 实现完整的变量设置逻辑

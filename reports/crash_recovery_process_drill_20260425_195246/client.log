@@ -1,0 +1,2 @@
+mode=setup_redo failed: Error 1105: execute DELETE failed: 开始事务失败: transaction manager not initialized
+exit status 1
