@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
@@ -21,6 +22,13 @@ type StorageAdapter struct {
 	storageManager      *manager.StorageManager
 	tableStorageManager *manager.TableStorageManager
 }
+
+var (
+	ErrStorageAdapterTableStorageManagerNil = errors.New("storage adapter table storage manager is nil")
+	ErrStorageAdapterBufferPoolManagerNil   = errors.New("storage adapter buffer pool manager is nil")
+	ErrStorageAdapterSchemaNil              = errors.New("storage adapter schema is nil")
+	ErrStorageAdapterRecordNotFound         = errors.New("storage adapter record not found")
+)
 
 // NewStorageAdapter 创建存储适配器
 func NewStorageAdapter(
@@ -173,18 +181,28 @@ func (sa *StorageAdapter) ScanTable(ctx context.Context, metadata *TableScanMeta
 func (sa *StorageAdapter) GetRecordByPrimaryKey(ctx context.Context, spaceID uint32, primaryKey []byte, schema *metadata.Table) (Record, error) {
 	logger.Debugf("GetRecordByPrimaryKey: spaceID=%d, primaryKey=%v", spaceID, primaryKey)
 
+	if schema == nil {
+		return nil, ErrStorageAdapterSchemaNil
+	}
+
+	if sa.tableStorageManager == nil {
+		return nil, ErrStorageAdapterTableStorageManagerNil
+	}
+
+	if sa.bufferPoolManager == nil {
+		return nil, ErrStorageAdapterBufferPoolManagerNil
+	}
+
 	// 1. 获取表的存储信息
 	tableInfo, err := sa.tableStorageManager.GetTableBySpaceID(spaceID)
 	if err != nil {
-		logger.Debugf("Failed to get table info by spaceID %d: %v, using fallback", spaceID, err)
-		return sa.getFallbackRecord(schema), nil
+		return nil, fmt.Errorf("failed to get table storage info by spaceID %d: %w", spaceID, err)
 	}
 
 	// 2. 创建B+树管理器
 	btreeManager, err := sa.tableStorageManager.CreateBTreeManagerForTable(ctx, tableInfo.SchemaName, tableInfo.TableName)
 	if err != nil {
-		logger.Debugf("Failed to create btree manager: %v, using fallback", err)
-		return sa.getFallbackRecord(schema), nil
+		return nil, fmt.Errorf("failed to create btree manager for table %s.%s: %w", tableInfo.SchemaName, tableInfo.TableName, err)
 	}
 
 	// 3. 在B+树中查找主键
@@ -199,8 +217,7 @@ func (sa *StorageAdapter) GetRecordByPrimaryKey(ctx context.Context, spaceID uin
 
 	pageNo, slot, err := btreeManager.Search(ctx, keyInterface)
 	if err != nil {
-		logger.Debugf("Failed to search in btree: %v, using fallback", err)
-		return sa.getFallbackRecord(schema), nil
+		return nil, fmt.Errorf("failed to search primary key: %w", err)
 	}
 
 	logger.Debugf("Found record at page %d, slot %d", pageNo, slot)
@@ -208,15 +225,13 @@ func (sa *StorageAdapter) GetRecordByPrimaryKey(ctx context.Context, spaceID uin
 	// 4. 从页面读取记录
 	page, err := sa.ReadPage(ctx, spaceID, pageNo)
 	if err != nil {
-		logger.Debugf("Failed to read page %d: %v, using fallback", pageNo, err)
-		return sa.getFallbackRecord(schema), nil
+		return nil, fmt.Errorf("failed to read page %d for primary key lookup: %w", pageNo, err)
 	}
 
 	// 5. 解析页面中的记录
 	records, err := sa.ParseRecords(ctx, page, schema)
 	if err != nil {
-		logger.Debugf("Failed to parse records: %v, using fallback", err)
-		return sa.getFallbackRecord(schema), nil
+		return nil, fmt.Errorf("failed to parse records while resolving primary key: %w", err)
 	}
 
 	// 6. 返回指定槽位的记录
@@ -224,27 +239,8 @@ func (sa *StorageAdapter) GetRecordByPrimaryKey(ctx context.Context, spaceID uin
 		return records[slot], nil
 	}
 
-	logger.Debugf("Slot %d out of range (total records: %d), using fallback", slot, len(records))
-	return sa.getFallbackRecord(schema), nil
-}
-
-// getFallbackRecord 返回模拟记录（当实际查找失败时使用）
-func (sa *StorageAdapter) getFallbackRecord(schema *metadata.Table) Record {
-	values := make([]basic.Value, len(schema.Columns))
-	for i, col := range schema.Columns {
-		// 根据列类型创建默认值
-		switch col.DataType {
-		case metadata.TypeInt, metadata.TypeBigInt:
-			values[i] = basic.NewInt64(int64(i + 1))
-		case metadata.TypeVarchar, metadata.TypeChar:
-			values[i] = basic.NewString(fmt.Sprintf("value_%d", i+1))
-		case metadata.TypeFloat, metadata.TypeDouble:
-			values[i] = basic.NewFloat64(float64(i + 1))
-		default:
-			values[i] = basic.NewString("")
-		}
-	}
-	return NewExecutorRecordFromValues(values, metadata.FromTable(schema))
+	logger.Warnf("GetRecordByPrimaryKey: slot %d out of range (total records: %d), schema=%s", slot, len(records), schema.Name)
+	return nil, fmt.Errorf("%w: slot %d out of range for page %d (total records: %d)", ErrStorageAdapterRecordNotFound, slot, pageNo, len(records))
 }
 
 // TableScanMetadata 表扫描元数据

@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -27,15 +28,24 @@ func NewInnoDBEngineAccess(config *conf.Cfg, xmysqlEngine *engine.XMySQLEngine) 
 	}
 }
 
+// escapeStringLiteral 对SQL字符串字面量进行最小转义处理，避免认证查询中的拼接风险
+func escapeStringLiteral(value string) string {
+	value = strings.ReplaceAll(value, `\\`, `\\\\`)
+	return strings.ReplaceAll(value, `'`, `''`)
+}
+
 // QueryUser 查询用户信息
 func (ea *InnoDBEngineAccess) QueryUser(ctx context.Context, user, host string) (*UserInfo, error) {
+	escapedUser := escapeStringLiteral(user)
+	escapedHost := escapeStringLiteral(host)
+
 	// 构造查询SQL
 	sql := fmt.Sprintf(`
 		SELECT User, Host, authentication_string, account_locked, password_expired, 
 		       max_connections, max_user_connections
 		FROM mysql.user 
 		WHERE User = '%s' AND Host = '%s'
-	`, user, host)
+	`, escapedUser, escapedHost)
 
 	// 执行查询
 	result, err := ea.executeQuery(ctx, sql, "mysql")
@@ -66,6 +76,7 @@ func (ea *InnoDBEngineAccess) QueryUser(ctx context.Context, user, host string) 
 
 // queryUserWithWildcard 使用通配符查询用户
 func (ea *InnoDBEngineAccess) queryUserWithWildcard(ctx context.Context, user, host string) (*UserInfo, error) {
+	escapedUser := escapeStringLiteral(user)
 	// 查询所有可能匹配的用户
 	sql := fmt.Sprintf(`
 		SELECT User, Host, authentication_string, account_locked, password_expired, 
@@ -73,7 +84,7 @@ func (ea *InnoDBEngineAccess) queryUserWithWildcard(ctx context.Context, user, h
 		FROM mysql.user 
 		WHERE User = '%s'
 		ORDER BY Host DESC
-	`, user)
+	`, escapedUser)
 
 	result, err := ea.executeQuery(ctx, sql, "mysql")
 	if err != nil {
@@ -104,12 +115,13 @@ func (ea *InnoDBEngineAccess) queryUserWithWildcard(ctx context.Context, user, h
 
 // QueryDatabase 查询数据库信息
 func (ea *InnoDBEngineAccess) QueryDatabase(ctx context.Context, database string) (*DatabaseInfo, error) {
+	escapedDatabase := escapeStringLiteral(database)
 	// 查询INFORMATION_SCHEMA.SCHEMATA
 	sql := fmt.Sprintf(`
 		SELECT SCHEMA_NAME, DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME
 		FROM INFORMATION_SCHEMA.SCHEMATA 
 		WHERE SCHEMA_NAME = '%s'
-	`, database)
+	`, escapedDatabase)
 
 	result, err := ea.executeQuery(ctx, sql, "INFORMATION_SCHEMA")
 	if err != nil {
@@ -132,6 +144,9 @@ func (ea *InnoDBEngineAccess) QueryDatabase(ctx context.Context, database string
 
 // QueryUserPrivileges 查询用户全局权限
 func (ea *InnoDBEngineAccess) QueryUserPrivileges(ctx context.Context, user, host string) ([]common.PrivilegeType, error) {
+	escapedUser := escapeStringLiteral(user)
+	escapedHost := escapeStringLiteral(host)
+
 	sql := fmt.Sprintf(`
 		SELECT Select_priv, Insert_priv, Update_priv, Delete_priv, Create_priv, Drop_priv,
 		       Reload_priv, Shutdown_priv, Process_priv, File_priv, Grant_priv, References_priv,
@@ -141,7 +156,7 @@ func (ea *InnoDBEngineAccess) QueryUserPrivileges(ctx context.Context, user, hos
 		       Create_user_priv, Event_priv, Trigger_priv, Create_tablespace_priv
 		FROM mysql.user 
 		WHERE User = '%s' AND Host = '%s'
-	`, user, host)
+	`, escapedUser, escapedHost)
 
 	result, err := ea.executeQuery(ctx, sql, "mysql")
 	if err != nil {
@@ -149,7 +164,33 @@ func (ea *InnoDBEngineAccess) QueryUserPrivileges(ctx context.Context, user, hos
 	}
 
 	if len(result.Rows) == 0 {
-		return []common.PrivilegeType{}, nil
+		fallbackSQL := fmt.Sprintf(`
+			SELECT Select_priv, Insert_priv, Update_priv, Delete_priv, Create_priv, Drop_priv,
+			       Reload_priv, Shutdown_priv, Process_priv, File_priv, Grant_priv, References_priv,
+			       Index_priv, Alter_priv, Show_db_priv, Super_priv, Create_tmp_table_priv,
+			       Lock_tables_priv, Execute_priv, Repl_slave_priv, Repl_client_priv,
+			       Create_view_priv, Show_view_priv, Create_routine_priv, Alter_routine_priv,
+			       Create_user_priv, Event_priv, Trigger_priv, Create_tablespace_priv
+			FROM mysql.user 
+			WHERE User = '%s'
+		`, escapedUser)
+
+		fallbackResult, fallbackErr := ea.executeQuery(ctx, fallbackSQL, "mysql")
+		if fallbackErr != nil {
+			return nil, fmt.Errorf("failed to query user privileges with wildcard: %v", fallbackErr)
+		}
+
+		for _, row := range fallbackResult.Rows {
+			if len(row) > 1 && ea.matchHost(host, ea.getString(row, 1)) {
+				result.Rows = [][]interface{}{row}
+				result.Columns = fallbackResult.Columns
+				break
+			}
+		}
+
+		if len(result.Rows) == 0 {
+			return []common.PrivilegeType{}, nil
+		}
 	}
 
 	row := result.Rows[0]
@@ -199,6 +240,10 @@ func (ea *InnoDBEngineAccess) QueryUserPrivileges(ctx context.Context, user, hos
 
 // QueryDatabasePrivileges 查询数据库权限
 func (ea *InnoDBEngineAccess) QueryDatabasePrivileges(ctx context.Context, user, host, database string) ([]common.PrivilegeType, error) {
+	escapedUser := escapeStringLiteral(user)
+	escapedHost := escapeStringLiteral(host)
+	escapedDatabase := escapeStringLiteral(database)
+
 	sql := fmt.Sprintf(`
 		SELECT Select_priv, Insert_priv, Update_priv, Delete_priv, Create_priv, Drop_priv,
 		       Grant_priv, References_priv, Index_priv, Alter_priv, Create_tmp_table_priv,
@@ -206,7 +251,7 @@ func (ea *InnoDBEngineAccess) QueryDatabasePrivileges(ctx context.Context, user,
 		       Alter_routine_priv, Execute_priv, Event_priv, Trigger_priv
 		FROM mysql.db 
 		WHERE User = '%s' AND Host = '%s' AND Db = '%s'
-	`, user, host, database)
+	`, escapedUser, escapedHost, escapedDatabase)
 
 	result, err := ea.executeQuery(ctx, sql, "mysql")
 	if err != nil {
@@ -214,7 +259,31 @@ func (ea *InnoDBEngineAccess) QueryDatabasePrivileges(ctx context.Context, user,
 	}
 
 	if len(result.Rows) == 0 {
-		return []common.PrivilegeType{}, nil
+		fallbackSQL := fmt.Sprintf(`
+			SELECT Select_priv, Insert_priv, Update_priv, Delete_priv, Create_priv, Drop_priv,
+			       Grant_priv, References_priv, Index_priv, Alter_priv, Create_tmp_table_priv,
+			       Lock_tables_priv, Create_view_priv, Show_view_priv, Create_routine_priv,
+			       Alter_routine_priv, Execute_priv, Event_priv, Trigger_priv
+			FROM mysql.db 
+			WHERE User = '%s' AND Db = '%s'
+		`, escapedUser, escapedDatabase)
+
+		fallbackResult, fallbackErr := ea.executeQuery(ctx, fallbackSQL, "mysql")
+		if fallbackErr != nil {
+			return nil, fmt.Errorf("failed to query database privileges with wildcard: %v", fallbackErr)
+		}
+
+		for _, row := range fallbackResult.Rows {
+			if len(row) > 1 && ea.matchHost(host, ea.getString(row, 1)) {
+				result.Rows = [][]interface{}{row}
+				result.Columns = fallbackResult.Columns
+				break
+			}
+		}
+
+		if len(result.Rows) == 0 {
+			return []common.PrivilegeType{}, nil
+		}
 	}
 
 	row := result.Rows[0]
@@ -254,11 +323,16 @@ func (ea *InnoDBEngineAccess) QueryDatabasePrivileges(ctx context.Context, user,
 
 // QueryTablePrivileges 查询表权限
 func (ea *InnoDBEngineAccess) QueryTablePrivileges(ctx context.Context, user, host, database, table string) ([]common.PrivilegeType, error) {
+	escapedUser := escapeStringLiteral(user)
+	escapedHost := escapeStringLiteral(host)
+	escapedDatabase := escapeStringLiteral(database)
+	escapedTable := escapeStringLiteral(table)
+
 	sql := fmt.Sprintf(`
 		SELECT Table_priv
 		FROM mysql.tables_priv 
 		WHERE User = '%s' AND Host = '%s' AND Db = '%s' AND Table_name = '%s'
-	`, user, host, database, table)
+	`, escapedUser, escapedHost, escapedDatabase, escapedTable)
 
 	result, err := ea.executeQuery(ctx, sql, "mysql")
 	if err != nil {
@@ -266,7 +340,28 @@ func (ea *InnoDBEngineAccess) QueryTablePrivileges(ctx context.Context, user, ho
 	}
 
 	if len(result.Rows) == 0 {
-		return []common.PrivilegeType{}, nil
+		fallbackSQL := fmt.Sprintf(`
+			SELECT User, Host, Table_priv
+			FROM mysql.tables_priv 
+			WHERE User = '%s' AND Db = '%s' AND Table_name = '%s'
+		`, escapedUser, escapedDatabase, escapedTable)
+
+		fallbackResult, fallbackErr := ea.executeQuery(ctx, fallbackSQL, "mysql")
+		if fallbackErr != nil {
+			return nil, fmt.Errorf("failed to query table privileges with wildcard: %v", fallbackErr)
+		}
+
+		for _, row := range fallbackResult.Rows {
+			if len(row) > 2 && ea.matchHost(host, ea.getString(row, 1)) {
+				result.Rows = [][]interface{}{{row[2]}}
+				result.Columns = fallbackResult.Columns
+				break
+			}
+		}
+
+		if len(result.Rows) == 0 {
+			return []common.PrivilegeType{}, nil
+		}
 	}
 
 	row := result.Rows[0]
@@ -435,19 +530,24 @@ type QueryResult struct {
 
 // 辅助方法
 func (ea *InnoDBEngineAccess) getString(row []interface{}, index int) string {
+	normalizeString := func(v string) string {
+		v = strings.TrimRight(v, "\x00")
+		return strings.TrimSpace(v)
+	}
+
 	if index >= len(row) || row[index] == nil {
 		return ""
 	}
 	if str, ok := row[index].(string); ok {
-		return str
+		return normalizeString(str)
 	}
 	// 处理字节数组（例如密码哈希）
 	if bytes, ok := row[index].([]byte); ok {
 		// 如果是字节数组，直接转换为字符串
 		// 对于密码哈希，它应该已经是 "*HEXSTRING" 格式
-		return string(bytes)
+		return normalizeString(string(bytes))
 	}
-	return fmt.Sprintf("%v", row[index])
+	return normalizeString(fmt.Sprintf("%v", row[index]))
 }
 
 func (ea *InnoDBEngineAccess) getBool(row []interface{}, index int) bool {
@@ -458,12 +558,17 @@ func (ea *InnoDBEngineAccess) getBool(row []interface{}, index int) bool {
 	switch v := row[index].(type) {
 	case bool:
 		return v
+	case []byte:
+		vStr := strings.ToUpper(strings.TrimSpace(string(v)))
+		return vStr == "Y" || vStr == "YES" || vStr == "1"
 	case string:
-		return strings.ToUpper(v) == "Y" || strings.ToUpper(v) == "YES" || v == "1"
+		vStr := strings.ToUpper(strings.TrimSpace(v))
+		return vStr == "Y" || vStr == "YES" || vStr == "1"
 	case int, int64:
 		return v != 0
 	default:
 		str := fmt.Sprintf("%v", v)
+		str = strings.TrimSpace(str)
 		return strings.ToUpper(str) == "Y" || strings.ToUpper(str) == "YES" || str == "1"
 	}
 }
@@ -492,6 +597,9 @@ func (ea *InnoDBEngineAccess) getInt(row []interface{}, index int) int {
 
 // matchHost 匹配主机模式
 func (ea *InnoDBEngineAccess) matchHost(host, pattern string) bool {
+	if host == "" || pattern == "" {
+		return false
+	}
 	if pattern == "%" {
 		return true
 	}
@@ -500,12 +608,15 @@ func (ea *InnoDBEngineAccess) matchHost(host, pattern string) bool {
 	}
 
 	// 简单的通配符匹配
-	if strings.Contains(pattern, "%") {
-		// 将%替换为.*进行正则匹配
-		regexPattern := strings.ReplaceAll(pattern, "%", ".*")
+	if strings.Contains(pattern, "%") || strings.Contains(pattern, "_") {
+		regexPattern := regexp.QuoteMeta(pattern)
+		regexPattern = strings.ReplaceAll(regexPattern, "%", ".*")
+		regexPattern = strings.ReplaceAll(regexPattern, "_", ".")
 		regexPattern = "^" + regexPattern + "$"
-		// 这里简化处理，实际应该使用正则表达式
-		return strings.Contains(host, strings.ReplaceAll(pattern, "%", ""))
+		matched, err := regexp.MatchString(regexPattern, host)
+		if err == nil {
+			return matched
+		}
 	}
 
 	return false

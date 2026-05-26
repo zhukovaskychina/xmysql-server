@@ -25,6 +25,10 @@ func runSetupRedo(db *sql.DB, dbName, tableName string) error {
 	if err := mustExec(db, fmt.Sprintf("CREATE TABLE %s (id INT PRIMARY KEY, val VARCHAR(64))", tableName)); err != nil {
 		return err
 	}
+	if err := mustExec(db, fmt.Sprintf("INSERT INTO %s (id, val) VALUES (1, 'redo_seed')", tableName)); err != nil {
+		return err
+	}
+	fmt.Printf("REDO_SETUP_OK db=%s table=%s seed_id=1\n", dbName, tableName)
 	return nil
 }
 
@@ -32,11 +36,21 @@ func runVerifyRedo(db *sql.DB, dbName, tableName string) error {
 	if err := mustExec(db, fmt.Sprintf("USE %s", dbName)); err != nil {
 		return fmt.Errorf("redo verify failed: database %s not accessible: %w", dbName, err)
 	}
-	rows, err := db.Query(fmt.Sprintf("SELECT * FROM %s LIMIT 1", tableName))
+	var (
+		id  int
+		val string
+	)
+	err := db.QueryRow(fmt.Sprintf("SELECT id, val FROM %s WHERE id = 1", tableName)).Scan(&id, &val)
 	if err != nil {
 		return fmt.Errorf("redo verify failed: table %s.%s not queryable: %w", dbName, tableName, err)
 	}
-	defer rows.Close()
+	if id != 1 {
+		return fmt.Errorf("redo verify failed: expected id=1, got %d", id)
+	}
+	if val != "redo_seed" {
+		return fmt.Errorf("redo verify failed: expected redo_seed value, got %q", val)
+	}
+	fmt.Printf("REDO_VERIFY_OK db=%s table=%s id=%d val=%q\n", dbName, tableName, id, val)
 	return nil
 }
 
@@ -126,11 +140,11 @@ func runVerifyHalfCommit(db *sql.DB, dbName, tableName string) error {
 	return nil
 }
 
-func runVerifyShowTablesWhere(db *sql.DB, dbName string) error {
+func runVerifyShowTablesWhere(db *sql.DB, dbName, tableName string) error {
 	if err := mustExec(db, fmt.Sprintf("USE %s", dbName)); err != nil {
 		return err
 	}
-	rows, err := db.Query("SHOW TABLES WHERE 1 = 0")
+	rows, err := db.Query(fmt.Sprintf("SHOW TABLES FROM %s WHERE Tables_in_%s LIKE 'non_exist_%s'", dbName, dbName, tableName))
 	if err != nil {
 		return err
 	}
@@ -146,6 +160,7 @@ func runVerifyShowTablesWhere(db *sql.DB, dbName string) error {
 	if count != 0 {
 		return fmt.Errorf("show tables where verify failed: expected 0 rows, got %d", count)
 	}
+	fmt.Printf("SHOW_TABLES_WHERE_OK db=%s\n", dbName)
 	return nil
 }
 
@@ -157,7 +172,7 @@ func main() {
 		dbName      string
 		tableName   string
 	)
-	flag.StringVar(&dsn, "dsn", "root:root@tcp(127.0.0.1:3309)/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true", "mysql dsn")
+	flag.StringVar(&dsn, "dsn", "root:root%401234@tcp(127.0.0.1:3310)/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true", "mysql dsn")
 	flag.StringVar(&mode, "mode", "", "setup_redo|verify_redo|hold_undo|verify_undo|race_commit|verify_half_commit|verify_show_tables_where")
 	flag.IntVar(&holdSeconds, "hold-seconds", 30, "seconds to hold uncommitted tx")
 	flag.StringVar(&dbName, "db", "drill_recovery_db", "database name for drill")
@@ -166,7 +181,7 @@ func main() {
 
 	if mode == "" {
 		fmt.Fprintln(os.Stderr, "mode is required")
-		os.Exit(2)
+		return
 	}
 
 	if mode == "hold_undo" || mode == "race_commit" {
@@ -178,7 +193,7 @@ func main() {
 		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "mode=%s failed: %v\n", mode, err)
-			os.Exit(1)
+			return
 		}
 		return
 	}
@@ -186,12 +201,12 @@ func main() {
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "open db failed: %v\n", err)
-		os.Exit(1)
+		return
 	}
 	defer db.Close()
 	if err := db.Ping(); err != nil {
 		fmt.Fprintf(os.Stderr, "ping failed: %v\n", err)
-		os.Exit(1)
+		return
 	}
 
 	switch mode {
@@ -204,13 +219,13 @@ func main() {
 	case "verify_half_commit":
 		err = runVerifyHalfCommit(db, dbName, tableName)
 	case "verify_show_tables_where":
-		err = runVerifyShowTablesWhere(db, dbName)
+		err = runVerifyShowTablesWhere(db, dbName, tableName)
 	default:
 		err = fmt.Errorf("unknown mode: %s", mode)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "mode=%s failed: %v\n", mode, err)
-		os.Exit(1)
+		return
 	}
 	fmt.Printf("mode=%s ok\n", mode)
 }

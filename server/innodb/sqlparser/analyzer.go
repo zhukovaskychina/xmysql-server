@@ -175,7 +175,7 @@ func IsValue(node Expr) bool {
 	switch v := node.(type) {
 	case *SQLVal:
 		switch v.Type {
-		case basic.StrVal, basic.HexVal, basic.IntVal, basic.ValArg:
+		case StrVal, basic.StrVal, HexVal, basic.HexVal, IntVal, basic.IntVal, ValArg, basic.ValArg:
 			return true
 		}
 	}
@@ -214,20 +214,23 @@ func NewPlanValue(node Expr) (sqltypes.PlanValue, error) {
 	switch node := node.(type) {
 	case *SQLVal:
 		switch node.Type {
-		case basic.ValArg:
+		case ValArg, basic.ValArg:
 			return sqltypes.PlanValue{Key: string(node.Val[1:])}, nil
-		case basic.IntVal:
+		case IntVal, basic.IntVal:
 			n, err := sqltypes.NewIntegral(string(node.Val))
 			if err != nil {
-				return sqltypes.PlanValue{}, fmt.Errorf("%v", err)
+				if strings.Contains(err.Error(), "out of range") {
+					return sqltypes.PlanValue{}, fmt.Errorf("valueImpl out of range: %v", err)
+				}
+				return sqltypes.PlanValue{}, fmt.Errorf("valueImpl %v", err)
 			}
 			return sqltypes.PlanValue{Value: n}, nil
-		case basic.StrVal:
+		case StrVal, basic.StrVal:
 			return sqltypes.PlanValue{Value: sqltypes.MakeTrusted(sqltypes.VarBinary, node.Val)}, nil
-		case basic.HexVal:
+		case HexVal, basic.HexVal:
 			v, err := node.HexDecode()
 			if err != nil {
-				return sqltypes.PlanValue{}, fmt.Errorf("%v", err)
+				return sqltypes.PlanValue{}, fmt.Errorf("valueImpl %v", err)
 			}
 			return sqltypes.PlanValue{Value: sqltypes.MakeTrusted(sqltypes.VarBinary, v)}, nil
 		}
@@ -314,9 +317,9 @@ func ExtractSetValues(sql string) (keyValues map[SetKey]interface{}, scope strin
 		switch expr := expr.Expr.(type) {
 		case *SQLVal:
 			switch expr.Type {
-			case basic.StrVal:
+			case StrVal, basic.StrVal:
 				result[setKey] = strings.ToLower(string(expr.Val))
-			case basic.IntVal:
+			case IntVal, basic.IntVal:
 				num, err := strconv.ParseInt(string(expr.Val), 0, 64)
 				if err != nil {
 					return nil, "", err

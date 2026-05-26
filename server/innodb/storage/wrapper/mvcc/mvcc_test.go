@@ -2,8 +2,8 @@ package mvcc
 
 import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	formatmvcc "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/format/mvcc"
 	"testing"
-	"time"
 )
 
 func TestRecordVersion(t *testing.T) {
@@ -11,7 +11,7 @@ func TestRecordVersion(t *testing.T) {
 	key := basic.NewStringValue("test_key")
 	row := basic.NewRow([]byte("test_data"))
 
-	record := NewRecordVersion(1, 100, key, row)
+	record := formatmvcc.NewRecordVersion(1, 100, 0, key, row)
 
 	if record.GetVersion() != 1 {
 		t.Errorf("Expected version 1, got %d", record.GetVersion())
@@ -83,7 +83,7 @@ func TestPageSnapshot(t *testing.T) {
 	// 测试添加记录
 	key := basic.NewStringValue("test_key")
 	row := basic.NewRow([]byte("test_data"))
-	record := NewRecordVersion(1, 100, key, row)
+	record := formatmvcc.NewRecordVersion(1, 100, 0, key, row)
 
 	snapshot.AddRecord(1, record)
 
@@ -153,10 +153,10 @@ func TestReadView(t *testing.T) {
 	txID := uint64(100)
 	activeTxIDs := []uint64{90, 95, 105, 110}
 
-	readView := NewReadView(txID, activeTxIDs)
+	readView := formatmvcc.NewReadView(activeTxIDs, txID, txID+20)
 
-	if readView.TxID != txID {
-		t.Errorf("Expected txID %d, got %d", txID, readView.TxID)
+	if readView.GetTxID() != txID {
+		t.Errorf("Expected txID %d, got %d", txID, readView.GetTxID())
 	}
 
 	// 测试可见性
@@ -168,7 +168,7 @@ func TestReadView(t *testing.T) {
 		t.Error("Transaction before low watermark should be visible")
 	}
 
-	if readView.IsVisible(120) {
+	if readView.IsVisible(130) {
 		t.Error("Transaction after high watermark should not be visible")
 	}
 
@@ -210,9 +210,9 @@ func TestVersionChain(t *testing.T) {
 	row3 := basic.NewRow([]byte("version3"))
 
 	// 创建版本链
-	v1 := NewRecordVersion(1, 100, key, row1)
-	v2 := NewRecordVersion(2, 101, key, row2)
-	v3 := NewRecordVersion(3, 102, key, row3)
+	v1 := formatmvcc.NewRecordVersion(1, 100, 0, key, row1)
+	v2 := formatmvcc.NewRecordVersion(2, 101, 0, key, row2)
+	v3 := formatmvcc.NewRecordVersion(3, 102, 0, key, row3)
 
 	// 建立版本链：v3 -> v2 -> v1
 	v3.SetNext(v2)
@@ -230,8 +230,8 @@ func TestVersionChain(t *testing.T) {
 	}
 
 	// 测试可见性
-	readTime := time.Now()
-	visible := v3.GetLatestVisibleVersion(100, readTime)
+	readView := formatmvcc.NewReadView([]uint64{95}, 100, 200)
+	visible := v3.GetLatestVisibleVersion(readView)
 	if visible == nil {
 		t.Error("Should find visible version")
 	}

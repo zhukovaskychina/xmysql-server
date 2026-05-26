@@ -74,7 +74,8 @@ func (srv *MySQLServer) Start() {
 	// 启动 XMySQL 引擎 (包括恢复和后台任务)
 	if srv.xmysqlEngine != nil {
 		if err := srv.xmysqlEngine.Start(context.Background()); err != nil {
-			panic(fmt.Sprintf("Failed to start XMySQL Engine: %v", err))
+			log.Error("Failed to start XMySQL Engine: %v", err)
+			return
 		}
 	}
 
@@ -128,7 +129,7 @@ func (srv *MySQLServer) initServer(conf *conf.Cfg) {
 		}
 		tcpConn, ok := session.Conn().(*net.TCPConn)
 		if !ok {
-			panic(fmt.Sprintf("%s, session.conn{%#v} is not tcp connection", session.Stat(), session.Conn()))
+			return fmt.Errorf("%s, session.Conn{%#v} is not tcp connection", session.Stat(), session.Conn())
 		}
 		tcpConn.SetNoDelay(conf.MySQLSessionParam.TcpNoDelay)
 		tcpConn.SetKeepAlive(conf.MySQLSessionParam.TcpKeepAlive)

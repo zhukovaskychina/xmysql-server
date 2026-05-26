@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
@@ -75,16 +76,22 @@ func (e *XMySQLEngine) Start(ctx context.Context) error {
 	logger.Info("🚀 Starting XMySQL Engine...")
 
 	// 1. 执行崩溃恢复
-	logger.Info("🏥 Performing crash recovery...")
-	if err := e.crashRecovery.Recover(); err != nil {
-		return fmt.Errorf("crash recovery failed: %v", err)
+	if e.crashRecovery != nil {
+		logger.Info("🏥 Performing crash recovery...")
+		if err := e.crashRecovery.Recover(); err != nil {
+			return fmt.Errorf("crash recovery failed: %v", err)
+		}
+		logger.Info("✅ Crash recovery completed successfully")
+	} else {
+		logger.Warnf("crash recovery unavailable, skip recovery step for degraded mode")
 	}
-	logger.Info("✅ Crash recovery completed successfully")
 
 	// 2. 启动检查点管理器
-	logger.Info("💾 Starting Checkpoint Manager...")
-	if err := e.checkpointManager.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start checkpoint manager: %v", err)
+	if e.checkpointManager != nil {
+		logger.Info("💾 Starting Checkpoint Manager...")
+		if err := e.checkpointManager.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start checkpoint manager: %v", err)
+		}
 	}
 
 	logger.Info("✅ XMySQL Engine started successfully")
@@ -155,7 +162,9 @@ func (e *XMySQLEngine) initTxnLayer() {
 
 	txManager, err := manager.NewTransactionManager(redoDir, undoDir)
 	if err != nil {
-		panic(fmt.Errorf("failed to init TransactionManager: %w", err))
+		logger.Warnf("failed to init TransactionManager, continue with reduced transaction features: %v", err)
+		e.txManager = nil
+		return
 	}
 	e.txManager = txManager
 }
@@ -202,6 +211,20 @@ func (e *XMySQLEngine) initRecoveryLayer() {
 	bufferPoolMgr := e.storageMgr.GetBufferPoolManager()
 	e.checkpointManager = NewCheckpointManager(dataDir, bufferPoolMgr)
 
+	if e.txManager == nil {
+		logger.Warnf("transaction manager is not initialized, skip crash recovery initialization")
+		e.crashRecovery = nil
+		return
+	}
+
+	redoLogManager := e.txManager.GetRedoLogManager()
+	undoLogManager := e.txManager.GetUndoLogManager()
+	if redoLogManager == nil || undoLogManager == nil {
+		logger.Warnf("transaction managers missing (redo=%v undo=%v), skip crash recovery initialization", redoLogManager != nil, undoLogManager != nil)
+		e.crashRecovery = nil
+		return
+	}
+
 	// 2. 初始化 CrashRecovery
 	// 需要从 CheckpointManager 获取最新的 Checkpoint LSN
 	var checkpointLSN uint64 = 0
@@ -217,8 +240,8 @@ func (e *XMySQLEngine) initRecoveryLayer() {
 	}
 
 	e.crashRecovery = manager.NewCrashRecovery(
-		e.txManager.GetRedoLogManager(),
-		e.txManager.GetUndoLogManager(),
+		redoLogManager,
+		undoLogManager,
 		checkpointLSN,
 	)
 
@@ -262,6 +285,7 @@ func (e *XMySQLEngine) initQueryExecutor() {
 			e.storageMgr,
 			tableStorageManager, // 创建新的表存储映射管理器
 		)
+		e.QueryExecutor.SetTransactionManager(e.txManager)
 
 		// 将管理器注入 StorageManager，供集成层等通过 GetTableManager/GetTableStorageManager 等统一获取
 		e.storageMgr.SetTableManager(tableManager)
@@ -319,7 +343,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			case "create":
 				// 从会话中获取当前数据库
 				currentDB := databaseName
-				if currentDB == "" {
+				if currentDB == "" && session != nil {
 					if dbParam := session.GetParamByName("database"); dbParam != nil {
 						if db, ok := dbParam.(string); ok {
 							currentDB = db
@@ -331,7 +355,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			case "drop":
 				// 从会话中获取当前数据库
 				currentDB := databaseName
-				if currentDB == "" {
+				if currentDB == "" && session != nil {
 					if dbParam := session.GetParamByName("database"); dbParam != nil {
 						if db, ok := dbParam.(string); ok {
 							currentDB = db
@@ -357,7 +381,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 		case *sqlparser.Show:
 			// 处理 SHOW 语句
 			logger.Debugf(" [XMySQLEngine.ExecuteQuery] 处理SHOW语句: %s", stmt.Type)
-			e.QueryExecutor.executeShowStatement(ctx, stmt, session)
+			e.QueryExecutor.executeShowStatementWithQuery(ctx, stmt, session, query)
 
 		case *sqlparser.Set:
 			// SET 语句需要统一由执行器处理，避免在协议层重复发送OK包
@@ -386,7 +410,8 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 		case *sqlparser.Insert:
 			// 处理INSERT语句
 			logger.Debugf(" 处理INSERT语句")
-			result, err := e.QueryExecutor.executeInsertStatement(ctx, stmt, databaseName)
+			explicitSchema := strings.TrimSpace(stmt.Table.Qualifier.String())
+			result, err := e.QueryExecutor.executeInsertStatement(ctx, stmt, e.resolveDmlDatabaseName(session, databaseName, explicitSchema))
 			if err != nil {
 				results <- &Result{Err: err, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("INSERT failed: %v", err)}
 			} else {
@@ -400,7 +425,8 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 		case *sqlparser.Update:
 			// 处理UPDATE语句
 			logger.Debugf("✏️ 处理UPDATE语句")
-			result, err := e.QueryExecutor.executeUpdateStatement(ctx, stmt, databaseName)
+			explicitSchema := e.extractTableExprSchema(stmt.TableExprs)
+			result, err := e.QueryExecutor.executeUpdateStatement(ctx, stmt, e.resolveDmlDatabaseName(session, databaseName, explicitSchema))
 			if err != nil {
 				results <- &Result{Err: err, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("UPDATE failed: %v", err)}
 			} else {
@@ -414,7 +440,8 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 		case *sqlparser.Delete:
 			// 处理DELETE语句
 			logger.Debugf("🗑️ 处理DELETE语句")
-			result, err := e.QueryExecutor.executeDeleteStatement(ctx, stmt, databaseName)
+			explicitSchema := e.extractTableExprSchema(stmt.TableExprs)
+			result, err := e.QueryExecutor.executeDeleteStatement(ctx, stmt, e.resolveDmlDatabaseName(session, databaseName, explicitSchema))
 			if err != nil {
 				results <- &Result{Err: err, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("DELETE failed: %v", err)}
 			} else {
@@ -431,4 +458,55 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 	}()
 
 	return results
+}
+
+// resolveDmlDatabaseName 根据 DML 语句返回最终数据库名：
+// 1) SQL 显式库名优先
+// 2) 否则优先使用会话库（如存在）
+// 3) 否则回退到入参数据库名
+// 4) 对入参为系统库 mysql 的特殊处理：避免把它当作默认数据库污染到未显式表名的 DML
+func (e *XMySQLEngine) resolveDmlDatabaseName(session server.MySQLServerSession, fallbackSchema string, explicitSchema string) string {
+	explicitSchema = strings.TrimSpace(explicitSchema)
+	if explicitSchema != "" {
+		return explicitSchema
+	}
+
+	sessionSchema := ""
+	if session != nil {
+		if dbParam := session.GetParamByName("database"); dbParam != nil {
+			if db, ok := dbParam.(string); ok {
+				sessionSchema = strings.TrimSpace(db)
+			}
+		}
+	}
+
+	fallbackSchema = strings.TrimSpace(fallbackSchema)
+	if sessionSchema != "" && strings.EqualFold(fallbackSchema, "mysql") {
+		logger.Debugf(" [XMySQLEngine.resolveDmlDatabaseName] 入口数据库为mysql，使用会话数据库: %s", sessionSchema)
+		return sessionSchema
+	}
+
+	if fallbackSchema == "" {
+		return sessionSchema
+	}
+
+	return fallbackSchema
+}
+
+func (e *XMySQLEngine) extractTableExprSchema(tableExprs []sqlparser.TableExpr) string {
+	if len(tableExprs) == 0 {
+		return ""
+	}
+
+	tableExpr, ok := tableExprs[0].(*sqlparser.AliasedTableExpr)
+	if !ok {
+		return ""
+	}
+
+	tableName, ok := tableExpr.Expr.(sqlparser.TableName)
+	if !ok {
+		return ""
+	}
+
+	return strings.TrimSpace(tableName.Qualifier.String())
 }

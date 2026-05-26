@@ -3,6 +3,8 @@ package page
 import (
 	"encoding/binary"
 	"errors"
+	"time"
+
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
@@ -31,6 +33,11 @@ var (
 //
 //	// New code:
 //	page := types.NewUnifiedPage(spaceID, id, pageType)
+//
+// 迁移约束：
+// - 页面入口统一从 page/page_factory.go 的 newFallbackPageWrapper 入手。
+// - 新增代码不得新增 NewBasePageWrapper 调用。
+// - legacy 调用仅允许出现在已有兼容层（含回归与历史页面实现）中。
 type BasePageWrapper struct {
 	sync.RWMutex
 
@@ -47,14 +54,19 @@ type BasePageWrapper struct {
 
 	// 脏页标记
 	dirty bool
+	state basic.PageState
+	stats basic.PageStats
 
 	content    []byte
 	bufferPage *buffer_pool.BufferPage
+	pinCount   int32
 }
 
 // NewBasePageWrapper 创建基础页面包装器
 //
 // Deprecated: Use types.NewUnifiedPage instead
+//
+// 说明：该构造函数仅保留兼容老实现，不作为新增页面创建入口。
 func NewBasePageWrapper(id, spaceID uint32, typ common.PageType) *BasePageWrapper {
 	header := pages.NewFileHeader()
 	header.WritePageOffset(id)
@@ -71,6 +83,7 @@ func NewBasePageWrapper(id, spaceID uint32, typ common.PageType) *BasePageWrappe
 		header:   &header,
 		trailer:  &trailer,
 		content:  make([]byte, 16384),
+		state:    basic.PageStateClean,
 	}
 }
 
@@ -150,7 +163,10 @@ func (p *BasePageWrapper) ParseFromBytes(content []byte) error {
 func (p *BasePageWrapper) ToBytes() ([]byte, error) {
 	p.RLock()
 	defer p.RUnlock()
+	return p.serializeLocked()
+}
 
+func (p *BasePageWrapper) serializeLocked() ([]byte, error) {
 	if len(p.content) == 0 {
 		return nil, ErrPageNotLoaded
 	}
@@ -187,12 +203,19 @@ func (p *BasePageWrapper) IsDirty() bool {
 
 // MarkDirty 标记为脏页
 func (p *BasePageWrapper) MarkDirty() {
+	p.Lock()
+	defer p.Unlock()
 	p.dirty = true
+	p.state = basic.PageStateDirty
+	p.stats.DirtyCount++
 }
 
 // ClearDirty 清除脏页标记
 func (p *BasePageWrapper) ClearDirty() {
+	p.Lock()
+	defer p.Unlock()
 	p.dirty = false
+	p.stats.DirtyCount++
 }
 
 // UpdateChecksum 更新页面校验和
@@ -271,39 +294,51 @@ func (p *BasePageWrapper) SetLSN(lsn uint64) {
 
 // GetState 获取页面状态（暂时返回默认值）
 func (p *BasePageWrapper) GetState() basic.PageState {
-	// TODO: 添加状态字段
-	if p.dirty {
-		return basic.PageStateDirty
-	}
-	return basic.PageStateClean
+	p.RLock()
+	defer p.RUnlock()
+	return p.state
 }
 
 // SetState 设置页面状态
 func (p *BasePageWrapper) SetState(state basic.PageState) {
-	// TODO: 添加状态字段
-	p.dirty = true
+	p.Lock()
+	defer p.Unlock()
+	p.state = state
 }
 
 // Pin 固定页面
 func (p *BasePageWrapper) Pin() {
-	// TODO: 添加引用计数
+	p.Lock()
+	defer p.Unlock()
+	p.pinCount++
+	p.stats.PinCount++
+	p.state = basic.PageStatePinned
 }
 
 // Unpin 取消固定页面
 func (p *BasePageWrapper) Unpin() {
-	// TODO: 添加引用计数
+	p.Lock()
+	defer p.Unlock()
+	if p.pinCount > 0 {
+		p.pinCount--
+	}
+	if p.pinCount == 0 && p.state == basic.PageStatePinned {
+		p.state = basic.PageStateLoaded
+	}
 }
 
 // GetPinCount 获取引用计数
 func (p *BasePageWrapper) GetPinCount() int32 {
-	// TODO: 添加引用计数字段
-	return 0
+	p.RLock()
+	defer p.RUnlock()
+	return p.pinCount
 }
 
 // GetStats 获取页面统计信息
 func (p *BasePageWrapper) GetStats() *basic.PageStats {
-	// TODO: 添加统计信息字段
-	return &basic.PageStats{}
+	p.RLock()
+	defer p.RUnlock()
+	return &p.stats
 }
 
 // GetFileHeaderStruct 获取文件头结构体
@@ -324,7 +359,49 @@ func (p *BasePageWrapper) ToByte() []byte {
 
 // Read 从磁盘或缓冲池读取页面
 func (p *BasePageWrapper) Read() error {
-	// TODO: 实现读取逻辑
+	p.Lock()
+	defer p.Unlock()
+
+	if p.bufferPage == nil {
+		p.state = basic.PageStateFlushed
+		p.stats.AccessTime = uint64(time.Now().UnixNano())
+		p.stats.LastAccessAt = p.stats.AccessTime
+		p.stats.LastAccessed = p.stats.AccessTime
+		return ErrPageNotLoaded
+	}
+
+	content := p.bufferPage.GetContent()
+	if len(content) < int(p.size) {
+		p.state = common.PageStateDirty
+		return ErrInvalidPageSize
+	}
+
+	p.content = make([]byte, int(p.size))
+	copy(p.content, content[:int(p.size)])
+
+	if len(p.content) < pages.FileHeaderSize+pages.FileTrailerSize {
+		p.state = common.PageStateDirty
+		return ErrInvalidPageSize
+	}
+
+	if err := p.header.ParseFileHeader(p.content[:pages.FileHeaderSize]); err != nil {
+		p.state = common.PageStateDirty
+		return err
+	}
+
+	trailerOffset := len(p.content) - 8
+	copy(p.trailer.FileTrailer[:], p.content[trailerOffset:])
+	p.pageType = common.PageType(p.header.GetPageType())
+	p.spaceID = p.header.GetFilePageArch()
+	p.id = p.header.GetCurrentPageOffset()
+	p.lsn = uint64(p.header.GetPageLSN())
+
+	now := uint64(time.Now().UnixNano())
+	p.stats.ReadCount++
+	p.stats.AccessTime = now
+	p.stats.LastAccessAt = now
+	p.stats.LastAccessed = now
+	p.state = basic.PageStateLoaded
 	return nil
 }
 
@@ -333,26 +410,47 @@ func (p *BasePageWrapper) Write() error {
 	p.Lock()
 	defer p.Unlock()
 
+	data, err := p.serializeLocked()
+	if err != nil {
+		return err
+	}
+
 	if p.bufferPage != nil {
-		data, err := p.ToBytes()
-		if err != nil {
-			return err
-		}
 		p.bufferPage.SetContent(data)
 		p.bufferPage.SetDirty(true)
 	}
 
+	now := uint64(time.Now().UnixNano())
+	p.stats.WriteCount++
+	p.stats.AccessTime = now
+	p.stats.LastAccessAt = now
+	p.stats.LastModified = now
+	p.state = basic.PageStateFlushed
 	p.dirty = false
 	return nil
 }
 
 // Flush 强制刷新页面到磁盘
 func (p *BasePageWrapper) Flush() error {
-	// 先调用 Write
-	if err := p.Write(); err != nil {
+	p.Lock()
+	defer p.Unlock()
+
+	data, err := p.serializeLocked()
+	if err != nil {
 		return err
 	}
 
-	// TODO: 实际的刷新逻辑
+	if p.bufferPage != nil {
+		p.bufferPage.SetContent(data)
+		p.bufferPage.SetDirty(false)
+	}
+
+	now := uint64(time.Now().UnixNano())
+	p.stats.WriteCount++
+	p.stats.AccessTime = now
+	p.stats.LastAccessAt = now
+	p.stats.LastModified = now
+	p.state = basic.PageStateFlushed
+	p.dirty = false
 	return nil
 }

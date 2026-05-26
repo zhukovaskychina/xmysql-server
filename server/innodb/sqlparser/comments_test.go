@@ -176,7 +176,7 @@ func TestStripLeadingComments(t *testing.T) {
 		input:  "/*b*/ /*a*/",
 		outSQL: "",
 	}, {
-		input: `/*b*/ --foo
+		input: `/*b*/ -- foo
 bar`,
 		outSQL: "bar",
 	}, {

@@ -149,6 +149,10 @@ func (s *IBDSpace) AllocateExtent(purpose basic.ExtentPurpose) (basic.Extent, er
 	s.Lock()
 	defer s.Unlock()
 
+	return s.allocateExtentLocked(purpose)
+}
+
+func (s *IBDSpace) allocateExtentLocked(purpose basic.ExtentPurpose) (basic.Extent, error) {
 	if !s.active {
 		return nil, fmt.Errorf("tablespace %d is not active", s.id)
 	}
@@ -315,7 +319,7 @@ func (s *IBDSpace) Initialize() error {
 	s.active = true
 
 	// Allocate first extent for system pages
-	extent, err := s.AllocateExtent(basic.ExtentPurposeSystem)
+	extent, err := s.allocateExtentLocked(basic.ExtentPurposeSystem)
 	if err != nil {
 		return fmt.Errorf("failed to allocate system extent: %v", err)
 	}

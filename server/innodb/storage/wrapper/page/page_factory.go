@@ -22,6 +22,12 @@ func NewPageFactory() *PageFactory {
 	return &PageFactory{}
 }
 
+func newFallbackPageWrapper(pageType common.PageType, id, spaceID uint32) IPageWrapper {
+	// 统一入口：除专用页面包装器外，默认走 types.UnifiedPage。
+	// 任何新增页面路径都应优先使用该统一入口。
+	return types.NewUnifiedPage(spaceID, id, pageType)
+}
+
 // IPageWrapper 使用统一的页面包装器接口
 // 此类型别名用于向后兼容，新代码应直接使用 types.IPageWrapper
 type IPageWrapper = types.IPageWrapper
@@ -34,8 +40,8 @@ func (f *PageFactory) CreatePage(pageType common.PageType, id, spaceID uint32, b
 	case common.FIL_PAGE_FSP_HDR:
 		return CreateFSPPageWrapper(id, spaceID, bufferPool)
 	case common.FIL_PAGE_INODE:
-		// 注意：这里返回的是system.INode，需要适配器
-		return NewBasePageWrapper(id, spaceID, pageType) // 使用基础wrapper代替
+		// 注意：系统页内码页历史上走兼容路径。新增场景请优先使用统一入口。
+		return newFallbackPageWrapper(pageType, id, spaceID)
 	case common.FIL_PAGE_IBUF_FREE_LIST:
 		return NewIBufFreeListPageWrapper(id, spaceID)
 	case common.FIL_PAGE_TYPE_SYS:
@@ -58,7 +64,7 @@ func (f *PageFactory) CreatePage(pageType common.PageType, id, spaceID uint32, b
 		return CreateTrxSysPageWrapper(id, spaceID, bufferPool)
 	default:
 		// 返回一个基础wrapper
-		return NewBasePageWrapper(id, spaceID, pageType)
+		return newFallbackPageWrapper(pageType, id, spaceID)
 	}
 }
 

@@ -378,11 +378,7 @@ func (i *IndexScanOperator) nextFromIndex(ctx context.Context) (Record, error) {
 	// 从索引直接读取记录（覆盖索引优化）
 	indexRecordData, err := i.indexAdapter.ReadIndexRecord(ctx, i.indexMetadata.IndexID, indexKey)
 	if err != nil {
-		// 如果索引读取失败，记录日志但继续处理
-		logger.Debugf("Failed to read index record: %v, using fallback", err)
-
-		// 降级为回表查询
-		return i.nextWithLookup(ctx)
+		return nil, fmt.Errorf("failed to read index record for covering index %q: %w", i.indexName, err)
 	}
 
 	// 解析索引记录数据为Record
@@ -2176,11 +2172,116 @@ func (a *ApplyOperator) evaluateJoinConditions(outerRow, innerRow Record) bool {
 	if len(a.joinConds) == 0 {
 		return true // 没有条件，总是匹配
 	}
+	if a == nil {
+		return false
+	}
+	if outerRow == nil || innerRow == nil {
+		return false
+	}
 
-	// TODO: 实现实际的条件评估
-	// 这里需要创建EvalContext并评估表达式
-	// 简化实现：总是返回true
+	// 构造表达式求值上下文
+	evalCtx := &plan.EvalContext{Row: make(map[string]interface{})}
+
+	// 先放入外层列
+	outerValues := outerRow.GetValues()
+	if outerSchema := a.rowSchema(outerRow, a.outerSchema); outerSchema != nil {
+		for i := 0; i < outerSchema.ColumnCount() && i < len(outerValues); i++ {
+			if col, ok := outerSchema.GetColumnByIndex(i); ok && col != nil {
+				evalCtx.Row[col.Name] = a.valueToInterfaceForJoin(outerValues[i])
+			}
+		}
+	}
+
+	// 再放入内层列
+	innerValues := innerRow.GetValues()
+	if innerSchema := a.rowSchema(innerRow, a.innerSchema); innerSchema != nil {
+		for i := 0; i < innerSchema.ColumnCount() && i < len(innerValues); i++ {
+			if col, ok := innerSchema.GetColumnByIndex(i); ok && col != nil {
+				evalCtx.Row[col.Name] = a.valueToInterfaceForJoin(innerValues[i])
+			}
+		}
+	}
+
+	for _, cond := range a.joinConds {
+		if cond == nil {
+			continue
+		}
+
+		result, err := cond.Eval(evalCtx)
+		if err != nil {
+			logger.Debugf("evaluateJoinConditions failed: %v", err)
+			return false
+		}
+
+		boolResult, ok := result.(bool)
+		if !ok {
+			logger.Debugf("evaluateJoinConditions non-bool result: %T", result)
+			return false
+		}
+		if !boolResult {
+			return false
+		}
+	}
+
 	return true
+}
+
+func (a *ApplyOperator) outerSchema() *metadata.QuerySchema {
+	if a == nil || a.outer == nil {
+		return nil
+	}
+	return a.outer.Schema()
+}
+
+func (a *ApplyOperator) innerSchema() *metadata.QuerySchema {
+	if a == nil || a.inner == nil {
+		return nil
+	}
+	return a.inner.Schema()
+}
+
+func (a *ApplyOperator) valueToInterfaceForJoin(value basic.Value) interface{} {
+	if value == nil || value.IsNull() {
+		return nil
+	}
+
+	switch value.Type() {
+	case basic.ValueTypeTinyInt, basic.ValueTypeSmallInt, basic.ValueTypeMediumInt,
+		basic.ValueTypeInt, basic.ValueTypeBigInt:
+		return value.Int()
+	case basic.ValueTypeFloat, basic.ValueTypeDouble:
+		return value.Float64()
+	case basic.ValueTypeVarchar, basic.ValueTypeChar, basic.ValueTypeText:
+		return value.String()
+	case basic.ValueTypeBool, basic.ValueTypeBoolean:
+		return value.Bool()
+	case basic.ValueTypeBinary, basic.ValueTypeVarBinary, basic.ValueTypeBlob:
+		return value.Bytes()
+	case basic.ValueTypeDate, basic.ValueTypeTime, basic.ValueTypeDateTime, basic.ValueTypeTimestamp:
+		return value.Time()
+	default:
+		return value.Raw()
+	}
+}
+
+func (a *ApplyOperator) rowSchema(record Record, fallback func() *metadata.QuerySchema) *metadata.QuerySchema {
+	if record == nil {
+		if fallback != nil {
+			return fallback()
+		}
+		return nil
+	}
+
+	if typed, ok := any(record).(interface{ GetSchema() *metadata.QuerySchema }); ok {
+		if schema := typed.GetSchema(); schema != nil {
+			return schema
+		}
+	}
+
+	if fallback != nil {
+		return fallback()
+	}
+	return nil
 }
 
 // mergeRecords 合并外层和内层记录

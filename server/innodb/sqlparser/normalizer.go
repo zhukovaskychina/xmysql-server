@@ -177,11 +177,11 @@ func (nz *normalizer) sqlToBindvar(node SQLNode) *querypb.BindVariable {
 		var v sqltypes.Value
 		var err error
 		switch node.Type {
-		case basic.StrVal:
+		case StrVal, basic.StrVal:
 			v, err = sqltypes.NewValue(sqltypes.VarBinary, node.Val)
-		case basic.IntVal:
+		case IntVal, basic.IntVal:
 			v, err = sqltypes.NewValue(sqltypes.Int64, node.Val)
-		case basic.FloatVal:
+		case FloatVal, basic.FloatVal:
 			v, err = sqltypes.NewValue(sqltypes.Float64, node.Val)
 		default:
 			return nil
@@ -213,7 +213,7 @@ func GetBindvars(stmt Statement) map[string]struct{} {
 	_ = Walk(func(node SQLNode) (kontinue bool, err error) {
 		switch node := node.(type) {
 		case *SQLVal:
-			if node.Type == basic.ValArg {
+			if node.Type == ValArg || node.Type == basic.ValArg {
 				bindvars[string(node.Val[1:])] = struct{}{}
 			}
 		case ListArg:

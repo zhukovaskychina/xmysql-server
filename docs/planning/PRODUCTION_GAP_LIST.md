@@ -127,8 +127,8 @@
 
 - 补齐灰度、快速回退、数据回滚与全链路演练
 - 当前信号：
-  - 现有规划文档关注任务与验收，但缺真正可执行的发布/回退手册
-  - 未见全链路演练记录和回退计时证据
+  - 已落地灰度/回退手册，且有备份恢复脚本与一次 dryrun 证据
+  - 仍缺完整全链路演练记录和回退计时证据
 - 退出标准：
   - 有灰度发布手册
   - 有快速回退手册
@@ -142,8 +142,9 @@
 
 - 将默认配置从“开发联调友好”切换为“生产默认安全”
 - 当前信号：
-  - `DevBypassPasswordAuth` 默认值为 `true`
-  - 认证/TLS 路径存在实现，但整体仍偏开发态
+  - `DevBypassPasswordAuth` 默认值已改为 `false`
+  - 已通过启动期校验阻断非本地监听 + `dev_bypass_password_auth=true` 场景
+  - 对应审计证据已归档：`reports/p0_gap06/p0_gap06_20260516_231850/gap06_audit_report.md`
 - 退出标准：
   - 生产配置默认关闭免密
   - 认证失败路径和权限校验经回归验证
@@ -151,7 +152,7 @@
 - 证据入口：
   - `server/conf/config.go`
   - `conf/default.ini`
-  - `docs/protocol-reports/PROTO-003_PASSWORD_VERIFICATION_FIX.md`
+  - `docs/planning/GAP_06_SECURITY_DEFAULT_POSTURE.md`
 
 ### GAP-07 核心高风险实现未完全收口
 

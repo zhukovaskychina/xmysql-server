@@ -57,10 +57,10 @@ var (
 		input:  "select 1 from t # aa",
 		output: "select 1 from t",
 	}, {
-		input:  "select 1 --aafrom t",
+		input:  "select 1 -- aa\nfrom t",
 		output: "select 1 from t",
 	}, {
-		input:  "select 1 #aafrom t",
+		input:  "select 1 # aa\nfrom t",
 		output: "select 1 from t",
 	}, {
 		input: "select /* simplest */ 1 from t",
@@ -156,10 +156,10 @@ var (
 	}, {
 		input: "select /* a.* */ a.* from t",
 	}, {
-		input:  "select next valueImpl for t",
+		input:  "select next value for t",
 		output: "select next 1 values from t",
 	}, {
-		input:  "select next valueImpl from t",
+		input:  "select next value from t",
 		output: "select next 1 values from t",
 	}, {
 		input: "select next 10 values from t",
@@ -453,14 +453,17 @@ var (
 	}, {
 		input: "select /* backslash quote in string */ 'a\\'a' from t",
 	}, {
-		input: "select /* literal backslash in string */ 'a\\\a' from t",
+		input:  "select /* literal backslash in string */ 'a\\\a' from t",
+		output: "select /* literal backslash in string */ 'a\a' from t",
 	}, {
-		input: "select /* all escapes */ '\\0\\'\\\"\\b\\\r\\t\\Z\\\\' from t",
+		input:  "select /* all escapes */ '\\0\\'\\\"\\b\\\r\\t\\Z\\\\' from t",
+		output: "select /* all escapes */ '\\0\\'\\\"\\b\\r\\t\\Z' from t",
 	}, {
 		input:  "select /* non-escape */ '\\x' from t",
 		output: "select /* non-escape */ 'x' from t",
 	}, {
-		input: "select /* unescaped backslash */ '\' from t",
+		input:  "select /* unescaped backslash */ '\\\\' from t",
+		output: "select /* unescaped backslash */ '' from t",
 	}, {
 		input: "select /* valueImpl argument */ :a from t",
 	}, {
@@ -675,7 +678,8 @@ var (
 	}, {
 		input: "set /* simple */ a = 3",
 	}, {
-		input: "set #simple b = 4",
+		input:  "set #simple\nb = 4",
+		output: "set #simple\n b = 4",
 	}, {
 		input: "set character_set_results = utf8",
 	}, {

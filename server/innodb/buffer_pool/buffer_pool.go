@@ -177,6 +177,9 @@ func (bp *BufferPool) RecordPageWrite() {
 func (bp *BufferPool) readFromDisk(space basic.Space, pageNo uint32) (*BufferPage, error) {
 	// Get a free page from pool
 	page := bp.getFreePage()
+	if page == nil {
+		return nil, fmt.Errorf("buffer pool has no free page to load page %d", pageNo)
+	}
 
 	// Read page content from disk
 	content, err := space.LoadPageByPageNumber(pageNo)
@@ -219,8 +222,8 @@ func (bp *BufferPool) evictPage() *BufferPage {
 	// Get victim from LRU cache
 	victim := bp.lruCache.Evict()
 	if victim == nil {
-		// Should never happen as we always have pages in LRU
-		panic("no pages to evict from LRU cache")
+		logger.Warnf("buffer pool evictPage failed: no pages available for eviction")
+		return nil
 	}
 
 	// If dirty, write back to disk

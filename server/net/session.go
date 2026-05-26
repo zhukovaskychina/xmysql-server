@@ -20,6 +20,7 @@ package net
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -258,7 +259,8 @@ func (s *session) SetWriter(writer Writer) {
 // period is in millisecond. Websocket session will send ping frame automatically every peroid.
 func (s *session) SetCronPeriod(period int) {
 	if period < 1 {
-		panic("@period < 1")
+		log.Warn("[session.SetCronPeriod] invalid period %d, fallback to 60s", period)
+		period = 60000
 	}
 
 	s.lock.Lock()
@@ -269,7 +271,8 @@ func (s *session) SetCronPeriod(period int) {
 // set @session's Write queue size
 func (s *session) SetWQLen(writeQLen int) {
 	if writeQLen < 1 {
-		panic("@writeQLen < 1")
+		log.Warn("[session.SetWQLen] invalid write queue length %d, fallback to %d", writeQLen, defaultQLen)
+		writeQLen = defaultQLen
 	}
 
 	s.lock.Lock()
@@ -281,7 +284,8 @@ func (s *session) SetWQLen(writeQLen int) {
 // set maximum wait time when session got error or got exit signal
 func (s *session) SetWaitTime(waitTime time.Duration) {
 	if waitTime < 1 {
-		panic("@wait < 1")
+		log.Warn("[session.SetWaitTime] invalid wait time %v, fallback to %v", waitTime, pendingDuration)
+		waitTime = pendingDuration
 	}
 
 	s.lock.Lock()
@@ -453,7 +457,8 @@ func (s *session) run() {
 		errStr := fmt.Sprintf("session{name:%s, conn:%#v, listener:%#v, writer:%#v}",
 			s.name, s.Connection, s.listener, s.writer)
 		log.Error(errStr)
-		panic(errStr)
+		s.stop()
+		return
 	}
 
 	if s.wQ == nil {
@@ -635,12 +640,13 @@ func (s *session) handlePackage() {
 		if s.reader == nil {
 			errStr := fmt.Sprintf("session{name:%s, conn:%#v, reader:%#v}", s.name, s.Connection, s.reader)
 			log.Error(errStr)
-			panic(errStr)
+			err = errors.New(errStr)
+			return
 		}
 
 		err = s.handleTCPPackage()
 	} else {
-		panic(fmt.Sprintf("unknown type session{%#v}", s))
+		err = fmt.Errorf("unknown type session{%#v}", s)
 	}
 }
 

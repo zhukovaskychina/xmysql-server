@@ -6429,3 +6429,445 @@ info
 [14:15:12 CST 2026/04/19] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).executeDropDatabaseStatement:1630)  DROP DATABASE 'test_dml_operations' executed successfully
 [14:15:12 CST 2026/04/19] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 1]
 
+[06:42:04 CST 2026/05/17] [INFO] (main.go:main.main:61) Logger initialized successfully with level: info
+
+[06:42:04 CST 2026/05/17] [INFO] (main.go:main.main:63) XMySQL Server starting...
+[06:42:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:42:04 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:42:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:42:04 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:42:04 CST 2026/05/17] [INFO] (main.go:main.main:67) Starting MySQL server...
+[06:42:04 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:75) 🚀 Starting XMySQL Engine...
+[06:42:04 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:79) 🏥 Performing crash recovery...
+[06:42:04 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:83) ✅ Crash recovery completed successfully
+[06:42:04 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:90) 💾 Starting Checkpoint Manager...
+[06:42:04 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:103) 🚀 启动检查点管理器
+[06:42:04 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:117) 📄 没有找到有效的检查点，将从头开始
+[06:42:04 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:122)  检查点管理器启动成功
+[06:42:04 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:96) ✅ XMySQL Engine started successfully
+[06:42:52 CST 2026/05/17] [INFO] (main.go:main.main:61) Logger initialized successfully with level: info
+
+[06:42:52 CST 2026/05/17] [INFO] (main.go:main.main:63) XMySQL Server starting...
+[06:42:52 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:42:52 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:42:52 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:42:52 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:42:52 CST 2026/05/17] [INFO] (main.go:main.main:67) Starting MySQL server...
+[06:42:52 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:75) 🚀 Starting XMySQL Engine...
+[06:42:52 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:79) 🏥 Performing crash recovery...
+[06:42:52 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:83) ✅ Crash recovery completed successfully
+[06:42:52 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:90) 💾 Starting Checkpoint Manager...
+[06:42:52 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:103) 🚀 启动检查点管理器
+[06:42:52 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:117) 📄 没有找到有效的检查点，将从头开始
+[06:42:52 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:122)  检查点管理器启动成功
+[06:42:52 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:96) ✅ XMySQL Engine started successfully
+[06:43:15 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Close:102) 🛑 Stopping XMySQL Engine...
+[06:43:15 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Stop:135) 🛑 停止检查点管理器
+[06:43:15 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Stop:139)  检查点管理器停止成功
+[06:43:43 CST 2026/05/17] [INFO] (main.go:main.main:61) Logger initialized successfully with level: info
+
+[06:43:43 CST 2026/05/17] [INFO] (main.go:main.main:63) XMySQL Server starting...
+[06:43:43 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:43:43 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:43:43 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:43:43 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:43:43 CST 2026/05/17] [INFO] (main.go:main.main:67) Starting MySQL server...
+[06:43:43 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:75) 🚀 Starting XMySQL Engine...
+[06:43:43 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:79) 🏥 Performing crash recovery...
+[06:43:43 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:83) ✅ Crash recovery completed successfully
+[06:43:43 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:90) 💾 Starting Checkpoint Manager...
+[06:43:43 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:103) 🚀 启动检查点管理器
+[06:43:43 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:117) 📄 没有找到有效的检查点，将从头开始
+[06:43:43 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:122)  检查点管理器启动成功
+[06:43:43 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:96) ✅ XMySQL Engine started successfully
+[06:44:13 CST 2026/05/17] [INFO] (main.go:main.main:61) Logger initialized successfully with level: info
+
+[06:44:13 CST 2026/05/17] [INFO] (main.go:main.main:63) XMySQL Server starting...
+[06:44:13 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:44:13 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:44:13 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:44:13 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:44:13 CST 2026/05/17] [INFO] (main.go:main.main:67) Starting MySQL server...
+[06:44:13 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:75) 🚀 Starting XMySQL Engine...
+[06:44:13 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:79) 🏥 Performing crash recovery...
+[06:44:13 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:83) ✅ Crash recovery completed successfully
+[06:44:13 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:90) 💾 Starting Checkpoint Manager...
+[06:44:13 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:103) 🚀 启动检查点管理器
+[06:44:13 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:117) 📄 没有找到有效的检查点，将从头开始
+[06:44:13 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:122)  检查点管理器启动成功
+[06:44:13 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:96) ✅ XMySQL Engine started successfully
+[06:44:20 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:714) [session.handleTCPPackage] 收到数据，长度: 70, 内容: [66 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 0 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[06:44:20 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:44:20 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@root' and Host
+[06:44:20 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=root' and Host -> user root' and Host@root' and Host not found (metadata persistence issue)
+[06:44:20 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:44:20 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@localhost
+[06:44:20 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=localhost -> user root' and Host@localhost not found (metadata persistence issue)
+[06:44:20 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:44:20 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@%
+[06:44:20 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=% -> user root' and Host@% not found (metadata persistence issue)
+[06:44:20 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:398)   [SelectExecutor] 存储管理器未能匹配用户: user=root' and Host host=root' and Host，使用默认数据
+[06:44:20 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:401)   [SelectExecutor] 存储管理器查询失败，创建默认 mysql.user 数据
+[06:44:20 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:44:20 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@root' and Host
+[06:44:20 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=root' and Host -> user root' and Host@root' and Host not found (metadata persistence issue)
+[06:44:20 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:44:20 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@localhost
+[06:44:20 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=localhost -> user root' and Host@localhost not found (metadata persistence issue)
+[06:44:20 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:44:20 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@%
+[06:44:20 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=% -> user root' and Host@% not found (metadata persistence issue)
+[06:44:20 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:398)   [SelectExecutor] 存储管理器未能匹配用户: user=root' and Host host=root' and Host，使用默认数据
+[06:44:20 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:401)   [SelectExecutor] 存储管理器查询失败，创建默认 mysql.user 数据
+[06:46:31 CST 2026/05/17] [INFO] (main.go:main.main:61) Logger initialized successfully with level: info
+
+[06:46:31 CST 2026/05/17] [INFO] (main.go:main.main:63) XMySQL Server starting...
+[06:46:31 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:46:31 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:46:31 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:46:31 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:46:31 CST 2026/05/17] [INFO] (main.go:main.main:67) Starting MySQL server...
+[06:46:31 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:75) 🚀 Starting XMySQL Engine...
+[06:46:31 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:79) 🏥 Performing crash recovery...
+[06:46:31 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:83) ✅ Crash recovery completed successfully
+[06:46:31 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:90) 💾 Starting Checkpoint Manager...
+[06:46:31 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:103) 🚀 启动检查点管理器
+[06:46:31 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:117) 📄 没有找到有效的检查点，将从头开始
+[06:46:31 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:122)  检查点管理器启动成功
+[06:46:31 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:96) ✅ XMySQL Engine started successfully
+[06:47:01 CST 2026/05/17] [INFO] (main.go:main.main:61) Logger initialized successfully with level: info
+
+[06:47:01 CST 2026/05/17] [INFO] (main.go:main.main:63) XMySQL Server starting...
+[06:47:01 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:47:01 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:47:01 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:47:01 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:47:01 CST 2026/05/17] [INFO] (main.go:main.main:67) Starting MySQL server...
+[06:47:01 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:75) 🚀 Starting XMySQL Engine...
+[06:47:01 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:79) 🏥 Performing crash recovery...
+[06:47:01 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:83) ✅ Crash recovery completed successfully
+[06:47:01 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:90) 💾 Starting Checkpoint Manager...
+[06:47:01 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:103) 🚀 启动检查点管理器
+[06:47:01 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:117) 📄 没有找到有效的检查点，将从头开始
+[06:47:01 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:122)  检查点管理器启动成功
+[06:47:01 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:96) ✅ XMySQL Engine started successfully
+[06:47:04 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 159 232 173 18 77 205 122 31 84 244 74 66 235 190 6 59 210 25 191 238 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@root' and Host
+[06:47:04 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=root' and Host -> user root' and Host@root' and Host not found (metadata persistence issue)
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@localhost
+[06:47:04 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=localhost -> user root' and Host@localhost not found (metadata persistence issue)
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@%
+[06:47:04 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=% -> user root' and Host@% not found (metadata persistence issue)
+[06:47:04 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:398)   [SelectExecutor] 存储管理器未能匹配用户: user=root' and Host host=root' and Host，使用默认数据
+[06:47:04 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:401)   [SelectExecutor] 存储管理器查询失败，创建默认 mysql.user 数据
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@root' and Host
+[06:47:04 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=root' and Host -> user root' and Host@root' and Host not found (metadata persistence issue)
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@localhost
+[06:47:04 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=localhost -> user root' and Host@localhost not found (metadata persistence issue)
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@%
+[06:47:04 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=% -> user root' and Host@% not found (metadata persistence issue)
+[06:47:04 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:398)   [SelectExecutor] 存储管理器未能匹配用户: user=root' and Host host=root' and Host，使用默认数据
+[06:47:04 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:401)   [SelectExecutor] 存储管理器查询失败，创建默认 mysql.user 数据
+[06:47:04 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[06:47:04 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 13, 内容: [9 0 0 0 3 83 69 76 69 67 84 32 49]
+
+[06:47:04 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 21, 内容: [17 0 0 0 3 83 69 76 69 67 84 32 64 64 118 101 114 115 105 111 110]
+
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@root' and Host
+[06:47:04 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=root' and Host -> user root' and Host@root' and Host not found (metadata persistence issue)
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@localhost
+[06:47:04 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=localhost -> user root' and Host@localhost not found (metadata persistence issue)
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@%
+[06:47:04 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=% -> user root' and Host@% not found (metadata persistence issue)
+[06:47:04 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:398)   [SelectExecutor] 存储管理器未能匹配用户: user=root' and Host host=root' and Host，使用默认数据
+[06:47:04 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:401)   [SelectExecutor] 存储管理器查询失败，创建默认 mysql.user 数据
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@root' and Host
+[06:47:04 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=root' and Host -> user root' and Host@root' and Host not found (metadata persistence issue)
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@localhost
+[06:47:04 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=localhost -> user root' and Host@localhost not found (metadata persistence issue)
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:47:04 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@%
+[06:47:04 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=% -> user root' and Host@% not found (metadata persistence issue)
+[06:47:04 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:398)   [SelectExecutor] 存储管理器未能匹配用户: user=root' and Host host=root' and Host，使用默认数据
+[06:47:04 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:401)   [SelectExecutor] 存储管理器查询失败，创建默认 mysql.user 数据
+[06:47:04 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 29, 内容: [25 0 0 0 3 83 69 76 69 67 84 32 64 64 118 101 114 115 105 111 110 95 99 111 109 109 101 110 116]
+
+[06:47:04 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 18, 内容: [14 0 0 0 3 83 69 76 69 67 84 32 85 83 69 82 40 41]
+
+[06:47:04 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 26, 内容: [22 0 0 0 3 83 69 76 69 67 84 32 67 85 82 82 69 78 84 95 85 83 69 82 40 41]
+
+[06:47:04 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 46, 内容: [42 0 0 0 3 83 69 76 69 67 84 32 64 64 115 101 115 115 105 111 110 46 97 117 116 111 95 105 110 99 114 101 109 101 110 116 95 105 110 99 114 101 109 101 110 116]
+
+[06:47:04 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 31, 内容: [27 0 0 0 3 83 69 76 69 67 84 32 64 64 115 101 115 115 105 111 110 46 116 105 109 101 95 122 111 110 101]
+
+[06:47:04 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 30, 内容: [26 0 0 0 3 83 69 76 69 67 84 32 64 64 115 121 115 116 101 109 95 116 105 109 101 95 122 111 110 101]
+
+[06:47:04 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 1]
+
+[06:48:17 CST 2026/05/17] [INFO] (main.go:main.main:61) Logger initialized successfully with level: info
+
+[06:48:17 CST 2026/05/17] [INFO] (main.go:main.main:63) XMySQL Server starting...
+[06:48:17 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:48:17 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:48:17 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:48:17 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:48:17 CST 2026/05/17] [INFO] (main.go:main.main:67) Starting MySQL server...
+[06:48:17 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:75) 🚀 Starting XMySQL Engine...
+[06:48:17 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:79) 🏥 Performing crash recovery...
+[06:48:17 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:83) ✅ Crash recovery completed successfully
+[06:48:17 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:90) 💾 Starting Checkpoint Manager...
+[06:48:17 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:103) 🚀 启动检查点管理器
+[06:48:17 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:117) 📄 没有找到有效的检查点，将从头开始
+[06:48:17 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:122)  检查点管理器启动成功
+[06:48:17 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:96) ✅ XMySQL Engine started successfully
+[06:48:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 159 121 192 182 126 83 215 112 143 193 153 10 228 66 155 48 28 226 109 18 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@root' and Host
+[06:48:18 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=root' and Host -> user root' and Host@root' and Host not found (metadata persistence issue)
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@localhost
+[06:48:18 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=localhost -> user root' and Host@localhost not found (metadata persistence issue)
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@%
+[06:48:18 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=% -> user root' and Host@% not found (metadata persistence issue)
+[06:48:18 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:398)   [SelectExecutor] 存储管理器未能匹配用户: user=root' and Host host=root' and Host，使用默认数据
+[06:48:18 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:401)   [SelectExecutor] 存储管理器查询失败，创建默认 mysql.user 数据
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@root' and Host
+[06:48:18 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=root' and Host -> user root' and Host@root' and Host not found (metadata persistence issue)
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@localhost
+[06:48:18 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=localhost -> user root' and Host@localhost not found (metadata persistence issue)
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@%
+[06:48:18 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=% -> user root' and Host@% not found (metadata persistence issue)
+[06:48:18 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:398)   [SelectExecutor] 存储管理器未能匹配用户: user=root' and Host host=root' and Host，使用默认数据
+[06:48:18 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:401)   [SelectExecutor] 存储管理器查询失败，创建默认 mysql.user 数据
+[06:48:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[06:48:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 13, 内容: [9 0 0 0 3 83 69 76 69 67 84 32 49]
+
+[06:48:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 21, 内容: [17 0 0 0 3 83 69 76 69 67 84 32 64 64 118 101 114 115 105 111 110]
+
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@root' and Host
+[06:48:18 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=root' and Host -> user root' and Host@root' and Host not found (metadata persistence issue)
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@localhost
+[06:48:18 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=localhost -> user root' and Host@localhost not found (metadata persistence issue)
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@%
+[06:48:18 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=% -> user root' and Host@% not found (metadata persistence issue)
+[06:48:18 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:398)   [SelectExecutor] 存储管理器未能匹配用户: user=root' and Host host=root' and Host，使用默认数据
+[06:48:18 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:401)   [SelectExecutor] 存储管理器查询失败，创建默认 mysql.user 数据
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@root' and Host
+[06:48:18 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=root' and Host -> user root' and Host@root' and Host not found (metadata persistence issue)
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@localhost
+[06:48:18 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=localhost -> user root' and Host@localhost not found (metadata persistence issue)
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:48:18 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root' and Host@%
+[06:48:18 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:384)   [SelectExecutor] 查询用户数据失败: user=root' and Host host=% -> user root' and Host@% not found (metadata persistence issue)
+[06:48:18 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:398)   [SelectExecutor] 存储管理器未能匹配用户: user=root' and Host host=root' and Host，使用默认数据
+[06:48:18 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:401)   [SelectExecutor] 存储管理器查询失败，创建默认 mysql.user 数据
+[06:48:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 29, 内容: [25 0 0 0 3 83 69 76 69 67 84 32 64 64 118 101 114 115 105 111 110 95 99 111 109 109 101 110 116]
+
+[06:48:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 18, 内容: [14 0 0 0 3 83 69 76 69 67 84 32 85 83 69 82 40 41]
+
+[06:48:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 26, 内容: [22 0 0 0 3 83 69 76 69 67 84 32 67 85 82 82 69 78 84 95 85 83 69 82 40 41]
+
+[06:48:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 46, 内容: [42 0 0 0 3 83 69 76 69 67 84 32 64 64 115 101 115 115 105 111 110 46 97 117 116 111 95 105 110 99 114 101 109 101 110 116 95 105 110 99 114 101 109 101 110 116]
+
+[06:48:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 31, 内容: [27 0 0 0 3 83 69 76 69 67 84 32 64 64 115 101 115 115 105 111 110 46 116 105 109 101 95 122 111 110 101]
+
+[06:48:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 30, 内容: [26 0 0 0 3 83 69 76 69 67 84 32 64 64 115 121 115 116 101 109 95 116 105 109 101 95 122 111 110 101]
+
+[06:48:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 1]
+
+[06:49:45 CST 2026/05/17] [INFO] (main.go:main.main:61) Logger initialized successfully with level: info
+
+[06:49:45 CST 2026/05/17] [INFO] (main.go:main.main:63) XMySQL Server starting...
+[06:49:45 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:49:45 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:49:45 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:49:45 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:49:45 CST 2026/05/17] [INFO] (main.go:main.main:67) Starting MySQL server...
+[06:49:45 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:75) 🚀 Starting XMySQL Engine...
+[06:49:45 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:79) 🏥 Performing crash recovery...
+[06:49:45 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:83) ✅ Crash recovery completed successfully
+[06:49:45 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:90) 💾 Starting Checkpoint Manager...
+[06:49:45 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:103) 🚀 启动检查点管理器
+[06:49:45 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:117) 📄 没有找到有效的检查点，将从头开始
+[06:49:45 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:122)  检查点管理器启动成功
+[06:49:45 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:96) ✅ XMySQL Engine started successfully
+[06:50:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 108 244 85 81 116 225 71 189 108 116 45 109 144 206 101 151 164 211 230 237 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[06:50:14 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:50:14 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root@localhost
+[06:50:14 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:50:14 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root@localhost
+[06:50:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[06:50:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 13, 内容: [9 0 0 0 3 83 69 76 69 67 84 32 49]
+
+[06:50:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 21, 内容: [17 0 0 0 3 83 69 76 69 67 84 32 64 64 118 101 114 115 105 111 110]
+
+[06:50:14 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:50:14 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root@localhost
+[06:50:14 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:50:14 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root@localhost
+[06:50:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 29, 内容: [25 0 0 0 3 83 69 76 69 67 84 32 64 64 118 101 114 115 105 111 110 95 99 111 109 109 101 110 116]
+
+[06:50:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 18, 内容: [14 0 0 0 3 83 69 76 69 67 84 32 85 83 69 82 40 41]
+
+[06:50:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 26, 内容: [22 0 0 0 3 83 69 76 69 67 84 32 67 85 82 82 69 78 84 95 85 83 69 82 40 41]
+
+[06:50:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 46, 内容: [42 0 0 0 3 83 69 76 69 67 84 32 64 64 115 101 115 115 105 111 110 46 97 117 116 111 95 105 110 99 114 101 109 101 110 116 95 105 110 99 114 101 109 101 110 116]
+
+[06:50:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 31, 内容: [27 0 0 0 3 83 69 76 69 67 84 32 64 64 115 101 115 115 105 111 110 46 116 105 109 101 95 122 111 110 101]
+
+[06:50:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 30, 内容: [26 0 0 0 3 83 69 76 69 67 84 32 64 64 115 121 115 116 101 109 95 116 105 109 101 95 122 111 110 101]
+
+[06:50:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 1]
+
+[06:53:39 CST 2026/05/17] [INFO] (main.go:main.main:61) Logger initialized successfully with level: info
+
+[06:53:39 CST 2026/05/17] [INFO] (main.go:main.main:63) XMySQL Server starting...
+[06:53:39 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 217 156 238 71 218 108 69 213 193 180 50 237 143 216 39 3 240 255 8 103 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[06:53:39 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[06:53:39 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 13, 内容: [9 0 0 0 3 83 69 76 69 67 84 32 49]
+
+[06:53:39 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 21, 内容: [17 0 0 0 3 83 69 76 69 67 84 32 64 64 118 101 114 115 105 111 110]
+
+[06:53:39 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 29, 内容: [25 0 0 0 3 83 69 76 69 67 84 32 64 64 118 101 114 115 105 111 110 95 99 111 109 109 101 110 116]
+
+[06:53:39 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 18, 内容: [14 0 0 0 3 83 69 76 69 67 84 32 85 83 69 82 40 41]
+
+[06:53:39 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 26, 内容: [22 0 0 0 3 83 69 76 69 67 84 32 67 85 82 82 69 78 84 95 85 83 69 82 40 41]
+
+[06:53:39 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 46, 内容: [42 0 0 0 3 83 69 76 69 67 84 32 64 64 115 101 115 115 105 111 110 46 97 117 116 111 95 105 110 99 114 101 109 101 110 116 95 105 110 99 114 101 109 101 110 116]
+
+[06:53:39 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 31, 内容: [27 0 0 0 3 83 69 76 69 67 84 32 64 64 115 101 115 115 105 111 110 46 116 105 109 101 95 122 111 110 101]
+
+[06:53:39 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 30, 内容: [26 0 0 0 3 83 69 76 69 67 84 32 64 64 115 121 115 116 101 109 95 116 105 109 101 95 122 111 110 101]
+
+[06:53:39 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 1]
+
+[06:53:40 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:53:40 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:53:40 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:53:40 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:53:40 CST 2026/05/17] [INFO] (main.go:main.main:67) Starting MySQL server...
+[06:53:40 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:75) 🚀 Starting XMySQL Engine...
+[06:53:40 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:79) 🏥 Performing crash recovery...
+[06:53:40 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:83) ✅ Crash recovery completed successfully
+[06:53:40 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:90) 💾 Starting Checkpoint Manager...
+[06:53:40 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:103) 🚀 启动检查点管理器
+[06:53:40 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:117) 📄 没有找到有效的检查点，将从头开始
+[06:53:40 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:122)  检查点管理器启动成功
+[06:53:40 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:96) ✅ XMySQL Engine started successfully
+[06:54:08 CST 2026/05/17] [INFO] (main.go:main.main:61) Logger initialized successfully with level: info
+
+[06:54:08 CST 2026/05/17] [INFO] (main.go:main.main:63) XMySQL Server starting...
+[06:54:08 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:54:08 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:54:08 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:54:08 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:54:08 CST 2026/05/17] [INFO] (main.go:main.main:67) Starting MySQL server...
+[06:54:08 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:75) 🚀 Starting XMySQL Engine...
+[06:54:08 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:79) 🏥 Performing crash recovery...
+[06:54:08 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:83) ✅ Crash recovery completed successfully
+[06:54:08 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:90) 💾 Starting Checkpoint Manager...
+[06:54:08 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:103) 🚀 启动检查点管理器
+[06:54:08 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:117) 📄 没有找到有效的检查点，将从头开始
+[06:54:08 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:122)  检查点管理器启动成功
+[06:54:08 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:96) ✅ XMySQL Engine started successfully
+[06:54:10 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 70 214 164 177 195 34 210 75 91 126 217 29 39 95 29 71 92 181 238 74 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[06:54:10 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:54:10 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root@localhost
+[06:54:10 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:54:10 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root@localhost
+[06:54:10 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[06:54:10 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 13, 内容: [9 0 0 0 3 83 69 76 69 67 84 32 49]
+
+[06:54:10 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 21, 内容: [17 0 0 0 3 83 69 76 69 67 84 32 64 64 118 101 114 115 105 111 110]
+
+[06:54:10 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:54:10 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root@localhost
+[06:54:10 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:54:10 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root@localhost
+[06:54:10 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 29, 内容: [25 0 0 0 3 83 69 76 69 67 84 32 64 64 118 101 114 115 105 111 110 95 99 111 109 109 101 110 116]
+
+[06:54:10 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 18, 内容: [14 0 0 0 3 83 69 76 69 67 84 32 85 83 69 82 40 41]
+
+[06:54:10 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 26, 内容: [22 0 0 0 3 83 69 76 69 67 84 32 67 85 82 82 69 78 84 95 85 83 69 82 40 41]
+
+[06:54:10 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 46, 内容: [42 0 0 0 3 83 69 76 69 67 84 32 64 64 115 101 115 115 105 111 110 46 97 117 116 111 95 105 110 99 114 101 109 101 110 116 95 105 110 99 114 101 109 101 110 116]
+
+[06:54:10 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 31, 内容: [27 0 0 0 3 83 69 76 69 67 84 32 64 64 115 101 115 115 105 111 110 46 116 105 109 101 95 122 111 110 101]
+
+[06:54:10 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 30, 内容: [26 0 0 0 3 83 69 76 69 67 84 32 64 64 115 121 115 116 101 109 95 116 105 109 101 95 122 111 110 101]
+
+[06:54:10 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 1]
+
+[06:56:27 CST 2026/05/17] [INFO] (main.go:main.main:61) Logger initialized successfully with level: info
+
+[06:56:27 CST 2026/05/17] [INFO] (main.go:main.main:63) XMySQL Server starting...
+[06:56:27 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:56:27 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:56:27 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[06:56:27 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:238) No checkpoint found, starting recovery from LSN 0
+[06:56:27 CST 2026/05/17] [INFO] (main.go:main.main:67) Starting MySQL server...
+[06:56:27 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:75) 🚀 Starting XMySQL Engine...
+[06:56:27 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:79) 🏥 Performing crash recovery...
+[06:56:27 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:83) ✅ Crash recovery completed successfully
+[06:56:27 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:90) 💾 Starting Checkpoint Manager...
+[06:56:27 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:103) 🚀 启动检查点管理器
+[06:56:27 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:117) 📄 没有找到有效的检查点，将从头开始
+[06:56:27 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:122)  检查点管理器启动成功
+[06:56:27 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:96) ✅ XMySQL Engine started successfully
+[06:56:33 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 160 142 143 50 183 120 62 113 52 141 90 216 212 91 106 91 112 212 199 21 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[06:56:33 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:56:33 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root@localhost
+[06:56:33 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:56:33 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root@localhost
+[06:56:33 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 14]
+
+[06:56:33 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 41, 内容: [37 0 0 0 3 67 82 69 65 84 69 32 68 65 84 65 66 65 83 69 32 73 70 32 78 79 84 32 69 88 73 83 84 83 32 112 48 101 95 100 98]
+
+[06:56:33 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:56:33 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root@localhost
+[06:56:33 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:835) Warning: Primary index not found due to metadata persistence issue
+[06:56:33 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).QueryMySQLUser:836) Falling back to hardcoded user lookup for: root@localhost
+[06:56:33 CST 2026/05/17] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).createDatabaseImpl:1132) 📂 Created database directory: /Users/zhukovasky/GolandProjects/xmysql-server/server/net/data/p0e_db
+[06:56:33 CST 2026/05/17] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).executeCreateDatabaseStatement:1095)  CREATE DATABASE 'p0e_db' executed successfully
+[06:56:33 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 77, 内容: [73 0 0 0 3 67 82 69 65 84 69 32 84 65 66 76 69 32 73 70 32 78 79 84 32 69 88 73 83 84 83 32 112 48 101 95 100 98 46 116 49 32 40 105 100 32 73 78 84 32 80 82 73 77 65 82 89 32 75 69 89 44 32 99 32 86 65 82 67 72 65 82 40 50 48 41 41]
+
+[06:56:33 CST 2026/05/17] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).createTableImpl:1851)  Created table files for p0e_db.t1
+[06:56:33 CST 2026/05/17] [INFO] (executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLExecutor).executeCreateTableStatement:1478)  CREATE TABLE 'p0e_db.t1' executed successfully
+[06:56:33 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 52, 内容: [48 0 0 0 3 73 78 83 69 82 84 32 73 78 84 79 32 112 48 101 95 100 98 46 116 49 32 86 65 76 85 69 83 32 40 49 44 32 39 97 39 41 44 32 40 50 44 32 39 98 39 41]
+
+[06:56:33 CST 2026/05/17] [INFO] (storage_integrated_dml_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*StorageIntegratedDMLExecutor).ExecuteInsert:143) 🚀 开始执行存储引擎集成的INSERT语句: insert into p0e_db.t1 values (1, 'a'), (2, 'b')
+[06:56:33 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:715) [session.handleTCPPackage] 收到数据，长度: 5, 内容: [1 0 0 0 1]
+

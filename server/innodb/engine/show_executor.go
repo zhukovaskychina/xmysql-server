@@ -101,28 +101,15 @@ func (e *ShowExecutor) Close() error {
 
 // showDatabases 获取所有数据库列表
 func (e *ShowExecutor) showDatabases() ([][]interface{}, error) {
-	// TODO: 从InfoSchemaManager获取数据库列表
-	return [][]interface{}{
-		{"information_schema"},
-		{"mysql"},
-		{"test_simple_protocol"},
-	}, nil
+	return nil, fmt.Errorf("SHOW DATABASES 暂未接入真实元数据字典，当前返回空结果")
 }
 
 // showTables 获取当前数据库的表列表
 func (e *ShowExecutor) showTables() ([][]interface{}, error) {
-	// TODO: 从InfoSchemaManager获取表列表
-	return [][]interface{}{
-		{"users"},
-		{"orders"},
-	}, nil
+	return nil, fmt.Errorf("SHOW TABLES 暂未接入真实元数据字典，当前返回空结果")
 }
 
 // showColumns 获取指定表的列信息
 func (e *ShowExecutor) showColumns() ([][]interface{}, error) {
-	// TODO: 从InfoSchemaManager获取列信息
-	return [][]interface{}{
-		{"id", "int", "NO", "PRI", nil, "auto_increment"},
-		{"name", "varchar(100)", "YES", "", nil, ""},
-	}, nil
+	return nil, fmt.Errorf("SHOW COLUMNS 暂未接入真实元数据字典，当前返回空结果")
 }

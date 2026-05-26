@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
@@ -195,6 +196,34 @@ func TestIndexReading_NextFromIndex(t *testing.T) {
 	}
 
 	t.Log("✅ NextFromIndex test passed")
+}
+
+// TestIndexReading_NextFromIndexError 当覆盖索引读取失败时应直接报错，不应静默回退
+func TestIndexReading_NextFromIndexError(t *testing.T) {
+	op := &IndexScanOperator{
+		indexAdapter: &IndexAdapter{
+			btreeManager: &mockBTreeManagerForIndexReading{
+				searchRecord: nil,
+			},
+		},
+		indexMetadata:   &IndexMetadata{IndexID: 1, IndexName: "idx_name"},
+		requiredColumns: []string{"name"},
+		isCoveringIndex: true,
+		primaryKeys:     [][]byte{{0x01}},
+	}
+
+	record, err := op.nextFromIndex(context.Background())
+	if err == nil {
+		t.Fatalf("expected nextFromIndex to fail, got nil error and record=%v", record)
+	}
+	if record != nil {
+		t.Fatalf("expected nil record on error, got %v", record)
+	}
+	if !strings.Contains(err.Error(), "failed to read index record") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+
+	t.Log("✅ NextFromIndexError test passed")
 }
 
 // TestIndexReading_NextWithLookupEOF 测试无主键时回表路径直接 EOF

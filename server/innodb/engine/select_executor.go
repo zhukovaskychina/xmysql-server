@@ -2,11 +2,14 @@ package engine
 
 import (
 	"context"
+	"crypto/sha1"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
@@ -21,6 +24,11 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/page"
 )
 
+var (
+	userWhereConditionRe = regexp.MustCompile("(?i)\\b(?:`?user`?)\\s*=\\s*(?:'([^']*)'|\"([^\"]*)\"|([^\\s]+))")
+	hostWhereConditionRe = regexp.MustCompile("(?i)\\b(?:`?host`?)\\s*=\\s*(?:'([^']*)'|\"([^\"]*)\"|([^\\s]+))")
+)
+
 // SelectExecutor SELECT查询执行器
 // 注意：此执行器是查询协调器，不是火山模型的Operator
 // 实际的算子执行使用volcano_executor.go中的Operator接口
@@ -30,6 +38,7 @@ type SelectExecutor struct {
 	bufferPoolManager *manager.OptimizedBufferPoolManager
 	btreeManager      basic.BPlusTreeManager
 	tableManager      *manager.TableManager
+	storageManager    *manager.StorageManager
 
 	// dataDir 用于在无 tableManager 时从 .frm 文件加载表定义（与 executor 写入的 CREATE TABLE 一致）
 	dataDir string
@@ -56,6 +65,7 @@ func NewSelectExecutor(
 	optimizerManager *manager.OptimizerManager,
 	bufferPoolManager *manager.OptimizedBufferPoolManager,
 	btreeManager basic.BPlusTreeManager,
+	storageManager *manager.StorageManager,
 	tableManager *manager.TableManager,
 	dataDir string,
 ) *SelectExecutor {
@@ -63,6 +73,7 @@ func NewSelectExecutor(
 		optimizerManager:  optimizerManager,
 		bufferPoolManager: bufferPoolManager,
 		btreeManager:      btreeManager,
+		storageManager:    storageManager,
 		tableManager:      tableManager,
 		dataDir:           dataDir,
 		currentRowIndex:   0,
@@ -75,6 +86,9 @@ func NewSelectExecutor(
 
 // ExecuteSelect 执行SELECT查询的主入口
 func (se *SelectExecutor) ExecuteSelect(ctx context.Context, stmt *sqlparser.Select, schemaName string) (*SelectResult, error) {
+	// 重置执行态，避免复用实例时污染上一次查询状态
+	se.resetExecutionState()
+
 	// 1. 解析SELECT语句
 	if err := se.parseSelectStatement(stmt, schemaName); err != nil {
 		return nil, fmt.Errorf("parse SELECT statement failed: %v", err)
@@ -105,8 +119,24 @@ func (se *SelectExecutor) ExecuteSelect(ctx context.Context, stmt *sqlparser.Sel
 	return result, nil
 }
 
+func (se *SelectExecutor) resetExecutionState() {
+	se.schemaName = ""
+	se.tableName = ""
+
+	se.whereConditions = nil
+	se.selectExprs = nil
+	se.orderByColumns = nil
+	se.limit = -1
+	se.offset = 0
+
+	se.currentRowIndex = 0
+	se.resultSet = nil
+	se.isInitialized = false
+}
+
 // parseSelectStatement 解析SELECT语句
 func (se *SelectExecutor) parseSelectStatement(stmt *sqlparser.Select, schemaName string) error {
+	se.resetExecutionState()
 	se.schemaName = schemaName
 
 	// 解析FROM子句
@@ -171,6 +201,10 @@ func (se *SelectExecutor) parseSelectExprs(selectExprs sqlparser.SelectExprs) er
 
 // parseWhereConditions 解析WHERE条件
 func (se *SelectExecutor) parseWhereConditions(expr sqlparser.Expr) []string {
+	if expr == nil {
+		return []string{}
+	}
+
 	// 简化实现，将WHERE条件转换为字符串
 	conditions := []string{sqlparser.String(expr)}
 	return conditions
@@ -200,7 +234,11 @@ func (se *SelectExecutor) parseLimit(limitClause *sqlparser.Limit) error {
 		switch v := limitClause.Rowcount.(type) {
 		case *sqlparser.SQLVal:
 			if v.Type == sqlparser.IntVal {
-				se.limit = int(v.Val[0]) // 简化处理
+				limit, err := strconv.Atoi(string(v.Val))
+				if err != nil {
+					return fmt.Errorf("invalid LIMIT value: %s", string(v.Val))
+				}
+				se.limit = limit
 			}
 		}
 	}
@@ -209,7 +247,11 @@ func (se *SelectExecutor) parseLimit(limitClause *sqlparser.Limit) error {
 		switch v := limitClause.Offset.(type) {
 		case *sqlparser.SQLVal:
 			if v.Type == sqlparser.IntVal {
-				se.offset = int(v.Val[0]) // 简化处理
+				offset, err := strconv.Atoi(string(v.Val))
+				if err != nil {
+					return fmt.Errorf("invalid OFFSET value: %s", string(v.Val))
+				}
+				se.offset = offset
 			}
 		}
 	}
@@ -332,46 +374,60 @@ func (se *SelectExecutor) executeQuery(ctx context.Context) error {
 func (se *SelectExecutor) executeUserTableQuery(ctx context.Context) error {
 	logger.Debugf(" [SelectExecutor] 执行 mysql.user 表查询")
 
-	// 尝试从缓冲池管理器获取存储管理器
-	var storageManager interface{}
-	if se.bufferPoolManager != nil {
-		// 尝试通过反射或其他方式获取存储管理器
-		// 这里暂时设置为 nil，使用默认用户数据
-		storageManager = nil
-	}
-
-	// 如果获取不到存储管理器，创建默认的用户数据
+	// 优先使用真实存储管理器获取 mysql.user 信息
+	storageManager := se.storageManager
 	if storageManager == nil {
-		logger.Warnf("  [SelectExecutor] 无法获取存储管理器，创建默认 mysql.user 数据")
+		logger.Warnf("  [SelectExecutor] 存储管理器未注入，创建默认 mysql.user 数据")
 		return se.createDefaultUserData()
 	}
 
-	// 尝试查询用户数据
-	if sm, ok := storageManager.(interface {
-		QueryMySQLUser(username, host string) (interface{}, error)
-	}); ok {
+	if se.storageManager != nil {
 		logger.Debugf(" [SelectExecutor] 使用存储管理器查询用户数据")
 
 		// 解析WHERE条件以获取用户名和主机
 		username, host := se.parseUserQueryConditions()
 
-		user, err := sm.QueryMySQLUser(username, host)
-		if err != nil {
-			logger.Warnf("  [SelectExecutor] 查询用户数据失败: %v，使用默认数据", err)
-			return se.createDefaultUserData()
+		hostCandidates := []string{host}
+		if host == "127.0.0.1" || host == "::1" {
+			hostCandidates = append(hostCandidates, "localhost", "%")
+		}
+		if host != "localhost" {
+			hostCandidates = append(hostCandidates, "localhost")
+		}
+		if host != "%" {
+			hostCandidates = append(hostCandidates, "%")
 		}
 
-		// 将用户数据转换为记录
-		if err := se.convertUserToRecord(user); err != nil {
-			logger.Warnf("  [SelectExecutor] 转换用户数据失败: %v，使用默认数据", err)
-			return se.createDefaultUserData()
+		seen := make(map[string]struct{})
+		for _, candidateHost := range hostCandidates {
+			if candidateHost == "" {
+				continue
+			}
+			if _, exists := seen[candidateHost]; exists {
+				continue
+			}
+			seen[candidateHost] = struct{}{}
+
+			user, err := storageManager.QueryMySQLUser(username, candidateHost)
+			if err != nil {
+				logger.Warnf("  [SelectExecutor] 查询用户数据失败: user=%s host=%s -> %v", username, candidateHost, err)
+				continue
+			}
+
+			// 将用户数据转换为记录
+			if err := se.convertMySQLUserToRecord(user); err != nil {
+				logger.Warnf("  [SelectExecutor] 转换用户数据失败: %v，使用默认数据", err)
+				continue
+			}
+
+			logger.Debugf(" [SelectExecutor] 成功从存储管理器获取用户数据: user=%s host=%s", user.User, user.Host)
+			return nil
 		}
 
-		logger.Debugf(" [SelectExecutor] 成功从存储管理器获取用户数据")
-		return nil
+		logger.Warnf("  [SelectExecutor] 存储管理器未能匹配用户: user=%s host=%s，使用默认数据", username, host)
 	}
 
-	logger.Warnf("  [SelectExecutor] 存储管理器接口不匹配，创建默认 mysql.user 数据")
+	logger.Warnf("  [SelectExecutor] 存储管理器查询失败，创建默认 mysql.user 数据")
 	return se.createDefaultUserData()
 }
 
@@ -383,69 +439,122 @@ func (se *SelectExecutor) parseUserQueryConditions() (username, host string) {
 	username = "root"
 	host = "localhost"
 
-	// 简单的条件解析
-	for _, condition := range se.whereConditions {
-		conditionUpper := strings.ToUpper(condition)
+	if len(se.whereConditions) == 0 {
+		logger.Debugf(" [SelectExecutor] WHERE条件为空，使用默认值 user=%s, host=%s", username, host)
+		logger.Debugf(" [SelectExecutor] 最终解析结果: user=%s, host=%s", username, host)
+		return username, host
+	}
 
-		// 查找 User = 'xxx' 条件
-		if strings.Contains(conditionUpper, "USER") && strings.Contains(conditionUpper, "=") {
-			parts := strings.Split(condition, "=")
-			if len(parts) >= 2 {
-				userValue := strings.TrimSpace(parts[1])
-				userValue = strings.Trim(userValue, "'\"")
-				if userValue != "" {
-					username = userValue
-					logger.Debugf(" [SelectExecutor] 解析到用户名: %s", username)
-				}
-			}
-		}
+	whereClause := strings.Join(se.whereConditions, " AND ")
+	userValue := se.extractWhereValue(userWhereConditionRe, whereClause)
+	hostValue := se.extractWhereValue(hostWhereConditionRe, whereClause)
 
-		// 查找 Host = 'xxx' 条件
-		if strings.Contains(conditionUpper, "HOST") && strings.Contains(conditionUpper, "=") {
-			parts := strings.Split(condition, "=")
-			if len(parts) >= 2 {
-				hostValue := strings.TrimSpace(parts[1])
-				hostValue = strings.Trim(hostValue, "'\"")
-				if hostValue != "" {
-					host = hostValue
-					logger.Debugf(" [SelectExecutor] 解析到主机: %s", host)
-				}
-			}
-		}
+	if userValue != "" {
+		username = userValue
+		logger.Debugf(" [SelectExecutor] 解析到用户名: %s", username)
+	} else {
+		logger.Warnf(" [SelectExecutor] 未解析到User条件，使用默认值: %s", username)
+	}
+	if hostValue != "" {
+		host = hostValue
+		logger.Debugf(" [SelectExecutor] 解析到主机: %s", host)
+	} else {
+		logger.Warnf(" [SelectExecutor] 未解析到Host条件，使用默认值: %s", host)
 	}
 
 	logger.Debugf(" [SelectExecutor] 最终解析结果: user=%s, host=%s", username, host)
 	return username, host
 }
 
+func (se *SelectExecutor) extractWhereValue(re *regexp.Regexp, whereClause string) string {
+	matches := re.FindStringSubmatch(whereClause)
+	if len(matches) < 2 {
+		return ""
+	}
+
+	value := ""
+	for _, candidate := range matches[1:] {
+		if candidate != "" {
+			value = candidate
+			break
+		}
+	}
+	value = strings.TrimSpace(strings.Trim(value, `"'`))
+	return value
+}
+
 // convertUserToRecord 将用户数据转换为记录
-func (se *SelectExecutor) convertUserToRecord(user interface{}) error {
-	logger.Debugf(" [SelectExecutor] 转换用户数据为记录")
+func (se *SelectExecutor) convertMySQLUserToRecord(user *manager.MySQLUser) error {
+	if user == nil {
+		return fmt.Errorf("mysql user is nil")
+	}
 
-	// 创建用户记录（这里需要根据实际的用户数据结构进行转换）
-	// 简化实现：创建包含基本用户信息的记录
+	logger.Debugf(" [SelectExecutor] 转换用户数据为记录: user=%s host=%s", user.User, user.Host)
+
+	var passwordLifetime interface{}
+	if user.PasswordLifetime != nil {
+		passwordLifetime = int(*user.PasswordLifetime)
+	}
+
+	var passwordReuseCount interface{}
+	if user.PasswordReuseCcount != nil {
+		passwordReuseCount = int(*user.PasswordReuseCcount)
+	}
+
+	var passwordReuseTime interface{}
+	if user.PasswordReuseTime != nil {
+		passwordReuseTime = int(*user.PasswordReuseTime)
+	}
+
 	tableMeta := se.getMySQLUserTableMeta()
-
-	// 假设用户对象有基本的字段
-	userData := []interface{}{
-		"localhost", // Host
-		"root",      // User
-		"Y",         // Select_priv
-		"Y",         // Insert_priv
-		"Y",         // Update_priv
-		"Y",         // Delete_priv
-		"Y",         // Create_priv
-		"Y",         // Drop_priv
-		// ... 其他字段根据需要添加
+	rawValues := []interface{}{
+		user.Host,
+		user.User,
+		user.SelectPriv,
+		user.InsertPriv,
+		user.UpdatePriv,
+		user.DeletePriv,
+		user.CreatePriv,
+		user.DropPriv,
+		user.ReloadPriv,
+		user.ShutdownPriv,
+		user.ProcessPriv,
+		user.FilePriv,
+		user.GrantPriv,
+		user.ReferencesPriv,
+		user.IndexPriv,
+		user.AlterPriv,
+		user.ShowDbPriv,
+		user.SuperPriv,
+		user.CreateTmpTablePriv,
+		user.LockTablesPriv,
+		user.ExecutePriv,
+		user.ReplSlavePriv,
+		user.ReplClientPriv,
+		user.CreateViewPriv,
+		user.ShowViewPriv,
+		user.CreateRoutinePriv,
+		user.AlterRoutinePriv,
+		user.CreateUserPriv,
+		user.EventPriv,
+		user.TriggerPriv,
+		user.CreateTablespacePriv,
+		user.AuthenticationString,
+		user.PasswordExpired,
+		passwordLifetime,
+		user.AccountLocked,
+		func() interface{} {
+			if user.PasswordLastChanged.IsZero() {
+				return nil
+			}
+			return user.PasswordLastChanged.Format("2006-01-02 15:04:05")
+		}(),
+		passwordReuseCount,
+		passwordReuseTime,
+		user.PasswordRequireCurrent,
+		user.UserAttributes,
 	}
-
-	// 确保数据长度匹配列数
-	columnCount := len(tableMeta.Columns)
-	for len(userData) < columnCount {
-		userData = append(userData, "")
-	}
-
-	record := NewExecutorRecordFromInterface(userData, tableMeta)
+	record := NewExecutorRecordFromInterface(rawValues, tableMeta)
 	se.resultSet = []Record{record}
 
 	logger.Debugf(" [SelectExecutor] 用户数据转换完成，生成 1 条记录")
@@ -457,6 +566,7 @@ func (se *SelectExecutor) createDefaultUserData() error {
 	logger.Debugf("  [SelectExecutor] 创建默认 mysql.user 表数据")
 
 	tableMeta := se.getMySQLUserTableMeta()
+	defaultPasswordHash := se.getDefaultRootUserPasswordHash()
 
 	// 创建默认的root用户记录
 	// 字段顺序：Host, User, 29个权限字段, authentication_string, password_expired,
@@ -467,14 +577,14 @@ func (se *SelectExecutor) createDefaultUserData() error {
 			"localhost", "root", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
 			"Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
 			"Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
-			"Y", "*23AE809DDACAF96AF0FD78ED04B6A265E05AA257", "N",
+			"Y", defaultPasswordHash, "N",
 			"0", "0", "0", "0", "N", "2024-01-01 00:00:00", "Y", "{}",
 		},
 		{
 			"%", "root", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
 			"Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
 			"Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
-			"Y", "*23AE809DDACAF96AF0FD78ED04B6A265E05AA257", "N",
+			"Y", defaultPasswordHash, "N",
 			"0", "0", "0", "0", "N", "2024-01-01 00:00:00", "Y", "{}",
 		},
 	}
@@ -486,6 +596,13 @@ func (se *SelectExecutor) createDefaultUserData() error {
 
 	logger.Debugf(" [SelectExecutor] 创建了 %d 条默认用户记录", len(se.resultSet))
 	return nil
+}
+
+func (se *SelectExecutor) getDefaultRootUserPasswordHash() string {
+	defaultPassword := "root@1234"
+	stage1 := sha1.Sum([]byte(defaultPassword))
+	stage2 := sha1.Sum(stage1[:])
+	return fmt.Sprintf("*%X", stage2)
 }
 
 // getMySQLUserTableMeta 获取 mysql.user 表的元数据

@@ -163,7 +163,13 @@ func (sm *SegmentManager) CreateSegment(spaceID uint32, segType uint8, isTemp bo
 func (sm *SegmentManager) GetSegment(segID uint32) basic.Segment {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-	return sm.segments[segID]
+
+	segment, ok := sm.segments[segID]
+	if !ok || segment == nil {
+		return nil
+	}
+
+	return segment
 }
 
 // AllocatePage 在段中分配新页面，根据段类型使用不同策略

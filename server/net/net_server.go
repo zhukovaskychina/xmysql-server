@@ -19,7 +19,6 @@ package net
 
 import (
 	"crypto/tls"
-	"fmt"
 	"net"
 	"strings"
 	"sync"
@@ -221,7 +220,8 @@ func (s *serverimpl) runTcpEventLoop(newSession NewSessionCallback) {
 // @newSession: new connection callback
 func (s *serverimpl) RunEventLoop(newSession NewSessionCallback) {
 	if err := s.listen(); err != nil {
-		panic(fmt.Errorf("serverimpl.listen() = error:%+v", jerrors.ErrorStack(err)))
+		log.Warn("serverimpl.listen() = error:%+v", jerrors.ErrorStack(err))
+		return
 	}
 
 	s.runTcpEventLoop(newSession)

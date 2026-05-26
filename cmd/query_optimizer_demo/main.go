@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -21,7 +20,8 @@ func main() {
 
 	// 运行演示
 	if err := demo.Run(); err != nil {
-		log.Fatalf("演示失败: %v", err)
+		fmt.Printf("演示失败: %v\n", err)
+		return
 	}
 
 	fmt.Println(" 演示完成！")

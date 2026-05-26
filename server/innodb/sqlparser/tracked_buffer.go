@@ -82,7 +82,8 @@ func (buf *TrackedBuffer) Myprintf(format string, values ...interface{}) {
 			case rune:
 				buf.WriteRune(v)
 			default:
-				panic(fmt.Sprintf("unexpected TrackedBuffer type %T", v))
+				// Defensive fallback for unexpected char-like values.
+				buf.WriteString(fmt.Sprintf("[unsupported:%T]", v))
 			}
 		case 's':
 			switch v := values[fieldnum].(type) {
@@ -91,20 +92,27 @@ func (buf *TrackedBuffer) Myprintf(format string, values ...interface{}) {
 			case string:
 				buf.WriteString(v)
 			default:
-				panic(fmt.Sprintf("unexpected TrackedBuffer type %T", v))
+				// Defensive fallback for unexpected string-like values.
+				buf.WriteString(fmt.Sprintf("[unsupported:%T]", v))
 			}
 		case 'v':
-			node := values[fieldnum].(SQLNode)
-			if buf.nodeFormatter == nil {
-				//	node.Format(buf)
-				(node).Format(buf)
+			node, ok := values[fieldnum].(SQLNode)
+			if !ok {
+				buf.WriteString(fmt.Sprintf("[unsupported:%T]", values[fieldnum]))
+			} else if buf.nodeFormatter == nil {
+				node.Format(buf)
 			} else {
 				buf.nodeFormatter(buf, node)
 			}
 		case 'a':
-			buf.WriteArg(values[fieldnum].(string))
+			if v, ok := values[fieldnum].(string); ok {
+				buf.WriteArg(v)
+			} else {
+				buf.WriteArg(fmt.Sprintf("[unsupported:%T]", values[fieldnum]))
+			}
 		default:
-			panic("unexpected")
+			// Defensive fallback for unknown format verbs.
+			buf.WriteString("[unexpected]")
 		}
 		fieldnum++
 		i++

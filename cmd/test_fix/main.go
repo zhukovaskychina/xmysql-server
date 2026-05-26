@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 )
@@ -15,7 +14,8 @@ func main() {
 	dsn := "root:123456@tcp(127.0.0.1:3309)/demo_db"
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		log.Fatalf(" 连接失败: %v", err)
+		fmt.Printf("连接失败: %v\n", err)
+		return
 	}
 	defer db.Close()
 

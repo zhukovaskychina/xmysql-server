@@ -209,7 +209,8 @@ func (sm *SpaceManagerImpl) CreateNewTablespace(name string) uint32 {
 
 	_, err := sm.CreateSpace(spaceID, name, false)
 	if err != nil {
-		panic(err)
+		logger.Warnf("failed to create tablespace %s (spaceID=%d): %v", name, spaceID, err)
+		return 0
 	}
 
 	return spaceID

@@ -287,7 +287,10 @@ func TestStorageIntegratedDMLExecutor_ConditionParsing(t *testing.T) {
 		{"id = 1", int64(1)},
 		{"id = '123'", "123"},
 		{"user_id = 456", int64(456)},
+		{"`user_id` = '789'", "789"},
 		{"name = 'test'", nil}, // 非ID字段，应该返回nil
+		{"userid = 1", nil},    // 非主键风格命中，防止误判
+		{"id = 1 AND name = 'x'", int64(1)},
 	}
 
 	for _, tc := range testCases {
@@ -488,4 +491,29 @@ func BenchmarkStorageIntegratedDMLExecutor_Deserialization(b *testing.B) {
 			b.Fatalf("Deserialization failed: %v", err)
 		}
 	}
+}
+
+func TestStorageIntegratedDMLExecutor_ParseTableSchemaFromUpdateExpr(t *testing.T) {
+	executor := NewStorageIntegratedDMLExecutor(nil, nil, nil, nil, nil, nil, nil, nil)
+
+	updateSQL := "UPDATE stage1_db.users SET name = 'Jane Doe' WHERE id = 1"
+	stmt, err := sqlparser.Parse(updateSQL)
+	if err != nil {
+		t.Fatalf("Failed to parse UPDATE SQL: %v", err)
+	}
+
+	updateStmt := stmt.(*sqlparser.Update)
+	if len(updateStmt.TableExprs) == 0 {
+		t.Fatalf("Expected at least one table expr")
+	}
+
+	tableSchema, err := executor.parseTableSchema(updateStmt.TableExprs[0])
+	if err != nil {
+		t.Fatalf("Failed to parse table schema: %v", err)
+	}
+	if tableSchema != "stage1_db" {
+		t.Errorf("Expected table schema 'stage1_db', got '%s'", tableSchema)
+	}
+
+	t.Logf(" storage-integrated table schema parse test passed")
 }

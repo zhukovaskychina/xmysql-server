@@ -32,6 +32,7 @@ type PrefetchManager struct {
 	workers       int           // 预读工作线程数
 	workerPool    chan struct{} // 工作线程池
 	mu            sync.Mutex
+	paused        bool // true 时暂停消费队列
 
 	// 智能预读相关
 	accessHistory       []PageAccess
@@ -62,6 +63,7 @@ func NewPrefetchManager(bufferPool *BufferPool, prefetchSize int, maxQueueSize i
 		maxHistorySize:      1000,
 		patternWindow:       10,
 		confidenceThreshold: 0.7,
+		paused:              false,
 	}
 
 	// 启动预读工作线程
@@ -148,6 +150,15 @@ func (pm *PrefetchManager) addPrefetchRequest(request *PrefetchRequest) {
 // prefetchWorker 预读工作线程
 func (pm *PrefetchManager) prefetchWorker() {
 	for {
+		pm.mu.Lock()
+		paused := pm.paused
+		pm.mu.Unlock()
+
+		if paused {
+			time.Sleep(10 * time.Millisecond)
+			continue
+		}
+
 		// 获取工作线程槽
 		pm.workerPool <- struct{}{}
 
@@ -210,6 +221,20 @@ func (pm *PrefetchManager) ClearQueue() {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	pm.prefetchQueue.Init()
+}
+
+// PauseWorkers 暂停预读工作线程取队列执行任务
+func (pm *PrefetchManager) PauseWorkers() {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	pm.paused = true
+}
+
+// ResumeWorkers 恢复预读工作线程处理队列
+func (pm *PrefetchManager) ResumeWorkers() {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	pm.paused = false
 }
 
 // UpdateAccessHistory 更新访问历史

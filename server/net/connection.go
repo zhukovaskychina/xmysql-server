@@ -20,7 +20,6 @@ package net
 import (
 	"compress/flate"
 	"crypto/tls"
-	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -116,7 +115,8 @@ func (c *mysqlConn) setSession(ss Session) {
 // Pls do not set read deadline when using compression. AlexStocks 20180314.
 func (c *mysqlConn) SetReadTimeout(rTimeout time.Duration) {
 	if rTimeout < 1 {
-		panic("@rTimeout < 1")
+		logger.Warnf("invalid mysqlConn read timeout(%v), fallback to netIOTimeout", rTimeout)
+		rTimeout = netIOTimeout
 	}
 
 	c.rTimeout = rTimeout
@@ -135,7 +135,8 @@ func (c mysqlConn) writeTimeout() time.Duration {
 // Pls do not set write deadline when using compression. AlexStocks 20180314.
 func (c *mysqlConn) SetWriteTimeout(wTimeout time.Duration) {
 	if wTimeout < 1 {
-		panic("@wTimeout < 1")
+		logger.Warnf("invalid mysqlConn write timeout(%v), fallback to netIOTimeout", wTimeout)
+		wTimeout = netIOTimeout
 	}
 
 	c.wTimeout = wTimeout
@@ -158,7 +159,20 @@ type MysqlTCPConn struct {
 // create gettyTCPConn
 func newMySQLTCPConn(conn net.Conn) *MysqlTCPConn {
 	if conn == nil {
-		panic("newMysqlTCPConn(conn):@conn is nil")
+		logger.Warnf("newMySQLTCPConn(conn): conn is nil, create connection without socket")
+		return &MysqlTCPConn{
+			conn:   nil,
+			reader: nil,
+			writer: nil,
+			mysqlConn: mysqlConn{
+				id:       atomic.AddUint32(&connID, 1),
+				rTimeout: netIOTimeout,
+				wTimeout: netIOTimeout,
+				local:    "",
+				peer:     "",
+				compress: CompressNone,
+			},
+		}
 	}
 	var localAddr, peerAddr string
 	//  check conn.LocalAddr or conn.RemoetAddr is nil to defeat panic on 2016/09/27
@@ -210,6 +224,14 @@ func (t *writeFlusher) Write(p []byte) (int, error) {
 
 // set compress type(tcp: zip/snappy, websocket:zip)
 func (t *MysqlTCPConn) SetCompressType(c CompressType) {
+	if t.conn == nil {
+		logger.Warnf("mysql tcp connection is nil, skip compress setup")
+		t.compress = CompressNone
+		t.reader = nil
+		t.writer = nil
+		return
+	}
+
 	switch c {
 	case CompressNone, CompressZip, CompressBestSpeed, CompressBestCompression, CompressHuffman:
 		ioReader := io.Reader(t.conn)
@@ -218,7 +240,10 @@ func (t *MysqlTCPConn) SetCompressType(c CompressType) {
 		ioWriter := io.Writer(t.conn)
 		w, err := flate.NewWriter(ioWriter, int(c))
 		if err != nil {
-			panic(fmt.Sprintf("flate.NewReader(flate.DefaultCompress) = err(%s)", err))
+			logger.Warnf("flate.NewWriter(type=%d) = err(%s), fallback to plain writer", c, err)
+			t.writer = io.Writer(t.conn)
+			t.compress = CompressNone
+			return
 		}
 		t.writer = &writeFlusher{flusher: w}
 
@@ -229,13 +254,19 @@ func (t *MysqlTCPConn) SetCompressType(c CompressType) {
 		t.writer = snappy.NewBufferedWriter(ioWriter)
 
 	default:
-		panic(fmt.Sprintf("illegal comparess type %d", c))
+		logger.Warnf("illegal compress type %d, fallback to none", c)
+		t.reader = io.Reader(t.conn)
+		t.writer = io.Writer(t.conn)
+		c = CompressNone
 	}
 	t.compress = c
 }
 
 // tcp connection read
 func (t *MysqlTCPConn) recv(p []byte) (int, error) {
+	if t.conn == nil {
+		return 0, jerrors.New("connection is nil")
+	}
 	var (
 		err         error
 		currentTime time.Time
@@ -276,6 +307,9 @@ func (t *MysqlTCPConn) recv(p []byte) (int, error) {
 
 // tcp connection write
 func (t *MysqlTCPConn) send(pkg interface{}) (int, error) {
+	if t.conn == nil {
+		return 0, jerrors.New("connection is nil")
+	}
 	var (
 		err         error
 		currentTime time.Time
@@ -283,6 +317,9 @@ func (t *MysqlTCPConn) send(pkg interface{}) (int, error) {
 		p           []byte
 		length      int
 	)
+	if t.writer == nil {
+		return 0, jerrors.New("connection writer is nil")
+	}
 
 	if t.compress == CompressNone && t.wTimeout > 0 {
 		// Optimization: update write deadline only if more than 25%

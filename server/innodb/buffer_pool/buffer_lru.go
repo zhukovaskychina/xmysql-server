@@ -278,7 +278,20 @@ func (L *LRUCacheImpl) Purge() {
 }
 
 func (L *LRUCacheImpl) Has(spaceId uint32, pageNo uint32) bool {
-	panic("implement me")
+	L.mu.RLock()
+	defer L.mu.RUnlock()
+	var buff = append(util.ConvertUInt4Bytes(spaceId), util.ConvertUInt4Bytes(pageNo)...)
+	hashCode := util.HashCode(buff)
+	if _, ok := L.youngItems[hashCode]; ok {
+		return true
+	}
+	if _, ok := L.oldItems[hashCode]; ok {
+		return true
+	}
+	if _, ok := L.items[hashCode]; ok {
+		return true
+	}
+	return false
 }
 
 // TODO 校验这里的hashcode的安全性

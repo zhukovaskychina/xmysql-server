@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== CNF转换器测试 ===\n")
+	fmt.Println("=== CNF转换器测试 ===")
 
 	converter := plan.NewCNFConverter()
 
@@ -28,7 +28,7 @@ func main() {
 	notAndExpr := &plan.NotExpression{Operand: andExpr}
 	result2 := converter.ConvertToCNF(notAndExpr)
 	fmt.Printf("输出: %s\n", result2.String())
-	fmt.Println("期望: (NOT (a)) OR (NOT (b))\n")
+	fmt.Println("期望: (NOT (a)) OR (NOT (b))")
 
 	// 测试3: 德摩根定律 - NOT (a OR b)
 	fmt.Println("测试3: 德摩根定律 - NOT (a OR b)")
@@ -39,7 +39,7 @@ func main() {
 	notOrExpr := &plan.NotExpression{Operand: orExpr}
 	result3 := converter.ConvertToCNF(notOrExpr)
 	fmt.Printf("输出: %s\n", result3.String())
-	fmt.Println("期望: (NOT (a)) AND (NOT (b))\n")
+	fmt.Println("期望: (NOT (a)) AND (NOT (b))")
 
 	// 测试4: 运算符取反
 	fmt.Println("测试4: 运算符取反 - NOT (age > 18)")
@@ -54,7 +54,7 @@ func main() {
 	notAgeGt18 := &plan.NotExpression{Operand: ageGt18}
 	result4 := converter.ConvertToCNF(notAgeGt18)
 	fmt.Printf("输出: %s (%T)\n", result4.String(), result4)
-	fmt.Println("期望: age <= 18\n")
+	fmt.Println("期望: age <= 18")
 
 	// 测试5: 简单分配律 - a OR (b AND c)
 	fmt.Println("测试5: 简单分配律 - a OR (b AND c)")
@@ -66,7 +66,7 @@ func main() {
 	orABC := &plan.BinaryOperation{Op: plan.OpOr, Left: a3, Right: andBC}
 	result5 := converter.ConvertToCNF(orABC)
 	fmt.Printf("输出: %s\n", result5.String())
-	fmt.Println("期望: (a OR b) AND (a OR c)\n")
+	fmt.Println("期望: (a OR b) AND (a OR c)")
 
 	// 测试6: 复杂分配律 - (a AND b) OR (c AND d)
 	fmt.Println("测试6: 复杂分配律 - (a AND b) OR (c AND d)")
@@ -80,7 +80,7 @@ func main() {
 	orABCD := &plan.BinaryOperation{Op: plan.OpOr, Left: andAB, Right: andCD}
 	result6 := converter.ConvertToCNF(orABCD)
 	fmt.Printf("输出: %s\n", result6.String())
-	fmt.Println("期望: (a OR c) AND (a OR d) AND (b OR c) AND (b OR d)\n")
+	fmt.Println("期望: (a OR c) AND (a OR d) AND (b OR c) AND (b OR d)")
 
 	// 测试7: 复杂表达式 - NOT ((age > 18 AND city = 'Beijing') OR status = 'inactive')
 	fmt.Println("测试7: 复杂表达式转换")
@@ -110,7 +110,7 @@ func main() {
 	notExpr := &plan.NotExpression{Operand: orExpr2}
 	result7 := converter.ConvertToCNF(notExpr)
 	fmt.Printf("输出: %s\n", result7.String())
-	fmt.Println("期望: (age <= 18 OR city != 'Beijing') AND status != 'inactive'\n")
+	fmt.Println("期望: (age <= 18 OR city != 'Beijing') AND status != 'inactive'")
 
 	// 测试8: 提取合取项
 	fmt.Println("测试8: 提取合取项 - a AND b AND c")

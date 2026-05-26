@@ -326,15 +326,16 @@ func (dml *StorageIntegratedDMLExecutor) rollbackStorageTransaction(ctx context.
 
 	// 如果有真实事务，使用事务管理器回滚
 	if dml.txManager != nil && txnCtx.RealTransaction != nil {
+		hasUndoLogs := len(txnCtx.RealTransaction.UndoLogs) > 0
 		// 使用事务管理器回滚真实事务
 		err := dml.txManager.Rollback(txnCtx.RealTransaction)
 		if err != nil {
-			if strings.Contains(err.Error(), "no undo logs for transaction") {
-				logger.Debugf("⚠️ 事务 %d 没有 Undo 日志，按空回滚处理", txnCtx.RealTransaction.ID)
-			} else {
-				logger.Errorf(" 事务管理器回滚失败: %v", err)
-				return fmt.Errorf("事务管理器回滚失败: %v", err)
-			}
+			logger.Errorf("事务管理器回滚失败: tx_id=%d err=%T %v", txnCtx.RealTransaction.ID, err, err)
+			return fmt.Errorf("事务管理器回滚失败: tx_id=%d: %w", txnCtx.RealTransaction.ID, err)
+		}
+
+		if !hasUndoLogs {
+			logger.Debugf("⚠️ 事务 %d 未检测到 Undo 日志，按空回滚处理", txnCtx.RealTransaction.ID)
 		}
 
 		logger.Debugf(" 事务管理器回滚成功: TrxID=%d, Duration=%v",
@@ -533,29 +534,93 @@ func (dml *StorageIntegratedDMLExecutor) markRowAsDeletedInStorage(
 
 // extractPrimaryKeyFromCondition 从WHERE条件中提取主键值
 func (dml *StorageIntegratedDMLExecutor) extractPrimaryKeyFromCondition(condition string) interface{} {
-	// 简化实现：解析类似 "id = 1" 的条件
-	if strings.Contains(condition, "=") {
-		parts := strings.Split(condition, "=")
-		if len(parts) == 2 {
-			leftPart := strings.TrimSpace(parts[0])
-			rightPart := strings.TrimSpace(parts[1])
-
-			// 检查是否是id字段
-			if strings.Contains(leftPart, "id") || strings.Contains(leftPart, "ID") {
-				// 尝试解析为数字
-				if id, err := strconv.ParseInt(rightPart, 10, 64); err == nil {
-					return id
-				}
-				// 尝试解析为字符串（去掉引号）
-				if strings.HasPrefix(rightPart, "'") && strings.HasSuffix(rightPart, "'") {
-					return rightPart[1 : len(rightPart)-1]
-				}
-				return rightPart
-			}
-		}
+	condition = strings.TrimSpace(condition)
+	if condition == "" {
+		return nil
 	}
 
-	return nil
+	stmt, err := sqlparser.Parse("SELECT 1 FROM dual WHERE " + condition)
+	if err != nil {
+		logger.Debugf(" 解析WHERE条件失败: %v, condition=%q", err, condition)
+		return nil
+	}
+
+	selectStmt, ok := stmt.(*sqlparser.Select)
+	if !ok || selectStmt.Where == nil || selectStmt.Where.Expr == nil {
+		return nil
+	}
+
+	return dml.extractPrimaryKeyFromExpr(selectStmt.Where.Expr)
+}
+
+func (dml *StorageIntegratedDMLExecutor) extractPrimaryKeyFromExpr(expr sqlparser.Expr) interface{} {
+	switch v := expr.(type) {
+	case *sqlparser.AndExpr:
+		if key := dml.extractPrimaryKeyFromExpr(v.Left); key != nil {
+			return key
+		}
+		return dml.extractPrimaryKeyFromExpr(v.Right)
+	case *sqlparser.OrExpr:
+		if key := dml.extractPrimaryKeyFromExpr(v.Left); key != nil {
+			return key
+		}
+		return dml.extractPrimaryKeyFromExpr(v.Right)
+	case *sqlparser.ComparisonExpr:
+		if v.Operator != sqlparser.EqualStr {
+			return nil
+		}
+		colName, ok := v.Left.(*sqlparser.ColName)
+		if !ok || !isPrimaryKeyColumn(colName.Name.String()) {
+			return nil
+		}
+		return dml.parsePrimaryKeyValue(v.Right)
+	case *sqlparser.ParenExpr:
+		return dml.extractPrimaryKeyFromExpr(v.Expr)
+	default:
+		return nil
+	}
+}
+
+func (dml *StorageIntegratedDMLExecutor) parsePrimaryKeyValue(expr sqlparser.Expr) interface{} {
+	switch v := expr.(type) {
+	case *sqlparser.SQLVal:
+		pkVal, err := dml.parseSQLVal(v)
+		if err != nil {
+			logger.Debugf(" 解析主键值失败: %v", err)
+			return nil
+		}
+		return pkVal
+	case *sqlparser.ParenExpr:
+		return dml.parsePrimaryKeyValue(v.Expr)
+	case *sqlparser.UnaryExpr:
+		if v.Operator == sqlparser.MinusStr && v.Expr != nil {
+			if intVal, ok := dml.parsePrimaryKeyValue(v.Expr).(int64); ok {
+				return -intVal
+			}
+			return nil
+		}
+		if v.Operator == sqlparser.PlusStr {
+			return dml.parsePrimaryKeyValue(v.Expr)
+		}
+		if v.Expr != nil {
+			return dml.parsePrimaryKeyValue(v.Expr)
+		}
+		return nil
+	default:
+		return nil
+	}
+}
+
+func isPrimaryKeyColumn(raw string) bool {
+	colName := strings.Trim(raw, "` ")
+	if colName == "" {
+		return false
+	}
+	if idx := strings.LastIndex(colName, "."); idx >= 0 && idx < len(colName)-1 {
+		colName = colName[idx+1:]
+	}
+	lowerName := strings.ToLower(strings.TrimSpace(colName))
+	return lowerName == "id" || strings.HasSuffix(lowerName, "_id")
 }
 
 // applyUpdateExpressions 应用更新表达式
@@ -719,6 +784,21 @@ func (dml *StorageIntegratedDMLExecutor) parseTableName(tableExpr sqlparser.Tabl
 		switch tableExpr := v.Expr.(type) {
 		case sqlparser.TableName:
 			return tableExpr.Name.String(), nil
+		default:
+			return "", fmt.Errorf("不支持的表表达式类型: %T", tableExpr)
+		}
+	default:
+		return "", fmt.Errorf("不支持的FROM表达式类型: %T", v)
+	}
+}
+
+// parseTableSchema 解析表schema（限定符）
+func (dml *StorageIntegratedDMLExecutor) parseTableSchema(tableExpr sqlparser.TableExpr) (string, error) {
+	switch v := tableExpr.(type) {
+	case *sqlparser.AliasedTableExpr:
+		switch tableExpr := v.Expr.(type) {
+		case sqlparser.TableName:
+			return tableExpr.Qualifier.String(), nil
 		default:
 			return "", fmt.Errorf("不支持的表表达式类型: %T", tableExpr)
 		}

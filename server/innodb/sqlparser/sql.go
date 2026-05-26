@@ -5595,7 +5595,7 @@ yydefault:
 		{
 			// TODO(sougou): Deprecate this construct.
 			if yyDollar[1].colIdent.Lowered() != "value" {
-				yylex.Error("expecting value after next")
+				yylex.Error("expecting valueImpl after next")
 				return 1
 			}
 			yyVAL.expr = NewIntVal([]byte("1"))

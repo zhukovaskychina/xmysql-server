@@ -1,7 +1,6 @@
 package conf
 
 import (
-	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -104,13 +103,14 @@ type MySQLSessionParam struct {
 
 func NewCfg() *Cfg {
 	return &Cfg{
-		Raw:         ini.Empty(),
-		User:        "mysql",
-		BindAddress: "127.0.0.1",
-		Port:        3308,
-		DataDir:     "data",
-		// 默认开发环境免密，便于本地联调；生产请显式置为 false
-		DevBypassPasswordAuth: true,
+		Raw:           ini.Empty(),
+		User:          "mysql",
+		BindAddress:   "127.0.0.1",
+		Port:          3308,
+		DataDir:       "data",
+		SessionNumber: 1000,
+		// 默认关闭免密；本地联调可显式改为 true 并配合 127.0.0.1 监听
+		DevBypassPasswordAuth: false,
 		// Logs 默认配置
 		LogError: "/var/log/mysql/error.log",
 		LogInfos: "/var/log/mysql/mysql.log",
@@ -141,7 +141,7 @@ func (cfg *Cfg) Load(args *CommandLineArgs) *Cfg {
 	iniFile, err := cfg.loadConfiguration(args)
 	if err != nil {
 		logger.Debugf("加载配置文件时有异常: %v\n", err)
-		os.Exit(1)
+		logger.Warnf("配置加载失败，使用默认配置: %v", err)
 	}
 	cfg.Raw = iniFile
 
@@ -163,212 +163,143 @@ func setHomePath(args *CommandLineArgs) {
 }
 
 func (cfg *Cfg) parseMysqlSessionCfg(section *ini.Section) *Cfg {
-
-	var err error
 	cfg.MySQLSessionParam = MySQLSessionParam{}
-
-	compressEncoding, err := section.GetKey("compress_encoding")
-
-	if err != nil {
-		logger.Error("compress_encoding异常", err)
-		os.Exit(1)
+	cfg.MySQLSessionParam.CompressEncoding = parseBool(section, "compress_encoding", true)
+	cfg.MySQLSessionParam.TcpNoDelay = parseBool(section, "tcp_no_delay", true)
+	cfg.MySQLSessionParam.TcpKeepAlive = parseBool(section, "tcp_keep_alive", true)
+	cfg.MySQLSessionParam.KeepAlivePeriod = parseString(section, "keep_alive_period", "180s")
+	cfg.MySQLSessionParam.KeepAlivePeriodDuration = parseDurationOrDefault(
+		"keep_alive_period",
+		cfg.MySQLSessionParam.KeepAlivePeriod,
+		180*time.Second,
+	)
+	cfg.MySQLSessionParam.TcpRBufSize = parseInt(section, "tcp_r_buf_size", 262144)
+	cfg.MySQLSessionParam.TcpWBufSize = parseInt(section, "tcp_w_buf_size", 65536)
+	cfg.MySQLSessionParam.PkgRQSize = parseInt(section, "pkg_rq_size", 1024)
+	cfg.MySQLSessionParam.PkgWQSize = parseInt(section, "pkg_wq_size", 1024)
+	cfg.MySQLSessionParam.TcpReadTimeoutDuration = parseDurationOrDefault(
+		"tcp_read_timeout",
+		parseString(section, "tcp_read_timeout", "1s"),
+		time.Second,
+	)
+	cfg.MySQLSessionParam.TcpWriteTimeoutDuration = parseDurationOrDefault(
+		"tcp_write_timeout",
+		parseString(section, "tcp_write_timeout", "5s"),
+		5*time.Second,
+	)
+	cfg.MySQLSessionParam.WaitTimeoutDuration = parseDurationOrDefault(
+		"wait_timeout",
+		parseString(section, "wait_timeout", "7s"),
+		7*time.Second,
+	)
+	cfg.MySQLSessionParam.MaxMsgLen = parseInt(section, "max_msg_len", 1024)
+	if cfg.MySQLSessionParam.MaxMsgLen <= 0 {
+		logger.Warnf("max_msg_len 非法(%d)，回退到默认 1024", cfg.MySQLSessionParam.MaxMsgLen)
+		cfg.MySQLSessionParam.MaxMsgLen = 1024
 	}
-	tcpNoDelay, err := section.GetKey("tcp_no_delay")
-	if err != nil {
-		logger.Error("compress_encoding异常", err)
-		os.Exit(1)
-	}
-
-	tcpKeepAlive, err := section.GetKey("tcp_keep_alive")
-	if err != nil {
-		logger.Error("compress_encoding异常", err)
-		os.Exit(1)
-	}
-
-	keepAlivePeriod, err := section.GetKey("keep_alive_period")
-	if err != nil {
-		logger.Error("compress_encoding异常", err)
-		os.Exit(1)
-	}
-
-	tcpRBufSize, err := section.GetKey("tcp_r_buf_size")
-	if err != nil {
-		logger.Error("compress_encoding异常", err)
-		os.Exit(1)
-	}
-	tcpWBufSize, err := section.GetKey("tcp_w_buf_size")
-	if err != nil {
-		logger.Error("compress_encoding异常", err)
-		os.Exit(1)
-	}
-
-	pkgRqSize, err := section.GetKey("pkg_rq_size")
-	if err != nil {
-		logger.Error("compress_encoding异常", err)
-		os.Exit(1)
-	}
-
-	pkgWqSize, err := section.GetKey("pkg_wq_size")
-	if err != nil {
-
-	}
-
-	tcpReadTimeout, err := section.GetKey("tcp_read_timeout")
-	if err != nil {
-		logger.Error("compress_encoding异常", err)
-		os.Exit(1)
-	}
-	tcpWriteTimeout, err := section.GetKey("tcp_write_timeout")
-	if err != nil {
-		logger.Error("compress_encoding异常", err)
-		os.Exit(1)
-	}
-	waitTimeout, err := section.GetKey("wait_timeout")
-	if err != nil {
-		logger.Error("compress_encoding异常", err)
-		os.Exit(1)
-	}
-	maxMsgLen, err := section.GetKey("max_msg_len")
-	if err != nil {
-		logger.Error("compress_encoding异常", err)
-		os.Exit(1)
-	}
-	sessionName, err := section.GetKey("session_name")
-	if err != nil {
-		logger.Error("compress_encoding异常", err)
-		os.Exit(1)
-	}
-
-	cfg.MySQLSessionParam.CompressEncoding = compressEncoding.MustBool(true)
-	cfg.MySQLSessionParam.TcpNoDelay = tcpNoDelay.MustBool(true)
-	cfg.MySQLSessionParam.TcpKeepAlive = tcpKeepAlive.MustBool(true)
-	cfg.MySQLSessionParam.KeepAlivePeriod = keepAlivePeriod.Value()
-	cfg.MySQLSessionParam.KeepAlivePeriodDuration, err = time.ParseDuration(keepAlivePeriod.Value())
-	if err != nil {
-		logger.Error(fmt.Sprintf("time.ParseDuration(KeepAlivePeriod{%#v}) = error{%v}", cfg.MySQLSessionParam.KeepAlivePeriod, err))
-		os.Exit(1)
-	}
-	cfg.MySQLSessionParam.TcpRBufSize, err = tcpRBufSize.Int()
-	if err != nil {
-		logger.Error(fmt.Sprintf("(TcpRBufSize{%#v}) = error{%v}", cfg.MySQLSessionParam.TcpRBufSize, err))
-		os.Exit(1)
-	}
-	cfg.MySQLSessionParam.TcpWBufSize, err = tcpWBufSize.Int()
-	if err != nil {
-		logger.Error(fmt.Sprintf("(TcpWBufSize{%#v}) = error{%v}", cfg.MySQLSessionParam.TcpWBufSize, err))
-		os.Exit(1)
-	}
-
-	cfg.MySQLSessionParam.PkgRQSize, err = pkgRqSize.Int()
-	if err != nil {
-		logger.Error(fmt.Sprintf("(TcpRBufSize{%#v}) = error{%v}", cfg.MySQLSessionParam.TcpRBufSize, err))
-		os.Exit(1)
-	}
-	cfg.MySQLSessionParam.PkgWQSize, err = pkgWqSize.Int()
-	if err != nil {
-		logger.Error(fmt.Sprintf("(TcpWBufSize{%#v}) = error{%v}", cfg.MySQLSessionParam.TcpWBufSize, err))
-		os.Exit(1)
-	}
-
-	cfg.MySQLSessionParam.TcpReadTimeoutDuration, err = time.ParseDuration(tcpReadTimeout.Value())
-	if err != nil {
-		panic(fmt.Sprintf("time.ParseDuration(TcpReadTimeout{%#v}) = error{%v}", cfg.MySQLSessionParam.TcpReadTimeout, err))
-
-	}
-	cfg.MySQLSessionParam.TcpWriteTimeoutDuration, err = time.ParseDuration(tcpWriteTimeout.Value())
-	if err != nil {
-		panic(fmt.Sprintf("time.ParseDuration(TcpWriteTimeout{%#v}) = error{%v}", cfg.MySQLSessionParam.TcpWriteTimeout, err))
-
-	}
-	cfg.MySQLSessionParam.WaitTimeoutDuration, err = time.ParseDuration(waitTimeout.Value())
-	if err != nil {
-		logger.Error(fmt.Sprintf("(WaitTimeout{%#v}) = error{%v}", cfg.MySQLSessionParam.WaitTimeoutDuration, err))
-		os.Exit(1)
-
-	}
-
-	cfg.MySQLSessionParam.MaxMsgLen, err = maxMsgLen.Int()
-	if err != nil {
-		logger.Error(fmt.Sprintf("(MaxMsgLen{%#v}) = error{%v}", cfg.MySQLSessionParam.MaxMsgLen, err))
-		os.Exit(1)
-	}
-	cfg.MySQLSessionParam.SessionName = sessionName.Value()
+	cfg.MySQLSessionParam.SessionName = parseString(section, "session_name", "echo-server")
 	return cfg
 }
 
 func (cfg *Cfg) parseMysqldCfg(section *ini.Section) *Cfg {
-	var err error
-	bindAdress, err := valueAsString(section, "bind-address", "localhost")
-	if err != nil {
-		logger.Error("读取地址异常", err)
-		os.Exit(1)
-	}
+	bindAdress := parseString(section, "bind-address", "localhost")
+	bindAdress = normalizeBindAddress(bindAdress)
 	ip := net.ParseIP(bindAdress)
 	if ip == nil {
-		logger.Error("IP地址异常", err)
-		os.Exit(1)
-	}
-	portValue, err := section.GetKey("port")
-	if err != nil {
-		logger.Error("IP地址配置异常", err)
-		os.Exit(1)
-	}
-	intPort := portValue.MustInt(3307)
-
-	baseDirValue, err := section.GetKey("basedir")
-	if err != nil {
-		logger.Error("IP地址配置异常", err)
-		os.Exit(1)
-	}
-	dataDirValue, err := section.GetKey("datadir")
-	if err != nil {
-		logger.Error("IP地址配置异常", err)
-		os.Exit(1)
+		logger.Warnf("bind-address 解析失败(%s)，回退到 127.0.0.1", bindAdress)
+		bindAdress = "127.0.0.1"
 	}
 
-	maxSessionNumber, err := section.GetKey("max_session_number")
-
-	if err != nil {
-		logger.Error("最大数值异常", err)
-		os.Exit(1)
-	}
-	cfg.SessionNumber, err = maxSessionNumber.Int()
-	if err != nil {
-		logger.Error("最大数值异常", err)
-		os.Exit(1)
-	}
-	sessionTimeout, err := section.GetKey("session_timeout")
-	cfg.SessionTimeoutDuration, err = time.ParseDuration(sessionTimeout.Value())
-	if err != nil {
-		logger.Error("超时配置异常")
-		panic(fmt.Sprintf("time.ParseDuration(SessionTimeout{%#v}) = error{%v}", cfg.SessionTimeout, err))
-	}
+	sessionTimeoutValue := parseString(section, "session_timeout", "60s")
+	cfg.SessionTimeout = sessionTimeoutValue
+	cfg.SessionTimeoutDuration = parseDurationOrDefault(
+		"session_timeout",
+		sessionTimeoutValue,
+		60*time.Second,
+	)
 
 	cfg.BindAddress = bindAdress
-
-	cfg.Port = intPort
-
-	cfg.BaseDir = baseDirValue.Value()
-	cfg.DataDir = dataDirValue.Value()
-	cfg.DevBypassPasswordAuth = section.Key("dev_bypass_password_auth").MustBool(cfg.DevBypassPasswordAuth)
-	failFastTimeout, err := section.GetKey("fail_fast_timeout")
-
-	cfg.FailFastTimeout = failFastTimeout.Value()
-	if err != nil {
-		panic(fmt.Sprintf("time.ParseDuration(SessionTimeout{%#v}) = error{%v}", cfg.SessionTimeout, err))
-
+	cfg.DevBypassPasswordAuth = parseBool(section, "dev_bypass_password_auth", cfg.DevBypassPasswordAuth)
+	if shouldRejectDevBypass(cfg.BindAddress, cfg.DevBypassPasswordAuth) {
+		logger.Warnf("安全策略异常: 非本地监听下不允许开启 dev_bypass_password_auth，已关闭该配置")
+		cfg.DevBypassPasswordAuth = false
 	}
-	cfg.FailFastTimeoutDuration, err = time.ParseDuration(cfg.FailFastTimeout)
-	if err != nil {
-		panic(fmt.Sprintf("time.ParseDuration(FailFastTimeout{%#v}) = error{%v}", cfg.FailFastTimeout, err))
 
-	}
-	cfg.SessionTimeout = sessionTimeout.Value()
-	cfg.SessionTimeoutDuration, err = time.ParseDuration(sessionTimeout.Value())
-	if err != nil {
-		panic(fmt.Sprintf("time.ParseDuration(SessionTimeout{%#v}) = error{%v}", cfg.SessionTimeout, err))
-	}
+	cfg.Port = parseInt(section, "port", 3307)
+	cfg.BaseDir = parseString(section, "basedir", cfg.BaseDir)
+	cfg.DataDir = parseString(section, "datadir", cfg.DataDir)
+	cfg.SessionNumber = parseInt(section, "max_session_number", cfg.SessionNumber)
+
+	failFastTimeoutValue := parseString(section, "fail_fast_timeout", "5s")
+	cfg.FailFastTimeout = failFastTimeoutValue
+	cfg.FailFastTimeoutDuration = parseDurationOrDefault(
+		"fail_fast_timeout",
+		failFastTimeoutValue,
+		5*time.Second,
+	)
 	return cfg
+}
+
+func parseString(section *ini.Section, key string, defaultValue string) string {
+	value, err := valueAsString(section, key, defaultValue)
+	if err != nil || strings.TrimSpace(value) == "" {
+		logger.Warnf("%s 配置缺失或为空，使用默认值: %s", key, defaultValue)
+		return defaultValue
+	}
+	return value
+}
+
+func parseInt(section *ini.Section, key string, defaultValue int) int {
+	if section == nil {
+		return defaultValue
+	}
+	raw, err := section.Key(key).Int()
+	if err != nil {
+		logger.Warnf("%s 配置解析失败(%v)，使用默认值: %d", key, err, defaultValue)
+		return defaultValue
+	}
+	return raw
+}
+
+func parseBool(section *ini.Section, key string, defaultValue bool) bool {
+	if section == nil {
+		return defaultValue
+	}
+	raw, err := section.Key(key).Bool()
+	if err != nil {
+		logger.Warnf("%s 配置解析失败(%v)，使用默认值: %t", key, err, defaultValue)
+		return defaultValue
+	}
+	return raw
+}
+
+func parseDurationOrDefault(name, value string, fallback time.Duration) time.Duration {
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		logger.Warnf("time.ParseDuration(%s{%#v}) = error{%v}, fallback to %v", name, value, err, fallback)
+		return fallback
+	}
+	return d
+}
+
+func normalizeBindAddress(bindAddress string) string {
+	bindAddress = strings.TrimSpace(bindAddress)
+	if bindAddress == "" {
+		return bindAddress
+	}
+	if strings.EqualFold(bindAddress, "localhost") {
+		return "127.0.0.1"
+	}
+	return strings.Trim(bindAddress, "[]")
+}
+
+func isLocalBindAddress(bindAddress string) bool {
+	ip := net.ParseIP(bindAddress)
+	return ip != nil && ip.IsLoopback()
+}
+
+func shouldRejectDevBypass(bindAddress string, devBypass bool) bool {
+	return devBypass && !isLocalBindAddress(bindAddress)
 }
 
 func (cfg *Cfg) loadConfiguration(args *CommandLineArgs) (*ini.File, error) {
@@ -412,6 +343,10 @@ func valueAsString(section *ini.Section, keyName string, defaultValue string) (v
 
 // GetString 获取配置项的字符串值
 func (cfg *Cfg) GetString(key string) string {
+	if cfg == nil || cfg.Raw == nil {
+		return ""
+	}
+
 	parts := strings.Split(key, ".")
 	if len(parts) < 2 {
 		return ""
@@ -431,6 +366,10 @@ func (cfg *Cfg) GetString(key string) string {
 
 // GetInt 获取配置项的整数值
 func (cfg *Cfg) GetInt(key string) int {
+	if cfg == nil || cfg.Raw == nil {
+		return 0
+	}
+
 	parts := strings.Split(key, ".")
 	if len(parts) < 2 {
 		return 0

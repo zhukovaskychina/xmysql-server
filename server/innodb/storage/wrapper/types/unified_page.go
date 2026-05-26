@@ -11,6 +11,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
 )
 
 // UnifiedPage errors
@@ -102,7 +103,7 @@ type UnifiedPage struct {
 	pinCount int32  // Pin count for buffer pool - use atomic operations
 
 	// Statistics
-	stats PageStats // Access statistics
+	stats basic.PageStats // Access statistics
 
 	// Persistence
 	rawData []byte // Raw page data for serialization
@@ -147,8 +148,14 @@ func NewUnifiedPage(spaceID, pageNo uint32, pageType common.PageType) *UnifiedPa
 	atomic.StoreInt32(&page.pinCount, 0)
 
 	// Initialize statistics
-	page.stats.LastAccessed = uint64(time.Now().UnixNano())
-	page.stats.LastModified = uint64(time.Now().UnixNano())
+	now := uint64(time.Now().UnixNano())
+	page.stats.LastAccessed = now
+	page.stats.LastModified = now
+	page.stats.LastAccessAt = now
+
+	// Keep rawData in sync with the initialized header/body/trailer so that
+	// GetData/GetContent returns a self-consistent page image.
+	_ = page.serializeInternal()
 
 	return page
 }
@@ -423,6 +430,12 @@ func (p *UnifiedPage) ToBytes() ([]byte, error) {
 	return p.Serialize()
 }
 
+// ToByte serializes to bytes (compatible legacy API)
+func (p *UnifiedPage) ToByte() []byte {
+	result, _ := p.ToBytes()
+	return result
+}
+
 // ParseFromBytes parses the page from bytes (alias for Deserialize)
 func (p *UnifiedPage) ParseFromBytes(data []byte) error {
 	return p.Deserialize(data)
@@ -497,6 +510,26 @@ func (p *UnifiedPage) GetFileTrailer() []byte {
 	return trailer
 }
 
+// GetFileHeaderStruct gets file header struct
+func (p *UnifiedPage) GetFileHeaderStruct() *pages.FileHeader {
+	header := pages.NewFileHeader()
+	headerBytes := p.GetFileHeader()
+	if len(headerBytes) >= pages.FileHeaderSize {
+		_ = header.ParseFileHeader(headerBytes)
+	}
+	return &header
+}
+
+// GetFileTrailerStruct gets file trailer struct
+func (p *UnifiedPage) GetFileTrailerStruct() *pages.FileTrailer {
+	trailer := pages.NewFileTrailer()
+	trailerBytes := p.GetFileTrailer()
+	if len(trailerBytes) >= len(trailer.FileTrailer) {
+		copy(trailer.FileTrailer[:], trailerBytes[:len(trailer.FileTrailer)])
+	}
+	return &trailer
+}
+
 // GetFileHeaderBytes returns the file header bytes (alias)
 func (p *UnifiedPage) GetFileHeaderBytes() []byte {
 	return p.GetFileHeader()
@@ -508,7 +541,7 @@ func (p *UnifiedPage) GetFileTrailerBytes() []byte {
 }
 
 // GetStats returns the page statistics
-func (p *UnifiedPage) GetStats() *PageStats {
+func (p *UnifiedPage) GetStats() *basic.PageStats {
 	return &p.stats
 }
 

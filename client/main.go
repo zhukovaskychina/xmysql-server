@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/logger"
-
-	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -240,7 +238,8 @@ func (c *MySQLClient) StartCLI() {
 // StartGUI 启动图形界面
 func (c *MySQLClient) StartGUI() {
 	if err := ui.Init(); err != nil {
-		log.Fatalf("初始化UI失败: %v", err)
+		logger.Errorf("初始化UI失败: %v", err)
+		return
 	}
 	defer ui.Close()
 
@@ -515,7 +514,8 @@ func main() {
 	// 连接到服务器
 	logger.Debugf("正在连接到 %s:%d...\n", config.Host, config.Port)
 	if err := client.Connect(); err != nil {
-		log.Fatalf("连接失败: %v", err)
+		logger.Errorf("连接失败: %v", err)
+		return
 	}
 	defer client.Close()
 

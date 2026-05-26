@@ -836,8 +836,13 @@ func (sm *StorageManager) QueryMySQLUser(username, host string) (*MySQLUser, err
 		logger.Warnf("Falling back to hardcoded user lookup for: %s@%s", username, host)
 
 		// 对于root用户，返回默认配置
-		if username == "root" && (host == "localhost" || host == "%") {
+		if username == "root" && (host == "localhost" || host == "%" || host == "127.0.0.1" || host == "::1") {
 			user := createDefaultRootUser()
+			if host == "127.0.0.1" || host == "::1" {
+				user.Host = "%"
+			} else {
+				user.Host = host
+			}
 			if host == "%" {
 				user.Host = "%"
 			}
@@ -1137,8 +1142,13 @@ func (sm *StorageManager) createUserFromQueryParams(username, host string) (*MyS
 	logger.Debugf("Creating user from query parameters (fallback mode): %s@%s", username, host)
 
 	// 这是一个兼容性方法，当B+树查询找到记录但反序列化失败时使用
-	if username == "root" && (host == "localhost" || host == "%") {
+	if username == "root" && (host == "localhost" || host == "%" || host == "127.0.0.1" || host == "::1") {
 		user := createDefaultRootUser()
+		if host == "127.0.0.1" || host == "::1" {
+			user.Host = "%"
+		} else {
+			user.Host = host
+		}
 		if host == "%" {
 			user.Host = "%"
 		}

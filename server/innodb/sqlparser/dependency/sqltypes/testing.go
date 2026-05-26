@@ -118,7 +118,7 @@ func TestBindVariable(v interface{}) *querypb.BindVariable {
 	}
 	bv, err := BuildBindVariable(v)
 	if err != nil {
-		panic(err)
+		return NullBindVariable
 	}
 	return bv
 }

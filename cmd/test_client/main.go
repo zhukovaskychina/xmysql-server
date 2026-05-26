@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"net"
-	"os"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
@@ -18,7 +17,7 @@ func main() {
 	conn, err := net.DialTimeout("tcp", "localhost:3309", 5*time.Second)
 	if err != nil {
 		logger.Debugf(" 连接失败: %v\n", err)
-		os.Exit(1)
+		return
 	}
 	defer conn.Close()
 

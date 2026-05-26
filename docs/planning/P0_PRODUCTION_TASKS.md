@@ -8,13 +8,13 @@
 
 ## 2. A1：核心高风险文件整改（实现侧）
 
-### 当前状态（2026-03-21 仓库核查）
+### 当前状态（2026-05-17 仓库核查）
 
 - 整体状态：`部分实现`
 - 说明：
   - Top 12 文件未清零
   - 关键路径仍存在 `TODO`、错误文本判定、旧/新实现并存
-  - `go test ./server/innodb/engine` 当前未满足验收基线
+  - `go test ./server/innodb/engine` 已通过（含基线脚本可复现）
 
 ### T-A1-01 去除错误掩盖型 fallback
 
@@ -50,10 +50,10 @@
   - 重复 API 无新增调用点
   - 相关包测试通过
 - 当前状态：
-  - `部分实现`
-  - `store/pages/page.go` 旧接口仅标记 deprecated，未真正移除
-  - `wrapper/types/base_page.go` 与 `wrapper/page/page_wrapper_base.go` 并存
-  - 验收缺口：主入口未冻结，调用方未全部切换，缺迁移说明
+  - `进行中`
+  - `page_factory.go` 已将 `FIL_PAGE_INODE` 与 `default` 分支统一到 `types.NewUnifiedPage`
+  - 仍保留兼容入口（`wrapper/page/page_wrapper_base.go`、`wrapper/types/base_page.go`、`store/pages/page.go`）用于历史路径
+  - 迁移说明补录：`docs/planning/P0_A1_02_PAGE_SINGLE_ENTRYPOINT_MIGRATION.md`
 
 ### T-A1-03 DML 唯一键冲突判定可靠化
 
@@ -69,8 +69,8 @@
 - 当前状态：
   - `部分实现`
   - 已支持 `errors.Is/errors.As` 与 SQL 错误码判断
-  - 仍保留错误消息正则匹配 fallback
-  - 验收缺口：尚未完全达到“纯结构化错误判定”
+  - 已清理索引错误路径中的文本兜底判定（`strings.Contains("duplicate key", ...)`）
+  - 存在遗留场景仍需确认：若 `executor.go`/`unified_executor.go` 的 TODO 与兜底路径未闭环，仍需复核
 
 ## 3. A2：核心高风险文件整改（测试侧）
 
@@ -95,9 +95,11 @@
   - 重复运行同一测试不少于 10 次
   - 无随机失败
 - 当前状态：
-  - `未实现`
-  - 3 个目标文件仍存在多处 `time.Sleep`
-  - 验收缺口：未改为条件等待，未见 10 轮稳定性记录
+  - `已实现`
+  - 已确认目标测试文件内不再直接依赖 `time.Sleep` 的固定等待（改用条件等待/事件驱动断言）
+  - 已完成 `10` 轮稳定性连续通过记录
+    - `reports/p0_a2_01_stability_20260517_012720/summary.log`
+  - 可复用验证脚本：`scripts/p0_a2_01_stability.sh`
 
 ### T-A2-02 页面/回滚包装器关键路径补齐
 
@@ -111,10 +113,13 @@
 - 验证：
   - 对应单测与边界测试通过
 - 当前状态：
-  - `未实现`
-  - `rollback_page_wrapper.go` 仍有 rollback page 解析 TODO
-  - `page_wrapper_base.go` 仍缺状态、pin count、stats、read、flush 等关键逻辑
-  - 验收缺口：核心解析路径和异常输入校验未闭环
+  - `部分完成`
+  - `rollback_page_wrapper.go` 与 `page_wrapper_base.go` 的关键 TODO 已补齐
+  - 关键异常输入统一返回 `ErrInvalidRollbackData` 或 `ErrInvalidPageSize` 之后按包装器语义封装
+  - 已补齐最小生产路径回归测试：
+    - `server/innodb/storage/wrapper/page/page_wrapper_base_test.go`
+    - `go test ./server/innodb/storage/wrapper/page -run "TestBasePageWrapperPinAndStats|TestRollbackPageWrapper" -count=1 -v`
+  - 验收现状：`go test ./server/innodb/storage/wrapper/page -count=1` 通过
 
 ## 4. B：崩溃恢复验证
 
@@ -131,6 +136,7 @@
 - 涉及路径：
   - `scripts/`（新增恢复脚本）
   - `docs/reports/`（新增恢复报告模板）
+  - `docs/planning/P0_B_RECOVERY_EVIDENCE_MANIFEST.md`
 - 完成定义：
   - 覆盖 redo/undo/半提交事务场景
   - 每个场景可重复执行
@@ -138,9 +144,11 @@
   - 脚本全场景通过
   - 校验结果一致
 - 当前状态：
-  - `未实现`
-  - 仓库当前无 `scripts/` 目录
-  - 验收缺口：未发现 redo/undo/半提交事务的自动化恢复脚本与模板
+  - `部分实现`
+  - 已有 `scripts/crash_recovery_process_drill.sh`
+  - 已补 `scripts/crash_recovery_process_drill.sh` 与 `scripts/p0_b_recovery_audit.sh` 的参数化/复放检查能力
+  - 已有演练报告：`reports/crash_recovery_process_drill_20260427_160436/summary.log`
+  - 验收缺口：仍需演练固定脚本的 2+ 轮稳定结果与审计清单逐项对齐
 
 ### T-B-02 输出恢复演练报告
 
@@ -153,16 +161,17 @@
   - 评审通过并可复现
 - 当前状态：
   - `未实现`
-  - 当前存在实现总结文档，但未发现正式的 P0 恢复演练报告、结果快照和多轮记录
+  - 已新增 `docs/planning/P0_B_RECOVERY_EVIDENCE_MANIFEST.md`，包含可复核输出字段
+  - 验收缺口：仍缺多轮一致性归档与可复放的输入参数模板（下一步由 B 脚本输出覆盖）
 
 ## 5. C：并发正确性验证
 
 ### 当前状态（2026-03-21 仓库核查）
 
-- 整体状态：`未实现`
+- 整体状态：`已实现`
 - 说明：
-  - 当前只有零散并发测试与 demo
-  - 缺少并发压测脚本、一致性校验脚本、验证报告
+  - 已建立正式并发压测闭环，3 轮报告全部通过
+  - 报告：`reports/p0_c_validation/p0_concurrency_validation_20260517_002358/concurrency_validation_report.md`
 
 ### T-C-01 构建并发压测与一致性校验
 
@@ -177,8 +186,8 @@
   - 压测后数据一致性校验通过
   - 无明显脏读/丢写
 - 当前状态：
-  - `未实现`
-  - 验收缺口：未发现覆盖冲突写、范围读、长事务的正式脚本和报告
+  - `已实现`
+  - 验收：`scripts/p0_c_concurrency_validation.sh` + 3 轮一致性报告
 
 ## 6. D：基础可观测性上线
 
@@ -224,9 +233,9 @@
 
 ### 当前状态（2026-03-21 仓库核查）
 
-- 整体状态：`未实现`
+- 整体状态：`部分实现`
 - 说明：
-  - `docs/planning/` 中尚无灰度发布手册、快速回退手册、数据回滚手册和演练记录
+  - 已补齐灰度/回退手册与数据回滚脚本，待首次全链路演练与计时复盘
 
 ### T-E-01 制定灰度发布与回退手册
 
@@ -239,7 +248,8 @@
 - 验证：
   - 预演可在限定窗口内完成
 - 当前状态：
-  - `未实现`
+  - `部分实现`
+  - `docs/planning/P0_E_ROLLBACK_AND_CANARY_RUNBOOK.md` 已落地可执行步骤（含阈值与归档路径）
 
 ### T-E-02 制定数据回滚与恢复点策略
 
@@ -252,21 +262,25 @@
 - 验证：
   - 演练后数据校验通过
 - 当前状态：
-  - `未实现`
-  - 仓库当前无备份恢复脚本目录
+  - `部分实现`
+  - 已新增 `scripts/p0_e_backup_snapshot.sh`（支持 backup/list/restore 与 manifest）
+  - 已完成一次 `backup/list/restore` 冒烟演练，证据见 `reports/p0_e_backups/p0_e_backup_restore_dryrun_20260517_063321.md`
 
 ### T-E-03 完成一次全链路演练
 
 - 目标：验证从灰度到回退的全链路闭环
 - 涉及路径：
-  - `docs/reports/`
+  - `docs/planning/P0_E_CANARY_REHEARSAL_20260517.md`
+  - `reports/`
 - 完成定义：
   - 演练记录、问题清单、改进行动项完整
 - 验证：
   - 评审通过，准入生产灰度
 - 当前状态：
-  - `未实现`
-  - 未发现演练记录、复盘和计时证据
+  - `进行中`
+  - 已形成一次真实尝试并补齐 `T-E-03` 复盘骨架：`reports/p0_e_backups/p0_e_canary_rehearsal_20260517_063552.md`
+  - 已完成阶段 0 验证：`reports/p0_e_backups/p0_e_canary_rehearsal_20260517_065410.md`
+  - 缺口：阶段 1 写入验证在 `INSERT` 阶段失败（`table mysql.t1 not found in storage mapping`），告警触发与回退计时仍待执行
 
 ## 8. 统一验证命令（建议基线）
 

@@ -368,8 +368,65 @@ func (cld *ClusterLeafRowData) ReadValue(index int) basic.Value {
 }
 
 func (cld *ClusterLeafRowData) ReadBytesWithNullWithPosition(index int) []byte {
-	// TODO: Fix ToByte method call when basic.Value interface is properly defined
-	// return cld.RowValues[index].ToByte()
+	if len(cld.RowValues) > 0 {
+		if index >= 0 && index < len(cld.RowValues) && cld.RowValues[index] != nil {
+			return cld.RowValues[index].Bytes()
+		}
+	}
+
+	if cld == nil || cld.meta == nil {
+		return nil
+	}
+
+	columnCount := int(cld.meta.GetColumnLength())
+	if index >= columnCount {
+		return nil
+	}
+
+	header := NewClusterLeafRowHeaderWithContents(cld.meta, cld.Content)
+	if header == nil {
+		return nil
+	}
+
+	rowHeaderLen := int(header.GetRowHeaderLength())
+	if rowHeaderLen > len(cld.Content) {
+		return nil
+	}
+
+	cursor := rowHeaderLen
+	for i := 0; i <= index; i++ {
+		if cursor > len(cld.Content) {
+			return nil
+		}
+
+		if header.IsValueNullByIdx(byte(i)) {
+			if i == index {
+				return nil
+			}
+			continue
+		}
+
+		fieldInfo := cld.meta.GetColumnInfos(byte(i))
+		fieldLen := int(fieldInfo.FieldLength)
+		if fieldInfo.FieldType == "VARCHAR" {
+			variableLen := header.GetVarValueLengthByIndex(byte(i))
+			if variableLen > 0 {
+				fieldLen = int(variableLen)
+			}
+		}
+
+		if fieldLen < 0 {
+			return nil
+		}
+		end := cursor + fieldLen
+		if end > len(cld.Content) || fieldLen == 0 {
+			return nil
+		}
+		if i == index {
+			return cld.Content[cursor:end]
+		}
+		cursor = end
+	}
 	return nil
 }
 
@@ -434,8 +491,11 @@ func (row *ClusterLeafRow) ToByte() []byte {
 }
 
 func (row *ClusterLeafRow) GetPageNumber() uint32 {
-	//panic("implement me")
-	return util.ReadUB4Byte2UInt32(row.value.ReadBytesWithNullWithPosition(1))
+	raw := row.value.ReadBytesWithNullWithPosition(1)
+	if len(raw) < 2 {
+		return 0
+	}
+	return util.ReadUB4Byte2UInt32(raw)
 }
 
 func (row *ClusterLeafRow) WriteWithNull(content []byte) {

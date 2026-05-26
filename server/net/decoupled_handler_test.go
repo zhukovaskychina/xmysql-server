@@ -16,6 +16,7 @@ type MockSession struct {
 	attributes map[string]interface{}
 	closed     bool
 	written    [][]byte
+	remoteAddr string
 }
 
 func NewMockSession(id string) *MockSession {
@@ -24,6 +25,7 @@ func NewMockSession(id string) *MockSession {
 		attributes: make(map[string]interface{}),
 		closed:     false,
 		written:    make([][]byte, 0),
+		remoteAddr: "127.0.0.1:12345",
 	}
 }
 
@@ -55,10 +57,15 @@ func (s *MockSession) Close() {
 }
 
 // 实现Session接口的其他必要方法（简化实现）
-func (s *MockSession) ID() uint32                                            { return 1 }
-func (s *MockSession) SetCompressType(compressType CompressType)             {}
-func (s *MockSession) LocalAddr() string                                     { return "127.0.0.1:3308" }
-func (s *MockSession) RemoteAddr() string                                    { return "127.0.0.1:12345" }
+func (s *MockSession) ID() uint32                                { return 1 }
+func (s *MockSession) SetCompressType(compressType CompressType) {}
+func (s *MockSession) LocalAddr() string                         { return "127.0.0.1:3308" }
+func (s *MockSession) RemoteAddr() string {
+	if s.remoteAddr != "" {
+		return s.remoteAddr
+	}
+	return "127.0.0.1:12345"
+}
 func (s *MockSession) incReadPkgNum()                                        {}
 func (s *MockSession) incWritePkgNum()                                       {}
 func (s *MockSession) UpdateActive()                                         {}
@@ -86,6 +93,55 @@ func (s *MockSession) SetWaitTime(timeout time.Duration)                     {}
 func (s *MockSession) RemoveAttribute(interface{})                           {}
 func (s *MockSession) WritePkg(pkg interface{}, timeout time.Duration) error { return nil }
 func (s *MockSession) WriteBytesArray(...[]byte) error                       { return nil }
+
+func TestResolveAuthHost(t *testing.T) {
+	config := conf.NewCfg()
+	handler := NewDecoupledMySQLMessageHandler(config)
+
+	tests := []struct {
+		name   string
+		remote string
+		want   string
+	}{
+		{
+			name:   "ipv4 with port",
+			remote: "127.0.0.1:12345",
+			want:   "localhost",
+		},
+		{
+			name:   "ipv6 localhost with port",
+			remote: "[::1]:3306",
+			want:   "localhost",
+		},
+		{
+			name:   "dns host with port",
+			remote: "db.internal:3306",
+			want:   "db.internal",
+		},
+		{
+			name:   "ipv6 with port",
+			remote: "[2001:db8::1]:3306",
+			want:   "2001:db8::1",
+		},
+		{
+			name:   "invalid host",
+			remote: "bad_host%%",
+			want:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			session := NewMockSession("resolve-host-test")
+			session.remoteAddr = tt.remote
+
+			got := handler.resolveAuthHost(session)
+			if got != tt.want {
+				t.Fatalf("resolveAuthHost(%q) = %q, want %q", tt.remote, got, tt.want)
+			}
+		})
+	}
+}
 
 // TestDecoupledMySQLMessageHandler 测试解耦的消息处理器
 func TestDecoupledMySQLMessageHandler(t *testing.T) {
@@ -335,6 +391,83 @@ func TestSendQueryResultSet_ClientDeprecateEOFUsesOK(t *testing.T) {
 	}
 	if rowTermPkt[4] != 0x00 {
 		t.Fatalf("expected OK packet (0x00) as row terminator, got 0x%02X", rowTermPkt[4])
+	}
+}
+
+func TestHandlePacketUnsupportedCommandReturnsErrorPacket(t *testing.T) {
+	config := conf.NewCfg()
+	handler := NewDecoupledMySQLMessageHandler(config)
+	session := NewMockSession("test_handlePacket_unsupported")
+
+	if err := handler.OnOpen(session); err != nil {
+		t.Fatalf("OnOpen failed: %v", err)
+	}
+	session.SetAttribute("auth_status", "success")
+
+	currentSession, ok := handler.sessionMap[session]
+	if !ok {
+		t.Fatal("session not found in handler sessionMap")
+	}
+
+	pkt := &MySQLPackage{
+		Header: MySQLPkgHeader{
+			PacketLength: []byte{0x01, 0x00, 0x00},
+			PacketId:     0,
+		},
+		Body: []byte{common.COM_STATISTICS},
+	}
+
+	if err := handler.handlePacket(session, &currentSession, pkt); err != nil {
+		t.Fatalf("handlePacket failed: %v", err)
+	}
+
+	if session.closed {
+		t.Fatalf("session should not be closed for unsupported command")
+	}
+	if len(session.written) == 0 {
+		t.Fatalf("expected error response packet to be written")
+	}
+}
+
+func TestHandlePacketComStmtSendLongDataUnsupported(t *testing.T) {
+	config := conf.NewCfg()
+	handler := NewDecoupledMySQLMessageHandler(config)
+	session := NewMockSession("test_handlePacket_stmt_send_long_data")
+
+	if err := handler.OnOpen(session); err != nil {
+		t.Fatalf("OnOpen failed: %v", err)
+	}
+	session.SetAttribute("auth_status", "success")
+
+	currentSession, ok := handler.sessionMap[session]
+	if !ok {
+		t.Fatal("session not found in handler sessionMap")
+	}
+
+	payload := []byte{
+		common.COM_STMT_SEND_LONG_DATA,
+		0x01, 0x00, 0x00, 0x00, // statement_id
+		0x00,       // param_id
+		0x00,       // data offset
+		0x00, 0x00, // data length
+	}
+	pkt := &MySQLPackage{
+		Header: MySQLPkgHeader{
+			PacketLength: []byte{byte(len(payload)), 0x00, 0x00},
+			PacketId:     0,
+		},
+		Body: payload,
+	}
+
+	if err := handler.handlePacket(session, &currentSession, pkt); err != nil {
+		t.Fatalf("handlePacket failed: %v", err)
+	}
+
+	if session.closed {
+		t.Fatalf("session should not be closed for unsupported command")
+	}
+	if len(session.written) == 0 {
+		t.Fatalf("expected error response packet to be written")
 	}
 }
 

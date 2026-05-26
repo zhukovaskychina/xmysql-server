@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,6 +14,103 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
+
+type mockOptimizerForUnifiedError struct{}
+
+func (m mockOptimizerForUnifiedError) Optimize(plan.LogicalPlan) (plan.PhysicalPlan, error) {
+	return nil, errors.New("mock optimize failed")
+}
+
+type mockInfoSchemaForSortTest struct{}
+
+func (m *mockInfoSchemaForSortTest) GetSchemaByName(ctx context.Context, name string) (metadata.Schema, error) {
+	return nil, errors.New("not implemented in test")
+}
+
+func (m *mockInfoSchemaForSortTest) HasSchema(ctx context.Context, name string) bool {
+	return name == "testdb"
+}
+
+func (m *mockInfoSchemaForSortTest) GetAllSchemaNames(ctx context.Context) ([]string, error) {
+	return []string{"testdb"}, nil
+}
+
+func (m *mockInfoSchemaForSortTest) GetAllSchemas(ctx context.Context) ([]metadata.Schema, error) {
+	return nil, errors.New("not implemented in test")
+}
+
+func (m *mockInfoSchemaForSortTest) CreateSchema(ctx context.Context, schema metadata.Schema) error {
+	return nil
+}
+
+func (m *mockInfoSchemaForSortTest) DropSchema(ctx context.Context, name string) error {
+	return nil
+}
+
+func (m *mockInfoSchemaForSortTest) GetTableByName(ctx context.Context, schemaName, tableName string) (*metadata.Table, error) {
+	if schemaName != "testdb" || tableName != "users" {
+		return nil, errors.New("table not found")
+	}
+
+	columns := []*metadata.Column{
+		{
+			Name:            "id",
+			DataType:        metadata.TypeInt,
+			OrdinalPosition: 1,
+		},
+		{
+			Name:            "name",
+			DataType:        metadata.TypeVarchar,
+			OrdinalPosition: 2,
+		},
+	}
+
+	return &metadata.Table{
+		Schema:  metadata.NewSchema("testdb"),
+		Name:    tableName,
+		Columns: columns,
+	}, nil
+}
+
+func (m *mockInfoSchemaForSortTest) HasTable(ctx context.Context, schemaName, tableName string) bool {
+	return schemaName == "testdb" && tableName == "users"
+}
+
+func (m *mockInfoSchemaForSortTest) GetAllTables(ctx context.Context, schemaName string) ([]*metadata.Table, error) {
+	return nil, nil
+}
+
+func (m *mockInfoSchemaForSortTest) CreateTable(ctx context.Context, schemaName string, table *metadata.Table) error {
+	return nil
+}
+
+func (m *mockInfoSchemaForSortTest) DropTable(ctx context.Context, schemaName, tableName string) error {
+	return nil
+}
+
+func (m *mockInfoSchemaForSortTest) RefreshMetadata(ctx context.Context, schemaName string) error {
+	return nil
+}
+
+func (m *mockInfoSchemaForSortTest) GetTableMetadata(ctx context.Context, schemaName, tableName string) (*metadata.TableMeta, error) {
+	return nil, errors.New("not implemented in test")
+}
+
+func (m *mockInfoSchemaForSortTest) GetTableStats(ctx context.Context, schemaName, tableName string) (*metadata.InfoTableStats, error) {
+	return nil, nil
+}
+
+func (m *mockInfoSchemaForSortTest) UpdateTableStats(ctx context.Context, schemaName, tableName string, stats *metadata.InfoTableStats) error {
+	return nil
+}
+
+func (m *mockInfoSchemaForSortTest) DatabaseExists(name string) (bool, error) {
+	return name == "testdb", nil
+}
+
+func (m *mockInfoSchemaForSortTest) DropDatabase(name string) bool {
+	return false
+}
 
 // TestStorageAdapter 测试存储适配器基本功能
 func TestStorageAdapter(t *testing.T) {
@@ -377,6 +475,185 @@ func TestUnifiedExecutor(t *testing.T) {
 		require.True(t, ok, "expected *LimitOperator, got %T", op)
 		assert.Equal(t, int64(0), limitOp.offset)
 		assert.Equal(t, int64(5), limitOp.limit)
+	})
+
+	t.Run("BuildSelectOperatorTreeRejectsWhereFilter", func(t *testing.T) {
+		executor := &UnifiedExecutor{
+			storageAdapter: NewStorageAdapter(nil, nil, nil, nil),
+		}
+
+		stmt, err := sqlparser.Parse("select * from users where id = 1")
+		require.NoError(t, err)
+
+		selectStmt, ok := stmt.(*sqlparser.Select)
+		require.True(t, ok, "expected *sqlparser.Select, got %T", stmt)
+
+		_, err = executor.buildSelectOperatorTree(context.Background(), selectStmt, "testdb")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "WHERE conditions are not supported")
+	})
+
+	t.Run("BuildSelectOperatorTreeAddsOrderBySortOperator", func(t *testing.T) {
+		infoSchemaManager := &mockInfoSchemaForSortTest{}
+		storageManager := manager.NewStorageManager(&conf.Cfg{
+			DataDir:              "testdata",
+			InnodbDataDir:        "testdata/innodb",
+			InnodbBufferPoolSize: 16 * 1024 * 1024,
+			InnodbPageSize:       16384,
+		})
+		tableStorageManager := manager.NewTableStorageManager(storageManager)
+		require.NoError(t, tableStorageManager.RegisterTable(context.Background(), &manager.TableStorageInfo{
+			SchemaName: "testdb",
+			TableName:  "users",
+			SpaceID:    1024,
+			RootPageNo: 3,
+		}))
+
+		tableManager := manager.NewTableManager(infoSchemaManager)
+
+		storageAdapter := &StorageAdapter{
+			tableManager:        tableManager,
+			tableStorageManager: tableStorageManager,
+		}
+
+		executor := &UnifiedExecutor{
+			storageAdapter: storageAdapter,
+		}
+
+		stmt, err := sqlparser.Parse("select * from users order by id desc")
+		require.NoError(t, err)
+
+		selectStmt, ok := stmt.(*sqlparser.Select)
+		require.True(t, ok, "expected *sqlparser.Select, got %T", stmt)
+
+		op, err := executor.buildSelectOperatorTree(context.Background(), selectStmt, "testdb")
+		require.NoError(t, err)
+		sortOp, ok := op.(*SortOperator)
+		require.True(t, ok, "expected *SortOperator, got %T", op)
+		require.Len(t, sortOp.sortKeys, 1)
+		assert.Equal(t, 0, sortOp.sortKeys[0].ColumnIdx)
+		assert.False(t, sortOp.sortKeys[0].Ascending)
+	})
+
+	t.Run("BuildSelectOperatorTreeRejectsOrderByUnsupportedExpression", func(t *testing.T) {
+		infoSchemaManager := &mockInfoSchemaForSortTest{}
+		storageManager := manager.NewStorageManager(&conf.Cfg{
+			DataDir:              "testdata",
+			InnodbDataDir:        "testdata/innodb",
+			InnodbBufferPoolSize: 16 * 1024 * 1024,
+			InnodbPageSize:       16384,
+		})
+		tableStorageManager := manager.NewTableStorageManager(storageManager)
+		require.NoError(t, tableStorageManager.RegisterTable(context.Background(), &manager.TableStorageInfo{
+			SchemaName: "testdb",
+			TableName:  "users",
+			SpaceID:    2048,
+			RootPageNo: 3,
+		}))
+
+		tableManager := manager.NewTableManager(infoSchemaManager)
+
+		storageAdapter := &StorageAdapter{
+			tableManager:        tableManager,
+			tableStorageManager: tableStorageManager,
+		}
+
+		executor := &UnifiedExecutor{
+			storageAdapter: storageAdapter,
+		}
+
+		stmt, err := sqlparser.Parse("select * from users order by (id + 1)")
+		require.NoError(t, err)
+
+		selectStmt, ok := stmt.(*sqlparser.Select)
+		require.True(t, ok, "expected *sqlparser.Select, got %T", stmt)
+
+		_, err = executor.buildSelectOperatorTree(context.Background(), selectStmt, "testdb")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "ORDER BY only supports simple column names")
+	})
+
+	t.Run("ExecuteUpdateRejectsWhereClause", func(t *testing.T) {
+		executor := &UnifiedExecutor{
+			storageAdapter: NewStorageAdapter(nil, nil, nil, nil),
+		}
+
+		stmt, err := sqlparser.Parse("update users set name = 'alice' where id = 1")
+		require.NoError(t, err)
+
+		updateStmt, ok := stmt.(*sqlparser.Update)
+		require.True(t, ok, "expected *sqlparser.Update, got %T", stmt)
+
+		_, err = executor.ExecuteUpdate(context.Background(), updateStmt, "testdb")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "WHERE predicate in UPDATE is only supported by storage-integrated DML executor path")
+	})
+
+	t.Run("ExecuteDeleteRejectsWhereClause", func(t *testing.T) {
+		executor := &UnifiedExecutor{
+			storageAdapter: NewStorageAdapter(nil, nil, nil, nil),
+		}
+
+		stmt, err := sqlparser.Parse("delete from users where id = 1")
+		require.NoError(t, err)
+
+		deleteStmt, ok := stmt.(*sqlparser.Delete)
+		require.True(t, ok, "expected *sqlparser.Delete, got %T", stmt)
+
+		_, err = executor.ExecuteDelete(context.Background(), deleteStmt, "testdb")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "WHERE predicate in DELETE is only supported by storage-integrated DML executor path")
+	})
+
+	t.Run("ResolveExplicitSchemaForUpdateAndDeleteExpr", func(t *testing.T) {
+		executor := &UnifiedExecutor{
+			storageAdapter: NewStorageAdapter(nil, nil, nil, nil),
+		}
+		_ = executor
+
+		updateStmt, err := sqlparser.Parse("update stage1_db.users set name='Alice'")
+		require.NoError(t, err)
+		updateStmtParsed, ok := updateStmt.(*sqlparser.Update)
+		require.True(t, ok, "expected *sqlparser.Update, got %T", updateStmt)
+		require.Len(t, updateStmtParsed.TableExprs, 1)
+
+		updateTableExpr, ok := updateStmtParsed.TableExprs[0].(*sqlparser.AliasedTableExpr)
+		require.True(t, ok, "expected *sqlparser.AliasedTableExpr, got %T", updateStmtParsed.TableExprs[0])
+		updateTableName, ok := updateTableExpr.Expr.(sqlparser.TableName)
+		require.True(t, ok, "expected sqlparser.TableName, got %T", updateTableExpr.Expr)
+		assert.Equal(t, "stage1_db", updateTableName.Qualifier.String())
+
+		deleteStmt, err := sqlparser.Parse("delete from stage2_db.users")
+		require.NoError(t, err)
+		deleteStmtParsed, ok := deleteStmt.(*sqlparser.Delete)
+		require.True(t, ok, "expected *sqlparser.Delete, got %T", deleteStmt)
+		require.Len(t, deleteStmtParsed.TableExprs, 1)
+
+		deleteTableExpr, ok := deleteStmtParsed.TableExprs[0].(*sqlparser.AliasedTableExpr)
+		require.True(t, ok, "expected *sqlparser.AliasedTableExpr, got %T", deleteStmtParsed.TableExprs[0])
+		deleteTableName, ok := deleteTableExpr.Expr.(sqlparser.TableName)
+		require.True(t, ok, "expected sqlparser.TableName, got %T", deleteTableExpr.Expr)
+		assert.Equal(t, "stage2_db", deleteTableName.Qualifier.String())
+	})
+
+	t.Run("ExecuteSelectReturnsOptimizerErrorWhenOptimizeFails", func(t *testing.T) {
+		executor := NewUnifiedExecutor(
+			tableManager,
+			nil,
+			storageManager.GetBufferPoolManager(),
+			storageManager,
+			nil,
+		)
+		executor.optimizer = mockOptimizerForUnifiedError{}
+
+		stmt, err := sqlparser.Parse("select * from users")
+		require.NoError(t, err)
+		selectStmt, ok := stmt.(*sqlparser.Select)
+		require.True(t, ok, "expected *sqlparser.Select, got %T", stmt)
+
+		_, err = executor.ExecuteSelect(context.Background(), selectStmt, "testdb")
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "unified select optimizer path failed: optimizer failed")
 	})
 }
 

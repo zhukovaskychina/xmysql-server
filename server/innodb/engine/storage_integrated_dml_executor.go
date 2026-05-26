@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
@@ -142,14 +143,33 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 	startTime := time.Now()
 	logger.Infof("🚀 开始执行存储引擎集成的INSERT语句: %s", sqlparser.String(stmt))
 
-	dml.schemaName = schemaName
+	resolvedSchema := strings.TrimSpace(schemaName)
+	if qualifier := strings.TrimSpace(stmt.Table.Qualifier.String()); qualifier != "" {
+		resolvedSchema = qualifier
+	}
+	logger.Debugf("INSERT table context: rawSchema=%q stmtQualifier=%q stmtTable=%q resolvedSchema=%q",
+		schemaName,
+		strings.TrimSpace(stmt.Table.Qualifier.String()),
+		stmt.Table.Name.String(),
+		resolvedSchema,
+	)
+
+	dml.schemaName = resolvedSchema
 	dml.tableName = stmt.Table.Name.String()
 
 	// 1. 获取表的存储信息
-	tableStorageInfo, err := dml.tableStorageManager.GetTableStorageInfo(schemaName, dml.tableName)
+	tableStorageInfo, err := dml.tableStorageManager.GetTableStorageInfo(resolvedSchema, dml.tableName)
 	if err != nil {
+		allTables := dml.tableStorageManager.ListAllTables()
+		keys := make([]string, 0, len(allTables))
+		for k := range allTables {
+			keys = append(keys, k)
+		}
+		logger.Errorf("Insert execution failed, storage mapping miss: schema=%q table=%q error=%v", resolvedSchema, dml.tableName, err)
+		logger.Errorf("Insert mapping snapshot keys: %v", keys)
 		return nil, fmt.Errorf("获取表存储信息失败: %v", err)
 	}
+	logger.Debugf("Insert storage mapping hit: schema=%q table=%q spaceID=%d", resolvedSchema, dml.tableName, tableStorageInfo.SpaceID)
 
 	// 2. 获取表元数据
 	tableMeta, err := dml.getTableMetadata()
@@ -169,7 +189,7 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 	}
 
 	// 5. 获取或创建表专用的B+树管理器
-	tableBtreeManager, err := dml.tableStorageManager.CreateBTreeManagerForTable(ctx, schemaName, dml.tableName)
+	tableBtreeManager, err := dml.tableStorageManager.CreateBTreeManagerForTable(ctx, resolvedSchema, dml.tableName)
 	if err != nil {
 		return nil, fmt.Errorf("创建表B+树管理器失败: %v", err)
 	}
@@ -229,7 +249,7 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 	startTime := time.Now()
 	logger.Infof("🚀 开始执行存储引擎集成的UPDATE语句: %s", sqlparser.String(stmt))
 
-	dml.schemaName = schemaName
+	resolvedSchema := strings.TrimSpace(schemaName)
 
 	// 1. 解析表名
 	if len(stmt.TableExprs) == 0 {
@@ -240,10 +260,14 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 	if err != nil {
 		return nil, fmt.Errorf("解析表名失败: %v", err)
 	}
+	if tableSchema, err := dml.parseTableSchema(stmt.TableExprs[0]); err == nil && tableSchema != "" {
+		resolvedSchema = tableSchema
+	}
 	dml.tableName = tableName
+	dml.schemaName = resolvedSchema
 
 	// 2. 获取表的存储信息
-	tableStorageInfo, err := dml.tableStorageManager.GetTableStorageInfo(schemaName, dml.tableName)
+	tableStorageInfo, err := dml.tableStorageManager.GetTableStorageInfo(resolvedSchema, dml.tableName)
 	if err != nil {
 		return nil, fmt.Errorf("获取表存储信息失败: %v", err)
 	}
@@ -262,7 +286,7 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 	}
 
 	// 5. 获取表专用的B+树管理器
-	tableBtreeManager, err := dml.tableStorageManager.CreateBTreeManagerForTable(ctx, schemaName, dml.tableName)
+	tableBtreeManager, err := dml.tableStorageManager.CreateBTreeManagerForTable(ctx, resolvedSchema, dml.tableName)
 	if err != nil {
 		return nil, fmt.Errorf("创建表B+树管理器失败: %v", err)
 	}
@@ -324,7 +348,7 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt
 	startTime := time.Now()
 	logger.Infof("🚀 开始执行存储引擎集成的DELETE语句: %s", sqlparser.String(stmt))
 
-	dml.schemaName = schemaName
+	resolvedSchema := strings.TrimSpace(schemaName)
 
 	// 1. 解析表名
 	if len(stmt.TableExprs) == 0 {
@@ -335,10 +359,14 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt
 	if err != nil {
 		return nil, fmt.Errorf("解析表名失败: %v", err)
 	}
+	if tableSchema, err := dml.parseTableSchema(stmt.TableExprs[0]); err == nil && tableSchema != "" {
+		resolvedSchema = tableSchema
+	}
 	dml.tableName = tableName
+	dml.schemaName = resolvedSchema
 
 	// 2. 获取表的存储信息
-	tableStorageInfo, err := dml.tableStorageManager.GetTableStorageInfo(schemaName, dml.tableName)
+	tableStorageInfo, err := dml.tableStorageManager.GetTableStorageInfo(resolvedSchema, dml.tableName)
 	if err != nil {
 		return nil, fmt.Errorf("获取表存储信息失败: %v", err)
 	}
@@ -353,7 +381,7 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt
 	whereConditions := dml.parseWhereConditions(stmt.Where)
 
 	// 5. 获取表专用的B+树管理器
-	tableBtreeManager, err := dml.tableStorageManager.CreateBTreeManagerForTable(ctx, schemaName, dml.tableName)
+	tableBtreeManager, err := dml.tableStorageManager.CreateBTreeManagerForTable(ctx, resolvedSchema, dml.tableName)
 	if err != nil {
 		return nil, fmt.Errorf("创建表B+树管理器失败: %v", err)
 	}

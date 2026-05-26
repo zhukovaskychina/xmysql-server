@@ -13,9 +13,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	querypb "github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/querypb"
 )
 
-func TesttimeToNumeric(t *testing.T) {
+func testVal(tp querypb.Type, s string) Value {
+	return MakeTrusted(tp, []byte(s))
+}
+
+func TestTimeToNumeric(t *testing.T) {
 	testcases := []struct {
 		in  Value
 		out interface{}
@@ -77,7 +82,7 @@ func TesttimeToNumeric(t *testing.T) {
 		}
 
 		if !reflect.DeepEqual(v, tcase.out) {
-			t.Errorf("%v.ToNative = %#v, want %#v", makePretty(tcase.in), v, tcase.out)
+			t.Errorf("%v.ToNative = %#v, want %#v", tcase.in.String(), v, tcase.out)
 		}
 	}
 }

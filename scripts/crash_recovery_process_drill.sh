@@ -10,7 +10,10 @@
 #   CR_PROC_REPORT_DIR=/path/to/reports
 #   CR_PROC_PORT=3310
 #   CR_PROC_DSN_USER=root
-#   CR_PROC_DSN_PASS=root@1234
+#   CR_PROC_DSN_PASS=root@1234  # 支持包含特殊字符，脚本会进行 URL 编码
+#   CR_PROC_SERVER_USER=root      # 写入 my.ini 的用户名，默认与 CR_PROC_DSN_USER 一致
+#   CR_PROC_BYPASS_AUTH=false  （如需临时联调可设 true）
+#   CR_PROC_DSN_HOST=127.0.0.1
 
 set -uo pipefail
 
@@ -19,8 +22,11 @@ cd "$ROOT"
 
 OUT_BASE="${CR_PROC_REPORT_DIR:-$ROOT/reports}"
 PORT="${CR_PROC_PORT:-3310}"
-USER="${CR_PROC_DSN_USER:-root}"
-PASS="${CR_PROC_DSN_PASS:-root@1234}"
+HOST="${CR_PROC_DSN_HOST:-127.0.0.1}"
+DSN_USER="${CR_PROC_DSN_USER:-root}"
+DSN_PASS_RAW="${CR_PROC_DSN_PASS:-root@1234}"
+SERVER_USER="${CR_PROC_SERVER_USER:-$DSN_USER}"
+DEV_BYPASS_AUTH="${CR_PROC_BYPASS_AUTH:-false}"
 TS="$(date +%Y%m%d_%H%M%S)"
 DB_NAME="drill_recovery_db_${TS}"
 TABLE_NAME="drill_txn_${TS}"
@@ -36,12 +42,30 @@ TEST_LOG="$RUN_DIR/manager_tests.log"
 
 mkdir -p "$RUN_DIR" "$DATA_DIR" "$LOG_DIR"
 
-DSN="${USER}:${PASS}@tcp(127.0.0.1:${PORT})/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true"
+url_encode() {
+  local value="$1"
+  value="${value//%/%25}"
+  value="${value//@/%40}"
+  value="${value//:/%3A}"
+  value="${value//\//%2F}"
+  value="${value//\?/%3F}"
+  value="${value//&/%26}"
+  value="${value//=/%3D}"
+  value="${value//\+/%2B}"
+  echo "$value"
+}
+
+DSN_PASS_ENCODED="$(url_encode "$DSN_PASS_RAW")"
+if [[ -n "$DSN_PASS_ENCODED" ]]; then
+  DSN="${DSN_USER}:${DSN_PASS_ENCODED}@tcp(${HOST}:${PORT})/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true"
+else
+  DSN="${DSN_USER}@tcp(${HOST}:${PORT})/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true"
+fi
 
 make_conf() {
   cat >"$CONF_FILE" <<EOF
 [mysqld]
-user = xmysql
+user = ${SERVER_USER}
 bind-address = 127.0.0.1
 port = ${PORT}
 basedir = ${ROOT}
@@ -51,7 +75,7 @@ lc-messages-dir = /usr/share/mysql
 max_session_number = 1000
 session_timeout = 60s
 fail_fast_timeout = 5s
-dev_bypass_password_auth = true
+dev_bypass_password_auth = ${DEV_BYPASS_AUTH}
 
 [innodb]
 data_dir = ${DATA_DIR}
@@ -91,6 +115,7 @@ EOF
 }
 
 start_server() {
+  kill_port_listener
   go run . -configPath="$CONF_FILE" >>"$SERVER_LOG" 2>&1 &
   SERVER_PID=$!
   echo "server_pid=${SERVER_PID}" >>"$SUMMARY"
@@ -99,7 +124,19 @@ start_server() {
 wait_port() {
   local n=0
   while [[ $n -lt 60 ]]; do
-    if (echo >"/dev/tcp/127.0.0.1/${PORT}") >/dev/null 2>&1; then
+    if (echo >"/dev/tcp/${HOST}/${PORT}") >/dev/null 2>&1; then
+      return 0
+    fi
+    n=$((n + 1))
+    sleep 1
+  done
+  return 1
+}
+
+wait_port_free() {
+  local n=0
+  while [[ $n -lt 30 ]]; do
+    if ! (echo >"/dev/tcp/${HOST}/${PORT}") >/dev/null 2>&1; then
       return 0
     fi
     n=$((n + 1))
@@ -113,6 +150,7 @@ kill_server() {
     kill -9 "$SERVER_PID" >/dev/null 2>&1 || true
     wait "$SERVER_PID" 2>/dev/null || true
   fi
+  wait_port_free || true
 }
 
 kill_port_listener() {
@@ -122,13 +160,14 @@ kill_port_listener() {
     for pid in $pids; do
       kill -9 "$pid" >/dev/null 2>&1 || true
     done
-    sleep 1
+    wait_port_free || true
   fi
 }
 
 run_client() {
   local mode="$1"
   shift || true
+  echo "[CLIENT] DSN=${DSN} db=${DB_NAME} table=${TABLE_NAME} mode=${mode}" >>"$CLIENT_LOG"
   go run ./cmd/recovery_drill_client -dsn "$DSN" -db "$DB_NAME" -table "$TABLE_NAME" -mode "$mode" "$@" >>"$CLIENT_LOG" 2>&1
 }
 
@@ -164,7 +203,9 @@ step() {
   echo "repo: $ROOT"
   echo "go: $(go version 2>/dev/null || true)"
   echo "run_dir: $RUN_DIR"
+  echo "host: $HOST"
   echo "port: $PORT"
+  echo "dsn: $DSN"
   echo "db: $DB_NAME"
   echo "table: $TABLE_NAME"
   echo
@@ -178,6 +219,7 @@ step "wait server port" wait_port
 step "setup redo" run_client setup_redo
 step "crash after redo commit" kill_server
 
+step "cleanup stale listener before redo verify restart" kill_port_listener
 step "restart server for redo verify" start_server
 step "wait server port (redo verify)" wait_port
 step "verify redo" run_client verify_redo
@@ -201,4 +243,3 @@ step "half-commit scenario via fault injection tests" run_manager_group "half_co
 } | tee -a "$SUMMARY"
 
 exit $overall
-

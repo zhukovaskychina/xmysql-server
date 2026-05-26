@@ -143,17 +143,19 @@ func NullsafeCompare(v1, v2 Value) int {
 	if isNumber(v1.Type()) || isNumber(v2.Type()) {
 		lv1, err := newNumeric(v1)
 		if err != nil {
-			panic(err)
+			// Defensive fallback: preserve server stability and use raw bytes order for comparison.
+			return bytes.Compare(v1.val, v2.val)
 		}
 		lv2, err := newNumeric(v2)
 		if err != nil {
-			panic(err)
+			return bytes.Compare(v1.val, v2.val)
 		}
 		return compareNumeric(lv1, lv2)
 	}
 
 	if v1.Type() == Tuple || v2.Type() == Tuple {
-		panic(fmt.Sprintf("unsupported.valueImpl.type:%v.vs.%v", v1.Type(), v2.Type()))
+		// Tuple-vs-non-tuple fallback should keep deterministic ordering.
+		return bytes.Compare(v1.val, v2.val)
 	}
 
 	return bytes.Compare(v1.val, v2.val)
@@ -293,7 +295,7 @@ func addNumeric(v1, v2 numeric) (numeric, error) {
 	case Float64:
 		return floatPlusAny(v1.fval, v2)
 	}
-	panic("unreachable")
+	return numeric{}, fmt.Errorf("unsupported numeric combination for add: %v + %v", v1.typ, v2.typ)
 }
 
 // prioritize reorders the input parameters
@@ -550,7 +552,8 @@ func isNumZero(v numeric) bool {
 	case Decimal:
 		return v.dval.IsZero()
 	}
-	panic("unreachable")
+	// Defensive fallback for unexpected numeric type.
+	return v.fval == 0
 }
 
 // CastToBool used to cast the Value to a boolean.

@@ -157,11 +157,11 @@ func (i *InfimumValue) ToByte() []byte {
 }
 
 func (i *InfimumValue) WriteBytesWithNull(content []byte) {
-	panic("implement me")
+	i.content = append(make([]byte, 0, len(content)), content...)
 }
 
 func (i *InfimumValue) GetPrimaryKey() basic.FiledDataBytes {
-	panic("implement me")
+	return basic.FiledDataBytes{'i', 'n', 'f', 'i', 'm', 'u', 'm'}
 }
 
 func (i *InfimumValue) GetRowDataLength() uint16 {
@@ -214,27 +214,30 @@ func (ir *InfimumRow) ToByte() []byte {
 }
 
 func (ir *InfimumRow) GetPageNumber() uint32 {
-	panic("implement me")
+	return 0
 }
 
 func (ir *InfimumRow) WriteWithNull(content []byte) {
-	panic("implement me")
+	ir.value = &InfimumValue{content: append(make([]byte, 0, len(content)), content...)}
 }
 
 func (ir *InfimumRow) WriteBytesWithNullWithsPos(content []byte, index byte) {
-	panic("implement me")
+	// infimum row is a boundary row and does not support positional writes.
+	// keep no-op for compatibility and avoid panic in traversal paths.
+	_ = index
+	ir.WriteWithNull(content)
 }
 
 func (ir *InfimumRow) GetPrimaryKey() basic.Value {
-	panic("implement me")
+	return basic.NewStringValue("infimum")
 }
 
 func (ir *InfimumRow) GetFieldLength() int {
-	panic("implement me")
+	return 0
 }
 
 func (ir *InfimumRow) ReadValueByIndex(index int) basic.Value {
-	panic("implement me")
+	return nil
 }
 
 func (ir *InfimumRow) SetNOwned(cnt byte) {
@@ -421,11 +424,11 @@ func (s *SupremumValue) ToByte() []byte {
 }
 
 func (s *SupremumValue) WriteBytesWithNull(content []byte) {
-	panic("implement me")
+	s.content = append(make([]byte, 0, len(content)), content...)
 }
 
 func (s *SupremumValue) GetPrimaryKey() basic.FiledDataBytes {
-	panic("implement me")
+	return basic.FiledDataBytes{'s', 'u', 'p', 'r', 'e', 'm', 'u', 'm'}
 }
 
 func (s *SupremumValue) GetRowDataLength() uint16 {
@@ -477,19 +480,22 @@ func (sr *SupremumRow) ToByte() []byte {
 }
 
 func (sr *SupremumRow) GetPageNumber() uint32 {
-	panic("implement me")
+	return 0
 }
 
 func (sr *SupremumRow) WriteWithNull(content []byte) {
-	panic("implement me")
+	sr.value = &SupremumValue{content: append(make([]byte, 0, len(content)), content...)}
 }
 
 func (sr *SupremumRow) WriteBytesWithNullWithsPos(content []byte, index byte) {
-	panic("implement me")
+	// supremum row is a boundary row and does not support positional writes.
+	// keep no-op for compatibility and avoid panic in traversal paths.
+	_ = index
+	sr.WriteWithNull(content)
 }
 
 func (sr *SupremumRow) GetPrimaryKey() basic.Value {
-	panic("implement me")
+	return basic.NewStringValue("supremum")
 }
 
 func (ir *SupremumRow) GetHeaderLength() uint16 {
@@ -498,11 +504,11 @@ func (ir *SupremumRow) GetHeaderLength() uint16 {
 }
 
 func (sr *SupremumRow) GetFieldLength() int {
-	panic("implement me")
+	return 0
 }
 
 func (sr *SupremumRow) ReadValueByIndex(index int) basic.Value {
-	panic("implement me")
+	return nil
 }
 
 func (sr *SupremumRow) SetNOwned(cnt byte) {

@@ -65,7 +65,12 @@ func NewDMLExecutor(
 func (dml *DMLExecutor) ExecuteInsert(ctx context.Context, stmt *sqlparser.Insert, schemaName string) (*DMLResult, error) {
 	logger.Infof(" 开始执行INSERT语句: %s", sqlparser.String(stmt))
 
-	dml.schemaName = schemaName
+	resolvedSchema := strings.TrimSpace(schemaName)
+	if qualifier := strings.TrimSpace(stmt.Table.Qualifier.String()); qualifier != "" {
+		resolvedSchema = qualifier
+	}
+
+	dml.schemaName = resolvedSchema
 	dml.tableName = stmt.Table.Name.String()
 
 	// 1. 验证表存在
@@ -133,12 +138,17 @@ func (dml *DMLExecutor) ExecuteUpdate(ctx context.Context, stmt *sqlparser.Updat
 	if len(stmt.TableExprs) == 0 {
 		return nil, fmt.Errorf("UPDATE语句缺少表名")
 	}
+	resolvedSchema := strings.TrimSpace(schemaName)
 
 	tableName, err := dml.parseTableName(stmt.TableExprs[0])
 	if err != nil {
 		return nil, fmt.Errorf("解析表名失败: %v", err)
 	}
+	if tableSchema, err := dml.parseTableSchema(stmt.TableExprs[0]); err == nil && tableSchema != "" {
+		resolvedSchema = tableSchema
+	}
 	dml.tableName = tableName
+	dml.schemaName = resolvedSchema
 
 	// 2. 验证表存在
 	tableMeta, err := dml.getTableMetadata()
@@ -205,12 +215,17 @@ func (dml *DMLExecutor) ExecuteDelete(ctx context.Context, stmt *sqlparser.Delet
 	if len(stmt.TableExprs) == 0 {
 		return nil, fmt.Errorf("DELETE语句缺少表名")
 	}
+	resolvedSchema := strings.TrimSpace(schemaName)
 
 	tableName, err := dml.parseTableName(stmt.TableExprs[0])
 	if err != nil {
 		return nil, fmt.Errorf("解析表名失败: %v", err)
 	}
+	if tableSchema, err := dml.parseTableSchema(stmt.TableExprs[0]); err == nil && tableSchema != "" {
+		resolvedSchema = tableSchema
+	}
 	dml.tableName = tableName
+	dml.schemaName = resolvedSchema
 
 	// 2. 验证表存在
 	tableMeta, err := dml.getTableMetadata()
@@ -406,6 +421,21 @@ func (dml *DMLExecutor) parseTableName(tableExpr sqlparser.TableExpr) (string, e
 		switch tableExpr := v.Expr.(type) {
 		case sqlparser.TableName:
 			return tableExpr.Name.String(), nil
+		default:
+			return "", fmt.Errorf("不支持的表表达式类型: %T", tableExpr)
+		}
+	default:
+		return "", fmt.Errorf("不支持的FROM表达式类型: %T", v)
+	}
+}
+
+// parseTableSchema 解析表schema（限定符）
+func (dml *DMLExecutor) parseTableSchema(tableExpr sqlparser.TableExpr) (string, error) {
+	switch v := tableExpr.(type) {
+	case *sqlparser.AliasedTableExpr:
+		switch tableExpr := v.Expr.(type) {
+		case sqlparser.TableName:
+			return tableExpr.Qualifier.String(), nil
 		default:
 			return "", fmt.Errorf("不支持的表表达式类型: %T", tableExpr)
 		}
@@ -765,23 +795,108 @@ func (dml *DMLExecutor) convertPrimaryKeyToUint64(key interface{}) uint64 {
 }
 
 func (dml *DMLExecutor) extractPrimaryKeyFromCondition(condition string) interface{} {
-	if strings.Contains(condition, "=") {
-		parts := strings.Split(condition, "=")
-		if len(parts) == 2 {
-			left := strings.TrimSpace(parts[0])
-			right := strings.TrimSpace(parts[1])
-			if strings.Contains(strings.ToLower(left), "id") {
-				if id, err := strconv.ParseInt(right, 10, 64); err == nil {
-					return id
-				}
-				if strings.HasPrefix(right, "'") && strings.HasSuffix(right, "'") {
-					return right[1 : len(right)-1]
-				}
-				return right
+	condition = strings.TrimSpace(condition)
+	if condition == "" {
+		return nil
+	}
+
+	stmt, err := sqlparser.Parse("SELECT 1 FROM dual WHERE " + condition)
+	if err != nil {
+		logger.Debugf(" 解析WHERE条件失败: %v, condition=%q", err, condition)
+		return nil
+	}
+
+	selectStmt, ok := stmt.(*sqlparser.Select)
+	if !ok || selectStmt.Where == nil || selectStmt.Where.Expr == nil {
+		return nil
+	}
+
+	return dml.extractPrimaryKeyFromExpr(selectStmt.Where.Expr)
+}
+
+func (dml *DMLExecutor) extractPrimaryKeyFromExpr(expr sqlparser.Expr) interface{} {
+	switch v := expr.(type) {
+	case *sqlparser.AndExpr:
+		if key := dml.extractPrimaryKeyFromExpr(v.Left); key != nil {
+			return key
+		}
+		return dml.extractPrimaryKeyFromExpr(v.Right)
+	case *sqlparser.OrExpr:
+		if key := dml.extractPrimaryKeyFromExpr(v.Left); key != nil {
+			return key
+		}
+		return dml.extractPrimaryKeyFromExpr(v.Right)
+	case *sqlparser.ComparisonExpr:
+		if v.Operator != sqlparser.EqualStr {
+			return nil
+		}
+		colName, ok := v.Left.(*sqlparser.ColName)
+		if !ok || !dml.isPrimaryKeyColumnName(colName.Name.String()) {
+			return nil
+		}
+		return dml.parsePrimaryKeyValue(v.Right)
+	case *sqlparser.ParenExpr:
+		return dml.extractPrimaryKeyFromExpr(v.Expr)
+	default:
+		return nil
+	}
+}
+
+func (dml *DMLExecutor) parsePrimaryKeyValue(expr sqlparser.Expr) interface{} {
+	switch v := expr.(type) {
+	case *sqlparser.SQLVal:
+		switch v.Type {
+		case sqlparser.IntVal:
+			if val, err := strconv.ParseInt(string(v.Val), 10, 64); err == nil {
+				return val
+			}
+		case sqlparser.StrVal:
+			return string(v.Val)
+		case sqlparser.HexVal:
+			return v.Val
+		case sqlparser.FloatVal:
+			if val, err := strconv.ParseFloat(string(v.Val), 64); err == nil {
+				return val
+			}
+		default:
+			return string(v.Val)
+		}
+		return nil
+	case *sqlparser.ParenExpr:
+		return dml.parsePrimaryKeyValue(v.Expr)
+	case *sqlparser.UnaryExpr:
+		if v.Operator == sqlparser.MinusStr && v.Expr != nil {
+			switch val := dml.parsePrimaryKeyValue(v.Expr).(type) {
+			case int64:
+				return -val
+			case float64:
+				return -val
+			default:
+				return nil
 			}
 		}
+		if v.Operator == sqlparser.PlusStr {
+			return dml.parsePrimaryKeyValue(v.Expr)
+		}
+		if v.Expr != nil {
+			return dml.parsePrimaryKeyValue(v.Expr)
+		}
+		return nil
+	default:
+		return nil
 	}
-	return nil
+}
+
+func (dml *DMLExecutor) isPrimaryKeyColumnName(raw string) bool {
+	colName := strings.Trim(raw, "` ")
+	if colName == "" {
+		return false
+	}
+	if idx := strings.LastIndex(colName, "."); idx >= 0 && idx < len(colName)-1 {
+		colName = colName[idx+1:]
+	}
+	lowerName := strings.ToLower(strings.TrimSpace(colName))
+	return lowerName == "id" || strings.HasSuffix(lowerName, "_id")
 }
 
 func (dml *DMLExecutor) validateValueType(val interface{}, colType metadata.DataType) bool {

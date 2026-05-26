@@ -31,7 +31,7 @@ func TestStorageIntegratedDMLExecutorHandleIndexErrorUsesStructuredErrors(t *tes
 		{
 			name:       "plain text duplicate should not be classified",
 			err:        errors.New("duplicate key without structured type"),
-			wantPrefix: "索引键重复",
+			wantPrefix: "索引操作失败",
 		},
 	}
 

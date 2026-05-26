@@ -51,6 +51,9 @@ func TestPrefetchManagerBehavior(t *testing.T) {
 	t.Run("TestPrefetchQueue", func(t *testing.T) {
 		pm := bufferPool.prefetchManager
 
+		pm.PauseWorkers()
+		defer pm.ResumeWorkers()
+
 		// 添加一些预读请求
 		pm.TriggerPrefetchWithPriority(1, 100, 5, time.Second)
 		pm.TriggerPrefetchWithPriority(1, 200, 8, time.Second)

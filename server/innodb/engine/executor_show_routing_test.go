@@ -174,7 +174,19 @@ func TestXMySQLExecutor_ExecuteQuery_ShowCreateTableWithSchemaNameParsesTable(t 
 }
 
 func TestXMySQLExecutor_ExecuteQuery_ShowColumnsReturnsStubColumns(t *testing.T) {
-	executor := &XMySQLExecutor{}
+	tempDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "testdb"), 0o755))
+	frmContent := `{
+  "table_name": "users",
+  "columns": [
+    {"name": "id", "type": "INT", "length": 11, "nullable": false}
+  ]
+}`
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "testdb", "users.frm"), []byte(frmContent), 0644))
+
+	executor := &XMySQLExecutor{
+		conf: &conf.Cfg{DataDir: tempDir},
+	}
 	results := make(chan *Result, 4)
 	ctx := &ExecutionContext{
 		Context: context.Background(),
@@ -198,7 +210,19 @@ func TestXMySQLExecutor_ExecuteQuery_ShowColumnsReturnsStubColumns(t *testing.T)
 }
 
 func TestXMySQLExecutor_ExecuteQuery_ShowFieldsReturnsStubColumns(t *testing.T) {
-	executor := &XMySQLExecutor{}
+	tempDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "testdb"), 0o755))
+	frmContent := `{
+  "table_name": "users",
+  "columns": [
+    {"name": "id", "type": "INT", "length": 11, "nullable": false}
+  ]
+}`
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "testdb", "users.frm"), []byte(frmContent), 0644))
+
+	executor := &XMySQLExecutor{
+		conf: &conf.Cfg{DataDir: tempDir},
+	}
 	results := make(chan *Result, 4)
 	ctx := &ExecutionContext{
 		Context: context.Background(),
@@ -222,7 +246,13 @@ func TestXMySQLExecutor_ExecuteQuery_ShowFieldsReturnsStubColumns(t *testing.T) 
 }
 
 func TestXMySQLExecutor_ExecuteQuery_ShowTablesReturnsRows(t *testing.T) {
-	executor := &XMySQLExecutor{}
+	tempDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "testdb"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "testdb", "users.frm"), []byte("{}"), 0644))
+
+	executor := &XMySQLExecutor{
+		conf: &conf.Cfg{DataDir: tempDir},
+	}
 	results := make(chan *Result, 4)
 	ctx := &ExecutionContext{
 		Context: context.Background(),
@@ -249,7 +279,13 @@ func TestXMySQLExecutor_ExecuteQuery_ShowTablesReturnsRows(t *testing.T) {
 }
 
 func TestXMySQLExecutor_ExecuteQuery_ShowTablesLikeFiltersRows(t *testing.T) {
-	executor := &XMySQLExecutor{}
+	tempDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "testdb"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "testdb", "users.frm"), []byte("{}"), 0644))
+
+	executor := &XMySQLExecutor{
+		conf: &conf.Cfg{DataDir: tempDir},
+	}
 	results := make(chan *Result, 4)
 	ctx := &ExecutionContext{
 		Context: context.Background(),
@@ -520,7 +556,12 @@ func TestXMySQLExecutor_ExecuteQuery_ShowDatabasesWhereFiltersRows(t *testing.T)
 }
 
 func TestXMySQLExecutor_ExecuteQuery_ShowTablesWhereFiltersRows(t *testing.T) {
-	executor := &XMySQLExecutor{}
+	tempDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "testdb"), 0o755))
+
+	executor := &XMySQLExecutor{
+		conf: &conf.Cfg{DataDir: tempDir},
+	}
 	results := make(chan *Result, 2)
 	ctx := &ExecutionContext{
 		Context: context.Background(),

@@ -33,9 +33,9 @@
 | GAP-02 | P0 | 建立真实崩溃恢复演练闭环 | 进行中 | 事务 / 存储 | 3~4 人天 | GAP-01 | 恢复脚本、场景数据、恢复报告 | 异常退出 -> 重启 -> 一致性校验，多轮回放一致 | `待补` |
 | GAP-03 | P0 | 建立并发压测与一致性校验流程 | 未开始 | 事务 / 测试 | 3~4 人天 | GAP-01 | 压测脚本、一致性校验脚本、报告 | 冲突写 / 范围读 / 长事务压测通过 | `待补` |
 | GAP-04 | P0 | 完成日志、指标、告警的最小生产闭环 | 未开始 | 平台 / 内核 | 3~4 人天 | GAP-01 | 日志字段规范、慢查询样例、指标导出、告警规则 | 样例请求可追踪，指标可观测，告警可触发 | `待补` |
-| GAP-05 | P0 | 补齐灰度发布、快速回退、数据回滚与演练 | 未开始 | 发布 / 运维 | 2~3 人天 | GAP-02, GAP-03, GAP-04 | 灰度手册、回退手册、回滚手册、演练复盘 | 按手册完成一次全链路演练并计时 | `待补` |
-| GAP-06 | P0 | 将默认安全姿态切换为生产默认安全 | 未开始 | 协议 / 配置 | 1~2 人天 | GAP-01 | 配置修改、生产配置说明、权限回归结果 | 关闭免密，认证失败路径回归通过 | `待补` |
-| GAP-07 | P0 | 收口高风险实现与 flaky 测试 | 进行中 | 内核 | 4~6 人天 | GAP-01 | 高风险文件修复、重复入口收敛、稳定性记录 | `go test ./server/innodb/engine`、重复运行稳定性测试 | `待补` |
+| GAP-05 | P0 | 补齐灰度发布、快速回退、数据回滚与演练 | 进行中 | 发布 / 运维 | 2~3 人天 | GAP-02, GAP-03, GAP-04 | 灰度手册、回退手册、回滚手册、演练复盘 | 按手册完成一次全链路演练并计时 | `reports/p0_e_backups/p0_e_canary_rehearsal_20260517_063552.md`、`reports/p0_e_backups/p0_e_backup_restore_dryrun_20260517_063321.md`、`docs/planning/P0_E_ROLLBACK_AND_CANARY_RUNBOOK.md`、`docs/planning/P0_E_CANARY_REHEARSAL_20260517.md` |
+| GAP-06 | P0 | 将默认安全姿态切换为生产默认安全 | 已完成 | 协议 / 配置 | 1~2 人天 | GAP-01 | 配置修改、生产配置说明、权限回归结果 | 关闭免密，认证失败路径回归通过 | `docs/planning/GAP_06_SECURITY_DEFAULT_POSTURE.md`<br/>`reports/p0_gap06/p0_gap06_20260516_231850/gap06_audit_report.md` |
+| GAP-07 | P0 | 收口高风险实现与 flaky 测试 | 进行中 | 内核 | 4~6 人天 | GAP-01 | 高风险文件修复、重复入口收敛、稳定性记录 | `go test ./server/innodb/engine`、重复运行稳定性测试 | `reports/p0_a2_01_stability_20260517_012720/summary.log` |
 
 ### P0 说明
 
@@ -110,4 +110,3 @@
 - [P0_PRODUCTION_TASKS.md](./P0_PRODUCTION_TASKS.md)
 - [P0_PRODUCTION_CHECKLIST.md](./P0_PRODUCTION_CHECKLIST.md)
 - [P0_PRODUCTION_GAP_ANALYSIS.md](./P0_PRODUCTION_GAP_ANALYSIS.md)
-

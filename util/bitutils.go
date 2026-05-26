@@ -2,6 +2,7 @@ package util
 
 import (
 	"bytes"
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"math"
 	"strconv"
 	"strings"
@@ -65,11 +66,24 @@ func ConvertString2Byte(data string) byte {
 	var result = byte(0)
 
 	if len(data) != 8 {
-		panic("非法请求")
+		logger.Warnf("ConvertString2Byte 输入长度非法: %s, return 0", data)
+		return 0
 	}
 	value := strings.SplitAfter(data, "")
 	for i := 0; i < 8; i++ {
-		intValue, _ := strconv.Atoi(value[i])
+		if i >= len(value) {
+			logger.Warnf("ConvertString2Byte 输入格式异常: %s, return 0", data)
+			return 0
+		}
+		intValue, err := strconv.Atoi(value[i])
+		if err != nil {
+			logger.Warnf("ConvertString2Byte 内容转换失败: %s, index=%d, err=%v", data, i, err)
+			return 0
+		}
+		if intValue != 0 && intValue != 1 {
+			logger.Warnf("ConvertString2Byte 非法位字符: %s, index=%d", data, i)
+			return 0
+		}
 		res := byte(float64(intValue) * math.Pow(2, float64(8-i-1)))
 		result = result + res
 	}
@@ -81,11 +95,24 @@ func ConvertBits2Byte(data string) byte {
 	var result = byte(0)
 
 	if len(data) != 8 {
-		panic("非法请求")
+		logger.Warnf("ConvertBits2Byte 输入长度非法: %s, return 0", data)
+		return 0
 	}
 	value := strings.SplitAfter(data, "")
 	for i := 0; i < 8; i++ {
-		intValue, _ := strconv.Atoi(value[i])
+		if i >= len(value) {
+			logger.Warnf("ConvertBits2Byte 输入格式异常: %s, return 0", data)
+			return 0
+		}
+		intValue, err := strconv.Atoi(value[i])
+		if err != nil {
+			logger.Warnf("ConvertBits2Byte 内容转换失败: %s, index=%d, err=%v", data, i, err)
+			return 0
+		}
+		if intValue != 0 && intValue != 1 {
+			logger.Warnf("ConvertBits2Byte 非法位字符: %s, index=%d", data, i)
+			return 0
+		}
 		res := byte(float64(intValue) * math.Pow(2, float64(8-i-1)))
 		result = result + res
 	}
@@ -93,7 +120,8 @@ func ConvertBits2Byte(data string) byte {
 }
 func ConvertBits2Bytes(data string) []byte {
 	if len(data)%8 != 0 {
-		panic("非法请求")
+		logger.Warnf("ConvertBits2Bytes 输入长度非法: %s, return empty", data)
+		return []byte{}
 	}
 	var buff = make([]byte, 0)
 	var size = int(len(data) / 8)
@@ -118,7 +146,7 @@ func Substr(str string, start int, end int) string {
 	return string(rs[start:end])
 }
 
-//将某个字节的第几位bit置换，value0，1
+// 将某个字节的第几位bit置换，value0，1
 func ConvertValueOfBitsInBytes(byte byte, index int, value int) byte {
 	binaryString := ConvertByte2BitsString(byte)
 	binaryString[index] = strconv.Itoa(value)
@@ -159,7 +187,7 @@ func TrimLeftPaddleBitString(bitData byte, leftPaddleStart int) []string {
 	return result
 }
 
-//注意BigEndian和littleEndian
+// 注意BigEndian和littleEndian
 func ConvertBytes2BitStrings(data []byte) []string {
 	var stringResultArray = make([]string, 0)
 	for i := len(data) - 1; i >= 0; i-- {

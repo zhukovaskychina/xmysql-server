@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
+	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/dispatcher"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
@@ -46,6 +47,10 @@ func (s *MockMySQLServerSession) ID() string {
 
 func (s *MockMySQLServerSession) GetLastActiveTime() time.Time {
 	return time.Now()
+}
+
+func (s *MockMySQLServerSession) SessionContext() *server.SessionContext {
+	return server.NewSessionContext(s.sessionID)
 }
 
 func (s *MockMySQLServerSession) SendHandleOk() {}

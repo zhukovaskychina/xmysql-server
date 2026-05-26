@@ -2,12 +2,14 @@ package manager
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/page"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -421,7 +423,7 @@ func (m *DefaultBPlusTreeManager) allocateNewPage(ctx context.Context) (uint32, 
 	// 优先使用页面分配器
 	if m.pageAllocator != nil {
 		pageNo, err := m.pageAllocator.AllocatePage()
-		if err == nil {
+		if err == nil && pageNo > 0 {
 			// 从缓冲池分配页面
 			_, err := m.bufferPoolManager.GetPage(m.spaceId, pageNo)
 			if err != nil {
@@ -430,7 +432,12 @@ func (m *DefaultBPlusTreeManager) allocateNewPage(ctx context.Context) (uint32, 
 			logger.Debugf("🆕 Allocated new page from PageAllocator: %d", pageNo)
 			return pageNo, nil
 		}
-		logger.Debugf("⚠️ PageAllocator failed, fallback to atomic counter: %v", err)
+
+		if err == nil && pageNo == 0 {
+			logger.Debugf("⚠️ PageAllocator returned page 0, fallback to atomic counter")
+		} else {
+			logger.Debugf("⚠️ PageAllocator failed, fallback to atomic counter: %v", err)
+		}
 	}
 
 	// Fallback: 使用原子递增生成新页号
@@ -461,7 +468,19 @@ func (m *DefaultBPlusTreeManager) Init(ctx context.Context, spaceId uint32, root
 	m.mutex.Unlock()
 
 	// 在释放锁后加载根节点，避免死锁
-	_, err := m.getNode(ctx, rootPage)
+	rootNode, err := m.getNode(ctx, rootPage)
+	if err == nil && !rootNode.IsLeaf {
+		rootNode.mu.Lock()
+		emptyLeafLikely := len(rootNode.Keys) == 0 && len(rootNode.Children) == 0
+		if emptyLeafLikely {
+			rootNode.IsLeaf = true
+			rootNode.Records = make([]uint32, 0)
+		}
+		rootNode.mu.Unlock()
+		if emptyLeafLikely {
+			_ = m.flushNode(rootNode)
+		}
+	}
 
 	// 计算初始树高度
 	if err == nil {
@@ -1154,7 +1173,11 @@ func (m *DefaultBPlusTreeManager) compareKeys(a, b interface{}) int {
 	// 根据实际类型实现比较逻辑
 	switch v1 := a.(type) {
 	case int:
-		v2 := b.(int)
+		v2, ok := b.(int)
+		if !ok {
+			logger.Debugf("compareKeys fallback: unsupported key type pair a=%T b=%T", a, b)
+			return compareKeyByFallback(a, b)
+		}
 		if v1 < v2 {
 			return -1
 		} else if v1 > v2 {
@@ -1162,16 +1185,66 @@ func (m *DefaultBPlusTreeManager) compareKeys(a, b interface{}) int {
 		}
 		return 0
 	case string:
-		v2 := b.(string)
+		v2, ok := b.(string)
+		if !ok {
+			logger.Debugf("compareKeys fallback: unsupported key type pair a=%T b=%T", a, b)
+			return compareKeyByFallback(a, b)
+		}
 		if v1 < v2 {
 			return -1
 		} else if v1 > v2 {
 			return 1
 		}
 		return 0
+	case []byte:
+		v2, ok := b.([]byte)
+		if !ok {
+			logger.Debugf("compareKeys fallback: unsupported key type pair a=%T b=%T", a, b)
+			return compareKeyByFallback(a, b)
+		}
+		minLen := len(v1)
+		if len(v2) < minLen {
+			minLen = len(v2)
+		}
+		for i := 0; i < minLen; i++ {
+			if v1[i] < v2[i] {
+				return -1
+			} else if v1[i] > v2[i] {
+				return 1
+			}
+		}
+		if len(v1) == len(v2) {
+			return 0
+		}
+		if len(v1) < len(v2) {
+			return -1
+		}
+		return 1
 	default:
-		panic("unsupported key type")
+		logger.Debugf("compareKeys fallback: unsupported key type pair a=%T b=%T", a, b)
+		return compareKeyByFallback(a, b)
 	}
+}
+
+func compareKeyByFallback(a, b interface{}) int {
+	if a == nil && b == nil {
+		return 0
+	}
+	if a == nil {
+		return -1
+	}
+	if b == nil {
+		return 1
+	}
+
+	aStr := fmt.Sprintf("%T:%v", a, a)
+	bStr := fmt.Sprintf("%T:%v", b, b)
+	if aStr < bStr {
+		return -1
+	} else if aStr > bStr {
+		return 1
+	}
+	return 0
 }
 
 // RecordRowAdapter 将page.Record适配为basic.Row接口
@@ -1180,8 +1253,10 @@ type RecordRowAdapter struct {
 }
 
 func (r *RecordRowAdapter) Less(than basic.Row) bool {
-	// 简化实现，实际应该根据具体的比较逻辑
-	return false
+	if r.record == nil || than == nil {
+		return false
+	}
+	return string(r.record.Data) < string(than.ToByte())
 }
 
 func (r *RecordRowAdapter) ToByte() []byte {
@@ -1204,11 +1279,22 @@ func (r *RecordRowAdapter) GetPageNumber() uint32 {
 }
 
 func (r *RecordRowAdapter) WriteWithNull(content []byte) {
-	// TODO: 实现
+	if r.record == nil {
+		return
+	}
+	r.record.Data = append(r.record.Data, content...)
+	r.record.Data = append(r.record.Data, 0)
 }
 
 func (r *RecordRowAdapter) WriteBytesWithNullWithsPos(content []byte, index byte) {
-	// TODO: 实现
+	if r.record == nil {
+		return
+	}
+	end := len(r.record.Data)
+	if int(index)+1 < end {
+		end = int(index) + 1
+	}
+	r.record.Data = append(append(r.record.Data[:end], content...), 0)
 }
 
 func (r *RecordRowAdapter) GetRowLength() uint16 {
@@ -1219,11 +1305,14 @@ func (r *RecordRowAdapter) GetRowLength() uint16 {
 }
 
 func (r *RecordRowAdapter) GetHeaderLength() uint16 {
-	return 0 // TODO: 实现
+	return 5
 }
 
 func (r *RecordRowAdapter) GetPrimaryKey() basic.Value {
-	return nil // TODO: 实现
+	if r.record == nil {
+		return basic.NewNull()
+	}
+	return basic.NewBytes(r.record.Data)
 }
 
 func (r *RecordRowAdapter) GetFieldLength() int {
@@ -1231,31 +1320,70 @@ func (r *RecordRowAdapter) GetFieldLength() int {
 }
 
 func (r *RecordRowAdapter) ReadValueByIndex(index int) basic.Value {
-	return nil // TODO: 实现
+	if r.record == nil {
+		return basic.NewNull()
+	}
+	if index == 0 {
+		return basic.NewBytes(r.record.Data)
+	}
+	return basic.NewNull()
 }
 
 func (r *RecordRowAdapter) SetNOwned(cnt byte) {
-	// TODO: 实现
+	if r.record == nil {
+		return
+	}
+	if len(r.record.Data) < 1 {
+		tmp := make([]byte, 1)
+		copy(tmp, r.record.Data)
+		r.record.Data = tmp
+	}
+	r.record.Data[0] = cnt
 }
 
 func (r *RecordRowAdapter) GetNOwned() byte {
-	return 0
+	if r.record == nil || len(r.record.Data) < 1 {
+		return 0
+	}
+	return r.record.Data[0]
 }
 
 func (r *RecordRowAdapter) GetNextRowOffset() uint16 {
-	return 0
+	if r.record == nil || len(r.record.Data) < 3 {
+		return 0
+	}
+	return binary.LittleEndian.Uint16(r.record.Data[1:3])
 }
 
 func (r *RecordRowAdapter) SetNextRowOffset(offset uint16) {
-	// TODO: 实现
+	if r.record == nil {
+		return
+	}
+	if len(r.record.Data) < 3 {
+		tmp := make([]byte, 3)
+		copy(tmp, r.record.Data)
+		r.record.Data = tmp
+	}
+	binary.LittleEndian.PutUint16(r.record.Data[1:3], offset)
 }
 
 func (r *RecordRowAdapter) GetHeapNo() uint16 {
-	return 0
+	if r.record == nil || len(r.record.Data) < 5 {
+		return 0
+	}
+	return binary.LittleEndian.Uint16(r.record.Data[3:5])
 }
 
 func (r *RecordRowAdapter) SetHeapNo(heapNo uint16) {
-	// TODO: 实现
+	if r.record == nil {
+		return
+	}
+	if len(r.record.Data) < 5 {
+		tmp := make([]byte, 5)
+		copy(tmp, r.record.Data)
+		r.record.Data = tmp
+	}
+	binary.LittleEndian.PutUint16(r.record.Data[3:5], heapNo)
 }
 
 func (r *RecordRowAdapter) SetTransactionId(trxId uint64) {
@@ -1263,7 +1391,15 @@ func (r *RecordRowAdapter) SetTransactionId(trxId uint64) {
 }
 
 func (r *RecordRowAdapter) GetValueByColName(colName string) basic.Value {
-	return nil // TODO: 实现
+	if r.record == nil {
+		return basic.NewNull()
+	}
+	switch strings.ToLower(colName) {
+	case "data", "value":
+		return basic.NewBytes(r.record.Data)
+	default:
+		return basic.NewNull()
+	}
 }
 
 func (r *RecordRowAdapter) ToString() string {

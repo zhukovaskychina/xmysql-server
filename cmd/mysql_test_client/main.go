@@ -18,15 +18,17 @@ func runSingleColumnQuery(db *sql.DB, query string) {
 }
 
 func main() {
-	dsn := "root:@tcp(127.0.0.1:3309)/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true"
+	dsn := "root:root@1234@tcp(127.0.0.1:3309)/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true"
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		panic(err)
+		fmt.Printf("connect failed: %v\n", err)
+		return
 	}
 	defer db.Close()
 
 	if err := db.Ping(); err != nil {
-		panic(err)
+		fmt.Printf("ping failed: %v\n", err)
+		return
 	}
 	fmt.Println("Ping OK")
 

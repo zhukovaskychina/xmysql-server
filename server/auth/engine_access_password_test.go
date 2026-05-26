@@ -130,3 +130,117 @@ func TestPasswordHashWithStringValue(t *testing.T) {
 
 	t.Logf("String password hash parsed successfully: %s", passwordHash)
 }
+
+func TestMatchHost(t *testing.T) {
+	ea := &InnoDBEngineAccess{}
+
+	tests := []struct {
+		name    string
+		host    string
+		pattern string
+		want    bool
+	}{
+		{
+			name:    "exact match",
+			host:    "127.0.0.1",
+			pattern: "127.0.0.1",
+			want:    true,
+		},
+		{
+			name:    "wildcard percent match",
+			host:    "10.1.2.3",
+			pattern: "10.1.%",
+			want:    true,
+		},
+		{
+			name:    "wildcard percent and underscore",
+			host:    "10.1.2.3",
+			pattern: "10.1._._",
+			want:    true,
+		},
+		{
+			name:    "wildcard false",
+			host:    "10.1.2.3",
+			pattern: "10.2.%",
+			want:    false,
+		},
+		{
+			name:    "empty host",
+			host:    "",
+			pattern: "10.%.%",
+			want:    false,
+		},
+		{
+			name:    "empty pattern",
+			host:    "10.1.2.3",
+			pattern: "",
+			want:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ea.matchHost(tt.host, tt.pattern)
+			if got != tt.want {
+				t.Fatalf("matchHost(%q, %q) = %v, want %v", tt.host, tt.pattern, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetBoolWithByteArray(t *testing.T) {
+	ea := &InnoDBEngineAccess{}
+
+	tests := []struct {
+		name     string
+		row      []interface{}
+		index    int
+		expected bool
+	}{
+		{
+			name:     "Byte array Y",
+			row:      []interface{}{[]byte("Y")},
+			index:    0,
+			expected: true,
+		},
+		{
+			name:     "Byte array yes",
+			row:      []interface{}{[]byte("YES")},
+			index:    0,
+			expected: true,
+		},
+		{
+			name:     "Byte array 1",
+			row:      []interface{}{[]byte("1")},
+			index:    0,
+			expected: true,
+		},
+		{
+			name:     "Byte array N",
+			row:      []interface{}{[]byte("N")},
+			index:    0,
+			expected: false,
+		},
+		{
+			name:     "Byte array lowercase y",
+			row:      []interface{}{[]byte("y")},
+			index:    0,
+			expected: true,
+		},
+		{
+			name:     "Byte array nil",
+			row:      []interface{}{nil},
+			index:    0,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ea.getBool(tt.row, tt.index)
+			if got != tt.expected {
+				t.Fatalf("getBool() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}

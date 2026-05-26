@@ -2566,7 +2566,7 @@ num_val:
   {
     // TODO(sougou): Deprecate this construct.
     if $1.Lowered() != "value" {
-      yylex.Error("expecting value after next")
+      yylex.Error("expecting valueImpl after next")
       return 1
     }
     $$ = NewIntVal([]byte("1"))

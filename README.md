@@ -123,7 +123,7 @@ XMySQL Server 是一个使用 Go 实现的、面向单机场景的 MySQL 兼容�
 
 ### 环境要求
 
-- Go 1.20+
+- Go 1.24+
 - 推荐 Linux/macOS 开发环境
 
 ### 编译与测试

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
@@ -20,7 +19,8 @@ func main() {
 	// 生成数据
 	rows, err := generator.Generate()
 	if err != nil {
-		log.Fatalf(" 生成数据失败: %v", err)
+		logger.Errorf("生成数据失败: %v", err)
+		return
 	}
 
 	logger.Debugf(" 成功生成 %d 行数据\n\n", len(rows))

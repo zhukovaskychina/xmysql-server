@@ -77,7 +77,13 @@ func (h *EnhancedBusinessMessageHandler) HandleQueryWithRealSession(realSession 
 			user = u
 		}
 	}
-	host = "127.0.0.1" // 简化处理
+	hostParam := realSession.GetParamByName("host")
+	if hVal, ok := hostParam.(string); ok && hVal != "" {
+		host = hVal
+	}
+	if host == "" {
+		host = "127.0.0.1" // 简化处理
+	}
 
 	logger.Debugf(" 查询用户: %s@%s", user, host)
 
@@ -358,18 +364,14 @@ func (h *EnhancedBusinessMessageHandler) handleUseDBMessage(ctx context.Context,
 
 	logger.Debugf(" 提取用户信息: user=%s, host=%s", user, host)
 
-	// 临时解决方案：为root用户跳过权限检查
-	if user != "root" {
-		if err := h.authService.CheckPrivilege(ctx, user, host, useDBMsg.Database, "", common.SelectPriv); err != nil {
-			logger.Errorf(" 数据库访问权限检查失败: user=%s, host=%s, database=%s, error=%v",
-				user, host, useDBMsg.Database, err)
-			return protocol.NewErrorMessage(msg.SessionID(), common.ER_SPECIFIC_ACCESS_DENIED_ERROR,
-				user, host, useDBMsg.Database), nil
-		}
-		logger.Debugf(" 数据库访问权限检查通过")
-	} else {
-		logger.Debugf("  [临时跳过] Root用户数据库访问权限检查被跳过")
+	// 检查数据库访问权限
+	if err := h.authService.CheckPrivilege(ctx, user, host, useDBMsg.Database, "", common.SelectPriv); err != nil {
+		logger.Errorf(" 数据库访问权限检查失败: user=%s, host=%s, database=%s, error=%v",
+			user, host, useDBMsg.Database, err)
+		return protocol.NewErrorMessage(msg.SessionID(), common.ER_SPECIFIC_ACCESS_DENIED_ERROR,
+			user, host, useDBMsg.Database), nil
 	}
+	logger.Debugf(" 数据库访问权限检查通过")
 
 	// 切换成功
 	logger.Debugf("Database switched to '%s' for session %s\n", useDBMsg.Database, msg.SessionID())
@@ -386,12 +388,6 @@ func (h *EnhancedBusinessMessageHandler) handlePingMessage(ctx context.Context, 
 func (h *EnhancedBusinessMessageHandler) checkQueryPrivilege(ctx context.Context, user, host, database, sql string) error {
 	logger.Debugf(" 检查查询权限: user=%s, host=%s, database=%s, sql=%s", user, host, database, sql)
 
-	// ========== 临时注释：跳过权限检查 ==========
-	// TODO: 修复权限检查逻辑后恢复
-	logger.Warnf("⚠️  临时跳过权限检查 - 仅用于调试！")
-	return nil // 直接返回成功
-
-	/* 原始权限检查代码 - 已临时注释
 	// 解析SQL类型
 	sqlType := h.parseSQLType(sql)
 	logger.Debugf(" SQL类型: %s", sqlType)
@@ -428,7 +424,6 @@ func (h *EnhancedBusinessMessageHandler) checkQueryPrivilege(ctx context.Context
 		logger.Debugf(" 权限检查通过")
 		return nil
 	}
-	*/
 }
 
 // extractHostFromSessionID 从会话ID中提取主机信息（简化实现）

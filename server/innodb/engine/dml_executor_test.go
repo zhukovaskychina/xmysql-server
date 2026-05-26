@@ -184,3 +184,52 @@ func TestDMLExecutor_ValidateTableNameParsing(t *testing.T) {
 
 	t.Logf(" 表名解析测试通过")
 }
+
+func TestDMLExecutor_ExtractPrimaryKeyFromCondition(t *testing.T) {
+	dmlExecutor := NewDMLExecutor(nil, nil, nil, nil, nil, nil)
+
+	testCases := []struct {
+		condition   string
+		expectedKey interface{}
+	}{
+		{"id = 1", int64(1)},
+		{"`user_id` = '789'", "789"},
+		{"name = 'test'", nil},
+		{"userid = 1", nil},
+		{"id = 1 AND name = 'x'", int64(1)},
+	}
+
+	for _, tc := range testCases {
+		key := dmlExecutor.extractPrimaryKeyFromCondition(tc.condition)
+		if key != tc.expectedKey {
+			t.Errorf("condition %q: expected %v, got %v", tc.condition, tc.expectedKey, key)
+		}
+	}
+
+	t.Logf(" 条件解析主键提取测试通过")
+}
+
+func TestDMLExecutor_ParseTableSchemaFromUpdateExpr(t *testing.T) {
+	dmlExecutor := NewDMLExecutor(nil, nil, nil, nil, nil, nil)
+
+	updateSQL := "UPDATE test_db.users SET name = 'Jane Doe' WHERE id = 1"
+	stmt, err := sqlparser.Parse(updateSQL)
+	if err != nil {
+		t.Fatalf("Failed to parse UPDATE SQL: %v", err)
+	}
+
+	updateStmt := stmt.(*sqlparser.Update)
+	if len(updateStmt.TableExprs) == 0 {
+		t.Fatalf("Expected at least one table expr")
+	}
+
+	tableSchema, err := dmlExecutor.parseTableSchema(updateStmt.TableExprs[0])
+	if err != nil {
+		t.Fatalf("Failed to parse table schema: %v", err)
+	}
+	if tableSchema != "test_db" {
+		t.Errorf("Expected table schema 'test_db', got '%s'", tableSchema)
+	}
+
+	t.Logf(" table schema parse test passed")
+}

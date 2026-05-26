@@ -2,7 +2,7 @@ package net
 
 import (
 	"bytes"
-	"encoding/binary"
+	"errors"
 	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
@@ -23,11 +23,20 @@ func (p MySQLPackage) Marshal() (*bytes.Buffer, error) {
 	)
 
 	buf = &bytes.Buffer{}
-	err = binary.Write(buf, binary.LittleEndian, p.Header)
+	if len(p.Header.PacketLength) != 3 {
+		return nil, errors.New("invalid packet header length")
+	}
+
+	_, err = buf.Write(p.Header.PacketLength)
 	if err != nil {
 		return nil, err
 	}
-	buf.Write(p.Body)
+	if err = buf.WriteByte(p.Header.PacketId); err != nil {
+		return nil, err
+	}
+	if _, err = buf.Write(p.Body); err != nil {
+		return nil, err
+	}
 
 	return buf, nil
 }

@@ -1,6 +1,7 @@
 package page
 
 import (
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"sync/atomic"
@@ -89,7 +90,8 @@ func (p *PageImpl) Pin() {
 // Unpin decrements the pin count
 func (p *PageImpl) Unpin() {
 	if atomic.AddInt32(&p.pinCount, -1) < 0 {
-		panic("unpin called too many times")
+		logger.Warnf("page unpin underflow: space=%d page=%d, pin count reset to 0", p.spaceID, p.pageNo)
+		atomic.StoreInt32(&p.pinCount, 0)
 	}
 }
 

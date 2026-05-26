@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
@@ -77,41 +78,60 @@ func (ue *UnifiedExecutor) ExecuteSelect(ctx context.Context, stmt *sqlparser.Se
 	if ue.optimizer != nil && ue.tableManager != nil {
 		logicalPlan, err := plan.BuildLogicalPlan(stmt, &InfoSchemaAdapter{manager: ue.tableManager})
 		if err != nil {
-			logger.Warnf("UnifiedExecutor: failed to build logical plan, fallback to manual operator tree: %v", err)
-		} else {
-			var physicalPlan plan.PhysicalPlan
-
-			switch optimizer := ue.optimizer.(type) {
-			case interface {
-				OptimizeQuery(context.Context, plan.LogicalPlan) (*plan.OptimizedQueryPlan, error)
-			}:
-				optimizedPlan, err := optimizer.OptimizeQuery(ctx, logicalPlan)
-				if err != nil {
-					logger.Warnf("UnifiedExecutor: optimizer failed, fallback to manual operator tree: %v", err)
-					break
-				}
-				if optimizedPlan != nil {
-					physicalPlan = optimizedPlan.PhysicalPlan
-				}
-			case interface {
-				Optimize(plan.LogicalPlan) (plan.PhysicalPlan, error)
-			}:
-				optimizedPhysicalPlan, err := optimizer.Optimize(logicalPlan)
-				if err != nil {
-					logger.Warnf("UnifiedExecutor: optimizer failed, fallback to manual operator tree: %v", err)
-					break
-				}
-				physicalPlan = optimizedPhysicalPlan
-			}
-
-			if physicalPlan != nil {
-				rootOperator, err := ue.BuildOperatorTree(ctx, physicalPlan)
-				if err == nil {
-					return ue.collectSelectResult(ctx, rootOperator)
-				}
-				logger.Warnf("UnifiedExecutor: failed to build operator tree from physical plan, fallback to manual operator tree: %v", err)
-			}
+			return nil, fmt.Errorf("unified select optimizer path failed: build logical plan: %w", err)
 		}
+
+		var physicalPlan plan.PhysicalPlan
+
+		switch optimizer := ue.optimizer.(type) {
+		case interface {
+			OptimizeQuery(context.Context, plan.LogicalPlan) (*plan.OptimizedQueryPlan, error)
+		}:
+			optimizedPlan, err := optimizer.OptimizeQuery(ctx, logicalPlan)
+			if err != nil {
+				return nil, fmt.Errorf("unified select optimizer path failed: optimize query: %w", err)
+			}
+			if optimizedPlan == nil {
+				return nil, fmt.Errorf("unified select optimizer path failed: optimizer returned nil result")
+			}
+			physicalPlan = optimizedPlan.PhysicalPlan
+		case interface {
+			Optimize(plan.LogicalPlan) (plan.PhysicalPlan, error)
+		}:
+			optimizedPhysicalPlan, err := optimizer.Optimize(logicalPlan)
+			if err != nil {
+				return nil, fmt.Errorf("unified select optimizer path failed: optimizer failed: %w", err)
+			}
+			physicalPlan = optimizedPhysicalPlan
+		default:
+			return nil, fmt.Errorf("unified select optimizer path failed: unsupported optimizer interface %T", ue.optimizer)
+		}
+
+		if physicalPlan == nil {
+			return nil, fmt.Errorf("unified select optimizer path failed: optimizer returned nil physical plan")
+		}
+
+		rootOperator, err := ue.BuildOperatorTree(ctx, physicalPlan)
+		if err != nil {
+			return nil, fmt.Errorf("unified select optimizer path failed: build operator tree: %w", err)
+		}
+
+		return ue.collectSelectResult(ctx, rootOperator)
+	}
+
+	logger.Debugf("UnifiedExecutor: optimizer not configured, using manual operator path for schema %s", schemaName)
+
+	if stmt.Where != nil && ue.tableManager != nil {
+		logger.Debugf("UnifiedExecutor: fallback to logical/physical plan path for SELECT with WHERE")
+		rootOperator, err := ue.buildSelectOperatorTreeFromPlans(ctx, stmt, schemaName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build operator tree with WHERE: %w", err)
+		}
+		return ue.collectSelectResult(ctx, rootOperator)
+	}
+
+	if stmt.Where != nil {
+		return nil, fmt.Errorf("WHERE predicates in SELECT require optimizer-backed plan execution, not available in unified manual mode")
 	}
 
 	// 2. 构建算子树
@@ -128,11 +148,16 @@ func (ue *UnifiedExecutor) ExecuteInsert(ctx context.Context, stmt *sqlparser.In
 	logger.Debugf("UnifiedExecutor: executing INSERT on schema %s", schemaName)
 
 	// 获取表名
+	targetSchema := strings.TrimSpace(schemaName)
+	if qualifier := strings.TrimSpace(stmt.Table.Qualifier.String()); qualifier != "" {
+		targetSchema = qualifier
+	}
+
 	tableName := stmt.Table.Name.String()
 
 	// 创建插入算子
 	insertOp := NewInsertOperator(
-		schemaName,
+		targetSchema,
 		tableName,
 		stmt,
 		ue.storageAdapter,
@@ -171,16 +196,36 @@ func (ue *UnifiedExecutor) ExecuteUpdate(ctx context.Context, stmt *sqlparser.Up
 	logger.Debugf("UnifiedExecutor: executing UPDATE on schema %s", schemaName)
 
 	// 获取表名
-	tableName := stmt.TableExprs[0].(*sqlparser.AliasedTableExpr).Expr.(sqlparser.TableName).Name.String()
+	if len(stmt.TableExprs) == 0 {
+		return nil, fmt.Errorf("no table specified in UPDATE statement")
+	}
+
+	firstTableExpr, ok := stmt.TableExprs[0].(*sqlparser.AliasedTableExpr)
+	if !ok {
+		return nil, fmt.Errorf("unsupported UPDATE FROM table expression type: %T", stmt.TableExprs[0])
+	}
+
+	tableNameExpr, ok := firstTableExpr.Expr.(sqlparser.TableName)
+	if !ok {
+		return nil, fmt.Errorf("unsupported UPDATE table expression type: %T", firstTableExpr.Expr)
+	}
+
+	targetSchema := strings.TrimSpace(schemaName)
+	if qualifier := strings.TrimSpace(tableNameExpr.Qualifier.String()); qualifier != "" {
+		targetSchema = qualifier
+	}
+	tableName := tableNameExpr.Name.String()
+
+	if stmt.Where != nil {
+		return ue.executeUpdateWithWhereFallback(ctx, stmt, schemaName)
+	}
 
 	// 创建扫描算子（用于定位需要更新的记录）
-	scanOp := NewTableScanOperator(schemaName, tableName, ue.storageAdapter)
-
-	// TODO: 添加WHERE条件过滤算子
+	scanOp := NewTableScanOperator(targetSchema, tableName, ue.storageAdapter)
 
 	// 创建更新算子
 	updateOp := NewUpdateOperator(
-		schemaName,
+		targetSchema,
 		tableName,
 		stmt,
 		ue.storageAdapter,
@@ -220,16 +265,36 @@ func (ue *UnifiedExecutor) ExecuteDelete(ctx context.Context, stmt *sqlparser.De
 	logger.Debugf("UnifiedExecutor: executing DELETE on schema %s", schemaName)
 
 	// 获取表名
-	tableName := stmt.TableExprs[0].(*sqlparser.AliasedTableExpr).Expr.(sqlparser.TableName).Name.String()
+	if len(stmt.TableExprs) == 0 {
+		return nil, fmt.Errorf("no table specified in DELETE statement")
+	}
+
+	firstTableExpr, ok := stmt.TableExprs[0].(*sqlparser.AliasedTableExpr)
+	if !ok {
+		return nil, fmt.Errorf("unsupported DELETE FROM table expression type: %T", stmt.TableExprs[0])
+	}
+
+	tableNameExpr, ok := firstTableExpr.Expr.(sqlparser.TableName)
+	if !ok {
+		return nil, fmt.Errorf("unsupported DELETE table expression type: %T", firstTableExpr.Expr)
+	}
+
+	targetSchema := strings.TrimSpace(schemaName)
+	if qualifier := strings.TrimSpace(tableNameExpr.Qualifier.String()); qualifier != "" {
+		targetSchema = qualifier
+	}
+	tableName := tableNameExpr.Name.String()
+
+	if stmt.Where != nil {
+		return ue.executeDeleteWithWhereFallback(ctx, stmt, schemaName)
+	}
 
 	// 创建扫描算子（用于定位需要删除的记录）
-	scanOp := NewTableScanOperator(schemaName, tableName, ue.storageAdapter)
-
-	// TODO: 添加WHERE条件过滤算子
+	scanOp := NewTableScanOperator(targetSchema, tableName, ue.storageAdapter)
 
 	// 创建删除算子
 	deleteOp := NewDeleteOperator(
-		schemaName,
+		targetSchema,
 		tableName,
 		stmt,
 		ue.storageAdapter,
@@ -317,17 +382,24 @@ func (ue *UnifiedExecutor) buildSelectOperatorTree(ctx context.Context, stmt *sq
 		return nil, fmt.Errorf("no table specified in FROM clause")
 	}
 
-	tableExpr := stmt.From[0].(*sqlparser.AliasedTableExpr)
-	tableName := tableExpr.Expr.(sqlparser.TableName).Name.String()
+	fromExpr, ok := stmt.From[0].(*sqlparser.AliasedTableExpr)
+	if !ok {
+		return nil, fmt.Errorf("unsupported FROM table expression type: %T", stmt.From[0])
+	}
+
+	tableNameExpr, ok := fromExpr.Expr.(sqlparser.TableName)
+	if !ok {
+		return nil, fmt.Errorf("unsupported table name expression type: %T", fromExpr.Expr)
+	}
+
+	tableName := tableNameExpr.Name.String()
 
 	// 2. 创建基础扫描算子
 	var scanOp Operator = NewTableScanOperator(schemaName, tableName, ue.storageAdapter)
 
 	// 3. 添加WHERE过滤算子
 	if stmt.Where != nil {
-		// TODO: 解析WHERE条件并创建FilterOperator
-		// predicate := ue.buildPredicate(stmt.Where)
-		// scanOp = NewFilterOperator(scanOp, predicate)
+		return nil, fmt.Errorf("WHERE conditions are not supported in unified executor select yet")
 	}
 
 	// 4. 添加投影算子（SELECT子句）
@@ -343,7 +415,16 @@ func (ue *UnifiedExecutor) buildSelectOperatorTree(ctx context.Context, stmt *sq
 
 	// 5. 添加ORDER BY排序算子
 	if len(stmt.OrderBy) > 0 {
-		// TODO: 创建SortOperator
+		querySchema, err := ue.getQuerySchemaFromTable(ctx, schemaName, tableName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve schema for ORDER BY: %w", err)
+		}
+
+		sortKeys, err := ue.buildSortKeysFromOrderBy(stmt.OrderBy, querySchema)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build ORDER BY operator: %w", err)
+		}
+		scanOp = NewSortOperator(scanOp, sortKeys)
 	}
 
 	// 6. 添加LIMIT算子
@@ -356,6 +437,72 @@ func (ue *UnifiedExecutor) buildSelectOperatorTree(ctx context.Context, stmt *sq
 	}
 
 	return scanOp, nil
+}
+
+// buildSelectOperatorTreeFromPlans 通过逻辑计划/物理计划构建选择算子树（用于WHERE等需要谓词处理的场景）
+func (ue *UnifiedExecutor) buildSelectOperatorTreeFromPlans(ctx context.Context, stmt *sqlparser.Select, schemaName string) (Operator, error) {
+	_ = schemaName
+	logicalPlan, err := plan.BuildLogicalPlan(stmt, &InfoSchemaAdapter{manager: ue.tableManager})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build logical plan: %w", err)
+	}
+
+	logicalPlan = plan.OptimizeLogicalPlan(logicalPlan)
+	physicalPlan := plan.ConvertToPhysicalPlan(logicalPlan)
+	if physicalPlan == nil {
+		return nil, fmt.Errorf("failed to convert logical plan to physical plan")
+	}
+
+	rootOperator, err := ue.BuildOperatorTree(ctx, physicalPlan)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build operator tree from physical plan: %w", err)
+	}
+	return rootOperator, nil
+}
+
+func (ue *UnifiedExecutor) supportsStorageIntegratedDML() bool {
+	return ue.tableManager != nil &&
+		ue.storageManager != nil &&
+		ue.tableStorageManager != nil &&
+		ue.indexManager != nil
+}
+
+func (ue *UnifiedExecutor) executeUpdateWithWhereFallback(ctx context.Context, stmt *sqlparser.Update, schemaName string) (*DMLResult, error) {
+	if !ue.supportsStorageIntegratedDML() {
+		return nil, fmt.Errorf("WHERE predicate in UPDATE is only supported by storage-integrated DML executor path")
+	}
+
+	executor := NewStorageIntegratedDMLExecutor(
+		nil,
+		ue.bufferPoolManager,
+		nil,
+		ue.tableManager,
+		nil,
+		ue.indexManager,
+		ue.storageManager,
+		ue.tableStorageManager,
+	)
+
+	return executor.ExecuteUpdate(ctx, stmt, schemaName)
+}
+
+func (ue *UnifiedExecutor) executeDeleteWithWhereFallback(ctx context.Context, stmt *sqlparser.Delete, schemaName string) (*DMLResult, error) {
+	if !ue.supportsStorageIntegratedDML() {
+		return nil, fmt.Errorf("WHERE predicate in DELETE is only supported by storage-integrated DML executor path")
+	}
+
+	executor := NewStorageIntegratedDMLExecutor(
+		nil,
+		ue.bufferPoolManager,
+		nil,
+		ue.tableManager,
+		nil,
+		ue.indexManager,
+		ue.storageManager,
+		ue.tableStorageManager,
+	)
+
+	return executor.ExecuteDelete(ctx, stmt, schemaName)
 }
 
 func (ue *UnifiedExecutor) parseLimit(limitClause *sqlparser.Limit) (int64, int64, error) {
@@ -378,6 +525,78 @@ func (ue *UnifiedExecutor) parseLimit(limitClause *sqlparser.Limit) (int64, int6
 	}
 
 	return offset, limit, nil
+}
+
+func (ue *UnifiedExecutor) buildSortKeysFromOrderBy(orderBy sqlparser.OrderBy, querySchema *metadata.QuerySchema) ([]SortKey, error) {
+	if len(orderBy) == 0 {
+		return nil, nil
+	}
+
+	if querySchema == nil {
+		return nil, fmt.Errorf("query schema is nil")
+	}
+
+	sortKeys := make([]SortKey, 0, len(orderBy))
+	for _, order := range orderBy {
+		colExpr, ok := order.Expr.(*sqlparser.ColName)
+		if !ok {
+			return nil, fmt.Errorf("ORDER BY only supports simple column names in unified select path, got %T", order.Expr)
+		}
+
+		columnName := colExpr.Name.String()
+		if strings.TrimSpace(columnName) == "" {
+			return nil, fmt.Errorf("ORDER BY column name is empty")
+		}
+
+		columnIdx := ue.findColumnIndex(querySchema, columnName)
+		if columnIdx < 0 {
+			return nil, fmt.Errorf("ORDER BY column %q not found in source schema", columnName)
+		}
+
+		sortKeys = append(sortKeys, SortKey{
+			ColumnIdx: columnIdx,
+			Ascending: order.Direction != sqlparser.DescScr,
+		})
+	}
+
+	if len(sortKeys) == 0 {
+		return nil, fmt.Errorf("ORDER BY has no valid sort keys")
+	}
+
+	return sortKeys, nil
+}
+
+func (ue *UnifiedExecutor) findColumnIndex(querySchema *metadata.QuerySchema, columnName string) int {
+	if querySchema == nil {
+		return -1
+	}
+
+	for i := 0; i < querySchema.ColumnCount(); i++ {
+		col, ok := querySchema.GetColumnByIndex(i)
+		if !ok || col == nil {
+			continue
+		}
+		if strings.EqualFold(col.Name, columnName) {
+			return i
+		}
+	}
+
+	return -1
+}
+
+func (ue *UnifiedExecutor) getQuerySchemaFromTable(ctx context.Context, schemaName, tableName string) (*metadata.QuerySchema, error) {
+	if ue.storageAdapter == nil {
+		return nil, fmt.Errorf("storage adapter is not initialized")
+	}
+	tableMetadata, err := ue.storageAdapter.GetTableMetadata(ctx, schemaName, tableName)
+	if err != nil {
+		return nil, fmt.Errorf("get table metadata failed: %w", err)
+	}
+	if tableMetadata == nil || tableMetadata.Schema == nil {
+		return nil, fmt.Errorf("table metadata or schema missing")
+	}
+
+	return metadata.FromTable(tableMetadata.Schema), nil
 }
 
 func (ue *UnifiedExecutor) buildProjectionExprs(selectExprs sqlparser.SelectExprs) ([]plan.Expression, bool, error) {

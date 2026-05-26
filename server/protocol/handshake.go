@@ -110,7 +110,14 @@ func (h *HandshakePacket) Encode() []byte {
 
 	// 4. auth-plugin-data-part-1 (8 bytes)
 	if len(h.AuthPluginDataPart1) != 8 {
-		panic(fmt.Sprintf("AuthPluginDataPart1 must be 8 bytes, got %d", len(h.AuthPluginDataPart1)))
+		if len(h.AuthPluginDataPart1) == 0 {
+			h.AuthPluginDataPart1 = make([]byte, 8)
+		} else {
+			logger.Warnf("AuthPluginDataPart1 should be 8 bytes, got %d, fallback with pad/cut", len(h.AuthPluginDataPart1))
+			part1 := make([]byte, 8)
+			copy(part1, h.AuthPluginDataPart1)
+			h.AuthPluginDataPart1 = part1
+		}
 	}
 	payload = append(payload, h.AuthPluginDataPart1...)
 
@@ -151,7 +158,10 @@ func (h *HandshakePacket) Encode() []byte {
 
 	// 12. auth-plugin-data-part-2 (len >= 12 bytes)
 	if len(h.AuthPluginDataPart2) < 12 {
-		panic(fmt.Sprintf("AuthPluginDataPart2 must be at least 12 bytes, got %d", len(h.AuthPluginDataPart2)))
+		logger.Warnf("AuthPluginDataPart2 should be at least 12 bytes, got %d, fallback to zeros", len(h.AuthPluginDataPart2))
+		part2 := make([]byte, 12)
+		copy(part2, h.AuthPluginDataPart2)
+		h.AuthPluginDataPart2 = part2
 	}
 	payload = append(payload, h.AuthPluginDataPart2...)
 

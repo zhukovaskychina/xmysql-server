@@ -38,7 +38,7 @@
 | 事务与 MVCC   | 部分实现    | Savepoint 已实现；`trx_sys.go` 标注 `GlobalTrxSys` 未实现；Undo/Purge 仍有收口项                   | 高并发与恢复边界风险      |
 | 持久化与恢复     | 部分实现    | 有 CrashRecovery/Redo 测试积累；`PRODUCTION_GAP_LIST` 指出真实演练闭环缺失                          | 生产故障恢复可审计性不足    |
 | 协议兼容       | 部分实现    | `COM_STMT_`* 基础路径已具备；批量、多结果集、binlog dump、完整认证插件未实现                                  | JDBC/客户端高级能力受限  |
-| 安全与认证      | 部分实现    | `DevBypassPasswordAuth: true`（默认开发态）；TLS/认证仍在 P1 收口                                 | 生产默认安全姿态不足      |
+| 安全与认证      | 部分实现    | `DevBypassPasswordAuth: false`（默认关闭）；TLS/认证仍在 P1 收口                                 | 生产默认安全姿态正在收口      |
 | 可观测与运维     | 未实现或弱实现 | `PRODUCTION_GAP_LIST` 的监控、慢查询日志、告警闭环缺失                                              | 线上故障定位与风险控制不足   |
 
 
@@ -50,7 +50,7 @@
 - 并行计划关键算子多处 TODO：`server/innodb/plan/parallel.go`
 - MVCC 全局事务结构标注未实现：`server/innodb/storage/store/mvcc/trx_sys.go`
 - 压缩能力存在直接未实现错误：`server/innodb/storage/wrapper/page/compression_manager.go`
-- 默认免密为 true：`server/conf/config.go`
+- 默认免密为 false（并在非本地监听时强制拒绝开启）：`server/conf/config.go`
 
 ## 4. P0 / P1 / P2 缺口排序（按生产影响）
 
@@ -127,4 +127,3 @@
 
 - 推进 Top8~Top10（P1）
 - 建立持续性能与运维评审机制
-

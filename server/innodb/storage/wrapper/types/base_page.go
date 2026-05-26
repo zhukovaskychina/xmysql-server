@@ -19,6 +19,9 @@ var (
 )
 
 // BasePage 基础页面实现
+//
+// Deprecated: BasePage is deprecated and should be replaced by UnifiedPage.
+// It is kept only for compatibility with legacy callers and should not be used by new code.
 type BasePage struct {
 	rawPage  *PageHeader // 使用原始页面结构
 	state    uint32      // 使用atomic操作
@@ -29,6 +32,9 @@ type BasePage struct {
 }
 
 // NewBasePage 创建基础页面
+//
+// Deprecated: Use NewUnifiedPage instead.
+// New code path should create pages through types.UnifiedPage.
 func NewBasePage(spaceID, pageNo uint32, pageType PageType) *BasePage {
 	page := &BasePage{
 		rawPage: NewPageHeader(16384), // 默认16KB页面大小

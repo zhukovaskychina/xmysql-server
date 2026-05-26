@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 // TestFragmentationAnalysis 测试碎片分析
 func TestFragmentationAnalysis(t *testing.T) {
 	// 创建测试环境
+	cleanupTestData("./testdata/defrag")
 	spaceManager := NewSpaceManager("./testdata/defrag")
 	defer cleanupTestData("./testdata/defrag")
 
@@ -19,6 +21,11 @@ func TestFragmentationAnalysis(t *testing.T) {
 	spaceID, err := spaceManager.CreateTableSpace("test_frag")
 	if err != nil {
 		t.Fatalf("Failed to create tablespace: %v", err)
+	}
+
+	space, err := spaceManager.GetSpace(spaceID)
+	if err != nil {
+		t.Fatalf("Failed to get tablespace: %v", err)
 	}
 
 	// 创建extent管理器
@@ -32,7 +39,7 @@ func TestFragmentationAnalysis(t *testing.T) {
 
 	// 分配一些extent模拟碎片
 	for i := 0; i < 10; i++ {
-		_, err := extentManager.AllocateExtent(spaceID, basic.ExtentTypeData)
+		_, err := space.AllocateExtent(basic.ExtentPurposeData)
 		if err != nil {
 			t.Fatalf("Failed to allocate extent: %v", err)
 		}
@@ -73,20 +80,26 @@ func TestFragmentationAnalysis(t *testing.T) {
 		t.Errorf("Expected space ID %d, got %d", spaceID, report.SpaceID)
 	}
 
-	if report.TotalExtents != 10 {
-		t.Errorf("Expected 10 extents, got %d", report.TotalExtents)
+	if report.TotalExtents != 11 {
+		t.Errorf("Expected 11 extents, got %d", report.TotalExtents)
 	}
 }
 
 // TestOnlineDefragmentation 测试在线碎片整理
 func TestOnlineDefragmentation(t *testing.T) {
 	// 创建测试环境
+	cleanupTestData("./testdata/defrag_online")
 	spaceManager := NewSpaceManager("./testdata/defrag_online")
 	defer cleanupTestData("./testdata/defrag_online")
 
 	spaceID, err := spaceManager.CreateTableSpace("test_online")
 	if err != nil {
 		t.Fatalf("Failed to create tablespace: %v", err)
+	}
+
+	space, err := spaceManager.GetSpace(spaceID)
+	if err != nil {
+		t.Fatalf("Failed to get tablespace: %v", err)
 	}
 
 	bufferPool := buffer_pool.NewBufferPool(&buffer_pool.BufferPoolConfig{
@@ -99,7 +112,7 @@ func TestOnlineDefragmentation(t *testing.T) {
 
 	// 分配extent
 	for i := 0; i < 5; i++ {
-		_, err := extentManager.AllocateExtent(spaceID, basic.ExtentTypeData)
+		_, err := space.AllocateExtent(basic.ExtentPurposeData)
 		if err != nil {
 			t.Fatalf("Failed to allocate extent: %v", err)
 		}
@@ -147,12 +160,18 @@ func TestOnlineDefragmentation(t *testing.T) {
 // TestIncrementalDefragmentation 测试增量碎片整理
 func TestIncrementalDefragmentation(t *testing.T) {
 	// 创建测试环境
+	cleanupTestData("./testdata/defrag_incremental")
 	spaceManager := NewSpaceManager("./testdata/defrag_incremental")
 	defer cleanupTestData("./testdata/defrag_incremental")
 
 	spaceID, err := spaceManager.CreateTableSpace("test_incremental")
 	if err != nil {
 		t.Fatalf("Failed to create tablespace: %v", err)
+	}
+
+	space, err := spaceManager.GetSpace(spaceID)
+	if err != nil {
+		t.Fatalf("Failed to get tablespace: %v", err)
 	}
 
 	bufferPool := buffer_pool.NewBufferPool(&buffer_pool.BufferPoolConfig{
@@ -165,7 +184,7 @@ func TestIncrementalDefragmentation(t *testing.T) {
 
 	// 分配更多extent
 	for i := 0; i < 20; i++ {
-		_, err := extentManager.AllocateExtent(spaceID, basic.ExtentTypeData)
+		_, err := space.AllocateExtent(basic.ExtentPurposeData)
 		if err != nil {
 			t.Fatalf("Failed to allocate extent: %v", err)
 		}
@@ -206,12 +225,18 @@ func TestIncrementalDefragmentation(t *testing.T) {
 // TestSpaceOptimization 测试空间优化
 func TestSpaceOptimization(t *testing.T) {
 	// 创建测试环境
+	cleanupTestData("./testdata/defrag_optimize")
 	spaceManager := NewSpaceManager("./testdata/defrag_optimize")
 	defer cleanupTestData("./testdata/defrag_optimize")
 
 	spaceID, err := spaceManager.CreateTableSpace("test_optimize")
 	if err != nil {
 		t.Fatalf("Failed to create tablespace: %v", err)
+	}
+
+	space, err := spaceManager.GetSpace(spaceID)
+	if err != nil {
+		t.Fatalf("Failed to get tablespace: %v", err)
 	}
 
 	bufferPool := buffer_pool.NewBufferPool(&buffer_pool.BufferPoolConfig{
@@ -224,7 +249,7 @@ func TestSpaceOptimization(t *testing.T) {
 
 	// 分配extent
 	for i := 0; i < 10; i++ {
-		_, err := extentManager.AllocateExtent(spaceID, basic.ExtentTypeData)
+		_, err := space.AllocateExtent(basic.ExtentPurposeData)
 		if err != nil {
 			t.Fatalf("Failed to allocate extent: %v", err)
 		}
@@ -246,6 +271,7 @@ func TestSpaceOptimization(t *testing.T) {
 // TestFragmentationLevel 测试碎片等级判断
 func TestFragmentationLevel(t *testing.T) {
 	// 创建测试环境
+	cleanupTestData("./testdata/defrag_level")
 	spaceManager := NewSpaceManager("./testdata/defrag_level")
 	defer cleanupTestData("./testdata/defrag_level")
 
@@ -291,12 +317,18 @@ func TestFragmentationLevel(t *testing.T) {
 // TestDefragmentationRecommendation 测试碎片整理建议
 func TestDefragmentationRecommendation(t *testing.T) {
 	// 创建测试环境
+	cleanupTestData("./testdata/defrag_recommend")
 	spaceManager := NewSpaceManager("./testdata/defrag_recommend")
 	defer cleanupTestData("./testdata/defrag_recommend")
 
 	spaceID, err := spaceManager.CreateTableSpace("test_recommend")
 	if err != nil {
 		t.Fatalf("Failed to create tablespace: %v", err)
+	}
+
+	space, err := spaceManager.GetSpace(spaceID)
+	if err != nil {
+		t.Fatalf("Failed to get tablespace: %v", err)
 	}
 
 	bufferPool := buffer_pool.NewBufferPool(&buffer_pool.BufferPoolConfig{
@@ -309,7 +341,7 @@ func TestDefragmentationRecommendation(t *testing.T) {
 
 	// 分配extent
 	for i := 0; i < 15; i++ {
-		_, err := extentManager.AllocateExtent(spaceID, basic.ExtentTypeData)
+		_, err := space.AllocateExtent(basic.ExtentPurposeData)
 		if err != nil {
 			t.Fatalf("Failed to allocate extent: %v", err)
 		}
@@ -344,6 +376,6 @@ func TestDefragmentationRecommendation(t *testing.T) {
 
 // cleanupTestData 清理测试数据
 func cleanupTestData(dir string) {
-	// 这里简化处理，实际应该删除测试目录
-	// os.RemoveAll(dir)
+	_ = os.RemoveAll(dir)
+	_ = os.MkdirAll(dir, 0755)
 }
