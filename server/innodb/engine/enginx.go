@@ -47,7 +47,8 @@ type XMySQLEngine struct {
 	encryptManager  *manager.EncryptionManager
 	compressManager *manager.CompressionManager
 
-	indexManager *manager.IndexManager
+	indexManager    *manager.IndexManager
+	slowQueryLogger *SlowQueryLogger
 
 	// Reliability & Recovery
 	checkpointManager *CheckpointManager
@@ -64,6 +65,7 @@ func NewXMySQLEngine(conf *conf.Cfg) *XMySQLEngine {
 	engine.initMetaLayer()
 	engine.initUtilityManagers()
 	engine.initQueryExecutor()
+	engine.initSlowQueryLogger()
 
 	// 初始化恢复与检查点层
 	engine.initRecoveryLayer()
@@ -96,6 +98,10 @@ func (e *XMySQLEngine) Start(ctx context.Context) error {
 
 	logger.Info("✅ XMySQL Engine started successfully")
 	return nil
+}
+
+func (e *XMySQLEngine) initSlowQueryLogger() {
+	e.slowQueryLogger = NewSlowQueryLogger(e.conf)
 }
 
 // Close 关闭引擎
@@ -280,6 +286,9 @@ func (e *XMySQLEngine) initQueryExecutor() {
 
 		// 设置存储引擎相关的管理器 - 新增
 		tableStorageManager := manager.NewTableStorageManager(e.storageMgr)
+		if err := tableStorageManager.SyncFromInfoSchema(e.infoSchemaManager); err != nil {
+			logger.Warnf("failed to sync table storage mapping from info schema: %v", err)
+		}
 		e.QueryExecutor.SetAdditionalManagers(
 			e.indexManager,
 			e.storageMgr,
@@ -308,6 +317,17 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 	go func() {
 		defer close(results)
 
+		start := time.Now()
+		rowsAffected := 0
+		txnID := uint64(0)
+		stage := "parse"
+		status := "success"
+		var execErr error
+
+		defer func() {
+			e.logSlowQuery(session, query, time.Since(start), rowsAffected, txnID, stage, status, execErr)
+		}()
+
 		logger.Debugf(" [XMySQLEngine.ExecuteQuery] 开始执行查询: %s", query)
 		logger.Debugf(" [XMySQLEngine.ExecuteQuery] 数据库名称: %s", databaseName)
 		logger.Debugf(" [XMySQLEngine.ExecuteQuery] 会话对象: %v", session != nil)
@@ -315,11 +335,14 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 		stmt, err := sqlparser.Parse(query)
 		if err != nil {
 			logger.Errorf(" [XMySQLEngine.ExecuteQuery] SQL解析错误: %v", err)
-			results <- &Result{Err: fmt.Errorf("parse error: %v", err), ResultType: common.RESULT_TYPE_ERROR}
+			execErr = fmt.Errorf("parse error: %v", err)
+			status = "failed"
+			results <- &Result{Err: execErr, ResultType: common.RESULT_TYPE_ERROR}
 			return
 		}
 
 		logger.Debugf(" [XMySQLEngine.ExecuteQuery] SQL解析成功，语句类型: %T", stmt)
+		stage = "dispatch"
 
 		ctx := &ExecutionContext{
 			Context:     context.Background(),
@@ -331,10 +354,14 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 
 		switch stmt := stmt.(type) {
 		case *sqlparser.Select:
+			stage = "select"
 			result, err2 := e.QueryExecutor.executeSelectStatement(ctx, stmt, databaseName)
 			if err2 != nil {
-				results <- &Result{Err: nil, ResultType: common.RESULT_TYPE_ERROR}
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("SELECT failed: %v", err2)}
 			} else {
+				rowsAffected = result.RowCount
 				results <- &Result{Data: result, ResultType: common.RESULT_TYPE_SELECT}
 			}
 
@@ -342,6 +369,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			switch stmt.Action {
 			case "create":
 				// 从会话中获取当前数据库
+				stage = "ddl-create-table"
 				currentDB := databaseName
 				if currentDB == "" && session != nil {
 					if dbParam := session.GetParamByName("database"); dbParam != nil {
@@ -353,6 +381,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 				logger.Debugf(" CREATE TABLE使用数据库: %s", currentDB)
 				e.QueryExecutor.executeCreateTableStatement(ctx, currentDB, stmt)
 			case "drop":
+				stage = "ddl-drop-table"
 				// 从会话中获取当前数据库
 				currentDB := databaseName
 				if currentDB == "" && session != nil {
@@ -365,35 +394,51 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 				logger.Debugf("🗑️ DROP TABLE使用数据库: %s", currentDB)
 				e.QueryExecutor.executeDropTableStatement(ctx, stmt)
 			default:
+				execErr = fmt.Errorf("unsupported DDL action: %s", stmt.Action)
+				status = "failed"
 				results <- &Result{Err: fmt.Errorf("unsupported DDL action: %s", stmt.Action), ResultType: common.RESULT_TYPE_ERROR}
 			}
 
 		case *sqlparser.DBDDL:
 			switch stmt.Action {
 			case "create":
+				stage = "ddl-create-database"
 				e.QueryExecutor.executeCreateDatabaseStatement(ctx, stmt)
 			case "drop":
+				stage = "ddl-drop-database"
 				e.QueryExecutor.executeDropDatabaseStatement(ctx, stmt)
 			default:
+				execErr = fmt.Errorf("unsupported DB action: %s", stmt.Action)
+				status = "failed"
 				results <- &Result{Err: fmt.Errorf("unsupported DB action: %s", stmt.Action), ResultType: common.RESULT_TYPE_ERROR}
 			}
 
 		case *sqlparser.Show:
+			stage = "show"
 			// 处理 SHOW 语句
 			logger.Debugf(" [XMySQLEngine.ExecuteQuery] 处理SHOW语句: %s", stmt.Type)
 			e.QueryExecutor.executeShowStatementWithQuery(ctx, stmt, session, query)
 
 		case *sqlparser.Set:
+			stage = "set"
 			// SET 语句需要统一由执行器处理，避免在协议层重复发送OK包
 			logger.Debugf(" [XMySQLEngine.ExecuteQuery] 处理SET语句，包含 %d 个表达式", len(stmt.Exprs))
 			e.QueryExecutor.executeSetStatement(ctx, stmt, session)
 
 		case *sqlparser.Use:
+			stage = "use"
 			// 处理USE语句
 			dbName := stmt.DBName.String()
 			logger.Debugf(" [XMySQLEngine.ExecuteQuery] 处理USE语句: %s", dbName)
 			logger.Debugf(" [XMySQLEngine.ExecuteQuery] USE语句类型: %T", stmt)
 			logger.Debugf(" [XMySQLEngine.ExecuteQuery] 会话对象: %v", session != nil)
+
+			if session == nil {
+				execErr = fmt.Errorf("session is required for USE statement")
+				status = "failed"
+				results <- &Result{Err: execErr, ResultType: common.RESULT_TYPE_ERROR, Message: execErr.Error()}
+				return
+			}
 
 			// 设置会话的数据库上下文
 			session.SetParamByName("database", dbName)
@@ -409,12 +454,17 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 
 		case *sqlparser.Insert:
 			// 处理INSERT语句
+			stage = "insert"
 			logger.Debugf(" 处理INSERT语句")
 			explicitSchema := strings.TrimSpace(stmt.Table.Qualifier.String())
 			result, err := e.QueryExecutor.executeInsertStatement(ctx, stmt, e.resolveDmlDatabaseName(session, databaseName, explicitSchema))
 			if err != nil {
+				execErr = err
+				status = "failed"
 				results <- &Result{Err: err, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("INSERT failed: %v", err)}
 			} else {
+				txnID = result.TxnID
+				rowsAffected = result.AffectedRows
 				results <- &Result{
 					Data:       result,
 					ResultType: common.RESULT_TYPE_QUERY,
@@ -424,12 +474,17 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 
 		case *sqlparser.Update:
 			// 处理UPDATE语句
+			stage = "update"
 			logger.Debugf("✏️ 处理UPDATE语句")
 			explicitSchema := e.extractTableExprSchema(stmt.TableExprs)
 			result, err := e.QueryExecutor.executeUpdateStatement(ctx, stmt, e.resolveDmlDatabaseName(session, databaseName, explicitSchema))
 			if err != nil {
+				execErr = err
+				status = "failed"
 				results <- &Result{Err: err, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("UPDATE failed: %v", err)}
 			} else {
+				txnID = result.TxnID
+				rowsAffected = result.AffectedRows
 				results <- &Result{
 					Data:       result,
 					ResultType: common.RESULT_TYPE_QUERY,
@@ -439,12 +494,17 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 
 		case *sqlparser.Delete:
 			// 处理DELETE语句
+			stage = "delete"
 			logger.Debugf("🗑️ 处理DELETE语句")
 			explicitSchema := e.extractTableExprSchema(stmt.TableExprs)
 			result, err := e.QueryExecutor.executeDeleteStatement(ctx, stmt, e.resolveDmlDatabaseName(session, databaseName, explicitSchema))
 			if err != nil {
+				execErr = err
+				status = "failed"
 				results <- &Result{Err: err, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("DELETE failed: %v", err)}
 			} else {
+				txnID = result.TxnID
+				rowsAffected = result.AffectedRows
 				results <- &Result{
 					Data:       result,
 					ResultType: common.RESULT_TYPE_QUERY,
@@ -453,11 +513,63 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			}
 
 		default:
+			execErr = fmt.Errorf("unsupported statement type")
+			status = "failed"
 			results <- &Result{Err: fmt.Errorf("unsupported statement type"), ResultType: common.RESULT_TYPE_ERROR}
 		}
 	}()
 
 	return results
+}
+
+func (e *XMySQLEngine) logSlowQuery(session server.MySQLServerSession, query string, duration time.Duration, rowsAffected int, txnID uint64, stage, status string, execErr error) {
+	if e.slowQueryLogger == nil || !e.slowQueryLogger.IsEnabled() {
+		return
+	}
+
+	connID := e.getSessionConnectionID(session)
+	errorCode := ""
+	if execErr != nil {
+		errorCode = e.getExecutionErrorCode(execErr)
+	}
+
+	e.slowQueryLogger.Record(
+		query,
+		duration,
+		rowsAffected,
+		connID,
+		txnID,
+		errorCode,
+		status,
+		stage,
+	)
+}
+
+func (e *XMySQLEngine) getSessionConnectionID(session server.MySQLServerSession) uint32 {
+	if session == nil {
+		return 0
+	}
+
+	ctx := session.SessionContext()
+	if ctx == nil {
+		return 0
+	}
+
+	return ctx.GetConnectionID()
+}
+
+func (e *XMySQLEngine) getExecutionErrorCode(err error) string {
+	if err == nil {
+		return ""
+	}
+	var code ExecutionErrorCode
+	if execErr, ok := err.(*ExecutionError); ok && execErr != nil {
+		code = execErr.ErrorCode
+	}
+	if code == "" {
+		code = ExecutionErrorCodeUnknown
+	}
+	return string(code)
 }
 
 // resolveDmlDatabaseName 根据 DML 语句返回最终数据库名：
