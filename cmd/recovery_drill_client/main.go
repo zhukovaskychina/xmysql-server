@@ -91,6 +91,7 @@ func runVerifyUndo(db *sql.DB, dbName, tableName string) error {
 	if cnt != 0 {
 		return fmt.Errorf("undo verify failed: expected 0 row, got %d", cnt)
 	}
+	fmt.Printf("UNDO_VERIFY_OK db=%s table=%s cnt=%d\n", dbName, tableName, cnt)
 	return nil
 }
 
@@ -140,6 +141,34 @@ func runVerifyHalfCommit(db *sql.DB, dbName, tableName string) error {
 	return nil
 }
 
+func runSnapshot(db *sql.DB, dbName, tableName string) error {
+	if err := mustExec(db, fmt.Sprintf("USE %s", dbName)); err != nil {
+		return err
+	}
+
+	var count1, count2, count3 int
+	if err := db.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE id=1", tableName)).Scan(&count1); err != nil {
+		return fmt.Errorf("snapshot failed: query id=1 count: %w", err)
+	}
+	if err := db.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE id=2", tableName)).Scan(&count2); err != nil {
+		return fmt.Errorf("snapshot failed: query id=2 count: %w", err)
+	}
+	if err := db.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE id=3", tableName)).Scan(&count3); err != nil {
+		return fmt.Errorf("snapshot failed: query id=3 count: %w", err)
+	}
+
+	fmt.Printf("SNAPSHOT_ROWS_OK db=%s table=%s c1=%d c2=%d c3=%d\n", dbName, tableName, count1, count2, count3)
+	return nil
+}
+
+func runPing(db *sql.DB) error {
+	if err := db.Ping(); err != nil {
+		return err
+	}
+	fmt.Println("PING_OK")
+	return nil
+}
+
 func runVerifyShowTablesWhere(db *sql.DB, dbName, tableName string) error {
 	if err := mustExec(db, fmt.Sprintf("USE %s", dbName)); err != nil {
 		return err
@@ -173,7 +202,7 @@ func main() {
 		tableName   string
 	)
 	flag.StringVar(&dsn, "dsn", "root:root%401234@tcp(127.0.0.1:3310)/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true", "mysql dsn")
-	flag.StringVar(&mode, "mode", "", "setup_redo|verify_redo|hold_undo|verify_undo|race_commit|verify_half_commit|verify_show_tables_where")
+	flag.StringVar(&mode, "mode", "", "setup_redo|verify_redo|snapshot|hold_undo|verify_undo|race_commit|verify_half_commit|verify_show_tables_where")
 	flag.IntVar(&holdSeconds, "hold-seconds", 30, "seconds to hold uncommitted tx")
 	flag.StringVar(&dbName, "db", "drill_recovery_db", "database name for drill")
 	flag.StringVar(&tableName, "table", "drill_txn", "table name for drill")
@@ -181,7 +210,7 @@ func main() {
 
 	if mode == "" {
 		fmt.Fprintln(os.Stderr, "mode is required")
-		return
+		os.Exit(1)
 	}
 
 	if mode == "hold_undo" || mode == "race_commit" {
@@ -193,20 +222,21 @@ func main() {
 		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "mode=%s failed: %v\n", mode, err)
-			return
+			os.Exit(1)
 		}
+		fmt.Printf("mode=%s ok\n", mode)
 		return
 	}
 
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "open db failed: %v\n", err)
-		return
+		os.Exit(1)
 	}
 	defer db.Close()
 	if err := db.Ping(); err != nil {
 		fmt.Fprintf(os.Stderr, "ping failed: %v\n", err)
-		return
+		os.Exit(1)
 	}
 
 	switch mode {
@@ -214,18 +244,22 @@ func main() {
 		err = runSetupRedo(db, dbName, tableName)
 	case "verify_redo":
 		err = runVerifyRedo(db, dbName, tableName)
+	case "snapshot":
+		err = runSnapshot(db, dbName, tableName)
 	case "verify_undo":
 		err = runVerifyUndo(db, dbName, tableName)
 	case "verify_half_commit":
 		err = runVerifyHalfCommit(db, dbName, tableName)
 	case "verify_show_tables_where":
 		err = runVerifyShowTablesWhere(db, dbName, tableName)
+	case "ping":
+		err = runPing(db)
 	default:
 		err = fmt.Errorf("unknown mode: %s", mode)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "mode=%s failed: %v\n", mode, err)
-		return
+		os.Exit(1)
 	}
 	fmt.Printf("mode=%s ok\n", mode)
 }

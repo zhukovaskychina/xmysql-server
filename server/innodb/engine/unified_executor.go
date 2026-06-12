@@ -32,6 +32,27 @@ type UnifiedExecutor struct {
 	optimizer interface{} // 可以是*plan.Optimizer或其他优化器实现
 }
 
+func newUnifiedExecutorError(stage string, code ExecutionErrorCode, schema, table, sql string, err error, message string, args ...interface{}) error {
+	if err == nil {
+		return nil
+	}
+	if _, ok := err.(*ExecutionError); ok {
+		return err
+	}
+	if strings.TrimSpace(message) == "" {
+		return NewExecutionErrorWithCause("engine", stage, code, schema, table, sql, 0, err, "")
+	}
+	return NewExecutionErrorf("engine", stage, code, schema, table, sql, 0, err, message, args...)
+}
+
+func renderSQL(stmt interface{}) string {
+	s, ok := stmt.(sqlparser.SQLNode)
+	if !ok || s == nil {
+		return ""
+	}
+	return strings.TrimSpace(sqlparser.String(s))
+}
+
 // NewUnifiedExecutor 创建统一执行器
 func NewUnifiedExecutor(
 	tableManager *manager.TableManager,
@@ -78,7 +99,7 @@ func (ue *UnifiedExecutor) ExecuteSelect(ctx context.Context, stmt *sqlparser.Se
 	if ue.optimizer != nil && ue.tableManager != nil {
 		logicalPlan, err := plan.BuildLogicalPlan(stmt, &InfoSchemaAdapter{manager: ue.tableManager})
 		if err != nil {
-			return nil, fmt.Errorf("unified select optimizer path failed: build logical plan: %w", err)
+			return nil, newUnifiedExecutorError("execute-select", ExecutionErrorCodeOptimizer, schemaName, "", renderSQL(stmt), err, "build logical plan failed")
 		}
 
 		var physicalPlan plan.PhysicalPlan
@@ -89,10 +110,20 @@ func (ue *UnifiedExecutor) ExecuteSelect(ctx context.Context, stmt *sqlparser.Se
 		}:
 			optimizedPlan, err := optimizer.OptimizeQuery(ctx, logicalPlan)
 			if err != nil {
-				return nil, fmt.Errorf("unified select optimizer path failed: optimize query: %w", err)
+				return nil, newUnifiedExecutorError("execute-select", ExecutionErrorCodeOptimizer, schemaName, "", renderSQL(stmt), err, "optimize query failed")
 			}
 			if optimizedPlan == nil {
-				return nil, fmt.Errorf("unified select optimizer path failed: optimizer returned nil result")
+				return nil, NewExecutionErrorWithCause(
+					"engine",
+					"execute-select",
+					ExecutionErrorCodeValidation,
+					schemaName,
+					"",
+					renderSQL(stmt),
+					0,
+					fmt.Errorf("optimizer returned nil result"),
+					"optimizer returned nil result",
+				)
 			}
 			physicalPlan = optimizedPlan.PhysicalPlan
 		case interface {
@@ -100,20 +131,50 @@ func (ue *UnifiedExecutor) ExecuteSelect(ctx context.Context, stmt *sqlparser.Se
 		}:
 			optimizedPhysicalPlan, err := optimizer.Optimize(logicalPlan)
 			if err != nil {
-				return nil, fmt.Errorf("unified select optimizer path failed: optimizer failed: %w", err)
+				return nil, newUnifiedExecutorError("execute-select", ExecutionErrorCodeOptimizer, schemaName, "", renderSQL(stmt), err, "optimize failed")
 			}
 			physicalPlan = optimizedPhysicalPlan
 		default:
-			return nil, fmt.Errorf("unified select optimizer path failed: unsupported optimizer interface %T", ue.optimizer)
+			return nil, NewExecutionErrorWithCause(
+				"engine",
+				"execute-select",
+				ExecutionErrorCodeValidation,
+				schemaName,
+				"",
+				renderSQL(stmt),
+				0,
+				fmt.Errorf("unsupported optimizer interface %T", ue.optimizer),
+				"unsupported optimizer interface",
+			)
 		}
 
 		if physicalPlan == nil {
-			return nil, fmt.Errorf("unified select optimizer path failed: optimizer returned nil physical plan")
+			return nil, NewExecutionErrorWithCause(
+				"engine",
+				"execute-select",
+				ExecutionErrorCodeValidation,
+				schemaName,
+				"",
+				renderSQL(stmt),
+				0,
+				fmt.Errorf("optimizer returned nil physical plan"),
+				"optimizer returned nil physical plan",
+			)
 		}
 
 		rootOperator, err := ue.BuildOperatorTree(ctx, physicalPlan)
 		if err != nil {
-			return nil, fmt.Errorf("unified select optimizer path failed: build operator tree: %w", err)
+			return nil, NewExecutionErrorWithCause(
+				"engine",
+				"execute-select",
+				ExecutionErrorCodeOptimizer,
+				schemaName,
+				"",
+				renderSQL(stmt),
+				0,
+				err,
+				"failed to build operator tree",
+			)
 		}
 
 		return ue.collectSelectResult(ctx, rootOperator)
@@ -125,19 +186,49 @@ func (ue *UnifiedExecutor) ExecuteSelect(ctx context.Context, stmt *sqlparser.Se
 		logger.Debugf("UnifiedExecutor: fallback to logical/physical plan path for SELECT with WHERE")
 		rootOperator, err := ue.buildSelectOperatorTreeFromPlans(ctx, stmt, schemaName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to build operator tree with WHERE: %w", err)
+			return nil, NewExecutionErrorWithCause(
+				"engine",
+				"execute-select",
+				ExecutionErrorCodeOptimizer,
+				schemaName,
+				"",
+				renderSQL(stmt),
+				0,
+				err,
+				"failed to build operator tree with WHERE",
+			)
 		}
 		return ue.collectSelectResult(ctx, rootOperator)
 	}
 
 	if stmt.Where != nil {
-		return nil, fmt.Errorf("WHERE predicates in SELECT require optimizer-backed plan execution, not available in unified manual mode")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"execute-select",
+			ExecutionErrorCodeValidation,
+			schemaName,
+			"",
+			renderSQL(stmt),
+			0,
+			fmt.Errorf("WHERE predicates in SELECT require optimizer-backed plan execution"),
+			"WHERE predicates in SELECT require optimizer-backed plan execution",
+		)
 	}
 
 	// 2. 构建算子树
 	rootOperator, err := ue.buildSelectOperatorTree(ctx, stmt, schemaName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build operator tree: %w", err)
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"execute-select",
+			ExecutionErrorCodeOptimizer,
+			schemaName,
+			"",
+			renderSQL(stmt),
+			0,
+			err,
+			"failed to build operator tree",
+		)
 	}
 
 	return ue.collectSelectResult(ctx, rootOperator)
@@ -167,14 +258,14 @@ func (ue *UnifiedExecutor) ExecuteInsert(ctx context.Context, stmt *sqlparser.In
 
 	// 执行插入
 	if err := insertOp.Open(ctx); err != nil {
-		return nil, fmt.Errorf("failed to open insert operator: %w", err)
+		return nil, newUnifiedExecutorError("execute-insert", ExecutionErrorCodeOperatorNotOpened, targetSchema, tableName, "", err, "failed to open insert operator")
 	}
 	defer insertOp.Close()
 
 	// 获取结果
 	record, err := insertOp.Next(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("insert failed: %w", err)
+		return nil, newUnifiedExecutorError("execute-insert", ExecutionErrorCodeStorageWriteFailure, targetSchema, tableName, "", err, "insert failed")
 	}
 
 	affectedRows := int(0)
@@ -197,17 +288,47 @@ func (ue *UnifiedExecutor) ExecuteUpdate(ctx context.Context, stmt *sqlparser.Up
 
 	// 获取表名
 	if len(stmt.TableExprs) == 0 {
-		return nil, fmt.Errorf("no table specified in UPDATE statement")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"execute-update",
+			ExecutionErrorCodeValidation,
+			schemaName,
+			"",
+			"",
+			0,
+			fmt.Errorf("no table specified in UPDATE statement"),
+			"no table specified in UPDATE statement",
+		)
 	}
 
 	firstTableExpr, ok := stmt.TableExprs[0].(*sqlparser.AliasedTableExpr)
 	if !ok {
-		return nil, fmt.Errorf("unsupported UPDATE FROM table expression type: %T", stmt.TableExprs[0])
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"execute-update",
+			ExecutionErrorCodeValidation,
+			schemaName,
+			"",
+			"",
+			0,
+			fmt.Errorf("unsupported UPDATE FROM table expression type: %T", stmt.TableExprs[0]),
+			"unsupported UPDATE FROM table expression type",
+		)
 	}
 
 	tableNameExpr, ok := firstTableExpr.Expr.(sqlparser.TableName)
 	if !ok {
-		return nil, fmt.Errorf("unsupported UPDATE table expression type: %T", firstTableExpr.Expr)
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"execute-update",
+			ExecutionErrorCodeValidation,
+			schemaName,
+			"",
+			"",
+			0,
+			fmt.Errorf("unsupported UPDATE table expression type: %T", firstTableExpr.Expr),
+			"unsupported UPDATE table expression type",
+		)
 	}
 
 	targetSchema := strings.TrimSpace(schemaName)
@@ -236,14 +357,14 @@ func (ue *UnifiedExecutor) ExecuteUpdate(ctx context.Context, stmt *sqlparser.Up
 
 	// 执行更新
 	if err := updateOp.Open(ctx); err != nil {
-		return nil, fmt.Errorf("failed to open update operator: %w", err)
+		return nil, newUnifiedExecutorError("execute-update", ExecutionErrorCodeOperatorNotOpened, targetSchema, tableName, "", err, "failed to open update operator")
 	}
 	defer updateOp.Close()
 
 	// 获取结果
 	record, err := updateOp.Next(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("update failed: %w", err)
+		return nil, newUnifiedExecutorError("execute-update", ExecutionErrorCodeStorageWriteFailure, targetSchema, tableName, "", err, "update failed")
 	}
 
 	affectedRows := int(0)
@@ -266,17 +387,47 @@ func (ue *UnifiedExecutor) ExecuteDelete(ctx context.Context, stmt *sqlparser.De
 
 	// 获取表名
 	if len(stmt.TableExprs) == 0 {
-		return nil, fmt.Errorf("no table specified in DELETE statement")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"execute-delete",
+			ExecutionErrorCodeValidation,
+			schemaName,
+			"",
+			"",
+			0,
+			fmt.Errorf("no table specified in DELETE statement"),
+			"no table specified in DELETE statement",
+		)
 	}
 
 	firstTableExpr, ok := stmt.TableExprs[0].(*sqlparser.AliasedTableExpr)
 	if !ok {
-		return nil, fmt.Errorf("unsupported DELETE FROM table expression type: %T", stmt.TableExprs[0])
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"execute-delete",
+			ExecutionErrorCodeValidation,
+			schemaName,
+			"",
+			"",
+			0,
+			fmt.Errorf("unsupported DELETE FROM table expression type: %T", stmt.TableExprs[0]),
+			"unsupported DELETE FROM table expression type",
+		)
 	}
 
 	tableNameExpr, ok := firstTableExpr.Expr.(sqlparser.TableName)
 	if !ok {
-		return nil, fmt.Errorf("unsupported DELETE table expression type: %T", firstTableExpr.Expr)
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"execute-delete",
+			ExecutionErrorCodeValidation,
+			schemaName,
+			"",
+			"",
+			0,
+			fmt.Errorf("unsupported DELETE table expression type: %T", firstTableExpr.Expr),
+			"unsupported DELETE table expression type",
+		)
 	}
 
 	targetSchema := strings.TrimSpace(schemaName)
@@ -305,14 +456,14 @@ func (ue *UnifiedExecutor) ExecuteDelete(ctx context.Context, stmt *sqlparser.De
 
 	// 执行删除
 	if err := deleteOp.Open(ctx); err != nil {
-		return nil, fmt.Errorf("failed to open delete operator: %w", err)
+		return nil, newUnifiedExecutorError("execute-delete", ExecutionErrorCodeOperatorNotOpened, targetSchema, tableName, "", err, "failed to open delete operator")
 	}
 	defer deleteOp.Close()
 
 	// 获取结果
 	record, err := deleteOp.Next(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("delete failed: %w", err)
+		return nil, newUnifiedExecutorError("execute-delete", ExecutionErrorCodeStorageWriteFailure, targetSchema, tableName, "", err, "delete failed")
 	}
 
 	affectedRows := int(0)
@@ -332,7 +483,17 @@ func (ue *UnifiedExecutor) ExecuteDelete(ctx context.Context, stmt *sqlparser.De
 // BuildOperatorTree 构建算子树（通用接口）
 func (ue *UnifiedExecutor) BuildOperatorTree(ctx context.Context, physicalPlan plan.PhysicalPlan) (Operator, error) {
 	if physicalPlan == nil {
-		return nil, fmt.Errorf("physical plan is nil")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"build-operator-tree",
+			ExecutionErrorCodeValidation,
+			"",
+			"",
+			"",
+			0,
+			fmt.Errorf("physical plan is nil"),
+			"physical plan is nil",
+		)
 	}
 
 	volcanoExecutor := NewVolcanoExecutor(
@@ -346,11 +507,21 @@ func (ue *UnifiedExecutor) BuildOperatorTree(ctx context.Context, physicalPlan p
 
 func (ue *UnifiedExecutor) collectSelectResult(ctx context.Context, rootOperator Operator) (*SelectResult, error) {
 	if rootOperator == nil {
-		return nil, fmt.Errorf("root operator is nil")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"collect-select-result",
+			ExecutionErrorCodeValidation,
+			"",
+			"",
+			"",
+			0,
+			fmt.Errorf("root operator is nil"),
+			"root operator is nil",
+		)
 	}
 
 	if err := rootOperator.Open(ctx); err != nil {
-		return nil, fmt.Errorf("failed to open operator: %w", err)
+		return nil, newUnifiedExecutorError("collect-select-result", ExecutionErrorCodeOperatorNotOpened, "", "", "", err, "failed to open root operator")
 	}
 	defer rootOperator.Close()
 
@@ -358,7 +529,7 @@ func (ue *UnifiedExecutor) collectSelectResult(ctx context.Context, rootOperator
 	for {
 		record, err := rootOperator.Next(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch record: %w", err)
+			return nil, newUnifiedExecutorError("collect-select-result", ExecutionErrorCodeStorageReadFailure, "", "", "", err, "failed to fetch record")
 		}
 		if record == nil {
 			break
@@ -379,17 +550,47 @@ func (ue *UnifiedExecutor) collectSelectResult(ctx context.Context, rootOperator
 func (ue *UnifiedExecutor) buildSelectOperatorTree(ctx context.Context, stmt *sqlparser.Select, schemaName string) (Operator, error) {
 	// 1. 解析FROM子句，确定表名
 	if len(stmt.From) == 0 {
-		return nil, fmt.Errorf("no table specified in FROM clause")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"build-select-operator-tree",
+			ExecutionErrorCodeValidation,
+			schemaName,
+			"",
+			"",
+			0,
+			fmt.Errorf("no table specified in FROM clause"),
+			"no table specified in FROM clause",
+		)
 	}
 
 	fromExpr, ok := stmt.From[0].(*sqlparser.AliasedTableExpr)
 	if !ok {
-		return nil, fmt.Errorf("unsupported FROM table expression type: %T", stmt.From[0])
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"build-select-operator-tree",
+			ExecutionErrorCodeValidation,
+			schemaName,
+			"",
+			"",
+			0,
+			fmt.Errorf("unsupported FROM table expression type: %T", stmt.From[0]),
+			"unsupported FROM table expression type",
+		)
 	}
 
 	tableNameExpr, ok := fromExpr.Expr.(sqlparser.TableName)
 	if !ok {
-		return nil, fmt.Errorf("unsupported table name expression type: %T", fromExpr.Expr)
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"build-select-operator-tree",
+			ExecutionErrorCodeValidation,
+			schemaName,
+			"",
+			"",
+			0,
+			fmt.Errorf("unsupported table name expression type: %T", fromExpr.Expr),
+			"unsupported table name expression type",
+		)
 	}
 
 	tableName := tableNameExpr.Name.String()
@@ -399,14 +600,34 @@ func (ue *UnifiedExecutor) buildSelectOperatorTree(ctx context.Context, stmt *sq
 
 	// 3. 添加WHERE过滤算子
 	if stmt.Where != nil {
-		return nil, fmt.Errorf("WHERE conditions are not supported in unified executor select yet")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"build-select-operator-tree",
+			ExecutionErrorCodeValidation,
+			schemaName,
+			tableNameExpr.Name.String(),
+			"",
+			0,
+			fmt.Errorf("WHERE conditions are not supported in unified executor select yet"),
+			"WHERE conditions are not supported in unified executor select yet",
+		)
 	}
 
 	// 4. 添加投影算子（SELECT子句）
 	if len(stmt.SelectExprs) > 0 {
 		projectionExprs, requiresProjection, err := ue.buildProjectionExprs(stmt.SelectExprs)
 		if err != nil {
-			return nil, fmt.Errorf("failed to build projection expressions: %w", err)
+			return nil, NewExecutionErrorWithCause(
+				"engine",
+				"build-select-operator-tree",
+				ExecutionErrorCodeValidation,
+				schemaName,
+				tableNameExpr.Name.String(),
+				"",
+				0,
+				err,
+				"failed to build projection expressions",
+			)
 		}
 		if requiresProjection {
 			scanOp = NewProjectionOperatorWithExprs(scanOp, projectionExprs)
@@ -417,12 +638,32 @@ func (ue *UnifiedExecutor) buildSelectOperatorTree(ctx context.Context, stmt *sq
 	if len(stmt.OrderBy) > 0 {
 		querySchema, err := ue.getQuerySchemaFromTable(ctx, schemaName, tableName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to resolve schema for ORDER BY: %w", err)
+			return nil, NewExecutionErrorWithCause(
+				"engine",
+				"build-select-operator-tree",
+				ExecutionErrorCodeMetadataMissing,
+				schemaName,
+				tableNameExpr.Name.String(),
+				"",
+				0,
+				err,
+				"failed to resolve schema for ORDER BY",
+			)
 		}
 
 		sortKeys, err := ue.buildSortKeysFromOrderBy(stmt.OrderBy, querySchema)
 		if err != nil {
-			return nil, fmt.Errorf("failed to build ORDER BY operator: %w", err)
+			return nil, NewExecutionErrorWithCause(
+				"engine",
+				"build-select-operator-tree",
+				ExecutionErrorCodeValidation,
+				schemaName,
+				tableNameExpr.Name.String(),
+				"",
+				0,
+				err,
+				"failed to build ORDER BY operator",
+			)
 		}
 		scanOp = NewSortOperator(scanOp, sortKeys)
 	}
@@ -431,7 +672,17 @@ func (ue *UnifiedExecutor) buildSelectOperatorTree(ctx context.Context, stmt *sq
 	if stmt.Limit != nil {
 		offset, limit, err := ue.parseLimit(stmt.Limit)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse limit clause: %w", err)
+			return nil, NewExecutionErrorWithCause(
+				"engine",
+				"build-select-operator-tree",
+				ExecutionErrorCodeValidation,
+				schemaName,
+				tableNameExpr.Name.String(),
+				"",
+				0,
+				err,
+				"failed to parse limit clause",
+			)
 		}
 		scanOp = NewLimitOperator(scanOp, offset, limit)
 	}
@@ -444,18 +695,48 @@ func (ue *UnifiedExecutor) buildSelectOperatorTreeFromPlans(ctx context.Context,
 	_ = schemaName
 	logicalPlan, err := plan.BuildLogicalPlan(stmt, &InfoSchemaAdapter{manager: ue.tableManager})
 	if err != nil {
-		return nil, fmt.Errorf("failed to build logical plan: %w", err)
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"build-select-operator-tree-with-plans",
+			ExecutionErrorCodeOptimizer,
+			schemaName,
+			"",
+			"",
+			0,
+			err,
+			"failed to build logical plan",
+		)
 	}
 
 	logicalPlan = plan.OptimizeLogicalPlan(logicalPlan)
 	physicalPlan := plan.ConvertToPhysicalPlan(logicalPlan)
 	if physicalPlan == nil {
-		return nil, fmt.Errorf("failed to convert logical plan to physical plan")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"build-select-operator-tree-with-plans",
+			ExecutionErrorCodeOptimizer,
+			schemaName,
+			"",
+			"",
+			0,
+			fmt.Errorf("failed to convert logical plan to physical plan"),
+			"failed to convert logical plan to physical plan",
+		)
 	}
 
 	rootOperator, err := ue.BuildOperatorTree(ctx, physicalPlan)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build operator tree from physical plan: %w", err)
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"build-select-operator-tree-with-plans",
+			ExecutionErrorCodeOptimizer,
+			schemaName,
+			"",
+			"",
+			0,
+			err,
+			"failed to build operator tree from physical plan",
+		)
 	}
 	return rootOperator, nil
 }
@@ -469,7 +750,17 @@ func (ue *UnifiedExecutor) supportsStorageIntegratedDML() bool {
 
 func (ue *UnifiedExecutor) executeUpdateWithWhereFallback(ctx context.Context, stmt *sqlparser.Update, schemaName string) (*DMLResult, error) {
 	if !ue.supportsStorageIntegratedDML() {
-		return nil, fmt.Errorf("WHERE predicate in UPDATE is only supported by storage-integrated DML executor path")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"execute-update-where-fallback",
+			ExecutionErrorCodeValidation,
+			schemaName,
+			"",
+			"",
+			0,
+			fmt.Errorf("WHERE predicate in UPDATE is only supported by storage-integrated DML executor path"),
+			"WHERE predicate in UPDATE is only supported by storage-integrated DML executor path",
+		)
 	}
 
 	executor := NewStorageIntegratedDMLExecutor(
@@ -488,7 +779,17 @@ func (ue *UnifiedExecutor) executeUpdateWithWhereFallback(ctx context.Context, s
 
 func (ue *UnifiedExecutor) executeDeleteWithWhereFallback(ctx context.Context, stmt *sqlparser.Delete, schemaName string) (*DMLResult, error) {
 	if !ue.supportsStorageIntegratedDML() {
-		return nil, fmt.Errorf("WHERE predicate in DELETE is only supported by storage-integrated DML executor path")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"execute-delete-where-fallback",
+			ExecutionErrorCodeValidation,
+			schemaName,
+			"",
+			"",
+			0,
+			fmt.Errorf("WHERE predicate in DELETE is only supported by storage-integrated DML executor path"),
+			"WHERE predicate in DELETE is only supported by storage-integrated DML executor path",
+		)
 	}
 
 	executor := NewStorageIntegratedDMLExecutor(
@@ -533,24 +834,64 @@ func (ue *UnifiedExecutor) buildSortKeysFromOrderBy(orderBy sqlparser.OrderBy, q
 	}
 
 	if querySchema == nil {
-		return nil, fmt.Errorf("query schema is nil")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"build-sort-keys",
+			ExecutionErrorCodeValidation,
+			"",
+			"",
+			"",
+			0,
+			fmt.Errorf("query schema is nil"),
+			"query schema is nil",
+		)
 	}
 
 	sortKeys := make([]SortKey, 0, len(orderBy))
 	for _, order := range orderBy {
 		colExpr, ok := order.Expr.(*sqlparser.ColName)
 		if !ok {
-			return nil, fmt.Errorf("ORDER BY only supports simple column names in unified select path, got %T", order.Expr)
+			return nil, NewExecutionErrorWithCause(
+				"engine",
+				"build-sort-keys",
+				ExecutionErrorCodeValidation,
+				"",
+				"",
+				"",
+				0,
+				fmt.Errorf("ORDER BY only supports simple column names in unified select path, got %T", order.Expr),
+				"ORDER BY only supports simple column names",
+			)
 		}
 
 		columnName := colExpr.Name.String()
 		if strings.TrimSpace(columnName) == "" {
-			return nil, fmt.Errorf("ORDER BY column name is empty")
+			return nil, NewExecutionErrorWithCause(
+				"engine",
+				"build-sort-keys",
+				ExecutionErrorCodeValidation,
+				"",
+				"",
+				"",
+				0,
+				fmt.Errorf("ORDER BY column name is empty"),
+				"ORDER BY column name is empty",
+			)
 		}
 
 		columnIdx := ue.findColumnIndex(querySchema, columnName)
 		if columnIdx < 0 {
-			return nil, fmt.Errorf("ORDER BY column %q not found in source schema", columnName)
+			return nil, NewExecutionErrorWithCause(
+				"engine",
+				"build-sort-keys",
+				ExecutionErrorCodeValidation,
+				"",
+				"",
+				"",
+				0,
+				fmt.Errorf("ORDER BY column %q not found in source schema", columnName),
+				"ORDER BY column not found in source schema",
+			)
 		}
 
 		sortKeys = append(sortKeys, SortKey{
@@ -560,7 +901,17 @@ func (ue *UnifiedExecutor) buildSortKeysFromOrderBy(orderBy sqlparser.OrderBy, q
 	}
 
 	if len(sortKeys) == 0 {
-		return nil, fmt.Errorf("ORDER BY has no valid sort keys")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"build-sort-keys",
+			ExecutionErrorCodeValidation,
+			"",
+			"",
+			"",
+			0,
+			fmt.Errorf("ORDER BY has no valid sort keys"),
+			"ORDER BY has no valid sort keys",
+		)
 	}
 
 	return sortKeys, nil
@@ -586,14 +937,44 @@ func (ue *UnifiedExecutor) findColumnIndex(querySchema *metadata.QuerySchema, co
 
 func (ue *UnifiedExecutor) getQuerySchemaFromTable(ctx context.Context, schemaName, tableName string) (*metadata.QuerySchema, error) {
 	if ue.storageAdapter == nil {
-		return nil, fmt.Errorf("storage adapter is not initialized")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"get-query-schema",
+			ExecutionErrorCodeStorageMissing,
+			schemaName,
+			tableName,
+			"",
+			0,
+			fmt.Errorf("storage adapter is not initialized"),
+			"storage adapter is not initialized",
+		)
 	}
 	tableMetadata, err := ue.storageAdapter.GetTableMetadata(ctx, schemaName, tableName)
 	if err != nil {
-		return nil, fmt.Errorf("get table metadata failed: %w", err)
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"get-query-schema",
+			ExecutionErrorCodeMetadataMissing,
+			schemaName,
+			tableName,
+			"",
+			0,
+			err,
+			"get table metadata failed",
+		)
 	}
 	if tableMetadata == nil || tableMetadata.Schema == nil {
-		return nil, fmt.Errorf("table metadata or schema missing")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"get-query-schema",
+			ExecutionErrorCodeMetadataMissing,
+			schemaName,
+			tableName,
+			"",
+			0,
+			fmt.Errorf("table metadata or schema missing"),
+			"table metadata or schema missing",
+		)
 	}
 
 	return metadata.FromTable(tableMetadata.Schema), nil
@@ -612,11 +993,31 @@ func (ue *UnifiedExecutor) buildProjectionExprs(selectExprs sqlparser.SelectExpr
 		case *sqlparser.AliasedExpr:
 			planExpr, err := ue.buildPlanExpression(expr.Expr)
 			if err != nil {
-				return nil, false, err
+				return nil, false, NewExecutionErrorWithCause(
+					"engine",
+					"build-projection-exprs",
+					ExecutionErrorCodeValidation,
+					"",
+					"",
+					"",
+					0,
+					err,
+					"failed to build projection expression",
+				)
 			}
 			exprs = append(exprs, planExpr)
 		default:
-			return nil, false, fmt.Errorf("unsupported select expression type: %T", selectExpr)
+			return nil, false, NewExecutionErrorWithCause(
+				"engine",
+				"build-projection-exprs",
+				ExecutionErrorCodeValidation,
+				"",
+				"",
+				"",
+				0,
+				fmt.Errorf("unsupported select expression type: %T", selectExpr),
+				"unsupported select expression type",
+			)
 		}
 	}
 
@@ -632,31 +1033,91 @@ func (ue *UnifiedExecutor) buildPlanExpression(expr sqlparser.Expr) (plan.Expres
 		case sqlparser.IntVal:
 			intVal, err := strconv.ParseInt(string(v.Val), 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("invalid int literal %q: %w", string(v.Val), err)
+				return nil, NewExecutionErrorWithCause(
+					"engine",
+					"build-plan-expression",
+					ExecutionErrorCodeValidation,
+					"",
+					"",
+					"",
+					0,
+					err,
+					"invalid int literal",
+				)
 			}
 			return &plan.Constant{Value: intVal}, nil
 		case sqlparser.StrVal:
 			return &plan.Constant{Value: string(v.Val)}, nil
 		default:
-			return nil, fmt.Errorf("unsupported SQL value type: %v", v.Type)
+			return nil, NewExecutionErrorWithCause(
+				"engine",
+				"build-plan-expression",
+				ExecutionErrorCodeValidation,
+				"",
+				"",
+				"",
+				0,
+				fmt.Errorf("unsupported SQL value type: %v", v.Type),
+				"unsupported SQL value type",
+			)
 		}
 	default:
-		return nil, fmt.Errorf("unsupported expression type: %T", expr)
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"build-plan-expression",
+			ExecutionErrorCodeValidation,
+			"",
+			"",
+			"",
+			0,
+			fmt.Errorf("unsupported expression type: %T", expr),
+			"unsupported expression type",
+		)
 	}
 }
 
 func (ue *UnifiedExecutor) parseIntExpr(expr sqlparser.Expr) (int64, error) {
 	sqlVal, ok := expr.(*sqlparser.SQLVal)
 	if !ok {
-		return 0, fmt.Errorf("unsupported limit expression type: %T", expr)
+		return 0, NewExecutionErrorWithCause(
+			"engine",
+			"parse-limit",
+			ExecutionErrorCodeValidation,
+			"",
+			"",
+			"",
+			0,
+			fmt.Errorf("unsupported limit expression type: %T", expr),
+			"unsupported limit expression type",
+		)
 	}
 	if sqlVal.Type != sqlparser.IntVal {
-		return 0, fmt.Errorf("unsupported limit value type: %v", sqlVal.Type)
+		return 0, NewExecutionErrorWithCause(
+			"engine",
+			"parse-limit",
+			ExecutionErrorCodeValidation,
+			"",
+			"",
+			"",
+			0,
+			fmt.Errorf("unsupported limit value type: %v", sqlVal.Type),
+			"unsupported limit value type",
+		)
 	}
 
 	value, err := strconv.ParseInt(string(sqlVal.Val), 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("invalid limit integer %q: %w", string(sqlVal.Val), err)
+		return 0, NewExecutionErrorWithCause(
+			"engine",
+			"parse-limit",
+			ExecutionErrorCodeValidation,
+			"",
+			"",
+			"",
+			0,
+			err,
+			"invalid limit integer",
+		)
 	}
 	return value, nil
 }

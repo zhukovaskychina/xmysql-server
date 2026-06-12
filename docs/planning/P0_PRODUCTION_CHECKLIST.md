@@ -17,6 +17,7 @@
 - 当前可明确判断：
   - `go test ./server/dispatcher` 可通过
   - `go test ./server/innodb/engine` 已通过（真实执行）
+  - 发布包测试已通过 `scripts/p0_release_package_tests.sh`（含可复审的 `reports/p0_release_tests/.../summary.log`）
   - Stage1 基线已完成（真实 PASS）：`reports/STAGE1_AUDIT_DEMO/stage1_baseline_20260516_220508/summary.log`
   - B/C/D/E 工作流未形成验收证据闭环
 - 详细缺口总表见：

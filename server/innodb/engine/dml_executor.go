@@ -34,6 +34,7 @@ type DMLExecutor struct {
 	tableManager      *manager.TableManager
 	txManager         *manager.TransactionManager
 	indexSyncer       SecondaryIndexSyncer // 二级索引同步器接口
+	tableIDResolver   func(schemaName, tableName string) (uint64, error)
 
 	// 执行状态
 	schemaName    string
@@ -95,6 +96,7 @@ func (dml *DMLExecutor) ExecuteInsert(ctx context.Context, stmt *sqlparser.Inser
 	if err != nil {
 		return nil, fmt.Errorf("开始事务失败: %v", err)
 	}
+	txnID := extractTxnIDFromAny(txn)
 
 	affectedRows := 0
 	var lastInsertId uint64 = 0
@@ -125,6 +127,7 @@ func (dml *DMLExecutor) ExecuteInsert(ctx context.Context, stmt *sqlparser.Inser
 		LastInsertId: lastInsertId,
 		ResultType:   "INSERT",
 		Message:      fmt.Sprintf("INSERT执行成功，影响行数: %d", affectedRows),
+		TxnID:        txnID,
 	}, nil
 }
 
@@ -170,6 +173,7 @@ func (dml *DMLExecutor) ExecuteUpdate(ctx context.Context, stmt *sqlparser.Updat
 	if err != nil {
 		return nil, fmt.Errorf("开始事务失败: %v", err)
 	}
+	txnID := extractTxnIDFromAny(txn)
 
 	// 6. 查找需要更新的行
 	rowsToUpdate, err := dml.findRowsToUpdate(ctx, txn, whereConditions, tableMeta)
@@ -202,6 +206,7 @@ func (dml *DMLExecutor) ExecuteUpdate(ctx context.Context, stmt *sqlparser.Updat
 		LastInsertId: 0,
 		ResultType:   "UPDATE",
 		Message:      fmt.Sprintf("UPDATE执行成功，影响行数: %d", affectedRows),
+		TxnID:        txnID,
 	}, nil
 }
 
@@ -241,6 +246,7 @@ func (dml *DMLExecutor) ExecuteDelete(ctx context.Context, stmt *sqlparser.Delet
 	if err != nil {
 		return nil, fmt.Errorf("开始事务失败: %v", err)
 	}
+	txnID := extractTxnIDFromAny(txn)
 
 	// 5. 查找需要删除的行
 	rowsToDelete, err := dml.findRowsToDelete(ctx, txn, whereConditions, tableMeta)
@@ -273,6 +279,7 @@ func (dml *DMLExecutor) ExecuteDelete(ctx context.Context, stmt *sqlparser.Delet
 		LastInsertId: 0,
 		ResultType:   "DELETE",
 		Message:      fmt.Sprintf("DELETE执行成功，影响行数: %d", affectedRows),
+		TxnID:        txnID,
 	}, nil
 }
 
@@ -282,6 +289,20 @@ type DMLResult struct {
 	LastInsertId uint64
 	ResultType   string
 	Message      string
+	TxnID        uint64
+}
+
+func extractTxnIDFromAny(txn interface{}) uint64 {
+	if txn == nil {
+		return 0
+	}
+
+	switch t := txn.(type) {
+	case *manager.Transaction:
+		return uint64(t.ID)
+	default:
+		return 0
+	}
 }
 
 // InsertRowData 插入行数据结构
@@ -311,17 +332,10 @@ func (dml *DMLExecutor) getTableMetadata() (*metadata.TableMeta, error) {
 		return nil, fmt.Errorf("表管理器未初始化")
 	}
 
-	// 这里需要实现根据表名获取表元数据的逻辑
-	// 暂时返回一个默认的表元数据结构
-	tableMeta := &metadata.TableMeta{
-		Name:       dml.tableName,
-		Columns:    []*metadata.ColumnMeta{},
-		PrimaryKey: []string{},             // 使用正确的字段名
-		Indices:    []metadata.IndexMeta{}, // 使用正确的字段名
+	tableMeta, err := dml.tableManager.GetTableMetadata(context.Background(), dml.schemaName, dml.tableName)
+	if err != nil {
+		return nil, fmt.Errorf("获取表元数据失败: %v", err)
 	}
-
-	// TODO: 从实际的数据字典中获取表元数据
-	logger.Debugf(" 获取表元数据: %s.%s", dml.schemaName, dml.tableName)
 
 	return tableMeta, nil
 }
@@ -364,8 +378,12 @@ func (dml *DMLExecutor) parseInsertData(stmt *sqlparser.Insert, tableMeta *metad
 				}
 
 				rowData.ColumnValues[columnName] = value
-				// TODO: 根据表元数据设置正确的列类型
-				rowData.ColumnTypes[columnName] = metadata.TypeVarchar
+				// 根据列定义设置列类型
+				if colMeta := dml.getColumnMetadataByName(tableMeta, columnName); colMeta != nil {
+					rowData.ColumnTypes[columnName] = colMeta.Type
+				} else {
+					rowData.ColumnTypes[columnName] = metadata.TypeVarchar
+				}
 			}
 
 			insertRows = append(insertRows, rowData)
@@ -409,8 +427,58 @@ func (dml *DMLExecutor) parseSQLVal(val *sqlparser.SQLVal) (interface{}, error) 
 
 // validateInsertData 验证插入数据
 func (dml *DMLExecutor) validateInsertData(rows []*InsertRowData, tableMeta *metadata.TableMeta) error {
-	// TODO: 实现数据类型验证、约束检查等
 	logger.Debugf(" 验证插入数据，行数: %d", len(rows))
+	if tableMeta == nil {
+		return fmt.Errorf("表元数据为空")
+	}
+
+	columnByName := map[string]*metadata.ColumnMeta{}
+	for _, col := range tableMeta.Columns {
+		if col != nil && col.Name != "" {
+			columnByName[col.Name] = col
+		}
+	}
+
+	for _, row := range rows {
+		if row == nil {
+			return fmt.Errorf("存在空行数据")
+		}
+
+		for _, colMeta := range columnByName {
+			_, hasValue := row.ColumnValues[colMeta.Name]
+			if !hasValue {
+				if colMeta.IsAutoIncrement {
+					continue
+				}
+				if !colMeta.IsNullable && colMeta.DefaultValue == nil {
+					return fmt.Errorf("列 %s 不允许为 NULL", colMeta.Name)
+				}
+				if colMeta.DefaultValue != nil {
+					row.ColumnValues[colMeta.Name] = colMeta.DefaultValue
+					row.ColumnTypes[colMeta.Name] = colMeta.Type
+				}
+				continue
+			}
+			if err := dml.validateColumnValue(colMeta, row.ColumnValues[colMeta.Name]); err != nil {
+				return err
+			}
+		}
+
+		for colName, value := range row.ColumnValues {
+			if colMeta, exists := columnByName[colName]; exists {
+				if err := dml.validateColumnValue(colMeta, value); err != nil {
+					return fmt.Errorf("列 %s 校验失败: %v", colName, err)
+				}
+				continue
+			}
+			// 对于元数据未知列，保守回退到原逻辑
+			if value != nil {
+				continue
+			}
+			return fmt.Errorf("未知列: %s", colName)
+		}
+	}
+
 	return nil
 }
 
@@ -465,11 +533,15 @@ func (dml *DMLExecutor) parseUpdateExpressions(exprs sqlparser.UpdateExprs, tabl
 		if err != nil {
 			return nil, fmt.Errorf("计算更新表达式值失败: %v", err)
 		}
+		colMeta := dml.getColumnMetadataByName(tableMeta, columnName)
+		if colMeta == nil {
+			return nil, fmt.Errorf("列 %s 不存在", columnName)
+		}
 
 		updateExpr := &UpdateExpression{
 			ColumnName: columnName,
 			NewValue:   value,
-			ColumnType: metadata.TypeVarchar, // TODO: 根据表元数据设置正确的类型
+			ColumnType: colMeta.Type,
 		}
 
 		updateExprs = append(updateExprs, updateExpr)
@@ -575,35 +647,35 @@ func (dml *DMLExecutor) insertRow(ctx context.Context, txn interface{}, row *Ins
 	}
 
 	// 同步二级索引
-	// 注意：由于 TableMeta 没有 TableID 字段，我们需要通过其他方式获取
-	// 这里暂时使用表名的哈希值作为 TableID（临时方案）
-	// TODO: 需要在 TableMeta 中添加 TableID 字段，或从 TableManager 获取
 	if dml.indexSyncer != nil {
-		tableID := dml.getTableIDFromName(tableMeta.Name)
-		if tableID > 0 {
-			if err := dml.indexSyncer.SyncSecondaryIndexesOnInsert(
-				tableID,
-				row.ColumnValues,
-				bytes, // 主键值（序列化后的行数据）
-			); err != nil {
-				// 二级索引同步失败，需要回滚主键插入
-				logger.Errorf("❌ 二级索引同步失败，回滚主键插入: %v", err)
+		tableID, err := dml.getTableIDFromName(tableMeta.Name)
+		if err != nil {
+			logger.Errorf("❌ 解析二级索引表ID失败: %v", err)
+			return 0, fmt.Errorf("二级索引同步不可执行: %v", err)
+		}
 
-				// 尝试删除已插入的主键索引
-				if dml.btreeManager != nil {
-					if deleter, ok := interface{}(dml.btreeManager).(interface {
-						Delete(ctx context.Context, key interface{}) error
-					}); ok {
-						if delErr := deleter.Delete(ctx, pkVal); delErr != nil {
-							logger.Errorf("❌ 回滚主键插入失败: %v", delErr)
-						}
+		if err := dml.indexSyncer.SyncSecondaryIndexesOnInsert(
+			tableID,
+			row.ColumnValues,
+			bytes, // 主键值（序列化后的行数据）
+		); err != nil {
+			// 二级索引同步失败，需要回滚主键插入
+			logger.Errorf("❌ 二级索引同步失败，回滚主键插入: %v", err)
+
+			// 尝试删除已插入的主键索引
+			if dml.btreeManager != nil {
+				if deleter, ok := interface{}(dml.btreeManager).(interface {
+					Delete(ctx context.Context, key interface{}) error
+				}); ok {
+					if delErr := deleter.Delete(ctx, pkVal); delErr != nil {
+						logger.Errorf("❌ 回滚主键插入失败: %v", delErr)
 					}
 				}
-
-				return 0, fmt.Errorf("同步二级索引失败: %v", err)
 			}
-			logger.Debugf("✅ 二级索引同步成功")
+
+			return 0, fmt.Errorf("同步二级索引失败: %v", err)
 		}
+		logger.Debugf("✅ 二级索引同步成功")
 	}
 
 	return dml.convertPrimaryKeyToUint64(pkVal), nil
@@ -649,8 +721,13 @@ func (dml *DMLExecutor) updateRow(ctx context.Context, txn interface{}, rowInfo 
 	}
 
 	for _, expr := range updateExprs {
-		if !dml.validateValueType(expr.NewValue, expr.ColumnType) {
-			return fmt.Errorf("column %s type mismatch", expr.ColumnName)
+		colMeta := dml.getColumnMetadataByName(tableMeta, expr.ColumnName)
+		if colMeta == nil {
+			return fmt.Errorf("列 %s 不存在", expr.ColumnName)
+		}
+
+		if err := dml.validateColumnValue(colMeta, expr.NewValue); err != nil {
+			return err
 		}
 		newData[expr.ColumnName] = expr.NewValue
 	}
@@ -669,19 +746,21 @@ func (dml *DMLExecutor) updateRow(ctx context.Context, txn interface{}, rowInfo 
 
 	// 同步二级索引
 	if dml.indexSyncer != nil {
-		tableID := dml.getTableIDFromName(tableMeta.Name)
-		if tableID > 0 {
-			if err := dml.indexSyncer.SyncSecondaryIndexesOnUpdate(
-				tableID,
-				rowInfo.OldValues, // 旧数据
-				newData,           // 新数据
-				bytes,             // 主键值（序列化后的行数据）
-			); err != nil {
-				logger.Errorf("❌ 二级索引更新失败: %v", err)
-				return fmt.Errorf("同步二级索引失败: %v", err)
-			}
-			logger.Debugf("✅ 二级索引更新成功")
+		tableID, err := dml.getTableIDFromName(tableMeta.Name)
+		if err != nil {
+			return fmt.Errorf("二级索引同步不可执行: %v", err)
 		}
+
+		if err := dml.indexSyncer.SyncSecondaryIndexesOnUpdate(
+			tableID,
+			rowInfo.OldValues, // 旧数据
+			newData,           // 新数据
+			bytes,             // 主键值（序列化后的行数据）
+		); err != nil {
+			logger.Errorf("❌ 二级索引更新失败: %v", err)
+			return fmt.Errorf("同步二级索引失败: %v", err)
+		}
+		logger.Debugf("✅ 二级索引更新成功")
 	}
 
 	return nil
@@ -726,17 +805,19 @@ func (dml *DMLExecutor) deleteRow(ctx context.Context, txn interface{}, rowInfo 
 
 	// 先同步删除二级索引（在删除主键之前）
 	if dml.indexSyncer != nil {
-		tableID := dml.getTableIDFromName(tableMeta.Name)
-		if tableID > 0 {
-			if err := dml.indexSyncer.SyncSecondaryIndexesOnDelete(
-				tableID,
-				rowInfo.OldValues, // 行数据
-			); err != nil {
-				logger.Errorf("❌ 二级索引删除失败: %v", err)
-				return fmt.Errorf("同步二级索引删除失败: %v", err)
-			}
-			logger.Debugf("✅ 二级索引删除成功")
+		tableID, err := dml.getTableIDFromName(tableMeta.Name)
+		if err != nil {
+			return fmt.Errorf("二级索引同步不可执行: %v", err)
 		}
+
+		if err := dml.indexSyncer.SyncSecondaryIndexesOnDelete(
+			tableID,
+			rowInfo.OldValues, // 行数据
+		); err != nil {
+			logger.Errorf("❌ 二级索引删除失败: %v", err)
+			return fmt.Errorf("同步二级索引删除失败: %v", err)
+		}
+		logger.Debugf("✅ 二级索引删除成功")
 	}
 
 	// 删除主键索引
@@ -754,26 +835,85 @@ func (dml *DMLExecutor) deleteRow(ctx context.Context, txn interface{}, rowInfo 
 // ===== 辅助方法 =====
 
 // getTableIDFromName 从表名获取 TableID
-// TODO: 这是一个临时实现，应该从 TableManager 或数据字典中获取真实的 TableID
-func (dml *DMLExecutor) getTableIDFromName(tableName string) uint64 {
-	if tableName == "" {
-		return 0
+func (dml *DMLExecutor) getTableIDFromName(tableName string) (uint64, error) {
+	if dml.tableIDResolver != nil {
+		return dml.tableIDResolver(dml.schemaName, tableName)
 	}
 
-	// 临时方案：使用表名的哈希值作为 TableID
-	// 在生产环境中，应该从数据字典或 TableManager 中获取真实的 TableID
-	var hash uint64
-	for i := 0; i < len(tableName); i++ {
-		hash = hash*31 + uint64(tableName[i])
+	if dml.tableManager == nil {
+		return 0, fmt.Errorf("表管理器未初始化")
 	}
 
-	// 确保返回一个非零的正数
-	if hash == 0 {
-		hash = 1
+	if dml.schemaName == "" || strings.TrimSpace(tableName) == "" {
+		return 0, fmt.Errorf("表名或schema为空")
 	}
 
-	logger.Debugf("📋 表名 '%s' 映射到 TableID: %d (临时哈希值)", tableName, hash)
-	return hash
+	info, err := dml.tableManager.GetTableStorageInfo(dml.schemaName, tableName)
+	if err != nil {
+		return 0, fmt.Errorf("获取表存储信息失败: %v", err)
+	}
+
+	logger.Debugf("从TableStorageInfo获取TableID: %s.%s => %d", dml.schemaName, tableName, info.SpaceID)
+	return uint64(info.SpaceID), nil
+}
+
+func (dml *DMLExecutor) getColumnMetadataByName(tableMeta *metadata.TableMeta, columnName string) *metadata.ColumnMeta {
+	if tableMeta == nil {
+		return nil
+	}
+
+	for _, col := range tableMeta.Columns {
+		if col != nil && strings.EqualFold(strings.TrimSpace(col.Name), strings.TrimSpace(columnName)) {
+			return col
+		}
+	}
+	return nil
+}
+
+func (dml *DMLExecutor) validateColumnValue(colMeta *metadata.ColumnMeta, value interface{}) error {
+	if colMeta == nil {
+		return fmt.Errorf("列定义为空")
+	}
+
+	if value == nil {
+		if !colMeta.IsNullable && !colMeta.IsAutoIncrement {
+			return fmt.Errorf("列 %s 不允许为 NULL", colMeta.Name)
+		}
+		return nil
+	}
+
+	if !dml.validateValueType(value, colMeta.Type) {
+		return fmt.Errorf("列 %s 类型不匹配，期望 %s", colMeta.Name, colMeta.Type)
+	}
+
+	if err := dml.validateValueLength(colMeta, value); err != nil {
+		return fmt.Errorf("列 %s %v", colMeta.Name, err)
+	}
+
+	return nil
+}
+
+func (dml *DMLExecutor) validateValueLength(colMeta *metadata.ColumnMeta, value interface{}) error {
+	if colMeta == nil {
+		return fmt.Errorf("列定义为空")
+	}
+
+	if colMeta.Length <= 0 {
+		return nil
+	}
+
+	maxLen := colMeta.Length
+	switch v := value.(type) {
+	case string:
+		if len(v) > maxLen {
+			return fmt.Errorf("长度超限，最大允许 %d", maxLen)
+		}
+	case []byte:
+		if len(v) > maxLen {
+			return fmt.Errorf("长度超限，最大允许 %d", maxLen)
+		}
+	}
+	return nil
 }
 
 func (dml *DMLExecutor) convertPrimaryKeyToUint64(key interface{}) uint64 {
@@ -905,6 +1045,25 @@ func (dml *DMLExecutor) validateValueType(val interface{}, colType metadata.Data
 		switch val.(type) {
 		case int, int32, int64, uint, uint32, uint64:
 			return true
+		case string:
+			_, err := strconv.ParseInt(strings.TrimSpace(val.(string)), 10, 64)
+			return err == nil
+		case []byte:
+			_, err := strconv.ParseInt(strings.TrimSpace(string(val.([]byte))), 10, 64)
+			return err == nil
+		default:
+			return false
+		}
+	case metadata.TypeFloat, metadata.TypeDouble, metadata.TypeDecimal:
+		switch val.(type) {
+		case int, int32, int64, uint, uint32, uint64, float64, float32:
+			return true
+		case string:
+			_, err := strconv.ParseFloat(strings.TrimSpace(val.(string)), 64)
+			return err == nil
+		case []byte:
+			_, err := strconv.ParseFloat(strings.TrimSpace(string(val.([]byte))), 64)
+			return err == nil
 		default:
 			return false
 		}
@@ -913,7 +1072,28 @@ func (dml *DMLExecutor) validateValueType(val interface{}, colType metadata.Data
 		return ok
 	case metadata.TypeChar, metadata.TypeVarchar, metadata.TypeText, metadata.TypeLongText, metadata.TypeMediumText, metadata.TypeTinyText:
 		_, ok := val.(string)
+		if ok {
+			return true
+		}
+		_, ok = val.([]byte)
 		return ok
+	case metadata.TypeBinary, metadata.TypeVarBinary, metadata.TypeBlob, metadata.TypeTinyBlob, metadata.TypeMediumBlob, metadata.TypeLongBlob:
+		_, ok := val.(string)
+		if ok {
+			return true
+		}
+		_, ok = val.([]byte)
+		return ok
+	case metadata.TypeDate, metadata.TypeTime, metadata.TypeDateTime, metadata.TypeTimestamp, metadata.TypeYear:
+		_, ok := val.(string)
+		return ok
+	case metadata.TypeJSON:
+		switch val.(type) {
+		case string, []byte:
+			return true
+		default:
+			return false
+		}
 	default:
 		return true
 	}

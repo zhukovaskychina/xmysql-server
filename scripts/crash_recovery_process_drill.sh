@@ -1,24 +1,12 @@
 #!/usr/bin/env bash
-# 真实进程级崩溃恢复演练（GAP-02 第二阶段）：
-# - 启动独立实例 -> 构造 redo 场景 -> kill -9 -> 重启 -> 校验
-# - undo / 半提交场景使用 manager 包故障注入与回滚测试补齐
-# - 产出可审计日志目录
-#
-# 用法:
-#   ./scripts/crash_recovery_process_drill.sh
-# 环境变量:
-#   CR_PROC_REPORT_DIR=/path/to/reports
-#   CR_PROC_PORT=3310
-#   CR_PROC_DSN_USER=root
-#   CR_PROC_DSN_PASS=root@1234  # 支持包含特殊字符，脚本会进行 URL 编码
-#   CR_PROC_SERVER_USER=root      # 写入 my.ini 的用户名，默认与 CR_PROC_DSN_USER 一致
-#   CR_PROC_BYPASS_AUTH=false  （如需临时联调可设 true）
-#   CR_PROC_DSN_HOST=127.0.0.1
+# 真实进程级崩溃恢复演练（GAP-02 第二阶段）
+# 每轮覆盖 redo / undo / 半提交，按 start -> crash -> restart -> verify 执行。
 
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+GO_BIN="${GO_BIN:-/Users/zhukovasky/sdk/go1.24.3/bin/go}"
 
 OUT_BASE="${CR_PROC_REPORT_DIR:-$ROOT/reports}"
 PORT="${CR_PROC_PORT:-3310}"
@@ -27,9 +15,13 @@ DSN_USER="${CR_PROC_DSN_USER:-root}"
 DSN_PASS_RAW="${CR_PROC_DSN_PASS:-root@1234}"
 SERVER_USER="${CR_PROC_SERVER_USER:-$DSN_USER}"
 DEV_BYPASS_AUTH="${CR_PROC_BYPASS_AUTH:-false}"
+ROUNDS="${CR_PROC_ROUNDS:-3}"
+UNDO_HOLD_SECONDS="${CR_PROC_UNDO_HOLD_SECONDS:-3}"
+HALF_SLEEP_SECONDS="${CR_PROC_HALF_SLEEP_SECONDS:-1}"
+
 TS="$(date +%Y%m%d_%H%M%S)"
-DB_NAME="drill_recovery_db_${TS}"
-TABLE_NAME="drill_txn_${TS}"
+DB_NAME_BASE="drill_recovery_db_${TS}"
+TABLE_NAME_BASE="drill_txn_${TS}"
 RUN_DIR="$OUT_BASE/crash_recovery_process_drill_${TS}"
 WORK_DIR="$RUN_DIR/workdir"
 DATA_DIR="$WORK_DIR/data"
@@ -38,7 +30,7 @@ CONF_FILE="$WORK_DIR/drill.ini"
 SERVER_LOG="$RUN_DIR/server.log"
 SUMMARY="$RUN_DIR/summary.log"
 CLIENT_LOG="$RUN_DIR/client.log"
-TEST_LOG="$RUN_DIR/manager_tests.log"
+CLIENT_BIN="$RUN_DIR/recovery_drill_client"
 
 mkdir -p "$RUN_DIR" "$DATA_DIR" "$LOG_DIR"
 
@@ -63,7 +55,7 @@ else
 fi
 
 make_conf() {
-  cat >"$CONF_FILE" <<EOF
+  cat >"$CONF_FILE" <<CONF_EOF
 [mysqld]
 user = ${SERVER_USER}
 bind-address = 127.0.0.1
@@ -111,14 +103,14 @@ session_name = xmysql-server
 log_error = ${LOG_DIR}/error.log
 log_infos = ${LOG_DIR}/mysql.log
 log_level = info
-EOF
+CONF_EOF
 }
 
 start_server() {
   kill_port_listener
-  go run . -configPath="$CONF_FILE" >>"$SERVER_LOG" 2>&1 &
+  "$GO_BIN" run . -configPath="$CONF_FILE" >>"$SERVER_LOG" 2>&1 &
   SERVER_PID=$!
-  echo "server_pid=${SERVER_PID}" >>"$SUMMARY"
+  echo "[SERVER] start pid=${SERVER_PID}" >>"$SUMMARY"
 }
 
 wait_port() {
@@ -145,6 +137,23 @@ wait_port_free() {
   return 1
 }
 
+wait_client_ready() {
+  local max_attempts="${CR_PROC_CLIENT_READY_RETRIES:-20}"
+  local attempt=0
+  local rc
+
+  while [[ $attempt -lt "$max_attempts" ]]; do
+    "$CLIENT_BIN" -dsn "$DSN" -db mysql -mode ping >/dev/null 2>&1
+    rc=$?
+    if [[ $rc -eq 0 ]]; then
+      return 0
+    fi
+    attempt=$((attempt + 1))
+    sleep 1
+  done
+  return 1
+}
+
 kill_server() {
   if [[ -n "${SERVER_PID:-}" ]] && kill -0 "$SERVER_PID" >/dev/null 2>&1; then
     kill -9 "$SERVER_PID" >/dev/null 2>&1 || true
@@ -165,69 +174,225 @@ kill_port_listener() {
 }
 
 run_client() {
-  local mode="$1"
-  shift || true
-  echo "[CLIENT] DSN=${DSN} db=${DB_NAME} table=${TABLE_NAME} mode=${mode}" >>"$CLIENT_LOG"
-  go run ./cmd/recovery_drill_client -dsn "$DSN" -db "$DB_NAME" -table "$TABLE_NAME" -mode "$mode" "$@" >>"$CLIENT_LOG" 2>&1
+  local db_name="$1"
+  local table_name="$2"
+  local mode="$3"
+  shift 3
+  local rc=0
+
+  echo "[CLIENT] mode=${mode} db=${db_name} table=${table_name} args=$*" >>"$CLIENT_LOG"
+  "$CLIENT_BIN" -dsn "$DSN" -db "$db_name" -table "$table_name" -mode "$mode" "$@" >>"$CLIENT_LOG" 2>&1
+  rc=$?
+  return $rc
 }
 
-run_manager_group() {
-  local name="$1"
-  local pattern="$2"
-  {
-    echo "=== [${name}] $(date -Iseconds 2>/dev/null || date) ==="
-    echo "go test -count=1 -timeout=300s ./server/innodb/manager/ -run '${pattern}' -v"
-    go test -count=1 -timeout=300s ./server/innodb/manager/ -run "${pattern}" -v
-    echo
-  } >>"$TEST_LOG" 2>&1
+run_client_bg() {
+  local db_name="$1"
+  local table_name="$2"
+  local mode="$3"
+  shift 3
+
+  "$CLIENT_BIN" -dsn "$DSN" -db "$db_name" -table "$table_name" -mode "$mode" "$@" >>"$CLIENT_LOG" 2>&1 &
+  echo "$!"
+}
+
+wait_client() {
+  local pid="$1"
+  local timeout_seconds="${2:-120}"
+  local elapsed=0
+
+  while [[ $elapsed -lt "$timeout_seconds" ]]; do
+    if ! kill -0 "$pid" >/dev/null 2>&1; then
+      wait "$pid"
+      return $?
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+
+  kill -9 "$pid" >/dev/null 2>&1 || true
+  wait "$pid" 2>/dev/null || true
+  return 1
+}
+
+step() {
+  local round="$1"
+  local scenario="$2"
+  local label="$3"
+  shift 3
+
+  local start_ts end_ts duration_ms rc
+  start_ts="$(date +%s)"
+  echo "[ROUND ${round}] [STEP] scenario=${scenario} label=${label}" >>"$SUMMARY"
+  "$@"
+  rc=$?
+  end_ts="$(date +%s)"
+  duration_ms=$(( (end_ts - start_ts) * 1000 ))
+  if [[ $rc -eq 0 ]]; then
+    echo "[ROUND ${round}] [PASS] scenario=${scenario} label=${label} duration_ms=${duration_ms}" >>"$SUMMARY"
+  else
+    echo "[ROUND ${round}] [FAIL] scenario=${scenario} label=${label} duration_ms=${duration_ms}" >>"$SUMMARY"
+    overall=1
+  fi
+  return $rc
+}
+
+scenario_round_result() {
+  local round="$1"
+  local scenario="$2"
+  local result="$3"
+  echo "[ROUND ${round}] [SCENARIO] ${scenario} result=${result}" >>"$SUMMARY"
+}
+
+run_redo_round() {
+  local round="$1"
+  local db_name="$2"
+  local table_name="$3"
+  local round_ok=0
+
+  step "$round" "redo" "start server" start_server || round_ok=1
+  step "$round" "redo" "wait server" wait_port || round_ok=1
+  step "$round" "redo" "wait client ready" wait_client_ready || round_ok=1
+  step "$round" "redo" "setup redo" run_client "$db_name" "$table_name" setup_redo || round_ok=1
+  step "$round" "redo" "snapshot before crash" run_client "$db_name" "$table_name" snapshot || round_ok=1
+  step "$round" "redo" "kill server after setup" kill_server || round_ok=1
+  step "$round" "redo" "restart for redo verify" start_server || round_ok=1
+  step "$round" "redo" "wait server after restart" wait_port || round_ok=1
+  step "$round" "redo" "snapshot after restart" run_client "$db_name" "$table_name" snapshot || round_ok=1
+  step "$round" "redo" "verify redo" run_client "$db_name" "$table_name" verify_redo || round_ok=1
+  step "$round" "redo" "verify show tables where" run_client "$db_name" "$table_name" verify_show_tables_where || round_ok=1
+
+  if [[ $round_ok -eq 0 ]]; then
+    scenario_round_result "$round" "redo" "PASS"
+  else
+    scenario_round_result "$round" "redo" "FAIL"
+  fi
+  return $round_ok
+}
+
+run_undo_round() {
+  local round="$1"
+  local db_name="$2"
+  local table_name="$3"
+  local round_ok=0
+
+  step "$round" "undo" "snapshot before undo" run_client "$db_name" "$table_name" snapshot || round_ok=1
+  scenario_round_result "$round" "undo" "START"
+
+  local client_pid
+  client_pid="$(run_client_bg "$db_name" "$table_name" hold_undo -hold-seconds "$UNDO_HOLD_SECONDS")"
+  sleep 1
+  step "$round" "undo" "kill server while tx open" kill_server || round_ok=1
+
+  local undo_client_rc=0
+  if wait_client "$client_pid" "${CR_PROC_CLIENT_TIMEOUT:-120}"; then
+    undo_client_rc=0
+  else
+    undo_client_rc=$?
+  fi
+  echo "[ROUND ${round}] [CLIENT] undo pid=${client_pid} exit=${undo_client_rc}" >>"$SUMMARY"
+
+  step "$round" "undo" "restart for undo verify" start_server || round_ok=1
+  step "$round" "undo" "wait server after restart" wait_port || round_ok=1
+  step "$round" "undo" "snapshot after restart" run_client "$db_name" "$table_name" snapshot || round_ok=1
+  step "$round" "undo" "verify undo" run_client "$db_name" "$table_name" verify_undo || round_ok=1
+
+  if [[ $round_ok -eq 0 ]]; then
+    scenario_round_result "$round" "undo" "PASS"
+  else
+    scenario_round_result "$round" "undo" "FAIL"
+  fi
+  return $round_ok
+}
+
+run_half_round() {
+  local round="$1"
+  local db_name="$2"
+  local table_name="$3"
+  local round_ok=0
+
+  step "$round" "half_commit" "snapshot before half-commit" run_client "$db_name" "$table_name" snapshot || round_ok=1
+  scenario_round_result "$round" "half_commit" "START"
+
+  local client_pid
+  client_pid="$(run_client_bg "$db_name" "$table_name" race_commit)"
+  sleep "$HALF_SLEEP_SECONDS"
+  step "$round" "half_commit" "kill server during commit" kill_server || round_ok=1
+
+  local half_client_rc=0
+  if wait_client "$client_pid" "${CR_PROC_CLIENT_TIMEOUT:-120}"; then
+    half_client_rc=0
+  else
+    half_client_rc=$?
+  fi
+  echo "[ROUND ${round}] [CLIENT] half_commit pid=${client_pid} exit=${half_client_rc}" >>"$SUMMARY"
+
+  step "$round" "half_commit" "restart for half-commit verify" start_server || round_ok=1
+  step "$round" "half_commit" "wait server after restart" wait_port || round_ok=1
+  step "$round" "half_commit" "snapshot after restart" run_client "$db_name" "$table_name" snapshot || round_ok=1
+  step "$round" "half_commit" "verify half-commit" run_client "$db_name" "$table_name" verify_half_commit || round_ok=1
+
+  if [[ $round_ok -eq 0 ]]; then
+    scenario_round_result "$round" "half_commit" "PASS"
+  else
+    scenario_round_result "$round" "half_commit" "FAIL"
+  fi
+  return $round_ok
+}
+
+run_round() {
+  local round="$1"
+  local db_name="$2"
+  local table_name="$3"
+
+  echo "[ROUND ${round}] [START] db=${db_name} table=${table_name}" >>"$SUMMARY"
+
+  run_redo_round "$round" "$db_name" "$table_name" || return 1
+  run_undo_round "$round" "$db_name" "$table_name" || return 1
+  run_half_round "$round" "$db_name" "$table_name" || return 1
+
+  echo "[ROUND ${round}] [ROUND_RESULT] PASS" >>"$SUMMARY"
+  return 0
 }
 
 trap 'kill_server; kill_port_listener' EXIT
 
 overall=0
-
-step() {
-  local label="$1"
-  shift
-  echo "[STEP] ${label}" | tee -a "$SUMMARY"
-  if "$@"; then
-    echo "[OK]   ${label}" | tee -a "$SUMMARY"
-  else
-    echo "[FAIL] ${label}" | tee -a "$SUMMARY"
-    overall=1
-  fi
-}
-
 {
   echo "=== crash recovery process drill $(date -Iseconds 2>/dev/null || date) ==="
   echo "repo: $ROOT"
-  echo "go: $(go version 2>/dev/null || true)"
+  echo "go: $($GO_BIN version 2>/dev/null || true)"
   echo "run_dir: $RUN_DIR"
+  echo "rounds: $ROUNDS"
   echo "host: $HOST"
   echo "port: $PORT"
   echo "dsn: $DSN"
-  echo "db: $DB_NAME"
-  echo "table: $TABLE_NAME"
+  echo "db_base: $DB_NAME_BASE"
+  echo "table_base: $TABLE_NAME_BASE"
+  echo "undo_hold_seconds: $UNDO_HOLD_SECONDS"
+  echo "half_sleep_seconds: $HALF_SLEEP_SECONDS"
+  echo "client_bin: $CLIENT_BIN"
   echo
 } >"$SUMMARY"
 
 make_conf
-step "cleanup stale listener" kill_port_listener
-step "start server" start_server
-step "wait server port" wait_port
+if ! "$GO_BIN" build -o "$CLIENT_BIN" ./cmd/recovery_drill_client; then
+  echo "build client failed" | tee -a "$SUMMARY" >/dev/stderr
+  exit 1
+fi
 
-step "setup redo" run_client setup_redo
-step "crash after redo commit" kill_server
+step "global" "global" "cleanup stale listener" kill_port_listener || true
 
-step "cleanup stale listener before redo verify restart" kill_port_listener
-step "restart server for redo verify" start_server
-step "wait server port (redo verify)" wait_port
-step "verify redo" run_client verify_redo
-step "verify show tables where" run_client verify_show_tables_where
-
-step "undo scenario via manager rollback/fault tests" run_manager_group "undo" '^(TestTXN002_|TestUndoRollbackWithCLR|TestPartialRollback|TestSavepoint_)$'
-
-step "half-commit scenario via fault injection tests" run_manager_group "half_commit" '^(TestFaultInjection_CrashDuringCommit|TestCrashRecoveryThreePhases|TestFullCrashRecovery)$'
+round=1
+while [[ $round -le "$ROUNDS" ]]; do
+  db_name="${DB_NAME_BASE}_r${round}"
+  table_name="${TABLE_NAME_BASE}_r${round}"
+  if ! run_round "$round" "$db_name" "$table_name"; then
+    echo "[ROUND ${round}] [ROUND_RESULT] FAIL" >>"$SUMMARY"
+    overall=1
+  fi
+  round=$((round + 1))
+done
 
 {
   echo
@@ -239,7 +404,6 @@ step "half-commit scenario via fault injection tests" run_manager_group "half_co
   echo "summary=$SUMMARY"
   echo "server_log=$SERVER_LOG"
   echo "client_log=$CLIENT_LOG"
-  echo "manager_test_log=$TEST_LOG"
 } | tee -a "$SUMMARY"
 
 exit $overall

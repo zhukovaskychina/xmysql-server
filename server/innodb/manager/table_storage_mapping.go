@@ -2,12 +2,15 @@ package manager
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/zhukovaskychina/xmysql-server/logger"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
 // TableStorageInfo 表的存储信息
@@ -139,6 +142,68 @@ func (tsm *TableStorageManager) RegisterTable(ctx context.Context, info *TableSt
 
 	logger.Debugf("Registered table storage: %s (Space ID: %d, Root Page: %d)\n",
 		key, info.SpaceID, info.RootPageNo)
+
+	return nil
+}
+
+// SyncFromInfoSchema 基于信息模式重建表存储映射，适用于服务重启后内存映射丢失场景。
+func (tsm *TableStorageManager) SyncFromInfoSchema(infoSchemaManager metadata.InfoSchemaManager) error {
+	if infoSchemaManager == nil {
+		return fmt.Errorf("info schema manager is nil")
+	}
+
+	schemaNames, err := infoSchemaManager.GetAllSchemaNames(context.Background())
+	if err != nil {
+		return fmt.Errorf("load schema names failed: %v", err)
+	}
+
+	for _, schemaName := range schemaNames {
+		if strings.EqualFold(schemaName, "INFORMATION_SCHEMA") {
+			continue
+		}
+
+		tables, err := infoSchemaManager.GetAllTables(context.Background(), schemaName)
+		if err != nil {
+			logger.Warnf("Sync table storage mapping skip schema=%q: %v", schemaName, err)
+			continue
+		}
+
+		for _, table := range tables {
+			if table == nil || table.Name == "" {
+				continue
+			}
+
+			if _, err := tsm.GetTableStorageInfo(schemaName, table.Name); err == nil {
+				logger.Debugf("Table storage mapping already exists, skip recovery: %s.%s", schemaName, table.Name)
+				continue
+			}
+
+			spaceName := fmt.Sprintf("%s/%s", schemaName, table.Name)
+			handle, err := tsm.storageManager.CreateTablespace(spaceName)
+			if err != nil {
+				logger.Warnf("Sync table storage mapping failed create tablespace schema=%q table=%q space=%q: %v", schemaName, table.Name, spaceName, err)
+				continue
+			}
+
+			info := &TableStorageInfo{
+				SchemaName:    schemaName,
+				TableName:     table.Name,
+				SpaceID:       handle.SpaceID,
+				RootPageNo:    3,
+				IndexPageNo:   3,
+				DataSegmentID: handle.DataSegmentID,
+				Type:          TableTypeUser,
+			}
+
+			if err := tsm.RegisterTable(context.Background(), info); err != nil {
+				if !errors.Is(err, ErrTableStorageAlreadyRegistered) {
+					return fmt.Errorf("register table storage mapping failed schema=%q table=%q: %v", schemaName, table.Name, err)
+				}
+			}
+
+			logger.Debugf("Recovered table storage mapping schema=%q table=%q spaceID=%d", schemaName, table.Name, handle.SpaceID)
+		}
+	}
 
 	return nil
 }

@@ -13,6 +13,7 @@ set -u -o pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+GO_BIN="${GO_BIN:-/Users/zhukovasky/sdk/go1.24.3/bin/go}"
 
 OUT_DIR="${CR_REPORT_DIR:-$ROOT/reports}"
 PKG="${CR_PKG:-./server/innodb/manager/}"
@@ -31,9 +32,9 @@ run_group() {
   {
     echo "=== [$name] $(date -Iseconds 2>/dev/null || date) ==="
     echo "pattern: $pattern"
-    echo "command: go test -count=1 -timeout=${TIMEOUT} ${PKG} -run '${pattern}' -v"
+    echo "command: $GO_BIN test -count=1 -timeout=${TIMEOUT} ${PKG} -run '${pattern}' -v"
     echo
-    go test -count=1 -timeout="${TIMEOUT}" "${PKG}" -run "${pattern}" -v
+    "$GO_BIN" test -count=1 -timeout="${TIMEOUT}" "${PKG}" -run "${pattern}" -v
   } >"$logfile" 2>&1
   local ec=$?
 
@@ -49,7 +50,7 @@ run_group() {
 {
   echo "=== crash recovery drill $(date -Iseconds 2>/dev/null || date) ==="
   echo "repo: $ROOT"
-  echo "go: $(go version 2>/dev/null || true)"
+  echo "go: $($GO_BIN version 2>/dev/null || true)"
   echo "pkg: $PKG"
   echo "timeout: $TIMEOUT"
   echo "run_dir: $RUN_DIR"

@@ -59,6 +59,19 @@ func NewXMySQLExecutor(infosSchemaManager metadata.InfoSchemaManager, conf *conf
 	}
 }
 
+func newExecutorErrorf(stage string, code ExecutionErrorCode, schema, table, sql string, err error, message string, args ...interface{}) error {
+	if err == nil {
+		return nil
+	}
+	if _, ok := err.(*ExecutionError); ok {
+		return err
+	}
+	if strings.TrimSpace(message) == "" {
+		return NewExecutionErrorWithCause("engine", stage, code, schema, table, sql, 0, err, "")
+	}
+	return NewExecutionErrorf("engine", stage, code, schema, table, sql, 0, err, message, args...)
+}
+
 // SetManagers 设置管理器组件
 func (e *XMySQLExecutor) SetManagers(
 	optimizerManager interface{},
@@ -96,7 +109,11 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 	// SQL语法解析
 	stmt, err := sqlparser.Parse(query)
 	if err != nil {
-		results <- &Result{Err: fmt.Errorf("SQL parse error: %v", err), ResultType: common.RESULT_TYPE_QUERY, Message: "Failed to parse SQL statement"}
+		results <- &Result{
+			Err:        newExecutorErrorf("sql-parse", ExecutionErrorCodeValidation, "", "", query, err, "SQL parse error"),
+			ResultType: common.RESULT_TYPE_QUERY,
+			Message:    "Failed to parse SQL statement",
+		}
 		return
 	}
 
@@ -106,7 +123,11 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		// 执行SELECT查询
 		selectResult, err := e.executeSelectStatement(ctx, stmt, databaseName)
 		if err != nil {
-			results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY, Message: fmt.Sprintf("SELECT query failed: %v", err)}
+			results <- &Result{
+				Err:        newExecutorErrorf("execute-select", ExecutionErrorCodeUnknown, databaseName, "", query, err, "execute SELECT failed"),
+				ResultType: common.RESULT_TYPE_QUERY,
+				Message:    "SELECT query failed",
+			}
 		} else {
 			// 将SelectResult转换为Result
 			result := &Result{
@@ -120,7 +141,11 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		// 执行INSERT语句
 		dmlResult, err := e.executeInsertStatement(ctx, stmt, databaseName)
 		if err != nil {
-			results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY, Message: fmt.Sprintf("INSERT failed: %v", err)}
+			results <- &Result{
+				Err:        newExecutorErrorf("execute-insert", ExecutionErrorCodeUnknown, databaseName, "", query, err, "execute INSERT failed"),
+				ResultType: common.RESULT_TYPE_QUERY,
+				Message:    "INSERT failed",
+			}
 		} else {
 			result := &Result{
 				ResultType: common.RESULT_TYPE_QUERY,
@@ -133,7 +158,11 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		// 执行UPDATE语句
 		dmlResult, err := e.executeUpdateStatement(ctx, stmt, databaseName)
 		if err != nil {
-			results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY, Message: fmt.Sprintf("UPDATE failed: %v", err)}
+			results <- &Result{
+				Err:        newExecutorErrorf("execute-update", ExecutionErrorCodeUnknown, databaseName, "", query, err, "execute UPDATE failed"),
+				ResultType: common.RESULT_TYPE_QUERY,
+				Message:    "UPDATE failed",
+			}
 		} else {
 			result := &Result{
 				ResultType: common.RESULT_TYPE_QUERY,
@@ -146,7 +175,11 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		// 执行DELETE语句
 		dmlResult, err := e.executeDeleteStatement(ctx, stmt, databaseName)
 		if err != nil {
-			results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY, Message: fmt.Sprintf("DELETE failed: %v", err)}
+			results <- &Result{
+				Err:        newExecutorErrorf("execute-delete", ExecutionErrorCodeUnknown, databaseName, "", query, err, "execute DELETE failed"),
+				ResultType: common.RESULT_TYPE_QUERY,
+				Message:    "DELETE failed",
+			}
 		} else {
 			result := &Result{
 				ResultType: common.RESULT_TYPE_QUERY,
@@ -181,7 +214,11 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 			Message:    fmt.Sprintf("Database changed to '%s'", dbName),
 		}
 	default:
-		results <- &Result{Err: fmt.Errorf("unsupported statement type: %T", stmt), ResultType: common.RESULT_TYPE_QUERY, Message: "Unsupported statement type"}
+		results <- &Result{
+			Err:        newExecutorErrorf("statement-dispatch", ExecutionErrorCodeValidation, databaseName, "", query, fmt.Errorf("unsupported statement type: %T", stmt), "unsupported statement type"),
+			ResultType: common.RESULT_TYPE_QUERY,
+			Message:    "Unsupported statement type",
+		}
 	}
 }
 
@@ -220,7 +257,11 @@ func (e *XMySQLExecutor) executeDDL(stmt *sqlparser.DDL, mysqlSession server.MyS
 		logger.Debugf("🗑️ DROP TABLE使用数据库: %s", currentDB)
 		e.executeDropTableStatement(ctx, stmt)
 	default:
-		results <- &Result{Err: fmt.Errorf("unsupported DDL action: %s", stmt.Action), ResultType: common.RESULT_TYPE_DDL, Message: fmt.Sprintf("Unsupported DDL action: %s", stmt.Action)}
+		results <- &Result{
+			Err:        newExecutorErrorf("ddl-action", ExecutionErrorCodeValidation, currentDB, "", "", fmt.Errorf("unsupported DDL action: %s", stmt.Action), "unsupported DDL action"),
+			ResultType: common.RESULT_TYPE_DDL,
+			Message:    fmt.Sprintf("Unsupported DDL action: %s", stmt.Action),
+		}
 	}
 }
 
@@ -241,7 +282,11 @@ func (e *XMySQLExecutor) executeDBDDL(stmt *sqlparser.DBDDL, results chan *Resul
 	case "drop":
 		e.executeDropDatabaseStatement(ctx, stmt)
 	default:
-		results <- &Result{Err: fmt.Errorf("unsupported database DDL action: %s", stmt.Action), ResultType: common.RESULT_TYPE_DDL, Message: fmt.Sprintf("Unsupported database DDL action: %s", stmt.Action)}
+		results <- &Result{
+			Err:        newExecutorErrorf("ddl-action", ExecutionErrorCodeValidation, "", "", "", fmt.Errorf("unsupported database DDL action: %s", stmt.Action), "unsupported database DDL action"),
+			ResultType: common.RESULT_TYPE_DDL,
+			Message:    fmt.Sprintf("Unsupported database DDL action: %s", stmt.Action),
+		}
 	}
 }
 
@@ -269,10 +314,30 @@ func (e *XMySQLExecutor) buildExecutorTree(ctx context.Context, physicalPlan pla
 
 	// 验证必需的管理器
 	if tableManager == nil {
-		return nil, fmt.Errorf("tableManager is nil, cannot build executor tree")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"build-executor-tree",
+			ExecutionErrorCodeMetadataMissing,
+			"",
+			"",
+			"",
+			0,
+			fmt.Errorf("tableManager is nil"),
+			"cannot build executor tree",
+		)
 	}
 	if bufferPoolManager == nil {
-		return nil, fmt.Errorf("bufferPoolManager is nil, cannot build executor tree")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"build-executor-tree",
+			ExecutionErrorCodeStorageMissing,
+			"",
+			"",
+			"",
+			0,
+			fmt.Errorf("bufferPoolManager is nil"),
+			"cannot build executor tree",
+		)
 	}
 
 	// 创建VolcanoExecutor实例
@@ -285,7 +350,15 @@ func (e *XMySQLExecutor) buildExecutorTree(ctx context.Context, physicalPlan pla
 
 	// 构建算子树
 	if err := volcanoExec.BuildFromPhysicalPlan(ctx, physicalPlan); err != nil {
-		return nil, fmt.Errorf("failed to build operator tree: %w", err)
+		return nil, newExecutorErrorf(
+			"build-executor-tree",
+			ExecutionErrorCodeUnknown,
+			"",
+			"",
+			"",
+			err,
+			"failed to build operator tree",
+		)
 	}
 
 	return volcanoExec, nil
@@ -347,7 +420,7 @@ func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sql
 	// 执行SELECT查询
 	result, err := selectExecutor.ExecuteSelect(ctx.Context, stmt, databaseName)
 	if err != nil {
-		return nil, fmt.Errorf("execute SELECT failed: %v", err)
+		return nil, newExecutorErrorf("execute-select", ExecutionErrorCodeUnknown, databaseName, "", "", err, "execute SELECT failed")
 	}
 
 	return result, nil
@@ -356,7 +429,17 @@ func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sql
 // generateLogicalPlan 从SQL生成逻辑计划
 func (e *XMySQLExecutor) generateLogicalPlan(stmt *sqlparser.Select, databaseName string) (plan.LogicalPlan, error) {
 	if stmt == nil {
-		return nil, fmt.Errorf("select statement is nil")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"generate-logical-plan",
+			ExecutionErrorCodeValidation,
+			"",
+			"",
+			"",
+			0,
+			fmt.Errorf("select statement is nil"),
+			"logical plan generation failed",
+		)
 	}
 
 	// 简化回退：优先返回最小可执行的表扫描计划
@@ -403,7 +486,17 @@ func (e *XMySQLExecutor) optimizeToPhysicalPlan(logicalPlan plan.LogicalPlan) (p
 	}
 
 	if optimizerManager == nil {
-		return nil, fmt.Errorf("optimizerManager is nil, cannot optimize to physical plan")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"optimize-physical-plan",
+			ExecutionErrorCodeOptimizer,
+			"",
+			"",
+			"",
+			0,
+			fmt.Errorf("optimizerManager is nil"),
+			"cannot optimize to physical plan",
+		)
 	}
 
 	logger.Debugf("🔧 开始物理计划优化...")
@@ -411,7 +504,7 @@ func (e *XMySQLExecutor) optimizeToPhysicalPlan(logicalPlan plan.LogicalPlan) (p
 	// 使用优化器管理器生成物理计划
 	physicalPlan, err := e.generatePhysicalPlan(logicalPlan, optimizerManager)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate physical plan: %v", err)
+		return nil, newExecutorErrorf("optimize-physical-plan", ExecutionErrorCodeOptimizer, "", "", "", err, "failed to generate physical plan")
 	}
 
 	logger.Debugf("✅ 物理计划优化完成")
@@ -484,17 +577,18 @@ func (e *XMySQLExecutor) generatePhysicalJoin(lp *plan.LogicalJoin, om *manager.
 	// 递归生成左右子计划
 	children := lp.Children()
 	if len(children) < 2 {
-		return nil, fmt.Errorf("join plan needs at least 2 children")
+		return nil, NewExecutionErrorWithCause("engine", "generate-physical-plan", ExecutionErrorCodeValidation, "", "", "", 0,
+			fmt.Errorf("join plan needs at least 2 children"), "join plan invalid")
 	}
 
 	leftPlan, err := e.generatePhysicalPlan(children[0], om)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate left plan: %v", err)
+		return nil, newExecutorErrorf("generate-physical-plan", ExecutionErrorCodeOptimizer, "", "", "", err, "failed to generate left plan")
 	}
 
 	rightPlan, err := e.generatePhysicalPlan(children[1], om)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate right plan: %v", err)
+		return nil, newExecutorErrorf("generate-physical-plan", ExecutionErrorCodeOptimizer, "", "", "", err, "failed to generate right plan")
 	}
 
 	// 选择连接算法（Hash Join, Nested Loop Join, Sort-Merge Join）
@@ -538,12 +632,13 @@ func (e *XMySQLExecutor) generatePhysicalAggregation(lp *plan.LogicalAggregation
 	// 递归生成子计划
 	children := lp.Children()
 	if len(children) == 0 {
-		return nil, fmt.Errorf("aggregation plan has no child")
+		return nil, NewExecutionErrorWithCause("engine", "generate-physical-plan", ExecutionErrorCodeValidation, "", "", "", 0,
+			fmt.Errorf("aggregation plan has no child"), "aggregation plan has no child")
 	}
 
 	childPlan, err := e.generatePhysicalPlan(children[0], om)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate child plan: %v", err)
+		return nil, newExecutorErrorf("generate-physical-plan", ExecutionErrorCodeOptimizer, "", "", "", err, "failed to generate child plan")
 	}
 
 	// 选择聚合算法（Hash Aggregate, Sort Aggregate）
@@ -581,12 +676,13 @@ func (e *XMySQLExecutor) generatePhysicalProjection(lp *plan.LogicalProjection, 
 	// 递归生成子计划
 	children := lp.Children()
 	if len(children) == 0 {
-		return nil, fmt.Errorf("projection plan has no child")
+		return nil, NewExecutionErrorWithCause("engine", "generate-physical-plan", ExecutionErrorCodeValidation, "", "", "", 0,
+			fmt.Errorf("projection plan has no child"), "projection plan has no child")
 	}
 
 	_, err := e.generatePhysicalPlan(children[0], om)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate child plan: %v", err)
+		return nil, newExecutorErrorf("generate-physical-plan", ExecutionErrorCodeOptimizer, "", "", "", err, "failed to generate child plan")
 	}
 
 	return &plan.PhysicalProjection{
@@ -602,12 +698,13 @@ func (e *XMySQLExecutor) generatePhysicalSelection(lp *plan.LogicalSelection, om
 	// 递归生成子计划
 	children := lp.Children()
 	if len(children) == 0 {
-		return nil, fmt.Errorf("selection plan has no child")
+		return nil, NewExecutionErrorWithCause("engine", "generate-physical-plan", ExecutionErrorCodeValidation, "", "", "", 0,
+			fmt.Errorf("selection plan has no child"), "selection plan has no child")
 	}
 
 	_, err := e.generatePhysicalPlan(children[0], om)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate child plan: %v", err)
+		return nil, newExecutorErrorf("generate-physical-plan", ExecutionErrorCodeOptimizer, "", "", "", err, "failed to generate child plan")
 	}
 
 	return &plan.PhysicalSelection{
@@ -623,12 +720,13 @@ func (e *XMySQLExecutor) generatePhysicalSort(lp *plan.BaseLogicalPlan, om *mana
 	// 递归生成子计划
 	children := lp.Children()
 	if len(children) == 0 {
-		return nil, fmt.Errorf("sort plan has no child")
+		return nil, NewExecutionErrorWithCause("engine", "generate-physical-plan", ExecutionErrorCodeValidation, "", "", "", 0,
+			fmt.Errorf("sort plan has no child"), "sort plan has no child")
 	}
 
 	_, err := e.generatePhysicalPlan(children[0], om)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate child plan: %v", err)
+		return nil, newExecutorErrorf("generate-physical-plan", ExecutionErrorCodeOptimizer, "", "", "", err, "failed to generate child plan")
 	}
 
 	return &plan.PhysicalSort{
@@ -644,12 +742,13 @@ func (e *XMySQLExecutor) generatePhysicalLimit(lp *plan.BaseLogicalPlan, om *man
 	// 递归生成子计划
 	children := lp.Children()
 	if len(children) == 0 {
-		return nil, fmt.Errorf("limit plan has no child")
+		return nil, NewExecutionErrorWithCause("engine", "generate-physical-plan", ExecutionErrorCodeValidation, "", "", "", 0,
+			fmt.Errorf("limit plan has no child"), "limit plan has no child")
 	}
 
 	childPlan, err := e.generatePhysicalPlan(children[0], om)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate child plan: %v", err)
+		return nil, newExecutorErrorf("generate-physical-plan", ExecutionErrorCodeOptimizer, "", "", "", err, "failed to generate child plan")
 	}
 
 	// 简化：直接返回子计划，limit逻辑在执行时处理
@@ -866,7 +965,15 @@ func (e *XMySQLExecutor) executeInsertStatement(ctx *ExecutionContext, stmt *sql
 		// 执行INSERT语句
 		result, err := storageIntegratedExecutor.ExecuteInsert(ctx.Context, stmt, targetSchema)
 		if err != nil {
-			return nil, fmt.Errorf("execute storage-integrated INSERT failed: %v", err)
+			return nil, newExecutorErrorf(
+				"execute-insert",
+				ExecutionErrorCodeUnknown,
+				targetSchema,
+				tableName,
+				"",
+				err,
+				"execute storage-integrated INSERT failed",
+			)
 		}
 
 		return result, nil
@@ -887,7 +994,15 @@ func (e *XMySQLExecutor) executeInsertStatement(ctx *ExecutionContext, stmt *sql
 		// 执行INSERT语句
 		result, err := dmlExecutor.ExecuteInsert(ctx.Context, stmt, targetSchema)
 		if err != nil {
-			return nil, fmt.Errorf("execute INSERT failed: %v", err)
+			return nil, newExecutorErrorf(
+				"execute-insert",
+				ExecutionErrorCodeUnknown,
+				targetSchema,
+				tableName,
+				"",
+				err,
+				"execute INSERT failed",
+			)
 		}
 
 		return result, nil
@@ -963,7 +1078,15 @@ func (e *XMySQLExecutor) executeUpdateStatement(ctx *ExecutionContext, stmt *sql
 		// 执行UPDATE语句
 		result, err := storageIntegratedExecutor.ExecuteUpdate(ctx.Context, stmt, targetSchema)
 		if err != nil {
-			return nil, fmt.Errorf("execute storage-integrated UPDATE failed: %v", err)
+			return nil, newExecutorErrorf(
+				"execute-update",
+				ExecutionErrorCodeUnknown,
+				targetSchema,
+				"",
+				"",
+				err,
+				"execute storage-integrated UPDATE failed",
+			)
 		}
 
 		return result, nil
@@ -981,7 +1104,15 @@ func (e *XMySQLExecutor) executeUpdateStatement(ctx *ExecutionContext, stmt *sql
 		// 执行UPDATE语句
 		result, err := dmlExecutor.ExecuteUpdate(ctx.Context, stmt, targetSchema)
 		if err != nil {
-			return nil, fmt.Errorf("execute UPDATE failed: %v", err)
+			return nil, newExecutorErrorf(
+				"execute-update",
+				ExecutionErrorCodeUnknown,
+				targetSchema,
+				"",
+				"",
+				err,
+				"execute UPDATE failed",
+			)
 		}
 
 		return result, nil
@@ -1057,7 +1188,15 @@ func (e *XMySQLExecutor) executeDeleteStatement(ctx *ExecutionContext, stmt *sql
 		// 执行DELETE语句
 		result, err := storageIntegratedExecutor.ExecuteDelete(ctx.Context, stmt, targetSchema)
 		if err != nil {
-			return nil, fmt.Errorf("execute storage-integrated DELETE failed: %v", err)
+			return nil, newExecutorErrorf(
+				"execute-delete",
+				ExecutionErrorCodeUnknown,
+				targetSchema,
+				"",
+				"",
+				err,
+				"execute storage-integrated DELETE failed",
+			)
 		}
 
 		return result, nil
@@ -1075,7 +1214,15 @@ func (e *XMySQLExecutor) executeDeleteStatement(ctx *ExecutionContext, stmt *sql
 		// 执行DELETE语句
 		result, err := dmlExecutor.ExecuteDelete(ctx.Context, stmt, targetSchema)
 		if err != nil {
-			return nil, fmt.Errorf("execute DELETE failed: %v", err)
+			return nil, newExecutorErrorf(
+				"execute-delete",
+				ExecutionErrorCodeUnknown,
+				targetSchema,
+				"",
+				"",
+				err,
+				"execute DELETE failed",
+			)
 		}
 
 		return result, nil
@@ -1126,7 +1273,16 @@ func (e *XMySQLExecutor) executeCreateDatabaseStatement(ctx *ExecutionContext, s
 func (e *XMySQLExecutor) createDatabaseImpl(dbName, charset, collation string, ifNotExists bool) error {
 	// 1. 验证数据库名称
 	if err := validateDatabaseName(dbName); err != nil {
-		return fmt.Errorf("invalid database name '%s': %v", dbName, err)
+		return newExecutorErrorf(
+			"create-database",
+			ExecutionErrorCodeValidation,
+			"",
+			"",
+			"",
+			err,
+			"invalid database name '%s'",
+			dbName,
+		)
 	}
 
 	// 2. 获取数据目录
@@ -1141,19 +1297,49 @@ func (e *XMySQLExecutor) createDatabaseImpl(dbName, charset, collation string, i
 			logger.Debugf("Database '%s' already exists, skipping creation due to IF NOT EXISTS", dbName)
 			return nil
 		}
-		return fmt.Errorf("database '%s' already exists", dbName)
+		return NewExecutionErrorWithCause(
+			"engine",
+			"create-database",
+			ExecutionErrorCodeValidation,
+			"",
+			"",
+			"",
+			0,
+			fmt.Errorf("database '%s' already exists", dbName),
+			"database already exists",
+		)
 	}
 
 	// 5. 创建数据库目录
 	if err := os.MkdirAll(dbPath, 0755); err != nil {
-		return fmt.Errorf("failed to create database directory '%s': %v", dbPath, err)
+		return NewExecutionErrorWithCause(
+			"engine",
+			"create-database",
+			ExecutionErrorCodeStorageWriteFailure,
+			"",
+			"",
+			"",
+			0,
+			err,
+			fmt.Sprintf("failed to create database directory '%s'", dbPath),
+		)
 	}
 
 	// 6. 创建数据库元数据文件 (db.opt)
 	if err := createDatabaseMetadataFile(dbPath, charset, collation); err != nil {
 		// 回滚：删除已创建的目录
 		os.RemoveAll(dbPath)
-		return fmt.Errorf("failed to create database metadata: %v", err)
+		return NewExecutionErrorWithCause(
+			"engine",
+			"create-database",
+			ExecutionErrorCodeStorageWriteFailure,
+			"",
+			"",
+			"",
+			0,
+			err,
+			"failed to create database metadata",
+		)
 	}
 
 	logger.Infof("📂 Created database directory: %s", dbPath)
@@ -1164,10 +1350,12 @@ func (e *XMySQLExecutor) createDatabaseImpl(dbName, charset, collation string, i
 func validateDatabaseName(name string) error {
 	// 1. 检查长度
 	if len(name) == 0 {
-		return fmt.Errorf("database name cannot be empty")
+		return NewExecutionErrorWithCause("engine", "validate-database-name", ExecutionErrorCodeValidation, "", "", "", 0,
+			fmt.Errorf("database name cannot be empty"), "database name cannot be empty")
 	}
 	if len(name) > 64 {
-		return fmt.Errorf("database name too long (max 64 characters)")
+		return NewExecutionErrorWithCause("engine", "validate-database-name", ExecutionErrorCodeValidation, "", "", "", 0,
+			fmt.Errorf("database name too long (max 64 characters)"), "database name too long (max 64 characters)")
 	}
 
 	// 2. 检查字符合法性 (MySQL标准)
@@ -1176,13 +1364,24 @@ func validateDatabaseName(name string) error {
 			(char >= 'A' && char <= 'Z') ||
 			(char >= '0' && char <= '9') ||
 			char == '_' || char == '$') {
-			return fmt.Errorf("database name contains invalid character at position %d: '%c'", i, char)
+			return NewExecutionErrorWithCause(
+				"engine",
+				"validate-database-name",
+				ExecutionErrorCodeValidation,
+				"",
+				"",
+				"",
+				0,
+				fmt.Errorf("database name contains invalid character at position %d: '%c'", i, char),
+				"database name contains invalid character",
+			)
 		}
 	}
 
 	// 3. 检查是否以数字开头
 	if name[0] >= '0' && name[0] <= '9' {
-		return fmt.Errorf("database name cannot start with a number")
+		return NewExecutionErrorWithCause("engine", "validate-database-name", ExecutionErrorCodeValidation, "", "", "", 0,
+			fmt.Errorf("database name cannot start with a number"), "database name cannot start with a number")
 	}
 
 	// 4. 检查保留字
@@ -1192,7 +1391,8 @@ func validateDatabaseName(name string) error {
 	lowerName := strings.ToLower(name)
 	for _, reserved := range reservedWords {
 		if lowerName == reserved {
-			return fmt.Errorf("'%s' is a reserved database name", name)
+			return NewExecutionErrorWithCause("engine", "validate-database-name", ExecutionErrorCodeValidation, "", "", "", 0,
+				fmt.Errorf("'%s' is a reserved database name", name), "database name is reserved")
 		}
 	}
 
@@ -1206,7 +1406,17 @@ func createDatabaseMetadataFile(dbPath, charset, collation string) error {
 	dbOptContent := fmt.Sprintf("default-character-set=%s\ndefault-collation=%s\n", charset, collation)
 
 	if err := ioutil.WriteFile(dbOptPath, []byte(dbOptContent), 0644); err != nil {
-		return fmt.Errorf("failed to create db.opt file: %v", err)
+		return NewExecutionErrorWithCause(
+			"engine",
+			"create-database-metadata-file",
+			ExecutionErrorCodeStorageWriteFailure,
+			"",
+			"",
+			"",
+			0,
+			err,
+			"failed to create db.opt file",
+		)
 	}
 
 	logger.Debugf(" Created database metadata file: %s", dbOptPath)
@@ -1453,7 +1663,7 @@ func (e *XMySQLExecutor) executeCreateTableStatement(ctx *ExecutionContext, data
 	}
 	if currentDB == "" {
 		ctx.Results <- &Result{
-			Err:        fmt.Errorf("no database selected"),
+			Err:        NewExecutionErrorWithCause("engine", "execute-create-table", ExecutionErrorCodeMetadataMissing, "", "", "", 0, fmt.Errorf("no database selected"), "no database selected"),
 			ResultType: common.RESULT_TYPE_DDL,
 			Message:    "CREATE TABLE failed: no database selected",
 		}
@@ -1473,7 +1683,7 @@ func (e *XMySQLExecutor) executeCreateTableStatement(ctx *ExecutionContext, data
 	// 3. 表名非空校验（CREATE 时表名在 NewName 中）
 	if tableName == "" {
 		ctx.Results <- &Result{
-			Err:        fmt.Errorf("table name cannot be empty"),
+			Err:        NewExecutionErrorWithCause("engine", "execute-create-table", ExecutionErrorCodeValidation, currentDB, "", "", 0, fmt.Errorf("table name cannot be empty"), "table name cannot be empty"),
 			ResultType: common.RESULT_TYPE_DDL,
 			Message:    "CREATE TABLE failed: table name cannot be empty",
 		}
@@ -1554,7 +1764,8 @@ func (e *XMySQLExecutor) createTableStorageMapping(dbName, tableName string) err
 	// 获取存储管理器
 	storageManager := e.storageManager
 	if storageManager == nil {
-		return fmt.Errorf("storage manager not available")
+		return NewExecutionErrorWithCause("engine", "create-table-storage-mapping", ExecutionErrorCodeStorageMissing, dbName, tableName, "", 0,
+			fmt.Errorf("storage manager not available"), "storage manager not available")
 	}
 
 	// 创建表空间名称
@@ -1566,17 +1777,38 @@ func (e *XMySQLExecutor) createTableStorageMapping(dbName, tableName string) err
 		if isTablespaceAlreadyExistsError(err) {
 			handle, err = storageManager.GetTablespace(spaceName)
 			if err != nil {
-				return fmt.Errorf("tablespace %s already exists but get failed: %v", spaceName, err)
+				return NewExecutionErrorWithCause(
+					"engine",
+					"create-table-storage-mapping",
+					ExecutionErrorCodeStorageReadFailure,
+					dbName,
+					tableName,
+					"",
+					0,
+					err,
+					fmt.Sprintf("tablespace %s already exists but get failed", spaceName),
+				)
 			}
 		} else {
-			return fmt.Errorf("failed to create tablespace: %v", err)
+			return NewExecutionErrorWithCause(
+				"engine",
+				"create-table-storage-mapping",
+				ExecutionErrorCodeStorageWriteFailure,
+				dbName,
+				tableName,
+				"",
+				0,
+				err,
+				"failed to create tablespace",
+			)
 		}
 	}
 
 	// 获取表存储映射管理器
 	tableStorageManager := e.tableStorageManager
 	if tableStorageManager == nil {
-		return fmt.Errorf("table storage manager not available")
+		return NewExecutionErrorWithCause("engine", "create-table-storage-mapping", ExecutionErrorCodeMetadataMissing, dbName, tableName, "", 0,
+			fmt.Errorf("table storage manager not available"), "table storage manager not available")
 	}
 
 	// 创建表存储信息
@@ -1605,7 +1837,17 @@ func (e *XMySQLExecutor) createTableStorageMapping(dbName, tableName string) err
 			}
 			return nil
 		}
-		return fmt.Errorf("failed to register table storage: %v", err)
+		return NewExecutionErrorWithCause(
+			"engine",
+			"create-table-storage-mapping",
+			ExecutionErrorCodeStorageWriteFailure,
+			dbName,
+			tableName,
+			"",
+			0,
+			err,
+			"failed to register table storage",
+		)
 	}
 
 	logger.Debugf("createTableStorageMapping completed: db=%q table=%q spaceID=%d", dbName, tableName, handle.SpaceID)
@@ -1743,7 +1985,17 @@ func (e *XMySQLExecutor) SetAdditionalManagers(
 
 func (e *XMySQLExecutor) getTransactionManager() (*manager.TransactionManager, error) {
 	if e == nil {
-		return nil, fmt.Errorf("executor is nil")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"get-transaction-manager",
+			ExecutionErrorCodeTxnContextInvalid,
+			"",
+			"",
+			"",
+			0,
+			fmt.Errorf("executor is nil"),
+			"executor is nil",
+		)
 	}
 
 	if e.txManager != nil {
@@ -1751,12 +2003,32 @@ func (e *XMySQLExecutor) getTransactionManager() (*manager.TransactionManager, e
 	}
 
 	if e.storageManager == nil {
-		return nil, fmt.Errorf("storage manager is not initialized")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"get-transaction-manager",
+			ExecutionErrorCodeStorageMissing,
+			"",
+			"",
+			"",
+			0,
+			fmt.Errorf("storage manager is not initialized"),
+			"storage manager is not initialized",
+		)
 	}
 
 	txManager := e.storageManager.GetTransactionManager()
 	if txManager == nil {
-		return nil, fmt.Errorf("transaction manager is not initialized")
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"get-transaction-manager",
+			ExecutionErrorCodeTxnContextInvalid,
+			"",
+			"",
+			"",
+			0,
+			fmt.Errorf("transaction manager is not initialized"),
+			"transaction manager is not initialized",
+		)
 	}
 
 	return txManager, nil

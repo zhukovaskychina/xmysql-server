@@ -97,13 +97,19 @@ func (i *InsertOperator) Next(ctx context.Context) (Record, error) {
 	affectedRows, err := i.executeInsert(ctx, txn)
 	if err != nil {
 		// 回滚事务
-		_ = i.transactionAdapter.RollbackTransaction(ctx, txn)
-		return nil, fmt.Errorf("insert failed: %w", err)
+		if rollbackErr := i.transactionAdapter.RollbackTransaction(ctx, txn); rollbackErr != nil {
+			logger.Errorf("insert rollback failed: schema=%s table=%s txn=%d err=%v rollbackErr=%v", i.schemaName, i.tableName, txn.TxnID, err, rollbackErr)
+			return nil, fmt.Errorf("insert failed in %s.%s: %w; rollback failed: %v", i.schemaName, i.tableName, err, rollbackErr)
+		}
+
+		logger.Debugf("insert rolled back: schema=%s table=%s txn=%d", i.schemaName, i.tableName, txn.TxnID)
+		return nil, fmt.Errorf("insert failed in %s.%s: %w", i.schemaName, i.tableName, err)
 	}
 
 	// 提交事务
 	if err := i.transactionAdapter.CommitTransaction(ctx, txn); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+		logger.Errorf("insert commit failed: schema=%s table=%s txn=%d err=%v", i.schemaName, i.tableName, txn.TxnID, err)
+		return nil, fmt.Errorf("failed to commit transaction for insert on %s.%s: %w", i.schemaName, i.tableName, err)
 	}
 
 	i.affectedRows = affectedRows
@@ -538,13 +544,19 @@ func (u *UpdateOperator) Next(ctx context.Context) (Record, error) {
 	affectedRows, err := u.executeUpdate(ctx, txn)
 	if err != nil {
 		// 回滚事务
-		_ = u.transactionAdapter.RollbackTransaction(ctx, txn)
-		return nil, fmt.Errorf("update failed: %w", err)
+		if rollbackErr := u.transactionAdapter.RollbackTransaction(ctx, txn); rollbackErr != nil {
+			logger.Errorf("update rollback failed: schema=%s table=%s txn=%d err=%v rollbackErr=%v", u.schemaName, u.tableName, txn.TxnID, err, rollbackErr)
+			return nil, fmt.Errorf("update failed in %s.%s: %w; rollback failed: %v", u.schemaName, u.tableName, err, rollbackErr)
+		}
+
+		logger.Debugf("update rolled back: schema=%s table=%s txn=%d", u.schemaName, u.tableName, txn.TxnID)
+		return nil, fmt.Errorf("update failed in %s.%s: %w", u.schemaName, u.tableName, err)
 	}
 
 	// 提交事务
 	if err := u.transactionAdapter.CommitTransaction(ctx, txn); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+		logger.Errorf("update commit failed: schema=%s table=%s txn=%d err=%v", u.schemaName, u.tableName, txn.TxnID, err)
+		return nil, fmt.Errorf("failed to commit transaction for update on %s.%s: %w", u.schemaName, u.tableName, err)
 	}
 
 	u.affectedRows = affectedRows
@@ -838,13 +850,19 @@ func (d *DeleteOperator) Next(ctx context.Context) (Record, error) {
 	affectedRows, err := d.executeDelete(ctx, txn)
 	if err != nil {
 		// 回滚事务
-		_ = d.transactionAdapter.RollbackTransaction(ctx, txn)
-		return nil, fmt.Errorf("delete failed: %w", err)
+		if rollbackErr := d.transactionAdapter.RollbackTransaction(ctx, txn); rollbackErr != nil {
+			logger.Errorf("delete rollback failed: schema=%s table=%s txn=%d err=%v rollbackErr=%v", d.schemaName, d.tableName, txn.TxnID, err, rollbackErr)
+			return nil, fmt.Errorf("delete failed in %s.%s: %w; rollback failed: %v", d.schemaName, d.tableName, err, rollbackErr)
+		}
+
+		logger.Debugf("delete rolled back: schema=%s table=%s txn=%d", d.schemaName, d.tableName, txn.TxnID)
+		return nil, fmt.Errorf("delete failed in %s.%s: %w", d.schemaName, d.tableName, err)
 	}
 
 	// 提交事务
 	if err := d.transactionAdapter.CommitTransaction(ctx, txn); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+		logger.Errorf("delete commit failed: schema=%s table=%s txn=%d err=%v", d.schemaName, d.tableName, txn.TxnID, err)
+		return nil, fmt.Errorf("failed to commit transaction for delete on %s.%s: %w", d.schemaName, d.tableName, err)
 	}
 
 	d.affectedRows = affectedRows

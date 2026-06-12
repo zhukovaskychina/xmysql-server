@@ -892,23 +892,30 @@ type SimpleRow struct {
 	data []byte
 }
 
-func (r *SimpleRow) Less(than basic.Row) bool                              { return false }
-func (r *SimpleRow) ToByte() []byte                                        { return r.data }
-func (r *SimpleRow) IsInfimumRow() bool                                    { return false }
-func (r *SimpleRow) IsSupremumRow() bool                                   { return false }
-func (r *SimpleRow) GetPageNumber() uint32                                 { return 0 }
-func (r *SimpleRow) WriteWithNull(content []byte)                          {}
-func (r *SimpleRow) GetRowLength() uint16                                  { return uint16(len(r.data)) }
-func (r *SimpleRow) GetHeaderLength() uint16                               { return 5 } // 简化的头部长度
-func (r *SimpleRow) GetPrimaryKey() basic.Value                            { return basic.NewStringValue("") }
-func (r *SimpleRow) ReadValueByIndex(index int) basic.Value                { return basic.NewStringValue("") }
-func (r *SimpleRow) GetFieldLength() int                                   { return 1 }                        // 简化实现
-func (r *SimpleRow) GetHeapNo() uint16                                     { return 0 }                        // 简化实现
-func (r *SimpleRow) GetNOwned() byte                                       { return 0 }                        // 简化实现
-func (r *SimpleRow) GetNextRowOffset() uint16                              { return 0 }                        // 简化实现
-func (r *SimpleRow) SetNextRowOffset(offset uint16)                        {}                                  // 简化实现
-func (r *SimpleRow) SetHeapNo(heapNo uint16)                               {}                                  // 简化实现
-func (r *SimpleRow) SetTransactionId(trxId uint64)                         {}                                  // 简化实现
+func (r *SimpleRow) Less(than basic.Row) bool               { return false }
+func (r *SimpleRow) ToByte() []byte                         { return r.data }
+func (r *SimpleRow) IsInfimumRow() bool                     { return false }
+func (r *SimpleRow) IsSupremumRow() bool                    { return false }
+func (r *SimpleRow) GetPageNumber() uint32                  { return 0 }
+func (r *SimpleRow) WriteWithNull(content []byte)           {}
+func (r *SimpleRow) GetRowLength() uint16                   { return uint16(len(r.data)) }
+func (r *SimpleRow) GetHeaderLength() uint16                { return 5 } // 简化的头部长度
+func (r *SimpleRow) GetPrimaryKey() basic.Value             { return basic.NewStringValue("") }
+func (r *SimpleRow) ReadValueByIndex(index int) basic.Value { return basic.NewStringValue("") }
+func (r *SimpleRow) GetFieldLength() int                    { return 1 } // 简化实现
+func (r *SimpleRow) GetHeapNo() uint16                      { return 0 } // 简化实现
+func (r *SimpleRow) GetNOwned() byte                        { return 0 } // 简化实现
+func (r *SimpleRow) GetNextRowOffset() uint16               { return 0 } // 简化实现
+func (r *SimpleRow) SetNextRowOffset(offset uint16)         {}           // 简化实现
+func (r *SimpleRow) SetHeapNo(heapNo uint16)                {}           // 简化实现
+func (r *SimpleRow) SetTransactionId(trxId uint64) {
+	if len(r.data) < 13 {
+		next := make([]byte, 13)
+		copy(next, r.data)
+		r.data = next
+	}
+	binary.LittleEndian.PutUint64(r.data[5:13], trxId)
+}
 func (r *SimpleRow) GetValueByColName(colName string) basic.Value          { return basic.NewStringValue("") } // 简化实现
 func (r *SimpleRow) WriteBytesWithNullWithsPos(content []byte, index byte) {}                                  // 简化实现
 func (r *SimpleRow) SetNOwned(cnt byte)                                    {}                                  // 简化实现

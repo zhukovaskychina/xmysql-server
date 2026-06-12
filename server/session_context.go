@@ -51,6 +51,16 @@ func (c *SessionContext) SetConnectionID(id uint32) {
 	c.ConnectionID = id
 }
 
+func (c *SessionContext) GetConnectionID() uint32 {
+	if c == nil {
+		return 0
+	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.ConnectionID
+}
+
 func (c *SessionContext) GetCurrentDB() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

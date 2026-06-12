@@ -54,6 +54,10 @@ type Cfg struct {
 	LogError string `default:"/var/log/mysql/error.log" yaml:"log_error" json:"log_error,omitempty"`
 	LogInfos string `default:"/var/log/mysql/mysql.log" yaml:"log_infos" json:"log_infos,omitempty"`
 	LogLevel string `default:"info" yaml:"log_level" json:"log_level,omitempty"`
+	// slow query log
+	SlowQueryLog     bool   `default:"false" yaml:"slow_query_log" json:"slow_query_log,omitempty"`
+	SlowQueryLogFile string `default:"/var/log/mysql/slow_query.log" yaml:"slow_query_log_file" json:"slow_query_log_file,omitempty"`
+	LongQueryTimeMs  int    `default:"1000" yaml:"long_query_time_ms" json:"long_query_time_ms,omitempty"`
 
 	// innodb
 	InnodbDataDir             string `default:"data" yaml:"innodb_data_dir" json:"innodb_data_dir,omitempty"`
@@ -114,6 +118,10 @@ func NewCfg() *Cfg {
 		// Logs 默认配置
 		LogError: "/var/log/mysql/error.log",
 		LogInfos: "/var/log/mysql/mysql.log",
+		// 慢查询日志默认配置
+		SlowQueryLog:     false,
+		SlowQueryLogFile: "/var/log/mysql/slow_query.log",
+		LongQueryTimeMs:  1000,
 		// InnoDB 默认配置
 		InnodbDataDir:             "data",
 		InnodbDataFilePath:        "ibdata1:100M:autoextend",
@@ -504,6 +512,23 @@ func (cfg *Cfg) parseLogsCfg(section *ini.Section) *Cfg {
 			logger.Debugf("警告: 无效的日志级别 '%s', 使用默认级别 'info'\n", logLevel)
 			cfg.LogLevel = "info"
 		}
+	}
+
+	// Parse slow query settings
+	cfg.SlowQueryLog = parseBool(section, "slow_query_log", cfg.SlowQueryLog)
+
+	slowQueryLogFile, err := valueAsString(section, "slow_query_log_file", cfg.SlowQueryLogFile)
+	if err == nil && strings.TrimSpace(slowQueryLogFile) != "" {
+		cfg.SlowQueryLogFile = slowQueryLogFile
+	}
+
+	longQueryTimeMs := parseInt(section, "long_query_time_ms", cfg.LongQueryTimeMs)
+	if longQueryTimeMs <= 0 {
+		logger.Warnf("long_query_time_ms 配置无效(%d)，回退到默认值: %d", longQueryTimeMs, cfg.LongQueryTimeMs)
+	}
+	cfg.LongQueryTimeMs = longQueryTimeMs
+	if cfg.LongQueryTimeMs <= 0 {
+		cfg.LongQueryTimeMs = 1000
 	}
 
 	return cfg

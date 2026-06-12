@@ -14,6 +14,16 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
+func newStorageAdapterError(stage string, code ExecutionErrorCode, schema, table string, err error, msg string, args ...interface{}) error {
+	if err == nil {
+		return nil
+	}
+	if len(args) > 0 {
+		return NewExecutionErrorf("engine", stage, code, schema, table, "", 0, err, msg, args...)
+	}
+	return NewExecutionErrorWithCause("engine", stage, code, schema, table, "", 0, err, msg)
+}
+
 // StorageAdapter 存储适配器，连接算子与存储引擎
 // 提供抽象的存储访问接口，隐藏底层存储细节
 type StorageAdapter struct {
@@ -25,10 +35,18 @@ type StorageAdapter struct {
 
 var (
 	ErrStorageAdapterTableStorageManagerNil = errors.New("storage adapter table storage manager is nil")
+	ErrStorageAdapterTableManagerNil        = errors.New("storage adapter table manager is nil")
 	ErrStorageAdapterBufferPoolManagerNil   = errors.New("storage adapter buffer pool manager is nil")
 	ErrStorageAdapterSchemaNil              = errors.New("storage adapter schema is nil")
 	ErrStorageAdapterRecordNotFound         = errors.New("storage adapter record not found")
 )
+
+func getTableSchemaName(schema *metadata.Table) string {
+	if schema == nil || schema.Schema == nil {
+		return ""
+	}
+	return schema.Schema.Name
+}
 
 // NewStorageAdapter 创建存储适配器
 func NewStorageAdapter(
@@ -47,16 +65,54 @@ func NewStorageAdapter(
 
 // GetTableMetadata 获取表的元数据
 func (sa *StorageAdapter) GetTableMetadata(ctx context.Context, schemaName, tableName string) (*TableScanMetadata, error) {
+	if sa.tableManager == nil {
+		return nil, newStorageAdapterError(
+			"table-metadata-load",
+			ExecutionErrorCodeMetadataMissing,
+			schemaName,
+			tableName,
+			ErrStorageAdapterTableManagerNil,
+			"table manager is nil",
+		)
+	}
+
+	if sa.tableStorageManager == nil {
+		return nil, newStorageAdapterError(
+			"table-metadata-load",
+			ExecutionErrorCodeStorageMissing,
+			schemaName,
+			tableName,
+			ErrStorageAdapterTableStorageManagerNil,
+			"table storage manager is nil",
+		)
+	}
+
 	// 1. 获取表的元数据
 	table, err := sa.tableManager.GetTable(ctx, schemaName, tableName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get table metadata: %w", err)
+		return nil, newStorageAdapterError(
+			"table-metadata-load",
+			ExecutionErrorCodeMetadataMissing,
+			schemaName,
+			tableName,
+			err,
+			"failed to get table metadata: %v",
+			err,
+		)
 	}
 
 	// 2. 获取表的存储信息 (包含表空间ID和段信息)
 	storageInfo, err := sa.tableStorageManager.GetTableStorageInfo(schemaName, tableName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get table storage info: %w", err)
+		return nil, newStorageAdapterError(
+			"table-storage-info",
+			ExecutionErrorCodeStorageMissing,
+			schemaName,
+			tableName,
+			err,
+			"failed to get table storage info: %v",
+			err,
+		)
 	}
 
 	return &TableScanMetadata{
@@ -69,9 +125,30 @@ func (sa *StorageAdapter) GetTableMetadata(ctx context.Context, schemaName, tabl
 
 // ReadPage 读取指定页面
 func (sa *StorageAdapter) ReadPage(ctx context.Context, spaceID, pageNo uint32) (*buffer_pool.BufferPage, error) {
+	if sa.bufferPoolManager == nil {
+		return nil, newStorageAdapterError(
+			"read-page",
+			ExecutionErrorCodeStorageMissing,
+			"",
+			"",
+			ErrStorageAdapterBufferPoolManagerNil,
+			"buffer pool manager is nil",
+		)
+	}
+
 	page, err := sa.bufferPoolManager.GetPage(spaceID, pageNo)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read page %d from space %d: %w", pageNo, spaceID, err)
+		return nil, newStorageAdapterError(
+			"read-page",
+			ExecutionErrorCodeStorageReadFailure,
+			"",
+			"",
+			err,
+			"failed to read page %d from space %d: %v",
+			pageNo,
+			spaceID,
+			err,
+		)
 	}
 	return page, nil
 }
@@ -79,9 +156,38 @@ func (sa *StorageAdapter) ReadPage(ctx context.Context, spaceID, pageNo uint32) 
 // ParseRecords 解析页面中的记录
 // 根据InnoDB页面格式解析记录，返回Record列表
 func (sa *StorageAdapter) ParseRecords(ctx context.Context, page *buffer_pool.BufferPage, schema *metadata.Table) ([]Record, error) {
+	if page == nil {
+		return nil, newStorageAdapterError(
+			"parse-records",
+			ExecutionErrorCodeValidation,
+			"",
+			schema.Name,
+			fmt.Errorf("page is nil"),
+			"page is nil",
+		)
+	}
+
 	content := page.GetContent()
+	if content == nil {
+		return nil, newStorageAdapterError(
+			"parse-records",
+			ExecutionErrorCodeValidation,
+			"",
+			schema.Name,
+			fmt.Errorf("page content is nil"),
+			"page content is nil",
+		)
+	}
 	if len(content) < common.PageHeaderSize {
-		return nil, fmt.Errorf("invalid page content size: %d", len(content))
+		return nil, newStorageAdapterError(
+			"parse-records",
+			ExecutionErrorCodeValidation,
+			"",
+			schema.Name,
+			fmt.Errorf("invalid page content size: %d", len(content)),
+			"invalid page content size: %d",
+			len(content),
+		)
 	}
 
 	querySchema := metadata.FromTable(schema)
@@ -182,27 +288,67 @@ func (sa *StorageAdapter) GetRecordByPrimaryKey(ctx context.Context, spaceID uin
 	logger.Debugf("GetRecordByPrimaryKey: spaceID=%d, primaryKey=%v", spaceID, primaryKey)
 
 	if schema == nil {
-		return nil, ErrStorageAdapterSchemaNil
+		return nil, newStorageAdapterError(
+			"primary-key-lookup",
+			ExecutionErrorCodeMetadataMissing,
+			"",
+			"",
+			ErrStorageAdapterSchemaNil,
+			"schema is nil",
+		)
 	}
 
 	if sa.tableStorageManager == nil {
-		return nil, ErrStorageAdapterTableStorageManagerNil
+		return nil, newStorageAdapterError(
+			"primary-key-lookup",
+			ExecutionErrorCodeStorageMissing,
+			"",
+			schema.Name,
+			ErrStorageAdapterTableStorageManagerNil,
+			"table storage manager is nil",
+		)
 	}
 
 	if sa.bufferPoolManager == nil {
-		return nil, ErrStorageAdapterBufferPoolManagerNil
+		return nil, newStorageAdapterError(
+			"primary-key-lookup",
+			ExecutionErrorCodeStorageMissing,
+			"",
+			schema.Name,
+			ErrStorageAdapterBufferPoolManagerNil,
+			"buffer pool manager is nil",
+		)
 	}
 
 	// 1. 获取表的存储信息
 	tableInfo, err := sa.tableStorageManager.GetTableBySpaceID(spaceID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get table storage info by spaceID %d: %w", spaceID, err)
+		return nil, newStorageAdapterError(
+			"primary-key-lookup",
+			ExecutionErrorCodeMetadataMissing,
+			getTableSchemaName(schema),
+			schema.Name,
+			err,
+			"failed to get table storage info by spaceID %d: %v",
+			spaceID,
+			err,
+		)
 	}
 
 	// 2. 创建B+树管理器
 	btreeManager, err := sa.tableStorageManager.CreateBTreeManagerForTable(ctx, tableInfo.SchemaName, tableInfo.TableName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create btree manager for table %s.%s: %w", tableInfo.SchemaName, tableInfo.TableName, err)
+		return nil, newStorageAdapterError(
+			"primary-key-lookup",
+			ExecutionErrorCodeIndexOperation,
+			tableInfo.SchemaName,
+			tableInfo.TableName,
+			err,
+			"failed to create btree manager for table %s.%s: %v",
+			tableInfo.SchemaName,
+			tableInfo.TableName,
+			err,
+		)
 	}
 
 	// 3. 在B+树中查找主键
@@ -217,7 +363,15 @@ func (sa *StorageAdapter) GetRecordByPrimaryKey(ctx context.Context, spaceID uin
 
 	pageNo, slot, err := btreeManager.Search(ctx, keyInterface)
 	if err != nil {
-		return nil, fmt.Errorf("failed to search primary key: %w", err)
+		return nil, newStorageAdapterError(
+			"primary-key-lookup",
+			ExecutionErrorCodeIndexOperation,
+			getTableSchemaName(schema),
+			schema.Name,
+			err,
+			"failed to search primary key: %v",
+			err,
+		)
 	}
 
 	logger.Debugf("Found record at page %d, slot %d", pageNo, slot)
@@ -225,13 +379,30 @@ func (sa *StorageAdapter) GetRecordByPrimaryKey(ctx context.Context, spaceID uin
 	// 4. 从页面读取记录
 	page, err := sa.ReadPage(ctx, spaceID, pageNo)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read page %d for primary key lookup: %w", pageNo, err)
+		return nil, newStorageAdapterError(
+			"primary-key-lookup",
+			ExecutionErrorCodeStorageReadFailure,
+			getTableSchemaName(schema),
+			schema.Name,
+			err,
+			"failed to read page %d for primary key lookup: %v",
+			pageNo,
+			err,
+		)
 	}
 
 	// 5. 解析页面中的记录
 	records, err := sa.ParseRecords(ctx, page, schema)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse records while resolving primary key: %w", err)
+		return nil, newStorageAdapterError(
+			"primary-key-lookup",
+			ExecutionErrorCodeStorageReadFailure,
+			getTableSchemaName(schema),
+			schema.Name,
+			err,
+			"failed to parse records while resolving primary key: %v",
+			err,
+		)
 	}
 
 	// 6. 返回指定槽位的记录
@@ -240,7 +411,17 @@ func (sa *StorageAdapter) GetRecordByPrimaryKey(ctx context.Context, spaceID uin
 	}
 
 	logger.Warnf("GetRecordByPrimaryKey: slot %d out of range (total records: %d), schema=%s", slot, len(records), schema.Name)
-	return nil, fmt.Errorf("%w: slot %d out of range for page %d (total records: %d)", ErrStorageAdapterRecordNotFound, slot, pageNo, len(records))
+	return nil, newStorageAdapterError(
+		"primary-key-lookup",
+		ExecutionErrorCodeMetadataMissing,
+		getTableSchemaName(schema),
+		schema.Name,
+		fmt.Errorf("%w: slot %d out of range for page %d (total records: %d)", ErrStorageAdapterRecordNotFound, slot, pageNo, len(records)),
+		"slot %d out of range for page %d (total records: %d)",
+		slot,
+		pageNo,
+		len(records),
+	)
 }
 
 // TableScanMetadata 表扫描元数据

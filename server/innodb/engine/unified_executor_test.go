@@ -314,7 +314,9 @@ func TestUnifiedExecutor(t *testing.T) {
 		op, err := executor.BuildOperatorTree(context.Background(), nil)
 		require.Error(t, err)
 		assert.Nil(t, op)
-		assert.Contains(t, err.Error(), "physical plan is nil")
+		var execErr *ExecutionError
+		require.ErrorAs(t, err, &execErr)
+		assert.Equal(t, ExecutionErrorCodeValidation, execErr.ErrorCode)
 	})
 
 	t.Run("BuildOperatorTreeBuildsPhysicalTableScan", func(t *testing.T) {
@@ -490,7 +492,9 @@ func TestUnifiedExecutor(t *testing.T) {
 
 		_, err = executor.buildSelectOperatorTree(context.Background(), selectStmt, "testdb")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "WHERE conditions are not supported")
+		var execErr *ExecutionError
+		require.ErrorAs(t, err, &execErr)
+		assert.Equal(t, ExecutionErrorCodeValidation, execErr.ErrorCode)
 	})
 
 	t.Run("BuildSelectOperatorTreeAddsOrderBySortOperator", func(t *testing.T) {
@@ -570,7 +574,9 @@ func TestUnifiedExecutor(t *testing.T) {
 
 		_, err = executor.buildSelectOperatorTree(context.Background(), selectStmt, "testdb")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "ORDER BY only supports simple column names")
+		var execErr *ExecutionError
+		require.ErrorAs(t, err, &execErr)
+		assert.Equal(t, ExecutionErrorCodeValidation, execErr.ErrorCode)
 	})
 
 	t.Run("ExecuteUpdateRejectsWhereClause", func(t *testing.T) {
@@ -586,7 +592,9 @@ func TestUnifiedExecutor(t *testing.T) {
 
 		_, err = executor.ExecuteUpdate(context.Background(), updateStmt, "testdb")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "WHERE predicate in UPDATE is only supported by storage-integrated DML executor path")
+		var execErr *ExecutionError
+		require.ErrorAs(t, err, &execErr)
+		assert.Equal(t, ExecutionErrorCodeValidation, execErr.ErrorCode)
 	})
 
 	t.Run("ExecuteDeleteRejectsWhereClause", func(t *testing.T) {
@@ -602,7 +610,9 @@ func TestUnifiedExecutor(t *testing.T) {
 
 		_, err = executor.ExecuteDelete(context.Background(), deleteStmt, "testdb")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "WHERE predicate in DELETE is only supported by storage-integrated DML executor path")
+		var execErr *ExecutionError
+		require.ErrorAs(t, err, &execErr)
+		assert.Equal(t, ExecutionErrorCodeValidation, execErr.ErrorCode)
 	})
 
 	t.Run("ResolveExplicitSchemaForUpdateAndDeleteExpr", func(t *testing.T) {
@@ -653,7 +663,9 @@ func TestUnifiedExecutor(t *testing.T) {
 
 		_, err = executor.ExecuteSelect(context.Background(), selectStmt, "testdb")
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "unified select optimizer path failed: optimizer failed")
+		var execErr *ExecutionError
+		require.ErrorAs(t, err, &execErr)
+		assert.Equal(t, ExecutionErrorCodeOptimizer, execErr.ErrorCode)
 	})
 }
 

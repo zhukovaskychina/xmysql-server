@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/zhukovasky/xmysql-server/logger"
-	"github.com/zhukovasky/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/logger"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
 )
 
 type slowQueryLogRecord struct {

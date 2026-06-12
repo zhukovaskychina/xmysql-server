@@ -199,6 +199,7 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 	if err != nil {
 		return nil, fmt.Errorf("开始存储事务失败: %v", err)
 	}
+	txnID := extractTransactionIDFromStorageCtx(txn)
 
 	affectedRows := 0
 	var lastInsertId uint64 = 0
@@ -241,6 +242,7 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 		LastInsertId: lastInsertId,
 		ResultType:   "INSERT",
 		Message:      fmt.Sprintf("存储引擎集成INSERT执行成功，影响行数: %d", affectedRows),
+		TxnID:        txnID,
 	}, nil
 }
 
@@ -296,6 +298,7 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 	if err != nil {
 		return nil, fmt.Errorf("开始存储事务失败: %v", err)
 	}
+	txnID := extractTransactionIDFromStorageCtx(txn)
 
 	// 7. 查找需要更新的行
 	rowsToUpdate, err := dml.findRowsToUpdateInStorage(ctx, txn, whereConditions, tableMeta, tableStorageInfo, tableBtreeManager)
@@ -340,6 +343,7 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 		LastInsertId: 0,
 		ResultType:   "UPDATE",
 		Message:      fmt.Sprintf("存储引擎集成UPDATE执行成功，影响行数: %d", affectedRows),
+		TxnID:        txnID,
 	}, nil
 }
 
@@ -391,6 +395,7 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt
 	if err != nil {
 		return nil, fmt.Errorf("开始存储事务失败: %v", err)
 	}
+	txnID := extractTransactionIDFromStorageCtx(txn)
 
 	// 7. 查找需要删除的行
 	rowsToDelete, err := dml.findRowsToDeleteInStorage(ctx, txn, whereConditions, tableMeta, tableStorageInfo, tableBtreeManager)
@@ -435,7 +440,21 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt
 		LastInsertId: 0,
 		ResultType:   "DELETE",
 		Message:      fmt.Sprintf("存储引擎集成DELETE执行成功，影响行数: %d", affectedRows),
+		TxnID:        txnID,
 	}, nil
+}
+
+func extractTransactionIDFromStorageCtx(txn interface{}) uint64 {
+	if txn == nil {
+		return 0
+	}
+
+	ctx, ok := txn.(*StorageTransactionContext)
+	if !ok || ctx == nil {
+		return 0
+	}
+
+	return ctx.TransactionID
 }
 
 // ===== 存储引擎集成的实际实现方法 =====
@@ -735,16 +754,10 @@ func (dml *StorageIntegratedDMLExecutor) getTableMetadata() (*metadata.TableMeta
 		return nil, fmt.Errorf("表管理器未初始化")
 	}
 
-	// 从实际的数据字典中获取表元数据
-	tableMeta := &metadata.TableMeta{
-		Name:       dml.tableName,
-		Columns:    []*metadata.ColumnMeta{},
-		PrimaryKey: []string{},
-		Indices:    []metadata.IndexMeta{},
+	tableMeta, err := dml.tableManager.GetTableMetadata(context.Background(), dml.schemaName, dml.tableName)
+	if err != nil {
+		return nil, fmt.Errorf("获取表元数据失败: %v", err)
 	}
-
-	// TODO: 实现从数据字典获取真实的表元数据
-	logger.Debugf(" 获取表元数据: %s.%s", dml.schemaName, dml.tableName)
 
 	return tableMeta, nil
 }

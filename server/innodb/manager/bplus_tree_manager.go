@@ -1387,7 +1387,15 @@ func (r *RecordRowAdapter) SetHeapNo(heapNo uint16) {
 }
 
 func (r *RecordRowAdapter) SetTransactionId(trxId uint64) {
-	// TODO: 实现
+	if r.record == nil {
+		return
+	}
+	if len(r.record.Data) < 13 {
+		tmp := make([]byte, 13)
+		copy(tmp, r.record.Data)
+		r.record.Data = tmp
+	}
+	binary.LittleEndian.PutUint64(r.record.Data[5:13], trxId)
 }
 
 func (r *RecordRowAdapter) GetValueByColName(colName string) basic.Value {

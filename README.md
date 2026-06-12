@@ -129,17 +129,21 @@ XMySQL Server 是一个使用 Go 实现的、面向单机场景的 MySQL 兼容�
 ### 编译与测试
 
 ```bash
-go mod tidy
-go build ./...
-go test ./server/dispatcher ./server/innodb/engine
+GO_BIN=${GO_BIN:-/Users/zhukovasky/sdk/go1.24.3/bin/go}
+
+$GO_BIN mod tidy
+$GO_BIN build ./...
+$GO_BIN test ./server/dispatcher ./server/innodb/engine
 ```
+
+- 默认未设置 `GO_BIN` 时，脚本与文档将使用 `/Users/zhukovasky/sdk/go1.24.3/bin/go`。
 
 ### JDBC 客户端集成测试（可选）
 
 - **连接 + 系统变量门禁**（需服务监听 `localhost:3309`；本地联调配置示例：`conf/jdbc_local.ini`）：
   ```bash
   # 终端 A：启动服务
-  go run . -configPath=conf/jdbc_local.ini
+  $GO_BIN run . -configPath=conf/jdbc_local.ini
 
   # 终端 B：仅跑连接/变量专项
   cd jdbc_client && mvn test -Pjdbc-connectivity
