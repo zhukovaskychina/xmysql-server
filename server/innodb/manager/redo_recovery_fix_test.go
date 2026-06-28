@@ -95,6 +95,7 @@ func TestTXN001_RedoLogRecovery(t *testing.T) {
 
 		undoManager, err := NewUndoLogManager(undoDir)
 		assert.NoError(t, err)
+		defer undoManager.Close()
 
 		// 写入一些日志
 		entry1 := &RedoLogEntry{
@@ -157,6 +158,7 @@ func TestTXN001_CrashRecoveryPhases(t *testing.T) {
 
 	undoManager, err := NewUndoLogManager(undoDir)
 	assert.NoError(t, err)
+	defer undoManager.Close()
 
 	// 测试1: 分析阶段
 	t.Run("AnalysisPhase", func(t *testing.T) {
@@ -239,6 +241,7 @@ func TestTXN001_RecoveryStatistics(t *testing.T) {
 
 	undoManager, err := NewUndoLogManager(undoDir)
 	assert.NoError(t, err)
+	defer undoManager.Close()
 
 	// 写入一些日志
 	for i := int64(1); i <= 5; i++ {
@@ -291,6 +294,7 @@ func TestTXN001_RecoveryValidation(t *testing.T) {
 
 	undoManager, err := NewUndoLogManager(undoDir)
 	assert.NoError(t, err)
+	defer undoManager.Close()
 
 	// 写入完整的事务
 	redoManager.Append(&RedoLogEntry{LSN: 1, TrxID: 1, Type: LOG_TYPE_TXN_BEGIN})

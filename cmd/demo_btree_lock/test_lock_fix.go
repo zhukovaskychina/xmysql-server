@@ -1,3 +1,6 @@
+﻿//go:build demo
+// +build demo
+
 package main
 
 import (
@@ -10,9 +13,9 @@ import (
 )
 
 func main() {
-	fmt.Println("=== 测试锁修复 ===")
+	fmt.Println("=== 娴嬭瘯閿佷慨澶?===")
 
-	// 创建配置
+	// 鍒涘缓閰嶇疆
 	config := &conf.Cfg{
 		DataDir:              "test_data",
 		InnodbDataDir:        "test_data/innodb",
@@ -21,73 +24,73 @@ func main() {
 		InnodbPageSize:       16384,     // 16KB
 	}
 
-	fmt.Println("1. 创建存储管理器...")
+	fmt.Println("1. 鍒涘缓瀛樺偍绠＄悊鍣?..")
 	storageManager := manager.NewStorageManager(config)
 
-	fmt.Println("2. 获取缓冲池管理器...")
+	fmt.Println("2. 鑾峰彇缂撳啿姹犵鐞嗗櫒...")
 	bufferPoolManager := storageManager.GetBufferPoolManager()
 	if bufferPoolManager == nil {
-		fmt.Println(" 缓冲池管理器为空")
+		fmt.Println(" 缂撳啿姹犵鐞嗗櫒涓虹┖")
 		return
 	}
 
-	fmt.Println("3. 创建表存储映射管理器...")
+	fmt.Println("3. 鍒涘缓琛ㄥ瓨鍌ㄦ槧灏勭鐞嗗櫒...")
 	tableStorageManager := manager.NewTableStorageManager(storageManager)
 
-	fmt.Println("4. 测试获取表信息...")
+	fmt.Println("4. 娴嬭瘯鑾峰彇琛ㄤ俊鎭?..")
 	userTableInfo, err := tableStorageManager.GetTableStorageInfo("mysql", "user")
 	if err != nil {
-		logger.Debugf(" 获取mysql.user表存储信息失败: %v\n", err)
+		logger.Debugf(" 鑾峰彇mysql.user琛ㄥ瓨鍌ㄤ俊鎭け璐? %v\n", err)
 		return
 	}
 
-	logger.Debugf("✓ mysql.user表存储信息: SpaceID=%d, RootPage=%d\n",
+	logger.Debugf("鉁?mysql.user琛ㄥ瓨鍌ㄤ俊鎭? SpaceID=%d, RootPage=%d\n",
 		userTableInfo.SpaceID, userTableInfo.RootPageNo)
 
-	fmt.Println("5. 测试创建B+树管理器...")
+	fmt.Println("5. 娴嬭瘯鍒涘缓B+鏍戠鐞嗗櫒...")
 	ctx := context.Background()
 	userBTreeManager, err := tableStorageManager.CreateBTreeManagerForTable(ctx, "mysql", "user")
 	if err != nil {
-		logger.Debugf(" 创建mysql.user表B+树管理器失败: %v\n", err)
+		logger.Debugf(" 鍒涘缓mysql.user琛˙+鏍戠鐞嗗櫒澶辫触: %v\n", err)
 		return
 	}
 
-	fmt.Println("✓ 成功创建mysql.user表的B+树管理器")
+	fmt.Println("鉁?鎴愬姛鍒涘缓mysql.user琛ㄧ殑B+鏍戠鐞嗗櫒")
 
-	fmt.Println("6. 测试B+树基本操作（应该不会有锁问题）...")
+	fmt.Println("6. 娴嬭瘯B+鏍戝熀鏈搷浣滐紙搴旇涓嶄細鏈夐攣闂锛?..")
 
-	// 测试获取第一个叶子页面
-	fmt.Println("  测试GetFirstLeafPage...")
+	// 娴嬭瘯鑾峰彇绗竴涓彾瀛愰〉闈?
+	fmt.Println("  娴嬭瘯GetFirstLeafPage...")
 	firstLeafPage, err := userBTreeManager.GetFirstLeafPage(ctx)
 	if err != nil {
-		logger.Debugf(" 获取第一个叶子页面失败（可能是预期的）: %v\n", err)
+		logger.Debugf(" 鑾峰彇绗竴涓彾瀛愰〉闈㈠け璐ワ紙鍙兘鏄鏈熺殑锛? %v\n", err)
 	} else {
-		logger.Debugf("✓ 第一个叶子页面: %d\n", firstLeafPage)
+		logger.Debugf("鉁?绗竴涓彾瀛愰〉闈? %d\n", firstLeafPage)
 	}
 
-	// 测试获取所有叶子页面
-	fmt.Println("  测试GetAllLeafPages...")
+	// 娴嬭瘯鑾峰彇鎵€鏈夊彾瀛愰〉闈?
+	fmt.Println("  娴嬭瘯GetAllLeafPages...")
 	leafPages, err := userBTreeManager.GetAllLeafPages(ctx)
 	if err != nil {
-		logger.Debugf(" 获取所有叶子页面失败（可能是预期的）: %v\n", err)
+		logger.Debugf(" 鑾峰彇鎵€鏈夊彾瀛愰〉闈㈠け璐ワ紙鍙兘鏄鏈熺殑锛? %v\n", err)
 	} else {
-		logger.Debugf("✓ 总共有 %d 个叶子页面\n", len(leafPages))
+		logger.Debugf("鉁?鎬诲叡鏈?%d 涓彾瀛愰〉闈n", len(leafPages))
 		if len(leafPages) > 0 && len(leafPages) <= 5 {
-			logger.Debugf("  叶子页面: %v\n", leafPages)
+			logger.Debugf("  鍙跺瓙椤甸潰: %v\n", leafPages)
 		}
 	}
 
-	// 测试搜索功能
-	fmt.Println("  测试Search...")
+	// 娴嬭瘯鎼滅储鍔熻兘
+	fmt.Println("  娴嬭瘯Search...")
 	pageNum, slot, err := userBTreeManager.Search(ctx, "root")
 	if err != nil {
-		logger.Debugf(" 搜索失败（可能是预期的）: %v\n", err)
+		logger.Debugf(" 鎼滅储澶辫触锛堝彲鑳芥槸棰勬湡鐨勶級: %v\n", err)
 	} else {
-		logger.Debugf("✓ 找到记录: PageNum=%d, Slot=%d\n", pageNum, slot)
+		logger.Debugf("鉁?鎵惧埌璁板綍: PageNum=%d, Slot=%d\n", pageNum, slot)
 	}
 
-	fmt.Println("\n=== 锁修复测试完成 ===")
-	fmt.Println("✓ 没有遇到sync: RUnlock of unlocked RWMutex错误")
-	fmt.Println("✓ B+树管理器锁使用正常")
-	fmt.Println("✓ 表存储映射功能正常")
+	fmt.Println("\n=== 閿佷慨澶嶆祴璇曞畬鎴?===")
+	fmt.Println("鉁?娌℃湁閬囧埌sync: RUnlock of unlocked RWMutex閿欒")
+	fmt.Println("鉁?B+鏍戠鐞嗗櫒閿佷娇鐢ㄦ甯?)
+	fmt.Println("鉁?琛ㄥ瓨鍌ㄦ槧灏勫姛鑳芥甯?)
 }

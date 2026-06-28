@@ -29,6 +29,7 @@ type UndoLogManager struct {
 	purgeThreshold time.Duration // Purge阈值（事务提交后多久可清理）
 	purgeChan      chan int64    // Purge通知通道
 	shutdown       chan struct{} // 关闭信号
+	closed         bool
 
 	// 回滚执行器
 	rollbackExecutor RollbackExecutor // 回滚操作执行器
@@ -97,6 +98,10 @@ func (u *UndoLogManager) Append(entry *UndoLogEntry) error {
 	defer u.mu.Unlock()
 
 	// 设置创建时间
+	if u.closed {
+		return fmt.Errorf("undo log manager is closed")
+	}
+
 	entry.Timestamp = time.Now()
 
 	// 如果是新事务，更新活跃事务集合
@@ -117,6 +122,10 @@ func (u *UndoLogManager) Append(entry *UndoLogEntry) error {
 // writeEntryToFile 将Undo日志写入文件
 func (u *UndoLogManager) writeEntryToFile(entry *UndoLogEntry) error {
 	// 写入LSN
+	if u.undoFile == nil {
+		return fmt.Errorf("undo log file is not open")
+	}
+
 	if err := binary.Write(u.undoFile, binary.BigEndian, entry.LSN); err != nil {
 		return err
 	}
@@ -578,12 +587,21 @@ func (u *UndoLogManager) Recover() error {
 // Close 关闭Undo日志管理器
 func (u *UndoLogManager) Close() error {
 	// 发送关闭信号
-	close(u.shutdown)
-
 	u.mu.Lock()
+	if u.closed {
+		u.mu.Unlock()
+		return nil
+	}
+	u.closed = true
+	close(u.shutdown)
 	defer u.mu.Unlock()
 
-	return u.undoFile.Close()
+	if u.undoFile == nil {
+		return nil
+	}
+	err := u.undoFile.Close()
+	u.undoFile = nil
+	return err
 }
 
 // GetLogs 获取指定事务的Undo日志列表

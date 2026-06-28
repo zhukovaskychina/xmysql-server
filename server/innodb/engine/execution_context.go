@@ -26,6 +26,8 @@ type ExecutionContext struct {
 
 	DatabaseName string
 
+	RawQuery string
+
 	Cfg *conf.Cfg
 }
 

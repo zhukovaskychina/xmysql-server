@@ -173,6 +173,38 @@ func (sm *SegmentManager) GetSegment(segID uint32) basic.Segment {
 }
 
 // AllocatePage 在段中分配新页面，根据段类型使用不同策略
+func (sm *SegmentManager) DeleteSegment(segID uint32) error {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	seg := sm.segments[segID]
+	if seg == nil {
+		return ErrSegmentNotFound
+	}
+
+	if sm.stats.TotalSegments > 0 {
+		sm.stats.TotalSegments--
+	}
+	if sm.stats.TotalExtents >= seg.ExtentCount {
+		sm.stats.TotalExtents -= seg.ExtentCount
+	} else {
+		sm.stats.TotalExtents = 0
+	}
+	if sm.stats.TotalPages >= seg.PageCount {
+		sm.stats.TotalPages -= seg.PageCount
+	} else {
+		sm.stats.TotalPages = 0
+	}
+	if sm.stats.FreeSpace >= seg.FreeSpace {
+		sm.stats.FreeSpace -= seg.FreeSpace
+	} else {
+		sm.stats.FreeSpace = 0
+	}
+
+	delete(sm.segments, segID)
+	return nil
+}
+
 func (sm *SegmentManager) AllocatePage(segID uint32) (uint32, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()

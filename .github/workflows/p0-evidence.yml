@@ -1,0 +1,98 @@
+name: P0 Evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Evidence mode to run"
+        required: true
+        default: "preflight"
+        type: choice
+        options:
+          - preflight
+          - full
+          - candidate
+          - governance
+      recovery_runs:
+        description: "Crash recovery replay runs for full mode"
+        required: true
+        default: "3"
+      concurrency_runs:
+        description: "Concurrency validation runs for full mode"
+        required: true
+        default: "1"
+      rollback_window_seconds:
+        description: "Rollback timing window for candidate mode"
+        required: true
+        default: "300"
+      owner_signoff_json:
+        description: "Optional owner signoff JSON path inside the repository workspace"
+        required: false
+        default: ""
+      accepted_deferrals_json:
+        description: "Optional accepted delivery deferrals JSON path inside the repository workspace"
+        required: false
+        default: ""
+
+jobs:
+  p0-evidence:
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Show Go version
+        shell: pwsh
+        run: go version
+
+      - name: Run P0 tooling preflight
+        if: ${{ inputs.mode == 'preflight' }}
+        shell: pwsh
+        run: ./scripts/verify_p0_tooling_preflight.ps1
+
+      - name: Run full P0 evidence suite
+        if: ${{ inputs.mode == 'full' }}
+        shell: pwsh
+        run: |
+          ./scripts/run_p0_evidence_suite.ps1 `
+            -RecoveryRuns ${{ inputs.recovery_runs }} `
+            -ConcurrencyRuns ${{ inputs.concurrency_runs }}
+
+      - name: Run P0 delivery candidate
+        if: ${{ inputs.mode == 'candidate' }}
+        shell: pwsh
+        run: |
+          ./scripts/run_p0_delivery_candidate.ps1 `
+            -RecoveryRuns ${{ inputs.recovery_runs }} `
+            -ConcurrencyRuns ${{ inputs.concurrency_runs }} `
+            -RollbackWindowSeconds ${{ inputs.rollback_window_seconds }} `
+            -AcceptedDeferralsJson "${{ inputs.accepted_deferrals_json }}" `
+            -OwnerSignoffJson "${{ inputs.owner_signoff_json }}"
+
+      - name: Run P0 governance gate
+        if: ${{ inputs.mode == 'governance' }}
+        shell: pwsh
+        run: |
+          $governanceArgs = @()
+          if ("${{ inputs.accepted_deferrals_json }}" -ne "") {
+            $governanceArgs += @("-AcceptedDeferralsJson", "${{ inputs.accepted_deferrals_json }}")
+          }
+          if ("${{ inputs.owner_signoff_json }}" -ne "") {
+            $governanceArgs += @("-OwnerSignoffJson", "${{ inputs.owner_signoff_json }}", "-RequireOwnerSignoff")
+          }
+          ./scripts/verify_p0_governance_gate.ps1 @governanceArgs
+
+      - name: Upload P0 reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p0-evidence-reports-${{ inputs.mode }}
+          path: reports/**
+          if-no-files-found: warn

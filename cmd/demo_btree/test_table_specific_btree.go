@@ -1,3 +1,6 @@
+﻿//go:build demo
+// +build demo
+
 package main
 
 import (
@@ -13,9 +16,9 @@ import (
 )
 
 func main() {
-	fmt.Println("=== 测试表特定B+树管理器功能 ===")
+	fmt.Println("=== 娴嬭瘯琛ㄧ壒瀹欱+鏍戠鐞嗗櫒鍔熻兘 ===")
 
-	// 创建配置
+	// 鍒涘缓閰嶇疆
 	config := &conf.Cfg{
 		DataDir:              "test_data",
 		InnodbDataDir:        "test_data/innodb",
@@ -24,136 +27,136 @@ func main() {
 		InnodbPageSize:       16384,     // 16KB
 	}
 
-	// 确保测试目录存在
+	// 纭繚娴嬭瘯鐩綍瀛樺湪
 	if err := os.MkdirAll(config.InnodbDataDir, 0755); err != nil {
 		logger.Debugf("Failed to create test_simple_protocol directory: %v\n", err)
 		return
 	}
 
-	fmt.Println("1. 创建并初始化XMySQL引擎...")
+	fmt.Println("1. 鍒涘缓骞跺垵濮嬪寲XMySQL寮曟搸...")
 	engine := engine.NewXMySQLEngine(config)
 
-	// 测试表存储映射
-	fmt.Println("\n2. 测试表存储映射功能...")
+	// 娴嬭瘯琛ㄥ瓨鍌ㄦ槧灏?
+	fmt.Println("\n2. 娴嬭瘯琛ㄥ瓨鍌ㄦ槧灏勫姛鑳?..")
 	testTableStorageMapping(engine)
 
-	// 测试SELECT查询
-	fmt.Println("\n3. 测试SELECT查询功能...")
+	// 娴嬭瘯SELECT鏌ヨ
+	fmt.Println("\n3. 娴嬭瘯SELECT鏌ヨ鍔熻兘...")
 	testSelectQuery(engine)
 
-	fmt.Println("\n=== 所有测试完成 ===")
+	fmt.Println("\n=== 鎵€鏈夋祴璇曞畬鎴?===")
 }
 
 func testTableStorageMapping(engine *engine.XMySQLEngine) {
-	fmt.Println("正在测试表存储映射...")
+	fmt.Println("姝ｅ湪娴嬭瘯琛ㄥ瓨鍌ㄦ槧灏?..")
 
-	// 获取存储管理器
+	// 鑾峰彇瀛樺偍绠＄悊鍣?
 	storageManager := getStorageManager(engine)
 	if storageManager == nil {
-		fmt.Println(" 无法获取存储管理器")
+		fmt.Println(" 鏃犳硶鑾峰彇瀛樺偍绠＄悊鍣?)
 		return
 	}
 
-	// 创建表存储映射管理器
+	// 鍒涘缓琛ㄥ瓨鍌ㄦ槧灏勭鐞嗗櫒
 	tableStorageManager := manager.NewTableStorageManager(storageManager)
 
-	// 测试获取系统表信息
+	// 娴嬭瘯鑾峰彇绯荤粺琛ㄤ俊鎭?
 	systemTables := tableStorageManager.GetSystemTableInfo()
-	logger.Debugf("✓ 找到 %d 个系统表\n", len(systemTables))
+	logger.Debugf("鉁?鎵惧埌 %d 涓郴缁熻〃\n", len(systemTables))
 
-	// 显示部分系统表信息
+	// 鏄剧ず閮ㄥ垎绯荤粺琛ㄤ俊鎭?
 	for i, table := range systemTables {
-		if i < 5 { // 只显示前5个
+		if i < 5 { // 鍙樉绀哄墠5涓?
 			logger.Debugf("  - %s.%s: SpaceID=%d, RootPage=%d\n",
 				table.SchemaName, table.TableName, table.SpaceID, table.RootPageNo)
 		}
 	}
 
-	// 测试获取mysql.user表的存储信息
-	fmt.Println("\n测试获取mysql.user表的存储信息...")
+	// 娴嬭瘯鑾峰彇mysql.user琛ㄧ殑瀛樺偍淇℃伅
+	fmt.Println("\n娴嬭瘯鑾峰彇mysql.user琛ㄧ殑瀛樺偍淇℃伅...")
 	userTableInfo, err := tableStorageManager.GetTableStorageInfo("mysql", "user")
 	if err != nil {
-		logger.Debugf(" 获取mysql.user表存储信息失败: %v\n", err)
+		logger.Debugf(" 鑾峰彇mysql.user琛ㄥ瓨鍌ㄤ俊鎭け璐? %v\n", err)
 		return
 	}
 
-	logger.Debugf("✓ mysql.user表存储信息:\n")
+	logger.Debugf("鉁?mysql.user琛ㄥ瓨鍌ㄤ俊鎭?\n")
 	logger.Debugf("  - SpaceID: %d\n", userTableInfo.SpaceID)
 	logger.Debugf("  - RootPage: %d\n", userTableInfo.RootPageNo)
 	logger.Debugf("  - Type: %v\n", userTableInfo.Type)
 
-	// 测试创建表特定的B+树管理器
-	fmt.Println("\n测试为mysql.user表创建B+树管理器...")
+	// 娴嬭瘯鍒涘缓琛ㄧ壒瀹氱殑B+鏍戠鐞嗗櫒
+	fmt.Println("\n娴嬭瘯涓簃ysql.user琛ㄥ垱寤築+鏍戠鐞嗗櫒...")
 	ctx := context.Background()
 	userBTreeManager, err := tableStorageManager.CreateBTreeManagerForTable(ctx, "mysql", "user")
 	if err != nil {
-		logger.Debugf(" 创建mysql.user表B+树管理器失败: %v\n", err)
+		logger.Debugf(" 鍒涘缓mysql.user琛˙+鏍戠鐞嗗櫒澶辫触: %v\n", err)
 		return
 	}
 
-	fmt.Println("✓ 成功创建mysql.user表的B+树管理器")
+	fmt.Println("鉁?鎴愬姛鍒涘缓mysql.user琛ㄧ殑B+鏍戠鐞嗗櫒")
 
-	// 测试获取第一个叶子页面
+	// 娴嬭瘯鑾峰彇绗竴涓彾瀛愰〉闈?
 	firstLeafPage, err := userBTreeManager.GetFirstLeafPage(ctx)
 	if err != nil {
-		logger.Debugf(" 获取第一个叶子页面失败: %v\n", err)
+		logger.Debugf(" 鑾峰彇绗竴涓彾瀛愰〉闈㈠け璐? %v\n", err)
 	} else {
-		logger.Debugf("✓ 第一个叶子页面: %d\n", firstLeafPage)
+		logger.Debugf("鉁?绗竴涓彾瀛愰〉闈? %d\n", firstLeafPage)
 	}
 
-	// 测试获取所有叶子页面
+	// 娴嬭瘯鑾峰彇鎵€鏈夊彾瀛愰〉闈?
 	leafPages, err := userBTreeManager.GetAllLeafPages(ctx)
 	if err != nil {
-		logger.Debugf(" 获取所有叶子页面失败: %v\n", err)
+		logger.Debugf(" 鑾峰彇鎵€鏈夊彾瀛愰〉闈㈠け璐? %v\n", err)
 	} else {
-		logger.Debugf("✓ 总共有 %d 个叶子页面\n", len(leafPages))
+		logger.Debugf("鉁?鎬诲叡鏈?%d 涓彾瀛愰〉闈n", len(leafPages))
 		if len(leafPages) > 0 {
-			logger.Debugf("  叶子页面: %v\n", leafPages)
+			logger.Debugf("  鍙跺瓙椤甸潰: %v\n", leafPages)
 		}
 	}
 }
 
 func testSelectQuery(engine *engine.XMySQLEngine) {
-	fmt.Println("正在测试SELECT查询...")
+	fmt.Println("姝ｅ湪娴嬭瘯SELECT鏌ヨ...")
 
-	// 获取查询执行器
+	// 鑾峰彇鏌ヨ鎵ц鍣?
 	queryExecutor := getQueryExecutor(engine)
 	if queryExecutor == nil {
-		fmt.Println(" 无法获取查询执行器")
+		fmt.Println(" 鏃犳硶鑾峰彇鏌ヨ鎵ц鍣?)
 		return
 	}
 
-	// 测试解析和执行SELECT语句
+	// 娴嬭瘯瑙ｆ瀽鍜屾墽琛孲ELECT璇彞
 	sql := "SELECT * FROM user"
-	logger.Debugf("执行SQL: %s\n", sql)
+	logger.Debugf("鎵цSQL: %s\n", sql)
 
 	_, err := sqlparser.Parse(sql)
 	if err != nil {
-		logger.Debugf(" SQL解析失败: %v\n", err)
+		logger.Debugf(" SQL瑙ｆ瀽澶辫触: %v\n", err)
 		return
 	}
 
 }
 
-// getStorageManager 获取存储管理器（使用反射或类型断言）
+// getStorageManager 鑾峰彇瀛樺偍绠＄悊鍣紙浣跨敤鍙嶅皠鎴栫被鍨嬫柇瑷€锛?
 func getStorageManager(engine *engine.XMySQLEngine) *manager.StorageManager {
-	// 这里需要根据实际的engine结构来获取存储管理器
-	// 由于没有直接的public方法，这里是一个简化的实现
-	// 实际项目中可能需要添加getter方法
-	return nil // 暂时返回nil，需要根据实际engine结构实现
+	// 杩欓噷闇€瑕佹牴鎹疄闄呯殑engine缁撴瀯鏉ヨ幏鍙栧瓨鍌ㄧ鐞嗗櫒
+	// 鐢变簬娌℃湁鐩存帴鐨刾ublic鏂规硶锛岃繖閲屾槸涓€涓畝鍖栫殑瀹炵幇
+	// 瀹為檯椤圭洰涓彲鑳介渶瑕佹坊鍔爂etter鏂规硶
+	return nil // 鏆傛椂杩斿洖nil锛岄渶瑕佹牴鎹疄闄卐ngine缁撴瀯瀹炵幇
 }
 
-// getQueryExecutor 获取查询执行器
+// getQueryExecutor 鑾峰彇鏌ヨ鎵ц鍣?
 func getQueryExecutor(engine *engine.XMySQLEngine) interface{} {
-	// 同样需要根据实际的engine结构来获取查询执行器
-	return nil // 暂时返回nil，需要根据实际engine结构实现
+	// 鍚屾牱闇€瑕佹牴鎹疄闄呯殑engine缁撴瀯鏉ヨ幏鍙栨煡璇㈡墽琛屽櫒
+	return nil // 鏆傛椂杩斿洖nil锛岄渶瑕佹牴鎹疄闄卐ngine缁撴瀯瀹炵幇
 }
 
-// 临时的测试实现，模拟存储管理器功能
+// 涓存椂鐨勬祴璇曞疄鐜帮紝妯℃嫙瀛樺偍绠＄悊鍣ㄥ姛鑳?
 func createTestStorageManager() *manager.StorageManager {
-	fmt.Println("创建测试存储管理器...")
+	fmt.Println("鍒涘缓娴嬭瘯瀛樺偍绠＄悊鍣?..")
 
-	// 这里应该创建一个真实的存储管理器
-	// 但由于依赖复杂，先创建一个模拟版本用于演示
+	// 杩欓噷搴旇鍒涘缓涓€涓湡瀹炵殑瀛樺偍绠＄悊鍣?
+	// 浣嗙敱浜庝緷璧栧鏉傦紝鍏堝垱寤轰竴涓ā鎷熺増鏈敤浜庢紨绀?
 	return nil
 }

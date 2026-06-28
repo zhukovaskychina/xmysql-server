@@ -1,0 +1,2 @@
+{"timestamp":"2026-06-14T07:30:00Z","trace_id":"trace-p0d-slow-001","connection_id":101,"transaction_id":9001,"database":"test","sql_digest":"select_user_by_status","duration_ms":1520,"rows_examined":120000,"rows_returned":50,"error_code":"","status":"slow"}
+{"timestamp":"2026-06-14T07:31:00Z","trace_id":"trace-p0d-slow-002","connection_id":102,"transaction_id":9002,"database":"test","sql_digest":"range_scan_orders","duration_ms":2410,"rows_examined":350000,"rows_returned":200,"error_code":"","status":"slow"}

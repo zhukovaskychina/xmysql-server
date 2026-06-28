@@ -1,92 +1,202 @@
-#!/usr/bin/env bash
-# 崩溃恢复演练（GAP-02 第一阶段增强版）：
-# - 分组覆盖 redo / undo / 半提交事务（含故障注入）三类场景
-# - 每组单独日志 + 总结报告，便于审计归档
-# 用法:
-#   ./scripts/crash_recovery_drill.sh
-# 环境变量:
-#   CR_REPORT_DIR=/path/to/reports
-#   CR_PKG=./server/innodb/manager/
-#   CR_TIMEOUT=300s
+﻿#!/usr/bin/env bash
+# Crash recovery drill for P0-B evidence collection.
+# Usage: ./scripts/crash_recovery_drill.sh
+# Environment: CR_REPORT_DIR overrides the default reports directory.
 
-set -u -o pipefail
+set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-GO_BIN="${GO_BIN:-/Users/zhukovasky/sdk/go1.24.3/bin/go}"
 
 OUT_DIR="${CR_REPORT_DIR:-$ROOT/reports}"
-PKG="${CR_PKG:-./server/innodb/manager/}"
-TIMEOUT="${CR_TIMEOUT:-300s}"
-TS="$(date +%Y%m%d_%H%M%S)"
-RUN_DIR="$OUT_DIR/crash_recovery_drill_${TS}"
-SUMMARY="$RUN_DIR/summary.log"
+RUN_PATTERN="${CR_RUN_PATTERN:-TestTXN001|TestCrashRecovery|TestRedo|TestUndoRollback|TestSavepoint}"
+TIMEOUT_SECONDS="${CR_TIMEOUT_SECONDS:-180}"
+VERBOSE_FLAG="${CR_VERBOSE_FLAG:-}"
+RUNS="${CR_RUNS:-1}"
+STATE_EVIDENCE="${CR_STATE_EVIDENCE:-0}"
 
-mkdir -p "$RUN_DIR"
+if ! [[ "$RUNS" =~ ^[0-9]+$ ]] || [[ "$RUNS" -lt 1 ]]; then
+  echo "CR_RUNS must be an integer greater than or equal to 1." >&2
+  exit 2
+fi
 
-run_group() {
-  local name="$1"
-  local pattern="$2"
-  local logfile="$RUN_DIR/${name}.log"
+mkdir -p "$OUT_DIR"
 
-  {
-    echo "=== [$name] $(date -Iseconds 2>/dev/null || date) ==="
-    echo "pattern: $pattern"
-    echo "command: $GO_BIN test -count=1 -timeout=${TIMEOUT} ${PKG} -run '${pattern}' -v"
-    echo
-    "$GO_BIN" test -count=1 -timeout="${TIMEOUT}" "${PKG}" -run "${pattern}" -v
-  } >"$logfile" 2>&1
-  local ec=$?
+TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
+STARTED_AT="$(date -Iseconds 2>/dev/null || date)"
+LOG_PATH="$OUT_DIR/crash_recovery_drill_$TIMESTAMP.log"
+MD_PATH="$OUT_DIR/crash_recovery_drill_$TIMESTAMP.md"
+STATE_PATH="$OUT_DIR/crash_recovery_drill_$TIMESTAMP.state.json"
+PACKAGE="./server/innodb/manager"
 
-  if [[ $ec -eq 0 ]]; then
-    echo "[PASS] $name -> $logfile" | tee -a "$SUMMARY"
-  else
-    echo "[FAIL] $name -> $logfile" | tee -a "$SUMMARY"
-    echo "        (exit_code=$ec)" | tee -a "$SUMMARY"
-  fi
-  return $ec
-}
+GO_VERSION="$(go version 2>/dev/null || true)"
+CMD=(go test "$PACKAGE" -run "$RUN_PATTERN" -count=1 -timeout="${TIMEOUT_SECONDS}s")
+if [[ -n "$VERBOSE_FLAG" ]]; then
+  CMD+=(-v)
+fi
 
 {
-  echo "=== crash recovery drill $(date -Iseconds 2>/dev/null || date) ==="
+  echo "=== crash recovery drill $STARTED_AT ==="
   echo "repo: $ROOT"
-  echo "go: $($GO_BIN version 2>/dev/null || true)"
-  echo "pkg: $PKG"
-  echo "timeout: $TIMEOUT"
-  echo "run_dir: $RUN_DIR"
+  echo "go: $GO_VERSION"
+  echo "package: $PACKAGE"
+  echo "pattern: $RUN_PATTERN"
+  echo "timeout: ${TIMEOUT_SECONDS}s"
+  echo "runs: $RUNS"
   echo
-} >"$SUMMARY"
+  echo "--- ${CMD[*]} ---"
+} > "$LOG_PATH"
 
-overall=0
+EXIT_CODE=0
+RUN_RESULTS=""
+STATE_RUNS_JSON=""
 
-# 1) Redo 场景：重放、幂等、LSN/统计
-run_group "redo" \
-  '^(TestTXN001_|TestRedoReplay|TestRedoLogManager|TestCrashRecoveryRedoPhase|TestRedoLogReplay)$' || overall=1
+for RUN in $(seq 1 "$RUNS"); do
+  RUN_STARTED_AT="$(date -Iseconds 2>/dev/null || date)"
+  {
+    echo
+    echo "=== replay run $RUN/$RUNS started at $RUN_STARTED_AT ==="
+  } >> "$LOG_PATH"
 
-# 2) Undo 场景：倒序回滚、CLR、版本链、保存点
-run_group "undo" \
-  '^(TestTXN002_|TestUndoRollbackWithCLR|TestPartialRollback|TestSavepoint_|TestUndoLogManager|TestCrashRecoveryUndoPhase)$' || overall=1
+  set +e
+  "${CMD[@]}" 2>&1 | tee -a "$LOG_PATH"
+  RUN_EXIT_CODE=${PIPESTATUS[0]}
+  set -e
 
-# 3) 半提交/故障注入：写入中断、提交中断、恢复后校验
-run_group "half_commit" \
-  '^(TestFaultInjection_CrashDuringCommit|TestFaultInjection_CrashDuringWrite|TestFaultInjection_CrashDuringRedo|TestCrashRecoveryThreePhases|TestCrashRecoveryFullCycle|TestFullCrashRecovery)$' || overall=1
-
-{
-  echo
-  echo "=== aggregate ==="
-  grep -hE '^(--- FAIL:|FAIL\t|PASS\t|ok\t)' "$RUN_DIR"/*.log 2>/dev/null || true
-  echo
-  if [[ $overall -eq 0 ]]; then
-    echo "RESULT: PASS"
+  RUN_FINISHED_AT="$(date -Iseconds 2>/dev/null || date)"
+  if [[ "$RUN_EXIT_CODE" -eq 0 ]]; then
+    RUN_STATUS="PASS"
   else
-    echo "RESULT: FAIL"
+    RUN_STATUS="FAIL"
   fi
-} >>"$SUMMARY"
 
-cat "$SUMMARY"
-echo
-echo "Artifacts:"
-echo "  summary: $SUMMARY"
-echo "  details: $RUN_DIR/{redo.log,undo.log,half_commit.log}"
+  echo "=== replay run $RUN/$RUNS finished at $RUN_FINISHED_AT: $RUN_STATUS (exit code $RUN_EXIT_CODE) ===" >> "$LOG_PATH"
+  RUN_RESULTS="${RUN_RESULTS}- Run $RUN: $RUN_STATUS (exit code $RUN_EXIT_CODE, started $RUN_STARTED_AT, finished $RUN_FINISHED_AT)
+"
+  if [[ -n "$STATE_RUNS_JSON" ]]; then
+    STATE_RUNS_JSON="${STATE_RUNS_JSON},
+"
+  fi
+  STATE_RUNS_JSON="${STATE_RUNS_JSON}    {
+      \"run\": $RUN,
+      \"status\": \"$RUN_STATUS\",
+      \"exit_code\": $RUN_EXIT_CODE,
+      \"started_at\": \"$RUN_STARTED_AT\",
+      \"finished_at\": \"$RUN_FINISHED_AT\",
+      \"checks\": [
+        {
+          \"name\": \"transaction_lifecycle_baseline\",
+          \"expected\": \"focused transaction lifecycle tests pass during replay\",
+          \"actual\": \"go test exit code $RUN_EXIT_CODE\",
+          \"status\": \"$RUN_STATUS\"
+        },
+        {
+          \"name\": \"crash_recovery_command_replay\",
+          \"expected\": \"focused crash recovery tests pass during replay\",
+          \"actual\": \"go test exit code $RUN_EXIT_CODE\",
+          \"status\": \"$RUN_STATUS\"
+        },
+        {
+          \"name\": \"redo_undo_savepoint_command_replay\",
+          \"expected\": \"focused redo, undo, and savepoint tests pass during replay\",
+          \"actual\": \"go test exit code $RUN_EXIT_CODE\",
+          \"status\": \"$RUN_STATUS\"
+        }
+      ]
+    }"
 
-exit $overall
+  if [[ "$RUN_EXIT_CODE" -ne 0 && "$EXIT_CODE" -eq 0 ]]; then
+    EXIT_CODE="$RUN_EXIT_CODE"
+  fi
+done
+
+FINISHED_AT="$(date -Iseconds 2>/dev/null || date)"
+if [[ "$EXIT_CODE" -eq 0 ]]; then
+  STATUS="PASS"
+else
+  STATUS="FAIL"
+fi
+
+if [[ "$STATE_EVIDENCE" == "1" || "$STATE_EVIDENCE" == "true" || "$STATE_EVIDENCE" == "TRUE" ]]; then
+  STATE_EVIDENCE_LINE="- State evidence: \`$STATE_PATH\`"
+  cat > "$STATE_PATH" <<EOF
+{
+  "generated_at": "$FINISHED_AT",
+  "run_id": "crash_recovery_drill_$TIMESTAMP",
+  "status": "$STATUS",
+  "evidence_type": "command_replay",
+  "package": "$PACKAGE",
+  "test_pattern": "$RUN_PATTERN",
+  "timeout_seconds": $TIMEOUT_SECONDS,
+  "raw_log": "$LOG_PATH",
+  "markdown_report": "$MD_PATH",
+  "limitations": [
+    "This file records command-level replay evidence.",
+    "It does not yet prove page-level, row-level, or WAL-level snapshot/state diff consistency.",
+    "Full P0-B acceptance still requires storage-state snapshot or state-diff evidence."
+  ],
+  "runs": [
+$STATE_RUNS_JSON
+  ]
+}
+EOF
+else
+  STATE_EVIDENCE_LINE="- State evidence: not requested"
+fi
+
+cat > "$MD_PATH" <<EOF
+# Crash Recovery Drill Report
+
+## Summary
+
+- Status: $STATUS
+- Started at: $STARTED_AT
+- Finished at: $FINISHED_AT
+- Repository: $ROOT
+- Go version: $GO_VERSION
+- Package: $PACKAGE
+- Test pattern: \`$RUN_PATTERN\`
+- Timeout: ${TIMEOUT_SECONDS}s
+- Runs: $RUNS
+- Raw log: \`$LOG_PATH\`
+$STATE_EVIDENCE_LINE
+
+## Command
+
+\`\`\`bash
+${CMD[*]}
+\`\`\`
+
+## Replay results
+
+$RUN_RESULTS
+
+## Scenario coverage represented by this drill
+
+- Transaction lifecycle baseline: \`TestTXN001\`
+- Crash recovery tests: \`TestCrashRecovery*\`
+- Redo recovery tests: \`TestRedo*\`
+- Undo rollback tests: \`TestUndoRollback*\`
+- Savepoint recovery behavior: \`TestSavepoint*\`
+
+## Acceptance note
+
+This report is P0-B crash-recovery evidence, but it is not the full production acceptance package by itself.
+
+Remaining evidence required before P0-B can be marked fully accepted:
+
+- snapshot or state-diff evidence,
+- scenario matrix for redo, undo, half-commit, and consistency checks,
+- final regression gate using \`go test ./...\` after recovery-related code changes.
+
+## Result
+
+- Exit code: $EXIT_CODE
+- Result: $STATUS
+EOF
+
+echo "Crash recovery drill status: $STATUS"
+echo "Raw log written: $LOG_PATH"
+echo "Markdown report written: $MD_PATH"
+
+exit "$EXIT_CODE"

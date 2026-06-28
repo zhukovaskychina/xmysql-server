@@ -1,3 +1,6 @@
+﻿//go:build demo
+// +build demo
+
 package main
 
 import (
@@ -10,10 +13,10 @@ import (
 )
 
 func main() {
-	fmt.Println("🚀 === 测试增强版B+树管理器架构 ===")
+	fmt.Println("馃殌 === 娴嬭瘯澧炲己鐗圔+鏍戠鐞嗗櫒鏋舵瀯 ===")
 	fmt.Println()
 
-	// 创建配置
+	// 鍒涘缓閰嶇疆
 	config := &conf.Cfg{
 		DataDir:              "test_data_enhanced",
 		InnodbDataDir:        "test_data_enhanced/innodb",
@@ -22,92 +25,92 @@ func main() {
 		InnodbPageSize:       16384,     // 16KB
 	}
 
-	// 确保测试目录存在
+	// 纭繚娴嬭瘯鐩綍瀛樺湪
 	if err := os.MkdirAll(config.InnodbDataDir, 0755); err != nil {
-		logger.Debugf(" 无法创建测试目录: %v\n", err)
+		logger.Debugf(" 鏃犳硶鍒涘缓娴嬭瘯鐩綍: %v\n", err)
 		return
 	}
 
-	// 清理函数
+	// 娓呯悊鍑芥暟
 	defer func() {
-		fmt.Println("\n🧹 清理测试数据...")
+		fmt.Println("\n馃Ч 娓呯悊娴嬭瘯鏁版嵁...")
 		if err := os.RemoveAll("test_data_enhanced"); err != nil {
-			logger.Debugf("  清理测试数据失败: %v\n", err)
+			logger.Debugf("  娓呯悊娴嬭瘯鏁版嵁澶辫触: %v\n", err)
 		} else {
-			fmt.Println(" 测试数据清理完成")
+			fmt.Println(" 娴嬭瘯鏁版嵁娓呯悊瀹屾垚")
 		}
 	}()
 
-	logger.Debugf("📁 测试目录: %s\n", config.DataDir)
-	logger.Debugf("💾 缓冲池大小: %d MB\n", config.InnodbBufferPoolSize/1024/1024)
-	logger.Debugf("📄 页面大小: %d KB\n", config.InnodbPageSize/1024)
+	logger.Debugf("馃搧 娴嬭瘯鐩綍: %s\n", config.DataDir)
+	logger.Debugf("馃捑 缂撳啿姹犲ぇ灏? %d MB\n", config.InnodbBufferPoolSize/1024/1024)
+	logger.Debugf("馃搫 椤甸潰澶у皬: %d KB\n", config.InnodbPageSize/1024)
 	fmt.Println()
 
-	// 1. 创建存储管理器
-	fmt.Println(" 1. 创建并初始化存储管理器...")
+	// 1. 鍒涘缓瀛樺偍绠＄悊鍣?
+	fmt.Println(" 1. 鍒涘缓骞跺垵濮嬪寲瀛樺偍绠＄悊鍣?..")
 	storageManager := manager.NewStorageManager(config)
 	if storageManager == nil {
-		fmt.Println(" 存储管理器创建失败")
+		fmt.Println(" 瀛樺偍绠＄悊鍣ㄥ垱寤哄け璐?)
 		return
 	}
 
-	// 这将自动创建系统表空间并初始化用户数据（使用增强版B+树）
-	fmt.Println(" 存储管理器初始化完成（包含增强版B+树用户数据初始化）")
+	// 杩欏皢鑷姩鍒涘缓绯荤粺琛ㄧ┖闂村苟鍒濆鍖栫敤鎴锋暟鎹紙浣跨敤澧炲己鐗圔+鏍戯級
+	fmt.Println(" 瀛樺偍绠＄悊鍣ㄥ垵濮嬪寲瀹屾垚锛堝寘鍚寮虹増B+鏍戠敤鎴锋暟鎹垵濮嬪寲锛?)
 	fmt.Println()
 
-	// 2. 测试增强版B+树管理器
-	fmt.Println(" 2. 测试增强版B+树管理器...")
+	// 2. 娴嬭瘯澧炲己鐗圔+鏍戠鐞嗗櫒
+	fmt.Println(" 2. 娴嬭瘯澧炲己鐗圔+鏍戠鐞嗗櫒...")
 	testEnhancedBTreeManager(storageManager)
 
-	// 3. 测试索引元信息管理
-	fmt.Println("\n  3. 测试索引元信息管理...")
+	// 3. 娴嬭瘯绱㈠紩鍏冧俊鎭鐞?
+	fmt.Println("\n  3. 娴嬭瘯绱㈠紩鍏冧俊鎭鐞?..")
 	testIndexMetadataManager()
 
-	// 4. 测试增强版B+树用户查询
-	fmt.Println("\n 4. 测试增强版B+树用户查询...")
+	// 4. 娴嬭瘯澧炲己鐗圔+鏍戠敤鎴锋煡璇?
+	fmt.Println("\n 4. 娴嬭瘯澧炲己鐗圔+鏍戠敤鎴锋煡璇?..")
 	testEnhancedBTreeUserQuery(storageManager)
 
-	// 5. 测试传统用户查询对比
-	fmt.Println("\n🔄 5. 测试传统用户查询对比...")
+	// 5. 娴嬭瘯浼犵粺鐢ㄦ埛鏌ヨ瀵规瘮
+	fmt.Println("\n馃攧 5. 娴嬭瘯浼犵粺鐢ㄦ埛鏌ヨ瀵规瘮...")
 	testTraditionalUserQuery(storageManager)
 
-	// 6. 测试用户认证
-	fmt.Println("\n 6. 测试用户认证...")
+	// 6. 娴嬭瘯鐢ㄦ埛璁よ瘉
+	fmt.Println("\n 6. 娴嬭瘯鐢ㄦ埛璁よ瘉...")
 	testUserAuthentication(storageManager)
 
-	// 7. 性能对比测试
-	fmt.Println("\n⚡ 7. 性能对比测试...")
+	// 7. 鎬ц兘瀵规瘮娴嬭瘯
+	fmt.Println("\n鈿?7. 鎬ц兘瀵规瘮娴嬭瘯...")
 	testPerformanceComparison(storageManager)
 
-	fmt.Println("\n🎉 === 所有测试完成！===")
+	fmt.Println("\n馃帀 === 鎵€鏈夋祴璇曞畬鎴愶紒===")
 }
 
 func testEnhancedBTreeManager(sm *manager.StorageManager) {
-	fmt.Println("   创建增强版B+树管理器...")
+	fmt.Println("   鍒涘缓澧炲己鐗圔+鏍戠鐞嗗櫒...")
 
-	// 创建增强版B+树管理器
+	// 鍒涘缓澧炲己鐗圔+鏍戠鐞嗗櫒
 	btreeManager := manager.NewEnhancedBTreeManager(sm, manager.DefaultBTreeConfig)
 	defer btreeManager.Close()
 
-	logger.Debugf("   增强版B+树管理器创建成功\n")
-	logger.Debugf("     - 已加载索引数: %d\n", btreeManager.GetLoadedIndexCount())
+	logger.Debugf("   澧炲己鐗圔+鏍戠鐞嗗櫒鍒涘缓鎴愬姛\n")
+	logger.Debugf("     - 宸插姞杞界储寮曟暟: %d\n", btreeManager.GetLoadedIndexCount())
 
-	// 获取统计信息
+	// 鑾峰彇缁熻淇℃伅
 	stats := btreeManager.GetStats()
-	logger.Debugf("  📈 管理器统计信息:\n")
-	logger.Debugf("     - 索引缓存命中: %d\n", stats.IndexCacheHits)
-	logger.Debugf("     - 索引缓存未命中: %d\n", stats.IndexCacheMisses)
-	logger.Debugf("     - 搜索操作数: %d\n", stats.SearchOperations)
-	logger.Debugf("     - 插入操作数: %d\n", stats.InsertOperations)
+	logger.Debugf("  馃搱 绠＄悊鍣ㄧ粺璁′俊鎭?\n")
+	logger.Debugf("     - 绱㈠紩缂撳瓨鍛戒腑: %d\n", stats.IndexCacheHits)
+	logger.Debugf("     - 绱㈠紩缂撳瓨鏈懡涓? %d\n", stats.IndexCacheMisses)
+	logger.Debugf("     - 鎼滅储鎿嶄綔鏁? %d\n", stats.SearchOperations)
+	logger.Debugf("     - 鎻掑叆鎿嶄綔鏁? %d\n", stats.InsertOperations)
 }
 
 func testIndexMetadataManager() {
-	fmt.Println("   测试索引元信息管理器...")
+	fmt.Println("   娴嬭瘯绱㈠紩鍏冧俊鎭鐞嗗櫒...")
 
-	// 创建索引元信息管理器
+	// 鍒涘缓绱㈠紩鍏冧俊鎭鐞嗗櫒
 	metadataManager := manager.NewIndexMetadataManager()
 
-	// 创建测试索引元信息
+	// 鍒涘缓娴嬭瘯绱㈠紩鍏冧俊鎭?
 	testIndexMetadata := &manager.IndexMetadata{
 		IndexID:     1,
 		TableID:     1,
@@ -130,43 +133,43 @@ func testIndexMetadataManager() {
 		KeyLength: 8,
 	}
 
-	// 注册索引
+	// 娉ㄥ唽绱㈠紩
 	err := metadataManager.RegisterIndex(testIndexMetadata)
 	if err != nil {
-		logger.Debugf("   注册索引失败: %v\n", err)
+		logger.Debugf("   娉ㄥ唽绱㈠紩澶辫触: %v\n", err)
 		return
 	}
 
-	logger.Debugf("   成功注册索引 %d '%s'\n", testIndexMetadata.IndexID, testIndexMetadata.IndexName)
+	logger.Debugf("   鎴愬姛娉ㄥ唽绱㈠紩 %d '%s'\n", testIndexMetadata.IndexID, testIndexMetadata.IndexName)
 
-	// 查询索引
+	// 鏌ヨ绱㈠紩
 	retrievedIndex, err := metadataManager.GetIndexMetadata(testIndexMetadata.IndexID)
 	if err != nil {
-		logger.Debugf("   查询索引失败: %v\n", err)
+		logger.Debugf("   鏌ヨ绱㈠紩澶辫触: %v\n", err)
 		return
 	}
 
-	logger.Debugf("   成功查询索引: %s (表ID: %d, 状态: %d)\n",
+	logger.Debugf("   鎴愬姛鏌ヨ绱㈠紩: %s (琛↖D: %d, 鐘舵€? %d)\n",
 		retrievedIndex.IndexName, retrievedIndex.TableID, retrievedIndex.IndexState)
 
-	// 按名称查询索引
+	// 鎸夊悕绉版煡璇㈢储寮?
 	indexByName, err := metadataManager.GetIndexByName(testIndexMetadata.TableID, testIndexMetadata.IndexName)
 	if err != nil {
-		logger.Debugf("   按名称查询索引失败: %v\n", err)
+		logger.Debugf("   鎸夊悕绉版煡璇㈢储寮曞け璐? %v\n", err)
 		return
 	}
 
-	logger.Debugf("   按名称查询索引成功: ID %d\n", indexByName.IndexID)
+	logger.Debugf("   鎸夊悕绉版煡璇㈢储寮曟垚鍔? ID %d\n", indexByName.IndexID)
 
-	// 列出所有索引
+	// 鍒楀嚭鎵€鏈夌储寮?
 	allIndexes := metadataManager.ListAllIndexes()
-	logger.Debugf("   总共有 %d 个索引\n", len(allIndexes))
+	logger.Debugf("   鎬诲叡鏈?%d 涓储寮昞n", len(allIndexes))
 }
 
 func testEnhancedBTreeUserQuery(sm *manager.StorageManager) {
-	fmt.Println("   通过增强版B+树索引查询用户...")
+	fmt.Println("   閫氳繃澧炲己鐗圔+鏍戠储寮曟煡璇㈢敤鎴?..")
 
-	// 测试查询用户
+	// 娴嬭瘯鏌ヨ鐢ㄦ埛
 	users := []struct {
 		username    string
 		host        string
@@ -178,54 +181,54 @@ func testEnhancedBTreeUserQuery(sm *manager.StorageManager) {
 	}
 
 	for _, userTest := range users {
-		logger.Debugf("    🔎 查询用户: %s@%s\n", userTest.username, userTest.host)
+		logger.Debugf("    馃攷 鏌ヨ鐢ㄦ埛: %s@%s\n", userTest.username, userTest.host)
 
 		user, err := sm.QueryMySQLUserViaBTree(userTest.username, userTest.host)
 
 		if userTest.shouldExist {
 			if err != nil {
-				logger.Debugf("     期望用户存在，但查询失败: %v\n", err)
+				logger.Debugf("     鏈熸湜鐢ㄦ埛瀛樺湪锛屼絾鏌ヨ澶辫触: %v\n", err)
 			} else {
-				logger.Debugf("     找到用户: %s@%s\n", user.User, user.Host)
-				logger.Debugf("       - 权限: SELECT=%s, SUPER=%s\n", user.SelectPriv, user.SuperPriv)
-				logger.Debugf("       - 密码哈希: %s\n", user.AuthenticationString[:20]+"...")
+				logger.Debugf("     鎵惧埌鐢ㄦ埛: %s@%s\n", user.User, user.Host)
+				logger.Debugf("       - 鏉冮檺: SELECT=%s, SUPER=%s\n", user.SelectPriv, user.SuperPriv)
+				logger.Debugf("       - 瀵嗙爜鍝堝笇: %s\n", user.AuthenticationString[:20]+"...")
 			}
 		} else {
 			if err != nil {
-				logger.Debugf("     用户正确不存在\n")
+				logger.Debugf("     鐢ㄦ埛姝ｇ‘涓嶅瓨鍦╘n")
 			} else {
-				logger.Debugf("     用户不应该存在但被找到\n")
+				logger.Debugf("     鐢ㄦ埛涓嶅簲璇ュ瓨鍦ㄤ絾琚壘鍒癨n")
 			}
 		}
 	}
 }
 
 func testTraditionalUserQuery(sm *manager.StorageManager) {
-	fmt.Println("   通过传统方法查询用户...")
+	fmt.Println("   閫氳繃浼犵粺鏂规硶鏌ヨ鐢ㄦ埛...")
 
 	users := []string{"root@localhost", "root@%"}
 
 	for _, userKey := range users {
-		logger.Debugf("    🔎 传统查询: %s\n", userKey)
+		logger.Debugf("    馃攷 浼犵粺鏌ヨ: %s\n", userKey)
 
-		// 解析用户名和主机
+		// 瑙ｆ瀽鐢ㄦ埛鍚嶅拰涓绘満
 		parts := parseUserKey(userKey)
 		if len(parts) != 2 {
-			logger.Debugf("     无效的用户格式: %s\n", userKey)
+			logger.Debugf("     鏃犳晥鐨勭敤鎴锋牸寮? %s\n", userKey)
 			continue
 		}
 
 		user, err := sm.QueryMySQLUser(parts[0], parts[1])
 		if err != nil {
-			logger.Debugf("     传统查询失败: %v\n", err)
+			logger.Debugf("     浼犵粺鏌ヨ澶辫触: %v\n", err)
 		} else {
-			logger.Debugf("     传统方法找到用户: %s@%s\n", user.User, user.Host)
+			logger.Debugf("     浼犵粺鏂规硶鎵惧埌鐢ㄦ埛: %s@%s\n", user.User, user.Host)
 		}
 	}
 }
 
 func testUserAuthentication(sm *manager.StorageManager) {
-	fmt.Println("   测试用户密码验证...")
+	fmt.Println("   娴嬭瘯鐢ㄦ埛瀵嗙爜楠岃瘉...")
 
 	authTests := []struct {
 		username string
@@ -240,38 +243,38 @@ func testUserAuthentication(sm *manager.StorageManager) {
 	}
 
 	for _, test := range authTests {
-		logger.Debugf("    🔑 验证: %s@%s 密码: %s\n", test.username, test.host, test.password)
+		logger.Debugf("    馃攽 楠岃瘉: %s@%s 瀵嗙爜: %s\n", test.username, test.host, test.password)
 
 		isValid := sm.VerifyUserPassword(test.username, test.host, test.password)
 
 		if isValid == test.expected {
 			if test.expected {
-				logger.Debugf("     密码验证成功\n")
+				logger.Debugf("     瀵嗙爜楠岃瘉鎴愬姛\n")
 			} else {
-				logger.Debugf("     密码正确被拒绝\n")
+				logger.Debugf("     瀵嗙爜姝ｇ‘琚嫆缁漒n")
 			}
 		} else {
-			logger.Debugf("     密码验证结果不符合期望\n")
+			logger.Debugf("     瀵嗙爜楠岃瘉缁撴灉涓嶇鍚堟湡鏈沑n")
 		}
 	}
 }
 
 func testPerformanceComparison(sm *manager.StorageManager) {
-	fmt.Println("  ⚡ 增强版B+树查询 vs 传统查询性能对比...")
+	fmt.Println("  鈿?澧炲己鐗圔+鏍戞煡璇?vs 浼犵粺鏌ヨ鎬ц兘瀵规瘮...")
 
 	userKey := "root@localhost"
 	parts := parseUserKey(userKey)
 
 	if len(parts) != 2 {
-		logger.Debugf("     无效的用户格式: %s\n", userKey)
+		logger.Debugf("     鏃犳晥鐨勭敤鎴锋牸寮? %s\n", userKey)
 		return
 	}
 
 	username, host := parts[0], parts[1]
 	iterations := 100
 
-	// 增强版B+树查询性能测试
-	logger.Debugf("     执行 %d 次增强版B+树查询...\n", iterations)
+	// 澧炲己鐗圔+鏍戞煡璇㈡€ц兘娴嬭瘯
+	logger.Debugf("     鎵ц %d 娆″寮虹増B+鏍戞煡璇?..\n", iterations)
 	enhancedSuccessCount := 0
 	for i := 0; i < iterations; i++ {
 		_, err := sm.QueryMySQLUserViaBTree(username, host)
@@ -280,8 +283,8 @@ func testPerformanceComparison(sm *manager.StorageManager) {
 		}
 	}
 
-	// 传统查询性能测试
-	logger.Debugf("     执行 %d 次传统查询...\n", iterations)
+	// 浼犵粺鏌ヨ鎬ц兘娴嬭瘯
+	logger.Debugf("     鎵ц %d 娆′紶缁熸煡璇?..\n", iterations)
 	traditionalSuccessCount := 0
 	for i := 0; i < iterations; i++ {
 		_, err := sm.QueryMySQLUser(username, host)
@@ -290,28 +293,28 @@ func testPerformanceComparison(sm *manager.StorageManager) {
 		}
 	}
 
-	logger.Debugf("    📈 结果对比:\n")
-	logger.Debugf("       - 增强版B+树查询成功率: %d/%d (%.1f%%)\n",
+	logger.Debugf("    馃搱 缁撴灉瀵规瘮:\n")
+	logger.Debugf("       - 澧炲己鐗圔+鏍戞煡璇㈡垚鍔熺巼: %d/%d (%.1f%%)\n",
 		enhancedSuccessCount, iterations, float64(enhancedSuccessCount)*100/float64(iterations))
-	logger.Debugf("       - 传统查询成功率: %d/%d (%.1f%%)\n",
+	logger.Debugf("       - 浼犵粺鏌ヨ鎴愬姛鐜? %d/%d (%.1f%%)\n",
 		traditionalSuccessCount, iterations, float64(traditionalSuccessCount)*100/float64(iterations))
 
 	if enhancedSuccessCount > 0 {
-		logger.Debugf("     增强版B+树索引查询功能正常\n")
+		logger.Debugf("     澧炲己鐗圔+鏍戠储寮曟煡璇㈠姛鑳芥甯竆n")
 	} else {
-		logger.Debugf("      增强版B+树索引查询需要进一步优化\n")
+		logger.Debugf("      澧炲己鐗圔+鏍戠储寮曟煡璇㈤渶瑕佽繘涓€姝ヤ紭鍖朶n")
 	}
 
-	// 显示架构优势
-	logger.Debugf("      架构优势:\n")
-	logger.Debugf("       - 按需加载索引，减少内存占用\n")
-	logger.Debugf("       - 专业的索引元信息管理\n")
-	logger.Debugf("       - 完整的B+树生命周期管理\n")
-	logger.Debugf("       - 支持多种索引类型和统计信息\n")
-	logger.Debugf("       - 异步后台任务优化性能\n")
+	// 鏄剧ず鏋舵瀯浼樺娍
+	logger.Debugf("      鏋舵瀯浼樺娍:\n")
+	logger.Debugf("       - 鎸夐渶鍔犺浇绱㈠紩锛屽噺灏戝唴瀛樺崰鐢╘n")
+	logger.Debugf("       - 涓撲笟鐨勭储寮曞厓淇℃伅绠＄悊\n")
+	logger.Debugf("       - 瀹屾暣鐨凚+鏍戠敓鍛藉懆鏈熺鐞哱n")
+	logger.Debugf("       - 鏀寔澶氱绱㈠紩绫诲瀷鍜岀粺璁′俊鎭痋n")
+	logger.Debugf("       - 寮傛鍚庡彴浠诲姟浼樺寲鎬ц兘\n")
 }
 
-// parseUserKey 解析 "user@host" 格式的字符串
+// parseUserKey 瑙ｆ瀽 "user@host" 鏍煎紡鐨勫瓧绗︿覆
 func parseUserKey(userKey string) []string {
 	for i := len(userKey) - 1; i >= 0; i-- {
 		if userKey[i] == '@' {

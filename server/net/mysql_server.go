@@ -8,11 +8,13 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
+	"github.com/zhukovaskychina/xmysql-server/server/observability/metrics"
 
 	getty "github.com/AlexStocks/getty/transport"
 	gxlog "github.com/AlexStocks/goext/log"
@@ -26,6 +28,8 @@ import (
 const (
 	pprofPath = "/debug/pprof/"
 )
+var metricsHTTPOnce sync.Once
+
 const logBanner = `
 ******************************************************************************************
 
@@ -99,6 +103,9 @@ func initProfiling(conf *conf.Cfg) {
 		addr string
 	)
 	addr = gxnet.HostAddress(conf.BindAddress, conf.ProfilePort)
+	metricsHTTPOnce.Do(func() {
+		http.Handle("/metrics", metrics.Handler(metrics.DefaultRegistry()))
+	})
 	log.Info("App Profiling startup on address{%v}", addr+pprofPath)
 	go func() {
 		log.Info(http.ListenAndServe(addr, nil))

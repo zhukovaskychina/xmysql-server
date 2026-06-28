@@ -158,9 +158,9 @@ func TestAuthServiceWithPasswordValidator(t *testing.T) {
 
 	// 测试认证流程
 	t.Run("TestAuthenticationFlow", func(t *testing.T) {
-		sessionID := "test_simple_protocol-session-456"
 		user := "root"
 		host := "localhost"
+		sessionID := user + "@" + host
 		password := ""
 
 		// 生成挑战

@@ -1,3 +1,6 @@
+﻿//go:build demo
+// +build demo
+
 package main
 
 import (
@@ -11,19 +14,19 @@ import (
 )
 
 func main() {
-	fmt.Println("=== XMySQL StorageManager 系统表空间初始化演示 ===")
+	fmt.Println("=== XMySQL StorageManager 绯荤粺琛ㄧ┖闂村垵濮嬪寲婕旂ず ===")
 	fmt.Println()
 
-	// 创建临时演示目录
+	// 鍒涘缓涓存椂婕旂ず鐩綍
 	demoDir := "D:\\GolangProjects\\github\\xmysql-server\\demo_data"
-	os.RemoveAll(demoDir) // 清理之前的演示数据
+	os.RemoveAll(demoDir) // 娓呯悊涔嬪墠鐨勬紨绀烘暟鎹?
 	os.MkdirAll(demoDir, 0755)
 	defer func() {
-		fmt.Println("清理演示数据...")
+		fmt.Println("娓呯悊婕旂ず鏁版嵁...")
 		os.RemoveAll(demoDir)
 	}()
 
-	// 创建演示配置
+	// 鍒涘缓婕旂ず閰嶇疆
 	cfg := &conf.Cfg{
 		DataDir:                   demoDir,
 		InnodbDataDir:             demoDir,
@@ -41,49 +44,49 @@ func main() {
 		InnodbUndoLogDir:          filepath.Join(demoDir, "undo"),
 	}
 
-	// 创建必要的子目录
+	// 鍒涘缓蹇呰鐨勫瓙鐩綍
 	os.MkdirAll(cfg.InnodbRedoLogDir, 0755)
 	os.MkdirAll(cfg.InnodbUndoLogDir, 0755)
 
-	logger.Infof("数据目录: %s\n", demoDir)
-	logger.Infof("配置信息:\n")
-	logger.Infof("  - 缓冲池大小: %d MB\n", cfg.InnodbBufferPoolSize/1024/1024)
-	logger.Infof("  - 页面大小: %d KB\n", cfg.InnodbPageSize/1024)
-	logger.Infof("  - 系统表空间: %s\n", cfg.InnodbDataFilePath)
+	logger.Infof("鏁版嵁鐩綍: %s\n", demoDir)
+	logger.Infof("閰嶇疆淇℃伅:\n")
+	logger.Infof("  - 缂撳啿姹犲ぇ灏? %d MB\n", cfg.InnodbBufferPoolSize/1024/1024)
+	logger.Infof("  - 椤甸潰澶у皬: %d KB\n", cfg.InnodbPageSize/1024)
+	logger.Infof("  - 绯荤粺琛ㄧ┖闂? %s\n", cfg.InnodbDataFilePath)
 	fmt.Println()
 
-	// 初始化 StorageManager
-	fmt.Println("正在初始化 StorageManager...")
-	fmt.Println("这将自动创建所有系统表空间，就像 MySQL 一样...")
+	// 鍒濆鍖?StorageManager
+	fmt.Println("姝ｅ湪鍒濆鍖?StorageManager...")
+	fmt.Println("杩欏皢鑷姩鍒涘缓鎵€鏈夌郴缁熻〃绌洪棿锛屽氨鍍?MySQL 涓€鏍?..")
 	fmt.Println()
 
 	sm := manager.NewStorageManager(cfg)
 	if sm == nil {
-		fmt.Println(" StorageManager 初始化失败")
+		fmt.Println(" StorageManager 鍒濆鍖栧け璐?)
 		return
 	}
 
-	fmt.Println(" StorageManager 初始化成功!")
+	fmt.Println(" StorageManager 鍒濆鍖栨垚鍔?")
 	fmt.Println()
 
-	// 验证系统表空间
-	fmt.Println("=== 验证系统表空间创建 ===")
+	// 楠岃瘉绯荤粺琛ㄧ┖闂?
+	fmt.Println("=== 楠岃瘉绯荤粺琛ㄧ┖闂村垱寤?===")
 
-	// 1. 验证系统表空间 (ibdata1)
-	fmt.Println("1. 系统表空间 (ibdata1):")
+	// 1. 楠岃瘉绯荤粺琛ㄧ┖闂?(ibdata1)
+	fmt.Println("1. 绯荤粺琛ㄧ┖闂?(ibdata1):")
 	systemSpace, err := sm.GetSpaceInfo(0)
 	if err != nil {
-		logger.Infof("    获取失败: %v\n", err)
+		logger.Infof("    鑾峰彇澶辫触: %v\n", err)
 	} else {
 		logger.Infof("    Space ID: %d\n", systemSpace.SpaceID)
-		logger.Infof("    名称: %s\n", systemSpace.Name)
-		logger.Infof("    页面大小: %d bytes\n", systemSpace.PageSize)
-		logger.Infof("    状态: %s\n", systemSpace.State)
+		logger.Infof("    鍚嶇О: %s\n", systemSpace.Name)
+		logger.Infof("    椤甸潰澶у皬: %d bytes\n", systemSpace.PageSize)
+		logger.Infof("    鐘舵€? %s\n", systemSpace.State)
 	}
 	fmt.Println()
 
-	// 2. 验证 MySQL 系统表
-	fmt.Println("2. MySQL 系统数据库表:")
+	// 2. 楠岃瘉 MySQL 绯荤粺琛?
+	fmt.Println("2. MySQL 绯荤粺鏁版嵁搴撹〃:")
 	systemTables := []struct {
 		spaceID uint32
 		name    string
@@ -105,46 +108,46 @@ func main() {
 	}
 	fmt.Println()
 
-	// 3. 验证 information_schema 表
-	fmt.Println("3. information_schema 表:")
+	// 3. 楠岃瘉 information_schema 琛?
+	fmt.Println("3. information_schema 琛?")
 	infoSpace, err := sm.GetSpaceInfo(100)
 	if err != nil {
-		logger.Infof("    获取失败: %v\n", err)
+		logger.Infof("    鑾峰彇澶辫触: %v\n", err)
 	} else {
 		logger.Infof("    information_schema/schemata (Space ID %d)\n", infoSpace.SpaceID)
 	}
 
-	// 4. 验证 performance_schema 表
-	fmt.Println("4. performance_schema 表:")
+	// 4. 楠岃瘉 performance_schema 琛?
+	fmt.Println("4. performance_schema 琛?")
 	perfSpace, err := sm.GetSpaceInfo(200)
 	if err != nil {
-		logger.Infof("    获取失败: %v\n", err)
+		logger.Infof("    鑾峰彇澶辫触: %v\n", err)
 	} else {
 		logger.Infof("    performance_schema/accounts (Space ID %d)\n", perfSpace.SpaceID)
 	}
 	fmt.Println()
 
-	// 5. 列出所有表空间
-	fmt.Println("=== 所有表空间列表 ===")
+	// 5. 鍒楀嚭鎵€鏈夎〃绌洪棿
+	fmt.Println("=== 鎵€鏈夎〃绌洪棿鍒楄〃 ===")
 	spaces, err := sm.ListSpaces()
 	if err != nil {
-		logger.Infof(" 获取表空间列表失败: %v\n", err)
+		logger.Infof(" 鑾峰彇琛ㄧ┖闂村垪琛ㄥけ璐? %v\n", err)
 	} else {
-		logger.Infof("总共创建了 %d 个表空间:\n", len(spaces))
+		logger.Infof("鎬诲叡鍒涘缓浜?%d 涓〃绌洪棿:\n", len(spaces))
 		for i, space := range spaces {
-			if i < 10 { // 只显示前10个
+			if i < 10 { // 鍙樉绀哄墠10涓?
 				logger.Debugf("  %d. Space ID %d: %s (%s)\n",
 					i+1, space.SpaceID, space.Name, space.State)
 			}
 		}
 		if len(spaces) > 10 {
-			logger.Debugf("  ... 还有 %d 个表空间\n", len(spaces)-10)
+			logger.Debugf("  ... 杩樻湁 %d 涓〃绌洪棿\n", len(spaces)-10)
 		}
 	}
 	fmt.Println()
 
-	// 6. 验证文件创建
-	fmt.Println("=== 验证文件创建 ===")
+	// 6. 楠岃瘉鏂囦欢鍒涘缓
+	fmt.Println("=== 楠岃瘉鏂囦欢鍒涘缓 ===")
 	files := []string{
 		"ibdata1.ibd",
 		"mysql/user.ibd",
@@ -155,34 +158,34 @@ func main() {
 	for _, file := range files {
 		fullPath := filepath.Join(demoDir, file)
 		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-			logger.Debugf(" 文件未创建: %s\n", file)
+			logger.Debugf(" 鏂囦欢鏈垱寤? %s\n", file)
 		} else {
-			logger.Debugf(" 文件已创建: %s\n", file)
+			logger.Debugf(" 鏂囦欢宸插垱寤? %s\n", file)
 		}
 	}
 	fmt.Println()
 
-	// 7. 显示目录结构
-	fmt.Println("=== 数据目录结构 ===")
+	// 7. 鏄剧ず鐩綍缁撴瀯
+	fmt.Println("=== 鏁版嵁鐩綍缁撴瀯 ===")
 	showDirectoryStructure(demoDir, 0, 2)
 	fmt.Println()
 
-	// 清理资源
-	fmt.Println("正在关闭 StorageManager...")
+	// 娓呯悊璧勬簮
+	fmt.Println("姝ｅ湪鍏抽棴 StorageManager...")
 	err = sm.Close()
 	if err != nil {
-		logger.Debugf(" 关闭失败: %v\n", err)
+		logger.Debugf(" 鍏抽棴澶辫触: %v\n", err)
 	} else {
-		fmt.Println(" StorageManager 已成功关闭")
+		fmt.Println(" StorageManager 宸叉垚鍔熷叧闂?)
 	}
 
 	fmt.Println()
-	fmt.Println("=== 演示完成 ===")
-	fmt.Println("StorageManager 已成功初始化所有系统表空间，")
-	fmt.Println("就像 MySQL 服务器首次启动时一样！")
+	fmt.Println("=== 婕旂ず瀹屾垚 ===")
+	fmt.Println("StorageManager 宸叉垚鍔熷垵濮嬪寲鎵€鏈夌郴缁熻〃绌洪棿锛?)
+	fmt.Println("灏卞儚 MySQL 鏈嶅姟鍣ㄩ娆″惎鍔ㄦ椂涓€鏍凤紒")
 }
 
-// showDirectoryStructure 显示目录结构
+// showDirectoryStructure 鏄剧ず鐩綍缁撴瀯
 func showDirectoryStructure(dir string, level int, maxLevel int) {
 	if level > maxLevel {
 		return
@@ -200,12 +203,12 @@ func showDirectoryStructure(dir string, level int, maxLevel int) {
 		}
 
 		if entry.IsDir() {
-			logger.Debugf("%s📁 %s/\n", indent, entry.Name())
+			logger.Debugf("%s馃搧 %s/\n", indent, entry.Name())
 			if level < maxLevel {
 				showDirectoryStructure(filepath.Join(dir, entry.Name()), level+1, maxLevel)
 			}
 		} else {
-			logger.Debugf("%s📄 %s\n", indent, entry.Name())
+			logger.Debugf("%s馃搫 %s\n", indent, entry.Name())
 		}
 	}
 }

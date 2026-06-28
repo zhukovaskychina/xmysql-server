@@ -125,12 +125,12 @@ func (lm *LSNManager) GetStats() *LSNStats {
 	elapsed := now.Sub(lm.lastStatsUpdate).Seconds()
 
 	// 计算每秒分配速率
+	currentCounter := atomic.LoadUint64(&lm.allocCounter)
 	if elapsed > 0 {
-		currentCounter := atomic.LoadUint64(&lm.allocCounter)
 		lm.allocationsPerSec = float64(currentCounter-lm.totalAllocated) / elapsed
-		lm.totalAllocated = currentCounter
 		lm.lastStatsUpdate = now
 	}
+	lm.totalAllocated = currentCounter
 
 	return &LSNStats{
 		CurrentLSN:        LSN(atomic.LoadUint64(&lm.currentLSN)),

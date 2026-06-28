@@ -1,0 +1,45 @@
+{
+  "evidence_type": "p0_owner_signoff",
+  "generated_at": "2026-06-21T00:00:00Z",
+  "release_candidate": "BRANCH_OR_COMMIT",
+  "decision": "APPROVE",
+  "decision_owner": "RELEASE_DECISION_OWNER",
+  "decision_time": "2026-06-21T00:00:00Z",
+  "approvals": [
+    {
+      "role": "release_owner",
+      "name": "OWNER_NAME",
+      "approved": true,
+      "approved_at": "2026-06-21T00:00:00Z",
+      "notes": "Reviewed evidence bundle, delivery readiness audit, risk register, and remediation packet."
+    },
+    {
+      "role": "rollback_owner",
+      "name": "OWNER_NAME",
+      "approved": true,
+      "approved_at": "2026-06-21T00:00:00Z",
+      "notes": "Reviewed rollback window, timed rollback evidence, and rollback runbook."
+    },
+    {
+      "role": "data_recovery_owner",
+      "name": "OWNER_NAME",
+      "approved": true,
+      "approved_at": "2026-06-21T00:00:00Z",
+      "notes": "Reviewed recovery point and replay boundary evidence."
+    },
+    {
+      "role": "observability_owner",
+      "name": "OWNER_NAME",
+      "approved": true,
+      "approved_at": "2026-06-21T00:00:00Z",
+      "notes": "Reviewed live metrics, logging, and alert drill evidence."
+    },
+    {
+      "role": "business_owner",
+      "name": "OWNER_NAME",
+      "approved": true,
+      "approved_at": "2026-06-21T00:00:00Z",
+      "notes": "Reviewed residual risks, deferrals, and release impact."
+    }
+  ]
+}

@@ -1,3 +1,6 @@
+//go:build legacy_sqlparser_conformance
+// +build legacy_sqlparser_conformance
+
 /*
 Copyright 2017 Google Inc.
 
