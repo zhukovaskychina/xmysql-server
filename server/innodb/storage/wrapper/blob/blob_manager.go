@@ -335,6 +335,11 @@ func (bm *BlobManager) allocateBlobChain(segmentID uint32, totalSize, pageCount 
 
 // writeBlobData 写入BLOB数据到页面链
 func (bm *BlobManager) writeBlobData(chain *BlobChain, data []byte) error {
+	space, err := bm.spaceManager.GetTableSpace(0)
+	if err != nil {
+		return fmt.Errorf("failed to get table space 0: %v", err)
+	}
+
 	offset := uint32(0)
 
 	for i, page := range chain.Pages {
@@ -353,7 +358,8 @@ func (bm *BlobManager) writeBlobData(chain *BlobChain, data []byte) error {
 		}
 
 		// 持久化页面（这里需要与存储层集成）
-		// TODO: 调用spaceManager.FlushPage()
+		// 直接落盘：按空间页号写入对应页
+		space.FlushToDisk(page.FileHeader.GetCurrentPageOffset(), page.Serialize())
 
 		offset += uint32(pageDataSize)
 	}
@@ -393,9 +399,21 @@ func (bm *BlobManager) readBlobChain(firstPageNo, totalSize uint32) (*BlobChain,
 
 // readBlobPage 读取单个BLOB页面
 func (bm *BlobManager) readBlobPage(pageNo uint32) (*pages.BlobPage, error) {
-	// TODO: 从spaceManager读取页面数据
-	// 这里简化实现
-	page := &pages.BlobPage{}
+	space, err := bm.spaceManager.GetTableSpace(0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get table space 0: %v", err)
+	}
+
+	pageData, err := space.LoadPageByPageNumber(pageNo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load blob page %d: %v", pageNo, err)
+	}
+
+	page := pages.NewBlobPage(0, pageNo, 0)
+	if err := page.Deserialize(pageData); err != nil {
+		return nil, fmt.Errorf("failed to deserialize blob page %d: %v", pageNo, err)
+	}
+
 	return page, nil
 }
 

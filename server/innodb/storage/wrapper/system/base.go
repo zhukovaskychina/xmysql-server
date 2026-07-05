@@ -14,6 +14,7 @@ import (
 var (
 	ErrInvalidSystemPage = errors.New("invalid system page")
 	ErrCorruptedPage     = errors.New("corrupted system page")
+	ErrNoBackupPage      = errors.New("no system page backup")
 )
 
 // SystemPageHeader 绯荤粺椤甸潰澶撮儴
@@ -28,8 +29,11 @@ type SystemPageHeader struct {
 // BaseSystemPage 绯荤粺椤甸潰鍩虹被
 type BaseSystemPage struct {
 	*wrapper.BasePage
-	header SystemPageHeader
-	stats  SystemPageStats
+	header       SystemPageHeader
+	backupHeader SystemPageHeader
+	backupData   []byte
+	hasBackup    bool
+	stats        SystemPageStats
 }
 
 // NewBaseSystemPage 鍒涘缓绯荤粺椤甸潰
@@ -121,10 +125,16 @@ func (sp *BaseSystemPage) SetContent(content []byte) {
 
 // Backup 澶囦唤椤甸潰
 func (sp *BaseSystemPage) Backup() error {
-	sp.RLock()
-	defer sp.RUnlock()
+	sp.Lock()
+	defer sp.Unlock()
 
-	// TODO: 瀹炵幇椤甸潰澶囦唤
+	// 保存当前页面头部和内容的快照
+	sp.backupHeader = sp.header
+	sp.backupData = make([]byte, len(sp.GetContent()))
+	copy(sp.backupData, sp.GetContent())
+	sp.hasBackup = true
+	sp.stats.LastModified = time.Now().UnixNano()
+
 	return nil
 }
 
@@ -133,7 +143,18 @@ func (sp *BaseSystemPage) Restore() error {
 	sp.Lock()
 	defer sp.Unlock()
 
-	// TODO: 瀹炵幇椤甸潰鎭㈠
+	if !sp.hasBackup {
+		return ErrNoBackupPage
+	}
+
+	restoreData := make([]byte, len(sp.backupData))
+	copy(restoreData, sp.backupData)
+
+	sp.header = sp.backupHeader
+	sp.SetContent(restoreData)
+	sp.stats.LastModified = time.Now().UnixNano()
+	sp.MarkDirty()
+
 	return nil
 }
 

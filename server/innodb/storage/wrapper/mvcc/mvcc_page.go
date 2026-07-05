@@ -80,14 +80,45 @@ func (p *MVCCIndexPage) LSN() uint64 {
 
 // ReadFrom 实现Page接口
 func (p *MVCCIndexPage) ReadFrom(r io.Reader) (int64, error) {
-	// TODO: 实现页面反序列化
-	return 0, nil
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return 0, err
+	}
+
+	n := int64(len(data))
+	if err := p.SetData(data); err != nil {
+		return n, err
+	}
+
+	p.Lock()
+	p.size = uint32(len(data))
+	p.dirty = false
+	p.Unlock()
+
+	return n, nil
 }
 
 // WriteTo 实现Page接口
 func (p *MVCCIndexPage) WriteTo(w io.Writer) (int64, error) {
-	// TODO: 实现页面序列化
-	return 0, nil
+	data, err := p.ToBytes()
+	if err != nil {
+		return 0, err
+	}
+
+	n, err := w.Write(data)
+	if err != nil {
+		return int64(n), err
+	}
+
+	p.Lock()
+	p.size = uint32(len(data))
+	p.Unlock()
+
+	if n != len(data) {
+		return int64(n), io.ErrShortWrite
+	}
+
+	return int64(n), nil
 }
 
 // Init 实现Page接口
@@ -263,13 +294,32 @@ func (p *MVCCIndexPage) Unpin() {
 
 // Read 实现basic.IPage接口
 func (p *MVCCIndexPage) Read() error {
-	// TODO: 实现从磁盘读取
+	content := p.GetContent()
+	p.Lock()
+	p.size = uint32(len(content))
+	p.dirty = false
+	p.Unlock()
+
+	if err := p.ParseFromBytes(content); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 // Write 实现basic.IPage接口
 func (p *MVCCIndexPage) Write() error {
-	// TODO: 实现写入磁盘
+	data, err := p.ToBytes()
+	if err != nil {
+		return err
+	}
+
+	p.SetContent(data)
+	p.Lock()
+	p.size = uint32(len(data))
+	p.dirty = false
+	p.Unlock()
+
 	return nil
 }
 
