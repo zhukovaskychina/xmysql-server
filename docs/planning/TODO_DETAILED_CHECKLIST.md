@@ -137,45 +137,45 @@
 
 #### 页面类型实现
 
-**page_allocated_wrapper.go** (5个TODO)
-- [ ] 从字节数据解析 (行32)
-- [ ] 状态字段 (行83)
-- [ ] 脏页标记 (行91)
-- [ ] 引用计数 (行95, 99)
+**page_allocated_wrapper.go** (4个TODO)
+- [x] 从字节数据解析 (行32)
+- [x] 状态字段 (行83)
+- [x] 脏页标记 (行91)
+- [x] 引用计数 (行95, 99)
 
 **page_inode_wrapper.go** (4个TODO)
 - [ ] 从磁盘读取 (行86)
 - [ ] 写入buffer pool (行92)
 - [ ] Segment接口匹配 (行136)
 
-**ibuf_bitmap_page_wrapper.go** (2个TODO)
-- [ ] 从磁盘读取 (行382)
-- [ ] 写入磁盘 (行389)
+**ibuf_bitmap_page_wrapper.go** (0个TODO)
+- [x] 从磁盘读取 (行382)
+- [x] 写入磁盘 (行389)
 
-**trx_sys_page_wrapper.go** (2个TODO)
-- [ ] 从磁盘读取 (行352)
-- [ ] 写入磁盘 (行359)
+**trx_sys_page_wrapper.go** (0个TODO)
+- [x] 从磁盘读取 (行352)
+- [x] 写入磁盘 (行359)
 
-**data_dictionary_page_wrapper.go** (2个TODO)
-- [ ] 从磁盘读取 (行286)
-- [ ] 写入磁盘 (行293)
+**data_dictionary_page_wrapper.go** (0个TODO)
+- [x] 从磁盘读取 (行286)
+- [x] 写入磁盘 (行293)
 
-**undo_log_page_wrapper.go** (3个TODO)
-- [ ] 从磁盘读取 (行275)
-- [ ] 写入磁盘 (行280)
-- [ ] 刷新策略 (行285)
+**undo_log_page_wrapper.go** (0个TODO)
+- [x] 从磁盘读取 (行275)
+- [x] 写入磁盘 (行280)
+- [x] 刷新策略 (行285)
 
-**encrypted_page_wrapper.go** (2个TODO)
-- [ ] 从磁盘读取 (行273)
-- [ ] 写入磁盘 (行280)
+**encrypted_page_wrapper.go** (0个TODO)
+- [x] 从磁盘读取 (行273)
+- [x] 写入磁盘 (行280)
 
-**fsp_page_wrapper.go** (2个TODO)
-- [ ] 从磁盘读取 (行354)
-- [ ] 写入磁盘 (行361)
+**fsp_page_wrapper.go** (0个TODO)
+- [x] 从磁盘读取 (行354)
+- [x] 写入磁盘 (行361)
 
-**xdes_page_wrapper.go** (2个TODO)
-- [ ] 从磁盘读取 (行520)
-- [ ] 写入磁盘 (行527)
+**xdes_page_wrapper.go** (0个TODO)
+- [x] 从磁盘读取 (行520)
+- [x] 写入磁盘 (行527)
 
 ### 记录格式
 
@@ -361,4 +361,3 @@
 
 **清单生成时间**: 2025-10-31  
 **下次更新**: 每周更新进度
-

@@ -3,6 +3,7 @@ package page
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
@@ -283,14 +284,49 @@ func (dw *DataDictionaryPageWrapper) GetDataDictPage() *pages.DataDictionaryHead
 
 // 内部方法：从磁盘读取
 func (dw *DataDictionaryPageWrapper) readFromDisk() ([]byte, error) {
-	// TODO: 实现从磁盘读取页面的逻辑
-	// 这里需要根据实际的磁盘访问层来实现
-	return make([]byte, common.PageSize), nil
+	if dw.bufferPool == nil {
+		return nil, errors.New("buffer pool not configured for data dictionary page")
+	}
+
+	page, err := dw.bufferPool.GetPage(dw.GetSpaceID(), dw.GetPageID())
+	if err != nil {
+		return nil, err
+	}
+	if page == nil {
+		return nil, fmt.Errorf("buffer page not found for space=%d page=%d", dw.GetSpaceID(), dw.GetPageID())
+	}
+
+	content := page.GetContent()
+	if len(content) < common.PageSize {
+		return nil, errors.New("invalid page size loaded from buffer pool")
+	}
+
+	result := make([]byte, common.PageSize)
+	copy(result, content[:common.PageSize])
+	return result, nil
 }
 
 // 内部方法：写入磁盘
 func (dw *DataDictionaryPageWrapper) writeToDisk(content []byte) error {
-	// TODO: 实现写入磁盘的逻辑
-	// 这里需要根据实际的磁盘访问层来实现
-	return nil
+	if dw.bufferPool == nil {
+		return nil
+	}
+
+	pageContent := make([]byte, common.PageSize)
+	copy(pageContent, content)
+
+	var bufferPage *buffer_pool.BufferPage
+	if page, err := dw.bufferPool.GetPage(dw.GetSpaceID(), dw.GetPageID()); err == nil && page != nil {
+		bufferPage = page
+	} else {
+		bufferPage = buffer_pool.NewBufferPage(dw.GetSpaceID(), dw.GetPageID())
+		if err := dw.bufferPool.PutPage(bufferPage); err != nil {
+			return err
+		}
+	}
+
+	bufferPage.SetContent(pageContent)
+	bufferPage.MarkDirty()
+
+	return dw.bufferPool.FlushPage(bufferPage)
 }

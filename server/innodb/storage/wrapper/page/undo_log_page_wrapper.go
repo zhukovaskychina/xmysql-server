@@ -3,6 +3,7 @@ package page
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"sync"
@@ -19,6 +20,7 @@ type UndoLogPageWrapper struct {
 
 	// Buffer Pool支持
 	bufferPool *buffer_pool.BufferPool
+	bufferPage *buffer_pool.BufferPage
 
 	// 并发控制
 	mu sync.RWMutex
@@ -69,24 +71,37 @@ func NewUndoLogPageWrapper(id, spaceID, pageNo uint32, bp *buffer_pool.BufferPoo
 
 // Read 实现PageWrapper接口
 func (uw *UndoLogPageWrapper) Read() error {
-	// 1. 尝试从buffer pool读取
-	if page, _ := uw.bufferPool.GetPage(uw.GetSpaceID(), uw.GetPageID()); page != nil {
-		uw.content = page.GetContent()
-		return uw.ParseFromBytes(uw.content)
+	// 1. 尝试从buffer page读取
+	if uw.bufferPage != nil {
+		content := uw.bufferPage.GetContent()
+		if len(content) >= common.PageSize {
+			uw.content = content
+			return uw.ParseFromBytes(uw.content)
+		}
 	}
 
-	// 2. 从磁盘读取
+	// 2. 尝试从buffer pool读取
+	if uw.bufferPool != nil {
+		if page, err := uw.bufferPool.GetPage(uw.GetSpaceID(), uw.GetPageID()); err == nil && page != nil {
+			uw.content = page.GetContent()
+			return uw.ParseFromBytes(uw.content)
+		}
+	}
+
+	// 3. 从磁盘读取
 	content, err := uw.readFromDisk()
 	if err != nil {
 		return err
 	}
 
-	// 3. 加入buffer pool
-	bufferPage := buffer_pool.NewBufferPage(uw.GetSpaceID(), uw.GetPageID())
-	bufferPage.SetContent(content)
-	uw.bufferPool.PutPage(bufferPage)
+	// 4. 加入buffer page/pool
+	uw.bufferPage = buffer_pool.NewBufferPage(uw.GetSpaceID(), uw.GetPageID())
+	uw.bufferPage.SetContent(content)
+	if uw.bufferPool != nil {
+		_ = uw.bufferPool.PutPage(uw.bufferPage)
+	}
 
-	// 4. 解析内容
+	// 5. 解析内容
 	uw.content = content
 	return uw.ParseFromBytes(content)
 }
@@ -107,7 +122,11 @@ func (uw *UndoLogPageWrapper) Write() error {
 	}
 	bufferPage.SetContent(content)
 	bufferPage.MarkDirty()
-	uw.bufferPool.PutPage(bufferPage)
+	if uw.bufferPool != nil {
+		if err := uw.bufferPool.PutPage(bufferPage); err != nil {
+			return err
+		}
+	}
 
 	// 3. 根据策略决定是否写入磁盘
 	if uw.needFlush() {
@@ -272,24 +291,61 @@ func (uw *UndoLogPageWrapper) SetTransactionID(id uint64) {
 
 // 辅助方法
 func (uw *UndoLogPageWrapper) readFromDisk() ([]byte, error) {
-	// TODO: 实现从磁盘读取逻辑
-	return nil, nil
+	if uw.bufferPool == nil {
+		return nil, errors.New("buffer pool not configured for undo log page")
+	}
+
+	page, err := uw.bufferPool.GetPage(uw.GetSpaceID(), uw.GetPageID())
+	if err != nil {
+		return nil, err
+	}
+	if page == nil {
+		return nil, fmt.Errorf("buffer page not found for space=%d page=%d", uw.GetSpaceID(), uw.GetPageID())
+	}
+
+	content := page.GetContent()
+	if len(content) < common.PageSize {
+		return nil, errors.New("invalid page size loaded from buffer pool")
+	}
+
+	result := make([]byte, common.PageSize)
+	copy(result, content[:common.PageSize])
+	return result, nil
 }
 
 func (uw *UndoLogPageWrapper) writeToDisk(content []byte) error {
-	// TODO: 实现写入磁盘逻辑
-	return nil
+	if uw.bufferPool == nil {
+		return nil
+	}
+
+	pageContent := make([]byte, common.PageSize)
+	copy(pageContent, content)
+
+	var bufferPage *buffer_pool.BufferPage
+	if page, err := uw.bufferPool.GetPage(uw.GetSpaceID(), uw.GetPageID()); err == nil && page != nil {
+		bufferPage = page
+	} else {
+		bufferPage = buffer_pool.NewBufferPage(uw.GetSpaceID(), uw.GetPageID())
+		if err := uw.bufferPool.PutPage(bufferPage); err != nil {
+			return err
+		}
+	}
+
+	bufferPage.SetContent(pageContent)
+	bufferPage.MarkDirty()
+	uw.bufferPage = bufferPage
+
+	return uw.bufferPool.FlushPage(bufferPage)
 }
 
 func (uw *UndoLogPageWrapper) needFlush() bool {
-	// TODO: 实现刷新策略
-	return false
+	return uw.IsDirty()
 }
 
 func (uw *UndoLogPageWrapper) GetBufferPage() *buffer_pool.BufferPage {
-	return nil
+	return uw.bufferPage
 }
 
 func (uw *UndoLogPageWrapper) SetBufferPage(page *buffer_pool.BufferPage) {
-
+	uw.bufferPage = page
 }

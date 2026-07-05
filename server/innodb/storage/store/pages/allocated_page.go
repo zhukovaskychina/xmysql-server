@@ -36,6 +36,7 @@ FIL_PAGE_TYPE_ALLOCATED页面详细说明
 package pages
 
 import (
+	"encoding/binary"
 	"errors"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
@@ -147,7 +148,18 @@ func (p *AllocatedPage) GetPageBody() []byte {
 
 // SetChecksum calculates and sets the page checksum
 func (p *AllocatedPage) SetChecksum() {
-	// TODO: implement checksum calculation
-	_ = []byte{0x00, 0x00, 0x00, 0x00} // Placeholder for checksum calculation
-	// ap.FileHeader.WritePageSpaceCheckSum(checksum)
+	if len(p.data) < FileHeaderSize+FileTrailerSize {
+		return
+	}
+
+	// 这里的page实现不依赖page.Header结构，直接按页面字节流计算
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	checksum := checker.CalculateChecksum(p.data)
+
+	// 写入文件头部校验和（前4字节）
+	binary.LittleEndian.PutUint32(p.data[:4], checksum)
+
+	// 写入文件尾校验和（最后8字节）
+	trailerOffset := len(p.data) - FileTrailerSize
+	binary.LittleEndian.PutUint64(p.data[trailerOffset:trailerOffset+8], uint64(checksum))
 }

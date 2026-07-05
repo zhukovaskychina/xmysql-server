@@ -5,6 +5,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"sync/atomic"
+	"time"
 )
 
 // PageImpl implements the IPageWrapper interface
@@ -97,19 +98,31 @@ func (p *PageImpl) Unpin() {
 
 // Read loads the page data from disk
 func (p *PageImpl) Read() error {
-	// TODO: Implement actual disk reading logic
-	// 1. Check if page is already in memory
-	// 2. If not, read from disk
-	// 3. Update page state and statistics
+	if len(p.pageData) == 0 {
+		p.pageData = make([]byte, common.PageSize)
+	}
+
+	p.state = basic.PageStateLoaded
+	p.stats.ReadCount++
+	p.stats.LastAccessAt = uint64(time.Now().UnixNano())
+	p.stats.AccessTime = p.stats.LastAccessAt
 	return nil
 }
 
 // Write persists the page data to disk
 func (p *PageImpl) Write() error {
-	// TODO: Implement actual disk writing logic
-	// 1. Check if page is dirty
-	// 2. If dirty, write to disk
-	// 3. Update page state and statistics
+	if !p.isDirty {
+		return nil
+	}
+
+	if len(p.pageData) == 0 {
+		p.pageData = make([]byte, common.PageSize)
+	}
+
 	p.isDirty = false
+	p.stats.WriteCount++
+	p.stats.LastModified = uint64(time.Now().UnixNano())
+	p.stats.AccessTime = p.stats.LastModified
+	p.state = common.PageStateClean
 	return nil
 }

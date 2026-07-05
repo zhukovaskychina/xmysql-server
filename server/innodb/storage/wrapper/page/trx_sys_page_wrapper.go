@@ -3,6 +3,7 @@ package page
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"sync"
@@ -349,14 +350,49 @@ func (tw *TrxSysPageWrapper) Validate() error {
 
 // 内部方法：从磁盘读取
 func (tw *TrxSysPageWrapper) readFromDisk() ([]byte, error) {
-	// TODO: 实现从磁盘读取页面的逻辑
-	// 这里需要根据实际的磁盘访问层来实现
-	return make([]byte, common.PageSize), nil
+	if tw.bufferPool == nil {
+		return nil, errors.New("buffer pool not configured for trx sys page")
+	}
+
+	page, err := tw.bufferPool.GetPage(tw.GetSpaceID(), tw.GetPageID())
+	if err != nil {
+		return nil, err
+	}
+	if page == nil {
+		return nil, fmt.Errorf("buffer page not found for space=%d page=%d", tw.GetSpaceID(), tw.GetPageID())
+	}
+
+	content := page.GetContent()
+	if len(content) < common.PageSize {
+		return nil, errors.New("invalid page size loaded from buffer pool")
+	}
+
+	result := make([]byte, common.PageSize)
+	copy(result, content[:common.PageSize])
+	return result, nil
 }
 
 // 内部方法：写入磁盘
 func (tw *TrxSysPageWrapper) writeToDisk(content []byte) error {
-	// TODO: 实现写入磁盘的逻辑
-	// 这里需要根据实际的磁盘访问层来实现
-	return nil
+	if tw.bufferPool == nil {
+		return nil
+	}
+
+	pageContent := make([]byte, common.PageSize)
+	copy(pageContent, content)
+
+	var bufferPage *buffer_pool.BufferPage
+	if page, err := tw.bufferPool.GetPage(tw.GetSpaceID(), tw.GetPageID()); err == nil && page != nil {
+		bufferPage = page
+	} else {
+		bufferPage = buffer_pool.NewBufferPage(tw.GetSpaceID(), tw.GetPageID())
+		if err := tw.bufferPool.PutPage(bufferPage); err != nil {
+			return err
+		}
+	}
+
+	bufferPage.SetContent(pageContent)
+	bufferPage.MarkDirty()
+
+	return tw.bufferPool.FlushPage(bufferPage)
 }
