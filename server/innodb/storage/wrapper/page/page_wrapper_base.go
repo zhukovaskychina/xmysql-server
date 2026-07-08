@@ -292,7 +292,7 @@ func (p *BasePageWrapper) SetLSN(lsn uint64) {
 	p.dirty = true
 }
 
-// GetState 获取页面状态（暂时返回默认值）
+// GetState 获取页面状态
 func (p *BasePageWrapper) GetState() basic.PageState {
 	p.RLock()
 	defer p.RUnlock()

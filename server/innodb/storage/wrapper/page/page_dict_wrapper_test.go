@@ -1,16 +1,7 @@
 package page
 
-// TODO: This test_simple_protocol file has been temporarily disabled due to missing dependencies
+import "testing"
 
-/*
-import (
-	"fmt"
-	"testing"
-	"1/zhukovaskychina/xmysql-server/server/conf"
-	"1/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
-)
-
-func TestNewDataDictWrapper(t *testing.T) {
-	// All test_simple_protocol implementations disabled due to missing dependencies
+func TestDataDictWrapperPlaceholder(t *testing.T) {
+	t.Skip("需要完整数据字典和buffer_pool测试环境，当前保持占位以免误报")
 }
-*/

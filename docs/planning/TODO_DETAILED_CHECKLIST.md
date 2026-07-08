@@ -144,9 +144,9 @@
 - [x] 引用计数 (行95, 99)
 
 **page_inode_wrapper.go** (4个TODO)
-- [ ] 从磁盘读取 (行86)
-- [ ] 写入buffer pool (行92)
-- [ ] Segment接口匹配 (行136)
+- [x] 从磁盘读取 (行86)
+- [x] 写入buffer pool (行92)
+- [x] Segment接口匹配 (行136)
 
 **ibuf_bitmap_page_wrapper.go** (0个TODO)
 - [x] 从磁盘读取 (行382)
