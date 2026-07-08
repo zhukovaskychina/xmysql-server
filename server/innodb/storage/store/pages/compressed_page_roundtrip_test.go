@@ -37,3 +37,33 @@ func TestCompressedPage_SerializeAndValidate(t *testing.T) {
 	}
 	t.Logf("compress/decompress roundtrip ok, ratio=%.2f", ratio)
 }
+
+func TestCompressedPage_AlgorithmsRoundtrip(t *testing.T) {
+	algorithms := []struct {
+		name string
+		algo CompressionAlgorithm
+	}{
+		{name: "lz4", algo: CompressionLZ4},
+		{name: "snappy", algo: CompressionSnappy},
+	}
+
+	orig := []byte("hello-world-compressed-page")
+
+	for _, tc := range algorithms {
+		t.Run(tc.name, func(t *testing.T) {
+			cp := NewCompressedPage(1, 3, tc.algo)
+			if err := cp.CompressData(orig); err != nil {
+				t.Fatalf("CompressData %s error: %v", tc.name, err)
+			}
+
+			dec, err := cp.DecompressData()
+			if err != nil {
+				t.Fatalf("DecompressData %s error: %v", tc.name, err)
+			}
+
+			if !bytes.Equal(orig, dec) {
+				t.Fatalf("roundtrip mismatch for %s", tc.name)
+			}
+		})
+	}
+}

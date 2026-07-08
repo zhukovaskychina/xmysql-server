@@ -39,6 +39,9 @@ import (
 	"errors"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"io"
+
+	"github.com/golang/snappy"
+	"github.com/pierrec/lz4/v4"
 )
 
 // 压缩页面常量
@@ -120,9 +123,9 @@ func (cp *CompressedPage) CompressData(originalData []byte) error {
 	case CompressionZLIB:
 		compressedData, err = cp.compressWithZLIB(originalData)
 	case CompressionLZ4:
-		return ErrUnsupportedAlgorithm // LZ4暂未实现
+		compressedData, err = cp.compressWithLZ4(originalData)
 	case CompressionSnappy:
-		return ErrUnsupportedAlgorithm // Snappy暂未实现
+		compressedData, err = cp.compressWithSnappy(originalData)
 	default:
 		return ErrUnsupportedAlgorithm
 	}
@@ -167,9 +170,9 @@ func (cp *CompressedPage) DecompressData() ([]byte, error) {
 	case CompressionZLIB:
 		originalData, err = cp.decompressWithZLIB(cp.CompressedData)
 	case CompressionLZ4:
-		return nil, ErrUnsupportedAlgorithm // LZ4暂未实现
+		originalData, err = cp.decompressWithLZ4(cp.CompressedData)
 	case CompressionSnappy:
-		return nil, ErrUnsupportedAlgorithm // Snappy暂未实现
+		originalData, err = cp.decompressWithSnappy(cp.CompressedData)
 	default:
 		return nil, ErrUnsupportedAlgorithm
 	}
@@ -221,6 +224,53 @@ func (cp *CompressedPage) decompressWithZLIB(data []byte) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+func (cp *CompressedPage) compressWithLZ4(data []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	writer := lz4.NewWriter(&buf)
+	defer writer.Close()
+
+	_, err := writer.Write(data)
+	if err != nil {
+		return nil, ErrCompressionFailed
+	}
+
+	if err := writer.Close(); err != nil {
+		return nil, ErrCompressionFailed
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (cp *CompressedPage) decompressWithLZ4(data []byte) ([]byte, error) {
+	reader := lz4.NewReader(bytes.NewReader(data))
+
+	var buf bytes.Buffer
+	_, err := io.Copy(&buf, reader)
+	if err != nil {
+		return nil, ErrDecompressionFailed
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (cp *CompressedPage) compressWithSnappy(data []byte) ([]byte, error) {
+	compressed := snappy.Encode(nil, data)
+	if len(compressed) == 0 && len(data) > 0 {
+		return nil, ErrCompressionFailed
+	}
+
+	return compressed, nil
+}
+
+func (cp *CompressedPage) decompressWithSnappy(data []byte) ([]byte, error) {
+	decoded, err := snappy.Decode(nil, data)
+	if err != nil {
+		return nil, ErrDecompressionFailed
+	}
+
+	return decoded, nil
 }
 
 // calculateChecksum 计算校验和

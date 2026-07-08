@@ -89,8 +89,9 @@ func formatENUS(number string, precision string) (string, error) {
 	return buffer.String(), nil
 }
 
-func formatZHCN(_ string, _ string) (string, error) {
-	return "", errors.New("not implemented")
+func formatZHCN(number string, precision string) (string, error) {
+	// 中文数值格式与ENUS格式共享同一套数值格式化规则
+	return formatENUS(number, precision)
 }
 
 func formatNotSupport(_ string, _ string) (string, error) {

@@ -147,8 +147,8 @@
 
 #### 页面压缩
 
-- [ ] `page/compression_manager.go` LZ4（行325-331）：压缩/解压缩占位未实现
-- [ ] `store/pages/compressed_page.go` LZ4/Snappy（行123-125, 170-172）：算法分支返回不支持
+- [x] `page/compression_manager.go` LZ4 压缩/解压（行325-331）
+- [x] `store/pages/compressed_page.go` LZ4/Snappy 压缩/解压（行123-125, 170-172）
 
 #### 页面类型实现
 
