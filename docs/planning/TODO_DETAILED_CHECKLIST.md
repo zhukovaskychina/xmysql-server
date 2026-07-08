@@ -18,6 +18,7 @@
 - [x] `server/innodb/metadata/util.go`、`server/innodb/metadata/convert.go`、`server/innodb/metadata/column.go`：完成类型校验/转换和转换相关的 TODO/占位实现。
 - [x] `server/innodb/storage/wrapper/page/*.go` 与 `server/innodb/storage/store/pages/*.go`：本次排查未发现剩余 `TODO` 文本标记，关键路径测试 `go test ./server/innodb/storage/wrapper/page ./server/innodb/storage/store/pages` 通过。
 - [x] `server/innodb/manager/page.go`：补齐 `defaultPage` 的 `Pin/Unpin/Read/Write/IsLeafPage` 实现，统一引用计数边界处理并补齐脏态与状态切换。
+- [x] `server/innodb/manager/dictionary_manager.go` + `server/innodb/storage/wrapper/page/data_dictionary_page_wrapper.go`：补齐数据字典持久化读写闭环。`dictionary_manager` 的初始化、`loadRootPage` 回填、`GetTable`/`GetTableByName` 兜底加载、`DropTable` 删除持久定义均已接入；`data_dictionary_page_wrapper` 的序列化、校验和、读写回退和索引/表重建行为已打通，相关包测试通过。
 
 > 注：当前文档中的统计值仍按旧版本口径保留，优先关注本次更新清单和新增代码状态。
 
