@@ -223,6 +223,12 @@ func (dml *StorageIntegratedDMLExecutor) validateIndexKey(
 	indexKey interface{},
 	index *manager.Index,
 ) error {
+	if index == nil {
+		return fmt.Errorf("索引对象为空")
+	}
+	if len(index.Columns) == 0 {
+		return fmt.Errorf("索引 %s 没有定义列", index.Name)
+	}
 	if indexKey == nil {
 		if index.IsUnique {
 			return fmt.Errorf("唯一索引不允许NULL值")
@@ -230,7 +236,28 @@ func (dml *StorageIntegratedDMLExecutor) validateIndexKey(
 		return nil // 非唯一索引允许NULL值
 	}
 
-	// TODO: 添加更多验证逻辑，如长度检查、类型检查等
+	// 复合索引应保持列数一致
+	if len(index.Columns) > 1 {
+		parts, ok := indexKey.([]interface{})
+		if !ok {
+			// 当前多列索引通常走 []interface{} 或序列化字节串
+			if _, isBytes := indexKey.([]byte); isBytes {
+				return nil
+			}
+			return fmt.Errorf("复合索引 %s 的索引键类型非法: %T", index.Name, indexKey)
+		}
+		if len(parts) != len(index.Columns) {
+			return fmt.Errorf("复合索引 %s 的索引键列数不匹配: want=%d, got=%d", index.Name, len(index.Columns), len(parts))
+		}
+
+		// 仅做 NULL 可空检查，类型检查交给底层索引存储实现
+		for i, part := range parts {
+			colMeta := index.Columns[i]
+			if part == nil && !colMeta.Nullable {
+				return fmt.Errorf("索引列 %s 不允许 NULL", colMeta.Name)
+			}
+		}
+	}
 
 	return nil
 }
@@ -267,7 +294,7 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexStatistics(
 	// 更新全局统计
 	dml.stats.IndexUpdates++
 
-	// TODO: 可以添加更详细的索引级别统计
+	// 记录索引更新全局计数，索引级别统计后续补充
 	logger.Debugf(" 更新索引统计: IndexID=%d, 操作=%s", indexID, operationType)
 }
 
@@ -381,10 +408,20 @@ func (dml *StorageIntegratedDMLExecutor) rebuildIndexForTable(
 
 		logger.Debugf(" 重建索引: %s", index.Name)
 
-		// TODO: 实现索引重建逻辑
-		// 1. 扫描表数据
-		// 2. 重新构建索引树
-		// 3. 更新索引元数据
+		if dml.indexManager == nil {
+			return fmt.Errorf("索引管理器未初始化")
+		}
+		if index == nil {
+			continue
+		}
+
+		if err := dml.indexManager.RebuildIndex(index.IndexID); err != nil {
+			return fmt.Errorf("重建索引 %s 失败: %v", index.Name, err)
+		}
+
+		if err := dml.checkSingleIndexConsistency(index); err != nil {
+			return fmt.Errorf("索引 %s 一致性检查失败: %v", index.Name, err)
+		}
 	}
 
 	logger.Debugf(" 表索引重建完成: TableID=%d", tableID)
@@ -397,10 +434,21 @@ func (dml *StorageIntegratedDMLExecutor) optimizeIndexes(
 ) error {
 	logger.Debugf("⚡ 优化表索引: TableID=%d", tableID)
 
-	// TODO: 实现索引优化逻辑
-	// 1. 分析索引使用统计
-	// 2. 重组索引页面
-	// 3. 更新索引统计信息
+	if dml.indexManager == nil {
+		return fmt.Errorf("索引管理器未初始化")
+	}
+
+	indexes := dml.indexManager.ListIndexes(tableID)
+	for _, index := range indexes {
+		if index == nil {
+			continue
+		}
+		logger.Debugf(" 压缩索引: %s", index.Name)
+
+		if err := dml.indexManager.CompactIndex(index.IndexID); err != nil {
+			return fmt.Errorf("优化索引 %s 失败: %v", index.Name, err)
+		}
+	}
 
 	return nil
 }
@@ -432,12 +480,22 @@ func (dml *StorageIntegratedDMLExecutor) checkIndexConsistency(
 func (dml *StorageIntegratedDMLExecutor) checkSingleIndexConsistency(
 	index *manager.Index,
 ) error {
+	if dml.indexManager == nil {
+		return fmt.Errorf("索引管理器未初始化")
+	}
+	if index == nil {
+		return fmt.Errorf("索引对象为空")
+	}
 	logger.Debugf(" 检查单个索引一致性: %s", index.Name)
-
-	// TODO: 实现索引一致性检查逻辑
-	// 1. 验证索引键的有序性
-	// 2. 验证索引键与表数据的对应关系
-	// 3. 验证索引结构的完整性
+	if index.IndexID == 0 {
+		return fmt.Errorf("索引 ID 无效")
+	}
+	if _, err := dml.indexManager.GetIndexStats(index.IndexID); err != nil {
+		return fmt.Errorf("读取索引统计失败: %v", err)
+	}
+	if err := dml.indexManager.ValidateIndex(index.IndexID); err != nil {
+		return err
+	}
 
 	return nil
 }

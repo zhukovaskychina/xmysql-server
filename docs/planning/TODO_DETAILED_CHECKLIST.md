@@ -10,6 +10,16 @@
 **TODO总数**: 259个  
 **分类方式**: 模块 > 文件 > 优先级  
 
+## 2026-07-08 本次更新
+
+- [x] `server/innodb/plan/physical_plan.go`：完成 6 个代价/选择逻辑 TODO（哈希连接、哈希聚合、归并连接、哈希聚合代价、流式聚合代价）并补充行数估算辅助函数。
+- [x] `server/innodb/engine/storage_integrated_index_helper.go`：完成索引重建、索引优化、索引一致性及索引键校验的 TODO 区块，补齐了空值/参数校验和管理器调用。
+- [x] `server/innodb/storage/store/mvcc/isolation.go`：完成版本号生成和 Undo log 应用的 TODO 区块，加入空值和操作校验。
+- [x] `server/innodb/metadata/util.go`、`server/innodb/metadata/convert.go`、`server/innodb/metadata/column.go`：完成类型校验/转换和转换相关的 TODO/占位实现。
+- [x] `server/innodb/storage/wrapper/page/*.go` 与 `server/innodb/storage/store/pages/*.go`：本次排查未发现剩余 `TODO` 文本标记，关键路径测试 `go test ./server/innodb/storage/wrapper/page ./server/innodb/storage/store/pages` 通过。
+
+> 注：当前文档中的统计值仍按旧版本口径保留，优先关注本次更新清单和新增代码状态。
+
 ---
 
 ## 🔴 P0级别 - 核心功能缺失（必须修复）
@@ -88,12 +98,12 @@
 
 #### physical_plan.go (6个TODO)
 
-- [ ] 哈希连接决策 (行285)
-- [ ] 哈希聚合决策 (行290)
-- [ ] 哈希连接代价估算 (行295)
-- [ ] 归并连接代价估算 (行300)
-- [ ] 哈希聚合代价估算 (行305)
-- [ ] 流式聚合代价估算 (行310)
+- [x] 哈希连接决策 (行285)
+- [x] 哈希聚合决策 (行290)
+- [x] 哈希连接代价估算 (行295)
+- [x] 归并连接代价估算 (行300)
+- [x] 哈希聚合代价估算 (行305)
+- [x] 流式聚合代价估算 (行310)
 
 ### 管理器
 
