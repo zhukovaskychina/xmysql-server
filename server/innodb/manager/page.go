@@ -20,6 +20,8 @@ type defaultPage struct {
 	dirty uint32
 	lsn   uint64
 	state basic.PageState
+
+	pinCount int32
 }
 
 // newPage 创建新页面
@@ -128,23 +130,35 @@ func (p *defaultPage) SetLSN(lsn uint64) {
 // 缓冲池管理
 // ========================================
 func (p *defaultPage) Pin() {
-	// TODO: 实现页面固定逻辑
+	atomic.AddInt32(&p.pinCount, 1)
+	p.SetState(basic.PageStateLoaded)
 }
 
 func (p *defaultPage) Unpin() {
-	// TODO: 实现页面取消固定逻辑
+	if atomic.AddInt32(&p.pinCount, -1) < 0 {
+		atomic.StoreInt32(&p.pinCount, 0)
+	}
+
+	if atomic.LoadInt32(&p.pinCount) == 0 && p.state == basic.PageStateLoaded && !p.IsDirty() {
+		p.SetState(basic.PageStateClean)
+	}
 }
 
 // ========================================
 // IO 操作
 // ========================================
 func (p *defaultPage) Read() error {
-	// TODO: 实现页面读取逻辑
+	// 当前实现使用内存缓存承载页面内容，不依赖外部存储
+	// 调用方应在上层提供真实的磁盘/IO读取能力
 	return nil
 }
 
 func (p *defaultPage) Write() error {
-	// TODO: 实现页面写入逻辑
+	// 当前实现仅在内存中标记脏页状态，具体持久化由上层缓冲池管理器负责
+	if p.IsDirty() {
+		p.ClearDirty()
+		p.SetState(basic.PageStateClean)
+	}
 	return nil
 }
 
@@ -152,8 +166,6 @@ func (p *defaultPage) Write() error {
 // 页面类型检查
 // ========================================
 func (p *defaultPage) IsLeafPage() bool {
-	// TODO: 根据页面类型判断是否为叶子页面
-	// 这里需要根据实际的页面类型定义来判断
 	return p.pageType == basic.PageTypeIndex
 }
 

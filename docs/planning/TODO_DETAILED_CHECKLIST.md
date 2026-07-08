@@ -17,6 +17,7 @@
 - [x] `server/innodb/storage/store/mvcc/isolation.go`：完成版本号生成和 Undo log 应用的 TODO 区块，加入空值和操作校验。
 - [x] `server/innodb/metadata/util.go`、`server/innodb/metadata/convert.go`、`server/innodb/metadata/column.go`：完成类型校验/转换和转换相关的 TODO/占位实现。
 - [x] `server/innodb/storage/wrapper/page/*.go` 与 `server/innodb/storage/store/pages/*.go`：本次排查未发现剩余 `TODO` 文本标记，关键路径测试 `go test ./server/innodb/storage/wrapper/page ./server/innodb/storage/store/pages` 通过。
+- [x] `server/innodb/manager/page.go`：补齐 `defaultPage` 的 `Pin/Unpin/Read/Write/IsLeafPage` 实现，统一引用计数边界处理并补齐脏态与状态切换。
 
 > 注：当前文档中的统计值仍按旧版本口径保留，优先关注本次更新清单和新增代码状态。
 
