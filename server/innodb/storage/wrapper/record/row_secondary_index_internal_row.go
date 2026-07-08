@@ -10,11 +10,6 @@ import (
 	"strings"
 )
 
-// TODO: This file needs complete implementation
-// Currently disabled due to missing dependencies
-
-// Placeholder to avoid compilation errors
-
 // SecondaryIndexInternalRowHeader 辅助索引内部节点行头部
 type SecondaryIndexInternalRowHeader struct {
 	basic.FieldDataHeader

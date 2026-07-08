@@ -1,5 +1,9 @@
 package wrapper
 
+import (
+	"encoding/binary"
+)
+
 // FileHeader 文件头部
 type FileHeader struct {
 	SpaceID  uint32
@@ -34,12 +38,18 @@ func NewFileTrailer(lsn uint64, checksum uint32) *FileTrailer {
 
 // GetBytes 获取文件头部的字节数组
 func (fh *FileHeader) GetBytes() []byte {
-	// TODO: 实现文件头部序列化
-	return nil
+	bytes := make([]byte, 18)
+	binary.LittleEndian.PutUint32(bytes[0:4], fh.SpaceID)
+	binary.LittleEndian.PutUint32(bytes[4:8], fh.PageNo)
+	binary.LittleEndian.PutUint16(bytes[8:10], fh.PageType)
+	binary.LittleEndian.PutUint64(bytes[10:18], fh.LSN)
+	return bytes
 }
 
 // GetBytes 获取文件尾部的字节数组
 func (ft *FileTrailer) GetBytes() []byte {
-	// TODO: 实现文件尾部序列化
-	return nil
+	bytes := make([]byte, 12)
+	binary.LittleEndian.PutUint64(bytes[0:8], ft.LSN)
+	binary.LittleEndian.PutUint32(bytes[8:12], ft.Checksum)
+	return bytes
 }

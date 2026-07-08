@@ -329,16 +329,6 @@ type ClusterLeafRowData struct {
 	DBRollPtr uint64 // 7字节，回滚指针，指向Undo日志
 }
 
-// TODO: Uncomment when store package is available
-/*
-func NewClusterLeafRowData(meta *store.TableTupleMeta) basic.FieldDataValue {
-	var clusterLeafRowData = new(ClusterLeafRowData)
-	clusterLeafRowData.Content = make([]byte, 0)
-	clusterLeafRowData.meta = meta.GetPrimaryClusterLeafTuple()
-	return clusterLeafRowData
-}
-*/
-
 func NewClusterLeafRowDataWithContents(content []byte, meta tuple) basic.FieldDataValue {
 	var clusterLeafRowData = new(ClusterLeafRowData)
 	clusterLeafRowData.Content = content
@@ -368,6 +358,15 @@ func (cld *ClusterLeafRowData) ReadValue(index int) basic.Value {
 }
 
 func (cld *ClusterLeafRowData) ReadBytesWithNullWithPosition(index int) []byte {
+	start := 5 * index
+	end := start + 5
+	if index < 0 || cld == nil || start >= len(cld.Content) || end > len(cld.Content) {
+		return nil
+	}
+	if start+4 > len(cld.Content) {
+		return nil
+	}
+
 	if len(cld.RowValues) > 0 {
 		if index >= 0 && index < len(cld.RowValues) && cld.RowValues[index] != nil {
 			return cld.RowValues[index].Bytes()
@@ -631,8 +630,11 @@ func (row *ClusterLeafRow) Less(than basic.Row) bool {
 }
 
 func (row *ClusterLeafRow) GetPrimaryKey() basic.Value {
-
-	return nil
+	raw := row.value.ReadBytesWithNullWithPosition(0)
+	if len(raw) == 0 {
+		return basic.NewStringValue("")
+	}
+	return basic.NewValue(raw)
 
 }
 
@@ -649,54 +651,3 @@ func (row *ClusterLeafRow) IsInfimumRow() bool {
 
 	return false
 }
-
-// TODO: Fix this function when ClusterSysIndexInternalRow and valueImpl are available
-/*
-func NewClusterLeafRowWithContent(content []byte, tableTuple tuple) basic.Row {
-	var currentRow = new(ClusterSysIndexInternalRow)
-
-	currentRow.FrmMeta = tableTuple
-
-	currentRow.header = NewClusterLeafRowHeaderWithContents(tableTuple, content)
-	currentRow.RowValues = make([]basic.Value, 0)
-
-	rowHeaderLength := currentRow.header.GetRowHeaderLength()
-
-	startOffset := rowHeaderLength
-
-	for i := 0; i < tableTuple.GetColumnLength(); i++ {
-
-		if currentRow.header.IsValueNullByIdx(byte(int(i))) {
-			fieldType := tableTuple.GetColumnInfos(byte(i)).FieldType
-			switch fieldType {
-			case "VARCHAR":
-				{
-					realLength := currentRow.header.GetVarValueLengthByIndex(byte(i))
-					currentRow.RowValues = append(currentRow.RowValues, valueImpl.NewVarcharVal(content[startOffset:int(startOffset)+realLength]))
-					startOffset = startOffset + uint16(realLength)
-					break
-				}
-			case "BIGINT":
-				{
-
-					currentRow.RowValues = append(currentRow.RowValues, valueImpl.NewBigIntValue(content[startOffset:startOffset+8]))
-					startOffset = startOffset + 8
-					break
-				}
-			case "INT":
-				{
-					currentRow.RowValues = append(currentRow.RowValues, valueImpl.NewIntValue(content[startOffset:startOffset+4]))
-					startOffset = startOffset + 4
-					break
-				}
-			}
-
-		} else {
-			fmt.Println("------------------")
-		}
-
-	}
-	currentRow.value = NewClusterLeafRowDataWithContents(content[rowHeaderLength:startOffset], tableTuple)
-	return currentRow
-}
-*/

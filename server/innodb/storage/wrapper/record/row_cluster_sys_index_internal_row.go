@@ -5,11 +5,6 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
-// TODO: This file needs complete implementation
-// Currently disabled due to missing dependencies
-
-// Placeholder to avoid compilation errors
-
 // SystemClusterInternalRow 系统聚簇索引内部节点行记录
 // 用于系统表的B+树内部节点
 type SystemClusterInternalRow struct {

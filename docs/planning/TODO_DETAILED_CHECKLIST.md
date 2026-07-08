@@ -145,6 +145,11 @@
 - [ ] 读取逻辑 (行281)
 - [ ] 刷新逻辑 (行310)
 
+#### 页面压缩
+
+- [ ] `page/compression_manager.go` LZ4（行325-331）：压缩/解压缩占位未实现
+- [ ] `store/pages/compressed_page.go` LZ4/Snappy（行123-125, 170-172）：算法分支返回不支持
+
 #### 页面类型实现
 
 **page_allocated_wrapper.go** (4个TODO)
@@ -189,13 +194,13 @@
 
 ### 记录格式
 
-**row_cluster_index_leaf_row.go** (3个TODO)
-- [ ] Store package可用性 (行327)
-- [ ] ToByte方法调用 (行366)
-- [ ] ClusterSysIndexInternalRow (行502)
+**row_cluster_index_leaf_row.go** (0个TODO)
+- [x] Store package可用性 (行327)
+- [x] ToByte方法调用 (行366)
+- [x] ClusterSysIndexInternalRow (行502)
 
-**row_cluster_index_internal_row.go** (3个TODO)
-- [ ] valueImpl引用修复 (行284, 292, 299)
+**row_cluster_index_internal_row.go** (0个TODO)
+- [x] valueImpl引用修复 (行284, 292, 299)
 
 **未完成的记录类型**:
 - [ ] row_secondary_index_leaf_row.go - 完整实现
