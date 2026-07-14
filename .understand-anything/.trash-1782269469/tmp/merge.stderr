@@ -1,0 +1,68 @@
+Found 51 batch files (51 logical batches, 0 multi-part):
+  batch-1.json: 240 nodes, 3470 edges
+  batch-2.json: 324 nodes, 954 edges
+  batch-3.json: 730 nodes, 5378 edges
+  batch-4.json: 600 nodes, 1820 edges
+  batch-5.json: 488 nodes, 1061 edges
+  batch-6.json: 434 nodes, 1117 edges
+  batch-7.json: 398 nodes, 1396 edges
+  batch-8.json: 540 nodes, 2051 edges
+  batch-9.json: 511 nodes, 1541 edges
+  batch-10.json: 439 nodes, 1187 edges
+  batch-11.json: 500 nodes, 1319 edges
+  batch-12.json: 309 nodes, 600 edges
+  batch-13.json: 429 nodes, 2439 edges
+  batch-14.json: 380 nodes, 1844 edges
+  batch-15.json: 454 nodes, 938 edges
+  batch-16.json: 553 nodes, 1137 edges
+  batch-17.json: 104 nodes, 156 edges
+  batch-18.json: 531 nodes, 2009 edges
+  batch-19.json: 504 nodes, 1748 edges
+  batch-20.json: 194 nodes, 562 edges
+  batch-21.json: 685 nodes, 2537 edges
+  batch-22.json: 101 nodes, 182 edges
+  batch-23.json: 1 nodes, 0 edges
+  batch-24.json: 12 nodes, 3 edges
+  batch-25.json: 4 nodes, 0 edges
+  batch-26.json: 5 nodes, 0 edges
+  batch-27.json: 20 nodes, 0 edges
+  batch-28.json: 4 nodes, 0 edges
+  batch-29.json: 4 nodes, 0 edges
+  batch-30.json: 11 nodes, 0 edges
+  batch-31.json: 4 nodes, 0 edges
+  batch-32.json: 13 nodes, 0 edges
+  batch-33.json: 4 nodes, 0 edges
+  batch-34.json: 4 nodes, 0 edges
+  batch-35.json: 8 nodes, 0 edges
+  batch-36.json: 9 nodes, 0 edges
+  batch-37.json: 20 nodes, 0 edges
+  batch-38.json: 20 nodes, 0 edges
+  batch-39.json: 20 nodes, 0 edges
+  batch-40.json: 5 nodes, 0 edges
+  batch-41.json: 6 nodes, 0 edges
+  batch-42.json: 3 nodes, 0 edges
+  batch-43.json: 9 nodes, 0 edges
+  batch-44.json: 13 nodes, 0 edges
+  batch-45.json: 10 nodes, 0 edges
+  batch-46.json: 9 nodes, 0 edges
+  batch-47.json: 8 nodes, 0 edges
+  batch-48.json: 6 nodes, 0 edges
+  batch-49.json: 39 nodes, 30 edges
+  batch-50.json: 157 nodes, 204 edges
+  batch-51.json: 242 nodes, 427 edges
+
+Input: 10118 nodes, 36110 edges
+
+Fixed (489 corrections):
+   489 × duplicate node IDs removed (kept last)
+
+Tested-by linker:
+    88 × tested_by edges produced (path-convention supplement, production → test)
+    88 × production nodes tagged "tested"
+
+Output: 9629 nodes, 35260 edges
+
+Imports edge recovery:
+  Recovered 0 `imports` edges from importMap (940 entries scanned)
+
+Written to /Users/zhukovasky/GolandProjects/xmysql-server/.understand-anything/intermediate/assembled-graph.json (12410 KB)

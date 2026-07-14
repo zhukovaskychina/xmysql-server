@@ -1,0 +1,597 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/storage/store/blocks/block_file.go",
+      "type": "file",
+      "name": "block_file.go",
+      "filePath": "server/innodb/storage/store/blocks/block_file.go",
+      "summary": "提供块文件存储相关的数据结构与处理逻辑，核心结构包括 BlockFile、NewBlockFile、Open、Close。",
+      "tags": [
+        "go",
+        "block-storage",
+        "storage-engine"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/storage/store/blocks/block_file.go:NewBlockFile",
+      "type": "function",
+      "name": "NewBlockFile",
+      "filePath": "server/innodb/storage/store/blocks/block_file.go",
+      "lineRange": [
+        21,
+        27
+      ],
+      "summary": "创建并初始化 BlockFile，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "block-storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/blocks/block_file.go:Open",
+      "type": "function",
+      "name": "Open",
+      "filePath": "server/innodb/storage/store/blocks/block_file.go",
+      "lineRange": [
+        30,
+        54
+      ],
+      "summary": "初始化当前 块文件存储 组件的执行状态并准备后续读取。",
+      "tags": [
+        "method",
+        "go",
+        "block-storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/blocks/block_file.go:Close",
+      "type": "function",
+      "name": "Close",
+      "filePath": "server/innodb/storage/store/blocks/block_file.go",
+      "lineRange": [
+        57,
+        67
+      ],
+      "summary": "释放当前 块文件存储 组件持有的资源并结束生命周期。",
+      "tags": [
+        "method",
+        "go",
+        "block-storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/blocks/block_file.go:ReadPage",
+      "type": "function",
+      "name": "ReadPage",
+      "filePath": "server/innodb/storage/store/blocks/block_file.go",
+      "lineRange": [
+        70,
+        89
+      ],
+      "summary": "从底层存储读取 Page，并完成必要的解码或可见性处理。",
+      "tags": [
+        "data-access",
+        "storage",
+        "block-storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/blocks/block_file.go:WritePage",
+      "type": "function",
+      "name": "WritePage",
+      "filePath": "server/innodb/storage/store/blocks/block_file.go",
+      "lineRange": [
+        92,
+        105
+      ],
+      "summary": "将 Page 写入底层结构，并维护相关状态。",
+      "tags": [
+        "data-access",
+        "storage",
+        "block-storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/blocks/block_file.go:Sync",
+      "type": "function",
+      "name": "Sync",
+      "filePath": "server/innodb/storage/store/blocks/block_file.go",
+      "lineRange": [
+        108,
+        116
+      ],
+      "summary": "实现 块文件存储 中的 Sync 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "block-storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/blocks/block_file.go:BlockFile",
+      "type": "class",
+      "name": "BlockFile",
+      "filePath": "server/innodb/storage/store/blocks/block_file.go",
+      "lineRange": [
+        11,
+        16
+      ],
+      "summary": "定义 块文件存储 使用的 BlockFile 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "block-storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/storage/store/extents/extent_test.go",
+      "type": "file",
+      "name": "extent_test.go",
+      "filePath": "server/innodb/storage/store/extents/extent_test.go",
+      "summary": "验证extent 持久化结构相关行为与边界条件，重点覆盖 NewExtentEntry、ExtentEntry PageAllocation、ExtentEntry PageDeallocation。",
+      "tags": [
+        "test",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/storage/store/extents/extent_test.go:TestNewExtentEntry",
+      "type": "function",
+      "name": "TestNewExtentEntry",
+      "filePath": "server/innodb/storage/store/extents/extent_test.go",
+      "lineRange": [
+        8,
+        16
+      ],
+      "summary": "验证 NewExtentEntry 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/extents/extent_test.go:TestExtentEntry_PageAllocation",
+      "type": "function",
+      "name": "TestExtentEntry_PageAllocation",
+      "filePath": "server/innodb/storage/store/extents/extent_test.go",
+      "lineRange": [
+        18,
+        44
+      ],
+      "summary": "验证 ExtentEntry PageAllocation 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/extents/extent_test.go:TestExtentEntry_PageDeallocation",
+      "type": "function",
+      "name": "TestExtentEntry_PageDeallocation",
+      "filePath": "server/innodb/storage/store/extents/extent_test.go",
+      "lineRange": [
+        46,
+        74
+      ],
+      "summary": "验证 ExtentEntry PageDeallocation 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/extents/extent_test.go:TestExtentEntry_Serialization",
+      "type": "function",
+      "name": "TestExtentEntry_Serialization",
+      "filePath": "server/innodb/storage/store/extents/extent_test.go",
+      "lineRange": [
+        76,
+        102
+      ],
+      "summary": "验证 ExtentEntry Serialization 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "function:server/innodb/storage/store/blocks/block_file.go:NewBlockFile",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "function:server/innodb/storage/store/blocks/block_file.go:NewBlockFile",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "function:server/innodb/storage/store/blocks/block_file.go:Open",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "function:server/innodb/storage/store/blocks/block_file.go:Open",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "function:server/innodb/storage/store/blocks/block_file.go:Close",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "function:server/innodb/storage/store/blocks/block_file.go:Close",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "function:server/innodb/storage/store/blocks/block_file.go:ReadPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "function:server/innodb/storage/store/blocks/block_file.go:ReadPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "function:server/innodb/storage/store/blocks/block_file.go:WritePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "function:server/innodb/storage/store/blocks/block_file.go:WritePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "function:server/innodb/storage/store/blocks/block_file.go:Sync",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "function:server/innodb/storage/store/blocks/block_file.go:Sync",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "class:server/innodb/storage/store/blocks/block_file.go:BlockFile",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "class:server/innodb/storage/store/blocks/block_file.go:BlockFile",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/blocks/block_file.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent_test.go",
+      "target": "function:server/innodb/storage/store/extents/extent_test.go:TestNewExtentEntry",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent_test.go",
+      "target": "function:server/innodb/storage/store/extents/extent_test.go:TestNewExtentEntry",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent_test.go",
+      "target": "function:server/innodb/storage/store/extents/extent_test.go:TestExtentEntry_PageAllocation",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent_test.go",
+      "target": "function:server/innodb/storage/store/extents/extent_test.go:TestExtentEntry_PageAllocation",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent_test.go",
+      "target": "function:server/innodb/storage/store/extents/extent_test.go:TestExtentEntry_PageDeallocation",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent_test.go",
+      "target": "function:server/innodb/storage/store/extents/extent_test.go:TestExtentEntry_PageDeallocation",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent_test.go",
+      "target": "function:server/innodb/storage/store/extents/extent_test.go:TestExtentEntry_Serialization",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent_test.go",
+      "target": "function:server/innodb/storage/store/extents/extent_test.go:TestExtentEntry_Serialization",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

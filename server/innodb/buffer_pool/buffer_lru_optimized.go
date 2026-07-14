@@ -45,6 +45,8 @@ type OptimizedLRUCache struct {
 // lruItemOptimized 优化的LRU项目
 type lruItemOptimized struct {
 	key            uint64
+	spaceID        uint32
+	pageNo         uint32
 	value          *BufferBlock
 	firstVisitTime uint64
 	lastVisitTime  uint64
@@ -69,6 +71,13 @@ func NewOptimizedLRUCache(size int, youngPercent, oldPercent float64, innodbOldB
 	}
 
 	return cache
+}
+
+// SetEvictedFunc registers a callback invoked whenever an item is evicted.
+func (c *OptimizedLRUCache) SetEvictedFunc(fn EvictedFunc) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.evictedFunc = fn
 }
 
 // Get 获取缓存项（优化版本）
@@ -216,6 +225,8 @@ func (c *OptimizedLRUCache) promoteToYoungIfNeeded(key uint64, value *BufferBloc
 
 			newItem := &lruItemOptimized{
 				key:            key,
+				spaceID:        item.spaceID,
+				pageNo:         item.pageNo,
 				value:          value,
 				firstVisitTime: item.firstVisitTime,
 				lastVisitTime:  item.lastVisitTime,
@@ -272,6 +283,8 @@ func (c *OptimizedLRUCache) setOldLocked(key uint64, value *BufferBlock) {
 	now := uint64(time.Now().Unix())
 	item := &lruItemOptimized{
 		key:            key,
+		spaceID:        value.GetSpaceID(),
+		pageNo:         value.GetPageNo(),
 		value:          value,
 		firstVisitTime: now,
 		lastVisitTime:  now,
@@ -298,6 +311,8 @@ func (c *OptimizedLRUCache) setOrdinaryLocked(key uint64, value *BufferBlock) {
 	now := uint64(time.Now().Unix())
 	item := &lruItemOptimized{
 		key:            key,
+		spaceID:        value.GetSpaceID(),
+		pageNo:         value.GetPageNo(),
 		value:          value,
 		firstVisitTime: now,
 		lastVisitTime:  now,
@@ -538,6 +553,8 @@ func (c *OptimizedLRUCache) SetYoung(spaceId uint32, pageNo uint32, value *Buffe
 	now := uint64(time.Now().Unix())
 	item := &lruItemOptimized{
 		key:            key,
+		spaceID:        value.GetSpaceID(),
+		pageNo:         value.GetPageNo(),
 		value:          value,
 		firstVisitTime: now,
 		lastVisitTime:  now,
@@ -571,35 +588,33 @@ func (c *OptimizedLRUCache) Evict() *BufferPage {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// 优先从老年区域淘汰
-	if c.evictOldList.Len() > 0 {
-		element := c.evictOldList.Back()
-		if element != nil {
-			item := element.Value.(*lruItemOptimized)
-			c.evictOldList.Remove(element)
-			delete(c.oldItems, item.key)
-
-			// 转换为BufferPage返回
-			page := NewBufferPage(uint32(item.key>>32), uint32(item.key&0xFFFFFFFF))
-			page.SetContent(item.value.GetContent())
-			return page
-		}
+	if page := c.evictUnpinnedFromListLocked(c.evictOldList, c.oldItems); page != nil {
+		return page
+	}
+	if page := c.evictUnpinnedFromListLocked(c.evictList, c.items); page != nil {
+		return page
+	}
+	if page := c.evictUnpinnedFromListLocked(c.evictYoungList, c.youngItems); page != nil {
+		return page
 	}
 
-	// 然后从普通区域淘汰
-	if c.evictList.Len() > 0 {
-		element := c.evictList.Back()
-		if element != nil {
-			item := element.Value.(*lruItemOptimized)
-			c.evictList.Remove(element)
-			delete(c.items, item.key)
+	return nil
+}
 
-			page := NewBufferPage(uint32(item.key>>32), uint32(item.key&0xFFFFFFFF))
-			page.SetContent(item.value.GetContent())
-			return page
+func (c *OptimizedLRUCache) evictUnpinnedFromListLocked(l *list.List, items map[uint64]*list.Element) *BufferPage {
+	for element := l.Back(); element != nil; element = element.Prev() {
+		item := element.Value.(*lruItemOptimized)
+		if item.value == nil || item.value.BufferPage == nil || item.value.BufferPage.IsPinned() {
+			continue
 		}
-	}
 
+		l.Remove(element)
+		delete(items, item.key)
+		if c.evictedFunc != nil {
+			c.evictedFunc(item.key, item.value)
+		}
+		return item.value.BufferPage
+	}
 	return nil
 }
 

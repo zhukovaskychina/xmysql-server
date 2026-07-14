@@ -1,0 +1,4553 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/basic/value.go",
+      "type": "file",
+      "name": "value.go",
+      "filePath": "server/innodb/basic/value.go",
+      "summary": "实现SQL 值类型、比较和 Go 类型转换，覆盖 basicValue、minValue、maxValue、simpleRow 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "value-conversion",
+        "service",
+        "source-file"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:CompareType.String",
+      "type": "function",
+      "name": "CompareType.String",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        81,
+        83
+      ],
+      "summary": "实现 String 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:basicValue.Type",
+      "type": "function",
+      "name": "basicValue.Type",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        93,
+        95
+      ],
+      "summary": "实现 Type 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:basicValue.Compare",
+      "type": "function",
+      "name": "basicValue.Compare",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        98,
+        116
+      ],
+      "summary": "计算 Compare 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "calculation",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:basicValue.Raw",
+      "type": "function",
+      "name": "basicValue.Raw",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        118,
+        120
+      ],
+      "summary": "实现 Raw 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:basicValue.ToString",
+      "type": "function",
+      "name": "basicValue.ToString",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        122,
+        124
+      ],
+      "summary": "实现 ToString 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:basicValue.Bytes",
+      "type": "function",
+      "name": "basicValue.Bytes",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        126,
+        128
+      ],
+      "summary": "实现 Bytes 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:minValue.Type",
+      "type": "function",
+      "name": "minValue.Type",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        134,
+        136
+      ],
+      "summary": "实现 Type 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:minValue.Compare",
+      "type": "function",
+      "name": "minValue.Compare",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        138,
+        143
+      ],
+      "summary": "计算 Compare 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "calculation",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:minValue.Raw",
+      "type": "function",
+      "name": "minValue.Raw",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        145,
+        147
+      ],
+      "summary": "实现 Raw 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:minValue.ToString",
+      "type": "function",
+      "name": "minValue.ToString",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        149,
+        151
+      ],
+      "summary": "实现 ToString 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:minValue.Bytes",
+      "type": "function",
+      "name": "minValue.Bytes",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        153,
+        155
+      ],
+      "summary": "实现 Bytes 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:minValue.IsNull",
+      "type": "function",
+      "name": "minValue.IsNull",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        157,
+        159
+      ],
+      "summary": "检查 IsNull 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:minValue.Int",
+      "type": "function",
+      "name": "minValue.Int",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        161,
+        163
+      ],
+      "summary": "实现 Int 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:minValue.Float64",
+      "type": "function",
+      "name": "minValue.Float64",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        165,
+        167
+      ],
+      "summary": "实现 Float64 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:minValue.String",
+      "type": "function",
+      "name": "minValue.String",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        169,
+        171
+      ],
+      "summary": "实现 String 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:minValue.Time",
+      "type": "function",
+      "name": "minValue.Time",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        173,
+        175
+      ],
+      "summary": "实现 Time 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:minValue.Bool",
+      "type": "function",
+      "name": "minValue.Bool",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        177,
+        179
+      ],
+      "summary": "实现 Bool 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:minValue.LessOrEqual",
+      "type": "function",
+      "name": "minValue.LessOrEqual",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        182,
+        184
+      ],
+      "summary": "实现 LessOrEqual 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:maxValue.Type",
+      "type": "function",
+      "name": "maxValue.Type",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        186,
+        188
+      ],
+      "summary": "实现 Type 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:maxValue.Compare",
+      "type": "function",
+      "name": "maxValue.Compare",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        190,
+        195
+      ],
+      "summary": "计算 Compare 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "calculation",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:maxValue.Raw",
+      "type": "function",
+      "name": "maxValue.Raw",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        197,
+        199
+      ],
+      "summary": "实现 Raw 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:maxValue.ToString",
+      "type": "function",
+      "name": "maxValue.ToString",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        201,
+        203
+      ],
+      "summary": "实现 ToString 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:maxValue.Bytes",
+      "type": "function",
+      "name": "maxValue.Bytes",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        205,
+        207
+      ],
+      "summary": "实现 Bytes 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:maxValue.IsNull",
+      "type": "function",
+      "name": "maxValue.IsNull",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        209,
+        211
+      ],
+      "summary": "检查 IsNull 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:maxValue.Int",
+      "type": "function",
+      "name": "maxValue.Int",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        213,
+        215
+      ],
+      "summary": "实现 Int 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:maxValue.Float64",
+      "type": "function",
+      "name": "maxValue.Float64",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        217,
+        219
+      ],
+      "summary": "实现 Float64 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:maxValue.String",
+      "type": "function",
+      "name": "maxValue.String",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        221,
+        223
+      ],
+      "summary": "实现 String 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:maxValue.Time",
+      "type": "function",
+      "name": "maxValue.Time",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        225,
+        227
+      ],
+      "summary": "实现 Time 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:maxValue.Bool",
+      "type": "function",
+      "name": "maxValue.Bool",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        229,
+        231
+      ],
+      "summary": "实现 Bool 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:maxValue.LessOrEqual",
+      "type": "function",
+      "name": "maxValue.LessOrEqual",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        234,
+        236
+      ],
+      "summary": "实现 LessOrEqual 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:NewMaxValue",
+      "type": "function",
+      "name": "NewMaxValue",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        240,
+        242
+      ],
+      "summary": "构造并初始化 NewMaxValue 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:NewMinValue",
+      "type": "function",
+      "name": "NewMinValue",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        244,
+        246
+      ],
+      "summary": "构造并初始化 NewMinValue 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:NewValue",
+      "type": "function",
+      "name": "NewValue",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        248,
+        254
+      ],
+      "summary": "构造并初始化 NewValue 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:NewRow",
+      "type": "function",
+      "name": "NewRow",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        256,
+        263
+      ],
+      "summary": "构造并初始化 NewRow 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:Less",
+      "type": "function",
+      "name": "Less",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        275,
+        290
+      ],
+      "summary": "实现 Less 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:ToByte",
+      "type": "function",
+      "name": "ToByte",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        292,
+        294
+      ],
+      "summary": "实现 ToByte 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:IsInfimumRow",
+      "type": "function",
+      "name": "IsInfimumRow",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        296,
+        298
+      ],
+      "summary": "检查 IsInfimumRow 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:IsSupremumRow",
+      "type": "function",
+      "name": "IsSupremumRow",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        300,
+        302
+      ],
+      "summary": "检查 IsSupremumRow 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:GetPageNumber",
+      "type": "function",
+      "name": "GetPageNumber",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        304,
+        306
+      ],
+      "summary": "读取或查找 GetPageNumber 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:WriteWithNull",
+      "type": "function",
+      "name": "WriteWithNull",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        308,
+        312
+      ],
+      "summary": "更新或持久化 WriteWithNull 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:WriteBytesWithNullWithsPos",
+      "type": "function",
+      "name": "WriteBytesWithNullWithsPos",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        314,
+        326
+      ],
+      "summary": "更新或持久化 WriteBytesWithNullWithsPos 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:GetRowLength",
+      "type": "function",
+      "name": "GetRowLength",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        328,
+        330
+      ],
+      "summary": "读取或查找 GetRowLength 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:GetHeaderLength",
+      "type": "function",
+      "name": "GetHeaderLength",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        332,
+        334
+      ],
+      "summary": "读取或查找 GetHeaderLength 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:GetPrimaryKey",
+      "type": "function",
+      "name": "GetPrimaryKey",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        336,
+        341
+      ],
+      "summary": "读取或查找 GetPrimaryKey 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:GetFieldLength",
+      "type": "function",
+      "name": "GetFieldLength",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        343,
+        345
+      ],
+      "summary": "读取或查找 GetFieldLength 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:ReadValueByIndex",
+      "type": "function",
+      "name": "ReadValueByIndex",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        347,
+        352
+      ],
+      "summary": "读取或查找 ReadValueByIndex 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:SetNOwned",
+      "type": "function",
+      "name": "SetNOwned",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        354,
+        356
+      ],
+      "summary": "更新或持久化 SetNOwned 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:GetNOwned",
+      "type": "function",
+      "name": "GetNOwned",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        358,
+        360
+      ],
+      "summary": "读取或查找 GetNOwned 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:GetNextRowOffset",
+      "type": "function",
+      "name": "GetNextRowOffset",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        362,
+        364
+      ],
+      "summary": "读取或查找 GetNextRowOffset 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:SetNextRowOffset",
+      "type": "function",
+      "name": "SetNextRowOffset",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        366,
+        368
+      ],
+      "summary": "更新或持久化 SetNextRowOffset 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:GetHeapNo",
+      "type": "function",
+      "name": "GetHeapNo",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        370,
+        372
+      ],
+      "summary": "读取或查找 GetHeapNo 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:SetHeapNo",
+      "type": "function",
+      "name": "SetHeapNo",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        374,
+        376
+      ],
+      "summary": "更新或持久化 SetHeapNo 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:SetTransactionId",
+      "type": "function",
+      "name": "SetTransactionId",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        378,
+        380
+      ],
+      "summary": "更新或持久化 SetTransactionId 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:GetValueByColName",
+      "type": "function",
+      "name": "GetValueByColName",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        382,
+        384
+      ],
+      "summary": "读取或查找 GetValueByColName 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:simpleRow.ToString",
+      "type": "function",
+      "name": "simpleRow.ToString",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        386,
+        388
+      ],
+      "summary": "实现 ToString 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:NewInt64Value",
+      "type": "function",
+      "name": "NewInt64Value",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        391,
+        397
+      ],
+      "summary": "构造并初始化 NewInt64Value 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:NewStringValue",
+      "type": "function",
+      "name": "NewStringValue",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        399,
+        405
+      ],
+      "summary": "构造并初始化 NewStringValue 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:NewFloatValue",
+      "type": "function",
+      "name": "NewFloatValue",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        407,
+        413
+      ],
+      "summary": "构造并初始化 NewFloatValue 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:NewNull",
+      "type": "function",
+      "name": "NewNull",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        434,
+        436
+      ],
+      "summary": "构造并初始化 NewNull 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:NewInt",
+      "type": "function",
+      "name": "NewInt",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        439,
+        454
+      ],
+      "summary": "构造并初始化 NewInt 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:NewInt64",
+      "type": "function",
+      "name": "NewInt64",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        457,
+        459
+      ],
+      "summary": "构造并初始化 NewInt64 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:NewFloat",
+      "type": "function",
+      "name": "NewFloat",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        462,
+        471
+      ],
+      "summary": "构造并初始化 NewFloat 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:NewFloat64",
+      "type": "function",
+      "name": "NewFloat64",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        474,
+        476
+      ],
+      "summary": "构造并初始化 NewFloat64 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:NewString",
+      "type": "function",
+      "name": "NewString",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        479,
+        484
+      ],
+      "summary": "构造并初始化 NewString 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:NewTime",
+      "type": "function",
+      "name": "NewTime",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        487,
+        498
+      ],
+      "summary": "构造并初始化 NewTime 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:NewBool",
+      "type": "function",
+      "name": "NewBool",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        509,
+        517
+      ],
+      "summary": "构造并初始化 NewBool 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:NewBytes",
+      "type": "function",
+      "name": "NewBytes",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        520,
+        533
+      ],
+      "summary": "构造并初始化 NewBytes 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:nullValue.Type",
+      "type": "function",
+      "name": "nullValue.Type",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        538,
+        540
+      ],
+      "summary": "实现 Type 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:nullValue.Compare",
+      "type": "function",
+      "name": "nullValue.Compare",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        542,
+        547
+      ],
+      "summary": "计算 Compare 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "calculation",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:nullValue.Raw",
+      "type": "function",
+      "name": "nullValue.Raw",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        549,
+        551
+      ],
+      "summary": "实现 Raw 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:nullValue.ToString",
+      "type": "function",
+      "name": "nullValue.ToString",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        553,
+        555
+      ],
+      "summary": "实现 ToString 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:nullValue.Bytes",
+      "type": "function",
+      "name": "nullValue.Bytes",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        557,
+        559
+      ],
+      "summary": "实现 Bytes 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:nullValue.IsNull",
+      "type": "function",
+      "name": "nullValue.IsNull",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        561,
+        563
+      ],
+      "summary": "检查 IsNull 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:nullValue.Int",
+      "type": "function",
+      "name": "nullValue.Int",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        565,
+        567
+      ],
+      "summary": "实现 Int 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:nullValue.Float64",
+      "type": "function",
+      "name": "nullValue.Float64",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        569,
+        571
+      ],
+      "summary": "实现 Float64 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:nullValue.String",
+      "type": "function",
+      "name": "nullValue.String",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        573,
+        575
+      ],
+      "summary": "实现 String 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:nullValue.Time",
+      "type": "function",
+      "name": "nullValue.Time",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        577,
+        579
+      ],
+      "summary": "实现 Time 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:nullValue.Bool",
+      "type": "function",
+      "name": "nullValue.Bool",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        581,
+        583
+      ],
+      "summary": "实现 Bool 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:nullValue.LessOrEqual",
+      "type": "function",
+      "name": "nullValue.LessOrEqual",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        586,
+        588
+      ],
+      "summary": "实现 LessOrEqual 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:basicValue.IsNull",
+      "type": "function",
+      "name": "basicValue.IsNull",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        591,
+        593
+      ],
+      "summary": "检查 IsNull 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "value-conversion",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:basicValue.Int",
+      "type": "function",
+      "name": "basicValue.Int",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        595,
+        616
+      ],
+      "summary": "实现 Int 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:basicValue.Float64",
+      "type": "function",
+      "name": "basicValue.Float64",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        618,
+        639
+      ],
+      "summary": "实现 Float64 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:basicValue.String",
+      "type": "function",
+      "name": "basicValue.String",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        641,
+        643
+      ],
+      "summary": "实现 String 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:basicValue.Time",
+      "type": "function",
+      "name": "basicValue.Time",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        645,
+        654
+      ],
+      "summary": "实现 Time 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:basicValue.Bool",
+      "type": "function",
+      "name": "basicValue.Bool",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        656,
+        663
+      ],
+      "summary": "实现 Bool 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:basicValue.LessOrEqual",
+      "type": "function",
+      "name": "basicValue.LessOrEqual",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        666,
+        668
+      ],
+      "summary": "实现 LessOrEqual 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:bytesToInt64",
+      "type": "function",
+      "name": "bytesToInt64",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        675,
+        712
+      ],
+      "summary": "实现 bytesToInt64 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:bytesToFloat64",
+      "type": "function",
+      "name": "bytesToFloat64",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        715,
+        735
+      ],
+      "summary": "实现 bytesToFloat64 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:parseInt64FromString",
+      "type": "function",
+      "name": "parseInt64FromString",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        738,
+        771
+      ],
+      "summary": "实现 parseInt64FromString 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value.go:parseFloat64FromString",
+      "type": "function",
+      "name": "parseFloat64FromString",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        774,
+        816
+      ],
+      "summary": "实现 parseFloat64FromString 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/value.go:basicValue",
+      "type": "class",
+      "name": "basicValue",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        86,
+        90
+      ],
+      "summary": "basicValue 定义SQL 值类型、比较和 Go 类型转换所需的数据结构，并通过 Type、Compare、Raw、ToString 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "value-conversion",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/basic/value.go:minValue",
+      "type": "class",
+      "name": "minValue",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        131,
+        131
+      ],
+      "summary": "minValue 定义SQL 值类型、比较和 Go 类型转换所需的数据结构，并通过 Type、Compare、Raw、ToString 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "value-conversion",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/basic/value.go:maxValue",
+      "type": "class",
+      "name": "maxValue",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        132,
+        132
+      ],
+      "summary": "maxValue 定义SQL 值类型、比较和 Go 类型转换所需的数据结构，并通过 Type、Compare、Raw、ToString 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "value-conversion",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/basic/value.go:simpleRow",
+      "type": "class",
+      "name": "simpleRow",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        266,
+        273
+      ],
+      "summary": "simpleRow 定义SQL 值类型、比较和 Go 类型转换所需的数据结构，并通过 Less、ToByte、IsInfimumRow、IsSupremumRow 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "value-conversion",
+        "behavior"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:server/innodb/basic/value.go:nullValue",
+      "type": "class",
+      "name": "nullValue",
+      "filePath": "server/innodb/basic/value.go",
+      "lineRange": [
+        536,
+        536
+      ],
+      "summary": "nullValue 定义SQL 值类型、比较和 Go 类型转换所需的数据结构，并通过 Type、Compare、Raw、ToString 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "value-conversion",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "type": "file",
+      "name": "buffer_pool.go",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "summary": "实现InnoDB 缓冲池缓存、淘汰与脏页管理，覆盖 BufferPool、BufferPoolConfig、FreeBlockList、FlushBlockList 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "buffer-pool",
+        "service",
+        "source-file"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:NewBufferPool",
+      "type": "function",
+      "name": "NewBufferPool",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        58,
+        95
+      ],
+      "summary": "构造并初始化 NewBufferPool 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:GetHitRatio",
+      "type": "function",
+      "name": "GetHitRatio",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        122,
+        128
+      ],
+      "summary": "读取或查找 GetHitRatio 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:GetDirtyPageRatio",
+      "type": "function",
+      "name": "GetDirtyPageRatio",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        131,
+        133
+      ],
+      "summary": "读取或查找 GetDirtyPageRatio 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:GetReadWriteRatio",
+      "type": "function",
+      "name": "GetReadWriteRatio",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        136,
+        142
+      ],
+      "summary": "读取或查找 GetReadWriteRatio 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:GetCheckpointLSN",
+      "type": "function",
+      "name": "GetCheckpointLSN",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        145,
+        147
+      ],
+      "summary": "读取或查找 GetCheckpointLSN 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:UpdateCheckpointLSN",
+      "type": "function",
+      "name": "UpdateCheckpointLSN",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        150,
+        152
+      ],
+      "summary": "更新或持久化 UpdateCheckpointLSN 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:UpdateDirtyPageCount",
+      "type": "function",
+      "name": "UpdateDirtyPageCount",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        155,
+        157
+      ],
+      "summary": "更新或持久化 UpdateDirtyPageCount 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:RecordPageHit",
+      "type": "function",
+      "name": "RecordPageHit",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        160,
+        163
+      ],
+      "summary": "实现 RecordPageHit 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:RecordPageMiss",
+      "type": "function",
+      "name": "RecordPageMiss",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        166,
+        169
+      ],
+      "summary": "实现 RecordPageMiss 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:RecordPageWrite",
+      "type": "function",
+      "name": "RecordPageWrite",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        172,
+        174
+      ],
+      "summary": "实现 RecordPageWrite 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:readFromDisk",
+      "type": "function",
+      "name": "readFromDisk",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        177,
+        202
+      ],
+      "summary": "实现 readFromDisk 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:getFreePage",
+      "type": "function",
+      "name": "getFreePage",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        205,
+        218
+      ],
+      "summary": "实现 getFreePage 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:evictPage",
+      "type": "function",
+      "name": "evictPage",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        221,
+        241
+      ],
+      "summary": "实现 evictPage 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:writeToDisk",
+      "type": "function",
+      "name": "writeToDisk",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        244,
+        261
+      ],
+      "summary": "实现 writeToDisk 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:BufferPool.GetPage",
+      "type": "function",
+      "name": "BufferPool.GetPage",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        264,
+        306
+      ],
+      "summary": "读取或查找 GetPage 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:PutPage",
+      "type": "function",
+      "name": "PutPage",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        309,
+        325
+      ],
+      "summary": "实现 PutPage 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:GetPageBlock",
+      "type": "function",
+      "name": "GetPageBlock",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        328,
+        352
+      ],
+      "summary": "读取或查找 GetPageBlock 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:RangePageLoad",
+      "type": "function",
+      "name": "RangePageLoad",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        355,
+        372
+      ],
+      "summary": "实现 RangePageLoad 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:GetDirtyPages",
+      "type": "function",
+      "name": "GetDirtyPages",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        375,
+        385
+      ],
+      "summary": "读取或查找 GetDirtyPages 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:FlushPage",
+      "type": "function",
+      "name": "FlushPage",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        388,
+        411
+      ],
+      "summary": "实现 FlushPage 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:GetDirtyPageBlock",
+      "type": "function",
+      "name": "GetDirtyPageBlock",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        414,
+        428
+      ],
+      "summary": "读取或查找 GetDirtyPageBlock 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:GetFlushDiskList",
+      "type": "function",
+      "name": "GetFlushDiskList",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        431,
+        433
+      ],
+      "summary": "读取或查找 GetFlushDiskList 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:GetFreeBlockList",
+      "type": "function",
+      "name": "GetFreeBlockList",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        436,
+        438
+      ],
+      "summary": "读取或查找 GetFreeBlockList 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:FlushDirtyPages",
+      "type": "function",
+      "name": "FlushDirtyPages",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        441,
+        443
+      ],
+      "summary": "实现 FlushDirtyPages 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:FlushDirtyPagesWithLimit",
+      "type": "function",
+      "name": "FlushDirtyPagesWithLimit",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        446,
+        473
+      ],
+      "summary": "实现 FlushDirtyPagesWithLimit 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:UpdateBlock",
+      "type": "function",
+      "name": "UpdateBlock",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        476,
+        495
+      ],
+      "summary": "更新或持久化 UpdateBlock 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:NewFreeBlockList",
+      "type": "function",
+      "name": "NewFreeBlockList",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        505,
+        511
+      ],
+      "summary": "构造并初始化 NewFreeBlockList 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:FreeBlockList.GetPage",
+      "type": "function",
+      "name": "FreeBlockList.GetPage",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        514,
+        552
+      ],
+      "summary": "读取或查找 GetPage 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:RemoveBlock",
+      "type": "function",
+      "name": "RemoveBlock",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        555,
+        571
+      ],
+      "summary": "删除或释放 RemoveBlock 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:FreeBlockList.IsEmpty",
+      "type": "function",
+      "name": "FreeBlockList.IsEmpty",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        574,
+        578
+      ],
+      "summary": "检查 IsEmpty 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:Size",
+      "type": "function",
+      "name": "Size",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        581,
+        585
+      ],
+      "summary": "实现 Size 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:Clear",
+      "type": "function",
+      "name": "Clear",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        588,
+        594
+      ],
+      "summary": "实现 Clear 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:NewFlushBlockList",
+      "type": "function",
+      "name": "NewFlushBlockList",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        625,
+        628
+      ],
+      "summary": "构造并初始化 NewFlushBlockList 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:AddBlock",
+      "type": "function",
+      "name": "AddBlock",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        630,
+        634
+      ],
+      "summary": "创建或分配 AddBlock 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:FlushBlockList.IsEmpty",
+      "type": "function",
+      "name": "FlushBlockList.IsEmpty",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        636,
+        638
+      ],
+      "summary": "检查 IsEmpty 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/buffer_pool.go:GetLastBlock",
+      "type": "function",
+      "name": "GetLastBlock",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        640,
+        649
+      ],
+      "summary": "读取或查找 GetLastBlock 对应的InnoDB 缓冲池缓存、淘汰与脏页管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "buffer-pool",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/buffer_pool/buffer_pool.go:BufferPool",
+      "type": "class",
+      "name": "BufferPool",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        13,
+        55
+      ],
+      "summary": "BufferPool 定义InnoDB 缓冲池缓存、淘汰与脏页管理所需的数据结构，并通过 GetHitRatio、GetDirtyPageRatio、GetReadWriteRatio、GetCheckpointLSN 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "buffer-pool",
+        "behavior"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:server/innodb/buffer_pool/buffer_pool.go:BufferPoolConfig",
+      "type": "class",
+      "name": "BufferPoolConfig",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        98,
+        117
+      ],
+      "summary": "BufferPoolConfig 定义InnoDB 缓冲池缓存、淘汰与脏页管理所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "buffer-pool",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/buffer_pool/buffer_pool.go:FreeBlockList",
+      "type": "class",
+      "name": "FreeBlockList",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        497,
+        502
+      ],
+      "summary": "FreeBlockList 定义InnoDB 缓冲池缓存、淘汰与脏页管理所需的数据结构，并通过 GetPage、RemoveBlock、IsEmpty、Size 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "buffer-pool",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/buffer_pool/buffer_pool.go:FlushBlockList",
+      "type": "class",
+      "name": "FlushBlockList",
+      "filePath": "server/innodb/buffer_pool/buffer_pool.go",
+      "lineRange": [
+        619,
+        623
+      ],
+      "summary": "FlushBlockList 定义InnoDB 缓冲池缓存、淘汰与脏页管理所需的数据结构，并通过 AddBlock、IsEmpty、GetLastBlock 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "buffer-pool",
+        "behavior"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:CompareType.String",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:CompareType.String",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.Type",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.Type",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.Compare",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.Compare",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.Raw",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.Raw",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.ToString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.ToString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.Bytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.Bytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.Type",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.Type",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.Compare",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.Compare",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.Raw",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.Raw",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.ToString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.ToString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.Bytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.Bytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.IsNull",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.IsNull",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.Int",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.Int",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.Float64",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.Float64",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.String",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.String",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.Time",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.Time",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.Bool",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.Bool",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.LessOrEqual",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:minValue.LessOrEqual",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.Type",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.Type",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.Compare",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.Compare",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.Raw",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.Raw",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.ToString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.ToString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.Bytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.Bytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.IsNull",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.IsNull",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.Int",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.Int",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.Float64",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.Float64",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.String",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.String",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.Time",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.Time",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.Bool",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.Bool",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.LessOrEqual",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:maxValue.LessOrEqual",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewMaxValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewMaxValue",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewMinValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewMinValue",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewValue",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:Less",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:Less",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:ToByte",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:ToByte",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:IsInfimumRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:IsInfimumRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:IsSupremumRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:IsSupremumRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:GetPageNumber",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:GetPageNumber",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:WriteWithNull",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:WriteWithNull",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:WriteBytesWithNullWithsPos",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:WriteBytesWithNullWithsPos",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:GetRowLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:GetRowLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:GetHeaderLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:GetHeaderLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:GetPrimaryKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:GetPrimaryKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:GetFieldLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:GetFieldLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:ReadValueByIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:ReadValueByIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:SetNOwned",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:SetNOwned",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:GetNOwned",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:GetNOwned",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:GetNextRowOffset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:GetNextRowOffset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:SetNextRowOffset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:SetNextRowOffset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:GetHeapNo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:GetHeapNo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:SetHeapNo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:SetHeapNo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:SetTransactionId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:SetTransactionId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:GetValueByColName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:GetValueByColName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:simpleRow.ToString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:simpleRow.ToString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewInt64Value",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewInt64Value",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewStringValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewStringValue",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewFloatValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewFloatValue",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewNull",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewNull",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewInt",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewInt",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewInt64",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewInt64",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewFloat",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewFloat",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewFloat64",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewFloat64",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewTime",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewTime",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewBool",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewBool",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:NewBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.Type",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.Type",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.Compare",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.Compare",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.Raw",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.Raw",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.ToString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.ToString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.Bytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.Bytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.IsNull",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.IsNull",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.Int",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.Int",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.Float64",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.Float64",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.String",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.String",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.Time",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.Time",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.Bool",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.Bool",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.LessOrEqual",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:nullValue.LessOrEqual",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.IsNull",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.IsNull",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.Int",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.Int",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.Float64",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.Float64",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.String",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.String",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.Time",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.Time",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.Bool",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.Bool",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.LessOrEqual",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:basicValue.LessOrEqual",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:bytesToInt64",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:bytesToFloat64",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:parseInt64FromString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "function:server/innodb/basic/value.go:parseFloat64FromString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "class:server/innodb/basic/value.go:basicValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "class:server/innodb/basic/value.go:minValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "class:server/innodb/basic/value.go:maxValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "class:server/innodb/basic/value.go:simpleRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "class:server/innodb/basic/value.go:nullValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:NewBufferPool",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:NewBufferPool",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:GetHitRatio",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:GetHitRatio",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:GetDirtyPageRatio",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:GetDirtyPageRatio",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:GetReadWriteRatio",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:GetReadWriteRatio",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:GetCheckpointLSN",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:GetCheckpointLSN",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:UpdateCheckpointLSN",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:UpdateCheckpointLSN",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:UpdateDirtyPageCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:UpdateDirtyPageCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:RecordPageHit",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:RecordPageHit",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:RecordPageMiss",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:RecordPageMiss",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:RecordPageWrite",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:RecordPageWrite",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:readFromDisk",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:getFreePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:evictPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:writeToDisk",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:BufferPool.GetPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:BufferPool.GetPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:PutPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:PutPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:GetPageBlock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:GetPageBlock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:RangePageLoad",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:RangePageLoad",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:GetDirtyPages",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:GetDirtyPages",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:FlushPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:FlushPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:GetDirtyPageBlock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:GetDirtyPageBlock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:GetFlushDiskList",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:GetFlushDiskList",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:GetFreeBlockList",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:GetFreeBlockList",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:FlushDirtyPages",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:FlushDirtyPages",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:FlushDirtyPagesWithLimit",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:FlushDirtyPagesWithLimit",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:UpdateBlock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:UpdateBlock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:NewFreeBlockList",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:NewFreeBlockList",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:FreeBlockList.GetPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:FreeBlockList.GetPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:RemoveBlock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:RemoveBlock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:FreeBlockList.IsEmpty",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:FreeBlockList.IsEmpty",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:Size",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:Size",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:Clear",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:Clear",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:NewFlushBlockList",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:NewFlushBlockList",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:AddBlock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:AddBlock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:FlushBlockList.IsEmpty",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:FlushBlockList.IsEmpty",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:GetLastBlock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "function:server/innodb/buffer_pool/buffer_pool.go:GetLastBlock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "class:server/innodb/buffer_pool/buffer_pool.go:BufferPool",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "class:server/innodb/buffer_pool/buffer_pool.go:BufferPool",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "class:server/innodb/buffer_pool/buffer_pool.go:BufferPoolConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "class:server/innodb/buffer_pool/buffer_pool.go:BufferPoolConfig",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "class:server/innodb/buffer_pool/buffer_pool.go:FreeBlockList",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "class:server/innodb/buffer_pool/buffer_pool.go:FreeBlockList",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "class:server/innodb/buffer_pool/buffer_pool.go:FlushBlockList",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "class:server/innodb/buffer_pool/buffer_pool.go:FlushBlockList",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "file:server/common/charset.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "file:server/common/const_trx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "file:server/common/constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "file:server/common/error_name.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "file:server/common/error_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "file:server/common/error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "file:server/common/errorcode.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "file:server/common/frm_constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "file:server/common/locale_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "file:server/common/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "file:server/common/privs_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "file:server/common/privs.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "file:server/common/sql_error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "file:server/common/sql_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "file:server/common/type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "file:server/common/type.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/value.go",
+      "target": "file:server/common/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:logger/logger.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

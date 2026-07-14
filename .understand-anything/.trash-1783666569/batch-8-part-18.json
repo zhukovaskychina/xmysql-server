@@ -1,0 +1,1816 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/engine/recovery_adapters.go",
+      "type": "file",
+      "name": "recovery_adapters.go",
+      "filePath": "server/innodb/engine/recovery_adapters.go",
+      "summary": "实现恢复流程与执行引擎的适配，覆盖 RecoveryBufferPoolAdapter、PageAdapter、RecoveryStorageAdapter、FetchPage 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "recovery",
+        "execution-engine",
+        "source-file"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/engine/recovery_adapters.go:FetchPage",
+      "type": "function",
+      "name": "FetchPage",
+      "filePath": "server/innodb/engine/recovery_adapters.go",
+      "lineRange": [
+        17,
+        25
+      ],
+      "summary": "读取或查找 FetchPage 对应的恢复流程与执行引擎的适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "recovery",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/recovery_adapters.go:UnpinPage",
+      "type": "function",
+      "name": "UnpinPage",
+      "filePath": "server/innodb/engine/recovery_adapters.go",
+      "lineRange": [
+        27,
+        34
+      ],
+      "summary": "实现 UnpinPage 对应的恢复流程与执行引擎的适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "recovery"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/recovery_adapters.go:FlushPage",
+      "type": "function",
+      "name": "FlushPage",
+      "filePath": "server/innodb/engine/recovery_adapters.go",
+      "lineRange": [
+        36,
+        40
+      ],
+      "summary": "实现 FlushPage 对应的恢复流程与执行引擎的适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "recovery"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/recovery_adapters.go:GetPageID",
+      "type": "function",
+      "name": "GetPageID",
+      "filePath": "server/innodb/engine/recovery_adapters.go",
+      "lineRange": [
+        47,
+        49
+      ],
+      "summary": "读取或查找 GetPageID 对应的恢复流程与执行引擎的适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "recovery",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/recovery_adapters.go:GetLSN",
+      "type": "function",
+      "name": "GetLSN",
+      "filePath": "server/innodb/engine/recovery_adapters.go",
+      "lineRange": [
+        50,
+        50
+      ],
+      "summary": "读取或查找 GetLSN 对应的恢复流程与执行引擎的适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "recovery",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/recovery_adapters.go:SetLSN",
+      "type": "function",
+      "name": "SetLSN",
+      "filePath": "server/innodb/engine/recovery_adapters.go",
+      "lineRange": [
+        51,
+        51
+      ],
+      "summary": "更新或持久化 SetLSN 对应的恢复流程与执行引擎的适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "recovery",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/recovery_adapters.go:GetData",
+      "type": "function",
+      "name": "GetData",
+      "filePath": "server/innodb/engine/recovery_adapters.go",
+      "lineRange": [
+        52,
+        52
+      ],
+      "summary": "读取或查找 GetData 对应的恢复流程与执行引擎的适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "recovery",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/recovery_adapters.go:SetData",
+      "type": "function",
+      "name": "SetData",
+      "filePath": "server/innodb/engine/recovery_adapters.go",
+      "lineRange": [
+        53,
+        53
+      ],
+      "summary": "更新或持久化 SetData 对应的恢复流程与执行引擎的适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "recovery",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/recovery_adapters.go:IsDirty",
+      "type": "function",
+      "name": "IsDirty",
+      "filePath": "server/innodb/engine/recovery_adapters.go",
+      "lineRange": [
+        54,
+        54
+      ],
+      "summary": "检查 IsDirty 对应的恢复流程与执行引擎的适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "recovery",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/recovery_adapters.go:SetDirty",
+      "type": "function",
+      "name": "SetDirty",
+      "filePath": "server/innodb/engine/recovery_adapters.go",
+      "lineRange": [
+        55,
+        55
+      ],
+      "summary": "更新或持久化 SetDirty 对应的恢复流程与执行引擎的适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "recovery",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/recovery_adapters.go:ReadPage",
+      "type": "function",
+      "name": "ReadPage",
+      "filePath": "server/innodb/engine/recovery_adapters.go",
+      "lineRange": [
+        62,
+        71
+      ],
+      "summary": "读取或查找 ReadPage 对应的恢复流程与执行引擎的适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "recovery",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/recovery_adapters.go:WritePage",
+      "type": "function",
+      "name": "WritePage",
+      "filePath": "server/innodb/engine/recovery_adapters.go",
+      "lineRange": [
+        73,
+        103
+      ],
+      "summary": "更新或持久化 WritePage 对应的恢复流程与执行引擎的适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "recovery",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/recovery_adapters.go:CreatePage",
+      "type": "function",
+      "name": "CreatePage",
+      "filePath": "server/innodb/engine/recovery_adapters.go",
+      "lineRange": [
+        105,
+        138
+      ],
+      "summary": "创建或分配 CreatePage 对应的恢复流程与执行引擎的适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "recovery",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/recovery_adapters.go:DeletePage",
+      "type": "function",
+      "name": "DeletePage",
+      "filePath": "server/innodb/engine/recovery_adapters.go",
+      "lineRange": [
+        140,
+        144
+      ],
+      "summary": "删除或释放 DeletePage 对应的恢复流程与执行引擎的适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "recovery",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/engine/recovery_adapters.go:RecoveryBufferPoolAdapter",
+      "type": "class",
+      "name": "RecoveryBufferPoolAdapter",
+      "filePath": "server/innodb/engine/recovery_adapters.go",
+      "lineRange": [
+        13,
+        15
+      ],
+      "summary": "RecoveryBufferPoolAdapter 定义恢复流程与执行引擎的适配所需的数据结构，并通过 FetchPage、UnpinPage、FlushPage 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "recovery",
+        "behavior"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/engine/recovery_adapters.go:PageAdapter",
+      "type": "class",
+      "name": "PageAdapter",
+      "filePath": "server/innodb/engine/recovery_adapters.go",
+      "lineRange": [
+        43,
+        45
+      ],
+      "summary": "PageAdapter 定义恢复流程与执行引擎的适配所需的数据结构，并通过 GetPageID、GetLSN、SetLSN、GetData 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "recovery",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/engine/recovery_adapters.go:RecoveryStorageAdapter",
+      "type": "class",
+      "name": "RecoveryStorageAdapter",
+      "filePath": "server/innodb/engine/recovery_adapters.go",
+      "lineRange": [
+        58,
+        60
+      ],
+      "summary": "RecoveryStorageAdapter 定义恢复流程与执行引擎的适配所需的数据结构，并通过 ReadPage、WritePage、CreatePage、DeletePage 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "recovery",
+        "behavior"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:FetchPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:FetchPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:UnpinPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:UnpinPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:FlushPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:FlushPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:GetPageID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:GetPageID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:GetLSN",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:GetLSN",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:SetLSN",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:SetLSN",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:GetData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:GetData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:SetData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:SetData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:IsDirty",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:IsDirty",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:SetDirty",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:SetDirty",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:ReadPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:ReadPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:WritePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:WritePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:CreatePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:CreatePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:DeletePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "function:server/innodb/engine/recovery_adapters.go:DeletePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "class:server/innodb/engine/recovery_adapters.go:RecoveryBufferPoolAdapter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "class:server/innodb/engine/recovery_adapters.go:RecoveryBufferPoolAdapter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "class:server/innodb/engine/recovery_adapters.go:PageAdapter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "class:server/innodb/engine/recovery_adapters.go:PageAdapter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "class:server/innodb/engine/recovery_adapters.go:RecoveryStorageAdapter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "class:server/innodb/engine/recovery_adapters.go:RecoveryStorageAdapter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/common/charset.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/common/const_trx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/common/constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/common/error_name.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/common/error_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/common/error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/common/errorcode.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/common/frm_constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/common/locale_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/common/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/common/privs_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/common/privs.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/common/sql_error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/common/sql_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/common/type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/common/type.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/common/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/buffer_pool/auto_tuning.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/buffer_pool/buffer_block.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/buffer_pool/buffer_lru_optimized.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/buffer_pool/buffer_lru.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/buffer_pool/buffer_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/buffer_pool/buffer_pool_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/buffer_pool/buffer_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/buffer_pool/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/buffer_pool/prefetch_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/buffer_pool/prefetch.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/buffer_pool/stats.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/btree_cache_limit_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/btree_find_siblings_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/btree_improvements_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/btree_interface.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/btree_iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/btree_merge_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/btree_merge.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/btree_split_benchmark_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/btree_split_optimized.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/btree_split_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/btree_split.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/btree_undo_log_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/buffer_pool_adapter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/buffer_pool_flush_simple_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/buffer_pool_flush_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/buffer_pool_manager_optimized.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/buffer_pool_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/buffer_pool_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/checkpoint_monitor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/compression_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/crash_recovery_enhanced_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/crash_recovery_extended_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/crash_recovery_fault_injection_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/crash_recovery_integration_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/crash_recovery_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/crash_recovery.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/dictionary_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/encryption_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/enhanced_btree_index_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/enhanced_btree_index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/enhanced_btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/extent_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/extent_reuse_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/fuzzy_checkpoint_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/fuzzy_checkpoint.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/gap_lock_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/gap_lock.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/group_commit.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/history_list.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/ibuf_manager_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/ibuf_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/index_helper_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/index_iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/index_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/index_metadata.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/index_sync_fix_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/info_schema_generators.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/info_schema_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/lock_compatibility.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/lock_manager_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/lock_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/lock_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/log_archiver.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/log_components_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/log_recovery_example_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/log_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/long_transaction_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/lsn_manager_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/lsn_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/mtr.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/mvcc_integration_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/mvcc_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/mvcc_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/mysql_user_data.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/optimizer_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/p0_concurrency_consistency_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/page_allocator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/page_cache.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/page_fix_simplified.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/page_initialization_fix.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/page_tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/record_row_adapter_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/redo_fix_verification_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/redo_log_batch_writer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/redo_log_compression.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/redo_log_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/redo_log_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/redo_recovery_fix_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/savepoint_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/schema_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/schema_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/segment_space_optimizer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/space_expansion_concurrent_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/space_expansion_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/space_stats_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/storage_manager_init_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/storage_manager_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/storage_optimization_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/system_page_initializer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/system_space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/system_variable_analyzer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/system_variable_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/system_variables_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/table_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/table_storage_mapping.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/tablespace_defragmenter_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/tablespace_defragmenter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/test_fix.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/transaction_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/undo_log_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/undo_log_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/undo_purge.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/undo_rollback_comprehensive_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/undo_rollback_fix_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/undo_segment_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/undo_segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/recovery_adapters.go",
+      "target": "file:server/innodb/manager/undo_version_chain_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

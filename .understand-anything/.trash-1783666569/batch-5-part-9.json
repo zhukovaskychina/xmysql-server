@@ -1,0 +1,573 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/util/checksum.go",
+      "type": "file",
+      "name": "checksum.go",
+      "filePath": "server/innodb/util/checksum.go",
+      "summary": "实现InnoDB 页校验和计算与验证，覆盖 ChecksumCalculator、NewChecksumCalculator、Calculate、calculateCRC32 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "checksum",
+        "service",
+        "source-file"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/util/checksum.go:NewChecksumCalculator",
+      "type": "function",
+      "name": "NewChecksumCalculator",
+      "filePath": "server/innodb/util/checksum.go",
+      "lineRange": [
+        39,
+        52
+      ],
+      "summary": "构造并初始化 NewChecksumCalculator 对应的InnoDB 页校验和计算与验证流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "checksum",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/util/checksum.go:Calculate",
+      "type": "function",
+      "name": "Calculate",
+      "filePath": "server/innodb/util/checksum.go",
+      "lineRange": [
+        55,
+        67
+      ],
+      "summary": "计算 Calculate 对应的InnoDB 页校验和计算与验证流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "calculation",
+        "checksum",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/util/checksum.go:Verify",
+      "type": "function",
+      "name": "Verify",
+      "filePath": "server/innodb/util/checksum.go",
+      "lineRange": [
+        89,
+        92
+      ],
+      "summary": "检查 Verify 对应的InnoDB 页校验和计算与验证流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "checksum",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/util/checksum.go:CalculateRange",
+      "type": "function",
+      "name": "CalculateRange",
+      "filePath": "server/innodb/util/checksum.go",
+      "lineRange": [
+        95,
+        100
+      ],
+      "summary": "计算 CalculateRange 对应的InnoDB 页校验和计算与验证流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "calculation",
+        "checksum",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/util/checksum.go:ParallelCalculate",
+      "type": "function",
+      "name": "ParallelCalculate",
+      "filePath": "server/innodb/util/checksum.go",
+      "lineRange": [
+        103,
+        135
+      ],
+      "summary": "实现 ParallelCalculate 对应的InnoDB 页校验和计算与验证流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "checksum"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/util/checksum.go:ChecksumCalculator",
+      "type": "class",
+      "name": "ChecksumCalculator",
+      "filePath": "server/innodb/util/checksum.go",
+      "lineRange": [
+        32,
+        36
+      ],
+      "summary": "ChecksumCalculator 定义InnoDB 页校验和计算与验证所需的数据结构，并通过 Calculate、calculateCRC32、calculateXXHash、calculateSHA256 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "checksum",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:server/innodb/util/hash_table.go",
+      "type": "file",
+      "name": "hash_table.go",
+      "filePath": "server/innodb/util/hash_table.go",
+      "summary": "实现存储层哈希表结构与查找逻辑，覆盖 entry、HashTable、hash64a、put 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "hash-table",
+        "service",
+        "source-file"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/util/hash_table.go:put",
+      "type": "function",
+      "name": "put",
+      "filePath": "server/innodb/util/hash_table.go",
+      "lineRange": [
+        33,
+        44
+      ],
+      "summary": "实现 put 对应的存储层哈希表结构与查找逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "hash-table"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/util/hash_table.go:NewHashTable",
+      "type": "function",
+      "name": "NewHashTable",
+      "filePath": "server/innodb/util/hash_table.go",
+      "lineRange": [
+        67,
+        72
+      ],
+      "summary": "构造并初始化 NewHashTable 对应的存储层哈希表结构与查找逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "hash-table",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/util/hash_table.go:Size",
+      "type": "function",
+      "name": "Size",
+      "filePath": "server/innodb/util/hash_table.go",
+      "lineRange": [
+        75,
+        77
+      ],
+      "summary": "实现 Size 对应的存储层哈希表结构与查找逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "hash-table"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/util/hash_table.go:Put",
+      "type": "function",
+      "name": "Put",
+      "filePath": "server/innodb/util/hash_table.go",
+      "lineRange": [
+        80,
+        92
+      ],
+      "summary": "实现 Put 对应的存储层哈希表结构与查找逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "hash-table"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/util/hash_table.go:Get",
+      "type": "function",
+      "name": "Get",
+      "filePath": "server/innodb/util/hash_table.go",
+      "lineRange": [
+        95,
+        102
+      ],
+      "summary": "读取或查找 Get 对应的存储层哈希表结构与查找逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "hash-table",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/util/hash_table.go:Next",
+      "type": "function",
+      "name": "Next",
+      "filePath": "server/innodb/util/hash_table.go",
+      "lineRange": [
+        108,
+        127
+      ],
+      "summary": "实现 Next 对应的存储层哈希表结构与查找逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "hash-table"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/util/hash_table.go:entry",
+      "type": "class",
+      "name": "entry",
+      "filePath": "server/innodb/util/hash_table.go",
+      "lineRange": [
+        24,
+        31
+      ],
+      "summary": "entry 定义存储层哈希表结构与查找逻辑所需的数据结构，并通过 put、get 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "hash-table",
+        "behavior"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/util/hash_table.go:HashTable",
+      "type": "class",
+      "name": "HashTable",
+      "filePath": "server/innodb/util/hash_table.go",
+      "lineRange": [
+        57,
+        64
+      ],
+      "summary": "HashTable 定义存储层哈希表结构与查找逻辑所需的数据结构，并通过 Size、Put、Get、Next 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "hash-table",
+        "behavior"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/util/hash_table_test.go",
+      "type": "file",
+      "name": "hash_table_test.go",
+      "filePath": "server/innodb/util/hash_table_test.go",
+      "summary": "验证存储层哈希表结构与查找逻辑，覆盖 TestHashKey、randSlice、TestPutHasGetRemove、TestIterate 等符号，用于检查正常路径、边界条件和错误处理。",
+      "tags": [
+        "test",
+        "go",
+        "hash-table",
+        "verification"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/util/hash_table_test.go:TestHashKey",
+      "type": "function",
+      "name": "TestHashKey",
+      "filePath": "server/innodb/util/hash_table_test.go",
+      "lineRange": [
+        19,
+        43
+      ],
+      "summary": "验证 TestHashKey 对应的存储层哈希表结构与查找逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "hash-table"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/util/hash_table_test.go:TestPutHasGetRemove",
+      "type": "function",
+      "name": "TestPutHasGetRemove",
+      "filePath": "server/innodb/util/hash_table_test.go",
+      "lineRange": [
+        53,
+        91
+      ],
+      "summary": "验证 TestPutHasGetRemove 对应的存储层哈希表结构与查找逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "hash-table"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/util/hash_table_test.go:TestIterate",
+      "type": "function",
+      "name": "TestIterate",
+      "filePath": "server/innodb/util/hash_table_test.go",
+      "lineRange": [
+        93,
+        124
+      ],
+      "summary": "验证 TestIterate 对应的存储层哈希表结构与查找逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "hash-table"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/util/checksum.go",
+      "target": "function:server/innodb/util/checksum.go:NewChecksumCalculator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/checksum.go",
+      "target": "function:server/innodb/util/checksum.go:NewChecksumCalculator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/checksum.go",
+      "target": "function:server/innodb/util/checksum.go:Calculate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/checksum.go",
+      "target": "function:server/innodb/util/checksum.go:Calculate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/checksum.go",
+      "target": "function:server/innodb/util/checksum.go:Verify",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/checksum.go",
+      "target": "function:server/innodb/util/checksum.go:Verify",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/checksum.go",
+      "target": "function:server/innodb/util/checksum.go:CalculateRange",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/checksum.go",
+      "target": "function:server/innodb/util/checksum.go:CalculateRange",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/checksum.go",
+      "target": "function:server/innodb/util/checksum.go:ParallelCalculate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/checksum.go",
+      "target": "function:server/innodb/util/checksum.go:ParallelCalculate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/checksum.go",
+      "target": "class:server/innodb/util/checksum.go:ChecksumCalculator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/checksum.go",
+      "target": "class:server/innodb/util/checksum.go:ChecksumCalculator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/hash_table.go",
+      "target": "function:server/innodb/util/hash_table.go:put",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/hash_table.go",
+      "target": "function:server/innodb/util/hash_table.go:NewHashTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/hash_table.go",
+      "target": "function:server/innodb/util/hash_table.go:NewHashTable",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/hash_table.go",
+      "target": "function:server/innodb/util/hash_table.go:Size",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/hash_table.go",
+      "target": "function:server/innodb/util/hash_table.go:Size",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/hash_table.go",
+      "target": "function:server/innodb/util/hash_table.go:Put",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/hash_table.go",
+      "target": "function:server/innodb/util/hash_table.go:Put",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/hash_table.go",
+      "target": "function:server/innodb/util/hash_table.go:Get",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/hash_table.go",
+      "target": "function:server/innodb/util/hash_table.go:Get",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/hash_table.go",
+      "target": "function:server/innodb/util/hash_table.go:Next",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/hash_table.go",
+      "target": "function:server/innodb/util/hash_table.go:Next",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/hash_table.go",
+      "target": "class:server/innodb/util/hash_table.go:entry",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/hash_table.go",
+      "target": "class:server/innodb/util/hash_table.go:HashTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/hash_table.go",
+      "target": "class:server/innodb/util/hash_table.go:HashTable",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/hash_table_test.go",
+      "target": "function:server/innodb/util/hash_table_test.go:TestHashKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/hash_table_test.go",
+      "target": "function:server/innodb/util/hash_table_test.go:TestHashKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/hash_table_test.go",
+      "target": "function:server/innodb/util/hash_table_test.go:TestPutHasGetRemove",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/hash_table_test.go",
+      "target": "function:server/innodb/util/hash_table_test.go:TestPutHasGetRemove",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/hash_table_test.go",
+      "target": "function:server/innodb/util/hash_table_test.go:TestIterate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/hash_table_test.go",
+      "target": "function:server/innodb/util/hash_table_test.go:TestIterate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

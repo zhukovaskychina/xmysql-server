@@ -1,0 +1,3 @@
+=== round=3 package=./server/innodb/manager ===
+cmd: go test ./server/innodb/manager -count=1 -timeout=300s -run 'TestBTREE|TestConcurrentCheckAndExpand|TestPrefetch'
+ok  	github.com/zhukovaskychina/xmysql-server/server/innodb/manager	0.693s

@@ -1,0 +1,2083 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/engine/index_reading_test.go",
+      "type": "file",
+      "name": "index_reading_test.go",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "summary": "验证InnoDB 存储与 SQL 执行相关逻辑，覆盖 MockStorageAdapterForIndexReading、MockIndexAdapterForIndexReading、mockBTreeManagerForIndexReading、TestIndexReading_ValueToBytes 等符号，用于检查正常路径、边界条件和错误处理。",
+      "tags": [
+        "test",
+        "go",
+        "innodb",
+        "verification"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_ValueToBytes",
+      "type": "function",
+      "name": "TestIndexReading_ValueToBytes",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        15,
+        56
+      ],
+      "summary": "验证 TestIndexReading_ValueToBytes 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_GetRecordByPrimaryKey",
+      "type": "function",
+      "name": "TestIndexReading_GetRecordByPrimaryKey",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        59,
+        86
+      ],
+      "summary": "验证 TestIndexReading_GetRecordByPrimaryKey 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_ReadIndexRecord",
+      "type": "function",
+      "name": "TestIndexReading_ReadIndexRecord",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        89,
+        107
+      ],
+      "summary": "验证 TestIndexReading_ReadIndexRecord 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_FetchPrimaryKeys",
+      "type": "function",
+      "name": "TestIndexReading_FetchPrimaryKeys",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        110,
+        170
+      ],
+      "summary": "验证 TestIndexReading_FetchPrimaryKeys 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_NextFromIndex",
+      "type": "function",
+      "name": "TestIndexReading_NextFromIndex",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        173,
+        199
+      ],
+      "summary": "验证 TestIndexReading_NextFromIndex 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_NextFromIndexError",
+      "type": "function",
+      "name": "TestIndexReading_NextFromIndexError",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        202,
+        227
+      ],
+      "summary": "验证 TestIndexReading_NextFromIndexError 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_NextWithLookupEOF",
+      "type": "function",
+      "name": "TestIndexReading_NextWithLookupEOF",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        230,
+        245
+      ],
+      "summary": "验证 TestIndexReading_NextWithLookupEOF 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:GetTableMetadata",
+      "type": "function",
+      "name": "GetTableMetadata",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        254,
+        268
+      ],
+      "summary": "读取或查找 GetTableMetadata 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "innodb",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:GetRecordByPrimaryKey",
+      "type": "function",
+      "name": "GetRecordByPrimaryKey",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        270,
+        278
+      ],
+      "summary": "读取或查找 GetRecordByPrimaryKey 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "innodb",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:GetIndexMetadata",
+      "type": "function",
+      "name": "GetIndexMetadata",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        285,
+        294
+      ],
+      "summary": "读取或查找 GetIndexMetadata 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "innodb",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:RangeScan",
+      "type": "function",
+      "name": "RangeScan",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        296,
+        302
+      ],
+      "summary": "实现 RangeScan 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "innodb",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:ReadIndexRecord",
+      "type": "function",
+      "name": "ReadIndexRecord",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        304,
+        307
+      ],
+      "summary": "读取或查找 ReadIndexRecord 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "innodb",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:CreateIndex",
+      "type": "function",
+      "name": "CreateIndex",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        313,
+        315
+      ],
+      "summary": "创建或分配 CreateIndex 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "innodb",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:GetIndex",
+      "type": "function",
+      "name": "GetIndex",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        317,
+        319
+      ],
+      "summary": "读取或查找 GetIndex 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "innodb",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:GetIndexByName",
+      "type": "function",
+      "name": "GetIndexByName",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        321,
+        323
+      ],
+      "summary": "读取或查找 GetIndexByName 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "innodb",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:DropIndex",
+      "type": "function",
+      "name": "DropIndex",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        325,
+        327
+      ],
+      "summary": "删除或释放 DropIndex 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "innodb",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:Insert",
+      "type": "function",
+      "name": "Insert",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        329,
+        331
+      ],
+      "summary": "创建或分配 Insert 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "innodb",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:Delete",
+      "type": "function",
+      "name": "Delete",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        333,
+        335
+      ],
+      "summary": "删除或释放 Delete 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "innodb",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:Search",
+      "type": "function",
+      "name": "Search",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        337,
+        342
+      ],
+      "summary": "实现 Search 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "innodb",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:RangeSearch",
+      "type": "function",
+      "name": "RangeSearch",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        344,
+        346
+      ],
+      "summary": "实现 RangeSearch 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "innodb",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:FlushIndex",
+      "type": "function",
+      "name": "FlushIndex",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        348,
+        350
+      ],
+      "summary": "实现 FlushIndex 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "innodb",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:AnalyzeIndex",
+      "type": "function",
+      "name": "AnalyzeIndex",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        352,
+        354
+      ],
+      "summary": "实现 AnalyzeIndex 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "innodb",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:RebuildIndex",
+      "type": "function",
+      "name": "RebuildIndex",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        356,
+        358
+      ],
+      "summary": "实现 RebuildIndex 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "innodb",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:LoadIndex",
+      "type": "function",
+      "name": "LoadIndex",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        360,
+        362
+      ],
+      "summary": "读取或查找 LoadIndex 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "innodb",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:UnloadIndex",
+      "type": "function",
+      "name": "UnloadIndex",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        364,
+        366
+      ],
+      "summary": "实现 UnloadIndex 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "innodb",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/index_reading_test.go:Close",
+      "type": "function",
+      "name": "Close",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        368,
+        370
+      ],
+      "summary": "结束或提交 Close 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "innodb",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/engine/index_reading_test.go:MockStorageAdapterForIndexReading",
+      "type": "class",
+      "name": "MockStorageAdapterForIndexReading",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        252,
+        252
+      ],
+      "summary": "MockStorageAdapterForIndexReading 定义InnoDB 存储与 SQL 执行相关逻辑所需的数据结构，并通过 GetTableMetadata、GetRecordByPrimaryKey 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "innodb",
+        "behavior"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/engine/index_reading_test.go:MockIndexAdapterForIndexReading",
+      "type": "class",
+      "name": "MockIndexAdapterForIndexReading",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        281,
+        283
+      ],
+      "summary": "MockIndexAdapterForIndexReading 定义InnoDB 存储与 SQL 执行相关逻辑所需的数据结构，并通过 GetIndexMetadata、RangeScan、ReadIndexRecord 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "innodb",
+        "behavior"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/engine/index_reading_test.go:mockBTreeManagerForIndexReading",
+      "type": "class",
+      "name": "mockBTreeManagerForIndexReading",
+      "filePath": "server/innodb/engine/index_reading_test.go",
+      "lineRange": [
+        309,
+        311
+      ],
+      "summary": "mockBTreeManagerForIndexReading 定义InnoDB 存储与 SQL 执行相关逻辑所需的数据结构，并通过 CreateIndex、GetIndex、GetIndexByName、DropIndex 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "innodb",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_ValueToBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_ValueToBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_GetRecordByPrimaryKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_GetRecordByPrimaryKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_ReadIndexRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_ReadIndexRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_FetchPrimaryKeys",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_FetchPrimaryKeys",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_NextFromIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_NextFromIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_NextFromIndexError",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_NextFromIndexError",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_NextWithLookupEOF",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:TestIndexReading_NextWithLookupEOF",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:GetTableMetadata",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:GetTableMetadata",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:GetRecordByPrimaryKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:GetRecordByPrimaryKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:GetIndexMetadata",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:GetIndexMetadata",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:RangeScan",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:RangeScan",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:ReadIndexRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:ReadIndexRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:CreateIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:CreateIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:GetIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:GetIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:GetIndexByName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:GetIndexByName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:DropIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:DropIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:Insert",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:Insert",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:Delete",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:Delete",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:Search",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:Search",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:RangeSearch",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:RangeSearch",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:FlushIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:FlushIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:AnalyzeIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:AnalyzeIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:RebuildIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:RebuildIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:LoadIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:LoadIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:UnloadIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:UnloadIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:Close",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "function:server/innodb/engine/index_reading_test.go:Close",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "class:server/innodb/engine/index_reading_test.go:MockStorageAdapterForIndexReading",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "class:server/innodb/engine/index_reading_test.go:MockStorageAdapterForIndexReading",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "class:server/innodb/engine/index_reading_test.go:MockIndexAdapterForIndexReading",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "class:server/innodb/engine/index_reading_test.go:MockIndexAdapterForIndexReading",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "class:server/innodb/engine/index_reading_test.go:mockBTreeManagerForIndexReading",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/btree_cache_limit_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/btree_find_siblings_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/btree_improvements_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/btree_interface.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/btree_iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/btree_merge_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/btree_merge.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/btree_split_benchmark_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/btree_split_optimized.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/btree_split_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/btree_split.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/btree_undo_log_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/buffer_pool_adapter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/buffer_pool_flush_simple_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/buffer_pool_flush_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/buffer_pool_manager_optimized.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/buffer_pool_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/buffer_pool_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/checkpoint_monitor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/compression_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/crash_recovery_enhanced_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/crash_recovery_extended_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/crash_recovery_fault_injection_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/crash_recovery_integration_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/crash_recovery_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/crash_recovery.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/dictionary_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/encryption_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/enhanced_btree_index_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/enhanced_btree_index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/enhanced_btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/extent_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/extent_reuse_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/fuzzy_checkpoint_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/fuzzy_checkpoint.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/gap_lock_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/gap_lock.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/group_commit.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/history_list.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/ibuf_manager_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/ibuf_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/index_helper_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/index_iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/index_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/index_metadata.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/index_sync_fix_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/info_schema_generators.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/info_schema_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/lock_compatibility.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/lock_manager_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/lock_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/lock_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/log_archiver.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/log_components_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/log_recovery_example_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/log_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/long_transaction_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/lsn_manager_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/lsn_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/mtr.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/mvcc_integration_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/mvcc_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/mvcc_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/mysql_user_data.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/optimizer_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/p0_concurrency_consistency_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/page_allocator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/page_cache.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/page_fix_simplified.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/page_initialization_fix.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/page_tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/record_row_adapter_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/redo_fix_verification_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/redo_log_batch_writer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/redo_log_compression.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/redo_log_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/redo_log_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/redo_recovery_fix_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/savepoint_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/schema_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/schema_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/segment_space_optimizer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/space_expansion_concurrent_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/space_expansion_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/space_stats_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/storage_manager_init_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/storage_manager_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/storage_optimization_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/system_page_initializer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/system_space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/system_variable_analyzer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/system_variable_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/system_variables_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/table_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/table_storage_mapping.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/tablespace_defragmenter_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/tablespace_defragmenter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/test_fix.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/transaction_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/undo_log_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/undo_log_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/undo_purge.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/undo_rollback_comprehensive_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/undo_rollback_fix_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/undo_segment_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/undo_segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/manager/undo_version_chain_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/metadata/builder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/metadata/column_def.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/metadata/column.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/metadata/convert.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/metadata/database.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/metadata/information_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/metadata/migrate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/metadata/query_schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/metadata/schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/metadata/table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/metadata/tuple.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/metadata/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/index_reading_test.go",
+      "target": "file:server/innodb/metadata/utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

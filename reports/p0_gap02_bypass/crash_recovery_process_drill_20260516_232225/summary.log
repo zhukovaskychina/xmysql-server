@@ -1,0 +1,38 @@
+=== crash recovery process drill 2026-05-16T23:22:25+08:00 ===
+repo: /Users/zhukovasky/GolandProjects/xmysql-server
+go: go version go1.24.3 darwin/amd64
+run_dir: ./reports/p0_gap02_bypass/crash_recovery_process_drill_20260516_232225
+port: 3311
+db: drill_recovery_db_20260516_232225
+table: drill_txn_20260516_232225
+
+[STEP] cleanup stale listener
+[OK]   cleanup stale listener
+[STEP] start server
+server_pid=53071
+[OK]   start server
+[STEP] wait server port
+[OK]   wait server port
+[STEP] setup redo
+[FAIL] setup redo
+[STEP] crash after redo commit
+[OK]   crash after redo commit
+[STEP] restart server for redo verify
+server_pid=53149
+[OK]   restart server for redo verify
+[STEP] wait server port (redo verify)
+[OK]   wait server port (redo verify)
+[STEP] verify redo
+[FAIL] verify redo
+[STEP] verify show tables where
+[FAIL] verify show tables where
+[STEP] undo scenario via manager rollback/fault tests
+[OK]   undo scenario via manager rollback/fault tests
+[STEP] half-commit scenario via fault injection tests
+[OK]   half-commit scenario via fault injection tests
+
+RESULT: FAIL
+summary=./reports/p0_gap02_bypass/crash_recovery_process_drill_20260516_232225/summary.log
+server_log=./reports/p0_gap02_bypass/crash_recovery_process_drill_20260516_232225/server.log
+client_log=./reports/p0_gap02_bypass/crash_recovery_process_drill_20260516_232225/client.log
+manager_test_log=./reports/p0_gap02_bypass/crash_recovery_process_drill_20260516_232225/manager_tests.log

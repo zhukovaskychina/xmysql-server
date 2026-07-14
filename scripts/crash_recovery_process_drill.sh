@@ -7,6 +7,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 GO_BIN="${GO_BIN:-/Users/zhukovasky/sdk/go1.24.3/bin/go}"
+PYTHON_BIN="${PYTHON_BIN:-python3.12}"
 
 OUT_BASE="${CR_PROC_REPORT_DIR:-$ROOT/reports}"
 PORT="${CR_PROC_PORT:-3310}"
@@ -31,8 +32,9 @@ SERVER_LOG="$RUN_DIR/server.log"
 SUMMARY="$RUN_DIR/summary.log"
 CLIENT_LOG="$RUN_DIR/client.log"
 CLIENT_BIN="$RUN_DIR/recovery_drill_client"
+EVIDENCE_DIR="$RUN_DIR/evidence"
 
-mkdir -p "$RUN_DIR" "$DATA_DIR" "$LOG_DIR"
+mkdir -p "$RUN_DIR" "$DATA_DIR" "$LOG_DIR" "$EVIDENCE_DIR"
 
 url_encode() {
   local value="$1"
@@ -180,9 +182,105 @@ run_client() {
   shift 3
   local rc=0
 
+  local capture_file="${RUN_CLIENT_CAPTURE_FILE:-}"
+  local tmp_out
+  tmp_out="$(mktemp "$RUN_DIR/client_${mode}_XXXXXX.log")"
+
   echo "[CLIENT] mode=${mode} db=${db_name} table=${table_name} args=$*" >>"$CLIENT_LOG"
-  "$CLIENT_BIN" -dsn "$DSN" -db "$db_name" -table "$table_name" -mode "$mode" "$@" >>"$CLIENT_LOG" 2>&1
+  "$CLIENT_BIN" -dsn "$DSN" -db "$db_name" -table "$table_name" -mode "$mode" "$@" >"$tmp_out" 2>&1
   rc=$?
+  cat "$tmp_out" >>"$CLIENT_LOG"
+  if [[ -n "$capture_file" ]]; then
+    mkdir -p "$(dirname "$capture_file")"
+    cp "$tmp_out" "$capture_file"
+  fi
+  rm -f "$tmp_out"
+  return $rc
+}
+
+write_evidence_json() {
+  local raw_file="$1"
+  local json_file="$2"
+  local round="$3"
+  local scenario="$4"
+  local phase="$5"
+  local db_name="$6"
+  local table_name="$7"
+
+  mkdir -p "$(dirname "$json_file")"
+  "$PYTHON_BIN" - "$raw_file" "$json_file" "$round" "$scenario" "$phase" "$db_name" "$table_name" "$SUMMARY" "$CLIENT_LOG" <<'PY_EOF'
+import json
+import pathlib
+import sys
+from datetime import datetime, timezone
+
+raw_file, json_file, round_id, scenario, phase, db_name, table_name, summary, client_log = sys.argv[1:]
+raw = pathlib.Path(raw_file).read_text(errors="replace") if pathlib.Path(raw_file).exists() else ""
+payload = {
+    "generated_at": datetime.now(timezone.utc).isoformat(),
+    "round": round_id,
+    "scenario": scenario,
+    "phase": phase,
+    "database": db_name,
+    "table": table_name,
+    "summary_log": summary,
+    "client_log": client_log,
+    "raw_output": raw,
+}
+pathlib.Path(json_file).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+PY_EOF
+}
+
+write_diff_json() {
+  local round="$1"
+  local scenario="$2"
+  local dir="$EVIDENCE_DIR/round_${round}/${scenario}"
+  local before="$dir/before.json"
+  local after="$dir/after.json"
+  local diff="$dir/diff.json"
+
+  "$PYTHON_BIN" - "$before" "$after" "$diff" "$round" "$scenario" <<'PY_EOF'
+import json
+import pathlib
+import sys
+from datetime import datetime, timezone
+
+before_file, after_file, diff_file, round_id, scenario = sys.argv[1:]
+before = json.loads(pathlib.Path(before_file).read_text()) if pathlib.Path(before_file).exists() else {}
+after = json.loads(pathlib.Path(after_file).read_text()) if pathlib.Path(after_file).exists() else {}
+before_raw = before.get("raw_output", "")
+after_raw = after.get("raw_output", "")
+payload = {
+    "generated_at": datetime.now(timezone.utc).isoformat(),
+    "round": round_id,
+    "scenario": scenario,
+    "before_file": before_file,
+    "after_file": after_file,
+    "raw_equal": before_raw == after_raw,
+    "before_bytes": len(before_raw.encode()),
+    "after_bytes": len(after_raw.encode()),
+}
+pathlib.Path(diff_file).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+PY_EOF
+}
+
+capture_client() {
+  local round="$1"
+  local scenario="$2"
+  local phase="$3"
+  local db_name="$4"
+  local table_name="$5"
+  local mode="$6"
+  shift 6
+
+  local dir="$EVIDENCE_DIR/round_${round}/${scenario}"
+  local raw_file="$dir/${phase}.raw.log"
+  local json_file="$dir/${phase}.json"
+  local rc=0
+
+  RUN_CLIENT_CAPTURE_FILE="$raw_file" run_client "$db_name" "$table_name" "$mode" "$@"
+  rc=$?
+  write_evidence_json "$raw_file" "$json_file" "$round" "$scenario" "$phase" "$db_name" "$table_name"
   return $rc
 }
 
@@ -254,11 +352,12 @@ run_redo_round() {
   step "$round" "redo" "wait server" wait_port || round_ok=1
   step "$round" "redo" "wait client ready" wait_client_ready || round_ok=1
   step "$round" "redo" "setup redo" run_client "$db_name" "$table_name" setup_redo || round_ok=1
-  step "$round" "redo" "snapshot before crash" run_client "$db_name" "$table_name" snapshot || round_ok=1
+  step "$round" "redo" "snapshot before crash" capture_client "$round" "redo" "before" "$db_name" "$table_name" snapshot || round_ok=1
   step "$round" "redo" "kill server after setup" kill_server || round_ok=1
   step "$round" "redo" "restart for redo verify" start_server || round_ok=1
   step "$round" "redo" "wait server after restart" wait_port || round_ok=1
-  step "$round" "redo" "snapshot after restart" run_client "$db_name" "$table_name" snapshot || round_ok=1
+  step "$round" "redo" "snapshot after restart" capture_client "$round" "redo" "after" "$db_name" "$table_name" snapshot || round_ok=1
+  step "$round" "redo" "write diff evidence" write_diff_json "$round" "redo" || round_ok=1
   step "$round" "redo" "verify redo" run_client "$db_name" "$table_name" verify_redo || round_ok=1
   step "$round" "redo" "verify show tables where" run_client "$db_name" "$table_name" verify_show_tables_where || round_ok=1
 
@@ -276,7 +375,7 @@ run_undo_round() {
   local table_name="$3"
   local round_ok=0
 
-  step "$round" "undo" "snapshot before undo" run_client "$db_name" "$table_name" snapshot || round_ok=1
+  step "$round" "undo" "snapshot before undo" capture_client "$round" "undo" "before" "$db_name" "$table_name" snapshot || round_ok=1
   scenario_round_result "$round" "undo" "START"
 
   local client_pid
@@ -294,7 +393,8 @@ run_undo_round() {
 
   step "$round" "undo" "restart for undo verify" start_server || round_ok=1
   step "$round" "undo" "wait server after restart" wait_port || round_ok=1
-  step "$round" "undo" "snapshot after restart" run_client "$db_name" "$table_name" snapshot || round_ok=1
+  step "$round" "undo" "snapshot after restart" capture_client "$round" "undo" "after" "$db_name" "$table_name" snapshot || round_ok=1
+  step "$round" "undo" "write diff evidence" write_diff_json "$round" "undo" || round_ok=1
   step "$round" "undo" "verify undo" run_client "$db_name" "$table_name" verify_undo || round_ok=1
 
   if [[ $round_ok -eq 0 ]]; then
@@ -311,7 +411,7 @@ run_half_round() {
   local table_name="$3"
   local round_ok=0
 
-  step "$round" "half_commit" "snapshot before half-commit" run_client "$db_name" "$table_name" snapshot || round_ok=1
+  step "$round" "half_commit" "snapshot before half-commit" capture_client "$round" "half_commit" "before" "$db_name" "$table_name" snapshot || round_ok=1
   scenario_round_result "$round" "half_commit" "START"
 
   local client_pid
@@ -329,7 +429,8 @@ run_half_round() {
 
   step "$round" "half_commit" "restart for half-commit verify" start_server || round_ok=1
   step "$round" "half_commit" "wait server after restart" wait_port || round_ok=1
-  step "$round" "half_commit" "snapshot after restart" run_client "$db_name" "$table_name" snapshot || round_ok=1
+  step "$round" "half_commit" "snapshot after restart" capture_client "$round" "half_commit" "after" "$db_name" "$table_name" snapshot || round_ok=1
+  step "$round" "half_commit" "write diff evidence" write_diff_json "$round" "half_commit" || round_ok=1
   step "$round" "half_commit" "verify half-commit" run_client "$db_name" "$table_name" verify_half_commit || round_ok=1
 
   if [[ $round_ok -eq 0 ]]; then

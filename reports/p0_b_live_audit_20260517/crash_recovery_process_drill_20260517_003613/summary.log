@@ -1,0 +1,42 @@
+=== crash recovery process drill 2026-05-17T00:36:13+08:00 ===
+repo: /Users/zhukovasky/GolandProjects/xmysql-server
+go: go version go1.24.3 darwin/amd64
+run_dir: ./reports/p0_b_live_audit_20260517/crash_recovery_process_drill_20260517_003613
+host: 127.0.0.1
+port: 3310
+dsn: xmysql:root@1234@tcp(127.0.0.1:3310)/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true
+db: drill_recovery_db_20260517_003613
+table: drill_txn_20260517_003613
+
+[STEP] cleanup stale listener
+[OK]   cleanup stale listener
+[STEP] start server
+server_pid=66531
+[OK]   start server
+[STEP] wait server port
+[OK]   wait server port
+[STEP] setup redo
+[FAIL] setup redo
+[STEP] crash after redo commit
+[OK]   crash after redo commit
+[STEP] cleanup stale listener before redo verify restart
+[OK]   cleanup stale listener before redo verify restart
+[STEP] restart server for redo verify
+server_pid=66726
+[OK]   restart server for redo verify
+[STEP] wait server port (redo verify)
+[OK]   wait server port (redo verify)
+[STEP] verify redo
+[FAIL] verify redo
+[STEP] verify show tables where
+[FAIL] verify show tables where
+[STEP] undo scenario via manager rollback/fault tests
+[OK]   undo scenario via manager rollback/fault tests
+[STEP] half-commit scenario via fault injection tests
+[OK]   half-commit scenario via fault injection tests
+
+RESULT: FAIL
+summary=./reports/p0_b_live_audit_20260517/crash_recovery_process_drill_20260517_003613/summary.log
+server_log=./reports/p0_b_live_audit_20260517/crash_recovery_process_drill_20260517_003613/server.log
+client_log=./reports/p0_b_live_audit_20260517/crash_recovery_process_drill_20260517_003613/client.log
+manager_test_log=./reports/p0_b_live_audit_20260517/crash_recovery_process_drill_20260517_003613/manager_tests.log

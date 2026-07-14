@@ -1,0 +1,8 @@
+{
+  "issues": [],
+  "notes": [
+    "所有 batch 输出均已合并。",
+    "imports 边数量与 import map 对齐。",
+    "文件级节点将在 Phase 6 校验中确认全部归入架构层。"
+  ]
+}

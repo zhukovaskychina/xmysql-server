@@ -1,0 +1,1712 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "type": "file",
+      "name": "data_dictionary_hdr_page.go",
+      "filePath": "server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "summary": "实现InnoDB 物理页结构与序列化的页结构、字段访问和持久化操作。",
+      "tags": [
+        "service",
+        "storage-page",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:NewDataDictHeaderPage",
+      "type": "function",
+      "name": "NewDataDictHeaderPage",
+      "filePath": "server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "lineRange": [
+        53,
+        92
+      ],
+      "summary": "创建或初始化InnoDB 物理页结构与序列化中的 NewDataDictHeaderPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:ParseDataDictHrdPage",
+      "type": "function",
+      "name": "ParseDataDictHrdPage",
+      "filePath": "server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "lineRange": [
+        94,
+        121
+      ],
+      "summary": "解析或反序列化InnoDB 物理页结构与序列化中的 ParseDataDictHrdPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "serialization",
+        "binary-format",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:SetMaxRowId",
+      "type": "function",
+      "name": "SetMaxRowId",
+      "filePath": "server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "lineRange": [
+        123,
+        125
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetMaxRowId 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:GetMaxRowId",
+      "type": "function",
+      "name": "GetMaxRowId",
+      "filePath": "server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "lineRange": [
+        126,
+        128
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetMaxRowId 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:SetMaxTableId",
+      "type": "function",
+      "name": "SetMaxTableId",
+      "filePath": "server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "lineRange": [
+        130,
+        132
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetMaxTableId 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:GetMaxTableId",
+      "type": "function",
+      "name": "GetMaxTableId",
+      "filePath": "server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "lineRange": [
+        133,
+        135
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetMaxTableId 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:SetMaxIndexId",
+      "type": "function",
+      "name": "SetMaxIndexId",
+      "filePath": "server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "lineRange": [
+        137,
+        139
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetMaxIndexId 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:GetMaxIndexId",
+      "type": "function",
+      "name": "GetMaxIndexId",
+      "filePath": "server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "lineRange": [
+        140,
+        142
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetMaxIndexId 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:SetMaxSpaceId",
+      "type": "function",
+      "name": "SetMaxSpaceId",
+      "filePath": "server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "lineRange": [
+        144,
+        146
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetMaxSpaceId 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:GetMaxSpaceId",
+      "type": "function",
+      "name": "GetMaxSpaceId",
+      "filePath": "server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "lineRange": [
+        147,
+        149
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetMaxSpaceId 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:GetSerializeBytes",
+      "type": "function",
+      "name": "GetSerializeBytes",
+      "filePath": "server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "lineRange": [
+        151,
+        169
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetSerializeBytes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:DataDictHeader",
+      "type": "class",
+      "name": "DataDictHeader",
+      "filePath": "server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "lineRange": [
+        9,
+        20
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 DataDictHeader 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:DataDictionaryHeaderSysPage",
+      "type": "class",
+      "name": "DataDictionaryHeaderSysPage",
+      "filePath": "server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "lineRange": [
+        23,
+        37
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 DataDictionaryHeaderSysPage 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "storage-page"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "type": "file",
+      "name": "encrypted_page.go",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "summary": "实现InnoDB 物理页结构与序列化的页结构、字段访问和持久化操作。",
+      "tags": [
+        "service",
+        "storage-page",
+        "innodb"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:NewEncryptedPage",
+      "type": "function",
+      "name": "NewEncryptedPage",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        92,
+        121
+      ],
+      "summary": "创建或初始化InnoDB 物理页结构与序列化中的 NewEncryptedPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:EncryptData",
+      "type": "function",
+      "name": "EncryptData",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        124,
+        175
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 EncryptData 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:DecryptData",
+      "type": "function",
+      "name": "DecryptData",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        178,
+        221
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 DecryptData 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:encryptWithAESCBC",
+      "type": "function",
+      "name": "encryptWithAESCBC",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        224,
+        238
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 encryptWithAESCBC 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:decryptWithAESCBC",
+      "type": "function",
+      "name": "decryptWithAESCBC",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        241,
+        262
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 decryptWithAESCBC 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:encryptWithAESCTR",
+      "type": "function",
+      "name": "encryptWithAESCTR",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        265,
+        276
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 encryptWithAESCTR 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:pkcs7Unpad",
+      "type": "function",
+      "name": "pkcs7Unpad",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        295,
+        312
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 pkcs7Unpad 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:GetEncryptionAlgorithm",
+      "type": "function",
+      "name": "GetEncryptionAlgorithm",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        325,
+        327
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetEncryptionAlgorithm 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:GetKeyID",
+      "type": "function",
+      "name": "GetKeyID",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        330,
+        332
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetKeyID 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:GetKeyVersion",
+      "type": "function",
+      "name": "GetKeyVersion",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        335,
+        337
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetKeyVersion 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:GetIV",
+      "type": "function",
+      "name": "GetIV",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        340,
+        342
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetIV 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:SetKeyVersion",
+      "type": "function",
+      "name": "SetKeyVersion",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        345,
+        347
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetKeyVersion 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:Serialize",
+      "type": "function",
+      "name": "Serialize",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        350,
+        370
+      ],
+      "summary": "编码或序列化InnoDB 物理页结构与序列化中的 Serialize 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "serialization",
+        "binary-format",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:Deserialize",
+      "type": "function",
+      "name": "Deserialize",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        373,
+        402
+      ],
+      "summary": "解析或反序列化InnoDB 物理页结构与序列化中的 Deserialize 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "serialization",
+        "binary-format",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:serializeEncryptionHeader",
+      "type": "function",
+      "name": "serializeEncryptionHeader",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        410,
+        421
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 serializeEncryptionHeader 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:deserializeEncryptionHeader",
+      "type": "function",
+      "name": "deserializeEncryptionHeader",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        434,
+        447
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 deserializeEncryptionHeader 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:Validate",
+      "type": "function",
+      "name": "Validate",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        456,
+        473
+      ],
+      "summary": "校验或判断InnoDB 物理页结构与序列化中的 Validate 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:GetFileHeader",
+      "type": "function",
+      "name": "GetFileHeader",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        476,
+        478
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetFileHeader 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:GetFileTrailer",
+      "type": "function",
+      "name": "GetFileTrailer",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        481,
+        483
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetFileTrailer 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:GetSerializeBytes",
+      "type": "function",
+      "name": "GetSerializeBytes",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        486,
+        488
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetSerializeBytes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:LoadFileHeader",
+      "type": "function",
+      "name": "LoadFileHeader",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        491,
+        493
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 LoadFileHeader 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:LoadFileTrailer",
+      "type": "function",
+      "name": "LoadFileTrailer",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        496,
+        498
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 LoadFileTrailer 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:GetPageType",
+      "type": "function",
+      "name": "GetPageType",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        501,
+        503
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetPageType 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:ValidateChecksum",
+      "type": "function",
+      "name": "ValidateChecksum",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        506,
+        513
+      ],
+      "summary": "校验或判断InnoDB 物理页结构与序列化中的 ValidateChecksum 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:CalculateChecksum",
+      "type": "function",
+      "name": "CalculateChecksum",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        516,
+        523
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 CalculateChecksum 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page.go:IsCorrupted",
+      "type": "function",
+      "name": "IsCorrupted",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        526,
+        533
+      ],
+      "summary": "校验或判断InnoDB 物理页结构与序列化中的 IsCorrupted 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/encrypted_page.go:EncryptionHeader",
+      "type": "class",
+      "name": "EncryptionHeader",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        74,
+        81
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 EncryptionHeader 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/encrypted_page.go:EncryptedPage",
+      "type": "class",
+      "name": "EncryptedPage",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page.go",
+      "lineRange": [
+        84,
+        89
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 EncryptedPage 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "storage-page"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:server/innodb/storage/store/pages/encrypted_page_roundtrip_test.go",
+      "type": "file",
+      "name": "encrypted_page_roundtrip_test.go",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page_roundtrip_test.go",
+      "summary": "验证InnoDB 物理页结构与序列化中 encrypted page roundtrip 的正常路径、边界条件与回归行为。",
+      "tags": [
+        "test",
+        "regression",
+        "storage-page",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/encrypted_page_roundtrip_test.go:TestEncryptedPage_SerializeAndValidate",
+      "type": "function",
+      "name": "TestEncryptedPage_SerializeAndValidate",
+      "filePath": "server/innodb/storage/store/pages/encrypted_page_roundtrip_test.go",
+      "lineRange": [
+        8,
+        26
+      ],
+      "summary": "验证InnoDB 物理页结构与序列化中的 TestEncryptedPage_SerializeAndValidate 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:NewDataDictHeaderPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:NewDataDictHeaderPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:ParseDataDictHrdPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:ParseDataDictHrdPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:SetMaxRowId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:SetMaxRowId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:GetMaxRowId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:GetMaxRowId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:SetMaxTableId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:SetMaxTableId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:GetMaxTableId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:GetMaxTableId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:SetMaxIndexId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:SetMaxIndexId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:GetMaxIndexId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:GetMaxIndexId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:SetMaxSpaceId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:SetMaxSpaceId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:GetMaxSpaceId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:GetMaxSpaceId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:GetSerializeBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "function:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:GetSerializeBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "class:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:DataDictHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "class:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:DataDictHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "class:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:DataDictionaryHeaderSysPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "class:server/innodb/storage/store/pages/data_dictionary_hdr_page.go:DataDictionaryHeaderSysPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:server/common/charset.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:server/common/const_trx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:server/common/constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:server/common/error_name.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:server/common/error_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:server/common/error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:server/common/errorcode.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:server/common/frm_constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:server/common/locale_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:server/common/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:server/common/privs_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:server/common/privs.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:server/common/sql_error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:server/common/sql_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:server/common/type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:server/common/type.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:server/common/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:server/innodb/storage/store/segs/segment_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:server/innodb/storage/store/segs/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:util/bitutils_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:util/bitutils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:util/buffer_reader.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:util/buffer_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:util/buffer_writer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:util/byte_util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:util/checker.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:util/configReader.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:util/fileutil_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:util/fileutil.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:util/hash_utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:util/hashutils_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:util/password.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:util/Random.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:util/rutime.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "target": "file:util/time_util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:NewEncryptedPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:NewEncryptedPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:EncryptData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:EncryptData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:DecryptData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:DecryptData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:encryptWithAESCBC",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:decryptWithAESCBC",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:encryptWithAESCTR",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:pkcs7Unpad",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:GetEncryptionAlgorithm",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:GetEncryptionAlgorithm",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:GetKeyID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:GetKeyID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:GetKeyVersion",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:GetKeyVersion",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:GetIV",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:GetIV",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:SetKeyVersion",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:SetKeyVersion",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:Serialize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:Serialize",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:Deserialize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:Deserialize",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:serializeEncryptionHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:deserializeEncryptionHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:Validate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:Validate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:GetFileHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:GetFileHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:GetFileTrailer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:GetFileTrailer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:GetSerializeBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:GetSerializeBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:LoadFileHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:LoadFileHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:LoadFileTrailer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:LoadFileTrailer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:GetPageType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:GetPageType",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:ValidateChecksum",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:ValidateChecksum",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:CalculateChecksum",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:CalculateChecksum",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:IsCorrupted",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page.go:IsCorrupted",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "class:server/innodb/storage/store/pages/encrypted_page.go:EncryptionHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "class:server/innodb/storage/store/pages/encrypted_page.go:EncryptionHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "class:server/innodb/storage/store/pages/encrypted_page.go:EncryptedPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "class:server/innodb/storage/store/pages/encrypted_page.go:EncryptedPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "file:server/common/charset.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "file:server/common/const_trx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "file:server/common/constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "file:server/common/error_name.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "file:server/common/error_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "file:server/common/error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "file:server/common/errorcode.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "file:server/common/frm_constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "file:server/common/locale_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "file:server/common/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "file:server/common/privs_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "file:server/common/privs.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "file:server/common/sql_error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "file:server/common/sql_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "file:server/common/type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "file:server/common/type.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "target": "file:server/common/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page_roundtrip_test.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page_roundtrip_test.go:TestEncryptedPage_SerializeAndValidate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/encrypted_page_roundtrip_test.go",
+      "target": "function:server/innodb/storage/store/pages/encrypted_page_roundtrip_test.go:TestEncryptedPage_SerializeAndValidate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

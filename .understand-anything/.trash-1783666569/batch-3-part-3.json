@@ -1,0 +1,1958 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "type": "file",
+      "name": "fsp_hrd_page.go",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "summary": "实现InnoDB 物理页结构与序列化的页结构、字段访问和持久化操作。",
+      "tags": [
+        "service",
+        "storage-page",
+        "innodb"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetSpaceID",
+      "type": "function",
+      "name": "GetSpaceID",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        41,
+        43
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetSpaceID 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetSize",
+      "type": "function",
+      "name": "GetSize",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        46,
+        48
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetSize 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetFreeLimit",
+      "type": "function",
+      "name": "GetFreeLimit",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        51,
+        53
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetFreeLimit 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetSpaceFlags",
+      "type": "function",
+      "name": "GetSpaceFlags",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        56,
+        58
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetSpaceFlags 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetFragNUsed",
+      "type": "function",
+      "name": "GetFragNUsed",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        61,
+        63
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetFragNUsed 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetNextSegmentID",
+      "type": "function",
+      "name": "GetNextSegmentID",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        66,
+        68
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetNextSegmentID 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetSpaceID",
+      "type": "function",
+      "name": "SetSpaceID",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        73,
+        75
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetSpaceID 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetSize",
+      "type": "function",
+      "name": "SetSize",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        78,
+        80
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetSize 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetFreeLimit",
+      "type": "function",
+      "name": "SetFreeLimit",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        83,
+        85
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetFreeLimit 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetSpaceFlags",
+      "type": "function",
+      "name": "SetSpaceFlags",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        88,
+        90
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetSpaceFlags 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetFragNUsed",
+      "type": "function",
+      "name": "SetFragNUsed",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        93,
+        95
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetFragNUsed 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetNextSegmentID",
+      "type": "function",
+      "name": "SetNextSegmentID",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        98,
+        100
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetNextSegmentID 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetFreeListNode",
+      "type": "function",
+      "name": "GetFreeListNode",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        105,
+        107
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetFreeListNode 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetFreeListNode",
+      "type": "function",
+      "name": "SetFreeListNode",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        110,
+        112
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetFreeListNode 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetFragFreeListNode",
+      "type": "function",
+      "name": "GetFragFreeListNode",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        115,
+        117
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetFragFreeListNode 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetFragFreeListNode",
+      "type": "function",
+      "name": "SetFragFreeListNode",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        120,
+        122
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetFragFreeListNode 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetFullFragListNode",
+      "type": "function",
+      "name": "GetFullFragListNode",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        125,
+        127
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetFullFragListNode 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetFullFragListNode",
+      "type": "function",
+      "name": "SetFullFragListNode",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        130,
+        132
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetFullFragListNode 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetSegFullINodesListNode",
+      "type": "function",
+      "name": "GetSegFullINodesListNode",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        135,
+        137
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetSegFullINodesListNode 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetSegFullINodesListNode",
+      "type": "function",
+      "name": "SetSegFullINodesListNode",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        140,
+        142
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetSegFullINodesListNode 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetSegFreeINodesListNode",
+      "type": "function",
+      "name": "GetSegFreeINodesListNode",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        145,
+        147
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetSegFreeINodesListNode 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetSegFreeINodesListNode",
+      "type": "function",
+      "name": "SetSegFreeINodesListNode",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        150,
+        152
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetSegFreeINodesListNode 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SpaceId",
+      "type": "function",
+      "name": "SpaceId",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        158,
+        160
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 SpaceId 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:NotUsed",
+      "type": "function",
+      "name": "NotUsed",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        163,
+        165
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 NotUsed 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:Size",
+      "type": "function",
+      "name": "Size",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        168,
+        170
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 Size 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:FreeLimit",
+      "type": "function",
+      "name": "FreeLimit",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        173,
+        175
+      ],
+      "summary": "删除或释放InnoDB 物理页结构与序列化中的 FreeLimit 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SpaceFlags",
+      "type": "function",
+      "name": "SpaceFlags",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        178,
+        180
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 SpaceFlags 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:FragNUsed",
+      "type": "function",
+      "name": "FragNUsed",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        183,
+        185
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 FragNUsed 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:BaseNodeForFreeList",
+      "type": "function",
+      "name": "BaseNodeForFreeList",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        188,
+        190
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 BaseNodeForFreeList 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:BaseNodeForFragFreeList",
+      "type": "function",
+      "name": "BaseNodeForFragFreeList",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        193,
+        195
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 BaseNodeForFragFreeList 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:BaseNodeForFullFragList",
+      "type": "function",
+      "name": "BaseNodeForFullFragList",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        198,
+        200
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 BaseNodeForFullFragList 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:NextUnusedSegmentId",
+      "type": "function",
+      "name": "NextUnusedSegmentId",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        203,
+        205
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 NextUnusedSegmentId 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SegFullINodesList",
+      "type": "function",
+      "name": "SegFullINodesList",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        208,
+        210
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 SegFullINodesList 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SegFreeINodesList",
+      "type": "function",
+      "name": "SegFreeINodesList",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        213,
+        215
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 SegFreeINodesList 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:NewFileSpaceHeader",
+      "type": "function",
+      "name": "NewFileSpaceHeader",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        218,
+        232
+      ],
+      "summary": "创建或初始化InnoDB 物理页结构与序列化中的 NewFileSpaceHeader 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetSerializeBytes",
+      "type": "function",
+      "name": "GetSerializeBytes",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        235,
+        238
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetSerializeBytes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:LoadFromBytes",
+      "type": "function",
+      "name": "LoadFromBytes",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        241,
+        244
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 LoadFromBytes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetFilePages",
+      "type": "function",
+      "name": "GetFilePages",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        247,
+        249
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetFilePages 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:WriteFilePage",
+      "type": "function",
+      "name": "WriteFilePage",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        252,
+        263
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 WriteFilePage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetChecksum",
+      "type": "function",
+      "name": "SetChecksum",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        266,
+        269
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetChecksum 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:WriteTo",
+      "type": "function",
+      "name": "WriteTo",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        278,
+        286
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 WriteTo 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:Validate",
+      "type": "function",
+      "name": "Validate",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        289,
+        307
+      ],
+      "summary": "校验或判断InnoDB 物理页结构与序列化中的 Validate 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:NewFspHrdPage",
+      "type": "function",
+      "name": "NewFspHrdPage",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        355,
+        385
+      ],
+      "summary": "创建或初始化InnoDB 物理页结构与序列化中的 NewFspHrdPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SerializeBytes",
+      "type": "function",
+      "name": "SerializeBytes",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        397,
+        407
+      ],
+      "summary": "编码或序列化InnoDB 物理页结构与序列化中的 SerializeBytes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "serialization",
+        "binary-format",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetNextSegmentId",
+      "type": "function",
+      "name": "GetNextSegmentId",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        414,
+        416
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetNextSegmentId 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/fsp_hrd_page.go:FileSpaceHeader",
+      "type": "class",
+      "name": "FileSpaceHeader",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        17,
+        19
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 FileSpaceHeader 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "storage-page"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/fsp_hrd_page.go:SpaceFlags",
+      "type": "class",
+      "name": "SpaceFlags",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        309,
+        318
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 SpaceFlags 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/fsp_hrd_page.go:FspHrdBinaryPage",
+      "type": "class",
+      "name": "FspHrdBinaryPage",
+      "filePath": "server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "lineRange": [
+        336,
+        342
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 FspHrdBinaryPage 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/storage/store/pages/fsp_page.go",
+      "type": "file",
+      "name": "fsp_page.go",
+      "filePath": "server/innodb/storage/store/pages/fsp_page.go",
+      "summary": "实现InnoDB 物理页结构与序列化的页结构、字段访问和持久化操作。",
+      "tags": [
+        "service",
+        "storage-page",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/fsp_page.go:NewFSPPage",
+      "type": "function",
+      "name": "NewFSPPage",
+      "filePath": "server/innodb/storage/store/pages/fsp_page.go",
+      "lineRange": [
+        17,
+        28
+      ],
+      "summary": "创建或初始化InnoDB 物理页结构与序列化中的 NewFSPPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/fsp_page.go:FSPPage",
+      "type": "class",
+      "name": "FSPPage",
+      "filePath": "server/innodb/storage/store/pages/fsp_page.go",
+      "lineRange": [
+        4,
+        14
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 FSPPage 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/storage/store/pages/ibuf_bitmap_page_test.go",
+      "type": "file",
+      "name": "ibuf_bitmap_page_test.go",
+      "filePath": "server/innodb/storage/store/pages/ibuf_bitmap_page_test.go",
+      "summary": "验证InnoDB 物理页结构与序列化中 ibuf bitmap page 的正常路径、边界条件与回归行为。",
+      "tags": [
+        "test",
+        "regression",
+        "storage-page",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_bitmap_page_test.go:TestName",
+      "type": "function",
+      "name": "TestName",
+      "filePath": "server/innodb/storage/store/pages/ibuf_bitmap_page_test.go",
+      "lineRange": [
+        9,
+        14
+      ],
+      "summary": "验证InnoDB 物理页结构与序列化中的 TestName 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetSpaceID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetSpaceID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetSize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetSize",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetFreeLimit",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetFreeLimit",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetSpaceFlags",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetSpaceFlags",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetFragNUsed",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetFragNUsed",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetNextSegmentID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetNextSegmentID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetSpaceID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetSpaceID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetSize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetSize",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetFreeLimit",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetFreeLimit",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetSpaceFlags",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetSpaceFlags",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetFragNUsed",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetFragNUsed",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetNextSegmentID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetNextSegmentID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetFreeListNode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetFreeListNode",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetFreeListNode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetFreeListNode",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetFragFreeListNode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetFragFreeListNode",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetFragFreeListNode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetFragFreeListNode",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetFullFragListNode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetFullFragListNode",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetFullFragListNode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetFullFragListNode",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetSegFullINodesListNode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetSegFullINodesListNode",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetSegFullINodesListNode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetSegFullINodesListNode",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetSegFreeINodesListNode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetSegFreeINodesListNode",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetSegFreeINodesListNode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetSegFreeINodesListNode",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SpaceId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SpaceId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:NotUsed",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:NotUsed",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:Size",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:Size",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:FreeLimit",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:FreeLimit",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SpaceFlags",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SpaceFlags",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:FragNUsed",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:FragNUsed",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:BaseNodeForFreeList",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:BaseNodeForFreeList",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:BaseNodeForFragFreeList",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:BaseNodeForFragFreeList",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:BaseNodeForFullFragList",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:BaseNodeForFullFragList",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:NextUnusedSegmentId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:NextUnusedSegmentId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SegFullINodesList",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SegFullINodesList",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SegFreeINodesList",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SegFreeINodesList",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:NewFileSpaceHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:NewFileSpaceHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetSerializeBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetSerializeBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:LoadFromBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:LoadFromBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetFilePages",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetFilePages",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:WriteFilePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:WriteFilePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetChecksum",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SetChecksum",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:WriteTo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:WriteTo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:Validate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:Validate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:NewFspHrdPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:NewFspHrdPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SerializeBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:SerializeBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetNextSegmentId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_hrd_page.go:GetNextSegmentId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "class:server/innodb/storage/store/pages/fsp_hrd_page.go:FileSpaceHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "class:server/innodb/storage/store/pages/fsp_hrd_page.go:FileSpaceHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "class:server/innodb/storage/store/pages/fsp_hrd_page.go:SpaceFlags",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "class:server/innodb/storage/store/pages/fsp_hrd_page.go:SpaceFlags",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "class:server/innodb/storage/store/pages/fsp_hrd_page.go:FspHrdBinaryPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "class:server/innodb/storage/store/pages/fsp_hrd_page.go:FspHrdBinaryPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/common/charset.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/common/const_trx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/common/constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/common/error_name.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/common/error_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/common/error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/common/errorcode.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/common/frm_constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/common/locale_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/common/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/common/privs_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/common/privs.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/common/sql_error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/common/sql_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/common/type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/common/type.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/common/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/innodb/util/buffer_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/innodb/util/buffer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/innodb/util/checksum.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/innodb/util/hash_table_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/innodb/util/hash_table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/innodb/util/unsafe_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:server/innodb/util/unsafe.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:util/bitutils_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:util/bitutils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:util/buffer_reader.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:util/buffer_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:util/buffer_writer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:util/byte_util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:util/checker.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:util/configReader.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:util/fileutil_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:util/fileutil.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:util/hash_utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:util/hashutils_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:util/password.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:util/Random.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:util/rutime.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "target": "file:util/time_util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_page.go:NewFSPPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_page.go",
+      "target": "function:server/innodb/storage/store/pages/fsp_page.go:NewFSPPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_page.go",
+      "target": "class:server/innodb/storage/store/pages/fsp_page.go:FSPPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/fsp_page.go",
+      "target": "class:server/innodb/storage/store/pages/fsp_page.go:FSPPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page_test.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_bitmap_page_test.go:TestName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page_test.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_bitmap_page_test.go:TestName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

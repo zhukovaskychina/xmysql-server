@@ -1,0 +1,2425 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "file",
+      "name": "base_page_wrapper.go",
+      "filePath": "server/innodb/basic/base_page_wrapper.go",
+      "summary": "base_page_wrapper.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "logic",
+        "code"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/basic/base_page_wrapper.go:NewBasePageWrapper",
+      "type": "function",
+      "name": "NewBasePageWrapper",
+      "filePath": "server/innodb/basic/base_page_wrapper.go",
+      "summary": "NewBasePageWrapper 定义在 server/innodb/basic/base_page_wrapper.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/base_page_wrapper.go:GetFileHeader",
+      "type": "function",
+      "name": "GetFileHeader",
+      "filePath": "server/innodb/basic/base_page_wrapper.go",
+      "summary": "GetFileHeader 定义在 server/innodb/basic/base_page_wrapper.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/base_page_wrapper.go:GetFileTrailer",
+      "type": "function",
+      "name": "GetFileTrailer",
+      "filePath": "server/innodb/basic/base_page_wrapper.go",
+      "summary": "GetFileTrailer 定义在 server/innodb/basic/base_page_wrapper.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/base_page_wrapper.go:GetSpaceID",
+      "type": "function",
+      "name": "GetSpaceID",
+      "filePath": "server/innodb/basic/base_page_wrapper.go",
+      "summary": "GetSpaceID 定义在 server/innodb/basic/base_page_wrapper.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/base_page_wrapper.go:GetPageNo",
+      "type": "function",
+      "name": "GetPageNo",
+      "filePath": "server/innodb/basic/base_page_wrapper.go",
+      "summary": "GetPageNo 定义在 server/innodb/basic/base_page_wrapper.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/base_page_wrapper.go:GetPageType",
+      "type": "function",
+      "name": "GetPageType",
+      "filePath": "server/innodb/basic/base_page_wrapper.go",
+      "summary": "GetPageType 定义在 server/innodb/basic/base_page_wrapper.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/base_page_wrapper.go:GetLSN",
+      "type": "function",
+      "name": "GetLSN",
+      "filePath": "server/innodb/basic/base_page_wrapper.go",
+      "summary": "GetLSN 定义在 server/innodb/basic/base_page_wrapper.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/base_page_wrapper.go:SetLSN",
+      "type": "function",
+      "name": "SetLSN",
+      "filePath": "server/innodb/basic/base_page_wrapper.go",
+      "summary": "SetLSN 定义在 server/innodb/basic/base_page_wrapper.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/base_page_wrapper.go:MarkDirty",
+      "type": "function",
+      "name": "MarkDirty",
+      "filePath": "server/innodb/basic/base_page_wrapper.go",
+      "summary": "MarkDirty 定义在 server/innodb/basic/base_page_wrapper.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/base_page_wrapper.go:GetState",
+      "type": "function",
+      "name": "GetState",
+      "filePath": "server/innodb/basic/base_page_wrapper.go",
+      "summary": "GetState 定义在 server/innodb/basic/base_page_wrapper.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/base_page_wrapper.go:SetState",
+      "type": "function",
+      "name": "SetState",
+      "filePath": "server/innodb/basic/base_page_wrapper.go",
+      "summary": "SetState 定义在 server/innodb/basic/base_page_wrapper.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/base_page_wrapper.go:GetStats",
+      "type": "function",
+      "name": "GetStats",
+      "filePath": "server/innodb/basic/base_page_wrapper.go",
+      "summary": "GetStats 定义在 server/innodb/basic/base_page_wrapper.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/base_page_wrapper.go:Pin",
+      "type": "function",
+      "name": "Pin",
+      "filePath": "server/innodb/basic/base_page_wrapper.go",
+      "summary": "Pin 定义在 server/innodb/basic/base_page_wrapper.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/base_page_wrapper.go:Unpin",
+      "type": "function",
+      "name": "Unpin",
+      "filePath": "server/innodb/basic/base_page_wrapper.go",
+      "summary": "Unpin 定义在 server/innodb/basic/base_page_wrapper.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/base_page_wrapper.go:Read",
+      "type": "function",
+      "name": "Read",
+      "filePath": "server/innodb/basic/base_page_wrapper.go",
+      "summary": "Read 定义在 server/innodb/basic/base_page_wrapper.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/base_page_wrapper.go:Write",
+      "type": "function",
+      "name": "Write",
+      "filePath": "server/innodb/basic/base_page_wrapper.go",
+      "summary": "Write 定义在 server/innodb/basic/base_page_wrapper.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/base_page_wrapper.go:BasePageWrapper",
+      "type": "class",
+      "name": "BasePageWrapper",
+      "filePath": "server/innodb/basic/base_page_wrapper.go",
+      "summary": "BasePageWrapper 定义在 server/innodb/basic/base_page_wrapper.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "file",
+      "name": "bplus_tree_manager.go",
+      "filePath": "server/innodb/basic/bplus_tree_manager.go",
+      "summary": "bplus_tree_manager.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/bplus_tree_manager.go:BPlusTreeManager",
+      "type": "class",
+      "name": "BPlusTreeManager",
+      "filePath": "server/innodb/basic/bplus_tree_manager.go",
+      "summary": "BPlusTreeManager 定义在 server/innodb/basic/bplus_tree_manager.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/btree.go",
+      "type": "file",
+      "name": "btree.go",
+      "filePath": "server/innodb/basic/btree.go",
+      "summary": "btree.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/btree.go:BTreeConfig",
+      "type": "class",
+      "name": "BTreeConfig",
+      "filePath": "server/innodb/basic/btree.go",
+      "summary": "BTreeConfig 定义在 server/innodb/basic/btree.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/btree.go:BTreeStats",
+      "type": "class",
+      "name": "BTreeStats",
+      "filePath": "server/innodb/basic/btree.go",
+      "summary": "BTreeStats 定义在 server/innodb/basic/btree.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/btree.go:IBTree",
+      "type": "class",
+      "name": "IBTree",
+      "filePath": "server/innodb/basic/btree.go",
+      "summary": "IBTree 定义在 server/innodb/basic/btree.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/btree_manager.go",
+      "type": "file",
+      "name": "btree_manager.go",
+      "filePath": "server/innodb/basic/btree_manager.go",
+      "summary": "btree_manager.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/btree_manager.go:IBTreeManager",
+      "type": "class",
+      "name": "IBTreeManager",
+      "filePath": "server/innodb/basic/btree_manager.go",
+      "summary": "IBTreeManager 定义在 server/innodb/basic/btree_manager.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/btree_statistics.go",
+      "type": "file",
+      "name": "btree_statistics.go",
+      "filePath": "server/innodb/basic/btree_statistics.go",
+      "summary": "btree_statistics.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/btree_statistics.go:BTreeStatistics",
+      "type": "class",
+      "name": "BTreeStatistics",
+      "filePath": "server/innodb/basic/btree_statistics.go",
+      "summary": "BTreeStatistics 定义在 server/innodb/basic/btree_statistics.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/cursor.go",
+      "type": "file",
+      "name": "cursor.go",
+      "filePath": "server/innodb/basic/cursor.go",
+      "summary": "cursor.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/cursor.go:Cursor",
+      "type": "class",
+      "name": "Cursor",
+      "filePath": "server/innodb/basic/cursor.go",
+      "summary": "Cursor 定义在 server/innodb/basic/cursor.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/errors.go",
+      "type": "file",
+      "name": "errors.go",
+      "filePath": "server/innodb/basic/errors.go",
+      "summary": "errors.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:server/innodb/basic/extent.go",
+      "type": "file",
+      "name": "extent.go",
+      "filePath": "server/innodb/basic/extent.go",
+      "summary": "extent.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/basic/extent.go:ExtentStats",
+      "type": "class",
+      "name": "ExtentStats",
+      "filePath": "server/innodb/basic/extent.go",
+      "summary": "ExtentStats 定义在 server/innodb/basic/extent.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/extent.go:ExtentHeader",
+      "type": "class",
+      "name": "ExtentHeader",
+      "filePath": "server/innodb/basic/extent.go",
+      "summary": "ExtentHeader 定义在 server/innodb/basic/extent.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/extent.go:Extent",
+      "type": "class",
+      "name": "Extent",
+      "filePath": "server/innodb/basic/extent.go",
+      "summary": "Extent 定义在 server/innodb/basic/extent.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/basic/extent.go:ExtentManager",
+      "type": "class",
+      "name": "ExtentManager",
+      "filePath": "server/innodb/basic/extent.go",
+      "summary": "ExtentManager 定义在 server/innodb/basic/extent.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/extent.go:ExtentManagerStats",
+      "type": "class",
+      "name": "ExtentManagerStats",
+      "filePath": "server/innodb/basic/extent.go",
+      "summary": "ExtentManagerStats 定义在 server/innodb/basic/extent.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/extent.go:ExtentList",
+      "type": "class",
+      "name": "ExtentList",
+      "filePath": "server/innodb/basic/extent.go",
+      "summary": "ExtentList 定义在 server/innodb/basic/extent.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/extent.go:ExtentIterator",
+      "type": "class",
+      "name": "ExtentIterator",
+      "filePath": "server/innodb/basic/extent.go",
+      "summary": "ExtentIterator 定义在 server/innodb/basic/extent.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/extent.go:ExtentInfo",
+      "type": "class",
+      "name": "ExtentInfo",
+      "filePath": "server/innodb/basic/extent.go",
+      "summary": "ExtentInfo 定义在 server/innodb/basic/extent.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/filesystem.go",
+      "type": "file",
+      "name": "filesystem.go",
+      "filePath": "server/innodb/basic/filesystem.go",
+      "summary": "filesystem.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/filesystem.go:FileSystem",
+      "type": "class",
+      "name": "FileSystem",
+      "filePath": "server/innodb/basic/filesystem.go",
+      "summary": "FileSystem 定义在 server/innodb/basic/filesystem.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/index.go",
+      "type": "file",
+      "name": "index.go",
+      "filePath": "server/innodb/basic/index.go",
+      "summary": "index.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/index.go:Index",
+      "type": "class",
+      "name": "Index",
+      "filePath": "server/innodb/basic/index.go",
+      "summary": "Index 定义在 server/innodb/basic/index.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/index_wrapper.go",
+      "type": "file",
+      "name": "index_wrapper.go",
+      "filePath": "server/innodb/basic/index_wrapper.go",
+      "summary": "index_wrapper.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/index_wrapper.go:IIndexWrapper",
+      "type": "class",
+      "name": "IIndexWrapper",
+      "filePath": "server/innodb/basic/index_wrapper.go",
+      "summary": "IIndexWrapper 定义在 server/innodb/basic/index_wrapper.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/index_wrapper.go:ISysTableSpace",
+      "type": "class",
+      "name": "ISysTableSpace",
+      "filePath": "server/innodb/basic/index_wrapper.go",
+      "summary": "ISysTableSpace 定义在 server/innodb/basic/index_wrapper.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/index_wrapper.go:IBlockFile",
+      "type": "class",
+      "name": "IBlockFile",
+      "filePath": "server/innodb/basic/index_wrapper.go",
+      "summary": "IBlockFile 定义在 server/innodb/basic/index_wrapper.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/interfaces.go",
+      "type": "file",
+      "name": "interfaces.go",
+      "filePath": "server/innodb/basic/interfaces.go",
+      "summary": "interfaces.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/basic/interfaces.go:IBufferPool",
+      "type": "class",
+      "name": "IBufferPool",
+      "filePath": "server/innodb/basic/interfaces.go",
+      "summary": "IBufferPool 定义在 server/innodb/basic/interfaces.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/interfaces.go:IPage",
+      "type": "class",
+      "name": "IPage",
+      "filePath": "server/innodb/basic/interfaces.go",
+      "summary": "IPage 定义在 server/innodb/basic/interfaces.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:server/innodb/basic/iterator.go",
+      "type": "file",
+      "name": "iterator.go",
+      "filePath": "server/innodb/basic/iterator.go",
+      "summary": "iterator.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/iterator.go:IIterator",
+      "type": "class",
+      "name": "IIterator",
+      "filePath": "server/innodb/basic/iterator.go",
+      "summary": "IIterator 定义在 server/innodb/basic/iterator.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/iterator.go:IRangeIterator",
+      "type": "class",
+      "name": "IRangeIterator",
+      "filePath": "server/innodb/basic/iterator.go",
+      "summary": "IRangeIterator 定义在 server/innodb/basic/iterator.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/iterator.go:RowIterator",
+      "type": "class",
+      "name": "RowIterator",
+      "filePath": "server/innodb/basic/iterator.go",
+      "summary": "RowIterator 定义在 server/innodb/basic/iterator.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/page.go",
+      "type": "file",
+      "name": "page.go",
+      "filePath": "server/innodb/basic/page.go",
+      "summary": "page.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/page.go:IPageWrapper",
+      "type": "class",
+      "name": "IPageWrapper",
+      "filePath": "server/innodb/basic/page.go",
+      "summary": "IPageWrapper 定义在 server/innodb/basic/page.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/page.go:IIndexPage",
+      "type": "class",
+      "name": "IIndexPage",
+      "filePath": "server/innodb/basic/page.go",
+      "summary": "IIndexPage 定义在 server/innodb/basic/page.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/page.go:IPageManager",
+      "type": "class",
+      "name": "IPageManager",
+      "filePath": "server/innodb/basic/page.go",
+      "summary": "IPageManager 定义在 server/innodb/basic/page.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/page_header.go",
+      "type": "file",
+      "name": "page_header.go",
+      "filePath": "server/innodb/basic/page_header.go",
+      "summary": "page_header.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/page_manager.go",
+      "type": "file",
+      "name": "page_manager.go",
+      "filePath": "server/innodb/basic/page_manager.go",
+      "summary": "page_manager.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/page_manager.go:PageManager",
+      "type": "class",
+      "name": "PageManager",
+      "filePath": "server/innodb/basic/page_manager.go",
+      "summary": "PageManager 定义在 server/innodb/basic/page_manager.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/page_types.go",
+      "type": "file",
+      "name": "page_types.go",
+      "filePath": "server/innodb/basic/page_types.go",
+      "summary": "page_types.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/page_types.go:PageCache",
+      "type": "class",
+      "name": "PageCache",
+      "filePath": "server/innodb/basic/page_types.go",
+      "summary": "PageCache 定义在 server/innodb/basic/page_types.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/page_types.go:PageTx",
+      "type": "class",
+      "name": "PageTx",
+      "filePath": "server/innodb/basic/page_types.go",
+      "summary": "PageTx 定义在 server/innodb/basic/page_types.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/page_types.go:PageCacheStats",
+      "type": "class",
+      "name": "PageCacheStats",
+      "filePath": "server/innodb/basic/page_types.go",
+      "summary": "PageCacheStats 定义在 server/innodb/basic/page_types.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/page_wrapper.go",
+      "type": "file",
+      "name": "page_wrapper.go",
+      "filePath": "server/innodb/basic/page_wrapper.go",
+      "summary": "page_wrapper.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/record.go",
+      "type": "file",
+      "name": "record.go",
+      "filePath": "server/innodb/basic/record.go",
+      "summary": "record.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/record.go:Record",
+      "type": "class",
+      "name": "Record",
+      "filePath": "server/innodb/basic/record.go",
+      "summary": "Record 定义在 server/innodb/basic/record.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/record.go:ExecutorRecord",
+      "type": "class",
+      "name": "ExecutorRecord",
+      "filePath": "server/innodb/basic/record.go",
+      "summary": "ExecutorRecord 定义在 server/innodb/basic/record.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/record.go:UnifiedRecord",
+      "type": "class",
+      "name": "UnifiedRecord",
+      "filePath": "server/innodb/basic/record.go",
+      "summary": "UnifiedRecord 定义在 server/innodb/basic/record.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/record.go:StorageRecord",
+      "type": "class",
+      "name": "StorageRecord",
+      "filePath": "server/innodb/basic/record.go",
+      "summary": "StorageRecord 定义在 server/innodb/basic/record.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/row.go",
+      "type": "file",
+      "name": "row.go",
+      "filePath": "server/innodb/basic/row.go",
+      "summary": "row.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "logic",
+        "code"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/basic/row.go:Len",
+      "type": "function",
+      "name": "Len",
+      "filePath": "server/innodb/basic/row.go",
+      "summary": "Len 定义在 server/innodb/basic/row.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/row.go:Less",
+      "type": "function",
+      "name": "Less",
+      "filePath": "server/innodb/basic/row.go",
+      "summary": "Less 定义在 server/innodb/basic/row.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/row.go:Swap",
+      "type": "function",
+      "name": "Swap",
+      "filePath": "server/innodb/basic/row.go",
+      "summary": "Swap 定义在 server/innodb/basic/row.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/row.go:AddRow",
+      "type": "function",
+      "name": "AddRow",
+      "filePath": "server/innodb/basic/row.go",
+      "summary": "AddRow 定义在 server/innodb/basic/row.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/row.go:Row",
+      "type": "class",
+      "name": "Row",
+      "filePath": "server/innodb/basic/row.go",
+      "summary": "Row 定义在 server/innodb/basic/row.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/basic/row.go:FieldDataHeader",
+      "type": "class",
+      "name": "FieldDataHeader",
+      "filePath": "server/innodb/basic/row.go",
+      "summary": "FieldDataHeader 定义在 server/innodb/basic/row.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/basic/row.go:FieldDataValue",
+      "type": "class",
+      "name": "FieldDataValue",
+      "filePath": "server/innodb/basic/row.go",
+      "summary": "FieldDataValue 定义在 server/innodb/basic/row.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/segment.go",
+      "type": "file",
+      "name": "segment.go",
+      "filePath": "server/innodb/basic/segment.go",
+      "summary": "segment.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/segment.go:ISegment",
+      "type": "class",
+      "name": "ISegment",
+      "filePath": "server/innodb/basic/segment.go",
+      "summary": "ISegment 定义在 server/innodb/basic/segment.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/segment.go:ISegmentManager",
+      "type": "class",
+      "name": "ISegmentManager",
+      "filePath": "server/innodb/basic/segment.go",
+      "summary": "ISegmentManager 定义在 server/innodb/basic/segment.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/segment_manager.go",
+      "type": "file",
+      "name": "segment_manager.go",
+      "filePath": "server/innodb/basic/segment_manager.go",
+      "summary": "segment_manager.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/segment_manager.go:Segment",
+      "type": "class",
+      "name": "Segment",
+      "filePath": "server/innodb/basic/segment_manager.go",
+      "summary": "Segment 定义在 server/innodb/basic/segment_manager.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/segment_manager.go:SegmentManager",
+      "type": "class",
+      "name": "SegmentManager",
+      "filePath": "server/innodb/basic/segment_manager.go",
+      "summary": "SegmentManager 定义在 server/innodb/basic/segment_manager.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/segment_manager.go:SegmentInfo",
+      "type": "class",
+      "name": "SegmentInfo",
+      "filePath": "server/innodb/basic/segment_manager.go",
+      "summary": "SegmentInfo 定义在 server/innodb/basic/segment_manager.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/space_manager.go",
+      "type": "file",
+      "name": "space_manager.go",
+      "filePath": "server/innodb/basic/space_manager.go",
+      "summary": "space_manager.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/space_manager.go:Tx",
+      "type": "class",
+      "name": "Tx",
+      "filePath": "server/innodb/basic/space_manager.go",
+      "summary": "Tx 定义在 server/innodb/basic/space_manager.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/space_manager.go:TableSpaceInfo",
+      "type": "class",
+      "name": "TableSpaceInfo",
+      "filePath": "server/innodb/basic/space_manager.go",
+      "summary": "TableSpaceInfo 定义在 server/innodb/basic/space_manager.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/spaces.go",
+      "type": "file",
+      "name": "spaces.go",
+      "filePath": "server/innodb/basic/spaces.go",
+      "summary": "spaces.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/spaces.go:Space",
+      "type": "class",
+      "name": "Space",
+      "filePath": "server/innodb/basic/spaces.go",
+      "summary": "Space 定义在 server/innodb/basic/spaces.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/spaces.go:SpaceManager",
+      "type": "class",
+      "name": "SpaceManager",
+      "filePath": "server/innodb/basic/spaces.go",
+      "summary": "SpaceManager 定义在 server/innodb/basic/spaces.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/storage.go",
+      "type": "file",
+      "name": "storage.go",
+      "filePath": "server/innodb/basic/storage.go",
+      "summary": "storage.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/storage.go:StorageProvider",
+      "type": "class",
+      "name": "StorageProvider",
+      "filePath": "server/innodb/basic/storage.go",
+      "summary": "StorageProvider 定义在 server/innodb/basic/storage.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/storage.go:SpaceInfo",
+      "type": "class",
+      "name": "SpaceInfo",
+      "filePath": "server/innodb/basic/storage.go",
+      "summary": "SpaceInfo 定义在 server/innodb/basic/storage.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/storage.go:PageInfo",
+      "type": "class",
+      "name": "PageInfo",
+      "filePath": "server/innodb/basic/storage.go",
+      "summary": "PageInfo 定义在 server/innodb/basic/storage.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/storage_manager.go",
+      "type": "file",
+      "name": "storage_manager.go",
+      "filePath": "server/innodb/basic/storage_manager.go",
+      "summary": "storage_manager.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/storage_manager.go:StorageManager",
+      "type": "class",
+      "name": "StorageManager",
+      "filePath": "server/innodb/basic/storage_manager.go",
+      "summary": "StorageManager 定义在 server/innodb/basic/storage_manager.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/storage_manager.go:Transaction",
+      "type": "class",
+      "name": "Transaction",
+      "filePath": "server/innodb/basic/storage_manager.go",
+      "summary": "Transaction 定义在 server/innodb/basic/storage_manager.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/tablespace.go",
+      "type": "file",
+      "name": "tablespace.go",
+      "filePath": "server/innodb/basic/tablespace.go",
+      "summary": "tablespace.go 属于 InnoDB 风格内核实现，参与存储、事务、索引、执行器或元数据管理。",
+      "tags": [
+        "innodb",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/tablespace.go:BlockFile",
+      "type": "class",
+      "name": "BlockFile",
+      "filePath": "server/innodb/basic/tablespace.go",
+      "summary": "BlockFile 定义在 server/innodb/basic/tablespace.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/tablespace.go:FileTableSpace",
+      "type": "class",
+      "name": "FileTableSpace",
+      "filePath": "server/innodb/basic/tablespace.go",
+      "summary": "FileTableSpace 定义在 server/innodb/basic/tablespace.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/tablespace.go:SysTableSpace",
+      "type": "class",
+      "name": "SysTableSpace",
+      "filePath": "server/innodb/basic/tablespace.go",
+      "summary": "SysTableSpace 定义在 server/innodb/basic/tablespace.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:NewBasePageWrapper",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:NewBasePageWrapper",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:GetFileHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:GetFileHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:GetFileTrailer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:GetFileTrailer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:GetSpaceID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:GetSpaceID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:GetPageNo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:GetPageNo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:GetPageType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:GetPageType",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:GetLSN",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:GetLSN",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:SetLSN",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:SetLSN",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:MarkDirty",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:MarkDirty",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:GetState",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:GetState",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:SetState",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:SetState",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:GetStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:GetStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:Pin",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:Pin",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:Unpin",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:Unpin",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:Read",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:Read",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:Write",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "function:server/innodb/basic/base_page_wrapper.go:Write",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "class:server/innodb/basic/base_page_wrapper.go:BasePageWrapper",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/base_page_wrapper.go",
+      "target": "class:server/innodb/basic/base_page_wrapper.go:BasePageWrapper",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/bplus_tree_manager.go",
+      "target": "class:server/innodb/basic/bplus_tree_manager.go:BPlusTreeManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/bplus_tree_manager.go",
+      "target": "class:server/innodb/basic/bplus_tree_manager.go:BPlusTreeManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/btree.go",
+      "target": "class:server/innodb/basic/btree.go:BTreeConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/btree.go",
+      "target": "class:server/innodb/basic/btree.go:BTreeConfig",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/btree.go",
+      "target": "class:server/innodb/basic/btree.go:BTreeStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/btree.go",
+      "target": "class:server/innodb/basic/btree.go:BTreeStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/btree.go",
+      "target": "class:server/innodb/basic/btree.go:IBTree",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/btree.go",
+      "target": "class:server/innodb/basic/btree.go:IBTree",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/btree_manager.go",
+      "target": "class:server/innodb/basic/btree_manager.go:IBTreeManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/btree_manager.go",
+      "target": "class:server/innodb/basic/btree_manager.go:IBTreeManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/btree_statistics.go",
+      "target": "class:server/innodb/basic/btree_statistics.go:BTreeStatistics",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/btree_statistics.go",
+      "target": "class:server/innodb/basic/btree_statistics.go:BTreeStatistics",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/cursor.go",
+      "target": "class:server/innodb/basic/cursor.go:Cursor",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/cursor.go",
+      "target": "class:server/innodb/basic/cursor.go:Cursor",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/extent.go",
+      "target": "class:server/innodb/basic/extent.go:ExtentStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/extent.go",
+      "target": "class:server/innodb/basic/extent.go:ExtentStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/extent.go",
+      "target": "class:server/innodb/basic/extent.go:ExtentHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/extent.go",
+      "target": "class:server/innodb/basic/extent.go:ExtentHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/extent.go",
+      "target": "class:server/innodb/basic/extent.go:Extent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/extent.go",
+      "target": "class:server/innodb/basic/extent.go:Extent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/extent.go",
+      "target": "class:server/innodb/basic/extent.go:ExtentManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/extent.go",
+      "target": "class:server/innodb/basic/extent.go:ExtentManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/extent.go",
+      "target": "class:server/innodb/basic/extent.go:ExtentManagerStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/extent.go",
+      "target": "class:server/innodb/basic/extent.go:ExtentManagerStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/extent.go",
+      "target": "class:server/innodb/basic/extent.go:ExtentList",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/extent.go",
+      "target": "class:server/innodb/basic/extent.go:ExtentList",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/extent.go",
+      "target": "class:server/innodb/basic/extent.go:ExtentIterator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/extent.go",
+      "target": "class:server/innodb/basic/extent.go:ExtentIterator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/extent.go",
+      "target": "class:server/innodb/basic/extent.go:ExtentInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/extent.go",
+      "target": "class:server/innodb/basic/extent.go:ExtentInfo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/filesystem.go",
+      "target": "class:server/innodb/basic/filesystem.go:FileSystem",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/filesystem.go",
+      "target": "class:server/innodb/basic/filesystem.go:FileSystem",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/index.go",
+      "target": "file:server/session_context.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/index.go",
+      "target": "file:server/session.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/index.go",
+      "target": "class:server/innodb/basic/index.go:Index",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/index.go",
+      "target": "class:server/innodb/basic/index.go:Index",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/index_wrapper.go",
+      "target": "class:server/innodb/basic/index_wrapper.go:IIndexWrapper",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/index_wrapper.go",
+      "target": "class:server/innodb/basic/index_wrapper.go:IIndexWrapper",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/index_wrapper.go",
+      "target": "class:server/innodb/basic/index_wrapper.go:ISysTableSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/index_wrapper.go",
+      "target": "class:server/innodb/basic/index_wrapper.go:ISysTableSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/index_wrapper.go",
+      "target": "class:server/innodb/basic/index_wrapper.go:IBlockFile",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/index_wrapper.go",
+      "target": "class:server/innodb/basic/index_wrapper.go:IBlockFile",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/interfaces.go",
+      "target": "class:server/innodb/basic/interfaces.go:IBufferPool",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/interfaces.go",
+      "target": "class:server/innodb/basic/interfaces.go:IBufferPool",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/interfaces.go",
+      "target": "class:server/innodb/basic/interfaces.go:IPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/interfaces.go",
+      "target": "class:server/innodb/basic/interfaces.go:IPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/iterator.go",
+      "target": "class:server/innodb/basic/iterator.go:IIterator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/iterator.go",
+      "target": "class:server/innodb/basic/iterator.go:IIterator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/iterator.go",
+      "target": "class:server/innodb/basic/iterator.go:IRangeIterator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/iterator.go",
+      "target": "class:server/innodb/basic/iterator.go:IRangeIterator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/iterator.go",
+      "target": "class:server/innodb/basic/iterator.go:RowIterator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/iterator.go",
+      "target": "class:server/innodb/basic/iterator.go:RowIterator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/page.go",
+      "target": "class:server/innodb/basic/page.go:IPageWrapper",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/page.go",
+      "target": "class:server/innodb/basic/page.go:IPageWrapper",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/page.go",
+      "target": "class:server/innodb/basic/page.go:IIndexPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/page.go",
+      "target": "class:server/innodb/basic/page.go:IIndexPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/page.go",
+      "target": "class:server/innodb/basic/page.go:IPageManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/page.go",
+      "target": "class:server/innodb/basic/page.go:IPageManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/page_manager.go",
+      "target": "class:server/innodb/basic/page_manager.go:PageManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/page_manager.go",
+      "target": "class:server/innodb/basic/page_manager.go:PageManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/page_types.go",
+      "target": "class:server/innodb/basic/page_types.go:PageCache",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/page_types.go",
+      "target": "class:server/innodb/basic/page_types.go:PageCache",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/page_types.go",
+      "target": "class:server/innodb/basic/page_types.go:PageTx",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/page_types.go",
+      "target": "class:server/innodb/basic/page_types.go:PageTx",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/page_types.go",
+      "target": "class:server/innodb/basic/page_types.go:PageCacheStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/page_types.go",
+      "target": "class:server/innodb/basic/page_types.go:PageCacheStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/record.go",
+      "target": "class:server/innodb/basic/record.go:Record",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/record.go",
+      "target": "class:server/innodb/basic/record.go:Record",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/record.go",
+      "target": "class:server/innodb/basic/record.go:ExecutorRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/record.go",
+      "target": "class:server/innodb/basic/record.go:ExecutorRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/record.go",
+      "target": "class:server/innodb/basic/record.go:UnifiedRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/record.go",
+      "target": "class:server/innodb/basic/record.go:UnifiedRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/record.go",
+      "target": "class:server/innodb/basic/record.go:StorageRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/record.go",
+      "target": "class:server/innodb/basic/record.go:StorageRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/row.go",
+      "target": "function:server/innodb/basic/row.go:Len",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/row.go",
+      "target": "function:server/innodb/basic/row.go:Len",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/row.go",
+      "target": "function:server/innodb/basic/row.go:Less",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/row.go",
+      "target": "function:server/innodb/basic/row.go:Less",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/row.go",
+      "target": "function:server/innodb/basic/row.go:Swap",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/row.go",
+      "target": "function:server/innodb/basic/row.go:Swap",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/row.go",
+      "target": "function:server/innodb/basic/row.go:AddRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/row.go",
+      "target": "function:server/innodb/basic/row.go:AddRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/row.go",
+      "target": "class:server/innodb/basic/row.go:Row",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/row.go",
+      "target": "class:server/innodb/basic/row.go:Row",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/row.go",
+      "target": "class:server/innodb/basic/row.go:FieldDataHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/row.go",
+      "target": "class:server/innodb/basic/row.go:FieldDataHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/row.go",
+      "target": "class:server/innodb/basic/row.go:FieldDataValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/row.go",
+      "target": "class:server/innodb/basic/row.go:FieldDataValue",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/segment.go",
+      "target": "class:server/innodb/basic/segment.go:ISegment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/segment.go",
+      "target": "class:server/innodb/basic/segment.go:ISegment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/segment.go",
+      "target": "class:server/innodb/basic/segment.go:ISegmentManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/segment.go",
+      "target": "class:server/innodb/basic/segment.go:ISegmentManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/segment_manager.go",
+      "target": "class:server/innodb/basic/segment_manager.go:Segment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/segment_manager.go",
+      "target": "class:server/innodb/basic/segment_manager.go:Segment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/segment_manager.go",
+      "target": "class:server/innodb/basic/segment_manager.go:SegmentManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/segment_manager.go",
+      "target": "class:server/innodb/basic/segment_manager.go:SegmentManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/segment_manager.go",
+      "target": "class:server/innodb/basic/segment_manager.go:SegmentInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/segment_manager.go",
+      "target": "class:server/innodb/basic/segment_manager.go:SegmentInfo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/space_manager.go",
+      "target": "class:server/innodb/basic/space_manager.go:Tx",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/space_manager.go",
+      "target": "class:server/innodb/basic/space_manager.go:Tx",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/space_manager.go",
+      "target": "class:server/innodb/basic/space_manager.go:TableSpaceInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/space_manager.go",
+      "target": "class:server/innodb/basic/space_manager.go:TableSpaceInfo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/spaces.go",
+      "target": "class:server/innodb/basic/spaces.go:Space",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/spaces.go",
+      "target": "class:server/innodb/basic/spaces.go:Space",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/spaces.go",
+      "target": "class:server/innodb/basic/spaces.go:SpaceManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/spaces.go",
+      "target": "class:server/innodb/basic/spaces.go:SpaceManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/storage.go",
+      "target": "class:server/innodb/basic/storage.go:StorageProvider",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/storage.go",
+      "target": "class:server/innodb/basic/storage.go:StorageProvider",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/storage.go",
+      "target": "class:server/innodb/basic/storage.go:SpaceInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/storage.go",
+      "target": "class:server/innodb/basic/storage.go:SpaceInfo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/storage.go",
+      "target": "class:server/innodb/basic/storage.go:PageInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/storage.go",
+      "target": "class:server/innodb/basic/storage.go:PageInfo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/storage_manager.go",
+      "target": "class:server/innodb/basic/storage_manager.go:StorageManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/storage_manager.go",
+      "target": "class:server/innodb/basic/storage_manager.go:StorageManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/storage_manager.go",
+      "target": "class:server/innodb/basic/storage_manager.go:Transaction",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/storage_manager.go",
+      "target": "class:server/innodb/basic/storage_manager.go:Transaction",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/tablespace.go",
+      "target": "class:server/innodb/basic/tablespace.go:BlockFile",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/tablespace.go",
+      "target": "class:server/innodb/basic/tablespace.go:BlockFile",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/tablespace.go",
+      "target": "class:server/innodb/basic/tablespace.go:FileTableSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/tablespace.go",
+      "target": "class:server/innodb/basic/tablespace.go:FileTableSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/tablespace.go",
+      "target": "class:server/innodb/basic/tablespace.go:SysTableSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/tablespace.go",
+      "target": "class:server/innodb/basic/tablespace.go:SysTableSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+=== round=8 package=./server/innodb/buffer_pool ===
+cmd: go test ./server/innodb/buffer_pool -count=1 -timeout=300s -run 'TestBTREE|TestConcurrentCheckAndExpand|TestPrefetch'
+ok  	github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool	0.779s

@@ -18,7 +18,10 @@ type slowQueryLogRecord struct {
 	RowsAffected int    `json:"rows_affected"`
 	ConnID       uint32 `json:"conn_id"`
 	TxnID        uint64 `json:"txn_id"`
+	Schema       string `json:"schema"`
+	Table        string `json:"table"`
 	ErrorCode    string `json:"error_code"`
+	ErrorMsg     string `json:"error_msg"`
 	Status       string `json:"status"`
 	Stage        string `json:"stage"`
 }
@@ -102,7 +105,7 @@ func (s *SlowQueryLogger) log(record slowQueryLogRecord) {
 	}
 }
 
-func (s *SlowQueryLogger) Record(query string, duration time.Duration, rowsAffected int, connID uint32, txnID uint64, errCode, status, stage string) {
+func (s *SlowQueryLogger) Record(query string, duration time.Duration, rowsAffected int, connID uint32, txnID uint64, errCode, errMsg, status, stage, schema, table string) {
 	if !s.IsEnabled() {
 		return
 	}
@@ -113,7 +116,10 @@ func (s *SlowQueryLogger) Record(query string, duration time.Duration, rowsAffec
 		RowsAffected: rowsAffected,
 		ConnID:       connID,
 		TxnID:        txnID,
+		Schema:       schema,
+		Table:        table,
 		ErrorCode:    errCode,
+		ErrorMsg:     errMsg,
 		Status:       status,
 		Stage:        stage,
 	})

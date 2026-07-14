@@ -1,0 +1,125 @@
+=== P0_C consistency suite ===
+round: 1
+pattern: TestP0C_.*Consistency
+package: ./server/innodb/manager
+start: 2026-05-16T22:48:51+08:00
+
+=== RUN   TestP0C_ConflictWrite_Consistency
+    p0_concurrency_consistency_test.go:78: 
+        	Error Trace:	p0_concurrency_consistency_test.go:78
+        	Error:      	Not equal: 
+        	            	expected: 640
+        	            	actual  : 0
+        	Test:       	TestP0C_ConflictWrite_Consistency
+--- FAIL: TestP0C_ConflictWrite_Consistency (0.02s)
+=== RUN   TestP0C_RangeRead_Consistency
+    p0_concurrency_consistency_test.go:116: 
+        	Error Trace:	p0_concurrency_consistency_test.go:116
+        	            				asm_amd64.s:1700
+        	Error:      	Not equal: 
+        	            	expected: 100
+        	            	actual  : 0
+        	Test:       	TestP0C_RangeRead_Consistency
+        	Messages:   	range scan worker=11 iter=0
+    p0_concurrency_consistency_test.go:116: 
+        	Error Trace:	p0_concurrency_consistency_test.go:116
+        	            				asm_amd64.s:1700
+        	Error:      	Not equal: 
+        	            	expected: 100
+        	            	actual  : 0
+        	Test:       	TestP0C_RangeRead_Consistency
+        	Messages:   	range scan worker=5 iter=0
+    p0_concurrency_consistency_test.go:116: 
+        	Error Trace:	p0_concurrency_consistency_test.go:116
+        	            				asm_amd64.s:1700
+        	Error:      	Not equal: 
+        	            	expected: 100
+        	            	actual  : 0
+        	Test:       	TestP0C_RangeRead_Consistency
+        	Messages:   	range scan worker=6 iter=0
+    p0_concurrency_consistency_test.go:116: 
+        	Error Trace:	p0_concurrency_consistency_test.go:116
+        	            				asm_amd64.s:1700
+        	Error:      	Not equal: 
+        	            	expected: 100
+        	            	actual  : 0
+        	Test:       	TestP0C_RangeRead_Consistency
+        	Messages:   	range scan worker=7 iter=0
+    p0_concurrency_consistency_test.go:116: 
+        	Error Trace:	p0_concurrency_consistency_test.go:116
+        	            				asm_amd64.s:1700
+        	Error:      	Not equal: 
+        	            	expected: 100
+        	            	actual  : 0
+        	Test:       	TestP0C_RangeRead_Consistency
+        	Messages:   	range scan worker=9 iter=0
+    p0_concurrency_consistency_test.go:116: 
+        	Error Trace:	p0_concurrency_consistency_test.go:116
+        	            				asm_amd64.s:1700
+        	Error:      	Not equal: 
+        	            	expected: 100
+        	            	actual  : 0
+        	Test:       	TestP0C_RangeRead_Consistency
+        	Messages:   	range scan worker=2 iter=0
+    p0_concurrency_consistency_test.go:116: 
+        	Error Trace:	p0_concurrency_consistency_test.go:116
+        	            				asm_amd64.s:1700
+        	Error:      	Not equal: 
+        	            	expected: 100
+        	            	actual  : 0
+        	Test:       	TestP0C_RangeRead_Consistency
+        	Messages:   	range scan worker=3 iter=0
+    p0_concurrency_consistency_test.go:116: 
+        	Error Trace:	p0_concurrency_consistency_test.go:116
+        	            				asm_amd64.s:1700
+        	Error:      	Not equal: 
+        	            	expected: 100
+        	            	actual  : 0
+        	Test:       	TestP0C_RangeRead_Consistency
+        	Messages:   	range scan worker=8 iter=0
+    p0_concurrency_consistency_test.go:116: 
+        	Error Trace:	p0_concurrency_consistency_test.go:116
+        	            				asm_amd64.s:1700
+        	Error:      	Not equal: 
+        	            	expected: 100
+        	            	actual  : 0
+        	Test:       	TestP0C_RangeRead_Consistency
+        	Messages:   	range scan worker=10 iter=0
+    p0_concurrency_consistency_test.go:116: 
+        	Error Trace:	p0_concurrency_consistency_test.go:116
+        	            				asm_amd64.s:1700
+        	Error:      	Not equal: 
+        	            	expected: 100
+        	            	actual  : 0
+        	Test:       	TestP0C_RangeRead_Consistency
+        	Messages:   	range scan worker=4 iter=0
+    p0_concurrency_consistency_test.go:116: 
+        	Error Trace:	p0_concurrency_consistency_test.go:116
+        	            				asm_amd64.s:1700
+        	Error:      	Not equal: 
+        	            	expected: 100
+        	            	actual  : 0
+        	Test:       	TestP0C_RangeRead_Consistency
+        	Messages:   	range scan worker=1 iter=0
+    p0_concurrency_consistency_test.go:116: 
+        	Error Trace:	p0_concurrency_consistency_test.go:116
+        	            				asm_amd64.s:1700
+        	Error:      	Not equal: 
+        	            	expected: 100
+        	            	actual  : 0
+        	Test:       	TestP0C_RangeRead_Consistency
+        	Messages:   	range scan worker=0 iter=0
+    p0_concurrency_consistency_test.go:133: CONSISTENCY|range_read|expected=24000|runs=240|checksum=|status=PASS
+--- FAIL: TestP0C_RangeRead_Consistency (0.09s)
+=== RUN   TestP0C_LongTransaction_Consistency
+    p0_concurrency_consistency_test.go:183: CONSISTENCY|long_tx|status=PASS|long=10|critical=10|warnings=0|alerts=10
+--- PASS: TestP0C_LongTransaction_Consistency (0.00s)
+=== RUN   TestP0C_DeadlockWait_Consistency
+    p0_concurrency_consistency_test.go:227: CONSISTENCY|deadlock_wait|deadlock_detected=40|lock_conflict=40|status=PASS
+--- PASS: TestP0C_DeadlockWait_Consistency (0.00s)
+FAIL
+FAIL	github.com/zhukovaskychina/xmysql-server/server/innodb/manager	0.901s
+FAIL
+consistency suite result: FAIL
+
+missing markers or fail status detected

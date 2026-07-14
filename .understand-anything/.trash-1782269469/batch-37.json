@@ -1,0 +1,246 @@
+{
+  "nodes": [
+    {
+      "id": "document:docs/planning/DEVELOPMENT_ROADMAP.md",
+      "type": "document",
+      "name": "DEVELOPMENT_ROADMAP.md",
+      "filePath": "docs/planning/DEVELOPMENT_ROADMAP.md",
+      "summary": "DEVELOPMENT_ROADMAP.md 是项目文档，说明 docs/planning 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/planning/GAP_06_SECURITY_DEFAULT_POSTURE.md",
+      "type": "document",
+      "name": "GAP_06_SECURITY_DEFAULT_POSTURE.md",
+      "filePath": "docs/planning/GAP_06_SECURITY_DEFAULT_POSTURE.md",
+      "summary": "GAP_06_SECURITY_DEFAULT_POSTURE.md 是项目文档，说明 docs/planning 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md",
+      "type": "document",
+      "name": "JDBC_INTEGRATION_TEST_FIX_PLAN.md",
+      "filePath": "docs/planning/JDBC_INTEGRATION_TEST_FIX_PLAN.md",
+      "summary": "JDBC_INTEGRATION_TEST_FIX_PLAN.md 是项目文档，说明 docs/planning 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "test",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/MODIFICATION_ACTION_LIST_20260611.md",
+      "type": "document",
+      "name": "MODIFICATION_ACTION_LIST_20260611.md",
+      "filePath": "docs/planning/MODIFICATION_ACTION_LIST_20260611.md",
+      "summary": "MODIFICATION_ACTION_LIST_20260611.md 是项目文档，说明 docs/planning 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/MODIFICATION_ACTION_LIST_CANONICAL_20260611.md",
+      "type": "document",
+      "name": "MODIFICATION_ACTION_LIST_CANONICAL_20260611.md",
+      "filePath": "docs/planning/MODIFICATION_ACTION_LIST_CANONICAL_20260611.md",
+      "summary": "MODIFICATION_ACTION_LIST_CANONICAL_20260611.md 是项目文档，说明 docs/planning 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/MODIFICATION_ACTION_LIST_EXEC_PLAN_20260611.md",
+      "type": "document",
+      "name": "MODIFICATION_ACTION_LIST_EXEC_PLAN_20260611.md",
+      "filePath": "docs/planning/MODIFICATION_ACTION_LIST_EXEC_PLAN_20260611.md",
+      "summary": "MODIFICATION_ACTION_LIST_EXEC_PLAN_20260611.md 是项目文档，说明 docs/planning 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/MODIFICATION_ACTION_LIST_FINAL_20260611.md",
+      "type": "document",
+      "name": "MODIFICATION_ACTION_LIST_FINAL_20260611.md",
+      "filePath": "docs/planning/MODIFICATION_ACTION_LIST_FINAL_20260611.md",
+      "summary": "MODIFICATION_ACTION_LIST_FINAL_20260611.md 是项目文档，说明 docs/planning 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/MODIFICATION_CHANGE_LIST_20260611.md",
+      "type": "document",
+      "name": "MODIFICATION_CHANGE_LIST_20260611.md",
+      "filePath": "docs/planning/MODIFICATION_CHANGE_LIST_20260611.md",
+      "summary": "MODIFICATION_CHANGE_LIST_20260611.md 是项目文档，说明 docs/planning 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/MODIFICATION_CHECKLIST_20260610.md",
+      "type": "document",
+      "name": "MODIFICATION_CHECKLIST_20260610.md",
+      "filePath": "docs/planning/MODIFICATION_CHECKLIST_20260610.md",
+      "summary": "MODIFICATION_CHECKLIST_20260610.md 是项目文档，说明 docs/planning 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/planning/MODIFICATION_CHECKLIST_20260611_EXEC_REMAINING.md",
+      "type": "document",
+      "name": "MODIFICATION_CHECKLIST_20260611_EXEC_REMAINING.md",
+      "filePath": "docs/planning/MODIFICATION_CHECKLIST_20260611_EXEC_REMAINING.md",
+      "summary": "MODIFICATION_CHECKLIST_20260611_EXEC_REMAINING.md 是项目文档，说明 docs/planning 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/MODIFICATION_CHECKLIST_CURRENT_20260611.md",
+      "type": "document",
+      "name": "MODIFICATION_CHECKLIST_CURRENT_20260611.md",
+      "filePath": "docs/planning/MODIFICATION_CHECKLIST_CURRENT_20260611.md",
+      "summary": "MODIFICATION_CHECKLIST_CURRENT_20260611.md 是项目文档，说明 docs/planning 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/MODIFICATION_CHECKLIST_LIVE_20260611.md",
+      "type": "document",
+      "name": "MODIFICATION_CHECKLIST_LIVE_20260611.md",
+      "filePath": "docs/planning/MODIFICATION_CHECKLIST_LIVE_20260611.md",
+      "summary": "MODIFICATION_CHECKLIST_LIVE_20260611.md 是项目文档，说明 docs/planning 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/MODIFICATION_CLEARANCE_LIST_20260611.md",
+      "type": "document",
+      "name": "MODIFICATION_CLEARANCE_LIST_20260611.md",
+      "filePath": "docs/planning/MODIFICATION_CLEARANCE_LIST_20260611.md",
+      "summary": "MODIFICATION_CLEARANCE_LIST_20260611.md 是项目文档，说明 docs/planning 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/MODIFICATION_FIXLIST_20260611.md",
+      "type": "document",
+      "name": "MODIFICATION_FIXLIST_20260611.md",
+      "filePath": "docs/planning/MODIFICATION_FIXLIST_20260611.md",
+      "summary": "MODIFICATION_FIXLIST_20260611.md 是项目文档，说明 docs/planning 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/MODIFICATION_FIXLIST_LIVE_20260611.md",
+      "type": "document",
+      "name": "MODIFICATION_FIXLIST_LIVE_20260611.md",
+      "filePath": "docs/planning/MODIFICATION_FIXLIST_LIVE_20260611.md",
+      "summary": "MODIFICATION_FIXLIST_LIVE_20260611.md 是项目文档，说明 docs/planning 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/MODIFICATION_LIST_20260610.md",
+      "type": "document",
+      "name": "MODIFICATION_LIST_20260610.md",
+      "filePath": "docs/planning/MODIFICATION_LIST_20260610.md",
+      "summary": "MODIFICATION_LIST_20260610.md 是项目文档，说明 docs/planning 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/MODIFICATION_LIST_20260611.md",
+      "type": "document",
+      "name": "MODIFICATION_LIST_20260611.md",
+      "filePath": "docs/planning/MODIFICATION_LIST_20260611.md",
+      "summary": "MODIFICATION_LIST_20260611.md 是项目文档，说明 docs/planning 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/MODIFICATION_LIST_EXECUTABLE_20260611.md",
+      "type": "document",
+      "name": "MODIFICATION_LIST_EXECUTABLE_20260611.md",
+      "filePath": "docs/planning/MODIFICATION_LIST_EXECUTABLE_20260611.md",
+      "summary": "MODIFICATION_LIST_EXECUTABLE_20260611.md 是项目文档，说明 docs/planning 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/MODIFICATION_MASTER_REMAINING_LIST_20260611.md",
+      "type": "document",
+      "name": "MODIFICATION_MASTER_REMAINING_LIST_20260611.md",
+      "filePath": "docs/planning/MODIFICATION_MASTER_REMAINING_LIST_20260611.md",
+      "summary": "MODIFICATION_MASTER_REMAINING_LIST_20260611.md 是项目文档，说明 docs/planning 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/MODIFICATION_PENDING_ACTIONS_20260610.md",
+      "type": "document",
+      "name": "MODIFICATION_PENDING_ACTIONS_20260610.md",
+      "filePath": "docs/planning/MODIFICATION_PENDING_ACTIONS_20260610.md",
+      "summary": "MODIFICATION_PENDING_ACTIONS_20260610.md 是项目文档，说明 docs/planning 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": []
+}

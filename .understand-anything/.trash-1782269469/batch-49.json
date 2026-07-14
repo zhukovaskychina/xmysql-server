@@ -1,0 +1,714 @@
+{
+  "nodes": [
+    {
+      "id": "file:scripts/crash_recovery_drill.sh",
+      "type": "file",
+      "name": "crash_recovery_drill.sh",
+      "filePath": "scripts/crash_recovery_drill.sh",
+      "summary": "crash_recovery_drill.sh 是自动化脚本，用于构建、清理、验证或运维流程。",
+      "tags": [
+        "script",
+        "logic"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/crash_recovery_drill.sh:run_group",
+      "type": "function",
+      "name": "run_group",
+      "filePath": "scripts/crash_recovery_drill.sh",
+      "summary": "run_group 定义在 scripts/crash_recovery_drill.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:scripts/crash_recovery_process_drill.sh",
+      "type": "file",
+      "name": "crash_recovery_process_drill.sh",
+      "filePath": "scripts/crash_recovery_process_drill.sh",
+      "summary": "crash_recovery_process_drill.sh 是自动化脚本，用于构建、清理、验证或运维流程。",
+      "tags": [
+        "script",
+        "logic"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:scripts/crash_recovery_process_drill.sh:url_encode",
+      "type": "function",
+      "name": "url_encode",
+      "filePath": "scripts/crash_recovery_process_drill.sh",
+      "summary": "url_encode 定义在 scripts/crash_recovery_process_drill.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/crash_recovery_process_drill.sh:make_conf",
+      "type": "function",
+      "name": "make_conf",
+      "filePath": "scripts/crash_recovery_process_drill.sh",
+      "summary": "make_conf 定义在 scripts/crash_recovery_process_drill.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/crash_recovery_process_drill.sh:wait_port",
+      "type": "function",
+      "name": "wait_port",
+      "filePath": "scripts/crash_recovery_process_drill.sh",
+      "summary": "wait_port 定义在 scripts/crash_recovery_process_drill.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/crash_recovery_process_drill.sh:wait_port_free",
+      "type": "function",
+      "name": "wait_port_free",
+      "filePath": "scripts/crash_recovery_process_drill.sh",
+      "summary": "wait_port_free 定义在 scripts/crash_recovery_process_drill.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/crash_recovery_process_drill.sh:wait_client_ready",
+      "type": "function",
+      "name": "wait_client_ready",
+      "filePath": "scripts/crash_recovery_process_drill.sh",
+      "summary": "wait_client_ready 定义在 scripts/crash_recovery_process_drill.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/crash_recovery_process_drill.sh:kill_port_listener",
+      "type": "function",
+      "name": "kill_port_listener",
+      "filePath": "scripts/crash_recovery_process_drill.sh",
+      "summary": "kill_port_listener 定义在 scripts/crash_recovery_process_drill.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/crash_recovery_process_drill.sh:run_client",
+      "type": "function",
+      "name": "run_client",
+      "filePath": "scripts/crash_recovery_process_drill.sh",
+      "summary": "run_client 定义在 scripts/crash_recovery_process_drill.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/crash_recovery_process_drill.sh:wait_client",
+      "type": "function",
+      "name": "wait_client",
+      "filePath": "scripts/crash_recovery_process_drill.sh",
+      "summary": "wait_client 定义在 scripts/crash_recovery_process_drill.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/crash_recovery_process_drill.sh:step",
+      "type": "function",
+      "name": "step",
+      "filePath": "scripts/crash_recovery_process_drill.sh",
+      "summary": "step 定义在 scripts/crash_recovery_process_drill.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/crash_recovery_process_drill.sh:run_redo_round",
+      "type": "function",
+      "name": "run_redo_round",
+      "filePath": "scripts/crash_recovery_process_drill.sh",
+      "summary": "run_redo_round 定义在 scripts/crash_recovery_process_drill.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/crash_recovery_process_drill.sh:run_undo_round",
+      "type": "function",
+      "name": "run_undo_round",
+      "filePath": "scripts/crash_recovery_process_drill.sh",
+      "summary": "run_undo_round 定义在 scripts/crash_recovery_process_drill.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/crash_recovery_process_drill.sh:run_half_round",
+      "type": "function",
+      "name": "run_half_round",
+      "filePath": "scripts/crash_recovery_process_drill.sh",
+      "summary": "run_half_round 定义在 scripts/crash_recovery_process_drill.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/crash_recovery_process_drill.sh:run_round",
+      "type": "function",
+      "name": "run_round",
+      "filePath": "scripts/crash_recovery_process_drill.sh",
+      "summary": "run_round 定义在 scripts/crash_recovery_process_drill.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scripts/p0_a2_01_stability.sh",
+      "type": "file",
+      "name": "p0_a2_01_stability.sh",
+      "filePath": "scripts/p0_a2_01_stability.sh",
+      "summary": "p0_a2_01_stability.sh 是自动化脚本，用于构建、清理、验证或运维流程。",
+      "tags": [
+        "script",
+        "logic"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/p0_a2_01_stability.sh:run_round",
+      "type": "function",
+      "name": "run_round",
+      "filePath": "scripts/p0_a2_01_stability.sh",
+      "summary": "run_round 定义在 scripts/p0_a2_01_stability.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:scripts/p0_b_recovery_audit.sh",
+      "type": "file",
+      "name": "p0_b_recovery_audit.sh",
+      "filePath": "scripts/p0_b_recovery_audit.sh",
+      "summary": "p0_b_recovery_audit.sh 是自动化脚本，用于构建、清理、验证或运维流程。",
+      "tags": [
+        "script",
+        "logic"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/p0_b_recovery_audit.sh:scenario_seq",
+      "type": "function",
+      "name": "scenario_seq",
+      "filePath": "scripts/p0_b_recovery_audit.sh",
+      "summary": "scenario_seq 定义在 scripts/p0_b_recovery_audit.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/p0_b_recovery_audit.sh:required_markers",
+      "type": "function",
+      "name": "required_markers",
+      "filePath": "scripts/p0_b_recovery_audit.sh",
+      "summary": "required_markers 定义在 scripts/p0_b_recovery_audit.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:scripts/p0_c_concurrency_validation.sh",
+      "type": "file",
+      "name": "p0_c_concurrency_validation.sh",
+      "filePath": "scripts/p0_c_concurrency_validation.sh",
+      "summary": "p0_c_concurrency_validation.sh 是自动化脚本，用于构建、清理、验证或运维流程。",
+      "tags": [
+        "script",
+        "logic"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:scripts/p0_c_concurrency_validation.sh:run_scenario",
+      "type": "function",
+      "name": "run_scenario",
+      "filePath": "scripts/p0_c_concurrency_validation.sh",
+      "summary": "run_scenario 定义在 scripts/p0_c_concurrency_validation.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/p0_c_concurrency_validation.sh:run_consistency_suite",
+      "type": "function",
+      "name": "run_consistency_suite",
+      "filePath": "scripts/p0_c_concurrency_validation.sh",
+      "summary": "run_consistency_suite 定义在 scripts/p0_c_concurrency_validation.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:scripts/p0_e_backup_snapshot.sh",
+      "type": "file",
+      "name": "p0_e_backup_snapshot.sh",
+      "filePath": "scripts/p0_e_backup_snapshot.sh",
+      "summary": "p0_e_backup_snapshot.sh 是自动化脚本，用于构建、清理、验证或运维流程。",
+      "tags": [
+        "script",
+        "logic"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:scripts/p0_e_backup_snapshot.sh:usage",
+      "type": "function",
+      "name": "usage",
+      "filePath": "scripts/p0_e_backup_snapshot.sh",
+      "summary": "usage 定义在 scripts/p0_e_backup_snapshot.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/p0_e_backup_snapshot.sh:log_stage_event",
+      "type": "function",
+      "name": "log_stage_event",
+      "filePath": "scripts/p0_e_backup_snapshot.sh",
+      "summary": "log_stage_event 定义在 scripts/p0_e_backup_snapshot.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/p0_e_backup_snapshot.sh:run_stage",
+      "type": "function",
+      "name": "run_stage",
+      "filePath": "scripts/p0_e_backup_snapshot.sh",
+      "summary": "run_stage 定义在 scripts/p0_e_backup_snapshot.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/p0_e_backup_snapshot.sh:do_backup",
+      "type": "function",
+      "name": "do_backup",
+      "filePath": "scripts/p0_e_backup_snapshot.sh",
+      "summary": "do_backup 定义在 scripts/p0_e_backup_snapshot.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/p0_e_backup_snapshot.sh:do_restore",
+      "type": "function",
+      "name": "do_restore",
+      "filePath": "scripts/p0_e_backup_snapshot.sh",
+      "summary": "do_restore 定义在 scripts/p0_e_backup_snapshot.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/p0_e_backup_snapshot.sh:run_canary",
+      "type": "function",
+      "name": "run_canary",
+      "filePath": "scripts/p0_e_backup_snapshot.sh",
+      "summary": "run_canary 定义在 scripts/p0_e_backup_snapshot.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:scripts/p0_gap06_security_audit.sh",
+      "type": "file",
+      "name": "p0_gap06_security_audit.sh",
+      "filePath": "scripts/p0_gap06_security_audit.sh",
+      "summary": "p0_gap06_security_audit.sh 是自动化脚本，用于构建、清理、验证或运维流程。",
+      "tags": [
+        "script"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:scripts/p0_release_package_tests.sh",
+      "type": "file",
+      "name": "p0_release_package_tests.sh",
+      "filePath": "scripts/p0_release_package_tests.sh",
+      "summary": "p0_release_package_tests.sh 是自动化脚本，用于构建、清理、验证或运维流程。",
+      "tags": [
+        "script",
+        "test",
+        "logic"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/p0_release_package_tests.sh:run_package",
+      "type": "function",
+      "name": "run_package",
+      "filePath": "scripts/p0_release_package_tests.sh",
+      "summary": "run_package 定义在 scripts/p0_release_package_tests.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/p0_release_package_tests.sh:run_package_suite",
+      "type": "function",
+      "name": "run_package_suite",
+      "filePath": "scripts/p0_release_package_tests.sh",
+      "summary": "run_package_suite 定义在 scripts/p0_release_package_tests.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/p0_release_package_tests.sh:run_full_suite",
+      "type": "function",
+      "name": "run_full_suite",
+      "filePath": "scripts/p0_release_package_tests.sh",
+      "summary": "run_full_suite 定义在 scripts/p0_release_package_tests.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:scripts/p0_stage1_baseline.sh",
+      "type": "file",
+      "name": "p0_stage1_baseline.sh",
+      "filePath": "scripts/p0_stage1_baseline.sh",
+      "summary": "p0_stage1_baseline.sh 是自动化脚本，用于构建、清理、验证或运维流程。",
+      "tags": [
+        "script",
+        "logic"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/p0_stage1_baseline.sh:require_go",
+      "type": "function",
+      "name": "require_go",
+      "filePath": "scripts/p0_stage1_baseline.sh",
+      "summary": "require_go 定义在 scripts/p0_stage1_baseline.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/p0_stage1_baseline.sh:run_cmd",
+      "type": "function",
+      "name": "run_cmd",
+      "filePath": "scripts/p0_stage1_baseline.sh",
+      "summary": "run_cmd 定义在 scripts/p0_stage1_baseline.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:scripts/crash_recovery_drill.sh",
+      "target": "function:scripts/crash_recovery_drill.sh:run_group",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/crash_recovery_process_drill.sh",
+      "target": "function:scripts/crash_recovery_process_drill.sh:url_encode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/crash_recovery_process_drill.sh",
+      "target": "function:scripts/crash_recovery_process_drill.sh:make_conf",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/crash_recovery_process_drill.sh",
+      "target": "function:scripts/crash_recovery_process_drill.sh:wait_port",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/crash_recovery_process_drill.sh",
+      "target": "function:scripts/crash_recovery_process_drill.sh:wait_port_free",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/crash_recovery_process_drill.sh",
+      "target": "function:scripts/crash_recovery_process_drill.sh:wait_client_ready",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/crash_recovery_process_drill.sh",
+      "target": "function:scripts/crash_recovery_process_drill.sh:kill_port_listener",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/crash_recovery_process_drill.sh",
+      "target": "function:scripts/crash_recovery_process_drill.sh:run_client",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/crash_recovery_process_drill.sh",
+      "target": "function:scripts/crash_recovery_process_drill.sh:wait_client",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/crash_recovery_process_drill.sh",
+      "target": "function:scripts/crash_recovery_process_drill.sh:step",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/crash_recovery_process_drill.sh",
+      "target": "function:scripts/crash_recovery_process_drill.sh:run_redo_round",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/crash_recovery_process_drill.sh",
+      "target": "function:scripts/crash_recovery_process_drill.sh:run_undo_round",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/crash_recovery_process_drill.sh",
+      "target": "function:scripts/crash_recovery_process_drill.sh:run_half_round",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/crash_recovery_process_drill.sh",
+      "target": "function:scripts/crash_recovery_process_drill.sh:run_round",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/p0_a2_01_stability.sh",
+      "target": "function:scripts/p0_a2_01_stability.sh:run_round",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/p0_b_recovery_audit.sh",
+      "target": "function:scripts/p0_b_recovery_audit.sh:scenario_seq",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/p0_b_recovery_audit.sh",
+      "target": "function:scripts/p0_b_recovery_audit.sh:required_markers",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/p0_c_concurrency_validation.sh",
+      "target": "function:scripts/p0_c_concurrency_validation.sh:run_scenario",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/p0_c_concurrency_validation.sh",
+      "target": "function:scripts/p0_c_concurrency_validation.sh:run_consistency_suite",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/p0_e_backup_snapshot.sh",
+      "target": "function:scripts/p0_e_backup_snapshot.sh:usage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/p0_e_backup_snapshot.sh",
+      "target": "function:scripts/p0_e_backup_snapshot.sh:log_stage_event",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/p0_e_backup_snapshot.sh",
+      "target": "function:scripts/p0_e_backup_snapshot.sh:run_stage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/p0_e_backup_snapshot.sh",
+      "target": "function:scripts/p0_e_backup_snapshot.sh:do_backup",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/p0_e_backup_snapshot.sh",
+      "target": "function:scripts/p0_e_backup_snapshot.sh:do_restore",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/p0_e_backup_snapshot.sh",
+      "target": "function:scripts/p0_e_backup_snapshot.sh:run_canary",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/p0_release_package_tests.sh",
+      "target": "function:scripts/p0_release_package_tests.sh:run_package",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/p0_release_package_tests.sh",
+      "target": "function:scripts/p0_release_package_tests.sh:run_package_suite",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/p0_release_package_tests.sh",
+      "target": "function:scripts/p0_release_package_tests.sh:run_full_suite",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/p0_stage1_baseline.sh",
+      "target": "function:scripts/p0_stage1_baseline.sh:require_go",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/p0_stage1_baseline.sh",
+      "target": "function:scripts/p0_stage1_baseline.sh:run_cmd",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    }
+  ]
+}

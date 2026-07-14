@@ -1,0 +1,65 @@
+{
+  "nodes": [
+    {
+      "id": "config:conf/config.yml",
+      "type": "config",
+      "name": "config.yml",
+      "filePath": "conf/config.yml",
+      "summary": "config.yml 提供项目配置，影响构建、运行参数或工具行为。",
+      "tags": [
+        "configuration",
+        "config"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "config:conf/default.ini",
+      "type": "config",
+      "name": "default.ini",
+      "filePath": "conf/default.ini",
+      "summary": "default.ini 提供项目配置，影响构建、运行参数或工具行为。",
+      "tags": [
+        "configuration",
+        "config"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "config:conf/jdbc_local.ini",
+      "type": "config",
+      "name": "jdbc_local.ini",
+      "filePath": "conf/jdbc_local.ini",
+      "summary": "jdbc_local.ini 提供项目配置，影响构建、运行参数或工具行为。",
+      "tags": [
+        "configuration",
+        "config"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:conf/log.xml",
+      "type": "config",
+      "name": "log.xml",
+      "filePath": "conf/log.xml",
+      "summary": "log.xml 提供项目配置，影响构建、运行参数或工具行为。",
+      "tags": [
+        "configuration",
+        "config"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "config:conf/my.ini",
+      "type": "config",
+      "name": "my.ini",
+      "filePath": "conf/my.ini",
+      "summary": "my.ini 提供项目配置，影响构建、运行参数或工具行为。",
+      "tags": [
+        "configuration",
+        "config"
+      ],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": []
+}

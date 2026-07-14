@@ -1,0 +1,116 @@
+{
+  "nodes": [
+    {
+      "id": "document:docs/mvcc-reports/LOCK_001_GAP_LOCK_FIX_REPORT.md",
+      "type": "document",
+      "name": "LOCK_001_GAP_LOCK_FIX_REPORT.md",
+      "filePath": "docs/mvcc-reports/LOCK_001_GAP_LOCK_FIX_REPORT.md",
+      "summary": "LOCK_001_GAP_LOCK_FIX_REPORT.md 是项目文档，说明 docs/mvcc-reports 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/mvcc-reports/MVCC_001_READVIEW_FIX_REPORT.md",
+      "type": "document",
+      "name": "MVCC_001_READVIEW_FIX_REPORT.md",
+      "filePath": "docs/mvcc-reports/MVCC_001_READVIEW_FIX_REPORT.md",
+      "summary": "MVCC_001_READVIEW_FIX_REPORT.md 是项目文档，说明 docs/mvcc-reports 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/mvcc-reports/MVCC_ARCHITECTURE_ANALYSIS.md",
+      "type": "document",
+      "name": "MVCC_ARCHITECTURE_ANALYSIS.md",
+      "filePath": "docs/mvcc-reports/MVCC_ARCHITECTURE_ANALYSIS.md",
+      "summary": "MVCC_ARCHITECTURE_ANALYSIS.md 是项目文档，说明 docs/mvcc-reports 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/mvcc-reports/MVCC_DOCUMENTATION_INDEX.md",
+      "type": "document",
+      "name": "MVCC_DOCUMENTATION_INDEX.md",
+      "filePath": "docs/mvcc-reports/MVCC_DOCUMENTATION_INDEX.md",
+      "summary": "MVCC_DOCUMENTATION_INDEX.md 是项目文档，说明 docs/mvcc-reports 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/mvcc-reports/MVCC_INTEGRATION_TEST_SUMMARY.md",
+      "type": "document",
+      "name": "MVCC_INTEGRATION_TEST_SUMMARY.md",
+      "filePath": "docs/mvcc-reports/MVCC_INTEGRATION_TEST_SUMMARY.md",
+      "summary": "MVCC_INTEGRATION_TEST_SUMMARY.md 是项目文档，说明 docs/mvcc-reports 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "test",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/mvcc-reports/MVCC_REFACTORING_PROGRESS.md",
+      "type": "document",
+      "name": "MVCC_REFACTORING_PROGRESS.md",
+      "filePath": "docs/mvcc-reports/MVCC_REFACTORING_PROGRESS.md",
+      "summary": "MVCC_REFACTORING_PROGRESS.md 是项目文档，说明 docs/mvcc-reports 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/mvcc-reports/MVCC_STORE_PACKAGE_EVALUATION.md",
+      "type": "document",
+      "name": "MVCC_STORE_PACKAGE_EVALUATION.md",
+      "filePath": "docs/mvcc-reports/MVCC_STORE_PACKAGE_EVALUATION.md",
+      "summary": "MVCC_STORE_PACKAGE_EVALUATION.md 是项目文档，说明 docs/mvcc-reports 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/mvcc-reports/txn-gap-nextkey-locks-summary.md",
+      "type": "document",
+      "name": "txn-gap-nextkey-locks-summary.md",
+      "filePath": "docs/mvcc-reports/txn-gap-nextkey-locks-summary.md",
+      "summary": "txn-gap-nextkey-locks-summary.md 是项目文档，说明 docs/mvcc-reports 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "transaction",
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/mvcc-reports/txn-gap-nextkey-locks.md",
+      "type": "document",
+      "name": "txn-gap-nextkey-locks.md",
+      "filePath": "docs/mvcc-reports/txn-gap-nextkey-locks.md",
+      "summary": "txn-gap-nextkey-locks.md 是项目文档，说明 docs/mvcc-reports 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "transaction",
+        "docs"
+      ],
+      "complexity": "complex"
+    }
+  ],
+  "edges": []
+}

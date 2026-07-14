@@ -3,13 +3,16 @@
 目的：回答“还有哪些要改”，并明确下一步可直接排期执行的项。  
 说明：以 `server/` 和 `scripts/` 的代码扫描与当前工程改动状态为准。
 
+> 2026-07-13 更新：本文保留 2026-06-11 扫描背景。DML、SHOW、StorageIntegratedDML、BufferPool pinned-page 驱逐、EnhancedBTree 最小 rebuild/drop 已完成 P0 core 闭环。当前 core 状态见 `docs/planning/P0_CORE_STATUS_20260713.md`。
+
 ## 一、基线快照（按代码文本标记）
 
 - 扫描口径：`server/**/*.go`、`server/**/*.sh` 中匹配  
   `TODO|FIXME|not implemented|notImplemented|unimplemented|placeholder|暂未实现|暂时返回|待实现|stub`
 - 命中数：`197`
 - 受影响文件：`86`
-- 目前最关键的未闭环项仍是 P0 级：`P0-03 / P0-06 / P0-07 / P0-08 / P0-09`
+- 2026-06-11 时最关键未闭环项是 P0 级：`P0-03 / P0-06 / P0-07 / P0-08 / P0-09`
+- 2026-07-13 后，DML/SHOW/storage-DML/buffer/enhanced-btree 的 P0 core 子项已关闭；当前仍需推进的是 `P0-03` 残余、`P0-06`、`P0-07`、`P0-08`、`P0-09`
 
 ## 二、P0：必须先改（阻塞发布）
 
@@ -27,9 +30,21 @@
 
 缺项：
 - 关键失败返回还未全面改成 `ExecutionError`；
-- `table/schema/not found`、`begin/commit/rollback`、重复键冲突的错误仍缺少统一错误码和上下文；
+- `table/schema/not found`、`begin/commit/rollback` 等错误仍需统一错误码和上下文；
 - 不能用错误文本作为主分支判断条件（应以 `error code`/类型断言为主）；
 - 缺少对应失败路径的回归测试（建议使用 `errors.As` 断言 `ExecutionError`）。
+
+2026-07-13 已关闭子项：
+- `dml_operators.go` 已接 `StorageAdapter` 写接口；
+- `storage_adapter.go` 已补 Insert / duplicate check / update / delete 的窄接口；
+- `storage_integrated_dml_helper.go` 与 executor 已补真实行集合 append / replace / delete slot；
+- SHOW 已优先接 `ShowExecutor + InfoSchemaManager`；
+- P0 core 验证入口已建立：`scripts/verify_p0_core.sh`。
+
+仍需继续的 P0-03 残余：
+- `index_transaction_adapter.go` 单资源锁释放与 lockManager 缺失错误码；
+- `unified_executor.go` / `executor.go` 其余失败路径的结构化错误统一；
+- `storage_integrated_index_helper.go` 复合索引、重建、优化、一致性检查最低可用行为。
 
 验收命令（建议）：
 ```bash
@@ -138,7 +153,7 @@ CR_PROC_REPORT_DIR=./reports/p0_b_audit B_AUDIT_MAX_DIRS=5 ./scripts/p0_b_recove
 
 ## 六、建议执行顺序
 
-1. 先把 `P0-03` 关掉（执行器错误链路）；
+1. 先把 `P0-03` 残余关掉（错误码、锁释放、索引 helper）；
 2. 同时推进 `P0-06`、`P0-07`；
 3. 并行补齐 `P0-08`、`P0-09`；
 4. 全部 P0 验收通过后再进入 P1。

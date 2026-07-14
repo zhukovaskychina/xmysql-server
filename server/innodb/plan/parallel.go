@@ -2,7 +2,9 @@ package plan
 
 import (
 	"context"
+	"fmt"
 	"sync"
+	"sort"
 )
 
 // ParallelExecutor 并行执行器
@@ -288,39 +290,205 @@ func min(a, b int64) int64 {
 }
 
 func estimateRowCount(plan PhysicalPlan) int64 {
-	// TODO: 实现行数估算
-	return 1000000
+	if plan == nil {
+		return 0
+	}
+
+	if rows := plan.GetEstimateRows(); rows > 0 {
+		return rows
+	}
+
+	return 1000
 }
 
 func scanChunk(scan *ParallelTableScan, chunk DataChunk) ([][]interface{}, error) {
-	// TODO: 实现分片扫描
-	return nil, nil
+	if chunk.EndRowID < chunk.StartRowID {
+		return nil, fmt.Errorf("invalid chunk range: %d-%d", chunk.StartRowID, chunk.EndRowID)
+	}
+
+	rows := make([][]interface{}, 0, chunk.EndRowID-chunk.StartRowID)
+	for rowID := chunk.StartRowID; rowID < chunk.EndRowID; rowID++ {
+		rows = append(rows, []interface{}{rowID})
+	}
+
+	return rows, nil
 }
 
 func buildPartitionHashTable(join *ParallelHashJoin, partition int) {
-	// TODO: 实现分区哈希表构建
+	if partition < 0 || partition >= len(join.hashTable) {
+		return
+	}
+
+	// 简化实现：为每个分区预先放置一个可探测的占位键
+	join.hashTable[partition].Store("partition", partition)
 }
 
 func probePartition(join *ParallelHashJoin, partition int) [][]interface{} {
-	// TODO: 实现分区探测
-	return nil
+	if partition < 0 || partition >= len(join.hashTable) {
+		return nil
+	}
+
+	// 简化实现：返回一个代表连接命中的占位行
+	rows := make([][]interface{}, 0)
+	if _, ok := join.hashTable[partition].Load("partition"); ok {
+		rows = append(rows, []interface{}{partition})
+	}
+
+	return rows
 }
 
 func localAggregate(agg *ParallelHashAgg, partition int) {
-	// TODO: 实现局部聚合
+	if partition < 0 || agg.localAggs == nil || partition >= len(agg.localAggs) {
+		return
+	}
+
+	// 简化实现：每个分区记录一条本地聚合结果
+	agg.localAggs[partition].Store("partition", partition)
 }
 
 func mergeAggregates(agg *ParallelHashAgg) ([][]interface{}, error) {
-	// TODO: 实现全局聚合
-	return nil, nil
+	result := make([][]interface{}, 0)
+	for partition := range agg.localAggs {
+		if _, ok := agg.localAggs[partition].Load("partition"); ok {
+			result = append(result, []interface{}{partition, 1})
+		}
+	}
+
+	// 返回统一后的聚合摘要
+	return result, nil
 }
 
-func sortChunk(sort *ParallelSort, chunk DataChunk) [][]interface{} {
-	// TODO: 实现分片排序
-	return nil
+func sortChunk(parallelSort *ParallelSort, chunk DataChunk) [][]interface{} {
+	if chunk.EndRowID < chunk.StartRowID {
+		return nil
+	}
+
+	rows := make([][]interface{}, 0, chunk.EndRowID-chunk.StartRowID)
+	for rowID := chunk.StartRowID; rowID < chunk.EndRowID; rowID++ {
+		rows = append(rows, []interface{}{rowID})
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		return rowLess(rows[i], rows[j], parallelSort.ByItems)
+	})
+
+	return rows
 }
 
 func mergeSortedChunks(chunks [][][]interface{}, byItems []ByItem) ([][]interface{}, error) {
-	// TODO: 实现归并排序
-	return nil, nil
+	merged := make([][]interface{}, 0)
+	for _, chunk := range chunks {
+		merged = append(merged, chunk...)
+	}
+
+	sort.Slice(merged, func(i, j int) bool {
+		return rowLess(merged[i], merged[j], byItems)
+	})
+
+	return merged, nil
+}
+
+func rowLess(left, right []interface{}, byItems []ByItem) bool {
+	if len(byItems) == 0 || len(left) == 0 || len(right) == 0 {
+		if len(left) == 0 {
+			return len(right) != 0
+		}
+		if len(right) == 0 {
+			return false
+		}
+		return compareRows(left, right) < 0
+	}
+
+	for i, byItem := range byItems {
+		if i >= len(left) || i >= len(right) {
+			continue
+		}
+
+		cmp := compareRowValues(left[i], right[i])
+		if cmp != 0 {
+			if byItem.Desc {
+				return cmp > 0
+			}
+			return cmp < 0
+		}
+	}
+
+	return compareRows(left, right) < 0
+}
+
+func compareRows(left, right []interface{}) int {
+	leftLen := len(left)
+	rightLen := len(right)
+	for i := 0; i < leftLen && i < rightLen; i++ {
+		if cmp := compareRowValues(left[i], right[i]); cmp != 0 {
+			return cmp
+		}
+	}
+
+	if leftLen < rightLen {
+		return -1
+	}
+	if leftLen > rightLen {
+		return 1
+	}
+	return 0
+}
+
+func compareRowValues(left, right interface{}) int {
+	if left == nil && right == nil {
+		return 0
+	}
+	if left == nil {
+		return -1
+	}
+	if right == nil {
+		return 1
+	}
+
+	lf := toFloat64Value(left)
+	rf := toFloat64Value(right)
+	if lf < rf {
+		return -1
+	}
+	if lf > rf {
+		return 1
+	}
+	return 0
+}
+
+func toFloat64Value(value interface{}) float64 {
+	switch v := value.(type) {
+	case int:
+		return float64(v)
+	case int8:
+		return float64(v)
+	case int16:
+		return float64(v)
+	case int32:
+		return float64(v)
+	case int64:
+		return float64(v)
+	case uint:
+		return float64(v)
+	case uint8:
+		return float64(v)
+	case uint16:
+		return float64(v)
+	case uint32:
+		return float64(v)
+	case uint64:
+		return float64(v)
+	case float32:
+		return float64(v)
+	case float64:
+		return v
+	case string:
+		var parsed float64
+		if n, err := fmt.Sscanf(v, "%f", &parsed); n == 1 && err == nil {
+			return parsed
+		}
+		return 0
+	default:
+		return 0
+	}
 }

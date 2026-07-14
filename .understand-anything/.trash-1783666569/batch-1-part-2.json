@@ -1,0 +1,1029 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/auth/engine_access_password_test.go",
+      "type": "file",
+      "name": "engine_access_password_test.go",
+      "filePath": "server/auth/engine_access_password_test.go",
+      "summary": "验证MySQL 身份认证与权限校验中 engine access password 的正常路径、边界条件与回归行为。",
+      "tags": [
+        "test",
+        "regression",
+        "authentication",
+        "security"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/auth/engine_access_password_test.go:TestGetStringWithByteArray",
+      "type": "function",
+      "name": "TestGetStringWithByteArray",
+      "filePath": "server/auth/engine_access_password_test.go",
+      "lineRange": [
+        8,
+        63
+      ],
+      "summary": "验证MySQL 身份认证与权限校验中的 TestGetStringWithByteArray 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "authentication"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/auth/engine_access_password_test.go:TestPasswordHashParsing",
+      "type": "function",
+      "name": "TestPasswordHashParsing",
+      "filePath": "server/auth/engine_access_password_test.go",
+      "lineRange": [
+        66,
+        106
+      ],
+      "summary": "验证MySQL 身份认证与权限校验中的 TestPasswordHashParsing 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/auth/engine_access_password_test.go:TestPasswordHashWithStringValue",
+      "type": "function",
+      "name": "TestPasswordHashWithStringValue",
+      "filePath": "server/auth/engine_access_password_test.go",
+      "lineRange": [
+        109,
+        132
+      ],
+      "summary": "验证MySQL 身份认证与权限校验中的 TestPasswordHashWithStringValue 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/auth/engine_access_password_test.go:TestMatchHost",
+      "type": "function",
+      "name": "TestMatchHost",
+      "filePath": "server/auth/engine_access_password_test.go",
+      "lineRange": [
+        134,
+        189
+      ],
+      "summary": "验证MySQL 身份认证与权限校验中的 TestMatchHost 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "authentication"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/auth/engine_access_password_test.go:TestGetBoolWithByteArray",
+      "type": "function",
+      "name": "TestGetBoolWithByteArray",
+      "filePath": "server/auth/engine_access_password_test.go",
+      "lineRange": [
+        191,
+        246
+      ],
+      "summary": "验证MySQL 身份认证与权限校验中的 TestGetBoolWithByteArray 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "authentication"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:server/auth/password_validator.go",
+      "type": "file",
+      "name": "password_validator.go",
+      "filePath": "server/auth/password_validator.go",
+      "summary": "实现MySQL 身份认证与权限校验中的 password validator 能力，并向同包或上层组件提供可复用接口。",
+      "tags": [
+        "service",
+        "authentication",
+        "security"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/auth/password_validator.go:NewMySQLNativePasswordValidator",
+      "type": "function",
+      "name": "NewMySQLNativePasswordValidator",
+      "filePath": "server/auth/password_validator.go",
+      "lineRange": [
+        24,
+        26
+      ],
+      "summary": "创建或初始化MySQL 身份认证与权限校验中的 NewMySQLNativePasswordValidator 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/auth/password_validator.go:ValidatePassword",
+      "type": "function",
+      "name": "ValidatePassword",
+      "filePath": "server/auth/password_validator.go",
+      "lineRange": [
+        29,
+        41
+      ],
+      "summary": "校验或判断MySQL 身份认证与权限校验中的 ValidatePassword 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/auth/password_validator.go:verifyMySQLNativePassword",
+      "type": "function",
+      "name": "verifyMySQLNativePassword",
+      "filePath": "server/auth/password_validator.go",
+      "lineRange": [
+        44,
+        60
+      ],
+      "summary": "实现MySQL 身份认证与权限校验中的 verifyMySQLNativePassword 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/auth/password_validator.go:calculateAuthResponse",
+      "type": "function",
+      "name": "calculateAuthResponse",
+      "filePath": "server/auth/password_validator.go",
+      "lineRange": [
+        63,
+        78
+      ],
+      "summary": "实现MySQL 身份认证与权限校验中的 calculateAuthResponse 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/auth/password_validator.go:extractHashFromStoredPassword",
+      "type": "function",
+      "name": "extractHashFromStoredPassword",
+      "filePath": "server/auth/password_validator.go",
+      "lineRange": [
+        81,
+        100
+      ],
+      "summary": "实现MySQL 身份认证与权限校验中的 extractHashFromStoredPassword 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/auth/password_validator.go:GenerateChallenge",
+      "type": "function",
+      "name": "GenerateChallenge",
+      "filePath": "server/auth/password_validator.go",
+      "lineRange": [
+        103,
+        118
+      ],
+      "summary": "实现MySQL 身份认证与权限校验中的 GenerateChallenge 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/auth/password_validator.go:HashPassword",
+      "type": "function",
+      "name": "HashPassword",
+      "filePath": "server/auth/password_validator.go",
+      "lineRange": [
+        121,
+        134
+      ],
+      "summary": "校验或判断MySQL 身份认证与权限校验中的 HashPassword 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/auth/password_validator.go:xorBytes",
+      "type": "function",
+      "name": "xorBytes",
+      "filePath": "server/auth/password_validator.go",
+      "lineRange": [
+        145,
+        156
+      ],
+      "summary": "实现MySQL 身份认证与权限校验中的 xorBytes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/auth/password_validator.go:bytesEqual",
+      "type": "function",
+      "name": "bytesEqual",
+      "filePath": "server/auth/password_validator.go",
+      "lineRange": [
+        159,
+        171
+      ],
+      "summary": "实现MySQL 身份认证与权限校验中的 bytesEqual 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/auth/password_validator.go:VerifyAuthResponse",
+      "type": "function",
+      "name": "VerifyAuthResponse",
+      "filePath": "server/auth/password_validator.go",
+      "lineRange": [
+        177,
+        206
+      ],
+      "summary": "校验或判断MySQL 身份认证与权限校验中的 VerifyAuthResponse 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/auth/password_validator.go:ValidateNativeHandshakeResponse",
+      "type": "function",
+      "name": "ValidateNativeHandshakeResponse",
+      "filePath": "server/auth/password_validator.go",
+      "lineRange": [
+        209,
+        221
+      ],
+      "summary": "校验或判断MySQL 身份认证与权限校验中的 ValidateNativeHandshakeResponse 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/auth/password_validator.go:NewCachingSHA2PasswordValidator",
+      "type": "function",
+      "name": "NewCachingSHA2PasswordValidator",
+      "filePath": "server/auth/password_validator.go",
+      "lineRange": [
+        227,
+        229
+      ],
+      "summary": "创建或初始化MySQL 身份认证与权限校验中的 NewCachingSHA2PasswordValidator 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/auth/password_validator.go:ValidateCachingSHA2FastAuth",
+      "type": "function",
+      "name": "ValidateCachingSHA2FastAuth",
+      "filePath": "server/auth/password_validator.go",
+      "lineRange": [
+        240,
+        259
+      ],
+      "summary": "校验或判断MySQL 身份认证与权限校验中的 ValidateCachingSHA2FastAuth 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/auth/password_validator.go:CreateValidator",
+      "type": "function",
+      "name": "CreateValidator",
+      "filePath": "server/auth/password_validator.go",
+      "lineRange": [
+        285,
+        295
+      ],
+      "summary": "创建或初始化MySQL 身份认证与权限校验中的 CreateValidator 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/auth/password_validator.go:PasswordValidator",
+      "type": "class",
+      "name": "PasswordValidator",
+      "filePath": "server/auth/password_validator.go",
+      "lineRange": [
+        14,
+        18
+      ],
+      "summary": "定义MySQL 身份认证与权限校验的 PasswordValidator 接口契约，约束实现方必须提供的操作。",
+      "tags": [
+        "interface",
+        "go-type",
+        "service",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/auth/password_validator.go:MySQLNativePasswordValidator",
+      "type": "class",
+      "name": "MySQLNativePasswordValidator",
+      "filePath": "server/auth/password_validator.go",
+      "lineRange": [
+        21,
+        21
+      ],
+      "summary": "定义MySQL 身份认证与权限校验的 MySQLNativePasswordValidator 接口契约，约束实现方必须提供的操作。",
+      "tags": [
+        "interface",
+        "go-type",
+        "service",
+        "authentication"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/auth/password_validator.go:CachingSHA2PasswordValidator",
+      "type": "class",
+      "name": "CachingSHA2PasswordValidator",
+      "filePath": "server/auth/password_validator.go",
+      "lineRange": [
+        224,
+        224
+      ],
+      "summary": "定义MySQL 身份认证与权限校验的 CachingSHA2PasswordValidator 接口契约，约束实现方必须提供的操作。",
+      "tags": [
+        "interface",
+        "go-type",
+        "service",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/auth/password_validator.go:PasswordValidatorFactory",
+      "type": "class",
+      "name": "PasswordValidatorFactory",
+      "filePath": "server/auth/password_validator.go",
+      "lineRange": [
+        282,
+        282
+      ],
+      "summary": "定义MySQL 身份认证与权限校验的 PasswordValidatorFactory 接口契约，约束实现方必须提供的操作。",
+      "tags": [
+        "interface",
+        "go-type",
+        "type-definition",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/auth/password_validator_auth_response_test.go",
+      "type": "file",
+      "name": "password_validator_auth_response_test.go",
+      "filePath": "server/auth/password_validator_auth_response_test.go",
+      "summary": "验证MySQL 身份认证与权限校验中 password validator auth response 的正常路径、边界条件与回归行为。",
+      "tags": [
+        "test",
+        "regression",
+        "authentication",
+        "security"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/auth/password_validator_auth_response_test.go:TestVerifyAuthResponse",
+      "type": "function",
+      "name": "TestVerifyAuthResponse",
+      "filePath": "server/auth/password_validator_auth_response_test.go",
+      "lineRange": [
+        9,
+        71
+      ],
+      "summary": "验证MySQL 身份认证与权限校验中的 TestVerifyAuthResponse 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "authentication"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/auth/password_validator_auth_response_test.go:TestVerifyAuthResponseWithWrongPassword",
+      "type": "function",
+      "name": "TestVerifyAuthResponseWithWrongPassword",
+      "filePath": "server/auth/password_validator_auth_response_test.go",
+      "lineRange": [
+        74,
+        120
+      ],
+      "summary": "验证MySQL 身份认证与权限校验中的 TestVerifyAuthResponseWithWrongPassword 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/auth/password_validator_auth_response_test.go:TestVerifyAuthResponseWithInvalidLength",
+      "type": "function",
+      "name": "TestVerifyAuthResponseWithInvalidLength",
+      "filePath": "server/auth/password_validator_auth_response_test.go",
+      "lineRange": [
+        123,
+        162
+      ],
+      "summary": "验证MySQL 身份认证与权限校验中的 TestVerifyAuthResponseWithInvalidLength 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/auth/password_validator_auth_response_test.go:TestVerifyAuthResponseAlgorithm",
+      "type": "function",
+      "name": "TestVerifyAuthResponseAlgorithm",
+      "filePath": "server/auth/password_validator_auth_response_test.go",
+      "lineRange": [
+        165,
+        226
+      ],
+      "summary": "验证MySQL 身份认证与权限校验中的 TestVerifyAuthResponseAlgorithm 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "authentication"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/auth/password_validator_auth_response_test.go:TestEmptyPasswordAuthResponse",
+      "type": "function",
+      "name": "TestEmptyPasswordAuthResponse",
+      "filePath": "server/auth/password_validator_auth_response_test.go",
+      "lineRange": [
+        229,
+        262
+      ],
+      "summary": "验证MySQL 身份认证与权限校验中的 TestEmptyPasswordAuthResponse 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/auth/password_validator_auth_response_test.go:BenchmarkVerifyAuthResponse",
+      "type": "function",
+      "name": "BenchmarkVerifyAuthResponse",
+      "filePath": "server/auth/password_validator_auth_response_test.go",
+      "lineRange": [
+        265,
+        278
+      ],
+      "summary": "实现MySQL 身份认证与权限校验中的 BenchmarkVerifyAuthResponse 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "authentication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/common/charset.go",
+      "type": "file",
+      "name": "charset.go",
+      "filePath": "server/common/charset.go",
+      "summary": "实现字符集与排序规则映射中的 charset 能力，并向同包或上层组件提供可复用接口。",
+      "tags": [
+        "service",
+        "shared-types",
+        "mysql"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/common/charset.go:CharsetNameToID",
+      "type": "function",
+      "name": "CharsetNameToID",
+      "filePath": "server/common/charset.go",
+      "lineRange": [
+        19,
+        35
+      ],
+      "summary": "实现字符集与排序规则映射中的 CharsetNameToID 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/charset.go:IsUTF8Charset",
+      "type": "function",
+      "name": "IsUTF8Charset",
+      "filePath": "server/common/charset.go",
+      "lineRange": [
+        553,
+        555
+      ],
+      "summary": "校验或判断字符集与排序规则映射中的 IsUTF8Charset 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/common/const_trx.go",
+      "type": "file",
+      "name": "const_trx.go",
+      "filePath": "server/common/const_trx.go",
+      "summary": "定义服务端通用常量与辅助逻辑使用的常量、枚举和基础类型，为同包实现提供统一语义。",
+      "tags": [
+        "service",
+        "shared-types",
+        "mysql",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/auth/engine_access_password_test.go",
+      "target": "function:server/auth/engine_access_password_test.go:TestGetStringWithByteArray",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/engine_access_password_test.go",
+      "target": "function:server/auth/engine_access_password_test.go:TestGetStringWithByteArray",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/engine_access_password_test.go",
+      "target": "function:server/auth/engine_access_password_test.go:TestPasswordHashParsing",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/engine_access_password_test.go",
+      "target": "function:server/auth/engine_access_password_test.go:TestPasswordHashParsing",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/engine_access_password_test.go",
+      "target": "function:server/auth/engine_access_password_test.go:TestPasswordHashWithStringValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/engine_access_password_test.go",
+      "target": "function:server/auth/engine_access_password_test.go:TestPasswordHashWithStringValue",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/engine_access_password_test.go",
+      "target": "function:server/auth/engine_access_password_test.go:TestMatchHost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/engine_access_password_test.go",
+      "target": "function:server/auth/engine_access_password_test.go:TestMatchHost",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/engine_access_password_test.go",
+      "target": "function:server/auth/engine_access_password_test.go:TestGetBoolWithByteArray",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/engine_access_password_test.go",
+      "target": "function:server/auth/engine_access_password_test.go:TestGetBoolWithByteArray",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:NewMySQLNativePasswordValidator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:NewMySQLNativePasswordValidator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:ValidatePassword",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:ValidatePassword",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:verifyMySQLNativePassword",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:calculateAuthResponse",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:extractHashFromStoredPassword",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:GenerateChallenge",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:GenerateChallenge",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:HashPassword",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:HashPassword",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:xorBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:bytesEqual",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:VerifyAuthResponse",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:VerifyAuthResponse",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:ValidateNativeHandshakeResponse",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:ValidateNativeHandshakeResponse",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:NewCachingSHA2PasswordValidator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:NewCachingSHA2PasswordValidator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:ValidateCachingSHA2FastAuth",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:ValidateCachingSHA2FastAuth",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:CreateValidator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "function:server/auth/password_validator.go:CreateValidator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "class:server/auth/password_validator.go:PasswordValidator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "class:server/auth/password_validator.go:PasswordValidator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "class:server/auth/password_validator.go:MySQLNativePasswordValidator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "class:server/auth/password_validator.go:MySQLNativePasswordValidator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "class:server/auth/password_validator.go:CachingSHA2PasswordValidator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "class:server/auth/password_validator.go:CachingSHA2PasswordValidator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "class:server/auth/password_validator.go:PasswordValidatorFactory",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator.go",
+      "target": "class:server/auth/password_validator.go:PasswordValidatorFactory",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/password_validator_auth_response_test.go",
+      "target": "function:server/auth/password_validator_auth_response_test.go:TestVerifyAuthResponse",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator_auth_response_test.go",
+      "target": "function:server/auth/password_validator_auth_response_test.go:TestVerifyAuthResponse",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/password_validator_auth_response_test.go",
+      "target": "function:server/auth/password_validator_auth_response_test.go:TestVerifyAuthResponseWithWrongPassword",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator_auth_response_test.go",
+      "target": "function:server/auth/password_validator_auth_response_test.go:TestVerifyAuthResponseWithWrongPassword",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/password_validator_auth_response_test.go",
+      "target": "function:server/auth/password_validator_auth_response_test.go:TestVerifyAuthResponseWithInvalidLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator_auth_response_test.go",
+      "target": "function:server/auth/password_validator_auth_response_test.go:TestVerifyAuthResponseWithInvalidLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/password_validator_auth_response_test.go",
+      "target": "function:server/auth/password_validator_auth_response_test.go:TestVerifyAuthResponseAlgorithm",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator_auth_response_test.go",
+      "target": "function:server/auth/password_validator_auth_response_test.go:TestVerifyAuthResponseAlgorithm",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/password_validator_auth_response_test.go",
+      "target": "function:server/auth/password_validator_auth_response_test.go:TestEmptyPasswordAuthResponse",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator_auth_response_test.go",
+      "target": "function:server/auth/password_validator_auth_response_test.go:TestEmptyPasswordAuthResponse",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/auth/password_validator_auth_response_test.go",
+      "target": "function:server/auth/password_validator_auth_response_test.go:BenchmarkVerifyAuthResponse",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/auth/password_validator_auth_response_test.go",
+      "target": "function:server/auth/password_validator_auth_response_test.go:BenchmarkVerifyAuthResponse",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/charset.go",
+      "target": "function:server/common/charset.go:CharsetNameToID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/charset.go",
+      "target": "function:server/common/charset.go:CharsetNameToID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/charset.go",
+      "target": "function:server/common/charset.go:IsUTF8Charset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/charset.go",
+      "target": "function:server/common/charset.go:IsUTF8Charset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

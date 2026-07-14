@@ -88,6 +88,29 @@ required_markers() {
   fi
 }
 
+evidence_status() {
+  local run_dir="$1"
+  local scenario="$2"
+  local rounds="${3:-$EXPECTED_ROUNDS}"
+  local missing=()
+
+  local i
+  for ((i = 1; i <= rounds; i++)); do
+    for name in before after diff; do
+      local file="$run_dir/evidence/round_${i}/${scenario}/${name}.json"
+      if [[ ! -s "$file" ]]; then
+        missing+=("r${i}:${scenario}:${name}.json")
+      fi
+    done
+  done
+
+  if (( ${#missing[@]} == 0 )); then
+    echo "PASS"
+  else
+    printf "%s" "missing=${missing[*]}"
+  fi
+}
+
 {
   echo "# XMySQL Recovery Audit"
   echo "time: $TS"
@@ -102,11 +125,13 @@ required_markers() {
     echo "  - $d"
   done
   echo
-  echo "## 2. Result Summary"
+echo "## 2. Result Summary"
 } >"$OUT_FILE"
 
-echo "| run_dir | result | rounds | redo | undo | half_commit | redo_markers | undo_markers | half_markers |" >>"$OUT_FILE"
-echo "| --- | --- | --- | --- | --- | --- | --- | --- | --- |" >>"$OUT_FILE"
+echo "| run_dir | result | rounds | redo | undo | half_commit | redo_markers | undo_markers | half_markers | redo_evidence | undo_evidence | half_evidence |" >>"$OUT_FILE"
+echo "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |" >>"$OUT_FILE"
+
+audit_failed=0
 
 for run_dir in "${SELECTED_DIRS[@]}"; do
   run_dir="${run_dir//$'\r'/}"
@@ -114,7 +139,8 @@ for run_dir in "${SELECTED_DIRS[@]}"; do
   client_file="$run_dir/client.log"
 
   if [[ ! -f "$summary_file" ]]; then
-    echo "| ${run_dir} | MISSING | - | - | - | - | summary_missing |" >>"$OUT_FILE"
+    echo "| ${run_dir} | MISSING | - | - | - | - | summary_missing | - | - | - | - | - |" >>"$OUT_FILE"
+    audit_failed=1
     continue
   fi
 
@@ -136,6 +162,9 @@ for run_dir in "${SELECTED_DIRS[@]}"; do
   redo_marker_status="$(required_markers "$client_file" redo)"
   undo_marker_status="$(required_markers "$client_file" undo)"
   half_marker_status="$(required_markers "$client_file" half_commit)"
+  redo_evidence_status="$(evidence_status "$run_dir" redo "$EXPECTED_ROUNDS")"
+  undo_evidence_status="$(evidence_status "$run_dir" undo "$EXPECTED_ROUNDS")"
+  half_evidence_status="$(evidence_status "$run_dir" half_commit "$EXPECTED_ROUNDS")"
 
   round_count="${EXPECTED_ROUNDS}"
   if [[ -s "$summary_file" ]]; then
@@ -145,7 +174,17 @@ for run_dir in "${SELECTED_DIRS[@]}"; do
     fi
   fi
 
-  echo "| ${run_dir} | ${result} | ${round_count} | ${redo_status} | ${undo_status} | ${half_status} | ${redo_marker_status} | ${undo_marker_status} | ${half_marker_status} |" >>"$OUT_FILE"
+  echo "| ${run_dir} | ${result} | ${round_count} | ${redo_status} | ${undo_status} | ${half_status} | ${redo_marker_status} | ${undo_marker_status} | ${half_marker_status} | ${redo_evidence_status} | ${undo_evidence_status} | ${half_evidence_status} |" >>"$OUT_FILE"
+
+  if [[ "$result" != "PASS" ||
+        "$redo_marker_status" != "PASS" ||
+        "$undo_marker_status" != "PASS" ||
+        "$half_marker_status" != "PASS" ||
+        "$redo_evidence_status" != "PASS" ||
+        "$undo_evidence_status" != "PASS" ||
+        "$half_evidence_status" != "PASS" ]]; then
+    audit_failed=1
+  fi
 done
 
 {
@@ -157,11 +196,17 @@ done
   echo "  - undo: SNAPSHOT_ROWS_OK, UNDO_VERIFY_OK"
   echo "  - half_commit: SNAPSHOT_ROWS_OK, HALF_COMMIT_FINAL_COUNT"
   echo "- summary.log and client.log must be present per run."
+  echo "- Evidence files must exist for every round and scenario:"
+  echo "  - evidence/round_<n>/<scenario>/before.json"
+  echo "  - evidence/round_<n>/<scenario>/after.json"
+  echo "  - evidence/round_<n>/<scenario>/diff.json"
   echo
   echo "## 4. Review gates"
   echo '- [ ] 连续 N 轮 `redo/undo/half_commit` 均 PASS'
   echo '- [ ] redo/undo/half 的每轮关键 marker 均出现'
+  echo '- [ ] redo/undo/half 的每轮 before/after/diff 证据文件均存在'
   echo '- [ ] 复盘日志保存，`summary.log` 与 `client.log` 可复放'
 } >>"$OUT_FILE"
 
 echo "Audit report: $OUT_FILE"
+exit "$audit_failed"

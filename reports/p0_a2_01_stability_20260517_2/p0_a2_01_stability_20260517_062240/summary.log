@@ -1,0 +1,20 @@
+P0 A2-01 flaky 测试稳定性复验
+repo: /Users/zhukovasky/GolandProjects/xmysql-server
+timestamp: 20260517_062240
+rounds: 3
+test_filter: TestBTREE|TestConcurrentCheckAndExpand|TestPrefetch
+timeout: 300s
+packages: ./server/innodb/manager ./server/innodb/buffer_pool
+run_dir: ./reports/p0_a2_01_stability_20260517_2/p0_a2_01_stability_20260517_062240
+
+[PASS] round=1 package=./server/innodb/manager
+[PASS] round=1 package=./server/innodb/buffer_pool
+[PASS] round=2 package=./server/innodb/manager
+[PASS] round=2 package=./server/innodb/buffer_pool
+[PASS] round=3 package=./server/innodb/manager
+[PASS] round=3 package=./server/innodb/buffer_pool
+
+=== final ===
+passed_rounds=3
+failed_rounds=0
+RESULT: PASS

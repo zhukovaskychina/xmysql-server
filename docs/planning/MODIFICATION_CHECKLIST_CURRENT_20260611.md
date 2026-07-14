@@ -2,21 +2,23 @@
 
 > 目标：回答“项目还差什么”，给出按优先级能立即执行的修改项，避免分散成一堆重复清单。
 
+> 2026-07-13 更新：本文是 2026-06-11 的历史执行清单。DML、SHOW、StorageIntegratedDML、BufferPool pinned-page 驱逐、EnhancedBTree rebuild/drop 和 P0 core 验证脚本已完成一轮核心闭环。当前状态以 `docs/planning/P0_CORE_STATUS_20260713.md` 为准。
+
 ## 结论
 
-- 当前可运行性最大风险仍在 **engine 核心执行链**：DML、SHOW、锁释放和无条件清空删除路径。
-- `ExecutionError` 已具备类型，但还需要继续接入到关键路径，减少文本错误。
-- 下面是按“先修复正确性，再修覆盖率”排序的清单。
+- 2026-06-11 时，最大风险在 **engine 核心执行链**：DML、SHOW、锁释放和无条件清空删除路径。
+- 截至 2026-07-13，DML、SHOW、StorageIntegratedDML、checkpoint 写阻塞、BufferPool pinned-page 驱逐、EnhancedBTree 最小 rebuild/drop 已完成 P0 core 闭环。
+- 仍需要继续收口的 P0 是：P0-03 残余错误码/锁释放/索引一致性、P0-06 崩溃恢复、P0-07 灰度写入、P0-08 慢查询、P0-09 指标告警。
 
 ## P0（先改，直接影响生产可用性）
 
-### P0-01 DML 算子未闭环（高优先）
+### P0-01 DML 算子未闭环（高优先，2026-07-13 core 已关闭）
 文件：
 - `server/innodb/engine/dml_operators.go`
 
-待改函数：
-- `findDuplicateRecord`（当前返回 `findDuplicateRecord not fully implemented`）
-- `parseInsertRows`（当前返回空）
+2026-06-11 历史待改函数：
+- `findDuplicateRecord`（当时返回 `findDuplicateRecord not fully implemented`）
+- `parseInsertRows`（当时返回空）
 - `insertRow`
 - `updateRecord`
 - `UpdateOperator.getTableSchema`
@@ -32,17 +34,26 @@
 - 唯一约束冲突可复现并返回结构化错误码；
 - 不再出现“只记录日志不真实落库”的行为。
 
-### P0-02 SHOW 仍未接入真实元数据
+2026-07-13 更新：
+- `dml_operators.go` 已通过 `StorageAdapter` 接到底层写接口；
+- `storage_adapter.go` 已补 `InsertRecord`、`FindDuplicateRecord`、`UpdateRecord`、`DeleteRecord` 窄写接口；
+- 当前 P0 core 验证入口：`scripts/verify_p0_core.sh`。
+
+### P0-02 SHOW 未接入真实元数据（2026-07-13 core 已关闭）
 文件：
 - `server/innodb/engine/show_executor.go`
 
-问题：
+2026-06-11 历史问题：
 - `Schema()` 返回 `nil`
-- `SHOW DATABASES/TABLES/COLUMNS` 返回“暂未接入真实元数据字典”文本错误
+- `SHOW DATABASES/TABLES/COLUMNS` 当时返回“暂未接入真实元数据字典”文本错误
 
 验收要求：
 - 返回真实 metadata 查询结果；
 - 元数据缺失时返回 `ExecutionError` 分支（非空字符串）。
+
+2026-07-13 更新：
+- `executor.go` 的 SHOW DATABASES / TABLES / COLUMNS 已优先走 `ShowExecutor + InfoSchemaManager`；
+- 旧 data-dir 路径保留为 fallback，不再作为主路径判断依据。
 
 ### P0-03 锁释放边界错误
 文件：
@@ -56,19 +67,24 @@
 - 支持按资源/资源类型释放锁；
 - 不可用 lockManager 时返回明确错误码，不再静默。
 
-### P0-04 无 WHERE 与删除语义安全策略不完整
+### P0-04 无 WHERE 与删除语义安全策略不完整（2026-07-13 DML 页内删除 core 已关闭）
 文件：
 - `server/innodb/engine/storage_integrated_dml_helper.go`
 
-问题：
+2026-06-11 历史问题：
 - `findRowsToUpdateInStorage` / `findRowsToDeleteInStorage` 无 WHERE 时返回空结果（可能造成语义误解）；
-- `markRowAsDeletedInStorage` 通过清空整页模拟删除（高风险）。
+- `markRowAsDeletedInStorage` 当时通过清空整页模拟删除（高风险）。
 
 验收要求：
 - 明确策略：无 WHERE 直接拒绝、或要求显式开关；
 - 删除改为按记录位点清理，不破坏同页其他记录。
 
-### P0-05 索引关键路径仍是简化版
+2026-07-13 更新：
+- `storage_integrated_dml_helper.go` 已补空页、追加、覆盖、按 slot 删除；
+- `storage_integrated_dml_executor.go` 已接入 INSERT append、UPDATE replace、DELETE slot 删除；
+- 无 WHERE 策略仍应在更高层继续明确，但“清空整页模拟删除”不再代表当前 core 状态。
+
+### P0-05 索引关键路径仍是简化版（2026-07-13 EnhancedBTree 最小 rebuild/drop 已关闭，index helper 仍有残余）
 文件：
 - `server/innodb/engine/storage_integrated_index_helper.go`
 
@@ -81,6 +97,10 @@
 - 支持多列索引键构建；
 - 补长度/类型基础校验；
 - 至少给出重建与一致性检查的可运行路径（哪怕最小实现）。
+
+2026-07-13 更新：
+- `manager/enhanced_btree_manager.go` 已补基于已加载记录的 rebuild 和 drop 释放路径；
+- `engine/storage_integrated_index_helper.go` 的复合索引、一致性检查和全量表扫描重建仍属于后续 P0-03/P1 交界项。
 
 ### P0-06 关键执行错误码覆盖
 文件：
@@ -120,7 +140,6 @@
 
 ## 推荐执行顺序
 
-1. 先收口 P0-01～P0-06（不按顺序也可并行展开）。
-2. 每条 P0 至少补 1~2 个失败路径用例（含并发/边界）。
-3. P0 通过后再推进 P1、P2。
-
+1. 当前不再按 P0-01～P0-06 原顺序推进；先处理 P0-03 残余错误码/锁释放/索引一致性。
+2. 然后推进 P0-06、P0-07 的恢复与灰度验收。
+3. 同步补 P0-08、P0-09 的观测链路。

@@ -1,0 +1,749 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/buffer_pool/buffer_state.go",
+      "type": "file",
+      "name": "buffer_state.go",
+      "filePath": "server/innodb/buffer_pool/buffer_state.go",
+      "summary": "定义InnoDB Buffer Pool 缓存、淘汰与刷盘的状态模型与状态转换所需数据。",
+      "tags": [
+        "service",
+        "buffer-pool",
+        "cache"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:server/innodb/buffer_pool/errors.go",
+      "type": "file",
+      "name": "errors.go",
+      "filePath": "server/innodb/buffer_pool/errors.go",
+      "summary": "定义InnoDB Buffer Pool 缓存、淘汰与刷盘的错误类型、错误码映射及判定辅助函数。",
+      "tags": [
+        "service",
+        "buffer-pool",
+        "cache"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/errors.go:Error",
+      "type": "function",
+      "name": "Error",
+      "filePath": "server/innodb/buffer_pool/errors.go",
+      "lineRange": [
+        33,
+        38
+      ],
+      "summary": "实现InnoDB Buffer Pool 缓存、淘汰与刷盘中的 Error 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/errors.go:Unwrap",
+      "type": "function",
+      "name": "Unwrap",
+      "filePath": "server/innodb/buffer_pool/errors.go",
+      "lineRange": [
+        40,
+        42
+      ],
+      "summary": "实现InnoDB Buffer Pool 缓存、淘汰与刷盘中的 Unwrap 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/errors.go:NewError",
+      "type": "function",
+      "name": "NewError",
+      "filePath": "server/innodb/buffer_pool/errors.go",
+      "lineRange": [
+        45,
+        50
+      ],
+      "summary": "创建或初始化InnoDB Buffer Pool 缓存、淘汰与刷盘中的 NewError 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/errors.go:IsNotFound",
+      "type": "function",
+      "name": "IsNotFound",
+      "filePath": "server/innodb/buffer_pool/errors.go",
+      "lineRange": [
+        53,
+        55
+      ],
+      "summary": "校验或判断InnoDB Buffer Pool 缓存、淘汰与刷盘中的 IsNotFound 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/errors.go:IsLocked",
+      "type": "function",
+      "name": "IsLocked",
+      "filePath": "server/innodb/buffer_pool/errors.go",
+      "lineRange": [
+        58,
+        60
+      ],
+      "summary": "校验或判断InnoDB Buffer Pool 缓存、淘汰与刷盘中的 IsLocked 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/errors.go:IsCorrupted",
+      "type": "function",
+      "name": "IsCorrupted",
+      "filePath": "server/innodb/buffer_pool/errors.go",
+      "lineRange": [
+        63,
+        65
+      ],
+      "summary": "校验或判断InnoDB Buffer Pool 缓存、淘汰与刷盘中的 IsCorrupted 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/errors.go:IsBufferPoolFull",
+      "type": "function",
+      "name": "IsBufferPoolFull",
+      "filePath": "server/innodb/buffer_pool/errors.go",
+      "lineRange": [
+        68,
+        70
+      ],
+      "summary": "校验或判断InnoDB Buffer Pool 缓存、淘汰与刷盘中的 IsBufferPoolFull 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/errors.go:IsIOError",
+      "type": "function",
+      "name": "IsIOError",
+      "filePath": "server/innodb/buffer_pool/errors.go",
+      "lineRange": [
+        73,
+        75
+      ],
+      "summary": "校验或判断InnoDB Buffer Pool 缓存、淘汰与刷盘中的 IsIOError 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/errors.go:IsDeadlock",
+      "type": "function",
+      "name": "IsDeadlock",
+      "filePath": "server/innodb/buffer_pool/errors.go",
+      "lineRange": [
+        78,
+        80
+      ],
+      "summary": "校验或判断InnoDB Buffer Pool 缓存、淘汰与刷盘中的 IsDeadlock 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/errors.go:IsTimeout",
+      "type": "function",
+      "name": "IsTimeout",
+      "filePath": "server/innodb/buffer_pool/errors.go",
+      "lineRange": [
+        83,
+        85
+      ],
+      "summary": "校验或判断InnoDB Buffer Pool 缓存、淘汰与刷盘中的 IsTimeout 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/buffer_pool/errors.go:BufferPoolError",
+      "type": "class",
+      "name": "BufferPoolError",
+      "filePath": "server/innodb/buffer_pool/errors.go",
+      "lineRange": [
+        28,
+        31
+      ],
+      "summary": "封装InnoDB Buffer Pool 缓存、淘汰与刷盘中的 BufferPoolError 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "type": "file",
+      "name": "flush_strategy.go",
+      "filePath": "server/innodb/buffer_pool/flush_strategy.go",
+      "summary": "实现InnoDB Buffer Pool 缓存、淘汰与刷盘的策略选择与执行规则，支持按运行状态调整处理方式。",
+      "tags": [
+        "service",
+        "buffer-pool",
+        "cache"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/flush_strategy.go:NewLSNBasedFlushStrategy",
+      "type": "function",
+      "name": "NewLSNBasedFlushStrategy",
+      "filePath": "server/innodb/buffer_pool/flush_strategy.go",
+      "lineRange": [
+        18,
+        20
+      ],
+      "summary": "创建或初始化InnoDB Buffer Pool 缓存、淘汰与刷盘中的 NewLSNBasedFlushStrategy 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/flush_strategy.go:SelectPagesToFlush",
+      "type": "function",
+      "name": "SelectPagesToFlush",
+      "filePath": "server/innodb/buffer_pool/flush_strategy.go",
+      "lineRange": [
+        23,
+        42
+      ],
+      "summary": "实现InnoDB Buffer Pool 缓存、淘汰与刷盘中的 SelectPagesToFlush 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/flush_strategy.go:GetFlushPriority",
+      "type": "function",
+      "name": "GetFlushPriority",
+      "filePath": "server/innodb/buffer_pool/flush_strategy.go",
+      "lineRange": [
+        45,
+        56
+      ],
+      "summary": "读取或查询InnoDB Buffer Pool 缓存、淘汰与刷盘中的 GetFlushPriority 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/flush_strategy.go:NewAgeBasedFlushStrategy",
+      "type": "function",
+      "name": "NewAgeBasedFlushStrategy",
+      "filePath": "server/innodb/buffer_pool/flush_strategy.go",
+      "lineRange": [
+        62,
+        64
+      ],
+      "summary": "创建或初始化InnoDB Buffer Pool 缓存、淘汰与刷盘中的 NewAgeBasedFlushStrategy 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/flush_strategy.go:NewSizeBasedFlushStrategy",
+      "type": "function",
+      "name": "NewSizeBasedFlushStrategy",
+      "filePath": "server/innodb/buffer_pool/flush_strategy.go",
+      "lineRange": [
+        107,
+        109
+      ],
+      "summary": "创建或初始化InnoDB Buffer Pool 缓存、淘汰与刷盘中的 NewSizeBasedFlushStrategy 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/flush_strategy.go:NewCompositeFlushStrategy",
+      "type": "function",
+      "name": "NewCompositeFlushStrategy",
+      "filePath": "server/innodb/buffer_pool/flush_strategy.go",
+      "lineRange": [
+        154,
+        174
+      ],
+      "summary": "创建或初始化InnoDB Buffer Pool 缓存、淘汰与刷盘中的 NewCompositeFlushStrategy 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/buffer_pool/flush_strategy.go:FlushStrategy",
+      "type": "class",
+      "name": "FlushStrategy",
+      "filePath": "server/innodb/buffer_pool/flush_strategy.go",
+      "lineRange": [
+        9,
+        12
+      ],
+      "summary": "定义InnoDB Buffer Pool 缓存、淘汰与刷盘的 FlushStrategy 接口契约，约束实现方必须提供的操作。",
+      "tags": [
+        "interface",
+        "go-type",
+        "service",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/buffer_pool/flush_strategy.go:LSNBasedFlushStrategy",
+      "type": "class",
+      "name": "LSNBasedFlushStrategy",
+      "filePath": "server/innodb/buffer_pool/flush_strategy.go",
+      "lineRange": [
+        15,
+        15
+      ],
+      "summary": "定义InnoDB Buffer Pool 缓存、淘汰与刷盘的 LSNBasedFlushStrategy 接口契约，约束实现方必须提供的操作。",
+      "tags": [
+        "interface",
+        "go-type",
+        "service",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/buffer_pool/flush_strategy.go:AgeBasedFlushStrategy",
+      "type": "class",
+      "name": "AgeBasedFlushStrategy",
+      "filePath": "server/innodb/buffer_pool/flush_strategy.go",
+      "lineRange": [
+        59,
+        59
+      ],
+      "summary": "定义InnoDB Buffer Pool 缓存、淘汰与刷盘的 AgeBasedFlushStrategy 接口契约，约束实现方必须提供的操作。",
+      "tags": [
+        "interface",
+        "go-type",
+        "service",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/buffer_pool/flush_strategy.go:SizeBasedFlushStrategy",
+      "type": "class",
+      "name": "SizeBasedFlushStrategy",
+      "filePath": "server/innodb/buffer_pool/flush_strategy.go",
+      "lineRange": [
+        104,
+        104
+      ],
+      "summary": "定义InnoDB Buffer Pool 缓存、淘汰与刷盘的 SizeBasedFlushStrategy 接口契约，约束实现方必须提供的操作。",
+      "tags": [
+        "interface",
+        "go-type",
+        "service",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/buffer_pool/flush_strategy.go:CompositeFlushStrategy",
+      "type": "class",
+      "name": "CompositeFlushStrategy",
+      "filePath": "server/innodb/buffer_pool/flush_strategy.go",
+      "lineRange": [
+        148,
+        151
+      ],
+      "summary": "封装InnoDB Buffer Pool 缓存、淘汰与刷盘中的 CompositeFlushStrategy 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "function:server/innodb/buffer_pool/errors.go:Error",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "function:server/innodb/buffer_pool/errors.go:Error",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "function:server/innodb/buffer_pool/errors.go:Unwrap",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "function:server/innodb/buffer_pool/errors.go:Unwrap",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "function:server/innodb/buffer_pool/errors.go:NewError",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "function:server/innodb/buffer_pool/errors.go:NewError",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "function:server/innodb/buffer_pool/errors.go:IsNotFound",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "function:server/innodb/buffer_pool/errors.go:IsNotFound",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "function:server/innodb/buffer_pool/errors.go:IsLocked",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "function:server/innodb/buffer_pool/errors.go:IsLocked",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "function:server/innodb/buffer_pool/errors.go:IsCorrupted",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "function:server/innodb/buffer_pool/errors.go:IsCorrupted",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "function:server/innodb/buffer_pool/errors.go:IsBufferPoolFull",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "function:server/innodb/buffer_pool/errors.go:IsBufferPoolFull",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "function:server/innodb/buffer_pool/errors.go:IsIOError",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "function:server/innodb/buffer_pool/errors.go:IsIOError",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "function:server/innodb/buffer_pool/errors.go:IsDeadlock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "function:server/innodb/buffer_pool/errors.go:IsDeadlock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "function:server/innodb/buffer_pool/errors.go:IsTimeout",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "function:server/innodb/buffer_pool/errors.go:IsTimeout",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "class:server/innodb/buffer_pool/errors.go:BufferPoolError",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/errors.go",
+      "target": "class:server/innodb/buffer_pool/errors.go:BufferPoolError",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "function:server/innodb/buffer_pool/flush_strategy.go:NewLSNBasedFlushStrategy",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "function:server/innodb/buffer_pool/flush_strategy.go:NewLSNBasedFlushStrategy",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "function:server/innodb/buffer_pool/flush_strategy.go:SelectPagesToFlush",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "function:server/innodb/buffer_pool/flush_strategy.go:SelectPagesToFlush",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "function:server/innodb/buffer_pool/flush_strategy.go:GetFlushPriority",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "function:server/innodb/buffer_pool/flush_strategy.go:GetFlushPriority",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "function:server/innodb/buffer_pool/flush_strategy.go:NewAgeBasedFlushStrategy",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "function:server/innodb/buffer_pool/flush_strategy.go:NewAgeBasedFlushStrategy",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "function:server/innodb/buffer_pool/flush_strategy.go:NewSizeBasedFlushStrategy",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "function:server/innodb/buffer_pool/flush_strategy.go:NewSizeBasedFlushStrategy",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "function:server/innodb/buffer_pool/flush_strategy.go:NewCompositeFlushStrategy",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "function:server/innodb/buffer_pool/flush_strategy.go:NewCompositeFlushStrategy",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "class:server/innodb/buffer_pool/flush_strategy.go:FlushStrategy",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "class:server/innodb/buffer_pool/flush_strategy.go:FlushStrategy",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "class:server/innodb/buffer_pool/flush_strategy.go:LSNBasedFlushStrategy",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "class:server/innodb/buffer_pool/flush_strategy.go:LSNBasedFlushStrategy",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "class:server/innodb/buffer_pool/flush_strategy.go:AgeBasedFlushStrategy",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "class:server/innodb/buffer_pool/flush_strategy.go:AgeBasedFlushStrategy",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "class:server/innodb/buffer_pool/flush_strategy.go:SizeBasedFlushStrategy",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "class:server/innodb/buffer_pool/flush_strategy.go:SizeBasedFlushStrategy",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "class:server/innodb/buffer_pool/flush_strategy.go:CompositeFlushStrategy",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "target": "class:server/innodb/buffer_pool/flush_strategy.go:CompositeFlushStrategy",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

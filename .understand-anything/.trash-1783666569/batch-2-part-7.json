@@ -1,0 +1,1180 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/record/compact_format.go",
+      "type": "file",
+      "name": "compact_format.go",
+      "filePath": "server/innodb/record/compact_format.go",
+      "summary": "实现InnoDB 行记录格式、编码与优化的格式解析、长度计算与二进制编解码。",
+      "tags": [
+        "service",
+        "record-format",
+        "serialization"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/record/compact_format.go:NewCompactRowFormat",
+      "type": "function",
+      "name": "NewCompactRowFormat",
+      "filePath": "server/innodb/record/compact_format.go",
+      "lineRange": [
+        121,
+        142
+      ],
+      "summary": "创建或初始化InnoDB 行记录格式、编码与优化中的 NewCompactRowFormat 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/compact_format.go:EncodeRow",
+      "type": "function",
+      "name": "EncodeRow",
+      "filePath": "server/innodb/record/compact_format.go",
+      "lineRange": [
+        145,
+        259
+      ],
+      "summary": "编码或序列化InnoDB 行记录格式、编码与优化中的 EncodeRow 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "serialization",
+        "binary-format"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/record/compact_format.go:DecodeRow",
+      "type": "function",
+      "name": "DecodeRow",
+      "filePath": "server/innodb/record/compact_format.go",
+      "lineRange": [
+        262,
+        348
+      ],
+      "summary": "解析或反序列化InnoDB 行记录格式、编码与优化中的 DecodeRow 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "serialization",
+        "binary-format"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/record/compact_format.go:encodeRecordHeader",
+      "type": "function",
+      "name": "encodeRecordHeader",
+      "filePath": "server/innodb/record/compact_format.go",
+      "lineRange": [
+        351,
+        373
+      ],
+      "summary": "实现InnoDB 行记录格式、编码与优化中的 encodeRecordHeader 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/compact_format.go:decodeRecordHeader",
+      "type": "function",
+      "name": "decodeRecordHeader",
+      "filePath": "server/innodb/record/compact_format.go",
+      "lineRange": [
+        376,
+        394
+      ],
+      "summary": "实现InnoDB 行记录格式、编码与优化中的 decodeRecordHeader 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/compact_format.go:isNullValue",
+      "type": "function",
+      "name": "isNullValue",
+      "filePath": "server/innodb/record/compact_format.go",
+      "lineRange": [
+        397,
+        411
+      ],
+      "summary": "实现InnoDB 行记录格式、编码与优化中的 isNullValue 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/compact_format.go:valueToBytes",
+      "type": "function",
+      "name": "valueToBytes",
+      "filePath": "server/innodb/record/compact_format.go",
+      "lineRange": [
+        414,
+        432
+      ],
+      "summary": "实现InnoDB 行记录格式、编码与优化中的 valueToBytes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/compact_format.go:GetVarLenListSize",
+      "type": "function",
+      "name": "GetVarLenListSize",
+      "filePath": "server/innodb/record/compact_format.go",
+      "lineRange": [
+        435,
+        445
+      ],
+      "summary": "读取或查询InnoDB 行记录格式、编码与优化中的 GetVarLenListSize 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/compact_format.go:CalculateRowSize",
+      "type": "function",
+      "name": "CalculateRowSize",
+      "filePath": "server/innodb/record/compact_format.go",
+      "lineRange": [
+        448,
+        484
+      ],
+      "summary": "实现InnoDB 行记录格式、编码与优化中的 CalculateRowSize 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/record/compact_format.go:CompactRowFormat",
+      "type": "class",
+      "name": "CompactRowFormat",
+      "filePath": "server/innodb/record/compact_format.go",
+      "lineRange": [
+        49,
+        61
+      ],
+      "summary": "封装InnoDB 行记录格式、编码与优化中的 CompactRowFormat 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/record/compact_format.go:ColumnDef",
+      "type": "class",
+      "name": "ColumnDef",
+      "filePath": "server/innodb/record/compact_format.go",
+      "lineRange": [
+        64,
+        70
+      ],
+      "summary": "封装InnoDB 行记录格式、编码与优化中的 ColumnDef 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/record/compact_format.go:RecordHeader",
+      "type": "class",
+      "name": "RecordHeader",
+      "filePath": "server/innodb/record/compact_format.go",
+      "lineRange": [
+        92,
+        99
+      ],
+      "summary": "封装InnoDB 行记录格式、编码与优化中的 RecordHeader 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/record/compact_format.go:HiddenColumns",
+      "type": "class",
+      "name": "HiddenColumns",
+      "filePath": "server/innodb/record/compact_format.go",
+      "lineRange": [
+        102,
+        105
+      ],
+      "summary": "封装InnoDB 行记录格式、编码与优化中的 HiddenColumns 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/record/compact_format.go:CompactRow",
+      "type": "class",
+      "name": "CompactRow",
+      "filePath": "server/innodb/record/compact_format.go",
+      "lineRange": [
+        108,
+        118
+      ],
+      "summary": "封装InnoDB 行记录格式、编码与优化中的 CompactRow 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/record/dynamic_format.go",
+      "type": "file",
+      "name": "dynamic_format.go",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "summary": "实现InnoDB 行记录格式、编码与优化的格式解析、长度计算与二进制编解码。",
+      "tags": [
+        "service",
+        "record-format",
+        "serialization"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/record/dynamic_format.go:NewDynamicRowFormat",
+      "type": "function",
+      "name": "NewDynamicRowFormat",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        152,
+        176
+      ],
+      "summary": "创建或初始化InnoDB 行记录格式、编码与优化中的 NewDynamicRowFormat 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/dynamic_format.go:EncodeRow",
+      "type": "function",
+      "name": "EncodeRow",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        179,
+        242
+      ],
+      "summary": "编码或序列化InnoDB 行记录格式、编码与优化中的 EncodeRow 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "serialization",
+        "binary-format"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/record/dynamic_format.go:DecodeRow",
+      "type": "function",
+      "name": "DecodeRow",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        245,
+        284
+      ],
+      "summary": "解析或反序列化InnoDB 行记录格式、编码与优化中的 DecodeRow 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "serialization",
+        "binary-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/dynamic_format.go:shouldOverflow",
+      "type": "function",
+      "name": "shouldOverflow",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        287,
+        314
+      ],
+      "summary": "实现InnoDB 行记录格式、编码与优化中的 shouldOverflow 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/dynamic_format.go:encodeOverflowPointer",
+      "type": "function",
+      "name": "encodeOverflowPointer",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        317,
+        333
+      ],
+      "summary": "实现InnoDB 行记录格式、编码与优化中的 encodeOverflowPointer 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/dynamic_format.go:decodeOverflowPointer",
+      "type": "function",
+      "name": "decodeOverflowPointer",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        336,
+        352
+      ],
+      "summary": "实现InnoDB 行记录格式、编码与优化中的 decodeOverflowPointer 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/dynamic_format.go:loadOverflowData",
+      "type": "function",
+      "name": "loadOverflowData",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        355,
+        372
+      ],
+      "summary": "实现InnoDB 行记录格式、编码与优化中的 loadOverflowData 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/dynamic_format.go:GetColumnValue",
+      "type": "function",
+      "name": "GetColumnValue",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        375,
+        402
+      ],
+      "summary": "读取或查询InnoDB 行记录格式、编码与优化中的 GetColumnValue 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/dynamic_format.go:GetColumnValuePartial",
+      "type": "function",
+      "name": "GetColumnValuePartial",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        405,
+        440
+      ],
+      "summary": "读取或查询InnoDB 行记录格式、编码与优化中的 GetColumnValuePartial 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/dynamic_format.go:DeleteRow",
+      "type": "function",
+      "name": "DeleteRow",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        443,
+        452
+      ],
+      "summary": "删除或释放InnoDB 行记录格式、编码与优化中的 DeleteRow 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/dynamic_format.go:UpdateConfig",
+      "type": "function",
+      "name": "UpdateConfig",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        455,
+        459
+      ],
+      "summary": "写入或更新InnoDB 行记录格式、编码与优化中的 UpdateConfig 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/dynamic_format.go:GetStats",
+      "type": "function",
+      "name": "GetStats",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        462,
+        478
+      ],
+      "summary": "读取或查询InnoDB 行记录格式、编码与优化中的 GetStats 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/dynamic_format.go:GetOverflowRate",
+      "type": "function",
+      "name": "GetOverflowRate",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        481,
+        488
+      ],
+      "summary": "读取或查询InnoDB 行记录格式、编码与优化中的 GetOverflowRate 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/dynamic_format.go:GetAverageOverflowSize",
+      "type": "function",
+      "name": "GetAverageOverflowSize",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        491,
+        498
+      ],
+      "summary": "读取或查询InnoDB 行记录格式、编码与优化中的 GetAverageOverflowSize 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/dynamic_format.go:GetCacheHitRate",
+      "type": "function",
+      "name": "GetCacheHitRate",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        501,
+        509
+      ],
+      "summary": "读取或查询InnoDB 行记录格式、编码与优化中的 GetCacheHitRate 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/dynamic_format.go:ResetStats",
+      "type": "function",
+      "name": "ResetStats",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        512,
+        523
+      ],
+      "summary": "实现InnoDB 行记录格式、编码与优化中的 ResetStats 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/record/dynamic_format.go:DynamicRowFormat",
+      "type": "class",
+      "name": "DynamicRowFormat",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        54,
+        71
+      ],
+      "summary": "封装InnoDB 行记录格式、编码与优化中的 DynamicRowFormat 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/record/dynamic_format.go:BlobManagerInterface",
+      "type": "class",
+      "name": "BlobManagerInterface",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        74,
+        89
+      ],
+      "summary": "定义InnoDB 行记录格式、编码与优化的 BlobManagerInterface 接口契约，约束实现方必须提供的操作。",
+      "tags": [
+        "interface",
+        "go-type",
+        "service",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/record/dynamic_format.go:BlobMetadata",
+      "type": "class",
+      "name": "BlobMetadata",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        92,
+        97
+      ],
+      "summary": "封装InnoDB 行记录格式、编码与优化中的 BlobMetadata 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/record/dynamic_format.go:DynamicFormatConfig",
+      "type": "class",
+      "name": "DynamicFormatConfig",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        100,
+        112
+      ],
+      "summary": "封装InnoDB 行记录格式、编码与优化中的 DynamicFormatConfig 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/record/dynamic_format.go:DynamicFormatStats",
+      "type": "class",
+      "name": "DynamicFormatStats",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        115,
+        131
+      ],
+      "summary": "封装InnoDB 行记录格式、编码与优化中的 DynamicFormatStats 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/record/dynamic_format.go:OverflowPointer",
+      "type": "class",
+      "name": "OverflowPointer",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        134,
+        140
+      ],
+      "summary": "封装InnoDB 行记录格式、编码与优化中的 OverflowPointer 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/record/dynamic_format.go:DynamicRow",
+      "type": "class",
+      "name": "DynamicRow",
+      "filePath": "server/innodb/record/dynamic_format.go",
+      "lineRange": [
+        143,
+        149
+      ],
+      "summary": "封装InnoDB 行记录格式、编码与优化中的 DynamicRow 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/record/dynamic_format_test.go",
+      "type": "file",
+      "name": "dynamic_format_test.go",
+      "filePath": "server/innodb/record/dynamic_format_test.go",
+      "summary": "验证InnoDB 行记录格式、编码与优化中 dynamic format 的正常路径、边界条件与回归行为。",
+      "tags": [
+        "test",
+        "regression",
+        "record-format",
+        "serialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/dynamic_format_test.go:TestDynamicRowFormat_NoOverflow",
+      "type": "function",
+      "name": "TestDynamicRowFormat_NoOverflow",
+      "filePath": "server/innodb/record/dynamic_format_test.go",
+      "lineRange": [
+        8,
+        36
+      ],
+      "summary": "验证InnoDB 行记录格式、编码与优化中的 TestDynamicRowFormat_NoOverflow 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "function:server/innodb/record/compact_format.go:NewCompactRowFormat",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "function:server/innodb/record/compact_format.go:NewCompactRowFormat",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "function:server/innodb/record/compact_format.go:EncodeRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "function:server/innodb/record/compact_format.go:EncodeRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "function:server/innodb/record/compact_format.go:DecodeRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "function:server/innodb/record/compact_format.go:DecodeRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "function:server/innodb/record/compact_format.go:encodeRecordHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "function:server/innodb/record/compact_format.go:decodeRecordHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "function:server/innodb/record/compact_format.go:isNullValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "function:server/innodb/record/compact_format.go:valueToBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "function:server/innodb/record/compact_format.go:GetVarLenListSize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "function:server/innodb/record/compact_format.go:GetVarLenListSize",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "function:server/innodb/record/compact_format.go:CalculateRowSize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "function:server/innodb/record/compact_format.go:CalculateRowSize",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "class:server/innodb/record/compact_format.go:CompactRowFormat",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "class:server/innodb/record/compact_format.go:CompactRowFormat",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "class:server/innodb/record/compact_format.go:ColumnDef",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "class:server/innodb/record/compact_format.go:ColumnDef",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "class:server/innodb/record/compact_format.go:RecordHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "class:server/innodb/record/compact_format.go:RecordHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "class:server/innodb/record/compact_format.go:HiddenColumns",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "class:server/innodb/record/compact_format.go:HiddenColumns",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "class:server/innodb/record/compact_format.go:CompactRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/compact_format.go",
+      "target": "class:server/innodb/record/compact_format.go:CompactRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:NewDynamicRowFormat",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:NewDynamicRowFormat",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:EncodeRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:EncodeRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:DecodeRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:DecodeRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:shouldOverflow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:encodeOverflowPointer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:decodeOverflowPointer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:loadOverflowData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:GetColumnValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:GetColumnValue",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:GetColumnValuePartial",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:GetColumnValuePartial",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:DeleteRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:DeleteRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:UpdateConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:UpdateConfig",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:GetStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:GetStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:GetOverflowRate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:GetOverflowRate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:GetAverageOverflowSize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:GetAverageOverflowSize",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:GetCacheHitRate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:GetCacheHitRate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:ResetStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "function:server/innodb/record/dynamic_format.go:ResetStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "class:server/innodb/record/dynamic_format.go:DynamicRowFormat",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "class:server/innodb/record/dynamic_format.go:DynamicRowFormat",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "class:server/innodb/record/dynamic_format.go:BlobManagerInterface",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "class:server/innodb/record/dynamic_format.go:BlobManagerInterface",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "class:server/innodb/record/dynamic_format.go:BlobMetadata",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "class:server/innodb/record/dynamic_format.go:BlobMetadata",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "class:server/innodb/record/dynamic_format.go:DynamicFormatConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "class:server/innodb/record/dynamic_format.go:DynamicFormatConfig",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "class:server/innodb/record/dynamic_format.go:DynamicFormatStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "class:server/innodb/record/dynamic_format.go:DynamicFormatStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "class:server/innodb/record/dynamic_format.go:OverflowPointer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "class:server/innodb/record/dynamic_format.go:OverflowPointer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "class:server/innodb/record/dynamic_format.go:DynamicRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format.go",
+      "target": "class:server/innodb/record/dynamic_format.go:DynamicRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format_test.go",
+      "target": "function:server/innodb/record/dynamic_format_test.go:TestDynamicRowFormat_NoOverflow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/dynamic_format_test.go",
+      "target": "function:server/innodb/record/dynamic_format_test.go:TestDynamicRowFormat_NoOverflow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

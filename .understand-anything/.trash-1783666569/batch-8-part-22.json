@@ -1,0 +1,567 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/engine/show_parsing.go",
+      "type": "file",
+      "name": "show_parsing.go",
+      "filePath": "server/innodb/engine/show_parsing.go",
+      "summary": "实现SHOW 语句参数和过滤条件解析，覆盖 extractShowCreateTableName、extractShowCreateTableNameFromQuery、normalizeShowTargetName、extractShowColumnsTableNameFromQuery 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "show-parser",
+        "execution-engine",
+        "source-file"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/engine/show_parsing.go:extractShowCreateTableName",
+      "type": "function",
+      "name": "extractShowCreateTableName",
+      "filePath": "server/innodb/engine/show_parsing.go",
+      "lineRange": [
+        10,
+        19
+      ],
+      "summary": "实现 extractShowCreateTableName 对应的SHOW 语句参数和过滤条件解析流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "show-parser"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/show_parsing.go:extractShowCreateTableNameFromQuery",
+      "type": "function",
+      "name": "extractShowCreateTableNameFromQuery",
+      "filePath": "server/innodb/engine/show_parsing.go",
+      "lineRange": [
+        21,
+        30
+      ],
+      "summary": "实现 extractShowCreateTableNameFromQuery 对应的SHOW 语句参数和过滤条件解析流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "show-parser"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/show_parsing.go:extractShowColumnsTableNameFromQuery",
+      "type": "function",
+      "name": "extractShowColumnsTableNameFromQuery",
+      "filePath": "server/innodb/engine/show_parsing.go",
+      "lineRange": [
+        42,
+        64
+      ],
+      "summary": "实现 extractShowColumnsTableNameFromQuery 对应的SHOW 语句参数和过滤条件解析流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "show-parser"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/show_parsing.go:extractShowDatabasesLikePatternFromQuery",
+      "type": "function",
+      "name": "extractShowDatabasesLikePatternFromQuery",
+      "filePath": "server/innodb/engine/show_parsing.go",
+      "lineRange": [
+        75,
+        86
+      ],
+      "summary": "实现 extractShowDatabasesLikePatternFromQuery 对应的SHOW 语句参数和过滤条件解析流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "show-parser"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/show_parsing.go:extractShowVariablesLikePatternFromQuery",
+      "type": "function",
+      "name": "extractShowVariablesLikePatternFromQuery",
+      "filePath": "server/innodb/engine/show_parsing.go",
+      "lineRange": [
+        88,
+        101
+      ],
+      "summary": "实现 extractShowVariablesLikePatternFromQuery 对应的SHOW 语句参数和过滤条件解析流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "show-parser"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/show_parsing.go:extractShowStatusLikePatternFromQuery",
+      "type": "function",
+      "name": "extractShowStatusLikePatternFromQuery",
+      "filePath": "server/innodb/engine/show_parsing.go",
+      "lineRange": [
+        103,
+        116
+      ],
+      "summary": "实现 extractShowStatusLikePatternFromQuery 对应的SHOW 语句参数和过滤条件解析流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "show-parser"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/show_parsing.go:ExtractShowVariablesLikePatternFromQuery",
+      "type": "function",
+      "name": "ExtractShowVariablesLikePatternFromQuery",
+      "filePath": "server/innodb/engine/show_parsing.go",
+      "lineRange": [
+        118,
+        120
+      ],
+      "summary": "实现 ExtractShowVariablesLikePatternFromQuery 对应的SHOW 语句参数和过滤条件解析流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "show-parser"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/show_parsing.go:ExtractShowStatusLikePatternFromQuery",
+      "type": "function",
+      "name": "ExtractShowStatusLikePatternFromQuery",
+      "filePath": "server/innodb/engine/show_parsing.go",
+      "lineRange": [
+        122,
+        124
+      ],
+      "summary": "实现 ExtractShowStatusLikePatternFromQuery 对应的SHOW 语句参数和过滤条件解析流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "show-parser"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/show_parsing.go:ExtractShowLikePatternFromStmt",
+      "type": "function",
+      "name": "ExtractShowLikePatternFromStmt",
+      "filePath": "server/innodb/engine/show_parsing.go",
+      "lineRange": [
+        133,
+        135
+      ],
+      "summary": "实现 ExtractShowLikePatternFromStmt 对应的SHOW 语句参数和过滤条件解析流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "show-parser"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/show_parsing.go:extractShowWhereExprFromStmt",
+      "type": "function",
+      "name": "extractShowWhereExprFromStmt",
+      "filePath": "server/innodb/engine/show_parsing.go",
+      "lineRange": [
+        137,
+        148
+      ],
+      "summary": "实现 extractShowWhereExprFromStmt 对应的SHOW 语句参数和过滤条件解析流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "show-parser"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/show_parsing.go:ExtractShowWhereExprFromStmt",
+      "type": "function",
+      "name": "ExtractShowWhereExprFromStmt",
+      "filePath": "server/innodb/engine/show_parsing.go",
+      "lineRange": [
+        150,
+        152
+      ],
+      "summary": "实现 ExtractShowWhereExprFromStmt 对应的SHOW 语句参数和过滤条件解析流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "show-parser"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/show_parsing.go:extractShowTablesWhereExprFromQuery",
+      "type": "function",
+      "name": "extractShowTablesWhereExprFromQuery",
+      "filePath": "server/innodb/engine/show_parsing.go",
+      "lineRange": [
+        154,
+        177
+      ],
+      "summary": "实现 extractShowTablesWhereExprFromQuery 对应的SHOW 语句参数和过滤条件解析流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "show-parser"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/show_parsing.go:ResolveShowLikePattern",
+      "type": "function",
+      "name": "ResolveShowLikePattern",
+      "filePath": "server/innodb/engine/show_parsing.go",
+      "lineRange": [
+        179,
+        211
+      ],
+      "summary": "实现 ResolveShowLikePattern 对应的SHOW 语句参数和过滤条件解析流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "show-parser"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/show_parsing.go:ResolveShowWhereExpr",
+      "type": "function",
+      "name": "ResolveShowWhereExpr",
+      "filePath": "server/innodb/engine/show_parsing.go",
+      "lineRange": [
+        213,
+        220
+      ],
+      "summary": "实现 ResolveShowWhereExpr 对应的SHOW 语句参数和过滤条件解析流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "show-parser"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "function:server/innodb/engine/show_parsing.go:extractShowCreateTableName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "function:server/innodb/engine/show_parsing.go:extractShowCreateTableNameFromQuery",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "function:server/innodb/engine/show_parsing.go:extractShowColumnsTableNameFromQuery",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "function:server/innodb/engine/show_parsing.go:extractShowDatabasesLikePatternFromQuery",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "function:server/innodb/engine/show_parsing.go:extractShowVariablesLikePatternFromQuery",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "function:server/innodb/engine/show_parsing.go:extractShowStatusLikePatternFromQuery",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "function:server/innodb/engine/show_parsing.go:ExtractShowVariablesLikePatternFromQuery",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "function:server/innodb/engine/show_parsing.go:ExtractShowVariablesLikePatternFromQuery",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "function:server/innodb/engine/show_parsing.go:ExtractShowStatusLikePatternFromQuery",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "function:server/innodb/engine/show_parsing.go:ExtractShowStatusLikePatternFromQuery",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "function:server/innodb/engine/show_parsing.go:ExtractShowLikePatternFromStmt",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "function:server/innodb/engine/show_parsing.go:ExtractShowLikePatternFromStmt",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "function:server/innodb/engine/show_parsing.go:extractShowWhereExprFromStmt",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "function:server/innodb/engine/show_parsing.go:ExtractShowWhereExprFromStmt",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "function:server/innodb/engine/show_parsing.go:ExtractShowWhereExprFromStmt",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "function:server/innodb/engine/show_parsing.go:extractShowTablesWhereExprFromQuery",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "function:server/innodb/engine/show_parsing.go:ResolveShowLikePattern",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "function:server/innodb/engine/show_parsing.go:ResolveShowLikePattern",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "function:server/innodb/engine/show_parsing.go:ResolveShowWhereExpr",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "function:server/innodb/engine/show_parsing.go:ResolveShowWhereExpr",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/analyzer_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/analyzer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/ast_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/ast.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/comments_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/comments.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/encodable_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/encodable.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/expression.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/github_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/impossible_query.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/normalizer_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/normalizer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/parse_next_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/parse_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/parsed_query_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/parsed_query.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/precedence_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/redact_query_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/redact_query.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/sql.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/token_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/token.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/show_parsing.go",
+      "target": "file:server/innodb/sqlparser/tracked_buffer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

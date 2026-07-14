@@ -1,0 +1,1938 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/plan/join_plan.go",
+      "type": "file",
+      "name": "join_plan.go",
+      "filePath": "server/innodb/plan/join_plan.go",
+      "summary": "定义查询计划与优化器的计划节点及代价、行数估算和扫描接口，供优化与执行阶段复用。",
+      "tags": [
+        "go",
+        "query-optimizer",
+        "storage-engine"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/join_plan.go:GetPlanId",
+      "type": "function",
+      "name": "GetPlanId",
+      "filePath": "server/innodb/plan/join_plan.go",
+      "lineRange": [
+        15,
+        20
+      ],
+      "summary": "读取 查询计划与优化器 中的 PlanId 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/join_plan.go:GetExtraInfo",
+      "type": "function",
+      "name": "GetExtraInfo",
+      "filePath": "server/innodb/plan/join_plan.go",
+      "lineRange": [
+        22,
+        27
+      ],
+      "summary": "读取 查询计划与优化器 中的 ExtraInfo 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/join_plan.go:GetPlanAccessType",
+      "type": "function",
+      "name": "GetPlanAccessType",
+      "filePath": "server/innodb/plan/join_plan.go",
+      "lineRange": [
+        29,
+        31
+      ],
+      "summary": "读取 查询计划与优化器 中的 PlanAccessType 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/join_plan.go:NewJoinPlan",
+      "type": "function",
+      "name": "NewJoinPlan",
+      "filePath": "server/innodb/plan/join_plan.go",
+      "lineRange": [
+        33,
+        37
+      ],
+      "summary": "创建并初始化 JoinPlan，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/join_plan.go:GetEstimateBlocks",
+      "type": "function",
+      "name": "GetEstimateBlocks",
+      "filePath": "server/innodb/plan/join_plan.go",
+      "lineRange": [
+        39,
+        49
+      ],
+      "summary": "读取 查询计划与优化器 中的 EstimateBlocks 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/join_plan.go:GetEstimateRows",
+      "type": "function",
+      "name": "GetEstimateRows",
+      "filePath": "server/innodb/plan/join_plan.go",
+      "lineRange": [
+        51,
+        67
+      ],
+      "summary": "读取 查询计划与优化器 中的 EstimateRows 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/join_plan.go:Scan",
+      "type": "function",
+      "name": "Scan",
+      "filePath": "server/innodb/plan/join_plan.go",
+      "lineRange": [
+        69,
+        71
+      ],
+      "summary": "扫描 查询计划与优化器 管理的数据范围，并按计划返回匹配记录。",
+      "tags": [
+        "data-access",
+        "storage",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/join_plan.go:ToString",
+      "type": "function",
+      "name": "ToString",
+      "filePath": "server/innodb/plan/join_plan.go",
+      "lineRange": [
+        73,
+        75
+      ],
+      "summary": "转换 查询计划与优化器 中的数据表示，生成调用方需要的目标格式。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/join_plan.go:JoinPlan",
+      "type": "class",
+      "name": "JoinPlan",
+      "filePath": "server/innodb/plan/join_plan.go",
+      "lineRange": [
+        8,
+        13
+      ],
+      "summary": "表示 查询计划与优化器 中的 JoinPlan 计划节点及其估算或执行信息。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/plan/physical_plan.go",
+      "type": "file",
+      "name": "physical_plan.go",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "summary": "定义查询计划与优化器的计划节点及代价、行数估算和扫描接口，供优化与执行阶段复用。",
+      "tags": [
+        "go",
+        "query-optimizer",
+        "storage-engine"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:Schema",
+      "type": "function",
+      "name": "Schema",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        30,
+        32
+      ],
+      "summary": "实现 查询计划与优化器 中的 Schema 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:Children",
+      "type": "function",
+      "name": "Children",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        34,
+        36
+      ],
+      "summary": "实现 查询计划与优化器 中的 Children 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:SetChildren",
+      "type": "function",
+      "name": "SetChildren",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        38,
+        40
+      ],
+      "summary": "更新 查询计划与优化器 中的 Children。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:Cost",
+      "type": "function",
+      "name": "Cost",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        42,
+        44
+      ],
+      "summary": "实现 查询计划与优化器 中的 Cost 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:GetEstimateBlocks",
+      "type": "function",
+      "name": "GetEstimateBlocks",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        46,
+        48
+      ],
+      "summary": "读取 查询计划与优化器 中的 EstimateBlocks 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:GetEstimateRows",
+      "type": "function",
+      "name": "GetEstimateRows",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        50,
+        52
+      ],
+      "summary": "读取 查询计划与优化器 中的 EstimateRows 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:GetPlanId",
+      "type": "function",
+      "name": "GetPlanId",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        54,
+        56
+      ],
+      "summary": "读取 查询计划与优化器 中的 PlanId 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:Scan",
+      "type": "function",
+      "name": "Scan",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        58,
+        60
+      ],
+      "summary": "扫描 查询计划与优化器 管理的数据范围，并按计划返回匹配记录。",
+      "tags": [
+        "data-access",
+        "storage",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:ToString",
+      "type": "function",
+      "name": "ToString",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        62,
+        64
+      ],
+      "summary": "转换 查询计划与优化器 中的数据表示，生成调用方需要的目标格式。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:GetExtraInfo",
+      "type": "function",
+      "name": "GetExtraInfo",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        66,
+        68
+      ],
+      "summary": "读取 查询计划与优化器 中的 ExtraInfo 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:GetPlanAccessType",
+      "type": "function",
+      "name": "GetPlanAccessType",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        70,
+        72
+      ],
+      "summary": "读取 查询计划与优化器 中的 PlanAccessType 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:ConvertToPhysicalPlan",
+      "type": "function",
+      "name": "ConvertToPhysicalPlan",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        195,
+        308
+      ],
+      "summary": "转换 查询计划与优化器 中的数据表示，生成调用方需要的目标格式。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:shouldUseHashJoin",
+      "type": "function",
+      "name": "shouldUseHashJoin",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        311,
+        345
+      ],
+      "summary": "实现 查询计划与优化器 中的 shouldUseHashJoin 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:shouldUseHashAgg",
+      "type": "function",
+      "name": "shouldUseHashAgg",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        347,
+        369
+      ],
+      "summary": "实现 查询计划与优化器 中的 shouldUseHashAgg 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:estimateHashJoinCost",
+      "type": "function",
+      "name": "estimateHashJoinCost",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        371,
+        397
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateHashJoinCost 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:estimateMergeJoinCost",
+      "type": "function",
+      "name": "estimateMergeJoinCost",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        399,
+        415
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateMergeJoinCost 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:estimateHashAggCost",
+      "type": "function",
+      "name": "estimateHashAggCost",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        417,
+        436
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateHashAggCost 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:estimateStreamAggCost",
+      "type": "function",
+      "name": "estimateStreamAggCost",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        438,
+        453
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateStreamAggCost 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:estimateLogicalRowsForNode",
+      "type": "function",
+      "name": "estimateLogicalRowsForNode",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        455,
+        531
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateLogicalRowsForNode 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:estimateHashGroupCount",
+      "type": "function",
+      "name": "estimateHashGroupCount",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        533,
+        551
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateHashGroupCount 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:estimateSubqueryCost",
+      "type": "function",
+      "name": "estimateSubqueryCost",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        560,
+        574
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateSubqueryCost 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/physical_plan.go:estimateApplyCost",
+      "type": "function",
+      "name": "estimateApplyCost",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        576,
+        591
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateApplyCost 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/physical_plan.go:PhysicalPlan",
+      "type": "class",
+      "name": "PhysicalPlan",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        11,
+        21
+      ],
+      "summary": "表示 查询计划与优化器 中的 PhysicalPlan 计划节点及其估算或执行信息。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/physical_plan.go:BasePhysicalPlan",
+      "type": "class",
+      "name": "BasePhysicalPlan",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        24,
+        28
+      ],
+      "summary": "表示 查询计划与优化器 中的 BasePhysicalPlan 计划节点及其估算或执行信息。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/physical_plan.go:PhysicalTableScan",
+      "type": "class",
+      "name": "PhysicalTableScan",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        75,
+        78
+      ],
+      "summary": "定义 查询计划与优化器 使用的 PhysicalTableScan 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/physical_plan.go:PhysicalIndexScan",
+      "type": "class",
+      "name": "PhysicalIndexScan",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        103,
+        107
+      ],
+      "summary": "定义 查询计划与优化器 使用的 PhysicalIndexScan 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/physical_plan.go:PhysicalHashJoin",
+      "type": "class",
+      "name": "PhysicalHashJoin",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        117,
+        123
+      ],
+      "summary": "定义 查询计划与优化器 使用的 PhysicalHashJoin 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/physical_plan.go:PhysicalMergeJoin",
+      "type": "class",
+      "name": "PhysicalMergeJoin",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        130,
+        136
+      ],
+      "summary": "定义 查询计划与优化器 使用的 PhysicalMergeJoin 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/physical_plan.go:PhysicalHashAgg",
+      "type": "class",
+      "name": "PhysicalHashAgg",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        143,
+        147
+      ],
+      "summary": "定义 查询计划与优化器 使用的 PhysicalHashAgg 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/physical_plan.go:PhysicalStreamAgg",
+      "type": "class",
+      "name": "PhysicalStreamAgg",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        154,
+        158
+      ],
+      "summary": "定义 查询计划与优化器 使用的 PhysicalStreamAgg 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/physical_plan.go:PhysicalSort",
+      "type": "class",
+      "name": "PhysicalSort",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        165,
+        168
+      ],
+      "summary": "定义 查询计划与优化器 使用的 PhysicalSort 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/physical_plan.go:PhysicalProjection",
+      "type": "class",
+      "name": "PhysicalProjection",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        175,
+        178
+      ],
+      "summary": "定义 查询计划与优化器 使用的 PhysicalProjection 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/physical_plan.go:PhysicalSelection",
+      "type": "class",
+      "name": "PhysicalSelection",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        185,
+        188
+      ],
+      "summary": "定义 查询计划与优化器 使用的 PhysicalSelection 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/physical_plan.go:ByItem",
+      "type": "class",
+      "name": "ByItem",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        594,
+        598
+      ],
+      "summary": "定义 查询计划与优化器 使用的 ByItem 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/physical_plan.go:PhysicalSubquery",
+      "type": "class",
+      "name": "PhysicalSubquery",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        601,
+        607
+      ],
+      "summary": "定义 查询计划与优化器 使用的 PhysicalSubquery 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/physical_plan.go:PhysicalApply",
+      "type": "class",
+      "name": "PhysicalApply",
+      "filePath": "server/innodb/plan/physical_plan.go",
+      "lineRange": [
+        618,
+        623
+      ],
+      "summary": "定义 查询计划与优化器 使用的 PhysicalApply 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "function:server/innodb/plan/join_plan.go:GetPlanId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "function:server/innodb/plan/join_plan.go:GetPlanId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "function:server/innodb/plan/join_plan.go:GetExtraInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "function:server/innodb/plan/join_plan.go:GetExtraInfo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "function:server/innodb/plan/join_plan.go:GetPlanAccessType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "function:server/innodb/plan/join_plan.go:GetPlanAccessType",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "function:server/innodb/plan/join_plan.go:NewJoinPlan",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "function:server/innodb/plan/join_plan.go:NewJoinPlan",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "function:server/innodb/plan/join_plan.go:GetEstimateBlocks",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "function:server/innodb/plan/join_plan.go:GetEstimateBlocks",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "function:server/innodb/plan/join_plan.go:GetEstimateRows",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "function:server/innodb/plan/join_plan.go:GetEstimateRows",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "function:server/innodb/plan/join_plan.go:Scan",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "function:server/innodb/plan/join_plan.go:Scan",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "function:server/innodb/plan/join_plan.go:ToString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "function:server/innodb/plan/join_plan.go:ToString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "class:server/innodb/plan/join_plan.go:JoinPlan",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "class:server/innodb/plan/join_plan.go:JoinPlan",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/session_context.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/join_plan.go",
+      "target": "file:server/session.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:Schema",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:Schema",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:Children",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:Children",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:SetChildren",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:SetChildren",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:Cost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:Cost",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:GetEstimateBlocks",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:GetEstimateBlocks",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:GetEstimateRows",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:GetEstimateRows",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:GetPlanId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:GetPlanId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:Scan",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:Scan",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:ToString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:ToString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:GetExtraInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:GetExtraInfo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:GetPlanAccessType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:GetPlanAccessType",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:ConvertToPhysicalPlan",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:ConvertToPhysicalPlan",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:shouldUseHashJoin",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:shouldUseHashAgg",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:estimateHashJoinCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:estimateMergeJoinCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:estimateHashAggCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:estimateStreamAggCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:estimateLogicalRowsForNode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:estimateHashGroupCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:estimateSubqueryCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "function:server/innodb/plan/physical_plan.go:estimateApplyCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalPlan",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalPlan",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:BasePhysicalPlan",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:BasePhysicalPlan",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalTableScan",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalTableScan",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalIndexScan",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalIndexScan",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalHashJoin",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalHashJoin",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalMergeJoin",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalMergeJoin",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalHashAgg",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalHashAgg",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalStreamAgg",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalStreamAgg",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalSort",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalSort",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalProjection",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalProjection",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalSelection",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalSelection",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:ByItem",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:ByItem",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalSubquery",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalSubquery",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalApply",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "class:server/innodb/plan/physical_plan.go:PhysicalApply",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/metadata/builder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/metadata/column_def.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/metadata/column.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/metadata/convert.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/metadata/database.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/metadata/information_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/metadata/migrate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/metadata/query_schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/metadata/schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/metadata/table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/metadata/tuple.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/metadata/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/innodb/metadata/utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/session_context.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/physical_plan.go",
+      "target": "file:server/session.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

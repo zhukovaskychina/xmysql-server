@@ -1,0 +1,1331 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/plan/cost_estimator.go",
+      "type": "file",
+      "name": "cost_estimator.go",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "summary": "提供查询计划与优化器相关的数据结构与处理逻辑，核心结构包括 CostEstimator、CostEstimate、NewCostEstimator、EstimateTableScanCost。",
+      "tags": [
+        "go",
+        "query-optimizer",
+        "storage-engine"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:NewCostEstimator",
+      "type": "function",
+      "name": "NewCostEstimator",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        20,
+        29
+      ],
+      "summary": "创建并初始化 CostEstimator，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:EstimateTableScanCost",
+      "type": "function",
+      "name": "EstimateTableScanCost",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        32,
+        63
+      ],
+      "summary": "估算 TableScanCost，为计划选择提供统计依据。",
+      "tags": [
+        "query-planning",
+        "algorithm",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:EstimateIndexScanCost",
+      "type": "function",
+      "name": "EstimateIndexScanCost",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        66,
+        105
+      ],
+      "summary": "估算 IndexScanCost，为计划选择提供统计依据。",
+      "tags": [
+        "query-planning",
+        "algorithm",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:EstimateJoinCost",
+      "type": "function",
+      "name": "EstimateJoinCost",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        108,
+        136
+      ],
+      "summary": "估算 JoinCost，为计划选择提供统计依据。",
+      "tags": [
+        "query-planning",
+        "algorithm",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:EstimateAggregationCost",
+      "type": "function",
+      "name": "EstimateAggregationCost",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        139,
+        168
+      ],
+      "summary": "估算 AggregationCost，为计划选择提供统计依据。",
+      "tags": [
+        "query-planning",
+        "algorithm",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:EstimateSortCost",
+      "type": "function",
+      "name": "EstimateSortCost",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        171,
+        184
+      ],
+      "summary": "估算 SortCost，为计划选择提供统计依据。",
+      "tags": [
+        "query-planning",
+        "algorithm",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:calculateIndexScanCost",
+      "type": "function",
+      "name": "calculateIndexScanCost",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        189,
+        212
+      ],
+      "summary": "实现 查询计划与优化器 中的 calculateIndexScanCost 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:calculateLookupCost",
+      "type": "function",
+      "name": "calculateLookupCost",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        215,
+        224
+      ],
+      "summary": "实现 查询计划与优化器 中的 calculateLookupCost 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:estimateNestedLoopJoinCost",
+      "type": "function",
+      "name": "estimateNestedLoopJoinCost",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        233,
+        260
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateNestedLoopJoinCost 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:estimateHashJoinCost",
+      "type": "function",
+      "name": "estimateHashJoinCost",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        263,
+        336
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateHashJoinCost 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:estimateSortMergeJoinCost",
+      "type": "function",
+      "name": "estimateSortMergeJoinCost",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        339,
+        365
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateSortMergeJoinCost 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:estimateGroupCount",
+      "type": "function",
+      "name": "estimateGroupCount",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        378,
+        389
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateGroupCount 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:estimateAvgRowSize",
+      "type": "function",
+      "name": "estimateAvgRowSize",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        392,
+        414
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateAvgRowSize 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:String",
+      "type": "function",
+      "name": "String",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        436,
+        449
+      ],
+      "summary": "实现 查询计划与优化器 中的 String 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:CompareCosts",
+      "type": "function",
+      "name": "CompareCosts",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        452,
+        459
+      ],
+      "summary": "实现 查询计划与优化器 中的 CompareCosts 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:GetCostRatio",
+      "type": "function",
+      "name": "GetCostRatio",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        462,
+        467
+      ],
+      "summary": "读取 查询计划与优化器 中的 CostRatio 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:estimateJoinSelectivity",
+      "type": "function",
+      "name": "estimateJoinSelectivity",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        470,
+        501
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateJoinSelectivity 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:estimateConditionSelectivity",
+      "type": "function",
+      "name": "estimateConditionSelectivity",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        504,
+        523
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateConditionSelectivity 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:ChooseBestJoinAlgorithm",
+      "type": "function",
+      "name": "ChooseBestJoinAlgorithm",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        526,
+        566
+      ],
+      "summary": "实现 查询计划与优化器 中的 ChooseBestJoinAlgorithm 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:ChooseAggregateAlgorithm",
+      "type": "function",
+      "name": "ChooseAggregateAlgorithm",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        569,
+        591
+      ],
+      "summary": "实现 查询计划与优化器 中的 ChooseAggregateAlgorithm 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:estimateHashAggregateCost",
+      "type": "function",
+      "name": "estimateHashAggregateCost",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        594,
+        620
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateHashAggregateCost 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_estimator.go:estimateSortAggregateCost",
+      "type": "function",
+      "name": "estimateSortAggregateCost",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        623,
+        646
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateSortAggregateCost 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/cost_estimator.go:CostEstimator",
+      "type": "class",
+      "name": "CostEstimator",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        11,
+        17
+      ],
+      "summary": "定义 查询计划与优化器 使用的 CostEstimator 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/cost_estimator.go:CostEstimate",
+      "type": "class",
+      "name": "CostEstimate",
+      "filePath": "server/innodb/plan/cost_estimator.go",
+      "lineRange": [
+        417,
+        423
+      ],
+      "summary": "定义 查询计划与优化器 使用的 CostEstimate 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/plan/cost_model.go",
+      "type": "file",
+      "name": "cost_model.go",
+      "filePath": "server/innodb/plan/cost_model.go",
+      "summary": "提供查询计划与优化器相关的数据结构与处理逻辑，核心结构包括 CostModel、QueryCost、CostComparator、CBOCostEstimator。",
+      "tags": [
+        "go",
+        "query-optimizer",
+        "storage-engine"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_model.go:NewDefaultCostModel",
+      "type": "function",
+      "name": "NewDefaultCostModel",
+      "filePath": "server/innodb/plan/cost_model.go",
+      "lineRange": [
+        70,
+        72
+      ],
+      "summary": "创建并初始化 DefaultCostModel，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_model.go:Add",
+      "type": "function",
+      "name": "Add",
+      "filePath": "server/innodb/plan/cost_model.go",
+      "lineRange": [
+        85,
+        91
+      ],
+      "summary": "实现 查询计划与优化器 中的 Add 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_model.go:Multiply",
+      "type": "function",
+      "name": "Multiply",
+      "filePath": "server/innodb/plan/cost_model.go",
+      "lineRange": [
+        94,
+        100
+      ],
+      "summary": "实现 查询计划与优化器 中的 Multiply 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_model.go:CompareTo",
+      "type": "function",
+      "name": "CompareTo",
+      "filePath": "server/innodb/plan/cost_model.go",
+      "lineRange": [
+        104,
+        113
+      ],
+      "summary": "实现 查询计划与优化器 中的 CompareTo 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_model.go:EstimateSeqScanCost",
+      "type": "function",
+      "name": "EstimateSeqScanCost",
+      "filePath": "server/innodb/plan/cost_model.go",
+      "lineRange": [
+        116,
+        129
+      ],
+      "summary": "估算 SeqScanCost，为计划选择提供统计依据。",
+      "tags": [
+        "query-planning",
+        "algorithm",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_model.go:EstimateIndexScanCost",
+      "type": "function",
+      "name": "EstimateIndexScanCost",
+      "filePath": "server/innodb/plan/cost_model.go",
+      "lineRange": [
+        132,
+        158
+      ],
+      "summary": "估算 IndexScanCost，为计划选择提供统计依据。",
+      "tags": [
+        "query-planning",
+        "algorithm",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_model.go:EstimateIndexOnlyScanCost",
+      "type": "function",
+      "name": "EstimateIndexOnlyScanCost",
+      "filePath": "server/innodb/plan/cost_model.go",
+      "lineRange": [
+        161,
+        178
+      ],
+      "summary": "估算 IndexOnlyScanCost，为计划选择提供统计依据。",
+      "tags": [
+        "query-planning",
+        "algorithm",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_model.go:EstimateJoinCost",
+      "type": "function",
+      "name": "EstimateJoinCost",
+      "filePath": "server/innodb/plan/cost_model.go",
+      "lineRange": [
+        181,
+        217
+      ],
+      "summary": "估算 JoinCost，为计划选择提供统计依据。",
+      "tags": [
+        "query-planning",
+        "algorithm",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_model.go:EstimateSortCost",
+      "type": "function",
+      "name": "EstimateSortCost",
+      "filePath": "server/innodb/plan/cost_model.go",
+      "lineRange": [
+        220,
+        245
+      ],
+      "summary": "估算 SortCost，为计划选择提供统计依据。",
+      "tags": [
+        "query-planning",
+        "algorithm",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_model.go:EstimateGroupByCost",
+      "type": "function",
+      "name": "EstimateGroupByCost",
+      "filePath": "server/innodb/plan/cost_model.go",
+      "lineRange": [
+        248,
+        273
+      ],
+      "summary": "估算 GroupByCost，为计划选择提供统计依据。",
+      "tags": [
+        "query-planning",
+        "algorithm",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_model.go:EstimateFilterCost",
+      "type": "function",
+      "name": "EstimateFilterCost",
+      "filePath": "server/innodb/plan/cost_model.go",
+      "lineRange": [
+        276,
+        293
+      ],
+      "summary": "估算 FilterCost，为计划选择提供统计依据。",
+      "tags": [
+        "query-planning",
+        "algorithm",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_model.go:NewCostComparator",
+      "type": "function",
+      "name": "NewCostComparator",
+      "filePath": "server/innodb/plan/cost_model.go",
+      "lineRange": [
+        301,
+        303
+      ],
+      "summary": "创建并初始化 CostComparator，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cost_model.go:SelectBest",
+      "type": "function",
+      "name": "SelectBest",
+      "filePath": "server/innodb/plan/cost_model.go",
+      "lineRange": [
+        306,
+        319
+      ],
+      "summary": "实现 查询计划与优化器 中的 SelectBest 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/cost_model.go:CostModel",
+      "type": "class",
+      "name": "CostModel",
+      "filePath": "server/innodb/plan/cost_model.go",
+      "lineRange": [
+        9,
+        36
+      ],
+      "summary": "定义 查询计划与优化器 使用的 CostModel 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/cost_model.go:QueryCost",
+      "type": "class",
+      "name": "QueryCost",
+      "filePath": "server/innodb/plan/cost_model.go",
+      "lineRange": [
+        75,
+        82
+      ],
+      "summary": "定义 查询计划与优化器 使用的 QueryCost 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/cost_model.go:CostComparator",
+      "type": "class",
+      "name": "CostComparator",
+      "filePath": "server/innodb/plan/cost_model.go",
+      "lineRange": [
+        296,
+        298
+      ],
+      "summary": "定义 查询计划与优化器 使用的 CostComparator 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/cost_model.go:CBOCostEstimator",
+      "type": "class",
+      "name": "CBOCostEstimator",
+      "filePath": "server/innodb/plan/cost_model.go",
+      "lineRange": [
+        322,
+        324
+      ],
+      "summary": "定义 查询计划与优化器 使用的 CBOCostEstimator 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:NewCostEstimator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:NewCostEstimator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:EstimateTableScanCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:EstimateTableScanCost",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:EstimateIndexScanCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:EstimateIndexScanCost",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:EstimateJoinCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:EstimateJoinCost",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:EstimateAggregationCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:EstimateAggregationCost",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:EstimateSortCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:EstimateSortCost",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:calculateIndexScanCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:calculateLookupCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:estimateNestedLoopJoinCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:estimateHashJoinCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:estimateSortMergeJoinCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:estimateGroupCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:estimateAvgRowSize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:String",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:String",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:CompareCosts",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:CompareCosts",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:GetCostRatio",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:GetCostRatio",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:estimateJoinSelectivity",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:estimateConditionSelectivity",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:ChooseBestJoinAlgorithm",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:ChooseBestJoinAlgorithm",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:ChooseAggregateAlgorithm",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:ChooseAggregateAlgorithm",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:estimateHashAggregateCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "function:server/innodb/plan/cost_estimator.go:estimateSortAggregateCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "class:server/innodb/plan/cost_estimator.go:CostEstimator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "class:server/innodb/plan/cost_estimator.go:CostEstimator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "class:server/innodb/plan/cost_estimator.go:CostEstimate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "class:server/innodb/plan/cost_estimator.go:CostEstimate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "file:server/innodb/metadata/builder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "file:server/innodb/metadata/column_def.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "file:server/innodb/metadata/column.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "file:server/innodb/metadata/convert.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "file:server/innodb/metadata/database.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "file:server/innodb/metadata/information_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "file:server/innodb/metadata/migrate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "file:server/innodb/metadata/query_schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "file:server/innodb/metadata/schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "file:server/innodb/metadata/table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "file:server/innodb/metadata/tuple.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "file:server/innodb/metadata/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/cost_estimator.go",
+      "target": "file:server/innodb/metadata/utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:NewDefaultCostModel",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:NewDefaultCostModel",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:Add",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:Add",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:Multiply",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:Multiply",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:CompareTo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:CompareTo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:EstimateSeqScanCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:EstimateSeqScanCost",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:EstimateIndexScanCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:EstimateIndexScanCost",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:EstimateIndexOnlyScanCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:EstimateIndexOnlyScanCost",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:EstimateJoinCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:EstimateJoinCost",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:EstimateSortCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:EstimateSortCost",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:EstimateGroupByCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:EstimateGroupByCost",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:EstimateFilterCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:EstimateFilterCost",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:NewCostComparator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:NewCostComparator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:SelectBest",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "function:server/innodb/plan/cost_model.go:SelectBest",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "class:server/innodb/plan/cost_model.go:CostModel",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "class:server/innodb/plan/cost_model.go:CostModel",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "class:server/innodb/plan/cost_model.go:QueryCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "class:server/innodb/plan/cost_model.go:QueryCost",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "class:server/innodb/plan/cost_model.go:CostComparator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "class:server/innodb/plan/cost_model.go:CostComparator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "class:server/innodb/plan/cost_model.go:CBOCostEstimator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cost_model.go",
+      "target": "class:server/innodb/plan/cost_model.go:CBOCostEstimator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

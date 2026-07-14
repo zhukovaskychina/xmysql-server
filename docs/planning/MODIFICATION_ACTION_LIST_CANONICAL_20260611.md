@@ -2,6 +2,8 @@
 
 生成时间：2026-06-11（本地扫描快照）
 
+> 2026-07-13 更新：本文是历史扫描快照。DML、SHOW、StorageIntegratedDML、BufferPool pinned-page 驱逐、EnhancedBTree 最小 rebuild/drop 已完成 P0 core 闭环。当前 core 状态见 `docs/planning/P0_CORE_STATUS_20260713.md`。
+
 ## 1. 变更基线
 
 - 关键词扫描口径：`TODO|FIXME|not implemented|notImplemented|unimplemented|placeholder|暂未实现|暂时返回|待实现|not implemented in test|not implemented yet|stub`
@@ -13,6 +15,10 @@
 - 结果：
   - `server/**/*.go`：约 `187` 处（约 `95` 个文件）
   - `docs/scripts`（按上述口径）：约 `228` 处
+- 2026-07-13 校正：
+  - P0 core 已由 `scripts/verify_p0_core.sh` 建立可重复验证；
+  - 旧扫描中的 DML/SHOW/storage-DML/buffer/enhanced-btree core 结论不再代表当前状态；
+  - 剩余广义 P0 仍集中在 P0-03 残余、P0-06、P0-07、P0-08、P0-09。
 
 > 当前仓库也存在大量临时产物与历史报告文件，清单按“功能阻塞优先级”聚焦，不把它们重复展开。
 
@@ -41,6 +47,19 @@
   - 存储读取/写入失败
   - begin/commit/rollback 失败
   - 重复键冲突
+
+2026-07-13 已关闭子项：
+- DML operator 到 storage write 接口；
+- duplicate check / insert / update / delete 的 `StorageAdapter` 最小闭环；
+- StorageIntegratedDML 页内 append / replace / delete slot；
+- SHOW 真实元数据入口；
+- BufferPool pinned-page 驱逐；
+- EnhancedBTree 最小 rebuild/drop。
+
+2026-07-13 仍需继续：
+- `index_transaction_adapter.go` 锁释放边界；
+- `unified_executor.go` 和其余 executor 失败路径错误码统一；
+- `storage_integrated_index_helper.go` 复合索引与一致性检查。
 
 验收命令：
 
@@ -138,7 +157,7 @@ go test ./server/innodb/manager ./server/net -run 'Test.*(Stats|Metrics|Alert|Mo
 
 ## 6. 今日推荐顺序（建议）
 
-1. 先关闭 P0-03（错误链路一口气接完）
+1. 先关闭 P0-03 残余（错误码、锁释放、索引 helper）
 2. 再并行处理 P0-06、P0-07（恢复和灰度链路互斥少、收口快）
 3. 同步补齐 P0-08、P0-09（观测链路）
 4. P0 通过后推进 P1

@@ -1,0 +1,3463 @@
+{
+  "nodes": [
+    {
+      "id": "file:.cursor/rules/database-engine-design.mdc",
+      "type": "file",
+      "name": "database-engine-design.mdc",
+      "filePath": ".cursor/rules/database-engine-design.mdc",
+      "summary": "database-engine-design.mdc 是 mdc 文件，属于 .cursor 模块。",
+      "tags": [
+        "mdc",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.cursor/skills/xmysql-server-dev/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": ".cursor/skills/xmysql-server-dev/SKILL.md",
+      "summary": "SKILL.md 是项目文档，说明 .cursor/skills/xmysql-server-dev 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.github/git-commit-instructions.md",
+      "type": "document",
+      "name": "git-commit-instructions.md",
+      "filePath": ".github/git-commit-instructions.md",
+      "summary": "git-commit-instructions.md 是项目文档，说明 .github 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:client/main.go",
+      "type": "file",
+      "name": "main.go",
+      "filePath": "client/main.go",
+      "summary": "main.go 属于客户端辅助程序，用于连接或验证服务端行为。",
+      "tags": [
+        "entry-point",
+        "logic",
+        "code"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:client/main.go:NewMySQLClient",
+      "type": "function",
+      "name": "NewMySQLClient",
+      "filePath": "client/main.go",
+      "summary": "NewMySQLClient 定义在 client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:client/main.go:Connect",
+      "type": "function",
+      "name": "Connect",
+      "filePath": "client/main.go",
+      "summary": "Connect 定义在 client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:client/main.go:Close",
+      "type": "function",
+      "name": "Close",
+      "filePath": "client/main.go",
+      "summary": "Close 定义在 client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:client/main.go:ExecuteQuery",
+      "type": "function",
+      "name": "ExecuteQuery",
+      "filePath": "client/main.go",
+      "summary": "ExecuteQuery 定义在 client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:client/main.go:executeSelect",
+      "type": "function",
+      "name": "executeSelect",
+      "filePath": "client/main.go",
+      "summary": "executeSelect 定义在 client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "go"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:client/main.go:executeNonSelect",
+      "type": "function",
+      "name": "executeNonSelect",
+      "filePath": "client/main.go",
+      "summary": "executeNonSelect 定义在 client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "go"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:client/main.go:StartCLI",
+      "type": "function",
+      "name": "StartCLI",
+      "filePath": "client/main.go",
+      "summary": "StartCLI 定义在 client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:client/main.go:StartGUI",
+      "type": "function",
+      "name": "StartGUI",
+      "filePath": "client/main.go",
+      "summary": "StartGUI 定义在 client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "go"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:client/main.go:displayGUIResult",
+      "type": "function",
+      "name": "displayGUIResult",
+      "filePath": "client/main.go",
+      "summary": "displayGUIResult 定义在 client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:client/main.go:printTable",
+      "type": "function",
+      "name": "printTable",
+      "filePath": "client/main.go",
+      "summary": "printTable 定义在 client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "go"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:client/main.go:showHelp",
+      "type": "function",
+      "name": "showHelp",
+      "filePath": "client/main.go",
+      "summary": "showHelp 定义在 client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:client/main.go:showStatus",
+      "type": "function",
+      "name": "showStatus",
+      "filePath": "client/main.go",
+      "summary": "showStatus 定义在 client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:client/main.go:parseArgs",
+      "type": "function",
+      "name": "parseArgs",
+      "filePath": "client/main.go",
+      "summary": "parseArgs 定义在 client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "go"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:client/main.go:printUsage",
+      "type": "function",
+      "name": "printUsage",
+      "filePath": "client/main.go",
+      "summary": "printUsage 定义在 client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "go"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:client/main.go:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "client/main.go",
+      "summary": "main 定义在 client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "go"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:client/main.go:ClientConfig",
+      "type": "class",
+      "name": "ClientConfig",
+      "filePath": "client/main.go",
+      "summary": "ClientConfig 定义在 client/main.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:client/main.go:MySQLClient",
+      "type": "class",
+      "name": "MySQLClient",
+      "filePath": "client/main.go",
+      "summary": "MySQLClient 定义在 client/main.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:client/main.go:QueryResult",
+      "type": "class",
+      "name": "QueryResult",
+      "filePath": "client/main.go",
+      "summary": "QueryResult 定义在 client/main.go 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:cmd/demo_executor/my.ini",
+      "type": "config",
+      "name": "my.ini",
+      "filePath": "cmd/demo_executor/my.ini",
+      "summary": "my.ini 提供项目配置，影响构建、运行参数或工具行为。",
+      "tags": [
+        "configuration",
+        "config"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:cmd/demo_mysql_client_test/mysql_test.go",
+      "type": "file",
+      "name": "mysql_test.go",
+      "filePath": "cmd/demo_mysql_client_test/mysql_test.go",
+      "summary": "mysql_test.go 是命令行演示或验证入口，用于验证特定模块行为。",
+      "tags": [
+        "test",
+        "logic",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:cmd/demo_mysql_client_test/mysql_test.go:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "cmd/demo_mysql_client_test/mysql_test.go",
+      "summary": "main 定义在 cmd/demo_mysql_client_test/mysql_test.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "go"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:cmd/mysql_test_client/main.go",
+      "type": "file",
+      "name": "main.go",
+      "filePath": "cmd/mysql_test_client/main.go",
+      "summary": "main.go 是命令行演示或验证入口，用于验证特定模块行为。",
+      "tags": [
+        "entry-point",
+        "logic",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:cmd/mysql_test_client/main.go:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "cmd/mysql_test_client/main.go",
+      "summary": "main 定义在 cmd/mysql_test_client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "go"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:cmd/recovery_drill_client/main.go",
+      "type": "file",
+      "name": "main.go",
+      "filePath": "cmd/recovery_drill_client/main.go",
+      "summary": "main.go 是命令行演示或验证入口，用于验证特定模块行为。",
+      "tags": [
+        "entry-point",
+        "logic",
+        "code"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:cmd/recovery_drill_client/main.go:runSetupRedo",
+      "type": "function",
+      "name": "runSetupRedo",
+      "filePath": "cmd/recovery_drill_client/main.go",
+      "summary": "runSetupRedo 定义在 cmd/recovery_drill_client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:cmd/recovery_drill_client/main.go:runVerifyRedo",
+      "type": "function",
+      "name": "runVerifyRedo",
+      "filePath": "cmd/recovery_drill_client/main.go",
+      "summary": "runVerifyRedo 定义在 cmd/recovery_drill_client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "go"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:cmd/recovery_drill_client/main.go:runHoldUndo",
+      "type": "function",
+      "name": "runHoldUndo",
+      "filePath": "cmd/recovery_drill_client/main.go",
+      "summary": "runHoldUndo 定义在 cmd/recovery_drill_client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "go"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:cmd/recovery_drill_client/main.go:runVerifyUndo",
+      "type": "function",
+      "name": "runVerifyUndo",
+      "filePath": "cmd/recovery_drill_client/main.go",
+      "summary": "runVerifyUndo 定义在 cmd/recovery_drill_client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:cmd/recovery_drill_client/main.go:runRaceCommit",
+      "type": "function",
+      "name": "runRaceCommit",
+      "filePath": "cmd/recovery_drill_client/main.go",
+      "summary": "runRaceCommit 定义在 cmd/recovery_drill_client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "go"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:cmd/recovery_drill_client/main.go:runVerifyHalfCommit",
+      "type": "function",
+      "name": "runVerifyHalfCommit",
+      "filePath": "cmd/recovery_drill_client/main.go",
+      "summary": "runVerifyHalfCommit 定义在 cmd/recovery_drill_client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:cmd/recovery_drill_client/main.go:runSnapshot",
+      "type": "function",
+      "name": "runSnapshot",
+      "filePath": "cmd/recovery_drill_client/main.go",
+      "summary": "runSnapshot 定义在 cmd/recovery_drill_client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "go"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:cmd/recovery_drill_client/main.go:runVerifyShowTablesWhere",
+      "type": "function",
+      "name": "runVerifyShowTablesWhere",
+      "filePath": "cmd/recovery_drill_client/main.go",
+      "summary": "runVerifyShowTablesWhere 定义在 cmd/recovery_drill_client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "go"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:cmd/recovery_drill_client/main.go:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "cmd/recovery_drill_client/main.go",
+      "summary": "main 定义在 cmd/recovery_drill_client/main.go 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "go"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/architecture/architecture_responsibility_separation.md",
+      "type": "document",
+      "name": "architecture_responsibility_separation.md",
+      "filePath": "docs/architecture/architecture_responsibility_separation.md",
+      "summary": "architecture_responsibility_separation.md 是项目文档，说明 docs/architecture 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/client/CLIENT_README.md",
+      "type": "document",
+      "name": "CLIENT_README.md",
+      "filePath": "docs/client/CLIENT_README.md",
+      "summary": "CLIENT_README.md 是项目文档，说明 docs/client 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/index-reports/INDEX_001_SECONDARY_INDEX_VERIFICATION_REPORT.md",
+      "type": "document",
+      "name": "INDEX_001_SECONDARY_INDEX_VERIFICATION_REPORT.md",
+      "filePath": "docs/index-reports/INDEX_001_SECONDARY_INDEX_VERIFICATION_REPORT.md",
+      "summary": "INDEX_001_SECONDARY_INDEX_VERIFICATION_REPORT.md 是项目文档，说明 docs/index-reports 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/summaries/IMPLEMENTATION_ISSUES_SUMMARY.md",
+      "type": "document",
+      "name": "IMPLEMENTATION_ISSUES_SUMMARY.md",
+      "filePath": "docs/summaries/IMPLEMENTATION_ISSUES_SUMMARY.md",
+      "summary": "IMPLEMENTATION_ISSUES_SUMMARY.md 是项目文档，说明 docs/summaries 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-04-17-kernel-correctness-p0-design.md",
+      "type": "document",
+      "name": "2026-04-17-kernel-correctness-p0-design.md",
+      "filePath": "docs/superpowers/specs/2026-04-17-kernel-correctness-p0-design.md",
+      "summary": "2026-04-17-kernel-correctness-p0-design.md 是项目文档，说明 docs/superpowers/specs 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:fix_btree.py",
+      "type": "file",
+      "name": "fix_btree.py",
+      "filePath": "fix_btree.py",
+      "summary": "fix_btree.py 是 python 文件，属于 fix_btree.py 模块。",
+      "tags": [
+        "python",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "type": "file",
+      "name": "DDLTestDemo.java",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "summary": "DDLTestDemo.java 是 java 文件，属于 jdbc_client 模块。",
+      "tags": [
+        "test",
+        "logic",
+        "code"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "summary": "main 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java:testDatabaseOperations",
+      "type": "function",
+      "name": "testDatabaseOperations",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "summary": "testDatabaseOperations 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java:testCreateDatabases",
+      "type": "function",
+      "name": "testCreateDatabases",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "summary": "testCreateDatabases 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java:testCreateDatabaseWithCharset",
+      "type": "function",
+      "name": "testCreateDatabaseWithCharset",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "summary": "testCreateDatabaseWithCharset 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java:testTableOperations",
+      "type": "function",
+      "name": "testTableOperations",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "summary": "testTableOperations 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java:testCreateTables",
+      "type": "function",
+      "name": "testCreateTables",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "summary": "testCreateTables 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java:cleanupTestData",
+      "type": "function",
+      "name": "cleanupTestData",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "summary": "cleanupTestData 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java:executeQuery",
+      "type": "function",
+      "name": "executeQuery",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "summary": "executeQuery 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java:DDLTestDemo",
+      "type": "class",
+      "name": "DDLTestDemo",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "summary": "DDLTestDemo 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "java"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "type": "file",
+      "name": "InsertDataTestDemo.java",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "summary": "InsertDataTestDemo.java 是 java 文件，属于 jdbc_client 模块。",
+      "tags": [
+        "test",
+        "logic",
+        "code"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "summary": "main 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:createTestDatabase",
+      "type": "function",
+      "name": "createTestDatabase",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "summary": "createTestDatabase 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:useTestDatabase",
+      "type": "function",
+      "name": "useTestDatabase",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "summary": "useTestDatabase 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:createTestTables",
+      "type": "function",
+      "name": "createTestTables",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "summary": "createTestTables 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:insertTestData",
+      "type": "function",
+      "name": "insertTestData",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "summary": "insertTestData 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:testSimpleInserts",
+      "type": "function",
+      "name": "testSimpleInserts",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "summary": "testSimpleInserts 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:testPreparedInserts",
+      "type": "function",
+      "name": "testPreparedInserts",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "summary": "testPreparedInserts 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:testBatchInserts",
+      "type": "function",
+      "name": "testBatchInserts",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "summary": "testBatchInserts 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:queryTestData",
+      "type": "function",
+      "name": "queryTestData",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "summary": "queryTestData 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:queryUsers",
+      "type": "function",
+      "name": "queryUsers",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "summary": "queryUsers 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:queryProducts",
+      "type": "function",
+      "name": "queryProducts",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "summary": "queryProducts 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:InsertDataTestDemo",
+      "type": "class",
+      "name": "InsertDataTestDemo",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "summary": "InsertDataTestDemo 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "java"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "type": "file",
+      "name": "InsertTestDemo.java",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "summary": "InsertTestDemo.java 是 java 文件，属于 jdbc_client 模块。",
+      "tags": [
+        "test",
+        "logic",
+        "code"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "summary": "main 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:setupTestEnvironment",
+      "type": "function",
+      "name": "setupTestEnvironment",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "summary": "setupTestEnvironment 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:testBasicInsert",
+      "type": "function",
+      "name": "testBasicInsert",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "summary": "testBasicInsert 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:testBatchInsert",
+      "type": "function",
+      "name": "testBatchInsert",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "summary": "testBatchInsert 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:testInsertWithDefaults",
+      "type": "function",
+      "name": "testInsertWithDefaults",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "summary": "testInsertWithDefaults 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:testInsertSelect",
+      "type": "function",
+      "name": "testInsertSelect",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "summary": "testInsertSelect 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:testInsertOnDuplicateKey",
+      "type": "function",
+      "name": "testInsertOnDuplicateKey",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "summary": "testInsertOnDuplicateKey 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:cleanupTestEnvironment",
+      "type": "function",
+      "name": "cleanupTestEnvironment",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "summary": "cleanupTestEnvironment 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:executeUpdate",
+      "type": "function",
+      "name": "executeUpdate",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "summary": "executeUpdate 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:executeQuery",
+      "type": "function",
+      "name": "executeQuery",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "summary": "executeQuery 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:InsertTestDemo",
+      "type": "class",
+      "name": "InsertTestDemo",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "summary": "InsertTestDemo 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "java"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java",
+      "type": "file",
+      "name": "MySQLDemo.java",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java",
+      "summary": "MySQLDemo.java 是 java 文件，属于 jdbc_client 模块。",
+      "tags": [
+        "logic",
+        "code"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java",
+      "summary": "main 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java:ensureDatabaseAndUse",
+      "type": "function",
+      "name": "ensureDatabaseAndUse",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java",
+      "summary": "ensureDatabaseAndUse 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java:createTableIfNotExists",
+      "type": "function",
+      "name": "createTableIfNotExists",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java",
+      "summary": "createTableIfNotExists 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java:insertSampleData",
+      "type": "function",
+      "name": "insertSampleData",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java",
+      "summary": "insertSampleData 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java:queryData",
+      "type": "function",
+      "name": "queryData",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java",
+      "summary": "queryData 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java:MySQLDemo",
+      "type": "class",
+      "name": "MySQLDemo",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java",
+      "summary": "MySQLDemo 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "type": "file",
+      "name": "SQLParserTestDemo.java",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "summary": "SQLParserTestDemo.java 是 java 文件，属于 jdbc_client 模块。",
+      "tags": [
+        "test",
+        "logic",
+        "code"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "summary": "main 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java:testSelectStatements",
+      "type": "function",
+      "name": "testSelectStatements",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "summary": "testSelectStatements 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java:testDDLStatements",
+      "type": "function",
+      "name": "testDDLStatements",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "summary": "testDDLStatements 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java:testDMLStatements",
+      "type": "function",
+      "name": "testDMLStatements",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "summary": "testDMLStatements 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java:testTransactionStatements",
+      "type": "function",
+      "name": "testTransactionStatements",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "summary": "testTransactionStatements 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java:testShowStatements",
+      "type": "function",
+      "name": "testShowStatements",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "summary": "testShowStatements 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java:executeQuery",
+      "type": "function",
+      "name": "executeQuery",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "summary": "executeQuery 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java:executeUpdate",
+      "type": "function",
+      "name": "executeUpdate",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "summary": "executeUpdate 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java:SQLParserTestDemo",
+      "type": "class",
+      "name": "SQLParserTestDemo",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "summary": "SQLParserTestDemo 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "java"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java",
+      "type": "file",
+      "name": "SystemVariableTestDemo.java",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java",
+      "summary": "SystemVariableTestDemo.java 是 java 文件，属于 jdbc_client 模块。",
+      "tags": [
+        "test",
+        "logic",
+        "code"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java",
+      "summary": "main 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java:testSimpleSystemVariables",
+      "type": "function",
+      "name": "testSimpleSystemVariables",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java",
+      "summary": "testSimpleSystemVariables 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java:testComplexSystemVariables",
+      "type": "function",
+      "name": "testComplexSystemVariables",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java",
+      "summary": "testComplexSystemVariables 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java:testSetSystemVariables",
+      "type": "function",
+      "name": "testSetSystemVariables",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java",
+      "summary": "testSetSystemVariables 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java:SystemVariableTestDemo",
+      "type": "class",
+      "name": "SystemVariableTestDemo",
+      "filePath": "jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java",
+      "summary": "SystemVariableTestDemo 定义在 jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:jdbc_client/src/test/java/com/xmysql/server/test/AllTestsSuite.java",
+      "type": "file",
+      "name": "AllTestsSuite.java",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/AllTestsSuite.java",
+      "summary": "AllTestsSuite.java 是 java 文件，属于 jdbc_client 模块。",
+      "tags": [
+        "test",
+        "code"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:jdbc_client/src/test/java/com/xmysql/server/test/AllTestsSuite.java:AllTestsSuite",
+      "type": "class",
+      "name": "AllTestsSuite",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/AllTestsSuite.java",
+      "summary": "AllTestsSuite 定义在 jdbc_client/src/test/java/com/xmysql/server/test/AllTestsSuite.java 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java",
+      "type": "file",
+      "name": "BaseIntegrationTest.java",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java",
+      "summary": "BaseIntegrationTest.java 是 java 文件，属于 jdbc_client 模块。",
+      "tags": [
+        "test",
+        "logic",
+        "code"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java:setUpClass",
+      "type": "function",
+      "name": "setUpClass",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java",
+      "summary": "setUpClass 定义在 jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java:tearDownClass",
+      "type": "function",
+      "name": "tearDownClass",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java",
+      "summary": "tearDownClass 定义在 jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java:setUp",
+      "type": "function",
+      "name": "setUp",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java",
+      "summary": "setUp 定义在 jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java:tearDown",
+      "type": "function",
+      "name": "tearDown",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java",
+      "summary": "tearDown 定义在 jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java:BaseIntegrationTest",
+      "type": "class",
+      "name": "BaseIntegrationTest",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java",
+      "summary": "BaseIntegrationTest 定义在 jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "java"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "type": "file",
+      "name": "DataTypeTest.java",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "summary": "DataTypeTest.java 是 java 文件，属于 jdbc_client 模块。",
+      "tags": [
+        "test",
+        "logic",
+        "code"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:setUpTestDatabase",
+      "type": "function",
+      "name": "setUpTestDatabase",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "summary": "setUpTestDatabase 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:cleanUpTestDatabase",
+      "type": "function",
+      "name": "cleanUpTestDatabase",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "summary": "cleanUpTestDatabase 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testIntegerTypes",
+      "type": "function",
+      "name": "testIntegerTypes",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "summary": "testIntegerTypes 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testFloatingPointTypes",
+      "type": "function",
+      "name": "testFloatingPointTypes",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "summary": "testFloatingPointTypes 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testStringTypes",
+      "type": "function",
+      "name": "testStringTypes",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "summary": "testStringTypes 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testDateTimeTypes",
+      "type": "function",
+      "name": "testDateTimeTypes",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "summary": "testDateTimeTypes 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testBooleanType",
+      "type": "function",
+      "name": "testBooleanType",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "summary": "testBooleanType 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testEnumType",
+      "type": "function",
+      "name": "testEnumType",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "summary": "testEnumType 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testSetType",
+      "type": "function",
+      "name": "testSetType",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "summary": "testSetType 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testNullValues",
+      "type": "function",
+      "name": "testNullValues",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "summary": "testNullValues 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testBinaryTypes",
+      "type": "function",
+      "name": "testBinaryTypes",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "summary": "testBinaryTypes 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testAutoIncrement",
+      "type": "function",
+      "name": "testAutoIncrement",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "summary": "testAutoIncrement 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testDefaultValues",
+      "type": "function",
+      "name": "testDefaultValues",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "summary": "testDefaultValues 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:DataTypeTest",
+      "type": "class",
+      "name": "DataTypeTest",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "summary": "DataTypeTest 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "java"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "type": "file",
+      "name": "DDLOperationsTest.java",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "summary": "DDLOperationsTest.java 是 java 文件，属于 jdbc_client 模块。",
+      "tags": [
+        "test",
+        "logic",
+        "code"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:cleanUp",
+      "type": "function",
+      "name": "cleanUp",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "summary": "cleanUp 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateDatabase",
+      "type": "function",
+      "name": "testCreateDatabase",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "summary": "testCreateDatabase 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateDatabaseIfNotExists",
+      "type": "function",
+      "name": "testCreateDatabaseIfNotExists",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "summary": "testCreateDatabaseIfNotExists 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateDatabaseWithCharset",
+      "type": "function",
+      "name": "testCreateDatabaseWithCharset",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "summary": "testCreateDatabaseWithCharset 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testDropDatabase",
+      "type": "function",
+      "name": "testDropDatabase",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "summary": "testDropDatabase 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testDropDatabaseIfExists",
+      "type": "function",
+      "name": "testDropDatabaseIfExists",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "summary": "testDropDatabaseIfExists 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateTableBasicTypes",
+      "type": "function",
+      "name": "testCreateTableBasicTypes",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "summary": "testCreateTableBasicTypes 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateTableWithIndex",
+      "type": "function",
+      "name": "testCreateTableWithIndex",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "summary": "testCreateTableWithIndex 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateTableWithForeignKey",
+      "type": "function",
+      "name": "testCreateTableWithForeignKey",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "summary": "testCreateTableWithForeignKey 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testDropTable",
+      "type": "function",
+      "name": "testDropTable",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "summary": "testDropTable 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateDatabaseWithDifferentCharsets",
+      "type": "function",
+      "name": "testCreateDatabaseWithDifferentCharsets",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "summary": "testCreateDatabaseWithDifferentCharsets 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testAlterTableAddColumn",
+      "type": "function",
+      "name": "testAlterTableAddColumn",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "summary": "testAlterTableAddColumn 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testTruncateTable",
+      "type": "function",
+      "name": "testTruncateTable",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "summary": "testTruncateTable 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:DDLOperationsTest",
+      "type": "class",
+      "name": "DDLOperationsTest",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "summary": "DDLOperationsTest 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "java"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "type": "file",
+      "name": "DMLOperationsTest.java",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "summary": "DMLOperationsTest.java 是 java 文件，属于 jdbc_client 模块。",
+      "tags": [
+        "test",
+        "logic",
+        "code"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:setUpTestDatabase",
+      "type": "function",
+      "name": "setUpTestDatabase",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "summary": "setUpTestDatabase 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:cleanUpTestDatabase",
+      "type": "function",
+      "name": "cleanUpTestDatabase",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "summary": "cleanUpTestDatabase 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:clearTables",
+      "type": "function",
+      "name": "clearTables",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "summary": "clearTables 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testInsertSingleRow",
+      "type": "function",
+      "name": "testInsertSingleRow",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "summary": "testInsertSingleRow 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testInsertMultipleRows",
+      "type": "function",
+      "name": "testInsertMultipleRows",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "summary": "testInsertMultipleRows 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testInsertWithPreparedStatement",
+      "type": "function",
+      "name": "testInsertWithPreparedStatement",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "summary": "testInsertWithPreparedStatement 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testInsertWithDefaultValues",
+      "type": "function",
+      "name": "testInsertWithDefaultValues",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "summary": "testInsertWithDefaultValues 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testUpdateSingleRow",
+      "type": "function",
+      "name": "testUpdateSingleRow",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "summary": "testUpdateSingleRow 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testUpdateMultipleRows",
+      "type": "function",
+      "name": "testUpdateMultipleRows",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "summary": "testUpdateMultipleRows 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testUpdateWithPreparedStatement",
+      "type": "function",
+      "name": "testUpdateWithPreparedStatement",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "summary": "testUpdateWithPreparedStatement 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testDeleteSingleRow",
+      "type": "function",
+      "name": "testDeleteSingleRow",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "summary": "testDeleteSingleRow 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testDeleteMultipleRows",
+      "type": "function",
+      "name": "testDeleteMultipleRows",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "summary": "testDeleteMultipleRows 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testDeleteAll",
+      "type": "function",
+      "name": "testDeleteAll",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "summary": "testDeleteAll 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testInsertProductsWithDecimal",
+      "type": "function",
+      "name": "testInsertProductsWithDecimal",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "summary": "testInsertProductsWithDecimal 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testUpdateProductStock",
+      "type": "function",
+      "name": "testUpdateProductStock",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "summary": "testUpdateProductStock 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testInsertUniqueConstraintViolation",
+      "type": "function",
+      "name": "testInsertUniqueConstraintViolation",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "summary": "testInsertUniqueConstraintViolation 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "exported",
+        "java"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:DMLOperationsTest",
+      "type": "class",
+      "name": "DMLOperationsTest",
+      "filePath": "jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "summary": "DMLOperationsTest 定义在 jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java 中，承载该文件的核心数据结构或接口约定。",
+      "tags": [
+        "type",
+        "exported",
+        "java"
+      ],
+      "complexity": "complex"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:NewMySQLClient",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:NewMySQLClient",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:Connect",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:Connect",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:Close",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:Close",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:ExecuteQuery",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:ExecuteQuery",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:executeSelect",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:executeNonSelect",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:StartCLI",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:StartCLI",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:StartGUI",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:StartGUI",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:displayGUIResult",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:printTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:showHelp",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:showStatus",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:parseArgs",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:printUsage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "function:client/main.go:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "class:client/main.go:ClientConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "class:client/main.go:ClientConfig",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "class:client/main.go:MySQLClient",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "class:client/main.go:MySQLClient",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "class:client/main.go:QueryResult",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:client/main.go",
+      "target": "class:client/main.go:QueryResult",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:cmd/demo_mysql_client_test/mysql_test.go",
+      "target": "function:cmd/demo_mysql_client_test/mysql_test.go:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:cmd/mysql_test_client/main.go",
+      "target": "function:cmd/mysql_test_client/main.go:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:cmd/recovery_drill_client/main.go",
+      "target": "function:cmd/recovery_drill_client/main.go:runSetupRedo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:cmd/recovery_drill_client/main.go",
+      "target": "function:cmd/recovery_drill_client/main.go:runVerifyRedo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:cmd/recovery_drill_client/main.go",
+      "target": "function:cmd/recovery_drill_client/main.go:runHoldUndo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:cmd/recovery_drill_client/main.go",
+      "target": "function:cmd/recovery_drill_client/main.go:runVerifyUndo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:cmd/recovery_drill_client/main.go",
+      "target": "function:cmd/recovery_drill_client/main.go:runRaceCommit",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:cmd/recovery_drill_client/main.go",
+      "target": "function:cmd/recovery_drill_client/main.go:runVerifyHalfCommit",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:cmd/recovery_drill_client/main.go",
+      "target": "function:cmd/recovery_drill_client/main.go:runSnapshot",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:cmd/recovery_drill_client/main.go",
+      "target": "function:cmd/recovery_drill_client/main.go:runVerifyShowTablesWhere",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:cmd/recovery_drill_client/main.go",
+      "target": "function:cmd/recovery_drill_client/main.go:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java:main",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java:testDatabaseOperations",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java:testCreateDatabases",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java:testCreateDatabaseWithCharset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java:testTableOperations",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java:testCreateTables",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java:cleanupTestData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java:executeQuery",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "target": "class:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java:DDLTestDemo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java",
+      "target": "class:jdbc_client/src/main/java/com/xmysql/server/demo/DDLTestDemo.java:DDLTestDemo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:main",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:createTestDatabase",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:useTestDatabase",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:createTestTables",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:insertTestData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:testSimpleInserts",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:testPreparedInserts",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:testBatchInserts",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:queryTestData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:queryUsers",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:queryProducts",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "target": "class:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:InsertDataTestDemo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java",
+      "target": "class:jdbc_client/src/main/java/com/xmysql/server/demo/InsertDataTestDemo.java:InsertDataTestDemo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:main",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:setupTestEnvironment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:testBasicInsert",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:testBatchInsert",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:testInsertWithDefaults",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:testInsertSelect",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:testInsertOnDuplicateKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:cleanupTestEnvironment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:executeUpdate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:executeQuery",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "target": "class:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:InsertTestDemo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java",
+      "target": "class:jdbc_client/src/main/java/com/xmysql/server/demo/InsertTestDemo.java:InsertTestDemo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java:main",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java:ensureDatabaseAndUse",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java:createTableIfNotExists",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java:insertSampleData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java:queryData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java",
+      "target": "class:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java:MySQLDemo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java",
+      "target": "class:jdbc_client/src/main/java/com/xmysql/server/demo/MySQLDemo.java:MySQLDemo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java:main",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java:testSelectStatements",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java:testDDLStatements",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java:testDMLStatements",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java:testTransactionStatements",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java:testShowStatements",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java:executeQuery",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java:executeUpdate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "target": "class:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java:SQLParserTestDemo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java",
+      "target": "class:jdbc_client/src/main/java/com/xmysql/server/demo/SQLParserTestDemo.java:SQLParserTestDemo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java:main",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java:testSimpleSystemVariables",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java:testComplexSystemVariables",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java",
+      "target": "function:jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java:testSetSystemVariables",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java",
+      "target": "class:jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java:SystemVariableTestDemo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java",
+      "target": "class:jdbc_client/src/main/java/com/xmysql/server/demo/SystemVariableTestDemo.java:SystemVariableTestDemo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/AllTestsSuite.java",
+      "target": "class:jdbc_client/src/test/java/com/xmysql/server/test/AllTestsSuite.java:AllTestsSuite",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/AllTestsSuite.java",
+      "target": "class:jdbc_client/src/test/java/com/xmysql/server/test/AllTestsSuite.java:AllTestsSuite",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java:setUpClass",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java:setUpClass",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java:tearDownClass",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java:tearDownClass",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java:setUp",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java:setUp",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java:tearDown",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java:tearDown",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java",
+      "target": "class:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java:BaseIntegrationTest",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java",
+      "target": "class:jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java:BaseIntegrationTest",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:setUpTestDatabase",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:setUpTestDatabase",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:cleanUpTestDatabase",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:cleanUpTestDatabase",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testIntegerTypes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testIntegerTypes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testFloatingPointTypes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testFloatingPointTypes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testStringTypes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testStringTypes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testDateTimeTypes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testDateTimeTypes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testBooleanType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testBooleanType",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testEnumType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testEnumType",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testSetType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testSetType",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testNullValues",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testNullValues",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testBinaryTypes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testBinaryTypes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testAutoIncrement",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testAutoIncrement",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testDefaultValues",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:testDefaultValues",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "class:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:DataTypeTest",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java",
+      "target": "class:jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java:DataTypeTest",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:cleanUp",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:cleanUp",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateDatabase",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateDatabase",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateDatabaseIfNotExists",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateDatabaseIfNotExists",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateDatabaseWithCharset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateDatabaseWithCharset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testDropDatabase",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testDropDatabase",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testDropDatabaseIfExists",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testDropDatabaseIfExists",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateTableBasicTypes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateTableBasicTypes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateTableWithIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateTableWithIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateTableWithForeignKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateTableWithForeignKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testDropTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testDropTable",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateDatabaseWithDifferentCharsets",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testCreateDatabaseWithDifferentCharsets",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testAlterTableAddColumn",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testAlterTableAddColumn",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testTruncateTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:testTruncateTable",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "class:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:DDLOperationsTest",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java",
+      "target": "class:jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java:DDLOperationsTest",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:setUpTestDatabase",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:setUpTestDatabase",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:cleanUpTestDatabase",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:cleanUpTestDatabase",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:clearTables",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:clearTables",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testInsertSingleRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testInsertSingleRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testInsertMultipleRows",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testInsertMultipleRows",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testInsertWithPreparedStatement",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testInsertWithPreparedStatement",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testInsertWithDefaultValues",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testInsertWithDefaultValues",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testUpdateSingleRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testUpdateSingleRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testUpdateMultipleRows",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testUpdateMultipleRows",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testUpdateWithPreparedStatement",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testUpdateWithPreparedStatement",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testDeleteSingleRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testDeleteSingleRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testDeleteMultipleRows",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testDeleteMultipleRows",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testDeleteAll",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testDeleteAll",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testInsertProductsWithDecimal",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testInsertProductsWithDecimal",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testUpdateProductStock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testUpdateProductStock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testInsertUniqueConstraintViolation",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "function:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:testInsertUniqueConstraintViolation",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "class:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:DMLOperationsTest",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java",
+      "target": "class:jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java:DMLOperationsTest",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

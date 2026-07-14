@@ -1,0 +1,83 @@
+[
+  {
+    "order": 1,
+    "title": "项目总览",
+    "description": "从 README 了解项目目标、当前状态、主目录和生产就绪路线。",
+    "nodeIds": [
+      "document:README.md"
+    ]
+  },
+  {
+    "order": 2,
+    "title": "服务启动路径",
+    "description": "查看主入口如何加载配置并启动 MySQL 兼容服务。",
+    "nodeIds": [
+      "file:main.go",
+      "file:server/net/mysql_server.go",
+      "file:server/session.go"
+    ]
+  },
+  {
+    "order": 3,
+    "title": "协议与连接处理",
+    "description": "理解网络处理、MySQL 协议编解码和请求进入分发层的路径。",
+    "nodeIds": [
+      "file:server/net/decoupled_handler.go",
+      "file:server/net/handler.go",
+      "file:server/protocol/packet.go",
+      "file:server/dispatcher/query_dispatcher.go"
+    ]
+  },
+  {
+    "order": 4,
+    "title": "SQL 解析和计划",
+    "description": "查看 SQL parser、逻辑计划、物理计划与优化器如何组织执行前的准备工作。",
+    "nodeIds": [
+      "file:server/innodb/sqlparser/ast.go",
+      "file:server/innodb/plan/logical_plan.go",
+      "file:server/innodb/plan/physical_plan.go"
+    ]
+  },
+  {
+    "order": 5,
+    "title": "执行引擎",
+    "description": "跟踪 DML、查询执行器和 Volcano 风格执行链路。",
+    "nodeIds": [
+      "file:server/innodb/engine/enginx.go",
+      "file:server/innodb/engine/dml_executor.go",
+      "file:server/innodb/engine/volcano_executor.go"
+    ]
+  },
+  {
+    "order": 6,
+    "title": "事务与恢复",
+    "description": "查看事务管理、undo/redo、锁和崩溃恢复相关实现。",
+    "nodeIds": [
+      "file:server/innodb/manager/transaction_manager.go",
+      "file:server/innodb/manager/undo_log_manager.go",
+      "file:server/innodb/manager/crash_recovery.go",
+      "file:server/innodb/manager/lock_manager.go"
+    ]
+  },
+  {
+    "order": 7,
+    "title": "存储与页结构",
+    "description": "理解 Buffer Pool、页包装器、表空间和 B+Tree 存储路径。",
+    "nodeIds": [
+      "file:server/innodb/buffer_pool/buffer_pool.go",
+      "file:server/innodb/storage/wrapper/page/page_factory.go",
+      "file:server/innodb/basic/btree.go"
+    ]
+  },
+  {
+    "order": 8,
+    "title": "验证与运维入口",
+    "description": "查看脚本、CI 和测试入口如何支撑构建、恢复演练和回归验证。",
+    "nodeIds": [
+      "pipeline:.github/workflows/go.yml",
+      "file:scripts/p0_release_package_tests.sh",
+      "file:scripts/crash_recovery_drill.sh",
+      "file:cmd/integration_demo/main.go"
+    ]
+  }
+]

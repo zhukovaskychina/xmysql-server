@@ -1,0 +1,1441 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "type": "file",
+      "name": "xdes_page.go",
+      "filePath": "server/innodb/storage/store/pages/xdes_page.go",
+      "summary": "实现InnoDB 物理页结构与序列化的页结构、字段访问和持久化操作。",
+      "tags": [
+        "service",
+        "storage-page",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/xdes_page.go:NewXdesEntry",
+      "type": "function",
+      "name": "NewXdesEntry",
+      "filePath": "server/innodb/storage/store/pages/xdes_page.go",
+      "lineRange": [
+        28,
+        35
+      ],
+      "summary": "创建或初始化InnoDB 物理页结构与序列化中的 NewXdesEntry 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/xdes_page.go:ParseXDesEntry",
+      "type": "function",
+      "name": "ParseXDesEntry",
+      "filePath": "server/innodb/storage/store/pages/xdes_page.go",
+      "lineRange": [
+        37,
+        44
+      ],
+      "summary": "解析或反序列化InnoDB 物理页结构与序列化中的 ParseXDesEntry 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "serialization",
+        "binary-format",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/xdes_page.go:SetSegementId",
+      "type": "function",
+      "name": "SetSegementId",
+      "filePath": "server/innodb/storage/store/pages/xdes_page.go",
+      "lineRange": [
+        46,
+        48
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetSegementId 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/xdes_page.go:SetExtentState",
+      "type": "function",
+      "name": "SetExtentState",
+      "filePath": "server/innodb/storage/store/pages/xdes_page.go",
+      "lineRange": [
+        50,
+        52
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetExtentState 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/xdes_page.go:SetDesFlstNode",
+      "type": "function",
+      "name": "SetDesFlstNode",
+      "filePath": "server/innodb/storage/store/pages/xdes_page.go",
+      "lineRange": [
+        54,
+        60
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetDesFlstNode 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/xdes_page.go:GetPageInfo",
+      "type": "function",
+      "name": "GetPageInfo",
+      "filePath": "server/innodb/storage/store/pages/xdes_page.go",
+      "lineRange": [
+        63,
+        73
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetPageInfo 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/xdes_page.go:GetSerializeByte",
+      "type": "function",
+      "name": "GetSerializeByte",
+      "filePath": "server/innodb/storage/store/pages/xdes_page.go",
+      "lineRange": [
+        75,
+        83
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetSerializeByte 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/xdes_page.go:NewXDesPage",
+      "type": "function",
+      "name": "NewXDesPage",
+      "filePath": "server/innodb/storage/store/pages/xdes_page.go",
+      "lineRange": [
+        96,
+        121
+      ],
+      "summary": "创建或初始化InnoDB 物理页结构与序列化中的 NewXDesPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/xdes_page.go:SerializeBytes",
+      "type": "function",
+      "name": "SerializeBytes",
+      "filePath": "server/innodb/storage/store/pages/xdes_page.go",
+      "lineRange": [
+        123,
+        135
+      ],
+      "summary": "编码或序列化InnoDB 物理页结构与序列化中的 SerializeBytes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "serialization",
+        "binary-format",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/xdes_page.go:GetSerializeBytes",
+      "type": "function",
+      "name": "GetSerializeBytes",
+      "filePath": "server/innodb/storage/store/pages/xdes_page.go",
+      "lineRange": [
+        137,
+        139
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetSerializeBytes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/xdes_page.go:DESListNode",
+      "type": "class",
+      "name": "DESListNode",
+      "filePath": "server/innodb/storage/store/pages/xdes_page.go",
+      "lineRange": [
+        8,
+        13
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 DESListNode 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/xdes_page.go:XDESEntry",
+      "type": "class",
+      "name": "XDESEntry",
+      "filePath": "server/innodb/storage/store/pages/xdes_page.go",
+      "lineRange": [
+        20,
+        25
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 XDESEntry 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "storage-page"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/xdes_page.go:XDesPage",
+      "type": "class",
+      "name": "XDesPage",
+      "filePath": "server/innodb/storage/store/pages/xdes_page.go",
+      "lineRange": [
+        89,
+        94
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 XDesPage 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/storage/store/segs/segment.go",
+      "type": "file",
+      "name": "segment.go",
+      "filePath": "server/innodb/storage/store/segs/segment.go",
+      "summary": "实现InnoDB 段分配与回收中的 segment 能力，并向同包或上层组件提供可复用接口。",
+      "tags": [
+        "service",
+        "innodb",
+        "storage"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/storage/store/segs/segment.go:NewSegmentHeader",
+      "type": "function",
+      "name": "NewSegmentHeader",
+      "filePath": "server/innodb/storage/store/segs/segment.go",
+      "lineRange": [
+        56,
+        62
+      ],
+      "summary": "创建或初始化InnoDB 段分配与回收中的 NewSegmentHeader 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/segs/segment.go:NewSegment",
+      "type": "function",
+      "name": "NewSegment",
+      "filePath": "server/innodb/storage/store/segs/segment.go",
+      "lineRange": [
+        65,
+        74
+      ],
+      "summary": "创建或初始化InnoDB 段分配与回收中的 NewSegment 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/segs/segment.go:GetBytes",
+      "type": "function",
+      "name": "GetBytes",
+      "filePath": "server/innodb/storage/store/segs/segment.go",
+      "lineRange": [
+        77,
+        83
+      ],
+      "summary": "读取或查询InnoDB 段分配与回收中的 GetBytes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/segs/segment.go:GetSpaceID",
+      "type": "function",
+      "name": "GetSpaceID",
+      "filePath": "server/innodb/storage/store/segs/segment.go",
+      "lineRange": [
+        86,
+        88
+      ],
+      "summary": "读取或查询InnoDB 段分配与回收中的 GetSpaceID 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/segs/segment.go:GetPageNumber",
+      "type": "function",
+      "name": "GetPageNumber",
+      "filePath": "server/innodb/storage/store/segs/segment.go",
+      "lineRange": [
+        91,
+        93
+      ],
+      "summary": "读取或查询InnoDB 段分配与回收中的 GetPageNumber 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/segs/segment.go:GetByteOffset",
+      "type": "function",
+      "name": "GetByteOffset",
+      "filePath": "server/innodb/storage/store/segs/segment.go",
+      "lineRange": [
+        96,
+        98
+      ],
+      "summary": "读取或查询InnoDB 段分配与回收中的 GetByteOffset 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/segs/segment.go:AllocateExtent",
+      "type": "function",
+      "name": "AllocateExtent",
+      "filePath": "server/innodb/storage/store/segs/segment.go",
+      "lineRange": [
+        101,
+        108
+      ],
+      "summary": "创建或初始化InnoDB 段分配与回收中的 AllocateExtent 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/segs/segment.go:AllocatePage",
+      "type": "function",
+      "name": "AllocatePage",
+      "filePath": "server/innodb/storage/store/segs/segment.go",
+      "lineRange": [
+        111,
+        147
+      ],
+      "summary": "创建或初始化InnoDB 段分配与回收中的 AllocatePage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/segs/segment.go:FreePage",
+      "type": "function",
+      "name": "FreePage",
+      "filePath": "server/innodb/storage/store/segs/segment.go",
+      "lineRange": [
+        150,
+        175
+      ],
+      "summary": "删除或释放InnoDB 段分配与回收中的 FreePage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/segs/segment.go:findExtentByPageNo",
+      "type": "function",
+      "name": "findExtentByPageNo",
+      "filePath": "server/innodb/storage/store/segs/segment.go",
+      "lineRange": [
+        178,
+        201
+      ],
+      "summary": "实现InnoDB 段分配与回收中的 findExtentByPageNo 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/segs/segment.go:removeExtentFromLists",
+      "type": "function",
+      "name": "removeExtentFromLists",
+      "filePath": "server/innodb/storage/store/segs/segment.go",
+      "lineRange": [
+        222,
+        249
+      ],
+      "summary": "实现InnoDB 段分配与回收中的 removeExtentFromLists 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/segs/segment.go:SegmentHeader",
+      "type": "class",
+      "name": "SegmentHeader",
+      "filePath": "server/innodb/storage/store/segs/segment.go",
+      "lineRange": [
+        36,
+        40
+      ],
+      "summary": "封装InnoDB 段分配与回收中的 SegmentHeader 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/segs/segment.go:Segment",
+      "type": "class",
+      "name": "Segment",
+      "filePath": "server/innodb/storage/store/segs/segment.go",
+      "lineRange": [
+        43,
+        53
+      ],
+      "summary": "封装InnoDB 段分配与回收中的 Segment 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:server/innodb/storage/store/segs/segment_test.go",
+      "type": "file",
+      "name": "segment_test.go",
+      "filePath": "server/innodb/storage/store/segs/segment_test.go",
+      "summary": "验证InnoDB 段分配与回收中 segment 的正常路径、边界条件与回归行为。",
+      "tags": [
+        "test",
+        "regression",
+        "innodb",
+        "storage"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/storage/store/segs/segment_test.go:TestNewSegment",
+      "type": "function",
+      "name": "TestNewSegment",
+      "filePath": "server/innodb/storage/store/segs/segment_test.go",
+      "lineRange": [
+        9,
+        18
+      ],
+      "summary": "验证InnoDB 段分配与回收中的 TestNewSegment 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/segs/segment_test.go:TestSegment_AllocateExtent",
+      "type": "function",
+      "name": "TestSegment_AllocateExtent",
+      "filePath": "server/innodb/storage/store/segs/segment_test.go",
+      "lineRange": [
+        20,
+        35
+      ],
+      "summary": "验证InnoDB 段分配与回收中的 TestSegment_AllocateExtent 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/segs/segment_test.go:TestSegment_AllocatePage",
+      "type": "function",
+      "name": "TestSegment_AllocatePage",
+      "filePath": "server/innodb/storage/store/segs/segment_test.go",
+      "lineRange": [
+        37,
+        70
+      ],
+      "summary": "验证InnoDB 段分配与回收中的 TestSegment_AllocatePage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/segs/segment_test.go:TestSegment_FreePage",
+      "type": "function",
+      "name": "TestSegment_FreePage",
+      "filePath": "server/innodb/storage/store/segs/segment_test.go",
+      "lineRange": [
+        72,
+        95
+      ],
+      "summary": "验证InnoDB 段分配与回收中的 TestSegment_FreePage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/segs/segment_test.go:TestSegmentHeader",
+      "type": "function",
+      "name": "TestSegmentHeader",
+      "filePath": "server/innodb/storage/store/segs/segment_test.go",
+      "lineRange": [
+        97,
+        108
+      ],
+      "summary": "验证InnoDB 段分配与回收中的 TestSegmentHeader 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/segs/segment_test.go:TestSegment_ExtentManagement",
+      "type": "function",
+      "name": "TestSegment_ExtentManagement",
+      "filePath": "server/innodb/storage/store/segs/segment_test.go",
+      "lineRange": [
+        110,
+        133
+      ],
+      "summary": "验证InnoDB 段分配与回收中的 TestSegment_ExtentManagement 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/segs/segment_test.go:TestSegment_PageAllocationStrategy",
+      "type": "function",
+      "name": "TestSegment_PageAllocationStrategy",
+      "filePath": "server/innodb/storage/store/segs/segment_test.go",
+      "lineRange": [
+        135,
+        153
+      ],
+      "summary": "验证InnoDB 段分配与回收中的 TestSegment_PageAllocationStrategy 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "function:server/innodb/storage/store/pages/xdes_page.go:NewXdesEntry",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "function:server/innodb/storage/store/pages/xdes_page.go:NewXdesEntry",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "function:server/innodb/storage/store/pages/xdes_page.go:ParseXDesEntry",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "function:server/innodb/storage/store/pages/xdes_page.go:ParseXDesEntry",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "function:server/innodb/storage/store/pages/xdes_page.go:SetSegementId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "function:server/innodb/storage/store/pages/xdes_page.go:SetSegementId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "function:server/innodb/storage/store/pages/xdes_page.go:SetExtentState",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "function:server/innodb/storage/store/pages/xdes_page.go:SetExtentState",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "function:server/innodb/storage/store/pages/xdes_page.go:SetDesFlstNode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "function:server/innodb/storage/store/pages/xdes_page.go:SetDesFlstNode",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "function:server/innodb/storage/store/pages/xdes_page.go:GetPageInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "function:server/innodb/storage/store/pages/xdes_page.go:GetPageInfo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "function:server/innodb/storage/store/pages/xdes_page.go:GetSerializeByte",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "function:server/innodb/storage/store/pages/xdes_page.go:GetSerializeByte",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "function:server/innodb/storage/store/pages/xdes_page.go:NewXDesPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "function:server/innodb/storage/store/pages/xdes_page.go:NewXDesPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "function:server/innodb/storage/store/pages/xdes_page.go:SerializeBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "function:server/innodb/storage/store/pages/xdes_page.go:SerializeBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "function:server/innodb/storage/store/pages/xdes_page.go:GetSerializeBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "function:server/innodb/storage/store/pages/xdes_page.go:GetSerializeBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "class:server/innodb/storage/store/pages/xdes_page.go:DESListNode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "class:server/innodb/storage/store/pages/xdes_page.go:DESListNode",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "class:server/innodb/storage/store/pages/xdes_page.go:XDESEntry",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "class:server/innodb/storage/store/pages/xdes_page.go:XDESEntry",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "class:server/innodb/storage/store/pages/xdes_page.go:XDesPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "class:server/innodb/storage/store/pages/xdes_page.go:XDesPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:server/common/charset.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:server/common/const_trx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:server/common/constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:server/common/error_name.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:server/common/error_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:server/common/error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:server/common/errorcode.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:server/common/frm_constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:server/common/locale_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:server/common/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:server/common/privs_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:server/common/privs.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:server/common/sql_error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:server/common/sql_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:server/common/type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:server/common/type.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:server/common/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:util/bitutils_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:util/bitutils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:util/buffer_reader.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:util/buffer_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:util/buffer_writer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:util/byte_util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:util/checker.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:util/configReader.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:util/fileutil_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:util/fileutil.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:util/hash_utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:util/hashutils_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:util/password.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:util/Random.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:util/rutime.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "target": "file:util/time_util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "function:server/innodb/storage/store/segs/segment.go:NewSegmentHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "function:server/innodb/storage/store/segs/segment.go:NewSegmentHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "function:server/innodb/storage/store/segs/segment.go:NewSegment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "function:server/innodb/storage/store/segs/segment.go:NewSegment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "function:server/innodb/storage/store/segs/segment.go:GetBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "function:server/innodb/storage/store/segs/segment.go:GetBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "function:server/innodb/storage/store/segs/segment.go:GetSpaceID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "function:server/innodb/storage/store/segs/segment.go:GetSpaceID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "function:server/innodb/storage/store/segs/segment.go:GetPageNumber",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "function:server/innodb/storage/store/segs/segment.go:GetPageNumber",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "function:server/innodb/storage/store/segs/segment.go:GetByteOffset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "function:server/innodb/storage/store/segs/segment.go:GetByteOffset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "function:server/innodb/storage/store/segs/segment.go:AllocateExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "function:server/innodb/storage/store/segs/segment.go:AllocateExtent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "function:server/innodb/storage/store/segs/segment.go:AllocatePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "function:server/innodb/storage/store/segs/segment.go:AllocatePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "function:server/innodb/storage/store/segs/segment.go:FreePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "function:server/innodb/storage/store/segs/segment.go:FreePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "function:server/innodb/storage/store/segs/segment.go:findExtentByPageNo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "function:server/innodb/storage/store/segs/segment.go:removeExtentFromLists",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "class:server/innodb/storage/store/segs/segment.go:SegmentHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "class:server/innodb/storage/store/segs/segment.go:SegmentHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "class:server/innodb/storage/store/segs/segment.go:Segment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "class:server/innodb/storage/store/segs/segment.go:Segment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "file:server/innodb/storage/store/extents/extent_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "file:server/innodb/storage/store/extents/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "file:util/bitutils_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "file:util/bitutils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "file:util/buffer_reader.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "file:util/buffer_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "file:util/buffer_writer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "file:util/byte_util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "file:util/checker.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "file:util/configReader.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "file:util/fileutil_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "file:util/fileutil.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "file:util/hash_utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "file:util/hashutils_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "file:util/password.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "file:util/Random.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "file:util/rutime.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment.go",
+      "target": "file:util/time_util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment_test.go",
+      "target": "function:server/innodb/storage/store/segs/segment_test.go:TestNewSegment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment_test.go",
+      "target": "function:server/innodb/storage/store/segs/segment_test.go:TestNewSegment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment_test.go",
+      "target": "function:server/innodb/storage/store/segs/segment_test.go:TestSegment_AllocateExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment_test.go",
+      "target": "function:server/innodb/storage/store/segs/segment_test.go:TestSegment_AllocateExtent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment_test.go",
+      "target": "function:server/innodb/storage/store/segs/segment_test.go:TestSegment_AllocatePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment_test.go",
+      "target": "function:server/innodb/storage/store/segs/segment_test.go:TestSegment_AllocatePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment_test.go",
+      "target": "function:server/innodb/storage/store/segs/segment_test.go:TestSegment_FreePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment_test.go",
+      "target": "function:server/innodb/storage/store/segs/segment_test.go:TestSegment_FreePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment_test.go",
+      "target": "function:server/innodb/storage/store/segs/segment_test.go:TestSegmentHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment_test.go",
+      "target": "function:server/innodb/storage/store/segs/segment_test.go:TestSegmentHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment_test.go",
+      "target": "function:server/innodb/storage/store/segs/segment_test.go:TestSegment_ExtentManagement",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment_test.go",
+      "target": "function:server/innodb/storage/store/segs/segment_test.go:TestSegment_ExtentManagement",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment_test.go",
+      "target": "function:server/innodb/storage/store/segs/segment_test.go:TestSegment_PageAllocationStrategy",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment_test.go",
+      "target": "function:server/innodb/storage/store/segs/segment_test.go:TestSegment_PageAllocationStrategy",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment_test.go",
+      "target": "file:server/innodb/storage/store/extents/extent_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/segs/segment_test.go",
+      "target": "file:server/innodb/storage/store/extents/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

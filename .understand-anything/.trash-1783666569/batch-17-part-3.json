@@ -1,0 +1,1546 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "type": "file",
+      "name": "statistics_collector_helpers.go",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "summary": "实现查询计划与优化器的统计信息采集与辅助计算，为基于代价的计划选择提供行数、基数和分布估计。",
+      "tags": [
+        "go",
+        "query-optimizer",
+        "storage-engine"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:getTableSpaceID",
+      "type": "function",
+      "name": "getTableSpaceID",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        16,
+        27
+      ],
+      "summary": "实现 查询计划与优化器 中的 getTableSpaceID 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:getRealRowCount",
+      "type": "function",
+      "name": "getRealRowCount",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        32,
+        46
+      ],
+      "summary": "实现 查询计划与优化器 中的 getRealRowCount 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:getExactRowCount",
+      "type": "function",
+      "name": "getExactRowCount",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        49,
+        60
+      ],
+      "summary": "实现 查询计划与优化器 中的 getExactRowCount 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:getSampledRowCount",
+      "type": "function",
+      "name": "getSampledRowCount",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        63,
+        102
+      ],
+      "summary": "实现 查询计划与优化器 中的 getSampledRowCount 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:selectRandomPages",
+      "type": "function",
+      "name": "selectRandomPages",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        105,
+        133
+      ],
+      "summary": "实现 查询计划与优化器 中的 selectRandomPages 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:countRowsInPage",
+      "type": "function",
+      "name": "countRowsInPage",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        136,
+        146
+      ],
+      "summary": "实现 查询计划与优化器 中的 countRowsInPage 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:sampleColumnData",
+      "type": "function",
+      "name": "sampleColumnData",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        175,
+        191
+      ],
+      "summary": "实现 查询计划与优化器 中的 sampleColumnData 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:scanAllColumnData",
+      "type": "function",
+      "name": "scanAllColumnData",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        194,
+        208
+      ],
+      "summary": "实现 查询计划与优化器 中的 scanAllColumnData 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:sampleColumnDataFromPages",
+      "type": "function",
+      "name": "sampleColumnDataFromPages",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        211,
+        258
+      ],
+      "summary": "实现 查询计划与优化器 中的 sampleColumnDataFromPages 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:extractColumnValuesFromPage",
+      "type": "function",
+      "name": "extractColumnValuesFromPage",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        261,
+        282
+      ],
+      "summary": "实现 查询计划与优化器 中的 extractColumnValuesFromPage 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:generateSampleValue",
+      "type": "function",
+      "name": "generateSampleValue",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        285,
+        309
+      ],
+      "summary": "实现 查询计划与优化器 中的 generateSampleValue 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:determineHistogramType",
+      "type": "function",
+      "name": "determineHistogramType",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        324,
+        335
+      ],
+      "summary": "实现 查询计划与优化器 中的 determineHistogramType 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:buildEnhancedHistogram",
+      "type": "function",
+      "name": "buildEnhancedHistogram",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        338,
+        375
+      ],
+      "summary": "实现 查询计划与优化器 中的 buildEnhancedHistogram 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:buildEquiWidthHistogram",
+      "type": "function",
+      "name": "buildEquiWidthHistogram",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        378,
+        436
+      ],
+      "summary": "实现 查询计划与优化器 中的 buildEquiWidthHistogram 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:buildEquiDepthHistogram",
+      "type": "function",
+      "name": "buildEquiDepthHistogram",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        439,
+        494
+      ],
+      "summary": "实现 查询计划与优化器 中的 buildEquiDepthHistogram 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:buildFrequencyHistogram",
+      "type": "function",
+      "name": "buildFrequencyHistogram",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        497,
+        552
+      ],
+      "summary": "实现 查询计划与优化器 中的 buildFrequencyHistogram 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:findMinMax",
+      "type": "function",
+      "name": "findMinMax",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        568,
+        589
+      ],
+      "summary": "实现 查询计划与优化器 中的 findMinMax 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:compare",
+      "type": "function",
+      "name": "compare",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        592,
+        612
+      ],
+      "summary": "实现 查询计划与优化器 中的 compare 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:toFloat64",
+      "type": "function",
+      "name": "toFloat64",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        615,
+        652
+      ],
+      "summary": "实现 查询计划与优化器 中的 toFloat64 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:fromFloat64",
+      "type": "function",
+      "name": "fromFloat64",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        655,
+        668
+      ],
+      "summary": "实现 查询计划与优化器 中的 fromFloat64 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:countInRange",
+      "type": "function",
+      "name": "countInRange",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        671,
+        683
+      ],
+      "summary": "实现 查询计划与优化器 中的 countInRange 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:sortData",
+      "type": "function",
+      "name": "sortData",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        696,
+        710
+      ],
+      "summary": "实现 查询计划与优化器 中的 sortData 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:estimateTreeDepth",
+      "type": "function",
+      "name": "estimateTreeDepth",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        713,
+        723
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateTreeDepth 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:estimateNonLeafPages",
+      "type": "function",
+      "name": "estimateNonLeafPages",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        737,
+        752
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateNonLeafPages 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:histogramTypeToString",
+      "type": "function",
+      "name": "histogramTypeToString",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        763,
+        774
+      ],
+      "summary": "实现 查询计划与优化器 中的 histogramTypeToString 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:estimateTableStats",
+      "type": "function",
+      "name": "estimateTableStats",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        779,
+        805
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateTableStats 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:estimateColumnStats",
+      "type": "function",
+      "name": "estimateColumnStats",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        808,
+        845
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateColumnStats 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:backgroundUpdateWorker",
+      "type": "function",
+      "name": "backgroundUpdateWorker",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        850,
+        864
+      ],
+      "summary": "实现 查询计划与优化器 中的 backgroundUpdateWorker 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:performPeriodicUpdate",
+      "type": "function",
+      "name": "performPeriodicUpdate",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        867,
+        885
+      ],
+      "summary": "实现 查询计划与优化器 中的 performPeriodicUpdate 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:handleUpdateRequest",
+      "type": "function",
+      "name": "handleUpdateRequest",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        888,
+        919
+      ],
+      "summary": "实现 查询计划与优化器 中的 handleUpdateRequest 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_helpers.go:Stop",
+      "type": "function",
+      "name": "Stop",
+      "filePath": "server/innodb/plan/statistics_collector_helpers.go",
+      "lineRange": [
+        922,
+        924
+      ],
+      "summary": "实现 查询计划与优化器 中的 Stop 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/plan/stub_cursor.go",
+      "type": "file",
+      "name": "stub_cursor.go",
+      "filePath": "server/innodb/plan/stub_cursor.go",
+      "summary": "提供查询计划与优化器相关的数据结构与处理逻辑，核心结构包括 noopPlanCursor、Open、GetRow、Next。",
+      "tags": [
+        "go",
+        "query-optimizer",
+        "storage-engine"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/stub_cursor.go:Open",
+      "type": "function",
+      "name": "Open",
+      "filePath": "server/innodb/plan/stub_cursor.go",
+      "lineRange": [
+        7,
+        9
+      ],
+      "summary": "初始化当前 查询计划与优化器 组件的执行状态并准备后续读取。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/stub_cursor.go:GetRow",
+      "type": "function",
+      "name": "GetRow",
+      "filePath": "server/innodb/plan/stub_cursor.go",
+      "lineRange": [
+        11,
+        13
+      ],
+      "summary": "读取 查询计划与优化器 中的 Row 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/stub_cursor.go:Next",
+      "type": "function",
+      "name": "Next",
+      "filePath": "server/innodb/plan/stub_cursor.go",
+      "lineRange": [
+        15,
+        17
+      ],
+      "summary": "推进当前 查询计划与优化器 迭代过程并返回下一条结果。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/stub_cursor.go:Close",
+      "type": "function",
+      "name": "Close",
+      "filePath": "server/innodb/plan/stub_cursor.go",
+      "lineRange": [
+        19,
+        21
+      ],
+      "summary": "释放当前 查询计划与优化器 组件持有的资源并结束生命周期。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/stub_cursor.go:Type",
+      "type": "function",
+      "name": "Type",
+      "filePath": "server/innodb/plan/stub_cursor.go",
+      "lineRange": [
+        23,
+        25
+      ],
+      "summary": "实现 查询计划与优化器 中的 Type 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/stub_cursor.go:CursorName",
+      "type": "function",
+      "name": "CursorName",
+      "filePath": "server/innodb/plan/stub_cursor.go",
+      "lineRange": [
+        27,
+        29
+      ],
+      "summary": "实现 查询计划与优化器 中的 CursorName 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/stub_cursor.go:noopPlanCursor",
+      "type": "class",
+      "name": "noopPlanCursor",
+      "filePath": "server/innodb/plan/stub_cursor.go",
+      "lineRange": [
+        5,
+        5
+      ],
+      "summary": "表示 查询计划与优化器 中的 noopPlanCursor 计划节点及其估算或执行信息。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:getTableSpaceID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:getRealRowCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:getExactRowCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:getSampledRowCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:selectRandomPages",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:countRowsInPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:sampleColumnData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:scanAllColumnData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:sampleColumnDataFromPages",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:extractColumnValuesFromPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:generateSampleValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:determineHistogramType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:buildEnhancedHistogram",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:buildEquiWidthHistogram",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:buildEquiDepthHistogram",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:buildFrequencyHistogram",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:findMinMax",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:compare",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:toFloat64",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:fromFloat64",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:countInRange",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:sortData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:estimateTreeDepth",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:estimateNonLeafPages",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:histogramTypeToString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:estimateTableStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:estimateColumnStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:backgroundUpdateWorker",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:performPeriodicUpdate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:handleUpdateRequest",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:Stop",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "function:server/innodb/plan/statistics_collector_helpers.go:Stop",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/metadata/builder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/metadata/column_def.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/metadata/column.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/metadata/convert.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/metadata/database.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/metadata/information_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/metadata/migrate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/metadata/query_schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/metadata/schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/metadata/table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/metadata/tuple.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/metadata/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_helpers.go",
+      "target": "file:server/innodb/metadata/utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "function:server/innodb/plan/stub_cursor.go:Open",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "function:server/innodb/plan/stub_cursor.go:Open",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "function:server/innodb/plan/stub_cursor.go:GetRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "function:server/innodb/plan/stub_cursor.go:GetRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "function:server/innodb/plan/stub_cursor.go:Next",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "function:server/innodb/plan/stub_cursor.go:Next",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "function:server/innodb/plan/stub_cursor.go:Close",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "function:server/innodb/plan/stub_cursor.go:Close",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "function:server/innodb/plan/stub_cursor.go:Type",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "function:server/innodb/plan/stub_cursor.go:Type",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "function:server/innodb/plan/stub_cursor.go:CursorName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "function:server/innodb/plan/stub_cursor.go:CursorName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "class:server/innodb/plan/stub_cursor.go:noopPlanCursor",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/stub_cursor.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

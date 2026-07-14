@@ -383,6 +383,10 @@ func (ta *TransactionAdapter) CommitTransaction(ctx context.Context, txn *Transa
 	return nil
 }
 
+func makeResourceID(tableID, pageID uint32, rowID uint64) string {
+	return fmt.Sprintf("%d_%d_%d", tableID, pageID, rowID)
+}
+
 // RollbackTransaction 回滚事务
 func (ta *TransactionAdapter) RollbackTransaction(ctx context.Context, txn *Transaction) error {
 	// 验证事务对象
@@ -424,10 +428,9 @@ func (ta *TransactionAdapter) AcquireLock(ctx context.Context, txn *Transaction,
 		return newTxnAdapterError("transaction-lock", ExecutionErrorCodeValidation, txn.TxnID, fmt.Errorf("resource cannot be empty"), "resource cannot be empty")
 	}
 
-	// 如果没有锁管理器，直接返回成功（简化模式）
+	// 缺少锁管理器时不能静默跳过，否则上层会误判锁已获取。
 	if ta.lockManager == nil {
-		logger.Debugf("⚠️ No lock manager available, skipping lock acquisition")
-		return nil
+		return newTxnAdapterError("transaction-lock", ExecutionErrorCodeTxnContextInvalid, txn.TxnID, fmt.Errorf("lock manager is nil"), "lock manager is nil")
 	}
 
 	// 解析资源ID格式: "tableID:pageID:rowID"
@@ -482,17 +485,29 @@ func (ta *TransactionAdapter) ReleaseLock(ctx context.Context, txn *Transaction,
 		return newTxnAdapterError("transaction-unlock", ExecutionErrorCodeValidation, txn.TxnID, fmt.Errorf("resource cannot be empty"), "resource cannot be empty")
 	}
 
-	// 如果没有锁管理器，直接返回成功（简化模式）
+	// 缺少锁管理器时不能静默跳过，否则上层会误判资源锁已释放。
 	if ta.lockManager == nil {
-		logger.Debugf("⚠️ No lock manager available, skipping lock release")
-		return nil
+		return newTxnAdapterError("transaction-unlock", ExecutionErrorCodeTxnContextInvalid, txn.TxnID, fmt.Errorf("lock manager is nil"), "lock manager is nil")
 	}
 
 	// 当前实现：释放事务的所有锁
-	// TODO: 在LockManager中实现单个锁的释放功能
-	logger.Debugf("⚠️ ReleaseLock currently releases all locks for transaction %d", txn.TxnID)
-	ta.lockManager.ReleaseLocks(txn.TxnID)
+	var tableID, pageID uint32
+	var rowID uint64
+	_, err := fmt.Sscanf(resource, "%d:%d:%d", &tableID, &pageID, &rowID)
+	if err != nil {
+		// 如果解析失败，尝试简化格式 "tableID:rowID"
+		_, err = fmt.Sscanf(resource, "%d:%d", &tableID, &rowID)
+		if err != nil {
+			return newTxnAdapterError("transaction-unlock", ExecutionErrorCodeValidation, txn.TxnID, fmt.Errorf("invalid resource format: %s", resource), "invalid resource format: %s", resource)
+		}
+		pageID = 0
+	}
 
-	logger.Debugf("✅ Released locks for transaction %d", txn.TxnID)
+	resourceID := makeResourceID(tableID, pageID, rowID)
+	if err := ta.lockManager.ReleaseLock(txn.TxnID, resourceID); err != nil {
+		return newTxnAdapterError("transaction-unlock", ExecutionErrorCodeIndexOperation, txn.TxnID, err, "failed to release lock: %v", err)
+	}
+
+	logger.Debugf("✅ Released lock %s for transaction %d", resourceID, txn.TxnID)
 	return nil
 }

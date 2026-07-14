@@ -1,0 +1,78 @@
+# P0 Release Package Test Report
+generated_at_utc=2026-06-10T15:26:48Z
+go_binary=/Users/zhukovasky/sdk/go1.24.3/bin/go
+go_version=go version go1.24.3 darwin/amd64
+repo=/Users/zhukovasky/GolandProjects/xmysql-server
+run_dir=/Users/zhukovasky/GolandProjects/xmysql-server/reports/p0_release_tests/20260610_232648
+timestamp=20260610_232648
+test_scope=packages
+enforce_full_test=0
+packages=./server/conf ./server/dispatcher ./server/net ./server/protocol ./server/innodb/basic ./server/innodb/record ./server/innodb/manager ./server/innodb/engine
+retry_times=0
+
+scope=packages (fixed package set)
+
+=== package=./server/conf ===
+command=/Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/conf -count=1
+attempt=1
+duration_ms=2000
+result=PASS
+RESULT: PASS
+
+=== package=./server/dispatcher ===
+command=/Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/dispatcher -count=1
+attempt=1
+duration_ms=1000
+result=PASS
+RESULT: PASS
+
+=== package=./server/net ===
+command=/Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/net -count=1
+attempt=1
+duration_ms=3000
+result=PASS
+RESULT: PASS
+
+=== package=./server/protocol ===
+command=/Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/protocol -count=1
+attempt=1
+duration_ms=2000
+result=PASS
+RESULT: PASS
+
+=== package=./server/innodb/basic ===
+command=/Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/basic -count=1
+attempt=1
+duration_ms=1000
+result=PASS
+RESULT: PASS
+
+=== package=./server/innodb/record ===
+command=/Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/record -count=1
+attempt=1
+duration_ms=2000
+result=PASS
+RESULT: PASS
+
+=== package=./server/innodb/manager ===
+command=/Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/manager -count=1
+attempt=1
+duration_ms=8000
+result=PASS
+RESULT: PASS
+
+=== package=./server/innodb/engine ===
+command=/Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/engine -count=1
+attempt=1
+duration_ms=2000
+result=PASS
+RESULT: PASS
+
+=== final ===
+packages_total=8
+packages_passed=8
+packages_failed=0
+failed_packages=
+failure_summary=
+total_duration_sec=21
+overall=PASS

@@ -2,6 +2,7 @@ package manager
 
 import (
 	"fmt"
+	"math/bits"
 	"sync"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
@@ -72,6 +73,7 @@ type PageAllocator struct {
 	freeExtents    []uint32 // 空闲Extent列表
 	notFullExtents []uint32 // 部分使用的Extent列表
 	fullExtents    []uint32 // 完全使用的Extent列表
+	extentUsage    map[uint32]uint64
 
 	// 统计信息
 	stats *AllocationStats
@@ -141,6 +143,7 @@ func NewPageAllocator(spaceManager basic.SpaceManager, spaceID uint32, config *A
 		freeExtents:     make([]uint32, 0),
 		notFullExtents:  make([]uint32, 0),
 		fullExtents:     make([]uint32, 0),
+		extentUsage:     make(map[uint32]uint64),
 		stats: &AllocationStats{
 			FragmentationRate: 0.0,
 			LargestFreeExtent: 0,
@@ -235,7 +238,16 @@ func (pa *PageAllocator) allocateFromExtent() (uint32, error) {
 	// 优先从部分使用的Extent分配
 	if len(pa.notFullExtents) > 0 {
 		extentID := pa.notFullExtents[0]
-		pageNo := extentID*PagesPerExtent + pa.findFreePageInExtent(extentID)
+		pageOffset := pa.findFreePageInExtent(extentID)
+		if pageOffset == ^uint32(0) {
+			return 0, fmt.Errorf("extent %d is full", extentID)
+		}
+		pa.setExtentPageUsed(extentID, pageOffset)
+		if pa.isExtentFull(extentID) {
+			pa.notFullExtents = removeExtent(pa.notFullExtents, extentID)
+			pa.fullExtents = appendDistinct(pa.fullExtents, extentID)
+		}
+		pageNo := extentID*PagesPerExtent + pageOffset
 		pa.stats.CompleteAllocs++
 		pa.stats.ExtentPages++
 		return pageNo, nil
@@ -249,6 +261,7 @@ func (pa *PageAllocator) allocateFromExtent() (uint32, error) {
 		// 分配第一个页面
 		pageNo := extentID * PagesPerExtent
 		pa.notFullExtents = append(pa.notFullExtents, extentID)
+		pa.setExtentPageUsed(extentID, 0)
 
 		pa.stats.CompleteAllocs++
 		pa.stats.ExtentPages++
@@ -267,6 +280,7 @@ func (pa *PageAllocator) allocateFromExtent() (uint32, error) {
 	extentID := extent.GetID()
 	pageNo := extentID * PagesPerExtent
 	pa.notFullExtents = append(pa.notFullExtents, extentID)
+	pa.setExtentPageUsed(extentID, 0)
 
 	pa.stats.CompleteAllocs++
 	pa.stats.ExtentPages++
@@ -322,20 +336,29 @@ func (pa *PageAllocator) allocatePagesFromExtents(count uint32) ([]uint32, error
 
 		// 分配此Extent中的页面
 		startPage := extentID * PagesPerExtent
-		pagesInExtent := uint32(PagesPerExtent)
-		if uint32(len(pages))+pagesInExtent > count {
-			pagesInExtent = count - uint32(len(pages))
+		for j := uint32(0); j < uint32(PagesPerExtent); j++ {
+			if uint32(len(pages)) >= count {
+				break
+			}
+
+			pageOffset := pa.findFreePageInExtent(extentID)
+			if pageOffset == ^uint32(0) {
+				break
+			}
+
+			pa.setExtentPageUsed(extentID, pageOffset)
+			pages = append(pages, startPage+pageOffset)
 		}
 
-		for j := uint32(0); j < pagesInExtent; j++ {
-			pages = append(pages, startPage+j)
-		}
-
-		// 更新Extent状态
-		if pagesInExtent < uint32(PagesPerExtent) {
-			pa.notFullExtents = append(pa.notFullExtents, extentID)
+		if pa.isExtentFull(extentID) {
+			pa.fullExtents = appendDistinct(pa.fullExtents, extentID)
+			pa.notFullExtents = removeExtent(pa.notFullExtents, extentID)
 		} else {
-			pa.fullExtents = append(pa.fullExtents, extentID)
+			pa.notFullExtents = appendDistinct(pa.notFullExtents, extentID)
+		}
+
+		if uint32(len(pages)) >= count {
+			break
 		}
 	}
 
@@ -496,15 +519,97 @@ func (pa *PageAllocator) clearFragmentBit(offset uint32) {
 
 // findFreePageInExtent 在指定Extent中查找空闲页面
 func (pa *PageAllocator) findFreePageInExtent(extentID uint32) uint32 {
-	// TODO: 实现Extent内部的页面分配位图
-	// 当前简化实现，返回第一个页面
-	return 0
+	if pa == nil {
+		return ^uint32(0)
+	}
+
+	used, ok := pa.extentUsage[extentID]
+	if !ok {
+		return 0
+	}
+
+	for offset := uint32(0); offset < PagesPerExtent; offset++ {
+		if used&(1<<offset) == 0 {
+			return offset
+		}
+	}
+
+	return ^uint32(0)
 }
 
 // freePageInExtent 释放Extent中的页面
 func (pa *PageAllocator) freePageInExtent(extentID uint32, pageOffset uint32) {
-	// TODO: 实现Extent内部的页面释放
-	// 当前简化实现
+	if pa == nil || pageOffset >= PagesPerExtent {
+		return
+	}
+
+	used, ok := pa.extentUsage[extentID]
+	if !ok {
+		return
+	}
+
+	mask := uint64(1) << pageOffset
+	wasUsed := used&mask != 0
+	used &^= mask
+	if wasUsed {
+		pa.extentUsage[extentID] = used
+	}
+
+	usedCount := popcount64(used)
+	switch {
+	case usedCount == 0:
+		pa.extentUsage[extentID] = 0
+		pa.notFullExtents = removeExtent(pa.notFullExtents, extentID)
+		pa.fullExtents = removeExtent(pa.fullExtents, extentID)
+		pa.freeExtents = appendDistinct(pa.freeExtents, extentID)
+	case usedCount < PagesPerExtent:
+		pa.fullExtents = removeExtent(pa.fullExtents, extentID)
+		pa.notFullExtents = appendDistinct(pa.notFullExtents, extentID)
+	}
+}
+
+func (pa *PageAllocator) setExtentPageUsed(extentID uint32, pageOffset uint32) {
+	if pa == nil || pageOffset >= PagesPerExtent {
+		return
+	}
+	used := pa.extentUsage[extentID]
+	mask := uint64(1) << pageOffset
+	used |= mask
+	pa.extentUsage[extentID] = used
+
+	if pa.isExtentFull(extentID) {
+		pa.notFullExtents = removeExtent(pa.notFullExtents, extentID)
+		pa.fullExtents = appendDistinct(pa.fullExtents, extentID)
+	}
+}
+
+func (pa *PageAllocator) isExtentFull(extentID uint32) bool {
+	if pa == nil {
+		return false
+	}
+	return popcount64(pa.extentUsage[extentID]) >= PagesPerExtent
+}
+
+func popcount64(v uint64) uint32 {
+	return uint32(bits.OnesCount64(v))
+}
+
+func appendDistinct(extents []uint32, extentID uint32) []uint32 {
+	for _, id := range extents {
+		if id == extentID {
+			return extents
+		}
+	}
+	return append(extents, extentID)
+}
+
+func removeExtent(extents []uint32, extentID uint32) []uint32 {
+	for i, id := range extents {
+		if id == extentID {
+			return append(extents[:i], extents[i+1:]...)
+		}
+	}
+	return extents
 }
 
 // updateFragmentationRate 更新碎片率

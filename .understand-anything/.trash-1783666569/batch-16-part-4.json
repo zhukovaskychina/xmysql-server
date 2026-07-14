@@ -1,0 +1,2288 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/engine/dml_operators.go",
+      "type": "file",
+      "name": "dml_operators.go",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "summary": "实现Volcano 执行模型中的 DML 算子，覆盖 InsertOperator、UpdateOperator、DeleteOperator、NewInsertOperator 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "dml-operator",
+        "execution-engine",
+        "source-file"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:NewInsertOperator",
+      "type": "function",
+      "name": "NewInsertOperator",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        37,
+        55
+      ],
+      "summary": "构造并初始化 NewInsertOperator 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "dml-operator",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:InsertOperator.Open",
+      "type": "function",
+      "name": "InsertOperator.Open",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        58,
+        77
+      ],
+      "summary": "启动或初始化 Open 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "dml-operator",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:InsertOperator.Next",
+      "type": "function",
+      "name": "InsertOperator.Next",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        80,
+        124
+      ],
+      "summary": "实现 Next 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:executeInsert",
+      "type": "function",
+      "name": "executeInsert",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        127,
+        169
+      ],
+      "summary": "实现 executeInsert 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:insertOrUpdate",
+      "type": "function",
+      "name": "insertOrUpdate",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        173,
+        197
+      ],
+      "summary": "实现 insertOrUpdate 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:updateOnDuplicate",
+      "type": "function",
+      "name": "updateOnDuplicate",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        200,
+        223
+      ],
+      "summary": "实现 updateOnDuplicate 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:applyOnDupUpdate",
+      "type": "function",
+      "name": "applyOnDupUpdate",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        226,
+        252
+      ],
+      "summary": "实现 applyOnDupUpdate 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:evaluateOnDupExpr",
+      "type": "function",
+      "name": "evaluateOnDupExpr",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        255,
+        311
+      ],
+      "summary": "实现 evaluateOnDupExpr 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:evaluateBinaryOp",
+      "type": "function",
+      "name": "evaluateBinaryOp",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        314,
+        338
+      ],
+      "summary": "实现 evaluateBinaryOp 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:toInt64",
+      "type": "function",
+      "name": "toInt64",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        341,
+        358
+      ],
+      "summary": "实现 toInt64 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:isDuplicateKeyError",
+      "type": "function",
+      "name": "isDuplicateKeyError",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        361,
+        379
+      ],
+      "summary": "实现 isDuplicateKeyError 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:insertRow",
+      "type": "function",
+      "name": "insertRow",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        393,
+        403
+      ],
+      "summary": "实现 insertRow 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:updateRecord",
+      "type": "function",
+      "name": "updateRecord",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        406,
+        416
+      ],
+      "summary": "实现 updateRecord 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:InsertOperator.getTableSchema",
+      "type": "function",
+      "name": "InsertOperator.getTableSchema",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        419,
+        433
+      ],
+      "summary": "实现 getTableSchema 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:NewUpdateOperator",
+      "type": "function",
+      "name": "NewUpdateOperator",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        482,
+        502
+      ],
+      "summary": "构造并初始化 NewUpdateOperator 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "dml-operator",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:UpdateOperator.Open",
+      "type": "function",
+      "name": "UpdateOperator.Open",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        505,
+        524
+      ],
+      "summary": "启动或初始化 Open 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "dml-operator",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:UpdateOperator.Next",
+      "type": "function",
+      "name": "UpdateOperator.Next",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        527,
+        571
+      ],
+      "summary": "实现 Next 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:executeUpdate",
+      "type": "function",
+      "name": "executeUpdate",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        574,
+        621
+      ],
+      "summary": "实现 executeUpdate 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:UpdateOperator.getTableSchema",
+      "type": "function",
+      "name": "UpdateOperator.getTableSchema",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        624,
+        636
+      ],
+      "summary": "实现 getTableSchema 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:applySetClause",
+      "type": "function",
+      "name": "applySetClause",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        639,
+        655
+      ],
+      "summary": "实现 applySetClause 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:checkIndexColumnsChanged",
+      "type": "function",
+      "name": "checkIndexColumnsChanged",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        658,
+        677
+      ],
+      "summary": "实现 checkIndexColumnsChanged 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:updateInPlace",
+      "type": "function",
+      "name": "updateInPlace",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        680,
+        698
+      ],
+      "summary": "实现 updateInPlace 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:updateWithIndexChange",
+      "type": "function",
+      "name": "updateWithIndexChange",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        701,
+        718
+      ],
+      "summary": "实现 updateWithIndexChange 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:deleteOldRecord",
+      "type": "function",
+      "name": "deleteOldRecord",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        721,
+        736
+      ],
+      "summary": "实现 deleteOldRecord 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:insertNewRecord",
+      "type": "function",
+      "name": "insertNewRecord",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        739,
+        754
+      ],
+      "summary": "实现 insertNewRecord 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:NewDeleteOperator",
+      "type": "function",
+      "name": "NewDeleteOperator",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        788,
+        808
+      ],
+      "summary": "构造并初始化 NewDeleteOperator 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "dml-operator",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:DeleteOperator.Open",
+      "type": "function",
+      "name": "DeleteOperator.Open",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        811,
+        830
+      ],
+      "summary": "启动或初始化 Open 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "dml-operator",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:DeleteOperator.Next",
+      "type": "function",
+      "name": "DeleteOperator.Next",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        833,
+        877
+      ],
+      "summary": "实现 Next 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:executeDelete",
+      "type": "function",
+      "name": "executeDelete",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        880,
+        913
+      ],
+      "summary": "实现 executeDelete 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/dml_operators.go:deleteRecord",
+      "type": "function",
+      "name": "deleteRecord",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        915,
+        927
+      ],
+      "summary": "实现 deleteRecord 对应的Volcano 执行模型中的 DML 算子流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dml-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/engine/dml_operators.go:InsertOperator",
+      "type": "class",
+      "name": "InsertOperator",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        20,
+        34
+      ],
+      "summary": "InsertOperator 定义Volcano 执行模型中的 DML 算子所需的数据结构，并通过 Open、Next、executeInsert、insertOrUpdate 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "dml-operator",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/engine/dml_operators.go:UpdateOperator",
+      "type": "class",
+      "name": "UpdateOperator",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        462,
+        479
+      ],
+      "summary": "UpdateOperator 定义Volcano 执行模型中的 DML 算子所需的数据结构，并通过 Open、Next、executeUpdate、getTableSchema 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "dml-operator",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/engine/dml_operators.go:DeleteOperator",
+      "type": "class",
+      "name": "DeleteOperator",
+      "filePath": "server/innodb/engine/dml_operators.go",
+      "lineRange": [
+        768,
+        785
+      ],
+      "summary": "DeleteOperator 定义Volcano 执行模型中的 DML 算子所需的数据结构，并通过 Open、Next、executeDelete、deleteRecord 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "dml-operator",
+        "behavior"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/engine/executor_record.go",
+      "type": "file",
+      "name": "executor_record.go",
+      "filePath": "server/innodb/engine/executor_record.go",
+      "summary": "实现执行器记录的值访问与模式映射，覆盖 EngineExecutorRecord、NewExecutorRecord、NewExecutorRecordFromInterface、GetValueByName 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "executor-record",
+        "execution-engine",
+        "source-file"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/engine/executor_record.go:NewExecutorRecord",
+      "type": "function",
+      "name": "NewExecutorRecord",
+      "filePath": "server/innodb/engine/executor_record.go",
+      "lineRange": [
+        17,
+        22
+      ],
+      "summary": "构造并初始化 NewExecutorRecord 对应的执行器记录的值访问与模式映射流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "executor-record",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/executor_record.go:NewExecutorRecordFromInterface",
+      "type": "function",
+      "name": "NewExecutorRecordFromInterface",
+      "filePath": "server/innodb/engine/executor_record.go",
+      "lineRange": [
+        25,
+        44
+      ],
+      "summary": "构造并初始化 NewExecutorRecordFromInterface 对应的执行器记录的值访问与模式映射流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "executor-record",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/executor_record.go:GetValueByName",
+      "type": "function",
+      "name": "GetValueByName",
+      "filePath": "server/innodb/engine/executor_record.go",
+      "lineRange": [
+        47,
+        60
+      ],
+      "summary": "读取或查找 GetValueByName 对应的执行器记录的值访问与模式映射流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "executor-record",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/executor_record.go:SetValueByName",
+      "type": "function",
+      "name": "SetValueByName",
+      "filePath": "server/innodb/engine/executor_record.go",
+      "lineRange": [
+        62,
+        76
+      ],
+      "summary": "更新或持久化 SetValueByName 对应的执行器记录的值访问与模式映射流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "executor-record",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/executor_record.go:GetValues",
+      "type": "function",
+      "name": "GetValues",
+      "filePath": "server/innodb/engine/executor_record.go",
+      "lineRange": [
+        78,
+        80
+      ],
+      "summary": "读取或查找 GetValues 对应的执行器记录的值访问与模式映射流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "executor-record",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/executor_record.go:SetValues",
+      "type": "function",
+      "name": "SetValues",
+      "filePath": "server/innodb/engine/executor_record.go",
+      "lineRange": [
+        82,
+        84
+      ],
+      "summary": "更新或持久化 SetValues 对应的执行器记录的值访问与模式映射流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "executor-record",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/executor_record.go:GetColumnCount",
+      "type": "function",
+      "name": "GetColumnCount",
+      "filePath": "server/innodb/engine/executor_record.go",
+      "lineRange": [
+        86,
+        88
+      ],
+      "summary": "读取或查找 GetColumnCount 对应的执行器记录的值访问与模式映射流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "executor-record",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/executor_record.go:GetValueByIndex",
+      "type": "function",
+      "name": "GetValueByIndex",
+      "filePath": "server/innodb/engine/executor_record.go",
+      "lineRange": [
+        90,
+        95
+      ],
+      "summary": "读取或查找 GetValueByIndex 对应的执行器记录的值访问与模式映射流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "executor-record",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/executor_record.go:SetValueByIndex",
+      "type": "function",
+      "name": "SetValueByIndex",
+      "filePath": "server/innodb/engine/executor_record.go",
+      "lineRange": [
+        97,
+        103
+      ],
+      "summary": "更新或持久化 SetValueByIndex 对应的执行器记录的值访问与模式映射流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "executor-record",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/executor_record.go:GetTableMeta",
+      "type": "function",
+      "name": "GetTableMeta",
+      "filePath": "server/innodb/engine/executor_record.go",
+      "lineRange": [
+        106,
+        108
+      ],
+      "summary": "读取或查找 GetTableMeta 对应的执行器记录的值访问与模式映射流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "executor-record",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/executor_record.go:SetTableMeta",
+      "type": "function",
+      "name": "SetTableMeta",
+      "filePath": "server/innodb/engine/executor_record.go",
+      "lineRange": [
+        110,
+        112
+      ],
+      "summary": "更新或持久化 SetTableMeta 对应的执行器记录的值访问与模式映射流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "executor-record",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/executor_record.go:ToInterfaceValues",
+      "type": "function",
+      "name": "ToInterfaceValues",
+      "filePath": "server/innodb/engine/executor_record.go",
+      "lineRange": [
+        115,
+        121
+      ],
+      "summary": "实现 ToInterfaceValues 对应的执行器记录的值访问与模式映射流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "executor-record"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/engine/executor_record.go:EngineExecutorRecord",
+      "type": "class",
+      "name": "EngineExecutorRecord",
+      "filePath": "server/innodb/engine/executor_record.go",
+      "lineRange": [
+        11,
+        14
+      ],
+      "summary": "EngineExecutorRecord 定义执行器记录的值访问与模式映射所需的数据结构，并通过 GetValueByName、SetValueByName、GetValues、SetValues 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "executor-record",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:NewInsertOperator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:NewInsertOperator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:InsertOperator.Open",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:InsertOperator.Open",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:InsertOperator.Next",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:InsertOperator.Next",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:executeInsert",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:insertOrUpdate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:updateOnDuplicate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:applyOnDupUpdate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:evaluateOnDupExpr",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:evaluateBinaryOp",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:toInt64",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:isDuplicateKeyError",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:insertRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:updateRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:InsertOperator.getTableSchema",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:NewUpdateOperator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:NewUpdateOperator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:UpdateOperator.Open",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:UpdateOperator.Open",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:UpdateOperator.Next",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:UpdateOperator.Next",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:executeUpdate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:UpdateOperator.getTableSchema",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:applySetClause",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:checkIndexColumnsChanged",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:updateInPlace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:updateWithIndexChange",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:deleteOldRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:insertNewRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:NewDeleteOperator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:NewDeleteOperator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:DeleteOperator.Open",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:DeleteOperator.Open",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:DeleteOperator.Next",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:DeleteOperator.Next",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:executeDelete",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "function:server/innodb/engine/dml_operators.go:deleteRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "class:server/innodb/engine/dml_operators.go:InsertOperator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "class:server/innodb/engine/dml_operators.go:InsertOperator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "class:server/innodb/engine/dml_operators.go:UpdateOperator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "class:server/innodb/engine/dml_operators.go:UpdateOperator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "class:server/innodb/engine/dml_operators.go:DeleteOperator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "class:server/innodb/engine/dml_operators.go:DeleteOperator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:NewExecutorRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:NewExecutorRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:NewExecutorRecordFromInterface",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:NewExecutorRecordFromInterface",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:GetValueByName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:GetValueByName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:SetValueByName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:SetValueByName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:GetValues",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:GetValues",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:SetValues",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:SetValues",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:GetColumnCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:GetColumnCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:GetValueByIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:GetValueByIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:SetValueByIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:SetValueByIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:GetTableMeta",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:GetTableMeta",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:SetTableMeta",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:SetTableMeta",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:ToInterfaceValues",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "function:server/innodb/engine/executor_record.go:ToInterfaceValues",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "class:server/innodb/engine/executor_record.go:EngineExecutorRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "class:server/innodb/engine/executor_record.go:EngineExecutorRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:logger/logger.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/common/charset.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/common/const_trx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/common/constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/common/error_name.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/common/error_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/common/error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/common/errorcode.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/common/frm_constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/common/locale_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/common/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/common/privs_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/common/privs.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/common/sql_error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/common/sql_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/common/type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/common/type.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/common/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/metadata/builder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/metadata/column_def.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/metadata/column.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/metadata/convert.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/metadata/database.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/metadata/information_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/metadata/migrate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/metadata/query_schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/metadata/schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/metadata/table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/metadata/tuple.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/metadata/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/metadata/utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/analyzer_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/analyzer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/ast_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/ast.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/comments_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/comments.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/encodable_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/encodable.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/expression.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/github_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/impossible_query.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/normalizer_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/normalizer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/parse_next_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/parse_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/parsed_query_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/parsed_query.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/precedence_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/redact_query_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/redact_query.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/sql.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/token_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/token.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/dml_operators.go",
+      "target": "file:server/innodb/sqlparser/tracked_buffer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/metadata/builder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/metadata/column_def.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/metadata/column.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/metadata/convert.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/metadata/database.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/metadata/information_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/metadata/migrate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/metadata/query_schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/metadata/schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/metadata/table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/metadata/tuple.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/metadata/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/executor_record.go",
+      "target": "file:server/innodb/metadata/utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

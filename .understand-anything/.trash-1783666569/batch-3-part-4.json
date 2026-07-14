@@ -1,0 +1,1577 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "type": "file",
+      "name": "ibuf_bitmap_page.go",
+      "filePath": "server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "summary": "实现InnoDB 物理页结构与序列化的页结构、字段访问和持久化操作。",
+      "tags": [
+        "service",
+        "storage-page",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_bitmap_page.go:NewIBufBitMapPage",
+      "type": "function",
+      "name": "NewIBufBitMapPage",
+      "filePath": "server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "lineRange": [
+        45,
+        72
+      ],
+      "summary": "创建或初始化InnoDB 物理页结构与序列化中的 NewIBufBitMapPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_bitmap_page.go:GetNextPageInfo",
+      "type": "function",
+      "name": "GetNextPageInfo",
+      "filePath": "server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "lineRange": [
+        74,
+        98
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetNextPageInfo 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_bitmap_page.go:SerializeBytes",
+      "type": "function",
+      "name": "SerializeBytes",
+      "filePath": "server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "lineRange": [
+        100,
+        108
+      ],
+      "summary": "编码或序列化InnoDB 物理页结构与序列化中的 SerializeBytes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "serialization",
+        "binary-format",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_bitmap_page.go:GetSerializeBytes",
+      "type": "function",
+      "name": "GetSerializeBytes",
+      "filePath": "server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "lineRange": [
+        110,
+        112
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetSerializeBytes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/ibuf_bitmap_page.go:IBufBitMapPage",
+      "type": "class",
+      "name": "IBufBitMapPage",
+      "filePath": "server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "lineRange": [
+        17,
+        21
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 IBufBitMapPage 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/ibuf_bitmap_page.go:BitMapDesc",
+      "type": "class",
+      "name": "BitMapDesc",
+      "filePath": "server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "lineRange": [
+        28,
+        32
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 BitMapDesc 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/ibuf_bitmap_page.go:IBufRecord",
+      "type": "class",
+      "name": "IBufRecord",
+      "filePath": "server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "lineRange": [
+        34,
+        43
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 IBufRecord 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "type": "file",
+      "name": "ibuf_free_list_page.go",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "summary": "实现InnoDB 物理页结构与序列化的页结构、字段访问和持久化操作。",
+      "tags": [
+        "service",
+        "storage-page",
+        "innodb"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:NewIBufFreeListPage",
+      "type": "function",
+      "name": "NewIBufFreeListPage",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        91,
+        113
+      ],
+      "summary": "创建或初始化InnoDB 物理页结构与序列化中的 NewIBufFreeListPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:AddFreePage",
+      "type": "function",
+      "name": "AddFreePage",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        116,
+        143
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 AddFreePage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:AllocatePage",
+      "type": "function",
+      "name": "AllocatePage",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        146,
+        162
+      ],
+      "summary": "创建或初始化InnoDB 物理页结构与序列化中的 AllocatePage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:FreePage",
+      "type": "function",
+      "name": "FreePage",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        165,
+        179
+      ],
+      "summary": "删除或释放InnoDB 物理页结构与序列化中的 FreePage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:MarkPageInUse",
+      "type": "function",
+      "name": "MarkPageInUse",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        182,
+        196
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 MarkPageInUse 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetPageStatus",
+      "type": "function",
+      "name": "GetPageStatus",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        199,
+        207
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetPageStatus 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetFreePages",
+      "type": "function",
+      "name": "GetFreePages",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        210,
+        218
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetFreePages 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:updateCounts",
+      "type": "function",
+      "name": "updateCounts",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        221,
+        236
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 updateCounts 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:updateFreeChain",
+      "type": "function",
+      "name": "updateFreeChain",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        239,
+        253
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 updateFreeChain 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:SetNextListPage",
+      "type": "function",
+      "name": "SetNextListPage",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        256,
+        258
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetNextListPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetNextListPage",
+      "type": "function",
+      "name": "GetNextListPage",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        261,
+        263
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetNextListPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetFreeCount",
+      "type": "function",
+      "name": "GetFreeCount",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        266,
+        268
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetFreeCount 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetUsedCount",
+      "type": "function",
+      "name": "GetUsedCount",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        271,
+        273
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetUsedCount 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetTotalCount",
+      "type": "function",
+      "name": "GetTotalCount",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        276,
+        278
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetTotalCount 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:Serialize",
+      "type": "function",
+      "name": "Serialize",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        281,
+        312
+      ],
+      "summary": "编码或序列化InnoDB 物理页结构与序列化中的 Serialize 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "serialization",
+        "binary-format",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:Deserialize",
+      "type": "function",
+      "name": "Deserialize",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        315,
+        345
+      ],
+      "summary": "解析或反序列化InnoDB 物理页结构与序列化中的 Deserialize 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "serialization",
+        "binary-format",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:serializeIBufFreeListHeader",
+      "type": "function",
+      "name": "serializeIBufFreeListHeader",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        356,
+        368
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 serializeIBufFreeListHeader 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:serializePageEntries",
+      "type": "function",
+      "name": "serializePageEntries",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        371,
+        381
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 serializePageEntries 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:deserializeIBufFreeListHeader",
+      "type": "function",
+      "name": "deserializeIBufFreeListHeader",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        398,
+        412
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 deserializeIBufFreeListHeader 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:deserializePageEntries",
+      "type": "function",
+      "name": "deserializePageEntries",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        415,
+        426
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 deserializePageEntries 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:Validate",
+      "type": "function",
+      "name": "Validate",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        429,
+        452
+      ],
+      "summary": "校验或判断InnoDB 物理页结构与序列化中的 Validate 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetFileHeader",
+      "type": "function",
+      "name": "GetFileHeader",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        455,
+        457
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetFileHeader 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetFileTrailer",
+      "type": "function",
+      "name": "GetFileTrailer",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        460,
+        462
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetFileTrailer 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetSerializeBytes",
+      "type": "function",
+      "name": "GetSerializeBytes",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        465,
+        467
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetSerializeBytes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:LoadFileHeader",
+      "type": "function",
+      "name": "LoadFileHeader",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        470,
+        472
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 LoadFileHeader 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:LoadFileTrailer",
+      "type": "function",
+      "name": "LoadFileTrailer",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        475,
+        477
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 LoadFileTrailer 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/ibuf_free_list_page.go:IBufFreeListHeader",
+      "type": "class",
+      "name": "IBufFreeListHeader",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        66,
+        74
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 IBufFreeListHeader 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/ibuf_free_list_page.go:IBufPageEntry",
+      "type": "class",
+      "name": "IBufPageEntry",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        77,
+        80
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 IBufPageEntry 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/ibuf_free_list_page.go:IBufFreeListPage",
+      "type": "class",
+      "name": "IBufFreeListPage",
+      "filePath": "server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "lineRange": [
+        83,
+        88
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 IBufFreeListPage 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "storage-page"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:server/innodb/storage/store/pages/inode_page_test.go",
+      "type": "file",
+      "name": "inode_page_test.go",
+      "filePath": "server/innodb/storage/store/pages/inode_page_test.go",
+      "summary": "验证InnoDB 物理页结构与序列化中 inode page 的正常路径、边界条件与回归行为。",
+      "tags": [
+        "test",
+        "regression",
+        "storage-page",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/inode_page_test.go:TestINodePoint",
+      "type": "function",
+      "name": "TestINodePoint",
+      "filePath": "server/innodb/storage/store/pages/inode_page_test.go",
+      "lineRange": [
+        13,
+        41
+      ],
+      "summary": "验证InnoDB 物理页结构与序列化中的 TestINodePoint 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/inode_page_test.go:Student",
+      "type": "class",
+      "name": "Student",
+      "filePath": "server/innodb/storage/store/pages/inode_page_test.go",
+      "lineRange": [
+        10,
+        11
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 Student 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_bitmap_page.go:NewIBufBitMapPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_bitmap_page.go:NewIBufBitMapPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_bitmap_page.go:GetNextPageInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_bitmap_page.go:GetNextPageInfo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_bitmap_page.go:SerializeBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_bitmap_page.go:SerializeBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_bitmap_page.go:GetSerializeBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_bitmap_page.go:GetSerializeBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "class:server/innodb/storage/store/pages/ibuf_bitmap_page.go:IBufBitMapPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "class:server/innodb/storage/store/pages/ibuf_bitmap_page.go:IBufBitMapPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "class:server/innodb/storage/store/pages/ibuf_bitmap_page.go:BitMapDesc",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "class:server/innodb/storage/store/pages/ibuf_bitmap_page.go:BitMapDesc",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "class:server/innodb/storage/store/pages/ibuf_bitmap_page.go:IBufRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "class:server/innodb/storage/store/pages/ibuf_bitmap_page.go:IBufRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:server/common/charset.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:server/common/const_trx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:server/common/constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:server/common/error_name.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:server/common/error_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:server/common/error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:server/common/errorcode.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:server/common/frm_constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:server/common/locale_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:server/common/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:server/common/privs_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:server/common/privs.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:server/common/sql_error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:server/common/sql_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:server/common/type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:server/common/type.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:server/common/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:util/bitutils_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:util/bitutils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:util/buffer_reader.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:util/buffer_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:util/buffer_writer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:util/byte_util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:util/checker.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:util/configReader.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:util/fileutil_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:util/fileutil.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:util/hash_utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:util/hashutils_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:util/password.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:util/Random.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:util/rutime.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "target": "file:util/time_util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:NewIBufFreeListPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:NewIBufFreeListPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:AddFreePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:AddFreePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:AllocatePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:AllocatePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:FreePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:FreePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:MarkPageInUse",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:MarkPageInUse",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetPageStatus",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetPageStatus",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetFreePages",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetFreePages",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:updateCounts",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:updateFreeChain",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:SetNextListPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:SetNextListPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetNextListPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetNextListPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetFreeCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetFreeCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetUsedCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetUsedCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetTotalCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetTotalCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:Serialize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:Serialize",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:Deserialize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:Deserialize",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:serializeIBufFreeListHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:serializePageEntries",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:deserializeIBufFreeListHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:deserializePageEntries",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:Validate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:Validate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetFileHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetFileHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetFileTrailer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetFileTrailer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetSerializeBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:GetSerializeBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:LoadFileHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:LoadFileHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:LoadFileTrailer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "function:server/innodb/storage/store/pages/ibuf_free_list_page.go:LoadFileTrailer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "class:server/innodb/storage/store/pages/ibuf_free_list_page.go:IBufFreeListHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "class:server/innodb/storage/store/pages/ibuf_free_list_page.go:IBufFreeListHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "class:server/innodb/storage/store/pages/ibuf_free_list_page.go:IBufPageEntry",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "class:server/innodb/storage/store/pages/ibuf_free_list_page.go:IBufPageEntry",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "class:server/innodb/storage/store/pages/ibuf_free_list_page.go:IBufFreeListPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "class:server/innodb/storage/store/pages/ibuf_free_list_page.go:IBufFreeListPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "file:server/common/charset.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "file:server/common/const_trx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "file:server/common/constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "file:server/common/error_name.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "file:server/common/error_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "file:server/common/error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "file:server/common/errorcode.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "file:server/common/frm_constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "file:server/common/locale_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "file:server/common/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "file:server/common/privs_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "file:server/common/privs.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "file:server/common/sql_error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "file:server/common/sql_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "file:server/common/type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "file:server/common/type.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "target": "file:server/common/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/inode_page_test.go",
+      "target": "function:server/innodb/storage/store/pages/inode_page_test.go:TestINodePoint",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/inode_page_test.go",
+      "target": "function:server/innodb/storage/store/pages/inode_page_test.go:TestINodePoint",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/inode_page_test.go",
+      "target": "class:server/innodb/storage/store/pages/inode_page_test.go:Student",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/inode_page_test.go",
+      "target": "class:server/innodb/storage/store/pages/inode_page_test.go:Student",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/inode_page_test.go",
+      "target": "file:logger/logger.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

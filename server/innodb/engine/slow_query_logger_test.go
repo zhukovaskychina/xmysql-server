@@ -27,8 +27,11 @@ func TestSlowQueryLogger_ThresholdReachedWritesRecord(t *testing.T) {
 		12,
 		88,
 		string(ExecutionErrorCodeUnknown),
+		"duplicate key",
 		"success",
 		"select",
+		"app_db",
+		"t1",
 	)
 
 	content, err := os.ReadFile(logFile)
@@ -45,8 +48,11 @@ func TestSlowQueryLogger_ThresholdReachedWritesRecord(t *testing.T) {
 	assert.Equal(t, uint32(12), record.ConnID)
 	assert.Equal(t, uint64(88), record.TxnID)
 	assert.Equal(t, string(ExecutionErrorCodeUnknown), record.ErrorCode)
+	assert.Equal(t, "duplicate key", record.ErrorMsg)
 	assert.Equal(t, "success", record.Status)
 	assert.Equal(t, "select", record.Stage)
+	assert.Equal(t, "app_db", record.Schema)
+	assert.Equal(t, "t1", record.Table)
 	assert.NotEmpty(t, record.Timestamp)
 }
 
@@ -65,8 +71,11 @@ func TestSlowQueryLogger_ThresholdNotReachedDoesNotWriteRecord(t *testing.T) {
 		12,
 		88,
 		"",
+		"",
 		"success",
 		"select",
+		"app_db",
+		"t1",
 	)
 
 	_, err := os.Stat(logFile)

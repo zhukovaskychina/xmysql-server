@@ -1,0 +1,15 @@
+{
+  "fixedSectionOk": true,
+  "nodesRecovered": 0,
+  "edgesRestored": 0,
+  "crossBatchEdgesAdded": 0,
+  "typesRemapped": 0,
+  "complexityRemapped": 0,
+  "notes": [
+    "合并输入统计与报告一致：166 个 batch 文件，共 14711 个节点、53630 条边；assembled graph 包含 9802 个节点、35564 条边，其中最终边数已计入恢复的 177 条 imports。",
+    "合并阶段修正了 4909 个重复 node ID，占输入节点约 33.4%；比例偏高，建议后续检查上游同文件同名符号的重复生成，但保留后者的合并策略已正确生效。",
+    "合并报告未列出无法修复项；审核确认节点 ID、节点类型、complexity、必填字段及所有边引用均合法，无需恢复节点、悬空边或重映射字段。",
+    "使用 scan-result.json 的完整 importMap 核对了 19421 条关系；assembled graph 中 imports 数量及 source-target 集合完全一致，缺失 0 条、多余 0 条。",
+    "tested_by 合并结果结构有效；合并报告补充 5 条关系并新增标记 51 个生产节点，最终图中共有 88 条 tested_by 边和 88 个带 tested 标签的节点。"
+  ]
+}

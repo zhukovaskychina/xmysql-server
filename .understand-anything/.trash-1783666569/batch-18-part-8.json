@@ -1,0 +1,3153 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "type": "file",
+      "name": "row_secondary_index_leaf_row.go",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "summary": "实现InnoDB 记录格式封装的编码、字段访问和系统记录处理，使页面中的物理记录可被执行与事务层使用。",
+      "tags": [
+        "go",
+        "record-format",
+        "storage-engine"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:NewSecondaryIndexLeafRowHeader",
+      "type": "function",
+      "name": "NewSecondaryIndexLeafRowHeader",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        37,
+        52
+      ],
+      "summary": "创建并初始化 SecondaryIndexLeafRowHeader，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:NewSecondaryIndexLeafRowHeaderWithContents",
+      "type": "function",
+      "name": "NewSecondaryIndexLeafRowHeaderWithContents",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        55,
+        69
+      ],
+      "summary": "创建并初始化 SecondaryIndexLeafRowHeaderWithContents，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetDeleteFlag",
+      "type": "function",
+      "name": "SetDeleteFlag",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        72,
+        79
+      ],
+      "summary": "更新 InnoDB 记录格式封装 中的 DeleteFlag。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetDeleteFlag",
+      "type": "function",
+      "name": "GetDeleteFlag",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        81,
+        84
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 DeleteFlag 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetRecMinFlag",
+      "type": "function",
+      "name": "SetRecMinFlag",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        86,
+        93
+      ],
+      "summary": "更新 InnoDB 记录格式封装 中的 RecMinFlag。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetRecMinFlag",
+      "type": "function",
+      "name": "GetRecMinFlag",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        95,
+        98
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 RecMinFlag 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetNOwned",
+      "type": "function",
+      "name": "SetNOwned",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        100,
+        103
+      ],
+      "summary": "更新 InnoDB 记录格式封装 中的 NOwned。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetNOwned",
+      "type": "function",
+      "name": "GetNOwned",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        105,
+        107
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 NOwned 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetHeapNo",
+      "type": "function",
+      "name": "SetHeapNo",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        109,
+        115
+      ],
+      "summary": "更新 InnoDB 记录格式封装 中的 HeapNo。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetHeapNo",
+      "type": "function",
+      "name": "GetHeapNo",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        117,
+        128
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 HeapNo 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetRecordType",
+      "type": "function",
+      "name": "SetRecordType",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        130,
+        134
+      ],
+      "summary": "更新 InnoDB 记录格式封装 中的 RecordType。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetRecordType",
+      "type": "function",
+      "name": "GetRecordType",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        136,
+        141
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 RecordType 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetNextRecord",
+      "type": "function",
+      "name": "SetNextRecord",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        143,
+        147
+      ],
+      "summary": "更新 InnoDB 记录格式封装 中的 NextRecord。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetNextRecord",
+      "type": "function",
+      "name": "GetNextRecord",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        149,
+        151
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 NextRecord 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetRowHeaderLength",
+      "type": "function",
+      "name": "GetRowHeaderLength",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        153,
+        155
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 RowHeaderLength 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:ToByte",
+      "type": "function",
+      "name": "ToByte",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        157,
+        165
+      ],
+      "summary": "转换 InnoDB 记录格式封装 中的数据表示，生成调用方需要的目标格式。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetValueNull",
+      "type": "function",
+      "name": "SetValueNull",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        168,
+        185
+      ],
+      "summary": "更新 InnoDB 记录格式封装 中的 ValueNull。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:IsValueNullByIdx",
+      "type": "function",
+      "name": "IsValueNullByIdx",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        187,
+        193
+      ],
+      "summary": "实现 InnoDB 记录格式封装 中的 IsValueNullByIdx 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetVarValueLengthByIndex",
+      "type": "function",
+      "name": "GetVarValueLengthByIndex",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        195,
+        200
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 VarValueLengthByIndex 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:NewSecondaryIndexLeafRowData",
+      "type": "function",
+      "name": "NewSecondaryIndexLeafRowData",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        213,
+        221
+      ],
+      "summary": "创建并初始化 SecondaryIndexLeafRowData，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:NewSecondaryIndexLeafRowDataWithContents",
+      "type": "function",
+      "name": "NewSecondaryIndexLeafRowDataWithContents",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        224,
+        232
+      ],
+      "summary": "创建并初始化 SecondaryIndexLeafRowDataWithContents，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:WriteBytesWithNull",
+      "type": "function",
+      "name": "WriteBytesWithNull",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        234,
+        236
+      ],
+      "summary": "将 BytesWithNull 写入底层结构，并维护相关状态。",
+      "tags": [
+        "data-access",
+        "storage",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetPrimaryKey",
+      "type": "function",
+      "name": "GetPrimaryKey",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        238,
+        243
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 PrimaryKey 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetRowDataLength",
+      "type": "function",
+      "name": "GetRowDataLength",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        245,
+        247
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 RowDataLength 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:ReadValue",
+      "type": "function",
+      "name": "ReadValue",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        253,
+        258
+      ],
+      "summary": "从底层存储读取 Value，并完成必要的解码或可见性处理。",
+      "tags": [
+        "data-access",
+        "storage",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:NewSecondaryIndexLeafRow",
+      "type": "function",
+      "name": "NewSecondaryIndexLeafRow",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        272,
+        281
+      ],
+      "summary": "创建并初始化 SecondaryIndexLeafRow，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:NewSecondaryIndexLeafRowWithContent",
+      "type": "function",
+      "name": "NewSecondaryIndexLeafRowWithContent",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        284,
+        293
+      ],
+      "summary": "创建并初始化 SecondaryIndexLeafRowWithContent，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:Less",
+      "type": "function",
+      "name": "Less",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        296,
+        328
+      ],
+      "summary": "实现 InnoDB 记录格式封装 中的 Less 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:IsInfimumRow",
+      "type": "function",
+      "name": "IsInfimumRow",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        334,
+        336
+      ],
+      "summary": "实现 InnoDB 记录格式封装 中的 IsInfimumRow 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:IsSupremumRow",
+      "type": "function",
+      "name": "IsSupremumRow",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        338,
+        340
+      ],
+      "summary": "实现 InnoDB 记录格式封装 中的 IsSupremumRow 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetPageNumber",
+      "type": "function",
+      "name": "GetPageNumber",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        342,
+        348
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 PageNumber 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:WriteWithNull",
+      "type": "function",
+      "name": "WriteWithNull",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        350,
+        352
+      ],
+      "summary": "将 WithNull 写入底层结构，并维护相关状态。",
+      "tags": [
+        "data-access",
+        "storage",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:WriteBytesWithNullWithsPos",
+      "type": "function",
+      "name": "WriteBytesWithNullWithsPos",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        354,
+        356
+      ],
+      "summary": "将 BytesWithNullWithsPos 写入底层结构，并维护相关状态。",
+      "tags": [
+        "data-access",
+        "storage",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetRowLength",
+      "type": "function",
+      "name": "GetRowLength",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        358,
+        360
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 RowLength 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetHeaderLength",
+      "type": "function",
+      "name": "GetHeaderLength",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        362,
+        364
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 HeaderLength 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetFieldLength",
+      "type": "function",
+      "name": "GetFieldLength",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        373,
+        375
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 FieldLength 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:ReadValueByIndex",
+      "type": "function",
+      "name": "ReadValueByIndex",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        377,
+        379
+      ],
+      "summary": "从底层存储读取 ValueByIndex，并完成必要的解码或可见性处理。",
+      "tags": [
+        "data-access",
+        "storage",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetNextRowOffset",
+      "type": "function",
+      "name": "GetNextRowOffset",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        389,
+        391
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 NextRowOffset 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetNextRowOffset",
+      "type": "function",
+      "name": "SetNextRowOffset",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        393,
+        395
+      ],
+      "summary": "更新 InnoDB 记录格式封装 中的 NextRowOffset。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetTransactionId",
+      "type": "function",
+      "name": "SetTransactionId",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        405,
+        407
+      ],
+      "summary": "更新 InnoDB 记录格式封装 中的 TransactionId。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetValueByColName",
+      "type": "function",
+      "name": "GetValueByColName",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        409,
+        417
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 ValueByColName 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:ToString",
+      "type": "function",
+      "name": "ToString",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        419,
+        421
+      ],
+      "summary": "转换 InnoDB 记录格式封装 中的数据表示，生成调用方需要的目标格式。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetIndexKeys",
+      "type": "function",
+      "name": "GetIndexKeys",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        424,
+        426
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 IndexKeys 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetIndexKeys",
+      "type": "function",
+      "name": "SetIndexKeys",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        428,
+        430
+      ],
+      "summary": "更新 InnoDB 记录格式封装 中的 IndexKeys。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetPrimaryKeys",
+      "type": "function",
+      "name": "GetPrimaryKeys",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        432,
+        434
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 PrimaryKeys 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetPrimaryKeys",
+      "type": "function",
+      "name": "SetPrimaryKeys",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        436,
+        438
+      ],
+      "summary": "更新 InnoDB 记录格式封装 中的 PrimaryKeys。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SecondaryIndexLeafRowHeader",
+      "type": "class",
+      "name": "SecondaryIndexLeafRowHeader",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        15,
+        34
+      ],
+      "summary": "定义 InnoDB 记录格式封装 使用的 SecondaryIndexLeafRowHeader 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SecondaryIndexLeafRowData",
+      "type": "class",
+      "name": "SecondaryIndexLeafRowData",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        203,
+        210
+      ],
+      "summary": "定义 InnoDB 记录格式封装 使用的 SecondaryIndexLeafRowData 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SecondaryIndexLeafRow",
+      "type": "class",
+      "name": "SecondaryIndexLeafRow",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "lineRange": [
+        261,
+        269
+      ],
+      "summary": "定义 InnoDB 记录格式封装 使用的 SecondaryIndexLeafRow 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "type": "file",
+      "name": "row_secondary_sys_index_internal_row.go",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "summary": "实现InnoDB 记录格式封装的编码、字段访问和系统记录处理，使页面中的物理记录可被执行与事务层使用。",
+      "tags": [
+        "go",
+        "record-format",
+        "storage-engine"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:NewSystemSecondaryIndexInternalRow",
+      "type": "function",
+      "name": "NewSystemSecondaryIndexInternalRow",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        18,
+        25
+      ],
+      "summary": "创建并初始化 SystemSecondaryIndexInternalRow，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:NewSystemSecondaryIndexInternalRowWithContent",
+      "type": "function",
+      "name": "NewSystemSecondaryIndexInternalRowWithContent",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        28,
+        35
+      ],
+      "summary": "创建并初始化 SystemSecondaryIndexInternalRowWithContent，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:Less",
+      "type": "function",
+      "name": "Less",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        38,
+        50
+      ],
+      "summary": "实现 InnoDB 记录格式封装 中的 Less 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:ToByte",
+      "type": "function",
+      "name": "ToByte",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        52,
+        60
+      ],
+      "summary": "转换 InnoDB 记录格式封装 中的数据表示，生成调用方需要的目标格式。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:ToString",
+      "type": "function",
+      "name": "ToString",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        62,
+        64
+      ],
+      "summary": "转换 InnoDB 记录格式封装 中的数据表示，生成调用方需要的目标格式。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetSystemType",
+      "type": "function",
+      "name": "GetSystemType",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        67,
+        69
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 SystemType 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetSystemType",
+      "type": "function",
+      "name": "SetSystemType",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        71,
+        73
+      ],
+      "summary": "更新 InnoDB 记录格式封装 中的 SystemType。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetSystemData",
+      "type": "function",
+      "name": "GetSystemData",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        75,
+        77
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 SystemData 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetSystemData",
+      "type": "function",
+      "name": "SetSystemData",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        79,
+        81
+      ],
+      "summary": "更新 InnoDB 记录格式封装 中的 SystemData。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:IsDataDictionaryRecord",
+      "type": "function",
+      "name": "IsDataDictionaryRecord",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        84,
+        86
+      ],
+      "summary": "实现 InnoDB 记录格式封装 中的 IsDataDictionaryRecord 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:IsTablespaceRecord",
+      "type": "function",
+      "name": "IsTablespaceRecord",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        88,
+        90
+      ],
+      "summary": "实现 InnoDB 记录格式封装 中的 IsTablespaceRecord 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:IsRollbackSegmentRecord",
+      "type": "function",
+      "name": "IsRollbackSegmentRecord",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        92,
+        94
+      ],
+      "summary": "实现 InnoDB 记录格式封装 中的 IsRollbackSegmentRecord 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetChildPagePointer",
+      "type": "function",
+      "name": "GetChildPagePointer",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        97,
+        103
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 ChildPagePointer 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetChildPagePointer",
+      "type": "function",
+      "name": "SetChildPagePointer",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        105,
+        110
+      ],
+      "summary": "更新 InnoDB 记录格式封装 中的 ChildPagePointer。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetIndexKeyPrefix",
+      "type": "function",
+      "name": "GetIndexKeyPrefix",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        112,
+        118
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 IndexKeyPrefix 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetIndexKeyPrefix",
+      "type": "function",
+      "name": "SetIndexKeyPrefix",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        120,
+        125
+      ],
+      "summary": "更新 InnoDB 记录格式封装 中的 IndexKeyPrefix。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetTableNamePrefix",
+      "type": "function",
+      "name": "GetTableNamePrefix",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        128,
+        134
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 TableNamePrefix 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetTableNamePrefix",
+      "type": "function",
+      "name": "SetTableNamePrefix",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        136,
+        141
+      ],
+      "summary": "更新 InnoDB 记录格式封装 中的 TableNamePrefix。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetTablespaceFileNamePrefix",
+      "type": "function",
+      "name": "GetTablespaceFileNamePrefix",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        143,
+        149
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 TablespaceFileNamePrefix 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetTablespaceFileNamePrefix",
+      "type": "function",
+      "name": "SetTablespaceFileNamePrefix",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        151,
+        156
+      ],
+      "summary": "更新 InnoDB 记录格式封装 中的 TablespaceFileNamePrefix。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetRollbackSegmentIdRange",
+      "type": "function",
+      "name": "GetRollbackSegmentIdRange",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        158,
+        166
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 RollbackSegmentIdRange 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetRollbackSegmentIdRange",
+      "type": "function",
+      "name": "SetRollbackSegmentIdRange",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        168,
+        177
+      ],
+      "summary": "更新 InnoDB 记录格式封装 中的 RollbackSegmentIdRange。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SystemSecondaryIndexInternalRow",
+      "type": "class",
+      "name": "SystemSecondaryIndexInternalRow",
+      "filePath": "server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "lineRange": [
+        11,
+        15
+      ],
+      "summary": "定义 InnoDB 记录格式封装 使用的 SystemSecondaryIndexInternalRow 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:NewSecondaryIndexLeafRowHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:NewSecondaryIndexLeafRowHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:NewSecondaryIndexLeafRowHeaderWithContents",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:NewSecondaryIndexLeafRowHeaderWithContents",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetDeleteFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetDeleteFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetDeleteFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetDeleteFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetRecMinFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetRecMinFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetRecMinFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetRecMinFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetNOwned",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetNOwned",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetNOwned",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetNOwned",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetHeapNo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetHeapNo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetHeapNo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetHeapNo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetRecordType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetRecordType",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetRecordType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetRecordType",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetNextRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetNextRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetNextRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetNextRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetRowHeaderLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetRowHeaderLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:ToByte",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:ToByte",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetValueNull",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetValueNull",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:IsValueNullByIdx",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:IsValueNullByIdx",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetVarValueLengthByIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetVarValueLengthByIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:NewSecondaryIndexLeafRowData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:NewSecondaryIndexLeafRowData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:NewSecondaryIndexLeafRowDataWithContents",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:NewSecondaryIndexLeafRowDataWithContents",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:WriteBytesWithNull",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:WriteBytesWithNull",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetPrimaryKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetPrimaryKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetRowDataLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetRowDataLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:ReadValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:ReadValue",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:NewSecondaryIndexLeafRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:NewSecondaryIndexLeafRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:NewSecondaryIndexLeafRowWithContent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:NewSecondaryIndexLeafRowWithContent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:Less",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:Less",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:IsInfimumRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:IsInfimumRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:IsSupremumRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:IsSupremumRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetPageNumber",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetPageNumber",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:WriteWithNull",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:WriteWithNull",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:WriteBytesWithNullWithsPos",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:WriteBytesWithNullWithsPos",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetRowLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetRowLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetHeaderLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetHeaderLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetFieldLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetFieldLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:ReadValueByIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:ReadValueByIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetNextRowOffset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetNextRowOffset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetNextRowOffset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetNextRowOffset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetTransactionId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetTransactionId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetValueByColName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetValueByColName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:ToString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:ToString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetIndexKeys",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetIndexKeys",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetIndexKeys",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetIndexKeys",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetPrimaryKeys",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:GetPrimaryKeys",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetPrimaryKeys",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SetPrimaryKeys",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "class:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SecondaryIndexLeafRowHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "class:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SecondaryIndexLeafRowHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "class:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SecondaryIndexLeafRowData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "class:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SecondaryIndexLeafRowData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "class:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SecondaryIndexLeafRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "class:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go:SecondaryIndexLeafRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/common/charset.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/common/const_trx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/common/constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/common/error_name.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/common/error_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/common/error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/common/errorcode.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/common/frm_constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/common/locale_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/common/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/common/privs_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/common/privs.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/common/sql_error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/common/sql_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/common/type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/common/type.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/common/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/metadata/builder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/metadata/column_def.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/metadata/column.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/metadata/convert.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/metadata/database.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/metadata/information_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/metadata/migrate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/metadata/query_schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/metadata/schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/metadata/table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/metadata/tuple.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/metadata/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:server/innodb/metadata/utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:util/bitutils_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:util/bitutils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:util/buffer_reader.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:util/buffer_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:util/buffer_writer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:util/byte_util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:util/checker.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:util/configReader.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:util/fileutil_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:util/fileutil.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:util/hash_utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:util/hashutils_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:util/password.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:util/Random.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:util/rutime.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "target": "file:util/time_util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:NewSystemSecondaryIndexInternalRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:NewSystemSecondaryIndexInternalRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:NewSystemSecondaryIndexInternalRowWithContent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:NewSystemSecondaryIndexInternalRowWithContent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:Less",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:Less",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:ToByte",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:ToByte",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:ToString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:ToString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetSystemType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetSystemType",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetSystemType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetSystemType",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetSystemData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetSystemData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetSystemData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetSystemData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:IsDataDictionaryRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:IsDataDictionaryRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:IsTablespaceRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:IsTablespaceRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:IsRollbackSegmentRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:IsRollbackSegmentRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetChildPagePointer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetChildPagePointer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetChildPagePointer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetChildPagePointer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetIndexKeyPrefix",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetIndexKeyPrefix",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetIndexKeyPrefix",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetIndexKeyPrefix",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetTableNamePrefix",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetTableNamePrefix",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetTableNamePrefix",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetTableNamePrefix",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetTablespaceFileNamePrefix",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetTablespaceFileNamePrefix",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetTablespaceFileNamePrefix",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetTablespaceFileNamePrefix",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetRollbackSegmentIdRange",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:GetRollbackSegmentIdRange",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetRollbackSegmentIdRange",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "function:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SetRollbackSegmentIdRange",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "class:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SystemSecondaryIndexInternalRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "class:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go:SystemSecondaryIndexInternalRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/metadata/builder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/metadata/column_def.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/metadata/column.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/metadata/convert.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/metadata/database.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/metadata/information_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/metadata/migrate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/metadata/query_schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/metadata/schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/metadata/table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/metadata/tuple.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/metadata/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "target": "file:server/innodb/metadata/utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

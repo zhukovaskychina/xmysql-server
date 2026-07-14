@@ -1,0 +1,947 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/manager/redo_log_manager.go",
+      "type": "file",
+      "name": "redo_log_manager.go",
+      "filePath": "server/innodb/manager/redo_log_manager.go",
+      "summary": "实现Redo Log 缓冲、写入与恢复协调，覆盖 RedoLogManager、RedoLogStats、CommitRequest、NewRedoLogManager 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "redo-manager",
+        "manager",
+        "source-file"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/manager/redo_log_manager.go:NewRedoLogManager",
+      "type": "function",
+      "name": "NewRedoLogManager",
+      "filePath": "server/innodb/manager/redo_log_manager.go",
+      "lineRange": [
+        35,
+        71
+      ],
+      "summary": "构造并初始化 NewRedoLogManager 对应的Redo Log 缓冲、写入与恢复协调流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "redo-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/redo_log_manager.go:Append",
+      "type": "function",
+      "name": "Append",
+      "filePath": "server/innodb/manager/redo_log_manager.go",
+      "lineRange": [
+        74,
+        93
+      ],
+      "summary": "创建或分配 Append 对应的Redo Log 缓冲、写入与恢复协调流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "redo-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/redo_log_manager.go:Flush",
+      "type": "function",
+      "name": "Flush",
+      "filePath": "server/innodb/manager/redo_log_manager.go",
+      "lineRange": [
+        96,
+        101
+      ],
+      "summary": "实现 Flush 对应的Redo Log 缓冲、写入与恢复协调流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "redo-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/redo_log_manager.go:FlushAsync",
+      "type": "function",
+      "name": "FlushAsync",
+      "filePath": "server/innodb/manager/redo_log_manager.go",
+      "lineRange": [
+        104,
+        121
+      ],
+      "summary": "实现 FlushAsync 对应的Redo Log 缓冲、写入与恢复协调流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "redo-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/redo_log_manager.go:flushBuffer",
+      "type": "function",
+      "name": "flushBuffer",
+      "filePath": "server/innodb/manager/redo_log_manager.go",
+      "lineRange": [
+        124,
+        166
+      ],
+      "summary": "实现 flushBuffer 对应的Redo Log 缓冲、写入与恢复协调流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "redo-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/redo_log_manager.go:backgroundFlush",
+      "type": "function",
+      "name": "backgroundFlush",
+      "filePath": "server/innodb/manager/redo_log_manager.go",
+      "lineRange": [
+        169,
+        181
+      ],
+      "summary": "实现 backgroundFlush 对应的Redo Log 缓冲、写入与恢复协调流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "redo-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/redo_log_manager.go:groupCommitWorker",
+      "type": "function",
+      "name": "groupCommitWorker",
+      "filePath": "server/innodb/manager/redo_log_manager.go",
+      "lineRange": [
+        184,
+        213
+      ],
+      "summary": "实现 groupCommitWorker 对应的Redo Log 缓冲、写入与恢复协调流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "redo-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/redo_log_manager.go:executeGroupCommit",
+      "type": "function",
+      "name": "executeGroupCommit",
+      "filePath": "server/innodb/manager/redo_log_manager.go",
+      "lineRange": [
+        216,
+        242
+      ],
+      "summary": "实现 executeGroupCommit 对应的Redo Log 缓冲、写入与恢复协调流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "redo-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/redo_log_manager.go:Recover",
+      "type": "function",
+      "name": "Recover",
+      "filePath": "server/innodb/manager/redo_log_manager.go",
+      "lineRange": [
+        247,
+        261
+      ],
+      "summary": "恢复 Recover 对应的Redo Log 缓冲、写入与恢复协调流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "recovery",
+        "redo-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/redo_log_manager.go:RecoverWithCrashRecovery",
+      "type": "function",
+      "name": "RecoverWithCrashRecovery",
+      "filePath": "server/innodb/manager/redo_log_manager.go",
+      "lineRange": [
+        265,
+        293
+      ],
+      "summary": "恢复 RecoverWithCrashRecovery 对应的Redo Log 缓冲、写入与恢复协调流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "recovery",
+        "redo-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/redo_log_manager.go:readCheckpointLSN",
+      "type": "function",
+      "name": "readCheckpointLSN",
+      "filePath": "server/innodb/manager/redo_log_manager.go",
+      "lineRange": [
+        296,
+        310
+      ],
+      "summary": "实现 readCheckpointLSN 对应的Redo Log 缓冲、写入与恢复协调流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "redo-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/redo_log_manager.go:replayLogEntry",
+      "type": "function",
+      "name": "replayLogEntry",
+      "filePath": "server/innodb/manager/redo_log_manager.go",
+      "lineRange": [
+        315,
+        340
+      ],
+      "summary": "实现 replayLogEntry 对应的Redo Log 缓冲、写入与恢复协调流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "redo-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/redo_log_manager.go:Checkpoint",
+      "type": "function",
+      "name": "Checkpoint",
+      "filePath": "server/innodb/manager/redo_log_manager.go",
+      "lineRange": [
+        369,
+        396
+      ],
+      "summary": "检查 Checkpoint 对应的Redo Log 缓冲、写入与恢复协调流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "redo-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/redo_log_manager.go:Close",
+      "type": "function",
+      "name": "Close",
+      "filePath": "server/innodb/manager/redo_log_manager.go",
+      "lineRange": [
+        399,
+        421
+      ],
+      "summary": "结束或提交 Close 对应的Redo Log 缓冲、写入与恢复协调流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "redo-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/redo_log_manager.go:GetLSNManager",
+      "type": "function",
+      "name": "GetLSNManager",
+      "filePath": "server/innodb/manager/redo_log_manager.go",
+      "lineRange": [
+        424,
+        426
+      ],
+      "summary": "读取或查找 GetLSNManager 对应的Redo Log 缓冲、写入与恢复协调流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "redo-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/redo_log_manager.go:GetStats",
+      "type": "function",
+      "name": "GetStats",
+      "filePath": "server/innodb/manager/redo_log_manager.go",
+      "lineRange": [
+        429,
+        440
+      ],
+      "summary": "读取或查找 GetStats 对应的Redo Log 缓冲、写入与恢复协调流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "redo-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/redo_log_manager.go:RedoLogManager",
+      "type": "class",
+      "name": "RedoLogManager",
+      "filePath": "server/innodb/manager/redo_log_manager.go",
+      "lineRange": [
+        13,
+        32
+      ],
+      "summary": "RedoLogManager 定义Redo Log 缓冲、写入与恢复协调所需的数据结构，并通过 Append、Flush、FlushAsync、flushBuffer 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "redo-manager",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/redo_log_manager.go:RedoLogStats",
+      "type": "class",
+      "name": "RedoLogStats",
+      "filePath": "server/innodb/manager/redo_log_manager.go",
+      "lineRange": [
+        443,
+        449
+      ],
+      "summary": "RedoLogStats 定义Redo Log 缓冲、写入与恢复协调所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "redo-manager",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/redo_log_manager.go:CommitRequest",
+      "type": "class",
+      "name": "CommitRequest",
+      "filePath": "server/innodb/manager/redo_log_manager.go",
+      "lineRange": [
+        452,
+        456
+      ],
+      "summary": "CommitRequest 定义Redo Log 缓冲、写入与恢复协调所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "redo-manager",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/manager/redo_recovery_fix_test.go",
+      "type": "file",
+      "name": "redo_recovery_fix_test.go",
+      "filePath": "server/innodb/manager/redo_recovery_fix_test.go",
+      "summary": "验证Redo Log 修复与恢复行为，覆盖 TestTXN001_RedoLogRecovery、TestTXN001_CrashRecoveryPhases、TestTXN001_RecoveryStatistics、TestTXN001_RecoveryValidation 等符号，用于检查正常路径、边界条件和错误处理。",
+      "tags": [
+        "test",
+        "go",
+        "redo-recovery",
+        "verification"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/manager/redo_recovery_fix_test.go:TestTXN001_RedoLogRecovery",
+      "type": "function",
+      "name": "TestTXN001_RedoLogRecovery",
+      "filePath": "server/innodb/manager/redo_recovery_fix_test.go",
+      "lineRange": [
+        11,
+        146
+      ],
+      "summary": "验证 TestTXN001_RedoLogRecovery 对应的Redo Log 修复与恢复行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "redo-recovery"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/redo_recovery_fix_test.go:TestTXN001_CrashRecoveryPhases",
+      "type": "function",
+      "name": "TestTXN001_CrashRecoveryPhases",
+      "filePath": "server/innodb/manager/redo_recovery_fix_test.go",
+      "lineRange": [
+        149,
+        229
+      ],
+      "summary": "验证 TestTXN001_CrashRecoveryPhases 对应的Redo Log 修复与恢复行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "redo-recovery"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/redo_recovery_fix_test.go:TestTXN001_RecoveryStatistics",
+      "type": "function",
+      "name": "TestTXN001_RecoveryStatistics",
+      "filePath": "server/innodb/manager/redo_recovery_fix_test.go",
+      "lineRange": [
+        232,
+        281
+      ],
+      "summary": "验证 TestTXN001_RecoveryStatistics 对应的Redo Log 修复与恢复行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "redo-recovery"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/redo_recovery_fix_test.go:TestTXN001_RecoveryValidation",
+      "type": "function",
+      "name": "TestTXN001_RecoveryValidation",
+      "filePath": "server/innodb/manager/redo_recovery_fix_test.go",
+      "lineRange": [
+        284,
+        314
+      ],
+      "summary": "验证 TestTXN001_RecoveryValidation 对应的Redo Log 修复与恢复行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "redo-recovery"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/manager/savepoint_test.go",
+      "type": "file",
+      "name": "savepoint_test.go",
+      "filePath": "server/innodb/manager/savepoint_test.go",
+      "summary": "验证事务保存点创建、回滚与释放，覆盖 mockRollbackExecutor、setSavepointCreatedAt、InsertRecord、UpdateRecord 等符号，用于检查正常路径、边界条件和错误处理。",
+      "tags": [
+        "test",
+        "go",
+        "savepoint",
+        "verification"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/manager/savepoint_test.go:InsertRecord",
+      "type": "function",
+      "name": "InsertRecord",
+      "filePath": "server/innodb/manager/savepoint_test.go",
+      "lineRange": [
+        20,
+        22
+      ],
+      "summary": "创建或分配 InsertRecord 对应的事务保存点创建、回滚与释放流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "savepoint",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/savepoint_test.go:UpdateRecord",
+      "type": "function",
+      "name": "UpdateRecord",
+      "filePath": "server/innodb/manager/savepoint_test.go",
+      "lineRange": [
+        24,
+        26
+      ],
+      "summary": "更新或持久化 UpdateRecord 对应的事务保存点创建、回滚与释放流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "savepoint",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/savepoint_test.go:DeleteRecord",
+      "type": "function",
+      "name": "DeleteRecord",
+      "filePath": "server/innodb/manager/savepoint_test.go",
+      "lineRange": [
+        28,
+        30
+      ],
+      "summary": "删除或释放 DeleteRecord 对应的事务保存点创建、回滚与释放流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "savepoint",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/savepoint_test.go:TestSavepoint_BasicOperations",
+      "type": "function",
+      "name": "TestSavepoint_BasicOperations",
+      "filePath": "server/innodb/manager/savepoint_test.go",
+      "lineRange": [
+        33,
+        159
+      ],
+      "summary": "验证 TestSavepoint_BasicOperations 对应的事务保存点创建、回滚与释放流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "savepoint"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/savepoint_test.go:TestSavepoint_RollbackToSavepoint",
+      "type": "function",
+      "name": "TestSavepoint_RollbackToSavepoint",
+      "filePath": "server/innodb/manager/savepoint_test.go",
+      "lineRange": [
+        162,
+        275
+      ],
+      "summary": "验证 TestSavepoint_RollbackToSavepoint 对应的事务保存点创建、回滚与释放流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "savepoint"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/savepoint_test.go:TestSavepoint_NestedSavepoints",
+      "type": "function",
+      "name": "TestSavepoint_NestedSavepoints",
+      "filePath": "server/innodb/manager/savepoint_test.go",
+      "lineRange": [
+        278,
+        378
+      ],
+      "summary": "验证 TestSavepoint_NestedSavepoints 对应的事务保存点创建、回滚与释放流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "savepoint"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/savepoint_test.go:mockRollbackExecutor",
+      "type": "class",
+      "name": "mockRollbackExecutor",
+      "filePath": "server/innodb/manager/savepoint_test.go",
+      "lineRange": [
+        18,
+        18
+      ],
+      "summary": "mockRollbackExecutor 定义事务保存点创建、回滚与释放所需的数据结构，并通过 InsertRecord、UpdateRecord、DeleteRecord 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "savepoint",
+        "behavior"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:NewRedoLogManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:NewRedoLogManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:Append",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:Append",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:Flush",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:Flush",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:FlushAsync",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:FlushAsync",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:flushBuffer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:backgroundFlush",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:groupCommitWorker",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:executeGroupCommit",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:Recover",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:Recover",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:RecoverWithCrashRecovery",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:RecoverWithCrashRecovery",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:readCheckpointLSN",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:replayLogEntry",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:Checkpoint",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:Checkpoint",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:Close",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:Close",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:GetLSNManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:GetLSNManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:GetStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "function:server/innodb/manager/redo_log_manager.go:GetStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "class:server/innodb/manager/redo_log_manager.go:RedoLogManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "class:server/innodb/manager/redo_log_manager.go:RedoLogManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "class:server/innodb/manager/redo_log_manager.go:RedoLogStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "class:server/innodb/manager/redo_log_manager.go:RedoLogStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "class:server/innodb/manager/redo_log_manager.go:CommitRequest",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_log_manager.go",
+      "target": "class:server/innodb/manager/redo_log_manager.go:CommitRequest",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/redo_recovery_fix_test.go",
+      "target": "function:server/innodb/manager/redo_recovery_fix_test.go:TestTXN001_RedoLogRecovery",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_recovery_fix_test.go",
+      "target": "function:server/innodb/manager/redo_recovery_fix_test.go:TestTXN001_RedoLogRecovery",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/redo_recovery_fix_test.go",
+      "target": "function:server/innodb/manager/redo_recovery_fix_test.go:TestTXN001_CrashRecoveryPhases",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_recovery_fix_test.go",
+      "target": "function:server/innodb/manager/redo_recovery_fix_test.go:TestTXN001_CrashRecoveryPhases",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/redo_recovery_fix_test.go",
+      "target": "function:server/innodb/manager/redo_recovery_fix_test.go:TestTXN001_RecoveryStatistics",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_recovery_fix_test.go",
+      "target": "function:server/innodb/manager/redo_recovery_fix_test.go:TestTXN001_RecoveryStatistics",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/redo_recovery_fix_test.go",
+      "target": "function:server/innodb/manager/redo_recovery_fix_test.go:TestTXN001_RecoveryValidation",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/redo_recovery_fix_test.go",
+      "target": "function:server/innodb/manager/redo_recovery_fix_test.go:TestTXN001_RecoveryValidation",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/savepoint_test.go",
+      "target": "function:server/innodb/manager/savepoint_test.go:InsertRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/savepoint_test.go",
+      "target": "function:server/innodb/manager/savepoint_test.go:InsertRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/savepoint_test.go",
+      "target": "function:server/innodb/manager/savepoint_test.go:UpdateRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/savepoint_test.go",
+      "target": "function:server/innodb/manager/savepoint_test.go:UpdateRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/savepoint_test.go",
+      "target": "function:server/innodb/manager/savepoint_test.go:DeleteRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/savepoint_test.go",
+      "target": "function:server/innodb/manager/savepoint_test.go:DeleteRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/savepoint_test.go",
+      "target": "function:server/innodb/manager/savepoint_test.go:TestSavepoint_BasicOperations",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/savepoint_test.go",
+      "target": "function:server/innodb/manager/savepoint_test.go:TestSavepoint_BasicOperations",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/savepoint_test.go",
+      "target": "function:server/innodb/manager/savepoint_test.go:TestSavepoint_RollbackToSavepoint",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/savepoint_test.go",
+      "target": "function:server/innodb/manager/savepoint_test.go:TestSavepoint_RollbackToSavepoint",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/savepoint_test.go",
+      "target": "function:server/innodb/manager/savepoint_test.go:TestSavepoint_NestedSavepoints",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/savepoint_test.go",
+      "target": "function:server/innodb/manager/savepoint_test.go:TestSavepoint_NestedSavepoints",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/savepoint_test.go",
+      "target": "class:server/innodb/manager/savepoint_test.go:mockRollbackExecutor",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    }
+  ]
+}

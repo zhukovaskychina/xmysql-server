@@ -1,0 +1,9 @@
+[CLIENT] DSN=root:root@1234@tcp(127.0.0.1:3310)/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true db=drill_recovery_db_20260517_003351 table=drill_txn_20260517_003351 mode=setup_redo
+mode=setup_redo failed: Error 1045: Access denied for user 'root'@'127.0.0.1' (using password: NO)
+exit status 1
+[CLIENT] DSN=root:root@1234@tcp(127.0.0.1:3310)/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true db=drill_recovery_db_20260517_003351 table=drill_txn_20260517_003351 mode=verify_redo
+mode=verify_redo failed: redo verify failed: database drill_recovery_db_20260517_003351 not accessible: Error 1045: Access denied for user 'root'@'127.0.0.1' (using password: NO)
+exit status 1
+[CLIENT] DSN=root:root@1234@tcp(127.0.0.1:3310)/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true db=drill_recovery_db_20260517_003351 table=drill_txn_20260517_003351 mode=verify_show_tables_where
+mode=verify_show_tables_where failed: Error 1045: Access denied for user 'root'@'127.0.0.1' (using password: NO)
+exit status 1

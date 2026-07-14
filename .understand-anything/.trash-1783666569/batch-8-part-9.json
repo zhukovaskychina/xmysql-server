@@ -1,0 +1,251 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/engine/enginx_test.go",
+      "type": "file",
+      "name": "enginx_test.go",
+      "filePath": "server/innodb/engine/enginx_test.go",
+      "summary": "验证SQL 执行引擎编排与管理器初始化，覆盖 TestXMySQLEngine_resolveDmlDatabaseName、TestXMySQLEngine_extractTableExprSchema 等符号，用于检查正常路径、边界条件和错误处理。",
+      "tags": [
+        "test",
+        "go",
+        "execution-engine",
+        "verification"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/engine/enginx_test.go:TestXMySQLEngine_resolveDmlDatabaseName",
+      "type": "function",
+      "name": "TestXMySQLEngine_resolveDmlDatabaseName",
+      "filePath": "server/innodb/engine/enginx_test.go",
+      "lineRange": [
+        10,
+        32
+      ],
+      "summary": "验证 TestXMySQLEngine_resolveDmlDatabaseName 对应的SQL 执行引擎编排与管理器初始化流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "execution-engine"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/enginx_test.go:TestXMySQLEngine_extractTableExprSchema",
+      "type": "function",
+      "name": "TestXMySQLEngine_extractTableExprSchema",
+      "filePath": "server/innodb/engine/enginx_test.go",
+      "lineRange": [
+        34,
+        44
+      ],
+      "summary": "验证 TestXMySQLEngine_extractTableExprSchema 对应的SQL 执行引擎编排与管理器初始化流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "execution-engine"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "function:server/innodb/engine/enginx_test.go:TestXMySQLEngine_resolveDmlDatabaseName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "function:server/innodb/engine/enginx_test.go:TestXMySQLEngine_resolveDmlDatabaseName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "function:server/innodb/engine/enginx_test.go:TestXMySQLEngine_extractTableExprSchema",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "function:server/innodb/engine/enginx_test.go:TestXMySQLEngine_extractTableExprSchema",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/analyzer_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/analyzer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/ast_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/ast.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/comments_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/comments.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/encodable_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/encodable.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/expression.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/github_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/impossible_query.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/normalizer_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/normalizer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/parse_next_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/parse_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/parsed_query_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/parsed_query.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/precedence_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/redact_query_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/redact_query.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/sql.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/token_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/token.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/enginx_test.go",
+      "target": "file:server/innodb/sqlparser/tracked_buffer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

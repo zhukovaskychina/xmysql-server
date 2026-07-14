@@ -2482,6 +2482,9 @@ func (e *XMySQLExecutor) executeShowDatabases(ctx *ExecutionContext) {
 // executeShowDatabasesWithQuery 执行 SHOW DATABASES，支持LIKE和WHERE
 func (e *XMySQLExecutor) executeShowDatabasesWithQuery(ctx *ExecutionContext, stmt *sqlparser.Show, rawQuery string) {
 	logger.Debugf(" [executeShowDatabases] 执行SHOW DATABASES")
+	if e.tryExecuteShowExecutor(ctx, "DATABASES", "", "", stmt, rawQuery) {
+		return
+	}
 
 	// 获取数据目录
 	dataDir := e.getDataDir()
@@ -2562,6 +2565,9 @@ func (e *XMySQLExecutor) executeShowTables(ctx *ExecutionContext, stmt *sqlparse
 		}
 		return
 	}
+	if e.tryExecuteShowExecutor(ctx, "TABLES", currentDB, "", stmt, rawQuery) {
+		return
+	}
 
 	// 通过数据目录扫描实际表文件（.frm/.ibd），确保重启后可见
 	dataDir := e.getDataDir()
@@ -2638,6 +2644,9 @@ func (e *XMySQLExecutor) executeShowColumns(ctx *ExecutionContext, stmt *sqlpars
 		}
 		return
 	}
+	if e.tryExecuteShowExecutor(ctx, "COLUMNS", schemaName, tableName, stmt, rawQuery) {
+		return
+	}
 
 	tableMeta, err := e.getShowColumnsTableMetadata(schemaName, tableName)
 	if err != nil {
@@ -2701,6 +2710,81 @@ func (e *XMySQLExecutor) executeShowColumns(ctx *ExecutionContext, stmt *sqlpars
 	}
 
 	logger.Debugf(" [executeShowColumns] 返回 %d 列定义", len(rows))
+}
+
+func (e *XMySQLExecutor) tryExecuteShowExecutor(ctx *ExecutionContext, showType, schemaName, tableName string, stmt *sqlparser.Show, rawQuery string) bool {
+	if e == nil || e.infosSchemaManager == nil {
+		return false
+	}
+
+	executor := &ShowExecutor{
+		showType:          showType,
+		schemaName:        schemaName,
+		tableName:         tableName,
+		infoSchemaManager: e.infosSchemaManager,
+		rows:              make([][]interface{}, 0),
+		current:           -1,
+	}
+	if err := executor.Init(); err != nil {
+		ctx.Results <- &Result{Err: err, ResultType: "ERROR"}
+		return true
+	}
+	defer executor.Close()
+
+	rows := make([][]interface{}, 0)
+	for {
+		if err := executor.Next(); err != nil {
+			break
+		}
+		row := executor.GetRow()
+		if row != nil {
+			rows = append(rows, row)
+		}
+	}
+
+	columns := showExecutorColumnNames(executor.Schema())
+	normalizedType := strings.ToLower(strings.TrimSpace(showType))
+	likePattern := ResolveShowLikePattern(normalizedType, stmt, rawQuery)
+	rows = filterShowRowsByLike(rows, likePattern)
+	whereExpr := ResolveShowWhereExpr(normalizedType, stmt, rawQuery)
+	rows = filterShowRowsByWhere(rows, columns, whereExpr)
+
+	ctx.Results <- &Result{
+		ResultType: "QUERY",
+		Data: map[string]interface{}{
+			"columns": columns,
+			"rows":    rows,
+		},
+		Message: fmt.Sprintf("Found %d %s", len(rows), showExecutorResultNoun(normalizedType)),
+	}
+	return true
+}
+
+func showExecutorColumnNames(schema *metadata.Table) []string {
+	if schema == nil {
+		return []string{"Value"}
+	}
+	columns := make([]string, 0, len(schema.Columns))
+	for _, col := range schema.Columns {
+		if col == nil {
+			continue
+		}
+		columns = append(columns, col.Name)
+	}
+	return columns
+}
+
+func showExecutorResultNoun(showType string) string {
+	switch showType {
+	case "databases":
+		return "databases"
+	case "tables":
+		return "tables"
+	case "columns", "fields":
+		return "columns"
+	default:
+		return "rows"
+	}
 }
 
 func (e *XMySQLExecutor) resolveShowColumnsTarget(ctx *ExecutionContext, stmt *sqlparser.Show, rawQuery string) (string, string, error) {

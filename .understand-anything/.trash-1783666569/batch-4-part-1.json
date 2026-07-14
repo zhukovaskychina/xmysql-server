@@ -1,0 +1,773 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "type": "file",
+      "name": "checksum_test.go",
+      "filePath": "server/innodb/storage/wrapper/page/checksum_test.go",
+      "summary": "验证InnoDB 页对象包装与字段访问中 checksum 的正常路径、边界条件与回归行为。",
+      "tags": [
+        "test",
+        "regression",
+        "storage-page",
+        "innodb",
+        "adapter"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_CalculateAndValidate",
+      "type": "function",
+      "name": "TestPageChecksum_CalculateAndValidate",
+      "filePath": "server/innodb/storage/wrapper/page/checksum_test.go",
+      "lineRange": [
+        11,
+        41
+      ],
+      "summary": "验证InnoDB 页对象包装与字段访问中的 TestPageChecksum_CalculateAndValidate 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_DetectCorruption",
+      "type": "function",
+      "name": "TestPageChecksum_DetectCorruption",
+      "filePath": "server/innodb/storage/wrapper/page/checksum_test.go",
+      "lineRange": [
+        44,
+        70
+      ],
+      "summary": "验证InnoDB 页对象包装与字段访问中的 TestPageChecksum_DetectCorruption 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_CRC32Algorithm",
+      "type": "function",
+      "name": "TestPageChecksum_CRC32Algorithm",
+      "filePath": "server/innodb/storage/wrapper/page/checksum_test.go",
+      "lineRange": [
+        73,
+        98
+      ],
+      "summary": "验证InnoDB 页对象包装与字段访问中的 TestPageChecksum_CRC32Algorithm 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_MultipleUpdates",
+      "type": "function",
+      "name": "TestPageChecksum_MultipleUpdates",
+      "filePath": "server/innodb/storage/wrapper/page/checksum_test.go",
+      "lineRange": [
+        101,
+        135
+      ],
+      "summary": "验证InnoDB 页对象包装与字段访问中的 TestPageChecksum_MultipleUpdates 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_EmptyPage",
+      "type": "function",
+      "name": "TestPageChecksum_EmptyPage",
+      "filePath": "server/innodb/storage/wrapper/page/checksum_test.go",
+      "lineRange": [
+        138,
+        157
+      ],
+      "summary": "验证InnoDB 页对象包装与字段访问中的 TestPageChecksum_EmptyPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_DirtyFlag",
+      "type": "function",
+      "name": "TestPageChecksum_DirtyFlag",
+      "filePath": "server/innodb/storage/wrapper/page/checksum_test.go",
+      "lineRange": [
+        160,
+        178
+      ],
+      "summary": "验证InnoDB 页对象包装与字段访问中的 TestPageChecksum_DirtyFlag 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_ConcurrentAccess",
+      "type": "function",
+      "name": "TestPageChecksum_ConcurrentAccess",
+      "filePath": "server/innodb/storage/wrapper/page/checksum_test.go",
+      "lineRange": [
+        181,
+        219
+      ],
+      "summary": "验证InnoDB 页对象包装与字段访问中的 TestPageChecksum_ConcurrentAccess 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_PageIntegrityChecker",
+      "type": "function",
+      "name": "TestPageChecksum_PageIntegrityChecker",
+      "filePath": "server/innodb/storage/wrapper/page/checksum_test.go",
+      "lineRange": [
+        222,
+        249
+      ],
+      "summary": "验证InnoDB 页对象包装与字段访问中的 TestPageChecksum_PageIntegrityChecker 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/storage/wrapper/page_wrapper.go",
+      "type": "file",
+      "name": "page_wrapper.go",
+      "filePath": "server/innodb/storage/wrapper/page_wrapper.go",
+      "summary": "封装InnoDB 页对象包装与字段访问的底层字节布局，提供类型化读写和状态管理接口。",
+      "tags": [
+        "service",
+        "innodb",
+        "storage",
+        "adapter"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page_wrapper.go:NewFileHeader",
+      "type": "function",
+      "name": "NewFileHeader",
+      "filePath": "server/innodb/storage/wrapper/page_wrapper.go",
+      "lineRange": [
+        22,
+        29
+      ],
+      "summary": "创建或初始化InnoDB 页对象包装与字段访问中的 NewFileHeader 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page_wrapper.go:NewFileTrailer",
+      "type": "function",
+      "name": "NewFileTrailer",
+      "filePath": "server/innodb/storage/wrapper/page_wrapper.go",
+      "lineRange": [
+        32,
+        37
+      ],
+      "summary": "创建或初始化InnoDB 页对象包装与字段访问中的 NewFileTrailer 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page_wrapper.go:GetBytes",
+      "type": "function",
+      "name": "GetBytes",
+      "filePath": "server/innodb/storage/wrapper/page_wrapper.go",
+      "lineRange": [
+        40,
+        47
+      ],
+      "summary": "读取或查询InnoDB 页对象包装与字段访问中的 GetBytes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/page_wrapper.go:FileHeader",
+      "type": "class",
+      "name": "FileHeader",
+      "filePath": "server/innodb/storage/wrapper/page_wrapper.go",
+      "lineRange": [
+        8,
+        13
+      ],
+      "summary": "封装InnoDB 页对象包装与字段访问中的 FileHeader 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/page_wrapper.go:FileTrailer",
+      "type": "class",
+      "name": "FileTrailer",
+      "filePath": "server/innodb/storage/wrapper/page_wrapper.go",
+      "lineRange": [
+        16,
+        19
+      ],
+      "summary": "封装InnoDB 页对象包装与字段访问中的 FileTrailer 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_CalculateAndValidate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_CalculateAndValidate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_DetectCorruption",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_DetectCorruption",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_CRC32Algorithm",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_CRC32Algorithm",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_MultipleUpdates",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_MultipleUpdates",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_EmptyPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_EmptyPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_DirtyFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_DirtyFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_ConcurrentAccess",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_ConcurrentAccess",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_PageIntegrityChecker",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "function:server/innodb/storage/wrapper/page/checksum_test.go:TestPageChecksum_PageIntegrityChecker",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/common/charset.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/common/const_trx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/common/constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/common/error_name.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/common/error_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/common/error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/common/errorcode.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/common/frm_constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/common/locale_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/common/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/common/privs_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/common/privs.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/common/sql_error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/common/sql_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/common/type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/common/type.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/common/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/allocated_page_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/blob_page_roundtrip_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/blob_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/cluster_index_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/compressed_page_roundtrip_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/compressed_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/encrypted_page_roundtrip_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/file_page_type_sys_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/fsp_hdr_inode_roundtrip_deser_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/fsp_hrd_page_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/fsp_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/ibuf_bitmap_page_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/inode_page_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/inode_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/page_integrity_checker.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/page_serializer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/rollback_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/sys_trx_sys_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/system_page_roundtrip_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/undo_log_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "target": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page_wrapper.go",
+      "target": "function:server/innodb/storage/wrapper/page_wrapper.go:NewFileHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page_wrapper.go",
+      "target": "function:server/innodb/storage/wrapper/page_wrapper.go:NewFileHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page_wrapper.go",
+      "target": "function:server/innodb/storage/wrapper/page_wrapper.go:NewFileTrailer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page_wrapper.go",
+      "target": "function:server/innodb/storage/wrapper/page_wrapper.go:NewFileTrailer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page_wrapper.go",
+      "target": "function:server/innodb/storage/wrapper/page_wrapper.go:GetBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page_wrapper.go",
+      "target": "function:server/innodb/storage/wrapper/page_wrapper.go:GetBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page_wrapper.go",
+      "target": "class:server/innodb/storage/wrapper/page_wrapper.go:FileHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page_wrapper.go",
+      "target": "class:server/innodb/storage/wrapper/page_wrapper.go:FileHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page_wrapper.go",
+      "target": "class:server/innodb/storage/wrapper/page_wrapper.go:FileTrailer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page_wrapper.go",
+      "target": "class:server/innodb/storage/wrapper/page_wrapper.go:FileTrailer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

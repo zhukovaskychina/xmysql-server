@@ -127,48 +127,32 @@ func (L *LRUCacheImpl) Evict() *BufferPage {
 	L.mu.Lock()
 	defer L.mu.Unlock()
 
-	// Prefer evicting from the old list
-	if L.evictOldList.Len() > 0 {
-		ent := L.evictOldList.Back()
-		if ent != nil {
-			item := ent.Value.(*lruItem)
-			L.evictOldList.Remove(ent)
-			delete(L.oldItems, item.key)
-			if L.evictedFunc != nil {
-				L.evictedFunc(item.key, item.value)
-			}
-			return item.value.BufferPage
-		}
+	if page := L.evictUnpinnedFromListLocked(L.evictOldList, L.oldItems); page != nil {
+		return page
+	}
+	if page := L.evictUnpinnedFromListLocked(L.evictList, L.items); page != nil {
+		return page
+	}
+	if page := L.evictUnpinnedFromListLocked(L.evictYoungList, L.youngItems); page != nil {
+		return page
 	}
 
-	// Fall back to the ordinary list
-	if L.evictList.Len() > 0 {
-		ent := L.evictList.Back()
-		if ent != nil {
-			item := ent.Value.(*lruItem)
-			L.evictList.Remove(ent)
-			delete(L.items, item.key)
-			if L.evictedFunc != nil {
-				L.evictedFunc(item.key, item.value)
-			}
-			return item.value.BufferPage
-		}
-	}
+	return nil
+}
 
-	// Finally evict from the young list if needed
-	if L.evictYoungList.Len() > 0 {
-		ent := L.evictYoungList.Back()
-		if ent != nil {
-			item := ent.Value.(*lruItem)
-			L.evictYoungList.Remove(ent)
-			delete(L.youngItems, item.key)
-			if L.evictedFunc != nil {
-				L.evictedFunc(item.key, item.value)
-			}
-			return item.value.BufferPage
+func (L *LRUCacheImpl) evictUnpinnedFromListLocked(l *list.List, items map[uint64]*list.Element) *BufferPage {
+	for ent := l.Back(); ent != nil; ent = ent.Prev() {
+		item := ent.Value.(*lruItem)
+		if item.value == nil || item.value.BufferPage == nil || item.value.BufferPage.IsPinned() {
+			continue
 		}
+		l.Remove(ent)
+		delete(items, item.key)
+		if L.evictedFunc != nil {
+			L.evictedFunc(item.key, item.value)
+		}
+		return item.value.BufferPage
 	}
-
 	return nil
 }
 

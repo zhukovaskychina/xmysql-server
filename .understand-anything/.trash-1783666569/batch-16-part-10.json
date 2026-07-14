@@ -1,0 +1,1920 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/manager/extent_manager.go",
+      "type": "file",
+      "name": "extent_manager.go",
+      "filePath": "server/innodb/manager/extent_manager.go",
+      "summary": "实现区段分配、释放与使用统计，覆盖 ExtentManager、ExtentStats、NewExtentManager、AllocateExtent 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "extent-manager",
+        "manager",
+        "source-file"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/manager/extent_manager.go:NewExtentManager",
+      "type": "function",
+      "name": "NewExtentManager",
+      "filePath": "server/innodb/manager/extent_manager.go",
+      "lineRange": [
+        37,
+        44
+      ],
+      "summary": "构造并初始化 NewExtentManager 对应的区段分配、释放与使用统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "extent-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/extent_manager.go:AllocateExtent",
+      "type": "function",
+      "name": "AllocateExtent",
+      "filePath": "server/innodb/manager/extent_manager.go",
+      "lineRange": [
+        47,
+        79
+      ],
+      "summary": "创建或分配 AllocateExtent 对应的区段分配、释放与使用统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "extent-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/extent_manager.go:GetExtent",
+      "type": "function",
+      "name": "GetExtent",
+      "filePath": "server/innodb/manager/extent_manager.go",
+      "lineRange": [
+        82,
+        94
+      ],
+      "summary": "读取或查找 GetExtent 对应的区段分配、释放与使用统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "extent-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/extent_manager.go:FreeExtent",
+      "type": "function",
+      "name": "FreeExtent",
+      "filePath": "server/innodb/manager/extent_manager.go",
+      "lineRange": [
+        97,
+        119
+      ],
+      "summary": "删除或释放 FreeExtent 对应的区段分配、释放与使用统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "extent-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/extent_manager.go:GetStats",
+      "type": "function",
+      "name": "GetStats",
+      "filePath": "server/innodb/manager/extent_manager.go",
+      "lineRange": [
+        122,
+        126
+      ],
+      "summary": "读取或查找 GetStats 对应的区段分配、释放与使用统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "extent-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/extent_manager.go:updateStats",
+      "type": "function",
+      "name": "updateStats",
+      "filePath": "server/innodb/manager/extent_manager.go",
+      "lineRange": [
+        129,
+        157
+      ],
+      "summary": "实现 updateStats 对应的区段分配、释放与使用统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "extent-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/extent_manager.go:DefragmentExtent",
+      "type": "function",
+      "name": "DefragmentExtent",
+      "filePath": "server/innodb/manager/extent_manager.go",
+      "lineRange": [
+        160,
+        170
+      ],
+      "summary": "优化或压缩 DefragmentExtent 对应的区段分配、释放与使用统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "optimization",
+        "extent-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/extent_manager.go:GetFreeExtentCount",
+      "type": "function",
+      "name": "GetFreeExtentCount",
+      "filePath": "server/innodb/manager/extent_manager.go",
+      "lineRange": [
+        173,
+        177
+      ],
+      "summary": "读取或查找 GetFreeExtentCount 对应的区段分配、释放与使用统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "extent-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/extent_manager.go:GetTotalExtentCount",
+      "type": "function",
+      "name": "GetTotalExtentCount",
+      "filePath": "server/innodb/manager/extent_manager.go",
+      "lineRange": [
+        180,
+        184
+      ],
+      "summary": "读取或查找 GetTotalExtentCount 对应的区段分配、释放与使用统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "extent-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/extent_manager.go:ExtentManager",
+      "type": "class",
+      "name": "ExtentManager",
+      "filePath": "server/innodb/manager/extent_manager.go",
+      "lineRange": [
+        11,
+        25
+      ],
+      "summary": "ExtentManager 定义区段分配、释放与使用统计所需的数据结构，并通过 AllocateExtent、GetExtent、FreeExtent、GetStats 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "extent-manager",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/extent_manager.go:ExtentStats",
+      "type": "class",
+      "name": "ExtentStats",
+      "filePath": "server/innodb/manager/extent_manager.go",
+      "lineRange": [
+        28,
+        34
+      ],
+      "summary": "ExtentStats 定义区段分配、释放与使用统计所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "extent-manager",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/manager/mysql_user_data.go",
+      "type": "file",
+      "name": "mysql_user_data.go",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "summary": "实现mysql.user 系统表的数据存取与权限字段管理，覆盖 MySQLUser、RecordTableRowTupleAdapter、generatePasswordHash、createDefaultRootUser 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "user-metadata",
+        "manager",
+        "source-file"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:generatePasswordHash",
+      "type": "function",
+      "name": "generatePasswordHash",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        65,
+        76
+      ],
+      "summary": "实现 generatePasswordHash 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "user-metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:createDefaultRootUser",
+      "type": "function",
+      "name": "createDefaultRootUser",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        79,
+        124
+      ],
+      "summary": "实现 createDefaultRootUser 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "user-metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:createMySQLUserTableMetadata",
+      "type": "function",
+      "name": "createMySQLUserTableMetadata",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        134,
+        190
+      ],
+      "summary": "实现 createMySQLUserTableMetadata 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "user-metadata"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:convertMySQLUserToValues",
+      "type": "function",
+      "name": "convertMySQLUserToValues",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        193,
+        256
+      ],
+      "summary": "实现 convertMySQLUserToValues 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "user-metadata"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:GetColumnInfos",
+      "type": "function",
+      "name": "GetColumnInfos",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        264,
+        270
+      ],
+      "summary": "读取或查找 GetColumnInfos 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "user-metadata",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:GetVarColumns",
+      "type": "function",
+      "name": "GetVarColumns",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        273,
+        283
+      ],
+      "summary": "读取或查找 GetVarColumns 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "user-metadata",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:createMySQLUserRecord",
+      "type": "function",
+      "name": "createMySQLUserRecord",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        286,
+        306
+      ],
+      "summary": "实现 createMySQLUserRecord 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "user-metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:convertToTableMeta",
+      "type": "function",
+      "name": "convertToTableMeta",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        309,
+        356
+      ],
+      "summary": "实现 convertToTableMeta 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "user-metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:serializeUserToStandardFormat",
+      "type": "function",
+      "name": "serializeUserToStandardFormat",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        359,
+        424
+      ],
+      "summary": "实现 serializeUserToStandardFormat 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "user-metadata"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:getFixedFieldLength",
+      "type": "function",
+      "name": "getFixedFieldLength",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        427,
+        450
+      ],
+      "summary": "实现 getFixedFieldLength 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "user-metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:serializeUserToBytes",
+      "type": "function",
+      "name": "serializeUserToBytes",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        460,
+        524
+      ],
+      "summary": "实现 serializeUserToBytes 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "user-metadata"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:InitializeMySQLUserData",
+      "type": "function",
+      "name": "InitializeMySQLUserData",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        527,
+        810
+      ],
+      "summary": "启动或初始化 InitializeMySQLUserData 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "user-metadata",
+        "function"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:QueryMySQLUser",
+      "type": "function",
+      "name": "QueryMySQLUser",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        813,
+        888
+      ],
+      "summary": "实现 QueryMySQLUser 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "user-metadata"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:deserializeUserFromRecord",
+      "type": "function",
+      "name": "deserializeUserFromRecord",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        891,
+        1014
+      ],
+      "summary": "实现 deserializeUserFromRecord 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "user-metadata"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:findExistingRootPage",
+      "type": "function",
+      "name": "findExistingRootPage",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        1025,
+        1080
+      ],
+      "summary": "实现 findExistingRootPage 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "user-metadata"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:isValidBTreePage",
+      "type": "function",
+      "name": "isValidBTreePage",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        1083,
+        1109
+      ],
+      "summary": "实现 isValidBTreePage 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "user-metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:containsUserRecords",
+      "type": "function",
+      "name": "containsUserRecords",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        1112,
+        1138
+      ],
+      "summary": "实现 containsUserRecords 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "user-metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:createUserFromQueryParams",
+      "type": "function",
+      "name": "createUserFromQueryParams",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        1141,
+        1160
+      ],
+      "summary": "实现 createUserFromQueryParams 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "user-metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:VerifyUserPassword",
+      "type": "function",
+      "name": "VerifyUserPassword",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        1163,
+        1171
+      ],
+      "summary": "检查 VerifyUserPassword 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "user-metadata",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:insertUserDataDirectly",
+      "type": "function",
+      "name": "insertUserDataDirectly",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        1174,
+        1215
+      ],
+      "summary": "实现 insertUserDataDirectly 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "user-metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:insertUserRecordDirectly",
+      "type": "function",
+      "name": "insertUserRecordDirectly",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        1218,
+        1247
+      ],
+      "summary": "实现 insertUserRecordDirectly 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "user-metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:verifyUserDataBTree",
+      "type": "function",
+      "name": "verifyUserDataBTree",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        1250,
+        1278
+      ],
+      "summary": "实现 verifyUserDataBTree 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "user-metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:QueryMySQLUserViaBTree",
+      "type": "function",
+      "name": "QueryMySQLUserViaBTree",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        1281,
+        1324
+      ],
+      "summary": "实现 QueryMySQLUserViaBTree 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "user-metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/mysql_user_data.go:verifyEnhancedBTreeStructure",
+      "type": "function",
+      "name": "verifyEnhancedBTreeStructure",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        1327,
+        1379
+      ],
+      "summary": "实现 verifyEnhancedBTreeStructure 对应的mysql.user 系统表的数据存取与权限字段管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "user-metadata"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/mysql_user_data.go:MySQLUser",
+      "type": "class",
+      "name": "MySQLUser",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        19,
+        60
+      ],
+      "summary": "MySQLUser 定义mysql.user 系统表的数据存取与权限字段管理所需的数据结构，并通过 convertMySQLUserToValues、createMySQLUserRecord、convertToTableMeta、serializeUserToStandardFormat 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "user-metadata",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/mysql_user_data.go:RecordTableRowTupleAdapter",
+      "type": "class",
+      "name": "RecordTableRowTupleAdapter",
+      "filePath": "server/innodb/manager/mysql_user_data.go",
+      "lineRange": [
+        259,
+        261
+      ],
+      "summary": "RecordTableRowTupleAdapter 定义mysql.user 系统表的数据存取与权限字段管理所需的数据结构，并通过 GetColumnInfos、GetVarColumns 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "user-metadata",
+        "behavior"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "function:server/innodb/manager/extent_manager.go:NewExtentManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "function:server/innodb/manager/extent_manager.go:NewExtentManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "function:server/innodb/manager/extent_manager.go:AllocateExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "function:server/innodb/manager/extent_manager.go:AllocateExtent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "function:server/innodb/manager/extent_manager.go:GetExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "function:server/innodb/manager/extent_manager.go:GetExtent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "function:server/innodb/manager/extent_manager.go:FreeExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "function:server/innodb/manager/extent_manager.go:FreeExtent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "function:server/innodb/manager/extent_manager.go:GetStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "function:server/innodb/manager/extent_manager.go:GetStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "function:server/innodb/manager/extent_manager.go:updateStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "function:server/innodb/manager/extent_manager.go:DefragmentExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "function:server/innodb/manager/extent_manager.go:DefragmentExtent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "function:server/innodb/manager/extent_manager.go:GetFreeExtentCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "function:server/innodb/manager/extent_manager.go:GetFreeExtentCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "function:server/innodb/manager/extent_manager.go:GetTotalExtentCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "function:server/innodb/manager/extent_manager.go:GetTotalExtentCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "class:server/innodb/manager/extent_manager.go:ExtentManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "class:server/innodb/manager/extent_manager.go:ExtentManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "class:server/innodb/manager/extent_manager.go:ExtentStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "class:server/innodb/manager/extent_manager.go:ExtentStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:generatePasswordHash",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:createDefaultRootUser",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:createMySQLUserTableMetadata",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:convertMySQLUserToValues",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:GetColumnInfos",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:GetColumnInfos",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:GetVarColumns",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:GetVarColumns",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:createMySQLUserRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:convertToTableMeta",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:serializeUserToStandardFormat",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:getFixedFieldLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:serializeUserToBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:InitializeMySQLUserData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:InitializeMySQLUserData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:QueryMySQLUser",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:QueryMySQLUser",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:deserializeUserFromRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:findExistingRootPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:isValidBTreePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:containsUserRecords",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:createUserFromQueryParams",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:VerifyUserPassword",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:VerifyUserPassword",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:insertUserDataDirectly",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:insertUserRecordDirectly",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:verifyUserDataBTree",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:QueryMySQLUserViaBTree",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:QueryMySQLUserViaBTree",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "function:server/innodb/manager/mysql_user_data.go:verifyEnhancedBTreeStructure",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "class:server/innodb/manager/mysql_user_data.go:MySQLUser",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "class:server/innodb/manager/mysql_user_data.go:MySQLUser",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "class:server/innodb/manager/mysql_user_data.go:RecordTableRowTupleAdapter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "class:server/innodb/manager/mysql_user_data.go:RecordTableRowTupleAdapter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/buffer_pool/auto_tuning.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_block.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_lru_optimized.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_lru.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_pool_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/buffer_pool/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/buffer_pool/prefetch_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/buffer_pool/prefetch.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/buffer_pool/stats.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/storage/wrapper/extent/defragment_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/storage/wrapper/extent/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/storage/wrapper/extent/list.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/storage/wrapper/extent/unified_extent_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/extent_manager.go",
+      "target": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:logger/logger.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/metadata/builder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/metadata/column_def.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/metadata/column.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/metadata/convert.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/metadata/database.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/metadata/information_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/metadata/migrate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/metadata/query_schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/metadata/schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/metadata/table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/metadata/tuple.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/metadata/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/metadata/utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/record/compact_format_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/record/compact_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/record/dynamic_format_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/record/dynamic_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/record/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/record/special_rows_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/record/special_rows.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/record/unified_record_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/record/unified_record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/record/varchar_optimizer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/storage/wrapper/record/base.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/storage/wrapper/record/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/storage/wrapper/record/infiu_supremum.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/storage/wrapper/record/row_cluster_index_internal_row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/storage/wrapper/record/row_cluster_index_leaf_row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/storage/wrapper/record/row_cluster_sys_index_internal_row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/storage/wrapper/record/row_cluster_sys_index_leaf_row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/storage/wrapper/record/row_secondary_index_internal_row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/storage/wrapper/record/row_secondary_index_leaf_row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_internal_row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/storage/wrapper/record/row_secondary_sys_index_leaf_row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/storage/wrapper/record/secondary_index_row_transaction_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/storage/wrapper/record/system.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/mysql_user_data.go",
+      "target": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

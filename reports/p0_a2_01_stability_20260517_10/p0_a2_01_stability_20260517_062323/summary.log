@@ -1,0 +1,34 @@
+P0 A2-01 flaky 测试稳定性复验
+repo: /Users/zhukovasky/GolandProjects/xmysql-server
+timestamp: 20260517_062323
+rounds: 10
+test_filter: TestBTREE|TestConcurrentCheckAndExpand|TestPrefetch
+timeout: 300s
+packages: ./server/innodb/manager ./server/innodb/buffer_pool
+run_dir: ./reports/p0_a2_01_stability_20260517_10/p0_a2_01_stability_20260517_062323
+
+[PASS] round=1 package=./server/innodb/manager
+[PASS] round=1 package=./server/innodb/buffer_pool
+[PASS] round=2 package=./server/innodb/manager
+[PASS] round=2 package=./server/innodb/buffer_pool
+[PASS] round=3 package=./server/innodb/manager
+[PASS] round=3 package=./server/innodb/buffer_pool
+[PASS] round=4 package=./server/innodb/manager
+[PASS] round=4 package=./server/innodb/buffer_pool
+[PASS] round=5 package=./server/innodb/manager
+[PASS] round=5 package=./server/innodb/buffer_pool
+[PASS] round=6 package=./server/innodb/manager
+[PASS] round=6 package=./server/innodb/buffer_pool
+[PASS] round=7 package=./server/innodb/manager
+[PASS] round=7 package=./server/innodb/buffer_pool
+[PASS] round=8 package=./server/innodb/manager
+[PASS] round=8 package=./server/innodb/buffer_pool
+[PASS] round=9 package=./server/innodb/manager
+[PASS] round=9 package=./server/innodb/buffer_pool
+[PASS] round=10 package=./server/innodb/manager
+[PASS] round=10 package=./server/innodb/buffer_pool
+
+=== final ===
+passed_rounds=10
+failed_rounds=0
+RESULT: PASS

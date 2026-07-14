@@ -22,12 +22,14 @@ func (dml *StorageIntegratedDMLExecutor) buildIndexKey(
 ) (interface{}, error) {
 	logger.Debugf(" 构建索引键，索引: %s", index.Name)
 
-	// 简化实现：假设索引只有一列
 	if len(index.Columns) == 0 {
 		return nil, fmt.Errorf("索引列为空")
 	}
 
-	// 获取第一列的值作为索引键
+	if len(index.Columns) > 1 {
+		return buildCompositeIndexKey(row.ColumnValues, index)
+	}
+
 	columnName := index.Columns[0].Name
 	if value, exists := row.ColumnValues[columnName]; exists {
 		return value, nil
@@ -44,12 +46,14 @@ func (dml *StorageIntegratedDMLExecutor) buildIndexKeyFromOldValues(
 ) (interface{}, error) {
 	logger.Debugf(" 从旧值构建索引键，索引: %s", index.Name)
 
-	// 简化实现：假设索引只有一列
 	if len(index.Columns) == 0 {
 		return nil, fmt.Errorf("索引列为空")
 	}
 
-	// 获取第一列的值作为索引键
+	if len(index.Columns) > 1 {
+		return buildCompositeIndexKey(oldValues, index)
+	}
+
 	columnName := index.Columns[0].Name
 	if value, exists := oldValues[columnName]; exists {
 		return value, nil
@@ -72,6 +76,19 @@ func (dml *StorageIntegratedDMLExecutor) buildIndexKeyFromUpdateExpressions(
 		return nil, fmt.Errorf("索引列为空")
 	}
 
+	if len(index.Columns) > 1 {
+		values := make(map[string]interface{}, len(oldValues)+len(updateExprs))
+		for name, value := range oldValues {
+			values[name] = value
+		}
+		for _, expr := range updateExprs {
+			if expr != nil {
+				values[expr.ColumnName] = expr.NewValue
+			}
+		}
+		return buildCompositeIndexKey(values, index)
+	}
+
 	columnName := index.Columns[0].Name
 
 	// 首先检查是否有更新表达式更新了这一列
@@ -87,6 +104,24 @@ func (dml *StorageIntegratedDMLExecutor) buildIndexKeyFromUpdateExpressions(
 	}
 
 	return nil, fmt.Errorf("索引列 %s 在数据中不存在", columnName)
+}
+
+func buildCompositeIndexKey(values map[string]interface{}, index *manager.Index) ([]interface{}, error) {
+	if index == nil {
+		return nil, fmt.Errorf("索引对象为空")
+	}
+	key := make([]interface{}, 0, len(index.Columns))
+	for _, column := range index.Columns {
+		value, exists := values[column.Name]
+		if !exists {
+			return nil, fmt.Errorf("索引列 %s 在数据中不存在", column.Name)
+		}
+		if value == nil && !column.Nullable {
+			return nil, fmt.Errorf("索引列 %s 不允许 NULL", column.Name)
+		}
+		key = append(key, value)
+	}
+	return key, nil
 }
 
 // buildMultiColumnIndexKey 构建多列索引键

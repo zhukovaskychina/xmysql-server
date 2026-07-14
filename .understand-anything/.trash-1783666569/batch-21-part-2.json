@@ -1,0 +1,1906 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/plan/index_merge_test.go",
+      "type": "file",
+      "name": "index_merge_test.go",
+      "filePath": "server/innodb/plan/index_merge_test.go",
+      "summary": "验证查询计划与优化器相关行为与边界条件，重点覆盖 StatisticsHelpers、IndexMergeCandidates、IndexMergeFallbackSingle。",
+      "tags": [
+        "test",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/index_merge_test.go:TestStatisticsHelpers",
+      "type": "function",
+      "name": "TestStatisticsHelpers",
+      "filePath": "server/innodb/plan/index_merge_test.go",
+      "lineRange": [
+        8,
+        31
+      ],
+      "summary": "验证 StatisticsHelpers 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_merge_test.go:TestIndexMergeCandidates",
+      "type": "function",
+      "name": "TestIndexMergeCandidates",
+      "filePath": "server/innodb/plan/index_merge_test.go",
+      "lineRange": [
+        33,
+        56
+      ],
+      "summary": "验证 IndexMergeCandidates 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_merge_test.go:TestIndexMergeFallbackSingle",
+      "type": "function",
+      "name": "TestIndexMergeFallbackSingle",
+      "filePath": "server/innodb/plan/index_merge_test.go",
+      "lineRange": [
+        58,
+        76
+      ],
+      "summary": "验证 IndexMergeFallbackSingle 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "type": "file",
+      "name": "index_pushdown_integration_test.go",
+      "filePath": "server/innodb/plan/index_pushdown_integration_test.go",
+      "summary": "验证查询计划与优化器相关行为与边界条件，重点覆盖 ComplexConditionCombination、CoveringIndexOptimization、NonCoveringIndexWithExtraColumn。",
+      "tags": [
+        "test",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_integration_test.go:TestComplexConditionCombination",
+      "type": "function",
+      "name": "TestComplexConditionCombination",
+      "filePath": "server/innodb/plan/index_pushdown_integration_test.go",
+      "lineRange": [
+        11,
+        51
+      ],
+      "summary": "验证 ComplexConditionCombination 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_integration_test.go:TestCoveringIndexOptimization",
+      "type": "function",
+      "name": "TestCoveringIndexOptimization",
+      "filePath": "server/innodb/plan/index_pushdown_integration_test.go",
+      "lineRange": [
+        54,
+        101
+      ],
+      "summary": "验证 CoveringIndexOptimization 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_integration_test.go:TestNonCoveringIndexWithExtraColumn",
+      "type": "function",
+      "name": "TestNonCoveringIndexWithExtraColumn",
+      "filePath": "server/innodb/plan/index_pushdown_integration_test.go",
+      "lineRange": [
+        104,
+        140
+      ],
+      "summary": "验证 NonCoveringIndexWithExtraColumn 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_integration_test.go:TestSameColumnDualRange",
+      "type": "function",
+      "name": "TestSameColumnDualRange",
+      "filePath": "server/innodb/plan/index_pushdown_integration_test.go",
+      "lineRange": [
+        143,
+        180
+      ],
+      "summary": "验证 SameColumnDualRange 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_integration_test.go:TestIndexMergeScenario",
+      "type": "function",
+      "name": "TestIndexMergeScenario",
+      "filePath": "server/innodb/plan/index_pushdown_integration_test.go",
+      "lineRange": [
+        183,
+        238
+      ],
+      "summary": "验证 IndexMergeScenario 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_integration_test.go:TestAggregationWithCoveringIndex",
+      "type": "function",
+      "name": "TestAggregationWithCoveringIndex",
+      "filePath": "server/innodb/plan/index_pushdown_integration_test.go",
+      "lineRange": [
+        241,
+        270
+      ],
+      "summary": "验证 AggregationWithCoveringIndex 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_integration_test.go:TestPerformanceComparison",
+      "type": "function",
+      "name": "TestPerformanceComparison",
+      "filePath": "server/innodb/plan/index_pushdown_integration_test.go",
+      "lineRange": [
+        273,
+        306
+      ],
+      "summary": "验证 PerformanceComparison 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_integration_test.go:TestSelectivityEstimation",
+      "type": "function",
+      "name": "TestSelectivityEstimation",
+      "filePath": "server/innodb/plan/index_pushdown_integration_test.go",
+      "lineRange": [
+        309,
+        375
+      ],
+      "summary": "验证 SelectivityEstimation 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_integration_test.go:createUsersTable",
+      "type": "function",
+      "name": "createUsersTable",
+      "filePath": "server/innodb/plan/index_pushdown_integration_test.go",
+      "lineRange": [
+        379,
+        422
+      ],
+      "summary": "实现 查询计划与优化器 中的 createUsersTable 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_integration_test.go:setupUsersStatistics",
+      "type": "function",
+      "name": "setupUsersStatistics",
+      "filePath": "server/innodb/plan/index_pushdown_integration_test.go",
+      "lineRange": [
+        424,
+        468
+      ],
+      "summary": "实现 查询计划与优化器 中的 setupUsersStatistics 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "type": "file",
+      "name": "index_pushdown_optimizer.go",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "summary": "实现查询计划与优化器的优化规则与候选计划选择，负责将逻辑表达转换为可执行且代价更低的计划。",
+      "tags": [
+        "go",
+        "query-optimizer",
+        "algorithm"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:NewIndexPushdownOptimizer",
+      "type": "function",
+      "name": "NewIndexPushdownOptimizer",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        19,
+        25
+      ],
+      "summary": "创建并初始化 IndexPushdownOptimizer，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:OptimizeIndexAccess",
+      "type": "function",
+      "name": "OptimizeIndexAccess",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        51,
+        74
+      ],
+      "summary": "优化 IndexAccess，在保持语义的前提下降低执行代价。",
+      "tags": [
+        "query-planning",
+        "algorithm",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:analyzeWhereConditions",
+      "type": "function",
+      "name": "analyzeWhereConditions",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        77,
+        89
+      ],
+      "summary": "实现 查询计划与优化器 中的 analyzeWhereConditions 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:extractIndexConditions",
+      "type": "function",
+      "name": "extractIndexConditions",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        92,
+        115
+      ],
+      "summary": "实现 查询计划与优化器 中的 extractIndexConditions 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:extractBinaryCondition",
+      "type": "function",
+      "name": "extractBinaryCondition",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        118,
+        147
+      ],
+      "summary": "实现 查询计划与优化器 中的 extractBinaryCondition 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:extractFunctionConditions",
+      "type": "function",
+      "name": "extractFunctionConditions",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        150,
+        189
+      ],
+      "summary": "实现 查询计划与优化器 中的 extractFunctionConditions 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:generateIndexCandidates",
+      "type": "function",
+      "name": "generateIndexCandidates",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        192,
+        209
+      ],
+      "summary": "实现 查询计划与优化器 中的 generateIndexCandidates 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:evaluateIndex",
+      "type": "function",
+      "name": "evaluateIndex",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        212,
+        283
+      ],
+      "summary": "实现 查询计划与优化器 中的 evaluateIndex 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:mergeCandidates",
+      "type": "function",
+      "name": "mergeCandidates",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        286,
+        338
+      ],
+      "summary": "实现 查询计划与优化器 中的 mergeCandidates 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:canMergeIndexes",
+      "type": "function",
+      "name": "canMergeIndexes",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        341,
+        355
+      ],
+      "summary": "实现 查询计划与优化器 中的 canMergeIndexes 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:calculateMergeCost",
+      "type": "function",
+      "name": "calculateMergeCost",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        358,
+        371
+      ],
+      "summary": "实现 查询计划与优化器 中的 calculateMergeCost 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:isCoveringIndex",
+      "type": "function",
+      "name": "isCoveringIndex",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        374,
+        392
+      ],
+      "summary": "实现 查询计划与优化器 中的 isCoveringIndex 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:extractColumnFromExpression",
+      "type": "function",
+      "name": "extractColumnFromExpression",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        395,
+        414
+      ],
+      "summary": "实现 查询计划与优化器 中的 extractColumnFromExpression 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:selectBestIndex",
+      "type": "function",
+      "name": "selectBestIndex",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        417,
+        437
+      ],
+      "summary": "实现 查询计划与优化器 中的 selectBestIndex 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:calculateIndexScore",
+      "type": "function",
+      "name": "calculateIndexScore",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        440,
+        468
+      ],
+      "summary": "实现 查询计划与优化器 中的 calculateIndexScore 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:convertOperator",
+      "type": "function",
+      "name": "convertOperator",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        473,
+        490
+      ],
+      "summary": "实现 查询计划与优化器 中的 convertOperator 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:canPushCondition",
+      "type": "function",
+      "name": "canPushCondition",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        493,
+        502
+      ],
+      "summary": "实现 查询计划与优化器 中的 canPushCondition 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:estimateSelectivity",
+      "type": "function",
+      "name": "estimateSelectivity",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        514,
+        549
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateSelectivity 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:estimateRangeByMinMax",
+      "type": "function",
+      "name": "estimateRangeByMinMax",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        552,
+        611
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateRangeByMinMax 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:estimateRangeFraction",
+      "type": "function",
+      "name": "estimateRangeFraction",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        614,
+        639
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateRangeFraction 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:toFloat64Safe",
+      "type": "function",
+      "name": "toFloat64Safe",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        642,
+        671
+      ],
+      "summary": "实现 查询计划与优化器 中的 toFloat64Safe 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:estimateLikeSelectivity",
+      "type": "function",
+      "name": "estimateLikeSelectivity",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        680,
+        691
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateLikeSelectivity 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:estimateFromHistogram",
+      "type": "function",
+      "name": "estimateFromHistogram",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        694,
+        746
+      ],
+      "summary": "实现 查询计划与优化器 中的 estimateFromHistogram 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:compareValues",
+      "type": "function",
+      "name": "compareValues",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        749,
+        767
+      ],
+      "summary": "实现 查询计划与优化器 中的 compareValues 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:calculateIndexCost",
+      "type": "function",
+      "name": "calculateIndexCost",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        770,
+        822
+      ],
+      "summary": "实现 查询计划与优化器 中的 calculateIndexCost 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:SetStatistics",
+      "type": "function",
+      "name": "SetStatistics",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        825,
+        833
+      ],
+      "summary": "更新 查询计划与优化器 中的 Statistics。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:calculateConditionPriority",
+      "type": "function",
+      "name": "calculateConditionPriority",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        846,
+        860
+      ],
+      "summary": "实现 查询计划与优化器 中的 calculateConditionPriority 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer.go:generateSelectionReason",
+      "type": "function",
+      "name": "generateSelectionReason",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        863,
+        893
+      ],
+      "summary": "实现 查询计划与优化器 中的 generateSelectionReason 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/index_pushdown_optimizer.go:IndexPushdownOptimizer",
+      "type": "class",
+      "name": "IndexPushdownOptimizer",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        12,
+        16
+      ],
+      "summary": "定义 查询计划与优化器 使用的 IndexPushdownOptimizer 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/index_pushdown_optimizer.go:IndexCondition",
+      "type": "class",
+      "name": "IndexCondition",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        28,
+        36
+      ],
+      "summary": "定义 查询计划与优化器 使用的 IndexCondition 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/index_pushdown_optimizer.go:IndexCandidate",
+      "type": "class",
+      "name": "IndexCandidate",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer.go",
+      "lineRange": [
+        39,
+        48
+      ],
+      "summary": "定义 查询计划与优化器 使用的 IndexCandidate 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "type": "file",
+      "name": "index_pushdown_optimizer_test.go",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer_test.go",
+      "summary": "验证查询计划与优化器相关行为与边界条件，重点覆盖 SingleColumnEquality、Selectivity RangeWithColumnStatsNoMinMax、MultiColumnPrefix。",
+      "tags": [
+        "test",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestSingleColumnEquality",
+      "type": "function",
+      "name": "TestSingleColumnEquality",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer_test.go",
+      "lineRange": [
+        10,
+        51
+      ],
+      "summary": "验证 SingleColumnEquality 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestSelectivity_RangeWithColumnStatsNoMinMax",
+      "type": "function",
+      "name": "TestSelectivity_RangeWithColumnStatsNoMinMax",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer_test.go",
+      "lineRange": [
+        54,
+        79
+      ],
+      "summary": "验证 Selectivity RangeWithColumnStatsNoMinMax 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestMultiColumnPrefix",
+      "type": "function",
+      "name": "TestMultiColumnPrefix",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer_test.go",
+      "lineRange": [
+        82,
+        119
+      ],
+      "summary": "验证 MultiColumnPrefix 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestCoveringIndex",
+      "type": "function",
+      "name": "TestCoveringIndex",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer_test.go",
+      "lineRange": [
+        122,
+        156
+      ],
+      "summary": "验证 CoveringIndex 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestLikePrefixMatch",
+      "type": "function",
+      "name": "TestLikePrefixMatch",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer_test.go",
+      "lineRange": [
+        159,
+        192
+      ],
+      "summary": "验证 LikePrefixMatch 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestLikeFuzzyMatch",
+      "type": "function",
+      "name": "TestLikeFuzzyMatch",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer_test.go",
+      "lineRange": [
+        195,
+        220
+      ],
+      "summary": "验证 LikeFuzzyMatch 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestInCondition",
+      "type": "function",
+      "name": "TestInCondition",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer_test.go",
+      "lineRange": [
+        223,
+        254
+      ],
+      "summary": "验证 InCondition 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestRangeQueryBoundary",
+      "type": "function",
+      "name": "TestRangeQueryBoundary",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer_test.go",
+      "lineRange": [
+        257,
+        289
+      ],
+      "summary": "验证 RangeQueryBoundary 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestSecondaryIndexWithPrimaryKey",
+      "type": "function",
+      "name": "TestSecondaryIndexWithPrimaryKey",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer_test.go",
+      "lineRange": [
+        292,
+        321
+      ],
+      "summary": "验证 SecondaryIndexWithPrimaryKey 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestSelectStar",
+      "type": "function",
+      "name": "TestSelectStar",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer_test.go",
+      "lineRange": [
+        324,
+        352
+      ],
+      "summary": "验证 SelectStar 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer_test.go:createTestTable",
+      "type": "function",
+      "name": "createTestTable",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer_test.go",
+      "lineRange": [
+        356,
+        401
+      ],
+      "summary": "实现 查询计划与优化器 中的 createTestTable 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/index_pushdown_optimizer_test.go:setupTestStatistics",
+      "type": "function",
+      "name": "setupTestStatistics",
+      "filePath": "server/innodb/plan/index_pushdown_optimizer_test.go",
+      "lineRange": [
+        403,
+        450
+      ],
+      "summary": "实现 查询计划与优化器 中的 setupTestStatistics 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/plan/index_merge_test.go",
+      "target": "function:server/innodb/plan/index_merge_test.go:TestStatisticsHelpers",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_merge_test.go",
+      "target": "function:server/innodb/plan/index_merge_test.go:TestStatisticsHelpers",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_merge_test.go",
+      "target": "function:server/innodb/plan/index_merge_test.go:TestIndexMergeCandidates",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_merge_test.go",
+      "target": "function:server/innodb/plan/index_merge_test.go:TestIndexMergeCandidates",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_merge_test.go",
+      "target": "function:server/innodb/plan/index_merge_test.go:TestIndexMergeFallbackSingle",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_merge_test.go",
+      "target": "function:server/innodb/plan/index_merge_test.go:TestIndexMergeFallbackSingle",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_integration_test.go:TestComplexConditionCombination",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_integration_test.go:TestComplexConditionCombination",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_integration_test.go:TestCoveringIndexOptimization",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_integration_test.go:TestCoveringIndexOptimization",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_integration_test.go:TestNonCoveringIndexWithExtraColumn",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_integration_test.go:TestNonCoveringIndexWithExtraColumn",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_integration_test.go:TestSameColumnDualRange",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_integration_test.go:TestSameColumnDualRange",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_integration_test.go:TestIndexMergeScenario",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_integration_test.go:TestIndexMergeScenario",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_integration_test.go:TestAggregationWithCoveringIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_integration_test.go:TestAggregationWithCoveringIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_integration_test.go:TestPerformanceComparison",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_integration_test.go:TestPerformanceComparison",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_integration_test.go:TestSelectivityEstimation",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_integration_test.go:TestSelectivityEstimation",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_integration_test.go:createUsersTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_integration_test.go:setupUsersStatistics",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "file:server/innodb/metadata/builder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "file:server/innodb/metadata/column_def.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "file:server/innodb/metadata/column.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "file:server/innodb/metadata/convert.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "file:server/innodb/metadata/database.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "file:server/innodb/metadata/information_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "file:server/innodb/metadata/migrate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "file:server/innodb/metadata/query_schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "file:server/innodb/metadata/schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "file:server/innodb/metadata/table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "file:server/innodb/metadata/tuple.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "file:server/innodb/metadata/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_integration_test.go",
+      "target": "file:server/innodb/metadata/utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:NewIndexPushdownOptimizer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:NewIndexPushdownOptimizer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:OptimizeIndexAccess",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:OptimizeIndexAccess",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:analyzeWhereConditions",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:extractIndexConditions",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:extractBinaryCondition",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:extractFunctionConditions",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:generateIndexCandidates",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:evaluateIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:mergeCandidates",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:canMergeIndexes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:calculateMergeCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:isCoveringIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:extractColumnFromExpression",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:selectBestIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:calculateIndexScore",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:convertOperator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:canPushCondition",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:estimateSelectivity",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:estimateRangeByMinMax",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:estimateRangeFraction",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:toFloat64Safe",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:estimateLikeSelectivity",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:estimateFromHistogram",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:compareValues",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:calculateIndexCost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:SetStatistics",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:SetStatistics",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:calculateConditionPriority",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer.go:generateSelectionReason",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "class:server/innodb/plan/index_pushdown_optimizer.go:IndexPushdownOptimizer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "class:server/innodb/plan/index_pushdown_optimizer.go:IndexPushdownOptimizer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "class:server/innodb/plan/index_pushdown_optimizer.go:IndexCondition",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "class:server/innodb/plan/index_pushdown_optimizer.go:IndexCondition",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "class:server/innodb/plan/index_pushdown_optimizer.go:IndexCandidate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "class:server/innodb/plan/index_pushdown_optimizer.go:IndexCandidate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "file:server/innodb/metadata/builder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "file:server/innodb/metadata/column_def.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "file:server/innodb/metadata/column.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "file:server/innodb/metadata/convert.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "file:server/innodb/metadata/database.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "file:server/innodb/metadata/information_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "file:server/innodb/metadata/migrate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "file:server/innodb/metadata/query_schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "file:server/innodb/metadata/schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "file:server/innodb/metadata/table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "file:server/innodb/metadata/tuple.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "file:server/innodb/metadata/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer.go",
+      "target": "file:server/innodb/metadata/utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestSingleColumnEquality",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestSingleColumnEquality",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestSelectivity_RangeWithColumnStatsNoMinMax",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestSelectivity_RangeWithColumnStatsNoMinMax",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestMultiColumnPrefix",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestMultiColumnPrefix",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestCoveringIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestCoveringIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestLikePrefixMatch",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestLikePrefixMatch",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestLikeFuzzyMatch",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestLikeFuzzyMatch",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestInCondition",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestInCondition",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestRangeQueryBoundary",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestRangeQueryBoundary",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestSecondaryIndexWithPrimaryKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestSecondaryIndexWithPrimaryKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestSelectStar",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:TestSelectStar",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:createTestTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "function:server/innodb/plan/index_pushdown_optimizer_test.go:setupTestStatistics",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "file:server/innodb/metadata/builder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "file:server/innodb/metadata/column_def.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "file:server/innodb/metadata/column.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "file:server/innodb/metadata/convert.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "file:server/innodb/metadata/database.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "file:server/innodb/metadata/information_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "file:server/innodb/metadata/migrate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "file:server/innodb/metadata/query_schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "file:server/innodb/metadata/schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "file:server/innodb/metadata/table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "file:server/innodb/metadata/tuple.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "file:server/innodb/metadata/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/index_pushdown_optimizer_test.go",
+      "target": "file:server/innodb/metadata/utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

@@ -1,0 +1,1002 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/plan/expression.go",
+      "type": "file",
+      "name": "expression.go",
+      "filePath": "server/innodb/plan/expression.go",
+      "summary": "定义并处理查询计划与优化器中的表达式结构，覆盖规范化、求值、条件分解或列引用分析。",
+      "tags": [
+        "go",
+        "query-optimizer",
+        "storage-engine"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:GetType",
+      "type": "function",
+      "name": "GetType",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        47,
+        49
+      ],
+      "summary": "读取 查询计划与优化器 中的 Type 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:Children",
+      "type": "function",
+      "name": "Children",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        51,
+        53
+      ],
+      "summary": "实现 查询计划与优化器 中的 Children 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:Eval",
+      "type": "function",
+      "name": "Eval",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        61,
+        66
+      ],
+      "summary": "实现 查询计划与优化器 中的 Eval 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:String",
+      "type": "function",
+      "name": "String",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        68,
+        70
+      ],
+      "summary": "实现 查询计划与优化器 中的 String 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:convertOperatorToString",
+      "type": "function",
+      "name": "convertOperatorToString",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        163,
+        196
+      ],
+      "summary": "实现 查询计划与优化器 中的 convertOperatorToString 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:Name",
+      "type": "function",
+      "name": "Name",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        205,
+        207
+      ],
+      "summary": "实现 查询计划与优化器 中的 Name 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:Args",
+      "type": "function",
+      "name": "Args",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        209,
+        211
+      ],
+      "summary": "实现 查询计划与优化器 中的 Args 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:evalAdd",
+      "type": "function",
+      "name": "evalAdd",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        254,
+        266
+      ],
+      "summary": "实现 查询计划与优化器 中的 evalAdd 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:evalSub",
+      "type": "function",
+      "name": "evalSub",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        268,
+        280
+      ],
+      "summary": "实现 查询计划与优化器 中的 evalSub 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:evalMul",
+      "type": "function",
+      "name": "evalMul",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        282,
+        294
+      ],
+      "summary": "实现 查询计划与优化器 中的 evalMul 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:evalDiv",
+      "type": "function",
+      "name": "evalDiv",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        296,
+        317
+      ],
+      "summary": "实现 查询计划与优化器 中的 evalDiv 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:evalEQ",
+      "type": "function",
+      "name": "evalEQ",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        319,
+        342
+      ],
+      "summary": "实现 查询计划与优化器 中的 evalEQ 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:evalLT",
+      "type": "function",
+      "name": "evalLT",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        352,
+        371
+      ],
+      "summary": "实现 查询计划与优化器 中的 evalLT 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:evalLE",
+      "type": "function",
+      "name": "evalLE",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        373,
+        383
+      ],
+      "summary": "实现 查询计划与优化器 中的 evalLE 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:evalAnd",
+      "type": "function",
+      "name": "evalAnd",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        401,
+        414
+      ],
+      "summary": "实现 查询计划与优化器 中的 evalAnd 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:evalOr",
+      "type": "function",
+      "name": "evalOr",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        416,
+        429
+      ],
+      "summary": "实现 查询计划与优化器 中的 evalOr 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:evalLike",
+      "type": "function",
+      "name": "evalLike",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        431,
+        452
+      ],
+      "summary": "实现 查询计划与优化器 中的 evalLike 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:evalIn",
+      "type": "function",
+      "name": "evalIn",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        454,
+        472
+      ],
+      "summary": "实现 查询计划与优化器 中的 evalIn 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:evalCount",
+      "type": "function",
+      "name": "evalCount",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        475,
+        492
+      ],
+      "summary": "实现 查询计划与优化器 中的 evalCount 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:evalSum",
+      "type": "function",
+      "name": "evalSum",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        494,
+        525
+      ],
+      "summary": "实现 查询计划与优化器 中的 evalSum 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:evalAvg",
+      "type": "function",
+      "name": "evalAvg",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        527,
+        565
+      ],
+      "summary": "实现 查询计划与优化器 中的 evalAvg 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:evalMax",
+      "type": "function",
+      "name": "evalMax",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        567,
+        598
+      ],
+      "summary": "实现 查询计划与优化器 中的 evalMax 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:evalMin",
+      "type": "function",
+      "name": "evalMin",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        600,
+        631
+      ],
+      "summary": "实现 查询计划与优化器 中的 evalMin 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:evalConcat",
+      "type": "function",
+      "name": "evalConcat",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        633,
+        656
+      ],
+      "summary": "实现 查询计划与优化器 中的 evalConcat 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression.go:evalSubstring",
+      "type": "function",
+      "name": "evalSubstring",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        658,
+        699
+      ],
+      "summary": "实现 查询计划与优化器 中的 evalSubstring 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/expression.go:Expression",
+      "type": "class",
+      "name": "Expression",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        25,
+        34
+      ],
+      "summary": "定义 查询计划与优化器 使用的 Expression 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/expression.go:EvalContext",
+      "type": "class",
+      "name": "EvalContext",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        37,
+        39
+      ],
+      "summary": "定义 查询计划与优化器 使用的 EvalContext 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/expression.go:BaseExpression",
+      "type": "class",
+      "name": "BaseExpression",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        42,
+        45
+      ],
+      "summary": "定义 查询计划与优化器 使用的 BaseExpression 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/expression.go:Column",
+      "type": "class",
+      "name": "Column",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        56,
+        59
+      ],
+      "summary": "定义 查询计划与优化器 使用的 Column 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/expression.go:Constant",
+      "type": "class",
+      "name": "Constant",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        73,
+        76
+      ],
+      "summary": "定义 查询计划与优化器 使用的 Constant 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/expression.go:BinaryOperation",
+      "type": "class",
+      "name": "BinaryOperation",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        107,
+        113
+      ],
+      "summary": "定义 查询计划与优化器 使用的 BinaryOperation 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/expression.go:Function",
+      "type": "class",
+      "name": "Function",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        199,
+        203
+      ],
+      "summary": "定义 查询计划与优化器 使用的 Function 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/expression.go:InExpression",
+      "type": "class",
+      "name": "InExpression",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        705,
+        709
+      ],
+      "summary": "定义 查询计划与优化器 使用的 InExpression 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/expression.go:LikeExpression",
+      "type": "class",
+      "name": "LikeExpression",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        734,
+        738
+      ],
+      "summary": "定义 查询计划与优化器 使用的 LikeExpression 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/expression.go:IsNullExpression",
+      "type": "class",
+      "name": "IsNullExpression",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        773,
+        777
+      ],
+      "summary": "定义 查询计划与优化器 使用的 IsNullExpression 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/expression.go:BetweenExpression",
+      "type": "class",
+      "name": "BetweenExpression",
+      "filePath": "server/innodb/plan/expression.go",
+      "lineRange": [
+        799,
+        804
+      ],
+      "summary": "定义 查询计划与优化器 使用的 BetweenExpression 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:GetType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:GetType",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:Children",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:Children",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:Eval",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:Eval",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:String",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:String",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:convertOperatorToString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:Name",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:Name",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:Args",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:Args",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:evalAdd",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:evalSub",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:evalMul",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:evalDiv",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:evalEQ",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:evalLT",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:evalLE",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:evalAnd",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:evalOr",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:evalLike",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:evalIn",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:evalCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:evalSum",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:evalAvg",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:evalMax",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:evalMin",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:evalConcat",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "function:server/innodb/plan/expression.go:evalSubstring",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:Expression",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:Expression",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:EvalContext",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:EvalContext",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:BaseExpression",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:BaseExpression",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:Column",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:Column",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:Constant",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:Constant",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:BinaryOperation",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:BinaryOperation",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:Function",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:Function",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:InExpression",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:InExpression",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:LikeExpression",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:LikeExpression",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:IsNullExpression",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:IsNullExpression",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:BetweenExpression",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression.go",
+      "target": "class:server/innodb/plan/expression.go:BetweenExpression",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

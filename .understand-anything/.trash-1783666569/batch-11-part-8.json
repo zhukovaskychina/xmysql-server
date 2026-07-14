@@ -1,0 +1,2893 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/manager/schema_manager.go",
+      "type": "file",
+      "name": "schema_manager.go",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "summary": "实现数据库模式、表和索引元数据管理，覆盖 Table、SimpleTable、SimpleDatabase、SchemaManager 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "schema-manager",
+        "manager",
+        "source-file"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:SimpleTable.Name",
+      "type": "function",
+      "name": "SimpleTable.Name",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        38,
+        40
+      ],
+      "summary": "实现 Name 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:SimpleTable.GetName",
+      "type": "function",
+      "name": "SimpleTable.GetName",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        42,
+        44
+      ],
+      "summary": "读取或查找 GetName 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:GetColumns",
+      "type": "function",
+      "name": "GetColumns",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        46,
+        48
+      ],
+      "summary": "读取或查找 GetColumns 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:GetIndices",
+      "type": "function",
+      "name": "GetIndices",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        50,
+        52
+      ],
+      "summary": "读取或查找 GetIndices 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:GetConstraints",
+      "type": "function",
+      "name": "GetConstraints",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        54,
+        56
+      ],
+      "summary": "读取或查找 GetConstraints 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:GetOptions",
+      "type": "function",
+      "name": "GetOptions",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        58,
+        60
+      ],
+      "summary": "读取或查找 GetOptions 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:SimpleDatabase.Name",
+      "type": "function",
+      "name": "SimpleDatabase.Name",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        71,
+        73
+      ],
+      "summary": "实现 Name 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:GetTable",
+      "type": "function",
+      "name": "GetTable",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        75,
+        100
+      ],
+      "summary": "读取或查找 GetTable 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:ListTables",
+      "type": "function",
+      "name": "ListTables",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        102,
+        119
+      ],
+      "summary": "实现 ListTables 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:CreateTable",
+      "type": "function",
+      "name": "CreateTable",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        121,
+        158
+      ],
+      "summary": "创建或分配 CreateTable 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:DropTable",
+      "type": "function",
+      "name": "DropTable",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        160,
+        184
+      ],
+      "summary": "删除或释放 DropTable 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:ListTableName",
+      "type": "function",
+      "name": "ListTableName",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        186,
+        203
+      ],
+      "summary": "实现 ListTableName 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:SimpleDatabase.GetName",
+      "type": "function",
+      "name": "SimpleDatabase.GetName",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        205,
+        207
+      ],
+      "summary": "读取或查找 GetName 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:GetPath",
+      "type": "function",
+      "name": "GetPath",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        209,
+        211
+      ],
+      "summary": "读取或查找 GetPath 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:loadTableFromFilesystem",
+      "type": "function",
+      "name": "loadTableFromFilesystem",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        214,
+        285
+      ],
+      "summary": "实现 loadTableFromFilesystem 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:loadAllTablesFromFilesystem",
+      "type": "function",
+      "name": "loadAllTablesFromFilesystem",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        288,
+        327
+      ],
+      "summary": "实现 loadAllTablesFromFilesystem 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:buildTableFromDDL",
+      "type": "function",
+      "name": "buildTableFromDDL",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        330,
+        381
+      ],
+      "summary": "实现 buildTableFromDDL 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:createTableFile",
+      "type": "function",
+      "name": "createTableFile",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        384,
+        445
+      ],
+      "summary": "实现 createTableFile 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:createTablespace",
+      "type": "function",
+      "name": "createTablespace",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        457,
+        475
+      ],
+      "summary": "实现 createTablespace 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:NewSchemaManager",
+      "type": "function",
+      "name": "NewSchemaManager",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        495,
+        502
+      ],
+      "summary": "构造并初始化 NewSchemaManager 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:loadDatabase",
+      "type": "function",
+      "name": "loadDatabase",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        509,
+        522
+      ],
+      "summary": "实现 loadDatabase 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:loadDatabasesFromFilesystem",
+      "type": "function",
+      "name": "loadDatabasesFromFilesystem",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        525,
+        563
+      ],
+      "summary": "实现 loadDatabasesFromFilesystem 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:loadDatabasesFromDataDictionary",
+      "type": "function",
+      "name": "loadDatabasesFromDataDictionary",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        566,
+        597
+      ],
+      "summary": "实现 loadDatabasesFromDataDictionary 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:syncDatabasesWithDataDictionary",
+      "type": "function",
+      "name": "syncDatabasesWithDataDictionary",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        600,
+        655
+      ],
+      "summary": "实现 syncDatabasesWithDataDictionary 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:readDatabaseCharsetFromFile",
+      "type": "function",
+      "name": "readDatabaseCharsetFromFile",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        658,
+        682
+      ],
+      "summary": "实现 readDatabaseCharsetFromFile 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:GetSchemaByName",
+      "type": "function",
+      "name": "GetSchemaByName",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        684,
+        689
+      ],
+      "summary": "读取或查找 GetSchemaByName 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:GetSchemaExist",
+      "type": "function",
+      "name": "GetSchemaExist",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        691,
+        694
+      ],
+      "summary": "读取或查找 GetSchemaExist 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:GetTableByName",
+      "type": "function",
+      "name": "GetTableByName",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        696,
+        713
+      ],
+      "summary": "读取或查找 GetTableByName 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:GetTableExist",
+      "type": "function",
+      "name": "GetTableExist",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        715,
+        718
+      ],
+      "summary": "读取或查找 GetTableExist 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:GetAllSchemaNames",
+      "type": "function",
+      "name": "GetAllSchemaNames",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        720,
+        729
+      ],
+      "summary": "读取或查找 GetAllSchemaNames 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:GetAllSchemas",
+      "type": "function",
+      "name": "GetAllSchemas",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        731,
+        740
+      ],
+      "summary": "读取或查找 GetAllSchemas 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:GetAllSchemaTablesByName",
+      "type": "function",
+      "name": "GetAllSchemaTablesByName",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        742,
+        754
+      ],
+      "summary": "读取或查找 GetAllSchemaTablesByName 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:PutDatabaseCache",
+      "type": "function",
+      "name": "PutDatabaseCache",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        756,
+        758
+      ],
+      "summary": "实现 PutDatabaseCache 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:CreateDatabase",
+      "type": "function",
+      "name": "CreateDatabase",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        761,
+        837
+      ],
+      "summary": "创建或分配 CreateDatabase 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:loadSingleDatabase",
+      "type": "function",
+      "name": "loadSingleDatabase",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        840,
+        849
+      ],
+      "summary": "实现 loadSingleDatabase 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:validateCharsetAndCollation",
+      "type": "function",
+      "name": "validateCharsetAndCollation",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        852,
+        876
+      ],
+      "summary": "实现 validateCharsetAndCollation 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:writeDatabaseToDataDictionary",
+      "type": "function",
+      "name": "writeDatabaseToDataDictionary",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        879,
+        904
+      ],
+      "summary": "实现 writeDatabaseToDataDictionary 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:persistDatabaseMetadata",
+      "type": "function",
+      "name": "persistDatabaseMetadata",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        907,
+        938
+      ],
+      "summary": "实现 persistDatabaseMetadata 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:DropDatabase",
+      "type": "function",
+      "name": "DropDatabase",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        956,
+        1001
+      ],
+      "summary": "删除或释放 DropDatabase 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:checkDatabaseEmpty",
+      "type": "function",
+      "name": "checkDatabaseEmpty",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        1004,
+        1038
+      ],
+      "summary": "实现 checkDatabaseEmpty 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:removeDatabaseFromDataDictionary",
+      "type": "function",
+      "name": "removeDatabaseFromDataDictionary",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        1041,
+        1084
+      ],
+      "summary": "实现 removeDatabaseFromDataDictionary 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:validateDatabaseName",
+      "type": "function",
+      "name": "validateDatabaseName",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        1098,
+        1131
+      ],
+      "summary": "实现 validateDatabaseName 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:createDatabaseDirectory",
+      "type": "function",
+      "name": "createDatabaseDirectory",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        1134,
+        1147
+      ],
+      "summary": "实现 createDatabaseDirectory 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:createDatabaseMetadata",
+      "type": "function",
+      "name": "createDatabaseMetadata",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        1150,
+        1161
+      ],
+      "summary": "实现 createDatabaseMetadata 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:isSystemDatabase",
+      "type": "function",
+      "name": "isSystemDatabase",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        1164,
+        1179
+      ],
+      "summary": "实现 isSystemDatabase 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "schema-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/schema_manager.go:GetDatabaseInfo",
+      "type": "function",
+      "name": "GetDatabaseInfo",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        1182,
+        1213
+      ],
+      "summary": "读取或查找 GetDatabaseInfo 对应的数据库模式、表和索引元数据管理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "schema-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/schema_manager.go:Table",
+      "type": "class",
+      "name": "Table",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        24,
+        31
+      ],
+      "summary": "Table 定义数据库模式、表和索引元数据管理所需的数据结构，并通过 Name、GetName、GetColumns、GetIndices 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "schema-manager",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/schema_manager.go:SimpleTable",
+      "type": "class",
+      "name": "SimpleTable",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        34,
+        36
+      ],
+      "summary": "SimpleTable 定义数据库模式、表和索引元数据管理所需的数据结构，并通过 Name、GetName、GetColumns、GetIndices 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "schema-manager",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/schema_manager.go:SimpleDatabase",
+      "type": "class",
+      "name": "SimpleDatabase",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        63,
+        69
+      ],
+      "summary": "SimpleDatabase 定义数据库模式、表和索引元数据管理所需的数据结构，并通过 Name、GetTable、ListTables、CreateTable 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "schema-manager",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/schema_manager.go:SchemaManager",
+      "type": "class",
+      "name": "SchemaManager",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        487,
+        492
+      ],
+      "summary": "SchemaManager 定义数据库模式、表和索引元数据管理所需的数据结构，并通过 initSysSchemas、loadDatabase、loadDatabasesFromFilesystem、loadDatabasesFromDataDictionary 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "schema-manager",
+        "behavior"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:server/innodb/manager/schema_manager.go:DatabaseMetadata",
+      "type": "class",
+      "name": "DatabaseMetadata",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        941,
+        947
+      ],
+      "summary": "DatabaseMetadata 定义数据库模式、表和索引元数据管理所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "schema-manager",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/schema_manager.go:DataDictionary",
+      "type": "class",
+      "name": "DataDictionary",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        950,
+        953
+      ],
+      "summary": "DataDictionary 定义数据库模式、表和索引元数据管理所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "schema-manager",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/schema_manager.go:DatabaseInfo",
+      "type": "class",
+      "name": "DatabaseInfo",
+      "filePath": "server/innodb/manager/schema_manager.go",
+      "lineRange": [
+        1216,
+        1222
+      ],
+      "summary": "DatabaseInfo 定义数据库模式、表和索引元数据管理所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "schema-manager",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/manager/schema_types.go",
+      "type": "file",
+      "name": "schema_types.go",
+      "filePath": "server/innodb/manager/schema_types.go",
+      "summary": "实现模式管理使用的元数据类型，覆盖 SchemaStats、TableStats、IndexStats、ColumnStats 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "schema-model",
+        "manager",
+        "source-file"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "class:server/innodb/manager/schema_types.go:SchemaStats",
+      "type": "class",
+      "name": "SchemaStats",
+      "filePath": "server/innodb/manager/schema_types.go",
+      "lineRange": [
+        6,
+        15
+      ],
+      "summary": "SchemaStats 定义模式管理使用的元数据类型所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "schema-model",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/schema_types.go:TableStats",
+      "type": "class",
+      "name": "TableStats",
+      "filePath": "server/innodb/manager/schema_types.go",
+      "lineRange": [
+        18,
+        27
+      ],
+      "summary": "TableStats 定义模式管理使用的元数据类型所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "schema-model",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/schema_types.go:IndexStats",
+      "type": "class",
+      "name": "IndexStats",
+      "filePath": "server/innodb/manager/schema_types.go",
+      "lineRange": [
+        30,
+        38
+      ],
+      "summary": "IndexStats 定义模式管理使用的元数据类型所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "schema-model",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/schema_types.go:ColumnStats",
+      "type": "class",
+      "name": "ColumnStats",
+      "filePath": "server/innodb/manager/schema_types.go",
+      "lineRange": [
+        41,
+        49
+      ],
+      "summary": "ColumnStats 定义模式管理使用的元数据类型所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "schema-model",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/schema_types.go:SchemaObject",
+      "type": "class",
+      "name": "SchemaObject",
+      "filePath": "server/innodb/manager/schema_types.go",
+      "lineRange": [
+        52,
+        59
+      ],
+      "summary": "SchemaObject 定义模式管理使用的元数据类型所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "schema-model",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/schema_types.go:SchemaConfig",
+      "type": "class",
+      "name": "SchemaConfig",
+      "filePath": "server/innodb/manager/schema_types.go",
+      "lineRange": [
+        62,
+        70
+      ],
+      "summary": "SchemaConfig 定义模式管理使用的元数据类型所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "schema-model",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/schema_types.go:SchemaError",
+      "type": "class",
+      "name": "SchemaError",
+      "filePath": "server/innodb/manager/schema_types.go",
+      "lineRange": [
+        83,
+        87
+      ],
+      "summary": "SchemaError 定义模式管理使用的元数据类型所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "schema-model",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/schema_types.go:SchemaEvent",
+      "type": "class",
+      "name": "SchemaEvent",
+      "filePath": "server/innodb/manager/schema_types.go",
+      "lineRange": [
+        90,
+        96
+      ],
+      "summary": "SchemaEvent 定义模式管理使用的元数据类型所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "schema-model",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "type": "file",
+      "name": "secondary_index_consistency_test.go",
+      "filePath": "server/innodb/manager/secondary_index_consistency_test.go",
+      "summary": "验证二级索引与主记录的一致性，覆盖 EnhancedMockBTree、NewEnhancedMockBTree、keyToString、Init 等符号，用于检查正常路径、边界条件和错误处理。",
+      "tags": [
+        "test",
+        "go",
+        "secondary-index",
+        "verification"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/manager/secondary_index_consistency_test.go:NewEnhancedMockBTree",
+      "type": "function",
+      "name": "NewEnhancedMockBTree",
+      "filePath": "server/innodb/manager/secondary_index_consistency_test.go",
+      "lineRange": [
+        17,
+        21
+      ],
+      "summary": "构造并初始化 NewEnhancedMockBTree 对应的二级索引与主记录的一致性流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "secondary-index",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/secondary_index_consistency_test.go:keyToString",
+      "type": "function",
+      "name": "keyToString",
+      "filePath": "server/innodb/manager/secondary_index_consistency_test.go",
+      "lineRange": [
+        24,
+        45
+      ],
+      "summary": "实现 keyToString 对应的二级索引与主记录的一致性流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "secondary-index",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/secondary_index_consistency_test.go:Init",
+      "type": "function",
+      "name": "Init",
+      "filePath": "server/innodb/manager/secondary_index_consistency_test.go",
+      "lineRange": [
+        47,
+        49
+      ],
+      "summary": "启动或初始化 Init 对应的二级索引与主记录的一致性流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "secondary-index",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/secondary_index_consistency_test.go:GetAllLeafPages",
+      "type": "function",
+      "name": "GetAllLeafPages",
+      "filePath": "server/innodb/manager/secondary_index_consistency_test.go",
+      "lineRange": [
+        51,
+        53
+      ],
+      "summary": "读取或查找 GetAllLeafPages 对应的二级索引与主记录的一致性流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "secondary-index",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/secondary_index_consistency_test.go:Search",
+      "type": "function",
+      "name": "Search",
+      "filePath": "server/innodb/manager/secondary_index_consistency_test.go",
+      "lineRange": [
+        55,
+        64
+      ],
+      "summary": "实现 Search 对应的二级索引与主记录的一致性流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "secondary-index",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/secondary_index_consistency_test.go:Insert",
+      "type": "function",
+      "name": "Insert",
+      "filePath": "server/innodb/manager/secondary_index_consistency_test.go",
+      "lineRange": [
+        66,
+        75
+      ],
+      "summary": "创建或分配 Insert 对应的二级索引与主记录的一致性流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "secondary-index",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/secondary_index_consistency_test.go:Delete",
+      "type": "function",
+      "name": "Delete",
+      "filePath": "server/innodb/manager/secondary_index_consistency_test.go",
+      "lineRange": [
+        77,
+        84
+      ],
+      "summary": "删除或释放 Delete 对应的二级索引与主记录的一致性流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "secondary-index",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/secondary_index_consistency_test.go:RangeSearch",
+      "type": "function",
+      "name": "RangeSearch",
+      "filePath": "server/innodb/manager/secondary_index_consistency_test.go",
+      "lineRange": [
+        86,
+        88
+      ],
+      "summary": "实现 RangeSearch 对应的二级索引与主记录的一致性流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "secondary-index",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/secondary_index_consistency_test.go:GetFirstLeafPage",
+      "type": "function",
+      "name": "GetFirstLeafPage",
+      "filePath": "server/innodb/manager/secondary_index_consistency_test.go",
+      "lineRange": [
+        90,
+        92
+      ],
+      "summary": "读取或查找 GetFirstLeafPage 对应的二级索引与主记录的一致性流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "secondary-index",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/secondary_index_consistency_test.go:GetKeyCount",
+      "type": "function",
+      "name": "GetKeyCount",
+      "filePath": "server/innodb/manager/secondary_index_consistency_test.go",
+      "lineRange": [
+        95,
+        100
+      ],
+      "summary": "读取或查找 GetKeyCount 对应的二级索引与主记录的一致性流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "secondary-index",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/secondary_index_consistency_test.go:HasKey",
+      "type": "function",
+      "name": "HasKey",
+      "filePath": "server/innodb/manager/secondary_index_consistency_test.go",
+      "lineRange": [
+        103,
+        110
+      ],
+      "summary": "检查 HasKey 对应的二级索引与主记录的一致性流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "secondary-index",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/secondary_index_consistency_test.go:TestSecondaryIndexConsistency",
+      "type": "function",
+      "name": "TestSecondaryIndexConsistency",
+      "filePath": "server/innodb/manager/secondary_index_consistency_test.go",
+      "lineRange": [
+        113,
+        414
+      ],
+      "summary": "验证 TestSecondaryIndexConsistency 对应的二级索引与主记录的一致性流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "secondary-index"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/manager/secondary_index_consistency_test.go:TestSecondaryIndexErrorHandling",
+      "type": "function",
+      "name": "TestSecondaryIndexErrorHandling",
+      "filePath": "server/innodb/manager/secondary_index_consistency_test.go",
+      "lineRange": [
+        417,
+        506
+      ],
+      "summary": "验证 TestSecondaryIndexErrorHandling 对应的二级索引与主记录的一致性流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "secondary-index"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/secondary_index_consistency_test.go:EnhancedMockBTree",
+      "type": "class",
+      "name": "EnhancedMockBTree",
+      "filePath": "server/innodb/manager/secondary_index_consistency_test.go",
+      "lineRange": [
+        13,
+        15
+      ],
+      "summary": "EnhancedMockBTree 定义二级索引与主记录的一致性所需的数据结构，并通过 Init、GetAllLeafPages、Search、Insert 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "secondary-index",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:SimpleTable.Name",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:SimpleTable.Name",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:SimpleTable.GetName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:SimpleTable.GetName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetColumns",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetColumns",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetIndices",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetIndices",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetConstraints",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetConstraints",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetOptions",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetOptions",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:SimpleDatabase.Name",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:SimpleDatabase.Name",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetTable",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:ListTables",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:ListTables",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:CreateTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:CreateTable",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:DropTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:DropTable",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:ListTableName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:ListTableName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:SimpleDatabase.GetName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:SimpleDatabase.GetName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetPath",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetPath",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:loadTableFromFilesystem",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:loadAllTablesFromFilesystem",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:buildTableFromDDL",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:createTableFile",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:createTablespace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:NewSchemaManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:NewSchemaManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:loadDatabase",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:loadDatabasesFromFilesystem",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:loadDatabasesFromDataDictionary",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:syncDatabasesWithDataDictionary",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:readDatabaseCharsetFromFile",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetSchemaByName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetSchemaByName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetSchemaExist",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetSchemaExist",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetTableByName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetTableByName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetTableExist",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetTableExist",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetAllSchemaNames",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetAllSchemaNames",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetAllSchemas",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetAllSchemas",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetAllSchemaTablesByName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetAllSchemaTablesByName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:PutDatabaseCache",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:PutDatabaseCache",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:CreateDatabase",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:CreateDatabase",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:loadSingleDatabase",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:validateCharsetAndCollation",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:writeDatabaseToDataDictionary",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:persistDatabaseMetadata",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:DropDatabase",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:DropDatabase",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:checkDatabaseEmpty",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:removeDatabaseFromDataDictionary",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:validateDatabaseName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:createDatabaseDirectory",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:createDatabaseMetadata",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:isSystemDatabase",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetDatabaseInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "function:server/innodb/manager/schema_manager.go:GetDatabaseInfo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "class:server/innodb/manager/schema_manager.go:Table",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "class:server/innodb/manager/schema_manager.go:Table",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "class:server/innodb/manager/schema_manager.go:SimpleTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "class:server/innodb/manager/schema_manager.go:SimpleTable",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "class:server/innodb/manager/schema_manager.go:SimpleDatabase",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "class:server/innodb/manager/schema_manager.go:SimpleDatabase",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "class:server/innodb/manager/schema_manager.go:SchemaManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "class:server/innodb/manager/schema_manager.go:SchemaManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "class:server/innodb/manager/schema_manager.go:DatabaseMetadata",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "class:server/innodb/manager/schema_manager.go:DatabaseMetadata",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "class:server/innodb/manager/schema_manager.go:DataDictionary",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "class:server/innodb/manager/schema_manager.go:DataDictionary",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "class:server/innodb/manager/schema_manager.go:DatabaseInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "class:server/innodb/manager/schema_manager.go:DatabaseInfo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_types.go",
+      "target": "class:server/innodb/manager/schema_types.go:SchemaStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_types.go",
+      "target": "class:server/innodb/manager/schema_types.go:SchemaStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_types.go",
+      "target": "class:server/innodb/manager/schema_types.go:TableStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_types.go",
+      "target": "class:server/innodb/manager/schema_types.go:TableStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_types.go",
+      "target": "class:server/innodb/manager/schema_types.go:IndexStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_types.go",
+      "target": "class:server/innodb/manager/schema_types.go:IndexStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_types.go",
+      "target": "class:server/innodb/manager/schema_types.go:ColumnStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_types.go",
+      "target": "class:server/innodb/manager/schema_types.go:ColumnStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_types.go",
+      "target": "class:server/innodb/manager/schema_types.go:SchemaObject",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_types.go",
+      "target": "class:server/innodb/manager/schema_types.go:SchemaObject",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_types.go",
+      "target": "class:server/innodb/manager/schema_types.go:SchemaConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_types.go",
+      "target": "class:server/innodb/manager/schema_types.go:SchemaConfig",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_types.go",
+      "target": "class:server/innodb/manager/schema_types.go:SchemaError",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_types.go",
+      "target": "class:server/innodb/manager/schema_types.go:SchemaError",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_types.go",
+      "target": "class:server/innodb/manager/schema_types.go:SchemaEvent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/schema_types.go",
+      "target": "class:server/innodb/manager/schema_types.go:SchemaEvent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:NewEnhancedMockBTree",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:NewEnhancedMockBTree",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:keyToString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:Init",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:Init",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:GetAllLeafPages",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:GetAllLeafPages",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:Search",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:Search",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:Insert",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:Insert",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:Delete",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:Delete",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:RangeSearch",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:RangeSearch",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:GetFirstLeafPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:GetFirstLeafPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:GetKeyCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:GetKeyCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:HasKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:HasKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:TestSecondaryIndexConsistency",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:TestSecondaryIndexConsistency",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:TestSecondaryIndexErrorHandling",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "function:server/innodb/manager/secondary_index_consistency_test.go:TestSecondaryIndexErrorHandling",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "class:server/innodb/manager/secondary_index_consistency_test.go:EnhancedMockBTree",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "class:server/innodb/manager/secondary_index_consistency_test.go:EnhancedMockBTree",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:logger/logger.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/conf/config_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/conf/config.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/conf/decoupled_config.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/buffer_pool/auto_tuning.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_block.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_lru_optimized.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_lru.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_pool_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/buffer_pool/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/buffer_pool/prefetch_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/buffer_pool/prefetch.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/buffer_pool/stats.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/metadata/builder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/metadata/column_def.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/metadata/column.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/metadata/convert.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/metadata/database.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/metadata/information_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/metadata/migrate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/metadata/query_schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/metadata/schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/metadata/table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/metadata/tuple.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/metadata/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/metadata/utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/analyzer_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/analyzer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/ast_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/ast.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/comments_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/comments.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/encodable_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/encodable.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/expression.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/github_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/impossible_query.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/normalizer_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/normalizer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/parse_next_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/parse_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/parsed_query_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/parsed_query.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/precedence_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/redact_query_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/redact_query.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/sql.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/token_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/token.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/schema_manager.go",
+      "target": "file:server/innodb/sqlparser/tracked_buffer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

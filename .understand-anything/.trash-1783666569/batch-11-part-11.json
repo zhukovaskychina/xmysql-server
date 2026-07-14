@@ -1,0 +1,1212 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "type": "file",
+      "name": "storage_provider_space_adapter.go",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "summary": "实现存储提供者的表空间接口适配，覆盖 storageProviderSpaceManager、fileTableSpaceAdapter、providerSpace、newStorageProviderSpaceManager 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "space-adapter",
+        "manager",
+        "source-file"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:CreateSpace",
+      "type": "function",
+      "name": "CreateSpace",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        22,
+        24
+      ],
+      "summary": "创建或分配 CreateSpace 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:GetSpace",
+      "type": "function",
+      "name": "GetSpace",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        26,
+        28
+      ],
+      "summary": "读取或查找 GetSpace 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:DropSpace",
+      "type": "function",
+      "name": "DropSpace",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        30,
+        32
+      ],
+      "summary": "删除或释放 DropSpace 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:storageProviderSpaceManager.AllocateExtent",
+      "type": "function",
+      "name": "storageProviderSpaceManager.AllocateExtent",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        34,
+        36
+      ],
+      "summary": "创建或分配 AllocateExtent 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:storageProviderSpaceManager.FreeExtent",
+      "type": "function",
+      "name": "storageProviderSpaceManager.FreeExtent",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        38,
+        40
+      ],
+      "summary": "删除或释放 FreeExtent 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:Begin",
+      "type": "function",
+      "name": "Begin",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        42,
+        44
+      ],
+      "summary": "启动或初始化 Begin 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:CreateNewTablespace",
+      "type": "function",
+      "name": "CreateNewTablespace",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        46,
+        48
+      ],
+      "summary": "创建或分配 CreateNewTablespace 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:CreateTableSpace",
+      "type": "function",
+      "name": "CreateTableSpace",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        50,
+        52
+      ],
+      "summary": "创建或分配 CreateTableSpace 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:GetTableSpace",
+      "type": "function",
+      "name": "GetTableSpace",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        54,
+        56
+      ],
+      "summary": "读取或查找 GetTableSpace 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:GetTableSpaceByName",
+      "type": "function",
+      "name": "GetTableSpaceByName",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        58,
+        60
+      ],
+      "summary": "读取或查找 GetTableSpaceByName 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:GetTableSpaceInfo",
+      "type": "function",
+      "name": "GetTableSpaceInfo",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        62,
+        64
+      ],
+      "summary": "读取或查找 GetTableSpaceInfo 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:DropTableSpace",
+      "type": "function",
+      "name": "DropTableSpace",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        66,
+        68
+      ],
+      "summary": "删除或释放 DropTableSpace 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:Close",
+      "type": "function",
+      "name": "Close",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        70,
+        75
+      ],
+      "summary": "结束或提交 Close 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:fileTableSpaceAdapter.FlushToDisk",
+      "type": "function",
+      "name": "fileTableSpaceAdapter.FlushToDisk",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        82,
+        84
+      ],
+      "summary": "实现 FlushToDisk 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "space-adapter"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:fileTableSpaceAdapter.LoadPageByPageNumber",
+      "type": "function",
+      "name": "fileTableSpaceAdapter.LoadPageByPageNumber",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        86,
+        88
+      ],
+      "summary": "读取或查找 LoadPageByPageNumber 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:GetSpaceId",
+      "type": "function",
+      "name": "GetSpaceId",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        90,
+        90
+      ],
+      "summary": "读取或查找 GetSpaceId 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:ID",
+      "type": "function",
+      "name": "ID",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        104,
+        104
+      ],
+      "summary": "实现 ID 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "space-adapter"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:Name",
+      "type": "function",
+      "name": "Name",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        105,
+        105
+      ],
+      "summary": "实现 Name 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "space-adapter"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:IsSystem",
+      "type": "function",
+      "name": "IsSystem",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        106,
+        106
+      ],
+      "summary": "检查 IsSystem 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:providerSpace.AllocateExtent",
+      "type": "function",
+      "name": "providerSpace.AllocateExtent",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        107,
+        109
+      ],
+      "summary": "创建或分配 AllocateExtent 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:providerSpace.FreeExtent",
+      "type": "function",
+      "name": "providerSpace.FreeExtent",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        110,
+        112
+      ],
+      "summary": "删除或释放 FreeExtent 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:GetPageCount",
+      "type": "function",
+      "name": "GetPageCount",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        113,
+        113
+      ],
+      "summary": "读取或查找 GetPageCount 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:GetExtentCount",
+      "type": "function",
+      "name": "GetExtentCount",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        114,
+        114
+      ],
+      "summary": "读取或查找 GetExtentCount 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:GetUsedSpace",
+      "type": "function",
+      "name": "GetUsedSpace",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        115,
+        115
+      ],
+      "summary": "读取或查找 GetUsedSpace 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:IsActive",
+      "type": "function",
+      "name": "IsActive",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        116,
+        116
+      ],
+      "summary": "检查 IsActive 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:SetActive",
+      "type": "function",
+      "name": "SetActive",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        117,
+        117
+      ],
+      "summary": "更新或持久化 SetActive 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:providerSpace.LoadPageByPageNumber",
+      "type": "function",
+      "name": "providerSpace.LoadPageByPageNumber",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        118,
+        120
+      ],
+      "summary": "读取或查找 LoadPageByPageNumber 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "space-adapter",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_provider_space_adapter.go:providerSpace.FlushToDisk",
+      "type": "function",
+      "name": "providerSpace.FlushToDisk",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        121,
+        123
+      ],
+      "summary": "实现 FlushToDisk 对应的存储提供者的表空间接口适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "space-adapter"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/storage_provider_space_adapter.go:storageProviderSpaceManager",
+      "type": "class",
+      "name": "storageProviderSpaceManager",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        18,
+        20
+      ],
+      "summary": "storageProviderSpaceManager 定义存储提供者的表空间接口适配所需的数据结构，并通过 CreateSpace、GetSpace、DropSpace、AllocateExtent 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "space-adapter",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/storage_provider_space_adapter.go:fileTableSpaceAdapter",
+      "type": "class",
+      "name": "fileTableSpaceAdapter",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        77,
+        80
+      ],
+      "summary": "fileTableSpaceAdapter 定义存储提供者的表空间接口适配所需的数据结构，并通过 FlushToDisk、LoadPageByPageNumber、GetSpaceId 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "space-adapter",
+        "behavior"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/storage_provider_space_adapter.go:providerSpace",
+      "type": "class",
+      "name": "providerSpace",
+      "filePath": "server/innodb/manager/storage_provider_space_adapter.go",
+      "lineRange": [
+        92,
+        98
+      ],
+      "summary": "providerSpace 定义存储提供者的表空间接口适配所需的数据结构，并通过 ID、Name、IsSystem、AllocateExtent 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "space-adapter",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:CreateSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:CreateSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:GetSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:GetSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:DropSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:DropSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:storageProviderSpaceManager.AllocateExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:storageProviderSpaceManager.AllocateExtent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:storageProviderSpaceManager.FreeExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:storageProviderSpaceManager.FreeExtent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:Begin",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:Begin",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:CreateNewTablespace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:CreateNewTablespace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:CreateTableSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:CreateTableSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:GetTableSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:GetTableSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:GetTableSpaceByName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:GetTableSpaceByName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:GetTableSpaceInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:GetTableSpaceInfo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:DropTableSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:DropTableSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:Close",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:Close",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:fileTableSpaceAdapter.FlushToDisk",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:fileTableSpaceAdapter.FlushToDisk",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:fileTableSpaceAdapter.LoadPageByPageNumber",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:fileTableSpaceAdapter.LoadPageByPageNumber",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:GetSpaceId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:GetSpaceId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:ID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:ID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:Name",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:Name",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:IsSystem",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:IsSystem",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:providerSpace.AllocateExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:providerSpace.AllocateExtent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:providerSpace.FreeExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:providerSpace.FreeExtent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:GetPageCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:GetPageCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:GetExtentCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:GetExtentCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:GetUsedSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:GetUsedSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:IsActive",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:IsActive",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:SetActive",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:SetActive",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:providerSpace.LoadPageByPageNumber",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:providerSpace.LoadPageByPageNumber",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:providerSpace.FlushToDisk",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "function:server/innodb/manager/storage_provider_space_adapter.go:providerSpace.FlushToDisk",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "class:server/innodb/manager/storage_provider_space_adapter.go:storageProviderSpaceManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "class:server/innodb/manager/storage_provider_space_adapter.go:fileTableSpaceAdapter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "class:server/innodb/manager/storage_provider_space_adapter.go:providerSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

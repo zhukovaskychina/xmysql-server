@@ -1,0 +1,807 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/metadata/query_schema.go",
+      "type": "file",
+      "name": "query_schema.go",
+      "filePath": "server/innodb/metadata/query_schema.go",
+      "summary": "提供元数据与表结构的结构定义与转换逻辑，支撑数据库、表、列和查询结果模式的统一描述。",
+      "tags": [
+        "go",
+        "metadata",
+        "storage-engine"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/metadata/query_schema.go:NewQuerySchema",
+      "type": "function",
+      "name": "NewQuerySchema",
+      "filePath": "server/innodb/metadata/query_schema.go",
+      "lineRange": [
+        44,
+        48
+      ],
+      "summary": "创建并初始化 QuerySchema，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/query_schema.go:AddColumn",
+      "type": "function",
+      "name": "AddColumn",
+      "filePath": "server/innodb/metadata/query_schema.go",
+      "lineRange": [
+        51,
+        54
+      ],
+      "summary": "实现 元数据与表结构 中的 AddColumn 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/query_schema.go:GetColumn",
+      "type": "function",
+      "name": "GetColumn",
+      "filePath": "server/innodb/metadata/query_schema.go",
+      "lineRange": [
+        57,
+        64
+      ],
+      "summary": "读取 元数据与表结构 中的 Column 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/query_schema.go:GetColumnByIndex",
+      "type": "function",
+      "name": "GetColumnByIndex",
+      "filePath": "server/innodb/metadata/query_schema.go",
+      "lineRange": [
+        67,
+        72
+      ],
+      "summary": "读取 元数据与表结构 中的 ColumnByIndex 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/query_schema.go:ColumnCount",
+      "type": "function",
+      "name": "ColumnCount",
+      "filePath": "server/innodb/metadata/query_schema.go",
+      "lineRange": [
+        75,
+        77
+      ],
+      "summary": "实现 元数据与表结构 中的 ColumnCount 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/query_schema.go:NewQueryColumn",
+      "type": "function",
+      "name": "NewQueryColumn",
+      "filePath": "server/innodb/metadata/query_schema.go",
+      "lineRange": [
+        80,
+        86
+      ],
+      "summary": "创建并初始化 QueryColumn，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/query_schema.go:FromTable",
+      "type": "function",
+      "name": "FromTable",
+      "filePath": "server/innodb/metadata/query_schema.go",
+      "lineRange": [
+        89,
+        111
+      ],
+      "summary": "实现 元数据与表结构 中的 FromTable 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/query_schema.go:MergeSchemas",
+      "type": "function",
+      "name": "MergeSchemas",
+      "filePath": "server/innodb/metadata/query_schema.go",
+      "lineRange": [
+        114,
+        134
+      ],
+      "summary": "实现 元数据与表结构 中的 MergeSchemas 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/query_schema.go:ProjectSchema",
+      "type": "function",
+      "name": "ProjectSchema",
+      "filePath": "server/innodb/metadata/query_schema.go",
+      "lineRange": [
+        137,
+        160
+      ],
+      "summary": "实现 元数据与表结构 中的 ProjectSchema 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/query_schema.go:Clone",
+      "type": "function",
+      "name": "Clone",
+      "filePath": "server/innodb/metadata/query_schema.go",
+      "lineRange": [
+        163,
+        183
+      ],
+      "summary": "实现 元数据与表结构 中的 Clone 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/metadata/query_schema.go:QuerySchema",
+      "type": "class",
+      "name": "QuerySchema",
+      "filePath": "server/innodb/metadata/query_schema.go",
+      "lineRange": [
+        5,
+        14
+      ],
+      "summary": "定义 元数据与表结构 使用的 QuerySchema 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/metadata/query_schema.go:QueryColumn",
+      "type": "class",
+      "name": "QueryColumn",
+      "filePath": "server/innodb/metadata/query_schema.go",
+      "lineRange": [
+        17,
+        41
+      ],
+      "summary": "定义 元数据与表结构 使用的 QueryColumn 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/metadata/schema.go",
+      "type": "file",
+      "name": "schema.go",
+      "filePath": "server/innodb/metadata/schema.go",
+      "summary": "提供元数据与表结构的结构定义与转换逻辑，支撑数据库、表、列和查询结果模式的统一描述。",
+      "tags": [
+        "go",
+        "metadata",
+        "storage-engine"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/metadata/schema.go:NewSchema",
+      "type": "function",
+      "name": "NewSchema",
+      "filePath": "server/innodb/metadata/schema.go",
+      "lineRange": [
+        17,
+        22
+      ],
+      "summary": "创建并初始化 Schema，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/schema.go:AddTable",
+      "type": "function",
+      "name": "AddTable",
+      "filePath": "server/innodb/metadata/schema.go",
+      "lineRange": [
+        25,
+        32
+      ],
+      "summary": "实现 元数据与表结构 中的 AddTable 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/schema.go:GetTable",
+      "type": "function",
+      "name": "GetTable",
+      "filePath": "server/innodb/metadata/schema.go",
+      "lineRange": [
+        35,
+        49
+      ],
+      "summary": "读取 元数据与表结构 中的 Table 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/schema.go:NewTable",
+      "type": "function",
+      "name": "NewTable",
+      "filePath": "server/innodb/metadata/schema.go",
+      "lineRange": [
+        69,
+        76
+      ],
+      "summary": "创建并初始化 Table，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/schema.go:AddColumn",
+      "type": "function",
+      "name": "AddColumn",
+      "filePath": "server/innodb/metadata/schema.go",
+      "lineRange": [
+        79,
+        83
+      ],
+      "summary": "实现 元数据与表结构 中的 AddColumn 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/schema.go:GetColumn",
+      "type": "function",
+      "name": "GetColumn",
+      "filePath": "server/innodb/metadata/schema.go",
+      "lineRange": [
+        86,
+        93
+      ],
+      "summary": "读取 元数据与表结构 中的 Column 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/schema.go:GetColumnByIndex",
+      "type": "function",
+      "name": "GetColumnByIndex",
+      "filePath": "server/innodb/metadata/schema.go",
+      "lineRange": [
+        96,
+        101
+      ],
+      "summary": "读取 元数据与表结构 中的 ColumnByIndex 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/schema.go:AddIndex",
+      "type": "function",
+      "name": "AddIndex",
+      "filePath": "server/innodb/metadata/schema.go",
+      "lineRange": [
+        104,
+        121
+      ],
+      "summary": "实现 元数据与表结构 中的 AddIndex 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/schema.go:GetIndex",
+      "type": "function",
+      "name": "GetIndex",
+      "filePath": "server/innodb/metadata/schema.go",
+      "lineRange": [
+        124,
+        131
+      ],
+      "summary": "读取 元数据与表结构 中的 Index 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/schema.go:Validate",
+      "type": "function",
+      "name": "Validate",
+      "filePath": "server/innodb/metadata/schema.go",
+      "lineRange": [
+        134,
+        177
+      ],
+      "summary": "实现 元数据与表结构 中的 Validate 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "validation",
+        "transformation",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/metadata/schema.go:DatabaseSchema",
+      "type": "class",
+      "name": "DatabaseSchema",
+      "filePath": "server/innodb/metadata/schema.go",
+      "lineRange": [
+        10,
+        14
+      ],
+      "summary": "定义 元数据与表结构 使用的 DatabaseSchema 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/metadata/schema.go:Table",
+      "type": "class",
+      "name": "Table",
+      "filePath": "server/innodb/metadata/schema.go",
+      "lineRange": [
+        53,
+        66
+      ],
+      "summary": "定义 元数据与表结构 使用的 Table 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/metadata/schema.go:TableStatistics",
+      "type": "class",
+      "name": "TableStatistics",
+      "filePath": "server/innodb/metadata/schema.go",
+      "lineRange": [
+        181,
+        190
+      ],
+      "summary": "定义 元数据与表结构 使用的 TableStatistics 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "function:server/innodb/metadata/query_schema.go:NewQuerySchema",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "function:server/innodb/metadata/query_schema.go:NewQuerySchema",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "function:server/innodb/metadata/query_schema.go:AddColumn",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "function:server/innodb/metadata/query_schema.go:AddColumn",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "function:server/innodb/metadata/query_schema.go:GetColumn",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "function:server/innodb/metadata/query_schema.go:GetColumn",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "function:server/innodb/metadata/query_schema.go:GetColumnByIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "function:server/innodb/metadata/query_schema.go:GetColumnByIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "function:server/innodb/metadata/query_schema.go:ColumnCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "function:server/innodb/metadata/query_schema.go:ColumnCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "function:server/innodb/metadata/query_schema.go:NewQueryColumn",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "function:server/innodb/metadata/query_schema.go:NewQueryColumn",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "function:server/innodb/metadata/query_schema.go:FromTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "function:server/innodb/metadata/query_schema.go:FromTable",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "function:server/innodb/metadata/query_schema.go:MergeSchemas",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "function:server/innodb/metadata/query_schema.go:MergeSchemas",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "function:server/innodb/metadata/query_schema.go:ProjectSchema",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "function:server/innodb/metadata/query_schema.go:ProjectSchema",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "function:server/innodb/metadata/query_schema.go:Clone",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "function:server/innodb/metadata/query_schema.go:Clone",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "class:server/innodb/metadata/query_schema.go:QuerySchema",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "class:server/innodb/metadata/query_schema.go:QuerySchema",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "class:server/innodb/metadata/query_schema.go:QueryColumn",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/query_schema.go",
+      "target": "class:server/innodb/metadata/query_schema.go:QueryColumn",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "function:server/innodb/metadata/schema.go:NewSchema",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "function:server/innodb/metadata/schema.go:NewSchema",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "function:server/innodb/metadata/schema.go:AddTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "function:server/innodb/metadata/schema.go:AddTable",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "function:server/innodb/metadata/schema.go:GetTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "function:server/innodb/metadata/schema.go:GetTable",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "function:server/innodb/metadata/schema.go:NewTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "function:server/innodb/metadata/schema.go:NewTable",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "function:server/innodb/metadata/schema.go:AddColumn",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "function:server/innodb/metadata/schema.go:AddColumn",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "function:server/innodb/metadata/schema.go:GetColumn",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "function:server/innodb/metadata/schema.go:GetColumn",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "function:server/innodb/metadata/schema.go:GetColumnByIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "function:server/innodb/metadata/schema.go:GetColumnByIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "function:server/innodb/metadata/schema.go:AddIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "function:server/innodb/metadata/schema.go:AddIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "function:server/innodb/metadata/schema.go:GetIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "function:server/innodb/metadata/schema.go:GetIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "function:server/innodb/metadata/schema.go:Validate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "function:server/innodb/metadata/schema.go:Validate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "class:server/innodb/metadata/schema.go:DatabaseSchema",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "class:server/innodb/metadata/schema.go:DatabaseSchema",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "class:server/innodb/metadata/schema.go:Table",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "class:server/innodb/metadata/schema.go:Table",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "class:server/innodb/metadata/schema.go:TableStatistics",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/schema.go",
+      "target": "class:server/innodb/metadata/schema.go:TableStatistics",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

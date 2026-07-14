@@ -1,0 +1,138 @@
+--- FAIL: TestApplyOperator_EvaluateJoinConditions (0.00s)
+    apply_operator_conditions_test.go:40: 
+        	Error Trace:	apply_operator_conditions_test.go:40
+        	Error:      	Should be false
+        	Test:       	TestApplyOperator_EvaluateJoinConditions
+--- FAIL: TestApplyOperator_EvaluateJoinConditions_NoCondsAndNonBool (0.00s)
+    apply_operator_conditions_test.go:58: 
+        	Error Trace:	apply_operator_conditions_test.go:58
+        	Error:      	Should be false
+        	Test:       	TestApplyOperator_EvaluateJoinConditions_NoCondsAndNonBool
+--- FAIL: TestXMySQLExecutor_GenerateLogicalPlan (0.00s)
+    executor_logical_plan_test.go:20: 
+        	Error Trace:	executor_logical_plan_test.go:20
+        	Error:      	Received unexpected error:
+        	            	optimizerManager is nil, cannot generate logical plan
+        	Test:       	TestXMySQLExecutor_GenerateLogicalPlan
+    executor_logical_plan_test.go:21: 
+        	Error Trace:	executor_logical_plan_test.go:21
+        	Error:      	Expected value not to be nil.
+        	Test:       	TestXMySQLExecutor_GenerateLogicalPlan
+--- FAIL: TestXMySQLExecutor_ExecuteQuery_SetRoutesToExecuteSetStatement (0.00s)
+    executor_set_routing_test.go:24: 
+        	Error Trace:	executor_set_routing_test.go:24
+        	Error:      	Not equal: 
+        	            	expected: "error"
+        	            	actual  : "QUERY"
+        	            	
+        	            	Diff:
+        	            	--- Expected
+        	            	+++ Actual
+        	            	@@ -1 +1 @@
+        	            	-error
+        	            	+QUERY
+        	Test:       	TestXMySQLExecutor_ExecuteQuery_SetRoutesToExecuteSetStatement
+    executor_set_routing_test.go:25: 
+        	Error Trace:	executor_set_routing_test.go:25
+        	Error:      	An error is expected but got nil.
+        	Test:       	TestXMySQLExecutor_ExecuteQuery_SetRoutesToExecuteSetStatement
+    executor_set_routing_test.go:26: 
+        	Error Trace:	executor_set_routing_test.go:26
+        	Error:      	"SET statement executed (simplified implementation)" does not contain "session unavailable"
+        	Test:       	TestXMySQLExecutor_ExecuteQuery_SetRoutesToExecuteSetStatement
+--- FAIL: TestBuildShowPlan (0.00s)
+    executor_show_plan_test.go:19: 
+        	Error Trace:	executor_show_plan_test.go:19
+        	Error:      	Received unexpected error:
+        	            	SHOW statements not implemented yet
+        	Test:       	TestBuildShowPlan
+--- FAIL: TestXMySQLExecutor_ExecuteQuery_ShowColumnsReturnsStubColumns (0.00s)
+    executor_show_routing_test.go:196: 
+        	Error Trace:	executor_show_routing_test.go:196
+        	Error:      	Should NOT be empty, but was []
+        	Test:       	TestXMySQLExecutor_ExecuteQuery_ShowColumnsReturnsStubColumns
+--- FAIL: TestXMySQLExecutor_ExecuteQuery_ShowFieldsReturnsStubColumns (0.00s)
+    executor_show_routing_test.go:220: 
+        	Error Trace:	executor_show_routing_test.go:220
+        	Error:      	Should NOT be empty, but was []
+        	Test:       	TestXMySQLExecutor_ExecuteQuery_ShowFieldsReturnsStubColumns
+--- FAIL: TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowVariablesLikeFiltersRows (0.00s)
+    executor_show_routing_test.go:377: 
+        	Error Trace:	executor_show_routing_test.go:377
+        	Error:      	Not equal: 
+        	            	expected: "Found 2 variables"
+        	            	actual  : "Found 2 status rows"
+        	            	
+        	            	Diff:
+        	            	--- Expected
+        	            	+++ Actual
+        	            	@@ -1 +1 @@
+        	            	-Found 2 variables
+        	            	+Found 2 status rows
+        	Test:       	TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowVariablesLikeFiltersRows
+--- FAIL: TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowGlobalStatusLikeFiltersRows (0.00s)
+    executor_show_routing_test.go:400: 
+        	Error Trace:	executor_show_routing_test.go:400
+        	Error:      	Not equal: 
+        	            	expected: "Found 1 status rows"
+        	            	actual  : ""
+        	            	
+        	            	Diff:
+        	            	--- Expected
+        	            	+++ Actual
+        	            	@@ -1 +1 @@
+        	            	-Found 1 status rows
+        	            	+
+        	Test:       	TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowGlobalStatusLikeFiltersRows
+--- FAIL: TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowVariablesUsesStmtFilterWithoutRawQuery (0.00s)
+    executor_show_routing_test.go:426: 
+        	Error Trace:	executor_show_routing_test.go:426
+        	Error:      	Not equal: 
+        	            	expected: "Found 2 variables"
+        	            	actual  : "Found 2 status rows"
+        	            	
+        	            	Diff:
+        	            	--- Expected
+        	            	+++ Actual
+        	            	@@ -1 +1 @@
+        	            	-Found 2 variables
+        	            	+Found 2 status rows
+        	Test:       	TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowVariablesUsesStmtFilterWithoutRawQuery
+--- FAIL: TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowStatusUsesStmtFilterWithoutRawQuery (0.00s)
+    executor_show_routing_test.go:454: 
+        	Error Trace:	executor_show_routing_test.go:454
+        	Error:      	Not equal: 
+        	            	expected: "Found 1 status rows"
+        	            	actual  : ""
+        	            	
+        	            	Diff:
+        	            	--- Expected
+        	            	+++ Actual
+        	            	@@ -1 +1 @@
+        	            	-Found 1 status rows
+        	            	+
+        	Test:       	TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowStatusUsesStmtFilterWithoutRawQuery
+--- FAIL: TestXMySQLExecutor_ExecuteQuery_ShowTablesWhereFiltersRows (0.00s)
+    executor_show_routing_test.go:538: 
+        	Error Trace:	executor_show_routing_test.go:538
+        	Error:      	Not equal: 
+        	            	expected: "Found 0 tables"
+        	            	actual  : "Found 1 tables"
+        	            	
+        	            	Diff:
+        	            	--- Expected
+        	            	+++ Actual
+        	            	@@ -1 +1 @@
+        	            	-Found 0 tables
+        	            	+Found 1 tables
+        	Test:       	TestXMySQLExecutor_ExecuteQuery_ShowTablesWhereFiltersRows
+    executor_show_routing_test.go:543: 
+        	Error Trace:	executor_show_routing_test.go:543
+        	Error:      	"[[users]]" should have 0 item(s), but has 1
+        	Test:       	TestXMySQLExecutor_ExecuteQuery_ShowTablesWhereFiltersRows
+--- FAIL: TestStorageIntegratedDMLExecutorHandleIndexErrorUsesStructuredErrors (0.00s)
+    --- FAIL: TestStorageIntegratedDMLExecutorHandleIndexErrorUsesStructuredErrors/plain_text_duplicate_should_not_be_classified (0.00s)
+        storage_integrated_index_helper_test.go:45: expected error prefix "索引键重复", got "索引操作失败: INSERT (索引: idx_users_name, 键: alice, 错误: duplicate key without structured type)"
+FAIL
+FAIL	github.com/zhukovaskychina/xmysql-server/server/innodb/engine	1.272s
+FAIL

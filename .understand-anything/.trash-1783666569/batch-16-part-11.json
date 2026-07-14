@@ -1,0 +1,2132 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/manager/segment_manager.go",
+      "type": "file",
+      "name": "segment_manager.go",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "summary": "实现段创建、页分配和空间回收，覆盖 SegmentManager、SegmentImpl、SegmentStats、NewSegmentManager 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "segment-manager",
+        "manager",
+        "source-file"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/manager/segment_manager.go:NewSegmentManager",
+      "type": "function",
+      "name": "NewSegmentManager",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        79,
+        86
+      ],
+      "summary": "构造并初始化 NewSegmentManager 对应的段创建、页分配和空间回收流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "segment-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/segment_manager.go:CreateSegment",
+      "type": "function",
+      "name": "CreateSegment",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        89,
+        160
+      ],
+      "summary": "创建或分配 CreateSegment 对应的段创建、页分配和空间回收流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "segment-manager",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/segment_manager.go:GetSegment",
+      "type": "function",
+      "name": "GetSegment",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        163,
+        173
+      ],
+      "summary": "读取或查找 GetSegment 对应的段创建、页分配和空间回收流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "segment-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/segment_manager.go:AllocatePage",
+      "type": "function",
+      "name": "AllocatePage",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        176,
+        199
+      ],
+      "summary": "创建或分配 AllocatePage 对应的段创建、页分配和空间回收流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "segment-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/segment_manager.go:allocatePageForDataSegment",
+      "type": "function",
+      "name": "allocatePageForDataSegment",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        202,
+        227
+      ],
+      "summary": "实现 allocatePageForDataSegment 对应的段创建、页分配和空间回收流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "segment-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/segment_manager.go:allocatePageForUndoSegment",
+      "type": "function",
+      "name": "allocatePageForUndoSegment",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        235,
+        260
+      ],
+      "summary": "实现 allocatePageForUndoSegment 对应的段创建、页分配和空间回收流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "segment-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/segment_manager.go:allocatePageFromExtent",
+      "type": "function",
+      "name": "allocatePageFromExtent",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        268,
+        324
+      ],
+      "summary": "实现 allocatePageFromExtent 对应的段创建、页分配和空间回收流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "segment-manager"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/segment_manager.go:getExtentType",
+      "type": "function",
+      "name": "getExtentType",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        327,
+        340
+      ],
+      "summary": "实现 getExtentType 对应的段创建、页分配和空间回收流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "segment-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/segment_manager.go:FreePage",
+      "type": "function",
+      "name": "FreePage",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        343,
+        410
+      ],
+      "summary": "删除或释放 FreePage 对应的段创建、页分配和空间回收流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "segment-manager",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/segment_manager.go:findExtentInLists",
+      "type": "function",
+      "name": "findExtentInLists",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        413,
+        436
+      ],
+      "summary": "实现 findExtentInLists 对应的段创建、页分配和空间回收流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "segment-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/segment_manager.go:moveExtent",
+      "type": "function",
+      "name": "moveExtent",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        439,
+        451
+      ],
+      "summary": "实现 moveExtent 对应的段创建、页分配和空间回收流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "segment-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/segment_manager.go:DropSegment",
+      "type": "function",
+      "name": "DropSegment",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        454,
+        476
+      ],
+      "summary": "删除或释放 DropSegment 对应的段创建、页分配和空间回收流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "segment-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/segment_manager.go:SegmentManager.GetFreeSpace",
+      "type": "function",
+      "name": "SegmentManager.GetFreeSpace",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        479,
+        488
+      ],
+      "summary": "读取或查找 GetFreeSpace 对应的段创建、页分配和空间回收流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "segment-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/segment_manager.go:Close",
+      "type": "function",
+      "name": "Close",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        491,
+        514
+      ],
+      "summary": "结束或提交 Close 对应的段创建、页分配和空间回收流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "segment-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/segment_manager.go:tryFreeExtent",
+      "type": "function",
+      "name": "tryFreeExtent",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        516,
+        532
+      ],
+      "summary": "实现 tryFreeExtent 对应的段创建、页分配和空间回收流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "segment-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/segment_manager.go:GetSegmentsBySpace",
+      "type": "function",
+      "name": "GetSegmentsBySpace",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        535,
+        547
+      ],
+      "summary": "读取或查找 GetSegmentsBySpace 对应的段创建、页分配和空间回收流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "segment-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/segment_manager.go:GetID",
+      "type": "function",
+      "name": "GetID",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        552,
+        554
+      ],
+      "summary": "读取或查找 GetID 对应的段创建、页分配和空间回收流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "segment-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/segment_manager.go:SegmentImpl.GetFreeSpace",
+      "type": "function",
+      "name": "SegmentImpl.GetFreeSpace",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        557,
+        559
+      ],
+      "summary": "读取或查找 GetFreeSpace 对应的段创建、页分配和空间回收流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "segment-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/segment_manager.go:Defragment",
+      "type": "function",
+      "name": "Defragment",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        562,
+        581
+      ],
+      "summary": "优化或压缩 Defragment 对应的段创建、页分配和空间回收流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "optimization",
+        "segment-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/segment_manager.go:reorganizeExtents",
+      "type": "function",
+      "name": "reorganizeExtents",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        584,
+        606
+      ],
+      "summary": "实现 reorganizeExtents 对应的段创建、页分配和空间回收流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "segment-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/segment_manager.go:SegmentManager",
+      "type": "class",
+      "name": "SegmentManager",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        13,
+        27
+      ],
+      "summary": "SegmentManager 定义段创建、页分配和空间回收所需的数据结构，并通过 CreateSegment、GetSegment、AllocatePage、allocatePageForDataSegment 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "segment-manager",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/segment_manager.go:SegmentImpl",
+      "type": "class",
+      "name": "SegmentImpl",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        30,
+        53
+      ],
+      "summary": "SegmentImpl 定义段创建、页分配和空间回收所需的数据结构，并通过 GetID、GetFreeSpace、Defragment、reorganizeExtents 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "segment-manager",
+        "behavior"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/segment_manager.go:SegmentStats",
+      "type": "class",
+      "name": "SegmentStats",
+      "filePath": "server/innodb/manager/segment_manager.go",
+      "lineRange": [
+        56,
+        62
+      ],
+      "summary": "SegmentStats 定义段创建、页分配和空间回收所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "segment-manager",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/manager/space_manager.go",
+      "type": "file",
+      "name": "space_manager.go",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "summary": "实现表空间创建、扩展、页分配与统计，覆盖 SpaceManagerImpl、spaceTx、FlushToDisk、LoadPageByPageNumber 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "space-manager",
+        "manager",
+        "source-file"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:FlushToDisk",
+      "type": "function",
+      "name": "FlushToDisk",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        28,
+        41
+      ],
+      "summary": "实现 FlushToDisk 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "space-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:LoadPageByPageNumber",
+      "type": "function",
+      "name": "LoadPageByPageNumber",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        43,
+        55
+      ],
+      "summary": "读取或查找 LoadPageByPageNumber 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:GetSpaceId",
+      "type": "function",
+      "name": "GetSpaceId",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        57,
+        60
+      ],
+      "summary": "读取或查找 GetSpaceId 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:NewSpaceManager",
+      "type": "function",
+      "name": "NewSpaceManager",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        63,
+        81
+      ],
+      "summary": "构造并初始化 NewSpaceManager 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:CreateSpace",
+      "type": "function",
+      "name": "CreateSpace",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        83,
+        142
+      ],
+      "summary": "创建或分配 CreateSpace 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:GetSpace",
+      "type": "function",
+      "name": "GetSpace",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        144,
+        153
+      ],
+      "summary": "读取或查找 GetSpace 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:DropSpace",
+      "type": "function",
+      "name": "DropSpace",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        155,
+        173
+      ],
+      "summary": "删除或释放 DropSpace 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:AllocateExtent",
+      "type": "function",
+      "name": "AllocateExtent",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        175,
+        185
+      ],
+      "summary": "创建或分配 AllocateExtent 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:FreeExtent",
+      "type": "function",
+      "name": "FreeExtent",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        187,
+        197
+      ],
+      "summary": "删除或释放 FreeExtent 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:Begin",
+      "type": "function",
+      "name": "Begin",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        199,
+        202
+      ],
+      "summary": "启动或初始化 Begin 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:CreateNewTablespace",
+      "type": "function",
+      "name": "CreateNewTablespace",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        204,
+        217
+      ],
+      "summary": "创建或分配 CreateNewTablespace 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:CreateTableSpace",
+      "type": "function",
+      "name": "CreateTableSpace",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        219,
+        281
+      ],
+      "summary": "创建或分配 CreateTableSpace 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:GetTableSpace",
+      "type": "function",
+      "name": "GetTableSpace",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        283,
+        292
+      ],
+      "summary": "读取或查找 GetTableSpace 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:GetTableSpaceByName",
+      "type": "function",
+      "name": "GetTableSpaceByName",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        294,
+        303
+      ],
+      "summary": "读取或查找 GetTableSpaceByName 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:GetTableSpaceInfo",
+      "type": "function",
+      "name": "GetTableSpaceInfo",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        305,
+        332
+      ],
+      "summary": "读取或查找 GetTableSpaceInfo 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:GetDetailedSpaceStats",
+      "type": "function",
+      "name": "GetDetailedSpaceStats",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        335,
+        345
+      ],
+      "summary": "读取或查找 GetDetailedSpaceStats 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:DropTableSpace",
+      "type": "function",
+      "name": "DropTableSpace",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        347,
+        365
+      ],
+      "summary": "删除或释放 DropTableSpace 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:Close",
+      "type": "function",
+      "name": "Close",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        367,
+        383
+      ],
+      "summary": "结束或提交 Close 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:AddWrite",
+      "type": "function",
+      "name": "AddWrite",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        403,
+        408
+      ],
+      "summary": "创建或分配 AddWrite 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:Commit",
+      "type": "function",
+      "name": "Commit",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        411,
+        426
+      ],
+      "summary": "结束或提交 Commit 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:Rollback",
+      "type": "function",
+      "name": "Rollback",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        429,
+        440
+      ],
+      "summary": "结束或提交 Rollback 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:LoadExistingTablespaces",
+      "type": "function",
+      "name": "LoadExistingTablespaces",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        443,
+        451
+      ],
+      "summary": "读取或查找 LoadExistingTablespaces 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "space-manager",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:scanDirectory",
+      "type": "function",
+      "name": "scanDirectory",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        454,
+        521
+      ],
+      "summary": "实现 scanDirectory 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "space-manager"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/space_manager.go:getNextAvailableSpaceID",
+      "type": "function",
+      "name": "getNextAvailableSpaceID",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        524,
+        533
+      ],
+      "summary": "实现 getNextAvailableSpaceID 对应的表空间创建、扩展、页分配与统计流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "space-manager"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/space_manager.go:SpaceManagerImpl",
+      "type": "class",
+      "name": "SpaceManagerImpl",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        18,
+        26
+      ],
+      "summary": "SpaceManagerImpl 定义表空间创建、扩展、页分配与统计所需的数据结构，并通过 FlushToDisk、LoadPageByPageNumber、GetSpaceId、CreateSpace 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "space-manager",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/space_manager.go:spaceTx",
+      "type": "class",
+      "name": "spaceTx",
+      "filePath": "server/innodb/manager/space_manager.go",
+      "lineRange": [
+        386,
+        391
+      ],
+      "summary": "spaceTx 定义表空间创建、扩展、页分配与统计所需的数据结构，并通过 AddWrite、Commit、Rollback 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "space-manager",
+        "behavior"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:NewSegmentManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:NewSegmentManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:CreateSegment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:CreateSegment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:GetSegment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:GetSegment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:AllocatePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:AllocatePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:allocatePageForDataSegment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:allocatePageForUndoSegment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:allocatePageFromExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:getExtentType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:FreePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:FreePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:findExtentInLists",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:moveExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:DropSegment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:DropSegment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:SegmentManager.GetFreeSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:SegmentManager.GetFreeSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:Close",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:Close",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:tryFreeExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:GetSegmentsBySpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:GetSegmentsBySpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:GetID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:GetID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:SegmentImpl.GetFreeSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:SegmentImpl.GetFreeSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:Defragment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:Defragment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "function:server/innodb/manager/segment_manager.go:reorganizeExtents",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "class:server/innodb/manager/segment_manager.go:SegmentManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "class:server/innodb/manager/segment_manager.go:SegmentManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "class:server/innodb/manager/segment_manager.go:SegmentImpl",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "class:server/innodb/manager/segment_manager.go:SegmentImpl",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "class:server/innodb/manager/segment_manager.go:SegmentStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "class:server/innodb/manager/segment_manager.go:SegmentStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:FlushToDisk",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:FlushToDisk",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:LoadPageByPageNumber",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:LoadPageByPageNumber",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:GetSpaceId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:GetSpaceId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:NewSpaceManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:NewSpaceManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:CreateSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:CreateSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:GetSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:GetSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:DropSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:DropSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:AllocateExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:AllocateExtent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:FreeExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:FreeExtent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:Begin",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:Begin",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:CreateNewTablespace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:CreateNewTablespace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:CreateTableSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:CreateTableSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:GetTableSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:GetTableSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:GetTableSpaceByName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:GetTableSpaceByName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:GetTableSpaceInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:GetTableSpaceInfo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:GetDetailedSpaceStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:GetDetailedSpaceStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:DropTableSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:DropTableSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:Close",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:Close",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:AddWrite",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:AddWrite",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:Commit",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:Commit",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:Rollback",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:Rollback",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:LoadExistingTablespaces",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:LoadExistingTablespaces",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:scanDirectory",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "function:server/innodb/manager/space_manager.go:getNextAvailableSpaceID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "class:server/innodb/manager/space_manager.go:SpaceManagerImpl",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "class:server/innodb/manager/space_manager.go:SpaceManagerImpl",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "class:server/innodb/manager/space_manager.go:spaceTx",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/buffer_pool/auto_tuning.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_block.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_lru_optimized.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_lru.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_pool_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/buffer_pool/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/buffer_pool/prefetch_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/buffer_pool/prefetch.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/buffer_pool/stats.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/storage/wrapper/extent/defragment_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/storage/wrapper/extent/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/storage/wrapper/extent/list.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/storage/wrapper/extent/unified_extent_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/segment_manager.go",
+      "target": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:logger/logger.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/storage/wrapper/space/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/space_manager.go",
+      "target": "file:server/innodb/storage/wrapper/space/ibd_space.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

@@ -1,0 +1,4523 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/manager/storage_manager.go",
+      "type": "file",
+      "name": "storage_manager.go",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "summary": "协调InnoDB 表空间与存储生命周期管理的创建、查询、更新与资源释放，封装底层实现细节。",
+      "tags": [
+        "service",
+        "storage-manager",
+        "innodb"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:Init",
+      "type": "function",
+      "name": "Init",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        155,
+        170
+      ],
+      "summary": "创建或初始化InnoDB 表空间与存储生命周期管理中的 Init 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:GetSystemSpaceManager",
+      "type": "function",
+      "name": "GetSystemSpaceManager",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        173,
+        177
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetSystemSpaceManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:GetDictionaryManager",
+      "type": "function",
+      "name": "GetDictionaryManager",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        180,
+        184
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetDictionaryManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:GetBufferPoolManager",
+      "type": "function",
+      "name": "GetBufferPoolManager",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        186,
+        190
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetBufferPoolManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:GetSystemVariablesManager",
+      "type": "function",
+      "name": "GetSystemVariablesManager",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        198,
+        202
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetSystemVariablesManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:GetSystemVariableAnalyzer",
+      "type": "function",
+      "name": "GetSystemVariableAnalyzer",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        205,
+        209
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetSystemVariableAnalyzer 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:GetBTreeManager",
+      "type": "function",
+      "name": "GetBTreeManager",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        212,
+        214
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetBTreeManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:GetTableManager",
+      "type": "function",
+      "name": "GetTableManager",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        217,
+        219
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetTableManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:GetIndexManager",
+      "type": "function",
+      "name": "GetIndexManager",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        222,
+        224
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetIndexManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:GetTransactionManager",
+      "type": "function",
+      "name": "GetTransactionManager",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        227,
+        229
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetTransactionManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:GetTableStorageManager",
+      "type": "function",
+      "name": "GetTableStorageManager",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        232,
+        234
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetTableStorageManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:SetTableManager",
+      "type": "function",
+      "name": "SetTableManager",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        237,
+        239
+      ],
+      "summary": "写入或更新InnoDB 表空间与存储生命周期管理中的 SetTableManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:SetTableStorageManager",
+      "type": "function",
+      "name": "SetTableStorageManager",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        242,
+        244
+      ],
+      "summary": "写入或更新InnoDB 表空间与存储生命周期管理中的 SetTableStorageManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:SetIndexManager",
+      "type": "function",
+      "name": "SetIndexManager",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        247,
+        249
+      ],
+      "summary": "写入或更新InnoDB 表空间与存储生命周期管理中的 SetIndexManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:SetTransactionManager",
+      "type": "function",
+      "name": "SetTransactionManager",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        252,
+        254
+      ],
+      "summary": "写入或更新InnoDB 表空间与存储生命周期管理中的 SetTransactionManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:SetBTreeManager",
+      "type": "function",
+      "name": "SetBTreeManager",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        257,
+        259
+      ],
+      "summary": "写入或更新InnoDB 表空间与存储生命周期管理中的 SetBTreeManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:OpenSpace",
+      "type": "function",
+      "name": "OpenSpace",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        261,
+        274
+      ],
+      "summary": "创建或初始化InnoDB 表空间与存储生命周期管理中的 OpenSpace 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:CloseSpace",
+      "type": "function",
+      "name": "CloseSpace",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        276,
+        294
+      ],
+      "summary": "执行持久化或生命周期操作InnoDB 表空间与存储生命周期管理中的 CloseSpace 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:DeleteSpace",
+      "type": "function",
+      "name": "DeleteSpace",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        296,
+        315
+      ],
+      "summary": "删除或释放InnoDB 表空间与存储生命周期管理中的 DeleteSpace 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:GetSpaceInfo",
+      "type": "function",
+      "name": "GetSpaceInfo",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        317,
+        345
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetSpaceInfo 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:ListSpaces",
+      "type": "function",
+      "name": "ListSpaces",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        347,
+        363
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 ListSpaces 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:BeginTransaction",
+      "type": "function",
+      "name": "BeginTransaction",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        365,
+        368
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 BeginTransaction 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:CommitTransaction",
+      "type": "function",
+      "name": "CommitTransaction",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        370,
+        381
+      ],
+      "summary": "执行持久化或生命周期操作InnoDB 表空间与存储生命周期管理中的 CommitTransaction 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:RollbackTransaction",
+      "type": "function",
+      "name": "RollbackTransaction",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        383,
+        388
+      ],
+      "summary": "执行持久化或生命周期操作InnoDB 表空间与存储生命周期管理中的 RollbackTransaction 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:Sync",
+      "type": "function",
+      "name": "Sync",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        390,
+        394
+      ],
+      "summary": "执行持久化或生命周期操作InnoDB 表空间与存储生命周期管理中的 Sync 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:NewStorageManager",
+      "type": "function",
+      "name": "NewStorageManager",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        397,
+        467
+      ],
+      "summary": "创建或初始化InnoDB 表空间与存储生命周期管理中的 NewStorageManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:initialize",
+      "type": "function",
+      "name": "initialize",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        470,
+        558
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 initialize 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:initializeSystemTablespaces",
+      "type": "function",
+      "name": "initializeSystemTablespaces",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        561,
+        591
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 initializeSystemTablespaces 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:createSystemTablespace",
+      "type": "function",
+      "name": "createSystemTablespace",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        594,
+        645
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 createSystemTablespace 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:createMySQLSystemTablespaces",
+      "type": "function",
+      "name": "createMySQLSystemTablespaces",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        648,
+        734
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 createMySQLSystemTablespaces 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:createInformationSchemaTablespaces",
+      "type": "function",
+      "name": "createInformationSchemaTablespaces",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        737,
+        819
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 createInformationSchemaTablespaces 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:createPerformanceSchemaTablespaces",
+      "type": "function",
+      "name": "createPerformanceSchemaTablespaces",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        822,
+        917
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 createPerformanceSchemaTablespaces 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:CreateSegment",
+      "type": "function",
+      "name": "CreateSegment",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        920,
+        929
+      ],
+      "summary": "创建或初始化InnoDB 表空间与存储生命周期管理中的 CreateSegment 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:createSegmentInternal",
+      "type": "function",
+      "name": "createSegmentInternal",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        932,
+        944
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 createSegmentInternal 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:GetSegment",
+      "type": "function",
+      "name": "GetSegment",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        947,
+        957
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetSegment 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:FreeSegment",
+      "type": "function",
+      "name": "FreeSegment",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        960,
+        966
+      ],
+      "summary": "删除或释放InnoDB 表空间与存储生命周期管理中的 FreeSegment 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:AllocateExtent",
+      "type": "function",
+      "name": "AllocateExtent",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        969,
+        974
+      ],
+      "summary": "创建或初始化InnoDB 表空间与存储生命周期管理中的 AllocateExtent 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:FreeExtent",
+      "type": "function",
+      "name": "FreeExtent",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        977,
+        982
+      ],
+      "summary": "删除或释放InnoDB 表空间与存储生命周期管理中的 FreeExtent 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:GetPage",
+      "type": "function",
+      "name": "GetPage",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        985,
+        992
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:AllocPage",
+      "type": "function",
+      "name": "AllocPage",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        995,
+        1010
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 AllocPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:FreePage",
+      "type": "function",
+      "name": "FreePage",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1013,
+        1020
+      ],
+      "summary": "删除或释放InnoDB 表空间与存储生命周期管理中的 FreePage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:Begin",
+      "type": "function",
+      "name": "Begin",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1023,
+        1029
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 Begin 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:Commit",
+      "type": "function",
+      "name": "Commit",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1032,
+        1034
+      ],
+      "summary": "执行持久化或生命周期操作InnoDB 表空间与存储生命周期管理中的 Commit 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:Rollback",
+      "type": "function",
+      "name": "Rollback",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1037,
+        1039
+      ],
+      "summary": "执行持久化或生命周期操作InnoDB 表空间与存储生命周期管理中的 Rollback 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:Flush",
+      "type": "function",
+      "name": "Flush",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1042,
+        1049
+      ],
+      "summary": "执行持久化或生命周期操作InnoDB 表空间与存储生命周期管理中的 Flush 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:Close",
+      "type": "function",
+      "name": "Close",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1052,
+        1076
+      ],
+      "summary": "执行持久化或生命周期操作InnoDB 表空间与存储生命周期管理中的 Close 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:PreallocateSpace",
+      "type": "function",
+      "name": "PreallocateSpace",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1082,
+        1105
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 PreallocateSpace 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:DefragmentSpace",
+      "type": "function",
+      "name": "DefragmentSpace",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1109,
+        1139
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 DefragmentSpace 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:defragmentSegment",
+      "type": "function",
+      "name": "defragmentSegment",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1142,
+        1154
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 defragmentSegment 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:ReclaimSpace",
+      "type": "function",
+      "name": "ReclaimSpace",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1158,
+        1189
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 ReclaimSpace 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:reclaimSegmentSpace",
+      "type": "function",
+      "name": "reclaimSegmentSpace",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1192,
+        1211
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 reclaimSegmentSpace 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:OptimizeStorage",
+      "type": "function",
+      "name": "OptimizeStorage",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1215,
+        1239
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 OptimizeStorage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:CreateTablespace",
+      "type": "function",
+      "name": "CreateTablespace",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1242,
+        1285
+      ],
+      "summary": "创建或初始化InnoDB 表空间与存储生命周期管理中的 CreateTablespace 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:GetTablespace",
+      "type": "function",
+      "name": "GetTablespace",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1288,
+        1298
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetTablespace 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:GetSegmentManager",
+      "type": "function",
+      "name": "GetSegmentManager",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1300,
+        1302
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetSegmentManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:GetSpaceManager",
+      "type": "function",
+      "name": "GetSpaceManager",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1304,
+        1306
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetSpaceManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:GetPageManager",
+      "type": "function",
+      "name": "GetPageManager",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1308,
+        1310
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetPageManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:ID",
+      "type": "function",
+      "name": "ID",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1331,
+        1333
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 ID 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:AddWrite",
+      "type": "function",
+      "name": "AddWrite",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1377,
+        1384
+      ],
+      "summary": "写入或更新InnoDB 表空间与存储生命周期管理中的 AddWrite 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:ReadPage",
+      "type": "function",
+      "name": "ReadPage",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1393,
+        1399
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 ReadPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:WritePage",
+      "type": "function",
+      "name": "WritePage",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1402,
+        1408
+      ],
+      "summary": "写入或更新InnoDB 表空间与存储生命周期管理中的 WritePage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:AllocatePage",
+      "type": "function",
+      "name": "AllocatePage",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1411,
+        1426
+      ],
+      "summary": "创建或初始化InnoDB 表空间与存储生命周期管理中的 AllocatePage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager.go:CreateSpace",
+      "type": "function",
+      "name": "CreateSpace",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1436,
+        1438
+      ],
+      "summary": "创建或初始化InnoDB 表空间与存储生命周期管理中的 CreateSpace 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/storage_manager.go:TablespaceHandle",
+      "type": "class",
+      "name": "TablespaceHandle",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        109,
+        113
+      ],
+      "summary": "封装InnoDB 表空间与存储生命周期管理中的 TablespaceHandle 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/storage_manager.go:StorageManager",
+      "type": "class",
+      "name": "StorageManager",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        116,
+        153
+      ],
+      "summary": "封装InnoDB 表空间与存储生命周期管理中的 StorageManager 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "innodb"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:server/innodb/manager/storage_manager.go:txImpl",
+      "type": "class",
+      "name": "txImpl",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1313,
+        1319
+      ],
+      "summary": "封装InnoDB 表空间与存储生命周期管理中的 txImpl 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/storage_manager.go:StorageProviderAdapter",
+      "type": "class",
+      "name": "StorageProviderAdapter",
+      "filePath": "server/innodb/manager/storage_manager.go",
+      "lineRange": [
+        1387,
+        1390
+      ],
+      "summary": "封装InnoDB 表空间与存储生命周期管理中的 StorageProviderAdapter 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:server/innodb/manager/system_space_manager.go",
+      "type": "file",
+      "name": "system_space_manager.go",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "summary": "协调InnoDB 表空间与存储生命周期管理的创建、查询、更新与资源释放，封装底层实现细节。",
+      "tags": [
+        "service",
+        "storage-manager",
+        "innodb"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:NewSystemSpaceManager",
+      "type": "function",
+      "name": "NewSystemSpaceManager",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        248,
+        275
+      ],
+      "summary": "创建或初始化InnoDB 表空间与存储生命周期管理中的 NewSystemSpaceManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:initializeSystemSpace",
+      "type": "function",
+      "name": "initializeSystemSpace",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        278,
+        303
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 initializeSystemSpace 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:discoverIndependentTablespaces",
+      "type": "function",
+      "name": "discoverIndependentTablespaces",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        306,
+        322
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 discoverIndependentTablespaces 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:GetSystemSpace",
+      "type": "function",
+      "name": "GetSystemSpace",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        325,
+        329
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetSystemSpace 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:GetIBData1Components",
+      "type": "function",
+      "name": "GetIBData1Components",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        331,
+        335
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetIBData1Components 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:IsFilePerTableEnabled",
+      "type": "function",
+      "name": "IsFilePerTableEnabled",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        337,
+        341
+      ],
+      "summary": "校验或判断InnoDB 表空间与存储生命周期管理中的 IsFilePerTableEnabled 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:GetIndependentTablespace",
+      "type": "function",
+      "name": "GetIndependentTablespace",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        344,
+        348
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetIndependentTablespace 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:ListIndependentTablespaces",
+      "type": "function",
+      "name": "ListIndependentTablespaces",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        350,
+        362
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 ListIndependentTablespaces 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:GetMySQLSystemTableSpaceID",
+      "type": "function",
+      "name": "GetMySQLSystemTableSpaceID",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        364,
+        369
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetMySQLSystemTableSpaceID 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:GetTablespaceStats",
+      "type": "function",
+      "name": "GetTablespaceStats",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        372,
+        401
+      ],
+      "summary": "读取或查询InnoDB 表空间与存储生命周期管理中的 GetTablespaceStats 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:SetDataDictionary",
+      "type": "function",
+      "name": "SetDataDictionary",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        404,
+        408
+      ],
+      "summary": "写入或更新InnoDB 表空间与存储生命周期管理中的 SetDataDictionary 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:Close",
+      "type": "function",
+      "name": "Close",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        410,
+        442
+      ],
+      "summary": "执行持久化或生命周期操作InnoDB 表空间与存储生命周期管理中的 Close 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:NewUndoLogManagerImpl",
+      "type": "function",
+      "name": "NewUndoLogManagerImpl",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        451,
+        453
+      ],
+      "summary": "创建或初始化InnoDB 表空间与存储生命周期管理中的 NewUndoLogManagerImpl 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:NewInsertBufferManagerImpl",
+      "type": "function",
+      "name": "NewInsertBufferManagerImpl",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        464,
+        466
+      ],
+      "summary": "创建或初始化InnoDB 表空间与存储生命周期管理中的 NewInsertBufferManagerImpl 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:NewDoubleWriteBufferManagerImpl",
+      "type": "function",
+      "name": "NewDoubleWriteBufferManagerImpl",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        477,
+        479
+      ],
+      "summary": "创建或初始化InnoDB 表空间与存储生命周期管理中的 NewDoubleWriteBufferManagerImpl 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:NewSpaceManagementPagesImpl",
+      "type": "function",
+      "name": "NewSpaceManagementPagesImpl",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        490,
+        492
+      ],
+      "summary": "创建或初始化InnoDB 表空间与存储生命周期管理中的 NewSpaceManagementPagesImpl 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:NewTransactionSystemManagerImpl",
+      "type": "function",
+      "name": "NewTransactionSystemManagerImpl",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        503,
+        505
+      ],
+      "summary": "创建或初始化InnoDB 表空间与存储生命周期管理中的 NewTransactionSystemManagerImpl 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:NewLockInfoManagerImpl",
+      "type": "function",
+      "name": "NewLockInfoManagerImpl",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        516,
+        518
+      ],
+      "summary": "创建或初始化InnoDB 表空间与存储生命周期管理中的 NewLockInfoManagerImpl 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:InitializeSystemData",
+      "type": "function",
+      "name": "InitializeSystemData",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        525,
+        553
+      ],
+      "summary": "创建或初始化InnoDB 表空间与存储生命周期管理中的 InitializeSystemData 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:initializeMySQLUserData",
+      "type": "function",
+      "name": "initializeMySQLUserData",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        556,
+        597
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 initializeMySQLUserData 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:insertUserDataViaBufferPool",
+      "type": "function",
+      "name": "insertUserDataViaBufferPool",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        600,
+        636
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 insertUserDataViaBufferPool 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:createStandardInnoDBPage",
+      "type": "function",
+      "name": "createStandardInnoDBPage",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        639,
+        674
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 createStandardInnoDBPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:insertRecordIntoPage",
+      "type": "function",
+      "name": "insertRecordIntoPage",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        677,
+        706
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 insertRecordIntoPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:writeRedoLogRecord",
+      "type": "function",
+      "name": "writeRedoLogRecord",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        709,
+        742
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 writeRedoLogRecord 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:shouldFlushImmediately",
+      "type": "function",
+      "name": "shouldFlushImmediately",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        745,
+        755
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 shouldFlushImmediately 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:forceCheckpoint",
+      "type": "function",
+      "name": "forceCheckpoint",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        758,
+        780
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 forceCheckpoint 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:serializeRedoLogEntry",
+      "type": "function",
+      "name": "serializeRedoLogEntry",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        783,
+        812
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 serializeRedoLogEntry 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:initializeSystemTables",
+      "type": "function",
+      "name": "initializeSystemTables",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        836,
+        853
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 initializeSystemTables 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:initializeMySQLDbTable",
+      "type": "function",
+      "name": "initializeMySQLDbTable",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        856,
+        894
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 initializeMySQLDbTable 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:serializeToBytes",
+      "type": "function",
+      "name": "serializeToBytes",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        921,
+        954
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 serializeToBytes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:insertDbPermissionViaBufferPool",
+      "type": "function",
+      "name": "insertDbPermissionViaBufferPool",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        957,
+        995
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 insertDbPermissionViaBufferPool 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/system_space_manager.go:getMySQLSystemTableSpaceID",
+      "type": "function",
+      "name": "getMySQLSystemTableSpaceID",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        998,
+        1011
+      ],
+      "summary": "实现InnoDB 表空间与存储生命周期管理中的 getMySQLSystemTableSpaceID 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/system_space_manager.go:SystemSpaceManager",
+      "type": "class",
+      "name": "SystemSpaceManager",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        43,
+        78
+      ],
+      "summary": "封装InnoDB 表空间与存储生命周期管理中的 SystemSpaceManager 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "innodb"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:server/innodb/manager/system_space_manager.go:IBData1Components",
+      "type": "class",
+      "name": "IBData1Components",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        81,
+        102
+      ],
+      "summary": "封装InnoDB 表空间与存储生命周期管理中的 IBData1Components 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/system_space_manager.go:TablespaceInfo",
+      "type": "class",
+      "name": "TablespaceInfo",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        105,
+        113
+      ],
+      "summary": "封装InnoDB 表空间与存储生命周期管理中的 TablespaceInfo 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/system_space_manager.go:TablespaceStats",
+      "type": "class",
+      "name": "TablespaceStats",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        116,
+        124
+      ],
+      "summary": "封装InnoDB 表空间与存储生命周期管理中的 TablespaceStats 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/system_space_manager.go:SystemPageInfo",
+      "type": "class",
+      "name": "SystemPageInfo",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        159,
+        166
+      ],
+      "summary": "封装InnoDB 表空间与存储生命周期管理中的 SystemPageInfo 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/system_space_manager.go:SystemSpaceStats",
+      "type": "class",
+      "name": "SystemSpaceStats",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        169,
+        176
+      ],
+      "summary": "封装InnoDB 表空间与存储生命周期管理中的 SystemSpaceStats 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/system_space_manager.go:DictRootPageData",
+      "type": "class",
+      "name": "DictRootPageData",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        179,
+        205
+      ],
+      "summary": "封装InnoDB 表空间与存储生命周期管理中的 DictRootPageData 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/system_space_manager.go:TrxSysPageData",
+      "type": "class",
+      "name": "TrxSysPageData",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        208,
+        224
+      ],
+      "summary": "封装InnoDB 表空间与存储生命周期管理中的 TrxSysPageData 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/system_space_manager.go:SystemPageManager",
+      "type": "class",
+      "name": "SystemPageManager",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        227,
+        245
+      ],
+      "summary": "封装InnoDB 表空间与存储生命周期管理中的 SystemPageManager 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/system_space_manager.go:UndoLogManagerImpl",
+      "type": "class",
+      "name": "UndoLogManagerImpl",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        447,
+        449
+      ],
+      "summary": "封装InnoDB 表空间与存储生命周期管理中的 UndoLogManagerImpl 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/system_space_manager.go:InsertBufferManagerImpl",
+      "type": "class",
+      "name": "InsertBufferManagerImpl",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        460,
+        462
+      ],
+      "summary": "封装InnoDB 表空间与存储生命周期管理中的 InsertBufferManagerImpl 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/system_space_manager.go:DoubleWriteBufferManagerImpl",
+      "type": "class",
+      "name": "DoubleWriteBufferManagerImpl",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        473,
+        475
+      ],
+      "summary": "封装InnoDB 表空间与存储生命周期管理中的 DoubleWriteBufferManagerImpl 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/system_space_manager.go:SpaceManagementPagesImpl",
+      "type": "class",
+      "name": "SpaceManagementPagesImpl",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        486,
+        488
+      ],
+      "summary": "封装InnoDB 表空间与存储生命周期管理中的 SpaceManagementPagesImpl 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/system_space_manager.go:TransactionSystemManagerImpl",
+      "type": "class",
+      "name": "TransactionSystemManagerImpl",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        499,
+        501
+      ],
+      "summary": "封装InnoDB 表空间与存储生命周期管理中的 TransactionSystemManagerImpl 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/system_space_manager.go:LockInfoManagerImpl",
+      "type": "class",
+      "name": "LockInfoManagerImpl",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        512,
+        514
+      ],
+      "summary": "封装InnoDB 表空间与存储生命周期管理中的 LockInfoManagerImpl 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/system_space_manager.go:MySQLDbPermission",
+      "type": "class",
+      "name": "MySQLDbPermission",
+      "filePath": "server/innodb/manager/system_space_manager.go",
+      "lineRange": [
+        906,
+        918
+      ],
+      "summary": "封装InnoDB 表空间与存储生命周期管理中的 MySQLDbPermission 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:server/innodb/record/compact_format_test.go",
+      "type": "file",
+      "name": "compact_format_test.go",
+      "filePath": "server/innodb/record/compact_format_test.go",
+      "summary": "验证InnoDB 行记录格式、编码与优化中 compact format 的正常路径、边界条件与回归行为。",
+      "tags": [
+        "test",
+        "regression",
+        "record-format",
+        "serialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/compact_format_test.go:TestCompactRowFormat_EncodeDecodeRoundtrip",
+      "type": "function",
+      "name": "TestCompactRowFormat_EncodeDecodeRoundtrip",
+      "filePath": "server/innodb/record/compact_format_test.go",
+      "lineRange": [
+        8,
+        43
+      ],
+      "summary": "验证InnoDB 行记录格式、编码与优化中的 TestCompactRowFormat_EncodeDecodeRoundtrip 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:Init",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:Init",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetSystemSpaceManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetSystemSpaceManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetDictionaryManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetDictionaryManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetBufferPoolManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetBufferPoolManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetSystemVariablesManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetSystemVariablesManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetSystemVariableAnalyzer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetSystemVariableAnalyzer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetBTreeManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetBTreeManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetTableManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetTableManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetIndexManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetIndexManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetTransactionManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetTransactionManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetTableStorageManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetTableStorageManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:SetTableManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:SetTableManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:SetTableStorageManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:SetTableStorageManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:SetIndexManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:SetIndexManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:SetTransactionManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:SetTransactionManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:SetBTreeManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:SetBTreeManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:OpenSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:OpenSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:CloseSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:CloseSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:DeleteSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:DeleteSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetSpaceInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetSpaceInfo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:ListSpaces",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:ListSpaces",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:BeginTransaction",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:BeginTransaction",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:CommitTransaction",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:CommitTransaction",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:RollbackTransaction",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:RollbackTransaction",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:Sync",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:Sync",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:NewStorageManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:NewStorageManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:initialize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:initializeSystemTablespaces",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:createSystemTablespace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:createMySQLSystemTablespaces",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:createInformationSchemaTablespaces",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:createPerformanceSchemaTablespaces",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:CreateSegment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:CreateSegment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:createSegmentInternal",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetSegment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetSegment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:FreeSegment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:FreeSegment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:AllocateExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:AllocateExtent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:FreeExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:FreeExtent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:AllocPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:AllocPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:FreePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:FreePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:Begin",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:Begin",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:Commit",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:Commit",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:Rollback",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:Rollback",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:Flush",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:Flush",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:Close",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:Close",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:PreallocateSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:PreallocateSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:DefragmentSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:DefragmentSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:defragmentSegment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:ReclaimSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:ReclaimSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:reclaimSegmentSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:OptimizeStorage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:OptimizeStorage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:CreateTablespace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:CreateTablespace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetTablespace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetTablespace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetSegmentManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetSegmentManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetSpaceManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetSpaceManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetPageManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:GetPageManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:ID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:ID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:AddWrite",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:AddWrite",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:ReadPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:ReadPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:WritePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:WritePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:AllocatePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:AllocatePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:CreateSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "function:server/innodb/manager/storage_manager.go:CreateSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "class:server/innodb/manager/storage_manager.go:TablespaceHandle",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "class:server/innodb/manager/storage_manager.go:TablespaceHandle",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "class:server/innodb/manager/storage_manager.go:StorageManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "class:server/innodb/manager/storage_manager.go:StorageManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "class:server/innodb/manager/storage_manager.go:txImpl",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "class:server/innodb/manager/storage_manager.go:StorageProviderAdapter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "class:server/innodb/manager/storage_manager.go:StorageProviderAdapter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:logger/logger.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/common/charset.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/common/const_trx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/common/constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/common/error_name.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/common/error_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/common/error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/common/errorcode.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/common/frm_constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/common/locale_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/common/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/common/privs_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/common/privs.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/common/sql_error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/common/sql_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/common/type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/common/type.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/common/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/conf/config_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/conf/config.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/conf/decoupled_config.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/buffer_pool/auto_tuning.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_block.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_lru_optimized.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_lru.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_pool_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/buffer_pool/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/buffer_pool/prefetch_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/buffer_pool/prefetch.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager.go",
+      "target": "file:server/innodb/buffer_pool/stats.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:NewSystemSpaceManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:NewSystemSpaceManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:initializeSystemSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:discoverIndependentTablespaces",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:GetSystemSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:GetSystemSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:GetIBData1Components",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:GetIBData1Components",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:IsFilePerTableEnabled",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:IsFilePerTableEnabled",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:GetIndependentTablespace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:GetIndependentTablespace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:ListIndependentTablespaces",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:ListIndependentTablespaces",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:GetMySQLSystemTableSpaceID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:GetMySQLSystemTableSpaceID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:GetTablespaceStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:GetTablespaceStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:SetDataDictionary",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:SetDataDictionary",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:Close",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:Close",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:NewUndoLogManagerImpl",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:NewUndoLogManagerImpl",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:NewInsertBufferManagerImpl",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:NewInsertBufferManagerImpl",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:NewDoubleWriteBufferManagerImpl",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:NewDoubleWriteBufferManagerImpl",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:NewSpaceManagementPagesImpl",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:NewSpaceManagementPagesImpl",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:NewTransactionSystemManagerImpl",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:NewTransactionSystemManagerImpl",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:NewLockInfoManagerImpl",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:NewLockInfoManagerImpl",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:InitializeSystemData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:InitializeSystemData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:initializeMySQLUserData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:insertUserDataViaBufferPool",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:createStandardInnoDBPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:insertRecordIntoPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:writeRedoLogRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:shouldFlushImmediately",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:forceCheckpoint",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:serializeRedoLogEntry",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:initializeSystemTables",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:initializeMySQLDbTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:serializeToBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:insertDbPermissionViaBufferPool",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "function:server/innodb/manager/system_space_manager.go:getMySQLSystemTableSpaceID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:SystemSpaceManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:SystemSpaceManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:IBData1Components",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:IBData1Components",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:TablespaceInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:TablespaceInfo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:TablespaceStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:TablespaceStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:SystemPageInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:SystemPageInfo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:SystemSpaceStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:SystemSpaceStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:DictRootPageData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:DictRootPageData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:TrxSysPageData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:TrxSysPageData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:SystemPageManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:SystemPageManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:UndoLogManagerImpl",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:UndoLogManagerImpl",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:InsertBufferManagerImpl",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:InsertBufferManagerImpl",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:DoubleWriteBufferManagerImpl",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:DoubleWriteBufferManagerImpl",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:SpaceManagementPagesImpl",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:SpaceManagementPagesImpl",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:TransactionSystemManagerImpl",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:TransactionSystemManagerImpl",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:LockInfoManagerImpl",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:LockInfoManagerImpl",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:MySQLDbPermission",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "class:server/innodb/manager/system_space_manager.go:MySQLDbPermission",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:logger/logger.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/conf/config_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/conf/config.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/conf/decoupled_config.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/buffer_pool/auto_tuning.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_block.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_lru_optimized.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_lru.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_pool_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/buffer_pool/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/buffer_pool/prefetch_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/buffer_pool/prefetch.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/buffer_pool/stats.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/allocated_page_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/blob_page_roundtrip_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/blob_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/cluster_index_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/compressed_page_roundtrip_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/compressed_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/encrypted_page_roundtrip_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/file_page_type_sys_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/fsp_hdr_inode_roundtrip_deser_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/fsp_hrd_page_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/fsp_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/ibuf_bitmap_page_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/inode_page_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/inode_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/page_integrity_checker.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/page_serializer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/rollback_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/sys_trx_sys_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/system_page_roundtrip_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/undo_log_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/wrapper/space/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/system_space_manager.go",
+      "target": "file:server/innodb/storage/wrapper/space/ibd_space.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/compact_format_test.go",
+      "target": "function:server/innodb/record/compact_format_test.go:TestCompactRowFormat_EncodeDecodeRoundtrip",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/compact_format_test.go",
+      "target": "function:server/innodb/record/compact_format_test.go:TestCompactRowFormat_EncodeDecodeRoundtrip",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

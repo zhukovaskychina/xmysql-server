@@ -1,0 +1,122 @@
+{
+  "nodes": [
+    {
+      "id": "document:docs/transaction-reports/CRASH_RECOVERY_IMPLEMENTATION_SUMMARY.md",
+      "type": "document",
+      "name": "CRASH_RECOVERY_IMPLEMENTATION_SUMMARY.md",
+      "filePath": "docs/transaction-reports/CRASH_RECOVERY_IMPLEMENTATION_SUMMARY.md",
+      "summary": "CRASH_RECOVERY_IMPLEMENTATION_SUMMARY.md 是项目文档，说明 docs/transaction-reports 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "transaction",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/transaction-reports/TRANSACTION_DOCUMENTATION_INDEX.md",
+      "type": "document",
+      "name": "TRANSACTION_DOCUMENTATION_INDEX.md",
+      "filePath": "docs/transaction-reports/TRANSACTION_DOCUMENTATION_INDEX.md",
+      "summary": "TRANSACTION_DOCUMENTATION_INDEX.md 是项目文档，说明 docs/transaction-reports 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "transaction",
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/transaction-reports/TXN-003_SAVEPOINT_IMPLEMENTATION_REPORT.md",
+      "type": "document",
+      "name": "TXN-003_SAVEPOINT_IMPLEMENTATION_REPORT.md",
+      "filePath": "docs/transaction-reports/TXN-003_SAVEPOINT_IMPLEMENTATION_REPORT.md",
+      "summary": "TXN-003_SAVEPOINT_IMPLEMENTATION_REPORT.md 是项目文档，说明 docs/transaction-reports 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "transaction",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/transaction-reports/TXN-004_LONG_TRANSACTION_DETECTION_REPORT.md",
+      "type": "document",
+      "name": "TXN-004_LONG_TRANSACTION_DETECTION_REPORT.md",
+      "filePath": "docs/transaction-reports/TXN-004_LONG_TRANSACTION_DETECTION_REPORT.md",
+      "summary": "TXN-004_LONG_TRANSACTION_DETECTION_REPORT.md 是项目文档，说明 docs/transaction-reports 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "transaction",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/transaction-reports/TXN_001_REDO_LOG_FIX_REPORT.md",
+      "type": "document",
+      "name": "TXN_001_REDO_LOG_FIX_REPORT.md",
+      "filePath": "docs/transaction-reports/TXN_001_REDO_LOG_FIX_REPORT.md",
+      "summary": "TXN_001_REDO_LOG_FIX_REPORT.md 是项目文档，说明 docs/transaction-reports 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "transaction",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/transaction-reports/TXN_002_REAPPLY_COMPLETION_REPORT.md",
+      "type": "document",
+      "name": "TXN_002_REAPPLY_COMPLETION_REPORT.md",
+      "filePath": "docs/transaction-reports/TXN_002_REAPPLY_COMPLETION_REPORT.md",
+      "summary": "TXN_002_REAPPLY_COMPLETION_REPORT.md 是项目文档，说明 docs/transaction-reports 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "transaction",
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/transaction-reports/TXN_002_ROLLBACK_FIX_REPORT.md",
+      "type": "document",
+      "name": "TXN_002_ROLLBACK_FIX_REPORT.md",
+      "filePath": "docs/transaction-reports/TXN_002_ROLLBACK_FIX_REPORT.md",
+      "summary": "TXN_002_ROLLBACK_FIX_REPORT.md 是项目文档，说明 docs/transaction-reports 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "transaction",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/transaction-reports/TXN_002_UNDO_LOG_FIX_REPORT.md",
+      "type": "document",
+      "name": "TXN_002_UNDO_LOG_FIX_REPORT.md",
+      "filePath": "docs/transaction-reports/TXN_002_UNDO_LOG_FIX_REPORT.md",
+      "summary": "TXN_002_UNDO_LOG_FIX_REPORT.md 是项目文档，说明 docs/transaction-reports 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "transaction",
+        "docs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/transaction-reports/log-optimization-summary.md",
+      "type": "document",
+      "name": "log-optimization-summary.md",
+      "filePath": "docs/transaction-reports/log-optimization-summary.md",
+      "summary": "log-optimization-summary.md 是项目文档，说明 docs/transaction-reports 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "transaction",
+        "docs"
+      ],
+      "complexity": "complex"
+    }
+  ],
+  "edges": []
+}

@@ -1,0 +1,862 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/storage/store/extents/extent.go",
+      "type": "file",
+      "name": "extent.go",
+      "filePath": "server/innodb/storage/store/extents/extent.go",
+      "summary": "实现extent 持久化结构的数据结构与分配操作，管理连续页面范围及其状态变化。",
+      "tags": [
+        "go",
+        "extent-management",
+        "storage-engine"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/storage/store/extents/extent.go:NewExtentEntry",
+      "type": "function",
+      "name": "NewExtentEntry",
+      "filePath": "server/innodb/storage/store/extents/extent.go",
+      "lineRange": [
+        54,
+        62
+      ],
+      "summary": "创建并初始化 ExtentEntry，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/extents/extent.go:IsPageFree",
+      "type": "function",
+      "name": "IsPageFree",
+      "filePath": "server/innodb/storage/store/extents/extent.go",
+      "lineRange": [
+        65,
+        75
+      ],
+      "summary": "实现 extent 持久化结构 中的 IsPageFree 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/extents/extent.go:AllocatePage",
+      "type": "function",
+      "name": "AllocatePage",
+      "filePath": "server/innodb/storage/store/extents/extent.go",
+      "lineRange": [
+        78,
+        102
+      ],
+      "summary": "实现 extent 持久化结构 中的 AllocatePage 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/extents/extent.go:FreePage",
+      "type": "function",
+      "name": "FreePage",
+      "filePath": "server/innodb/storage/store/extents/extent.go",
+      "lineRange": [
+        105,
+        129
+      ],
+      "summary": "实现 extent 持久化结构 中的 FreePage 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/extents/extent.go:SetSegmentID",
+      "type": "function",
+      "name": "SetSegmentID",
+      "filePath": "server/innodb/storage/store/extents/extent.go",
+      "lineRange": [
+        132,
+        134
+      ],
+      "summary": "更新 extent 持久化结构 中的 SegmentID。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/extents/extent.go:GetSegmentID",
+      "type": "function",
+      "name": "GetSegmentID",
+      "filePath": "server/innodb/storage/store/extents/extent.go",
+      "lineRange": [
+        137,
+        139
+      ],
+      "summary": "读取 extent 持久化结构 中的 SegmentID 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/extents/extent.go:GetState",
+      "type": "function",
+      "name": "GetState",
+      "filePath": "server/innodb/storage/store/extents/extent.go",
+      "lineRange": [
+        142,
+        144
+      ],
+      "summary": "读取 extent 持久化结构 中的 State 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/extents/extent.go:GetUsedPages",
+      "type": "function",
+      "name": "GetUsedPages",
+      "filePath": "server/innodb/storage/store/extents/extent.go",
+      "lineRange": [
+        147,
+        149
+      ],
+      "summary": "读取 extent 持久化结构 中的 UsedPages 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/extents/extent.go:Serialize",
+      "type": "function",
+      "name": "Serialize",
+      "filePath": "server/innodb/storage/store/extents/extent.go",
+      "lineRange": [
+        152,
+        171
+      ],
+      "summary": "实现 extent 持久化结构 中的 Serialize 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/extents/extent.go:DeserializeExtentEntry",
+      "type": "function",
+      "name": "DeserializeExtentEntry",
+      "filePath": "server/innodb/storage/store/extents/extent.go",
+      "lineRange": [
+        174,
+        197
+      ],
+      "summary": "实现 extent 持久化结构 中的 DeserializeExtentEntry 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/extents/extent.go:ExtentEntry",
+      "type": "class",
+      "name": "ExtentEntry",
+      "filePath": "server/innodb/storage/store/extents/extent.go",
+      "lineRange": [
+        45,
+        51
+      ],
+      "summary": "定义 extent 持久化结构 使用的 ExtentEntry 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "type": "file",
+      "name": "ibd_file.go",
+      "filePath": "server/innodb/storage/store/ibd/ibd_file.go",
+      "summary": "提供IBD 表空间文件相关的数据结构与处理逻辑，核心结构包括 IBD_File、NewIBDFile、Open、Create。",
+      "tags": [
+        "go",
+        "tablespace",
+        "storage-engine"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/storage/store/ibd/ibd_file.go:NewIBDFile",
+      "type": "function",
+      "name": "NewIBDFile",
+      "filePath": "server/innodb/storage/store/ibd/ibd_file.go",
+      "lineRange": [
+        85,
+        91
+      ],
+      "summary": "创建并初始化 IBDFile，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/ibd/ibd_file.go:Open",
+      "type": "function",
+      "name": "Open",
+      "filePath": "server/innodb/storage/store/ibd/ibd_file.go",
+      "lineRange": [
+        94,
+        109
+      ],
+      "summary": "初始化当前 IBD 表空间文件 组件的执行状态并准备后续读取。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/ibd/ibd_file.go:Create",
+      "type": "function",
+      "name": "Create",
+      "filePath": "server/innodb/storage/store/ibd/ibd_file.go",
+      "lineRange": [
+        112,
+        151
+      ],
+      "summary": "实现 IBD 表空间文件 中的 Create 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/ibd/ibd_file.go:writePageUnsafe",
+      "type": "function",
+      "name": "writePageUnsafe",
+      "filePath": "server/innodb/storage/store/ibd/ibd_file.go",
+      "lineRange": [
+        154,
+        176
+      ],
+      "summary": "实现 IBD 表空间文件 中的 writePageUnsafe 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/ibd/ibd_file.go:ReadPage",
+      "type": "function",
+      "name": "ReadPage",
+      "filePath": "server/innodb/storage/store/ibd/ibd_file.go",
+      "lineRange": [
+        179,
+        203
+      ],
+      "summary": "从底层存储读取 Page，并完成必要的解码或可见性处理。",
+      "tags": [
+        "data-access",
+        "storage",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/ibd/ibd_file.go:WritePage",
+      "type": "function",
+      "name": "WritePage",
+      "filePath": "server/innodb/storage/store/ibd/ibd_file.go",
+      "lineRange": [
+        206,
+        231
+      ],
+      "summary": "将 Page 写入底层结构，并维护相关状态。",
+      "tags": [
+        "data-access",
+        "storage",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/ibd/ibd_file.go:Sync",
+      "type": "function",
+      "name": "Sync",
+      "filePath": "server/innodb/storage/store/ibd/ibd_file.go",
+      "lineRange": [
+        234,
+        243
+      ],
+      "summary": "实现 IBD 表空间文件 中的 Sync 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/ibd/ibd_file.go:GetSpaceId",
+      "type": "function",
+      "name": "GetSpaceId",
+      "filePath": "server/innodb/storage/store/ibd/ibd_file.go",
+      "lineRange": [
+        246,
+        248
+      ],
+      "summary": "读取 IBD 表空间文件 中的 SpaceId 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/ibd/ibd_file.go:GetTableName",
+      "type": "function",
+      "name": "GetTableName",
+      "filePath": "server/innodb/storage/store/ibd/ibd_file.go",
+      "lineRange": [
+        251,
+        253
+      ],
+      "summary": "读取 IBD 表空间文件 中的 TableName 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/ibd/ibd_file.go:GetFilePath",
+      "type": "function",
+      "name": "GetFilePath",
+      "filePath": "server/innodb/storage/store/ibd/ibd_file.go",
+      "lineRange": [
+        256,
+        258
+      ],
+      "summary": "读取 IBD 表空间文件 中的 FilePath 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/ibd/ibd_file.go:Delete",
+      "type": "function",
+      "name": "Delete",
+      "filePath": "server/innodb/storage/store/ibd/ibd_file.go",
+      "lineRange": [
+        261,
+        278
+      ],
+      "summary": "实现 IBD 表空间文件 中的 Delete 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "data-access",
+        "storage",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/ibd/ibd_file.go:Close",
+      "type": "function",
+      "name": "Close",
+      "filePath": "server/innodb/storage/store/ibd/ibd_file.go",
+      "lineRange": [
+        281,
+        301
+      ],
+      "summary": "释放当前 IBD 表空间文件 组件持有的资源并结束生命周期。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/ibd/ibd_file.go:Exists",
+      "type": "function",
+      "name": "Exists",
+      "filePath": "server/innodb/storage/store/ibd/ibd_file.go",
+      "lineRange": [
+        304,
+        307
+      ],
+      "summary": "实现 IBD 表空间文件 中的 Exists 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/ibd/ibd_file.go:Size",
+      "type": "function",
+      "name": "Size",
+      "filePath": "server/innodb/storage/store/ibd/ibd_file.go",
+      "lineRange": [
+        310,
+        324
+      ],
+      "summary": "实现 IBD 表空间文件 中的 Size 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/ibd/ibd_file.go:LoadPageByPageNumber",
+      "type": "function",
+      "name": "LoadPageByPageNumber",
+      "filePath": "server/innodb/storage/store/ibd/ibd_file.go",
+      "lineRange": [
+        328,
+        330
+      ],
+      "summary": "实现 IBD 表空间文件 中的 LoadPageByPageNumber 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/ibd/ibd_file.go:IBD_File",
+      "type": "class",
+      "name": "IBD_File",
+      "filePath": "server/innodb/storage/store/ibd/ibd_file.go",
+      "lineRange": [
+        74,
+        82
+      ],
+      "summary": "定义 IBD 表空间文件 使用的 IBD_File 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "function:server/innodb/storage/store/extents/extent.go:NewExtentEntry",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "function:server/innodb/storage/store/extents/extent.go:NewExtentEntry",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "function:server/innodb/storage/store/extents/extent.go:IsPageFree",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "function:server/innodb/storage/store/extents/extent.go:IsPageFree",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "function:server/innodb/storage/store/extents/extent.go:AllocatePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "function:server/innodb/storage/store/extents/extent.go:AllocatePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "function:server/innodb/storage/store/extents/extent.go:FreePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "function:server/innodb/storage/store/extents/extent.go:FreePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "function:server/innodb/storage/store/extents/extent.go:SetSegmentID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "function:server/innodb/storage/store/extents/extent.go:SetSegmentID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "function:server/innodb/storage/store/extents/extent.go:GetSegmentID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "function:server/innodb/storage/store/extents/extent.go:GetSegmentID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "function:server/innodb/storage/store/extents/extent.go:GetState",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "function:server/innodb/storage/store/extents/extent.go:GetState",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "function:server/innodb/storage/store/extents/extent.go:GetUsedPages",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "function:server/innodb/storage/store/extents/extent.go:GetUsedPages",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "function:server/innodb/storage/store/extents/extent.go:Serialize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "function:server/innodb/storage/store/extents/extent.go:Serialize",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "function:server/innodb/storage/store/extents/extent.go:DeserializeExtentEntry",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "function:server/innodb/storage/store/extents/extent.go:DeserializeExtentEntry",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "class:server/innodb/storage/store/extents/extent.go:ExtentEntry",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/extents/extent.go",
+      "target": "class:server/innodb/storage/store/extents/extent.go:ExtentEntry",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:NewIBDFile",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:NewIBDFile",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:Open",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:Open",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:Create",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:Create",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:writePageUnsafe",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:ReadPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:ReadPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:WritePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:WritePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:Sync",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:Sync",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:GetSpaceId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:GetSpaceId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:GetTableName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:GetTableName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:GetFilePath",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:GetFilePath",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:Delete",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:Delete",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:Close",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:Close",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:Exists",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:Exists",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:Size",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:Size",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:LoadPageByPageNumber",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "function:server/innodb/storage/store/ibd/ibd_file.go:LoadPageByPageNumber",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "class:server/innodb/storage/store/ibd/ibd_file.go:IBD_File",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/ibd/ibd_file.go",
+      "target": "class:server/innodb/storage/store/ibd/ibd_file.go:IBD_File",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

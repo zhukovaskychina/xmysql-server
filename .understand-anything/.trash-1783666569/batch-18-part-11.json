@@ -1,0 +1,1293 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "type": "file",
+      "name": "bitmap_manager.go",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "summary": "实现表空间与位图管理的空间分配与状态跟踪，通过位图或表空间结构管理页面和 extent。",
+      "tags": [
+        "go",
+        "tablespace",
+        "storage-engine"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:NewBitmapManager",
+      "type": "function",
+      "name": "NewBitmapManager",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        67,
+        87
+      ],
+      "summary": "创建并初始化 BitmapManager，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:Set",
+      "type": "function",
+      "name": "Set",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        90,
+        114
+      ],
+      "summary": "更新 表空间与位图管理 中的 目标状态。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:Clear",
+      "type": "function",
+      "name": "Clear",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        117,
+        141
+      ],
+      "summary": "实现 表空间与位图管理 中的 Clear 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:IsSet",
+      "type": "function",
+      "name": "IsSet",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        144,
+        156
+      ],
+      "summary": "实现 表空间与位图管理 中的 IsSet 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:FindFirstClear",
+      "type": "function",
+      "name": "FindFirstClear",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        159,
+        190
+      ],
+      "summary": "实现 表空间与位图管理 中的 FindFirstClear 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:FindFirstSet",
+      "type": "function",
+      "name": "FindFirstSet",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        193,
+        223
+      ],
+      "summary": "实现 表空间与位图管理 中的 FindFirstSet 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:FindNContinuousClear",
+      "type": "function",
+      "name": "FindNContinuousClear",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        226,
+        261
+      ],
+      "summary": "实现 表空间与位图管理 中的 FindNContinuousClear 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:SetRange",
+      "type": "function",
+      "name": "SetRange",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        264,
+        292
+      ],
+      "summary": "更新 表空间与位图管理 中的 Range。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:ClearRange",
+      "type": "function",
+      "name": "ClearRange",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        295,
+        323
+      ],
+      "summary": "实现 表空间与位图管理 中的 ClearRange 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:CountSet",
+      "type": "function",
+      "name": "CountSet",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        326,
+        330
+      ],
+      "summary": "实现 表空间与位图管理 中的 CountSet 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:CountClear",
+      "type": "function",
+      "name": "CountClear",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        333,
+        337
+      ],
+      "summary": "实现 表空间与位图管理 中的 CountClear 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:Size",
+      "type": "function",
+      "name": "Size",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        340,
+        342
+      ],
+      "summary": "实现 表空间与位图管理 中的 Size 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:GetStats",
+      "type": "function",
+      "name": "GetStats",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        345,
+        365
+      ],
+      "summary": "读取 表空间与位图管理 中的 Stats 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:Reset",
+      "type": "function",
+      "name": "Reset",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        368,
+        386
+      ],
+      "summary": "实现 表空间与位图管理 中的 Reset 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:isSet",
+      "type": "function",
+      "name": "isSet",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        391,
+        410
+      ],
+      "summary": "实现 表空间与位图管理 中的 isSet 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:updateCache",
+      "type": "function",
+      "name": "updateCache",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        413,
+        424
+      ],
+      "summary": "实现 表空间与位图管理 中的 updateCache 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:popcount",
+      "type": "function",
+      "name": "popcount",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        427,
+        436
+      ],
+      "summary": "实现 表空间与位图管理 中的 popcount 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:trailingZeros",
+      "type": "function",
+      "name": "trailingZeros",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        439,
+        470
+      ],
+      "summary": "实现 表空间与位图管理 中的 trailingZeros 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:NewSegmentedBitmapManager",
+      "type": "function",
+      "name": "NewSegmentedBitmapManager",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        512,
+        555
+      ],
+      "summary": "创建并初始化 SegmentedBitmapManager，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:isSetLocked",
+      "type": "function",
+      "name": "isSetLocked",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        904,
+        923
+      ],
+      "summary": "实现 表空间与位图管理 中的 isSetLocked 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:updateCacheLocked",
+      "type": "function",
+      "name": "updateCacheLocked",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        926,
+        938
+      ],
+      "summary": "实现 表空间与位图管理 中的 updateCacheLocked 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/space/bitmap_manager.go:BitmapManager",
+      "type": "class",
+      "name": "BitmapManager",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        44,
+        64
+      ],
+      "summary": "集中管理 表空间与位图管理 中的 BitmapManager 生命周期、状态与资源协调。",
+      "tags": [
+        "service",
+        "resource-management",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/space/bitmap_manager.go:BitmapSegment",
+      "type": "class",
+      "name": "BitmapSegment",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        482,
+        496
+      ],
+      "summary": "定义 表空间与位图管理 使用的 BitmapSegment 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/space/bitmap_manager.go:SegmentedBitmapManager",
+      "type": "class",
+      "name": "SegmentedBitmapManager",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "lineRange": [
+        499,
+        509
+      ],
+      "summary": "集中管理 表空间与位图管理 中的 SegmentedBitmapManager 生命周期、状态与资源协调。",
+      "tags": [
+        "service",
+        "resource-management",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "type": "file",
+      "name": "bitmap_manager_bench_test.go",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "summary": "验证表空间与位图管理相关行为与边界条件，重点覆盖 BitmapManager Set Single、SegmentedBitmapManager Set Single、BitmapManager IsSet Single。",
+      "tags": [
+        "test",
+        "benchmark",
+        "go",
+        "tablespace"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_Set_Single",
+      "type": "function",
+      "name": "BenchmarkBitmapManager_Set_Single",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "lineRange": [
+        13,
+        21
+      ],
+      "summary": "衡量 BitmapManager Set Single 场景下的执行耗时与资源开销。",
+      "tags": [
+        "benchmark",
+        "performance",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_Set_Single",
+      "type": "function",
+      "name": "BenchmarkSegmentedBitmapManager_Set_Single",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "lineRange": [
+        24,
+        32
+      ],
+      "summary": "衡量 SegmentedBitmapManager Set Single 场景下的执行耗时与资源开销。",
+      "tags": [
+        "benchmark",
+        "performance",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_IsSet_Single",
+      "type": "function",
+      "name": "BenchmarkBitmapManager_IsSet_Single",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "lineRange": [
+        35,
+        47
+      ],
+      "summary": "衡量 BitmapManager IsSet Single 场景下的执行耗时与资源开销。",
+      "tags": [
+        "benchmark",
+        "performance",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_IsSet_Single",
+      "type": "function",
+      "name": "BenchmarkSegmentedBitmapManager_IsSet_Single",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "lineRange": [
+        50,
+        62
+      ],
+      "summary": "衡量 SegmentedBitmapManager IsSet Single 场景下的执行耗时与资源开销。",
+      "tags": [
+        "benchmark",
+        "performance",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_Set_Parallel4",
+      "type": "function",
+      "name": "BenchmarkBitmapManager_Set_Parallel4",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "lineRange": [
+        69,
+        81
+      ],
+      "summary": "衡量 BitmapManager Set Parallel4 场景下的执行耗时与资源开销。",
+      "tags": [
+        "benchmark",
+        "performance",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_Set_Parallel4",
+      "type": "function",
+      "name": "BenchmarkSegmentedBitmapManager_Set_Parallel4",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "lineRange": [
+        84,
+        96
+      ],
+      "summary": "衡量 SegmentedBitmapManager Set Parallel4 场景下的执行耗时与资源开销。",
+      "tags": [
+        "benchmark",
+        "performance",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_Set_Parallel8",
+      "type": "function",
+      "name": "BenchmarkBitmapManager_Set_Parallel8",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "lineRange": [
+        99,
+        112
+      ],
+      "summary": "衡量 BitmapManager Set Parallel8 场景下的执行耗时与资源开销。",
+      "tags": [
+        "benchmark",
+        "performance",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_Set_Parallel8",
+      "type": "function",
+      "name": "BenchmarkSegmentedBitmapManager_Set_Parallel8",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "lineRange": [
+        115,
+        128
+      ],
+      "summary": "衡量 SegmentedBitmapManager Set Parallel8 场景下的执行耗时与资源开销。",
+      "tags": [
+        "benchmark",
+        "performance",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_Set_Parallel16",
+      "type": "function",
+      "name": "BenchmarkBitmapManager_Set_Parallel16",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "lineRange": [
+        131,
+        144
+      ],
+      "summary": "衡量 BitmapManager Set Parallel16 场景下的执行耗时与资源开销。",
+      "tags": [
+        "benchmark",
+        "performance",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_Set_Parallel16",
+      "type": "function",
+      "name": "BenchmarkSegmentedBitmapManager_Set_Parallel16",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "lineRange": [
+        147,
+        160
+      ],
+      "summary": "衡量 SegmentedBitmapManager Set Parallel16 场景下的执行耗时与资源开销。",
+      "tags": [
+        "benchmark",
+        "performance",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_IsSet_Parallel4",
+      "type": "function",
+      "name": "BenchmarkBitmapManager_IsSet_Parallel4",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "lineRange": [
+        167,
+        182
+      ],
+      "summary": "衡量 BitmapManager IsSet Parallel4 场景下的执行耗时与资源开销。",
+      "tags": [
+        "benchmark",
+        "performance",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_IsSet_Parallel4",
+      "type": "function",
+      "name": "BenchmarkSegmentedBitmapManager_IsSet_Parallel4",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "lineRange": [
+        185,
+        200
+      ],
+      "summary": "衡量 SegmentedBitmapManager IsSet Parallel4 场景下的执行耗时与资源开销。",
+      "tags": [
+        "benchmark",
+        "performance",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_IsSet_Parallel16",
+      "type": "function",
+      "name": "BenchmarkBitmapManager_IsSet_Parallel16",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "lineRange": [
+        203,
+        219
+      ],
+      "summary": "衡量 BitmapManager IsSet Parallel16 场景下的执行耗时与资源开销。",
+      "tags": [
+        "benchmark",
+        "performance",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_IsSet_Parallel16",
+      "type": "function",
+      "name": "BenchmarkSegmentedBitmapManager_IsSet_Parallel16",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "lineRange": [
+        222,
+        238
+      ],
+      "summary": "衡量 SegmentedBitmapManager IsSet Parallel16 场景下的执行耗时与资源开销。",
+      "tags": [
+        "benchmark",
+        "performance",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_Mixed_Parallel16",
+      "type": "function",
+      "name": "BenchmarkBitmapManager_Mixed_Parallel16",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "lineRange": [
+        245,
+        264
+      ],
+      "summary": "衡量 BitmapManager Mixed Parallel16 场景下的执行耗时与资源开销。",
+      "tags": [
+        "benchmark",
+        "performance",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_Mixed_Parallel16",
+      "type": "function",
+      "name": "BenchmarkSegmentedBitmapManager_Mixed_Parallel16",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "lineRange": [
+        267,
+        286
+      ],
+      "summary": "衡量 SegmentedBitmapManager Mixed Parallel16 场景下的执行耗时与资源开销。",
+      "tags": [
+        "benchmark",
+        "performance",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_Contention",
+      "type": "function",
+      "name": "BenchmarkBitmapManager_Contention",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "lineRange": [
+        293,
+        305
+      ],
+      "summary": "衡量 BitmapManager Contention 场景下的执行耗时与资源开销。",
+      "tags": [
+        "benchmark",
+        "performance",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_Contention",
+      "type": "function",
+      "name": "BenchmarkSegmentedBitmapManager_Contention",
+      "filePath": "server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "lineRange": [
+        308,
+        320
+      ],
+      "summary": "衡量 SegmentedBitmapManager Contention 场景下的执行耗时与资源开销。",
+      "tags": [
+        "benchmark",
+        "performance",
+        "tablespace"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:NewBitmapManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:NewBitmapManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:Set",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:Set",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:Clear",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:Clear",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:IsSet",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:IsSet",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:FindFirstClear",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:FindFirstClear",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:FindFirstSet",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:FindFirstSet",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:FindNContinuousClear",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:FindNContinuousClear",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:SetRange",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:SetRange",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:ClearRange",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:ClearRange",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:CountSet",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:CountSet",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:CountClear",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:CountClear",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:Size",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:Size",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:GetStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:GetStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:Reset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:Reset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:isSet",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:updateCache",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:popcount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:trailingZeros",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:NewSegmentedBitmapManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:NewSegmentedBitmapManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:isSetLocked",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager.go:updateCacheLocked",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "class:server/innodb/storage/wrapper/space/bitmap_manager.go:BitmapManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "class:server/innodb/storage/wrapper/space/bitmap_manager.go:BitmapManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "class:server/innodb/storage/wrapper/space/bitmap_manager.go:BitmapSegment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "class:server/innodb/storage/wrapper/space/bitmap_manager.go:BitmapSegment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "class:server/innodb/storage/wrapper/space/bitmap_manager.go:SegmentedBitmapManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager.go",
+      "target": "class:server/innodb/storage/wrapper/space/bitmap_manager.go:SegmentedBitmapManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_Set_Single",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_Set_Single",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_Set_Single",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_Set_Single",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_IsSet_Single",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_IsSet_Single",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_IsSet_Single",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_IsSet_Single",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_Set_Parallel4",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_Set_Parallel4",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_Set_Parallel4",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_Set_Parallel4",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_Set_Parallel8",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_Set_Parallel8",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_Set_Parallel8",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_Set_Parallel8",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_Set_Parallel16",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_Set_Parallel16",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_Set_Parallel16",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_Set_Parallel16",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_IsSet_Parallel4",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_IsSet_Parallel4",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_IsSet_Parallel4",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_IsSet_Parallel4",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_IsSet_Parallel16",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_IsSet_Parallel16",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_IsSet_Parallel16",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_IsSet_Parallel16",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_Mixed_Parallel16",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_Mixed_Parallel16",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_Mixed_Parallel16",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_Mixed_Parallel16",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_Contention",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkBitmapManager_Contention",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_Contention",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go",
+      "target": "function:server/innodb/storage/wrapper/space/bitmap_manager_bench_test.go:BenchmarkSegmentedBitmapManager_Contention",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

@@ -1,0 +1,3396 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/dispatcher/system_variable_engine.go",
+      "type": "file",
+      "name": "system_variable_engine.go",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "summary": "实现SQL 请求分发与系统变量处理，覆盖 SystemVariableEngine、SystemFunctionInfo、SystemVariableSchema、SystemVariableScanOperator 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "dispatcher",
+        "service",
+        "source-file"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:NewSystemVariableEngine",
+      "type": "function",
+      "name": "NewSystemVariableEngine",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        28,
+        35
+      ],
+      "summary": "构造并初始化 NewSystemVariableEngine 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:Name",
+      "type": "function",
+      "name": "Name",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        38,
+        40
+      ],
+      "summary": "实现 Name 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:CanHandle",
+      "type": "function",
+      "name": "CanHandle",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        43,
+        67
+      ],
+      "summary": "检查 CanHandle 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:canHandleWithSQLParser",
+      "type": "function",
+      "name": "canHandleWithSQLParser",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        70,
+        88
+      ],
+      "summary": "实现 canHandleWithSQLParser 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:canHandleSelectStatement",
+      "type": "function",
+      "name": "canHandleSelectStatement",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        91,
+        114
+      ],
+      "summary": "实现 canHandleSelectStatement 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:canHandleShowStatement",
+      "type": "function",
+      "name": "canHandleShowStatement",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        117,
+        141
+      ],
+      "summary": "实现 canHandleShowStatement 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:canHandleSetStatement",
+      "type": "function",
+      "name": "canHandleSetStatement",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        144,
+        157
+      ],
+      "summary": "实现 canHandleSetStatement 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:containsSystemVariableExpression",
+      "type": "function",
+      "name": "containsSystemVariableExpression",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        160,
+        170
+      ],
+      "summary": "实现 containsSystemVariableExpression 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:exprContainsSystemVariable",
+      "type": "function",
+      "name": "exprContainsSystemVariable",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        173,
+        214
+      ],
+      "summary": "实现 exprContainsSystemVariable 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:isSystemTable",
+      "type": "function",
+      "name": "isSystemTable",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        217,
+        246
+      ],
+      "summary": "实现 isSystemTable 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:isSystemVariableSetExpression",
+      "type": "function",
+      "name": "isSystemVariableSetExpression",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        249,
+        273
+      ],
+      "summary": "实现 isSystemVariableSetExpression 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:ExecuteQuery",
+      "type": "function",
+      "name": "ExecuteQuery",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        276,
+        370
+      ],
+      "summary": "执行 ExecuteQuery 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "execution",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:syncSessionVariables",
+      "type": "function",
+      "name": "syncSessionVariables",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        373,
+        399
+      ],
+      "summary": "实现 syncSessionVariables 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:executeSystemFunctionQuery",
+      "type": "function",
+      "name": "executeSystemFunctionQuery",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        402,
+        457
+      ],
+      "summary": "实现 executeSystemFunctionQuery 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:parseSystemFunction",
+      "type": "function",
+      "name": "parseSystemFunction",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        467,
+        496
+      ],
+      "summary": "实现 parseSystemFunction 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:evaluateSystemFunction",
+      "type": "function",
+      "name": "evaluateSystemFunction",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        499,
+        529
+      ],
+      "summary": "实现 evaluateSystemFunction 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:executeShowStatement",
+      "type": "function",
+      "name": "executeShowStatement",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        532,
+        579
+      ],
+      "summary": "实现 executeShowStatement 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:executeShowVariables",
+      "type": "function",
+      "name": "executeShowVariables",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        582,
+        610
+      ],
+      "summary": "实现 executeShowVariables 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:executeShowStatus",
+      "type": "function",
+      "name": "executeShowStatus",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        613,
+        649
+      ],
+      "summary": "实现 executeShowStatus 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:executeShowEngines",
+      "type": "function",
+      "name": "executeShowEngines",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        652,
+        672
+      ],
+      "summary": "实现 executeShowEngines 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:executeShowCharset",
+      "type": "function",
+      "name": "executeShowCharset",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        675,
+        693
+      ],
+      "summary": "实现 executeShowCharset 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:executeShowCollation",
+      "type": "function",
+      "name": "executeShowCollation",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        696,
+        715
+      ],
+      "summary": "实现 executeShowCollation 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:executeSetStatement",
+      "type": "function",
+      "name": "executeSetStatement",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        718,
+        760
+      ],
+      "summary": "实现 executeSetStatement 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:processSetExpression",
+      "type": "function",
+      "name": "processSetExpression",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        763,
+        789
+      ],
+      "summary": "实现 processSetExpression 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:parseSetVariableName",
+      "type": "function",
+      "name": "parseSetVariableName",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        792,
+        815
+      ],
+      "summary": "实现 parseSetVariableName 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:evaluateSetValue",
+      "type": "function",
+      "name": "evaluateSetValue",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        818,
+        855
+      ],
+      "summary": "实现 evaluateSetValue 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:buildSystemVariableExecutor",
+      "type": "function",
+      "name": "buildSystemVariableExecutor",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        858,
+        870
+      ],
+      "summary": "实现 buildSystemVariableExecutor 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:buildProjectionOperator",
+      "type": "function",
+      "name": "buildProjectionOperator",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        873,
+        882
+      ],
+      "summary": "实现 buildProjectionOperator 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:executeWithVolcanoModel",
+      "type": "function",
+      "name": "executeWithVolcanoModel",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        885,
+        955
+      ],
+      "summary": "实现 executeWithVolcanoModel 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:convertValueToInterface",
+      "type": "function",
+      "name": "convertValueToInterface",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        958,
+        973
+      ],
+      "summary": "实现 convertValueToInterface 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:GetName",
+      "type": "function",
+      "name": "GetName",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        982,
+        984
+      ],
+      "summary": "读取或查找 GetName 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:GetCharset",
+      "type": "function",
+      "name": "GetCharset",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        987,
+        989
+      ],
+      "summary": "读取或查找 GetCharset 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:GetCollation",
+      "type": "function",
+      "name": "GetCollation",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        992,
+        994
+      ],
+      "summary": "读取或查找 GetCollation 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:GetTables",
+      "type": "function",
+      "name": "GetTables",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        997,
+        999
+      ],
+      "summary": "读取或查找 GetTables 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:NewSystemVariableSchema",
+      "type": "function",
+      "name": "NewSystemVariableSchema",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        1002,
+        1023
+      ],
+      "summary": "构造并初始化 NewSystemVariableSchema 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:NewSystemVariableScanOperator",
+      "type": "function",
+      "name": "NewSystemVariableScanOperator",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        1037,
+        1055
+      ],
+      "summary": "构造并初始化 NewSystemVariableScanOperator 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:SystemVariableScanOperator.Open",
+      "type": "function",
+      "name": "SystemVariableScanOperator.Open",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        1058,
+        1062
+      ],
+      "summary": "启动或初始化 Open 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:SystemVariableScanOperator.Next",
+      "type": "function",
+      "name": "SystemVariableScanOperator.Next",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        1065,
+        1087
+      ],
+      "summary": "实现 Next 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:SystemVariableScanOperator.Close",
+      "type": "function",
+      "name": "SystemVariableScanOperator.Close",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        1090,
+        1093
+      ],
+      "summary": "结束或提交 Close 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:SystemVariableScanOperator.Schema",
+      "type": "function",
+      "name": "SystemVariableScanOperator.Schema",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        1096,
+        1098
+      ],
+      "summary": "实现 Schema 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:NewSystemVariableProjectionOperator",
+      "type": "function",
+      "name": "NewSystemVariableProjectionOperator",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        1110,
+        1127
+      ],
+      "summary": "构造并初始化 NewSystemVariableProjectionOperator 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:SystemVariableProjectionOperator.Open",
+      "type": "function",
+      "name": "SystemVariableProjectionOperator.Open",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        1130,
+        1136
+      ],
+      "summary": "启动或初始化 Open 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:SystemVariableProjectionOperator.Next",
+      "type": "function",
+      "name": "SystemVariableProjectionOperator.Next",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        1139,
+        1144
+      ],
+      "summary": "实现 Next 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:SystemVariableProjectionOperator.Close",
+      "type": "function",
+      "name": "SystemVariableProjectionOperator.Close",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        1147,
+        1153
+      ],
+      "summary": "结束或提交 Close 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:SystemVariableProjectionOperator.Schema",
+      "type": "function",
+      "name": "SystemVariableProjectionOperator.Schema",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        1156,
+        1158
+      ],
+      "summary": "实现 Schema 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:convertInterfaceToValue",
+      "type": "function",
+      "name": "convertInterfaceToValue",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        1161,
+        1183
+      ],
+      "summary": "实现 convertInterfaceToValue 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:getSessionID",
+      "type": "function",
+      "name": "getSessionID",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        1186,
+        1250
+      ],
+      "summary": "实现 getSessionID 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:CreateSessionVariables",
+      "type": "function",
+      "name": "CreateSessionVariables",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        1253,
+        1258
+      ],
+      "summary": "创建或分配 CreateSessionVariables 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:DestroySessionVariables",
+      "type": "function",
+      "name": "DestroySessionVariables",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        1261,
+        1266
+      ],
+      "summary": "实现 DestroySessionVariables 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:SetSystemVariable",
+      "type": "function",
+      "name": "SetSystemVariable",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        1269,
+        1275
+      ],
+      "summary": "更新或持久化 SetSystemVariable 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/system_variable_engine.go:GetSystemVariable",
+      "type": "function",
+      "name": "GetSystemVariable",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        1278,
+        1284
+      ],
+      "summary": "读取或查找 GetSystemVariable 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/dispatcher/system_variable_engine.go:SystemVariableEngine",
+      "type": "class",
+      "name": "SystemVariableEngine",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        20,
+        25
+      ],
+      "summary": "SystemVariableEngine 定义SQL 请求分发与系统变量处理所需的数据结构，并通过 Name、CanHandle、canHandleWithSQLParser、canHandleSelectStatement 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "dispatcher",
+        "behavior"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:server/dispatcher/system_variable_engine.go:SystemFunctionInfo",
+      "type": "class",
+      "name": "SystemFunctionInfo",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        460,
+        464
+      ],
+      "summary": "SystemFunctionInfo 定义SQL 请求分发与系统变量处理所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "dispatcher",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/dispatcher/system_variable_engine.go:SystemVariableSchema",
+      "type": "class",
+      "name": "SystemVariableSchema",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        976,
+        979
+      ],
+      "summary": "SystemVariableSchema 定义SQL 请求分发与系统变量处理所需的数据结构，并通过 GetName、GetCharset、GetCollation、GetTables 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "dispatcher",
+        "behavior"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/dispatcher/system_variable_engine.go:SystemVariableScanOperator",
+      "type": "class",
+      "name": "SystemVariableScanOperator",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        1026,
+        1034
+      ],
+      "summary": "SystemVariableScanOperator 定义SQL 请求分发与系统变量处理所需的数据结构，并通过 Open、Next、Close、Schema 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "dispatcher",
+        "behavior"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/dispatcher/system_variable_engine.go:SystemVariableProjectionOperator",
+      "type": "class",
+      "name": "SystemVariableProjectionOperator",
+      "filePath": "server/dispatcher/system_variable_engine.go",
+      "lineRange": [
+        1101,
+        1107
+      ],
+      "summary": "SystemVariableProjectionOperator 定义SQL 请求分发与系统变量处理所需的数据结构，并通过 Open、Next、Close、Schema 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "dispatcher",
+        "behavior"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:NewSystemVariableEngine",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:NewSystemVariableEngine",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:Name",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:Name",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:CanHandle",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:CanHandle",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:canHandleWithSQLParser",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:canHandleSelectStatement",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:canHandleShowStatement",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:canHandleSetStatement",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:containsSystemVariableExpression",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:exprContainsSystemVariable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:isSystemTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:isSystemVariableSetExpression",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:ExecuteQuery",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:ExecuteQuery",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:syncSessionVariables",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:executeSystemFunctionQuery",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:parseSystemFunction",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:evaluateSystemFunction",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:executeShowStatement",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:executeShowVariables",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:executeShowStatus",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:executeShowEngines",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:executeShowCharset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:executeShowCollation",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:executeSetStatement",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:processSetExpression",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:parseSetVariableName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:evaluateSetValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:buildSystemVariableExecutor",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:buildProjectionOperator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:executeWithVolcanoModel",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:convertValueToInterface",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:GetName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:GetName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:GetCharset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:GetCharset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:GetCollation",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:GetCollation",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:GetTables",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:GetTables",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:NewSystemVariableSchema",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:NewSystemVariableSchema",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:NewSystemVariableScanOperator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:NewSystemVariableScanOperator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:SystemVariableScanOperator.Open",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:SystemVariableScanOperator.Open",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:SystemVariableScanOperator.Next",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:SystemVariableScanOperator.Next",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:SystemVariableScanOperator.Close",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:SystemVariableScanOperator.Close",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:SystemVariableScanOperator.Schema",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:SystemVariableScanOperator.Schema",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:NewSystemVariableProjectionOperator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:NewSystemVariableProjectionOperator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:SystemVariableProjectionOperator.Open",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:SystemVariableProjectionOperator.Open",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:SystemVariableProjectionOperator.Next",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:SystemVariableProjectionOperator.Next",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:SystemVariableProjectionOperator.Close",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:SystemVariableProjectionOperator.Close",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:SystemVariableProjectionOperator.Schema",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:SystemVariableProjectionOperator.Schema",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:convertInterfaceToValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:getSessionID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:CreateSessionVariables",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:CreateSessionVariables",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:DestroySessionVariables",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:DestroySessionVariables",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:SetSystemVariable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:SetSystemVariable",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:GetSystemVariable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "function:server/dispatcher/system_variable_engine.go:GetSystemVariable",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "class:server/dispatcher/system_variable_engine.go:SystemVariableEngine",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "class:server/dispatcher/system_variable_engine.go:SystemVariableEngine",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "class:server/dispatcher/system_variable_engine.go:SystemFunctionInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "class:server/dispatcher/system_variable_engine.go:SystemFunctionInfo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "class:server/dispatcher/system_variable_engine.go:SystemVariableSchema",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "class:server/dispatcher/system_variable_engine.go:SystemVariableSchema",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "class:server/dispatcher/system_variable_engine.go:SystemVariableScanOperator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "class:server/dispatcher/system_variable_engine.go:SystemVariableScanOperator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "class:server/dispatcher/system_variable_engine.go:SystemVariableProjectionOperator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "class:server/dispatcher/system_variable_engine.go:SystemVariableProjectionOperator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:logger/logger.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/adaptive_flush_strategy.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/apply_operator_conditions_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/checkpoint_optimization_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/cte_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/dirty_page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/dml_executor_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/dml_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/dml_index_sync_integration_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/dml_operators_duplicate_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/dml_operators.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/enginx_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/enginx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/execution_context.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/execution_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/executor_dbddl_and_column_type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/executor_logical_plan_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/executor_record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/executor_set_routing_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/executor_show_plan_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/executor_show_routing_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/executor_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/expression_eval_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/hash_operators_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/index_lookup_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/index_reading_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/index_transaction_adapter_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/index_transaction_adapter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/outer_join_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/persistence_demo.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/recovery_adapters.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/result.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/schema_fix_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/select_executor_projection_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/select_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/show_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/show_filter_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/show_filter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/show_parsing_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/show_parsing.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/show_where_filter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/simple_executor_record_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/slow_query_logger_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/slow_query_logger.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/stats_observer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/storage_adapter_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/storage_adapter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/storage_integrated_checkpoint.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/storage_integrated_dml_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/storage_integrated_dml_helper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/storage_integrated_dml_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/storage_integrated_example.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/storage_integrated_index_helper_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/storage_integrated_index_helper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/storage_integrated_persistence_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/storage_integrated_persistence.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/storage_integrated_wal.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/subquery_executor_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/task_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/transaction_integration_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/unified_executor_build_tree_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/unified_executor_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/unified_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/volcano_builder_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/volcano_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/volcano_refactor_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/engine/window_function_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/btree_cache_limit_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/btree_find_siblings_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/btree_improvements_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/btree_interface.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/btree_iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/btree_merge_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/btree_merge.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/btree_split_benchmark_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/btree_split_optimized.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/btree_split_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/btree_split.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/btree_undo_log_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/buffer_pool_adapter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/buffer_pool_flush_simple_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/buffer_pool_flush_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/buffer_pool_manager_optimized.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/buffer_pool_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/buffer_pool_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/checkpoint_monitor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/compression_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/crash_recovery_enhanced_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/crash_recovery_extended_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/crash_recovery_fault_injection_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/crash_recovery_integration_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/crash_recovery_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/crash_recovery.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/dictionary_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/encryption_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/enhanced_btree_index_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/enhanced_btree_index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/enhanced_btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/extent_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/extent_reuse_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/fuzzy_checkpoint_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/fuzzy_checkpoint.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/gap_lock_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/gap_lock.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/group_commit.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/history_list.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/ibuf_manager_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/ibuf_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/index_helper_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/index_iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/index_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/index_metadata.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/index_sync_fix_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/info_schema_generators.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/info_schema_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/lock_compatibility.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/lock_manager_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/lock_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/lock_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/log_archiver.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/log_components_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/log_recovery_example_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/log_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/long_transaction_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/lsn_manager_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/lsn_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/mtr.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/mvcc_integration_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/mvcc_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/mvcc_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/mysql_user_data.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/optimizer_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/p0_concurrency_consistency_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/page_allocator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/page_cache.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/page_fix_simplified.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/page_initialization_fix.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/page_tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/record_row_adapter_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/redo_fix_verification_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/redo_log_batch_writer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/redo_log_compression.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/redo_log_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/redo_log_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/redo_recovery_fix_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/savepoint_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/schema_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/schema_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/segment_space_optimizer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/space_expansion_concurrent_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/space_expansion_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/space_stats_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/storage_manager_init_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/storage_manager_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/storage_optimization_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/system_page_initializer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/system_space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/system_variable_analyzer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/system_variable_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/system_variables_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/table_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/table_storage_mapping.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/tablespace_defragmenter_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/tablespace_defragmenter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/test_fix.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/transaction_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/undo_log_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/undo_log_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/undo_purge.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/undo_rollback_comprehensive_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/undo_rollback_fix_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/undo_segment_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/undo_segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/manager/undo_version_chain_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/metadata/builder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/metadata/column_def.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/metadata/column.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/metadata/convert.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/metadata/database.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/metadata/information_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/metadata/migrate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/metadata/query_schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/metadata/schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/metadata/table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/metadata/tuple.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/metadata/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/metadata/utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/analyzer_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/analyzer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/ast_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/ast.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/comments_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/comments.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/encodable_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/encodable.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/expression.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/github_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/impossible_query.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/normalizer_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/normalizer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/parse_next_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/parse_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/parsed_query_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/parsed_query.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/precedence_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/redact_query_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/redact_query.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/sql.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/token_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/token.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/innodb/sqlparser/tracked_buffer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/session_context.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/system_variable_engine.go",
+      "target": "file:server/session.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

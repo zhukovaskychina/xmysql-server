@@ -3,13 +3,17 @@
 基线：`docs/planning/MODIFICATION_CHECKLIST_20260610.md` + 当前仓库扫描结果  
 范围：`server/**/*.go`、`scripts/*.sh`、相关 docs 与 reports 输出文件
 
+> 2026-07-13 更新：本文为历史剩余清单。DML、SHOW、StorageIntegratedDML、BufferPool pinned-page 驱逐、EnhancedBTree 最小 rebuild/drop 已完成 P0 core 闭环。当前 core 状态见 `docs/planning/P0_CORE_STATUS_20260713.md`。
+
 ## 先看结论
 
 当前仍有三类阻塞优先级最高问题：
 
-1. P0 失败可见性仍有大量非结构化错误路径（P0-03）；
+1. P0 失败可见性仍有残余非结构化错误路径（P0-03）；
 2. 崩溃恢复和灰度演练仍未形成稳定闭环（P0-06、P0-07）；
 3. 可观测性未形成最小可交付闭环（P0-08、P0-09）。
+
+2026-07-13 已关闭的历史 core 子项：DML 写接口、SHOW 真实元数据入口、StorageIntegratedDML 页内写/改/删、checkpoint 写阻塞、BufferPool pinned-page 驱逐、EnhancedBTree 最小 rebuild/drop、P0 core 验证脚本。
 
 另外，P1 的子查询、窗口、优化器、页与索引能力目前仍是“功能可见但不完整”状态，需要在 P0 全绿后推进。
 
@@ -22,9 +26,9 @@
   - 风险：上层判断逻辑会把真实错误当成功路径或返回不一致 code。
   - 关注点：`schema is nil`、`execute ... failed`、`return nil` 这类边界返回。
 
-- [ ] 继续清理 `server/innodb/engine/dml_operators.go`
-  - 关键点：`findDuplicateRecord not fully implemented` 与若干 nil 返回的 DML 关键函数补齐真实行为，统一失败码。
-  - 风险：唯一索引冲突、索引更新失败、事务回滚失败可见性不足。
+- [x] 继续清理 `server/innodb/engine/dml_operators.go`（2026-07-13 core 已关闭）
+  - 关键点：已通过 `StorageAdapter` 接入 insert / duplicate check / update / delete 写路径。
+  - 后续关注：错误码全链路统一仍归入 P0-03 残余。
 
 - [ ] 继续清理 `server/innodb/engine/storage_integrated_dml_executor.go`
   - 关键点：INSERT/UPDATE/DELETE 的 `fmt.Errorf` 全链路改成结构化错误（含 module/stage/sql/schema/table/txn/error_code）。
@@ -34,9 +38,9 @@
   - 关键点：元数据、读写、解析失败继续使用统一错误封装；补充 cause 链。
   - 风险：storage 层问题会被上层吃掉导致行为不透明。
 
-- [ ] 继续清理 `server/innodb/engine/storage_integrated_dml_helper.go`
-  - 关键点：序列化/反序列化、扫描与查找空条件返回行为补齐边界处理与错误码。
-  - 风险：空条件或错列数场景下行为不可控。
+- [x] 继续清理 `server/innodb/engine/storage_integrated_dml_helper.go`（2026-07-13 core 已关闭）
+  - 关键点：已补页内行集合 append / replace / delete slot，避免整页清空式删除。
+  - 后续关注：空条件策略和错误码仍需在上层继续明确。
 
 - [ ] 继续清理 `server/innodb/engine/storage_integrated_index_helper.go`
   - 关键点：`validateIndexKey`、重建、优化、索引一致性 TODO 补完整最低可用行为。
@@ -46,9 +50,9 @@
   - 关键点：补齐错误码路径；`lockManager` 不可用时不应静默跳过；补齐单资源释放能力。
   - 风险：并发路径会出现锁状态不一致。
 
-- [ ] 继续补齐 `server/innodb/engine/unified_executor.go` 与 `server/innodb/engine/show_executor.go`
-  - `show_executor.go` 当前 SHOW 相关返回空结果/文本提示，需接真实元数据并标准化错误返回。
-  - 风险：元数据查询不真实，影响运维命令可用性。
+- [ ] 继续补齐 `server/innodb/engine/unified_executor.go` 与 SHOW 相关错误码
+  - `show_executor.go` / `executor.go` 已在 2026-07-13 接入真实元数据主路径。
+  - 后续关注：SHOW 失败分支的结构化错误统一，以及 `unified_executor.go` 其余路径。
 
 验收：
 - `/Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/engine -run 'Test.*(Error|Rollback|Duplicate|Storage|Transaction|Index|DDL|DML|Show)' -count=1`
@@ -110,13 +114,13 @@
 ## 当前工程风险热点（不一定全部修改，供排期参考）
 
 - `server/innodb/engine`：`fmt.Errorf` 和 `return nil` 混杂在关键 DML/执行链路，已是高优先修复区。
-- `server/innodb/engine/show_executor.go`：SHOW 路径当前是简化实现。
+- `server/innodb/engine/show_executor.go`：SHOW 主路径已接真实元数据；后续关注错误码统一和 fallback 行为。
 - `server/innodb/engine/index_transaction_adapter.go`：锁管理在 `lockManager` 缺失时可能静默跳过。
 - `scripts` 多数 p0 演练脚本已存在，但证据输出尚未标准化到统一 schema。
 
 ## 执行顺序建议（今天可执行）
 
-1. 先把 P0-03、P0-06、P0-07 完成到可复验状态；
+1. 先把 P0-03 残余、P0-06、P0-07 完成到可复验状态；
 2. 同时补 P0-08、P0-09；
 3. P0 全绿后再排 P1；
 4. 每完成一条，补 `go test` 失败/成功证据和脚本报告。

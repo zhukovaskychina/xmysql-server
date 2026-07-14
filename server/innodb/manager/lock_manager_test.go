@@ -115,6 +115,79 @@ func TestLockManager_ConcurrentAccess(t *testing.T) {
 	wg.Wait()
 }
 
+func TestLockManager_ReleaseSingleLock(t *testing.T) {
+	lm := NewLockManager()
+	defer lm.Close()
+
+	err := lm.AcquireLock(1, 1, 1, 1, LOCK_X)
+	if err != nil {
+		t.Fatalf("Failed to acquire first lock: %v", err)
+	}
+
+	err = lm.AcquireLock(2, 1, 1, 1, LOCK_S)
+	if !errors.Is(err, ErrLockConflict) {
+		t.Fatalf("Expected conflict while releasing lock not processed: %v", err)
+	}
+
+	if err := lm.ReleaseLock(1, makeResourceID(1, 1, 1)); err != nil {
+		t.Fatalf("Failed to release single lock: %v", err)
+	}
+
+	err = lm.AcquireLock(2, 1, 1, 1, LOCK_S)
+	if err != nil {
+		t.Fatalf("Expected to acquire lock after single release, got %v", err)
+	}
+
+	if err := lm.ReleaseLock(2, makeResourceID(1, 1, 1)); err != nil {
+		t.Fatalf("Failed to release single lock for tx2: %v", err)
+	}
+}
+
+func TestLockManager_ReleaseSingleLockNotFound(t *testing.T) {
+	lm := NewLockManager()
+	defer lm.Close()
+
+	if err := lm.ReleaseLock(1, makeResourceID(1, 1, 1)); !errors.Is(err, ErrLockNotFound) {
+		t.Fatalf("Expected ErrLockNotFound for missing lock, got %v", err)
+	}
+}
+
+func TestLockManager_AbortTransactionCallback(t *testing.T) {
+	lm := NewLockManager()
+	defer lm.Close()
+
+	callbackCalled := false
+	var callbackTxID uint64
+	lm.SetAbortTransactionHandler(func(txID uint64) {
+		callbackCalled = true
+		callbackTxID = txID
+	})
+
+	err := lm.AcquireLock(1, 1, 1, 1, LOCK_X)
+	if err != nil {
+		t.Fatalf("Failed to acquire lock: %v", err)
+	}
+	err = lm.AcquireLock(2, 1, 1, 1, LOCK_S)
+	if !errors.Is(err, ErrLockConflict) {
+		t.Fatalf("Expected lock conflict, got %v", err)
+	}
+
+	// 直接触发回滚清理，避免依赖异步死锁检测时序
+	lm.abortTransaction(1)
+
+	if !callbackCalled {
+		t.Fatalf("Expected abort callback to be called")
+	}
+	if callbackTxID != 1 {
+		t.Fatalf("Expected callback with txID=1, got %d", callbackTxID)
+	}
+
+	// 回滚后锁应已释放，其他事务可再次获取
+	if err = lm.AcquireLock(2, 1, 1, 1, LOCK_S); err != nil {
+		t.Fatalf("Expected lock acquisition after abort, got %v", err)
+	}
+}
+
 func TestLockManager_LockRelease(t *testing.T) {
 	lm := NewLockManager()
 	defer lm.Close()

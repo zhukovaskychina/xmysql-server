@@ -219,6 +219,18 @@ func (bp *BufferPool) getFreePage() *BufferPage {
 
 // evictPage evicts a page from LRU cache
 func (bp *BufferPool) evictPage() *BufferPage {
+	victim := bp.EvictPage()
+	if victim == nil {
+		return nil
+	}
+
+	// Reset page state before returning it to the free-page path.
+	victim.Reset()
+	return victim
+}
+
+// EvictPage removes one page from the LRU cache and flushes it first when dirty.
+func (bp *BufferPool) EvictPage() *BufferPage {
 	// Get victim from LRU cache
 	victim := bp.lruCache.Evict()
 	if victim == nil {
@@ -231,11 +243,10 @@ func (bp *BufferPool) evictPage() *BufferPage {
 		if err := bp.writeToDisk(victim); err != nil {
 			// Log error but continue, as we need to evict the page
 			logger.Debugf("failed to write dirty page to disk: %v\n", err)
+		} else {
+			victim.SetDirty(false)
 		}
 	}
-
-	// Reset page state
-	victim.Reset()
 
 	return victim
 }

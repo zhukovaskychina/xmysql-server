@@ -1,0 +1,1720 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "type": "file",
+      "name": "record_version.go",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "summary": "实现MVCC 版本格式的编码、字段访问和系统记录处理，使页面中的物理记录可被执行与事务层使用。",
+      "tags": [
+        "go",
+        "mvcc",
+        "storage-engine"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/record_version.go:NewRecordVersion",
+      "type": "function",
+      "name": "NewRecordVersion",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "lineRange": [
+        40,
+        51
+      ],
+      "summary": "创建并初始化 RecordVersion，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/record_version.go:GetVersion",
+      "type": "function",
+      "name": "GetVersion",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "lineRange": [
+        54,
+        56
+      ],
+      "summary": "读取 MVCC 版本格式 中的 Version 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/record_version.go:GetTxID",
+      "type": "function",
+      "name": "GetTxID",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "lineRange": [
+        59,
+        61
+      ],
+      "summary": "读取 MVCC 版本格式 中的 TxID 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/record_version.go:GetRollPtr",
+      "type": "function",
+      "name": "GetRollPtr",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "lineRange": [
+        64,
+        66
+      ],
+      "summary": "读取 MVCC 版本格式 中的 RollPtr 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/record_version.go:GetCreateTime",
+      "type": "function",
+      "name": "GetCreateTime",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "lineRange": [
+        69,
+        71
+      ],
+      "summary": "读取 MVCC 版本格式 中的 CreateTime 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/record_version.go:GetKey",
+      "type": "function",
+      "name": "GetKey",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "lineRange": [
+        74,
+        76
+      ],
+      "summary": "读取 MVCC 版本格式 中的 Key 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/record_version.go:GetValue",
+      "type": "function",
+      "name": "GetValue",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "lineRange": [
+        79,
+        81
+      ],
+      "summary": "读取 MVCC 版本格式 中的 Value 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/record_version.go:GetNext",
+      "type": "function",
+      "name": "GetNext",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "lineRange": [
+        84,
+        86
+      ],
+      "summary": "读取 MVCC 版本格式 中的 Next 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/record_version.go:SetNext",
+      "type": "function",
+      "name": "SetNext",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "lineRange": [
+        89,
+        91
+      ],
+      "summary": "更新 MVCC 版本格式 中的 Next。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/record_version.go:IsDeleted",
+      "type": "function",
+      "name": "IsDeleted",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "lineRange": [
+        94,
+        96
+      ],
+      "summary": "实现 MVCC 版本格式 中的 IsDeleted 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/record_version.go:MarkDeleted",
+      "type": "function",
+      "name": "MarkDeleted",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "lineRange": [
+        99,
+        101
+      ],
+      "summary": "实现 MVCC 版本格式 中的 MarkDeleted 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/record_version.go:IsVisible",
+      "type": "function",
+      "name": "IsVisible",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "lineRange": [
+        104,
+        112
+      ],
+      "summary": "实现 MVCC 版本格式 中的 IsVisible 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/record_version.go:IsVisibleToTx",
+      "type": "function",
+      "name": "IsVisibleToTx",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "lineRange": [
+        116,
+        133
+      ],
+      "summary": "实现 MVCC 版本格式 中的 IsVisibleToTx 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/record_version.go:Clone",
+      "type": "function",
+      "name": "Clone",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "lineRange": [
+        136,
+        147
+      ],
+      "summary": "实现 MVCC 版本格式 中的 Clone 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/record_version.go:GetVersionChainLength",
+      "type": "function",
+      "name": "GetVersionChainLength",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "lineRange": [
+        150,
+        158
+      ],
+      "summary": "读取 MVCC 版本格式 中的 VersionChainLength 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/record_version.go:FindVersionByTxID",
+      "type": "function",
+      "name": "FindVersionByTxID",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "lineRange": [
+        161,
+        170
+      ],
+      "summary": "实现 MVCC 版本格式 中的 FindVersionByTxID 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/record_version.go:GetLatestVisibleVersion",
+      "type": "function",
+      "name": "GetLatestVisibleVersion",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "lineRange": [
+        173,
+        182
+      ],
+      "summary": "读取 MVCC 版本格式 中的 LatestVisibleVersion 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/record_version.go:GetAllVersions",
+      "type": "function",
+      "name": "GetAllVersions",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "lineRange": [
+        185,
+        193
+      ],
+      "summary": "读取 MVCC 版本格式 中的 AllVersions 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/record_version.go:String",
+      "type": "function",
+      "name": "String",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "lineRange": [
+        196,
+        199
+      ],
+      "summary": "实现 MVCC 版本格式 中的 String 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/format/mvcc/record_version.go:RecordVersion",
+      "type": "class",
+      "name": "RecordVersion",
+      "filePath": "server/innodb/storage/format/mvcc/record_version.go",
+      "lineRange": [
+        13,
+        37
+      ],
+      "summary": "定义 MVCC 版本格式 使用的 RecordVersion 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "type": "file",
+      "name": "version_chain.go",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "summary": "实现MVCC 版本格式的可见性判断、版本链和隔离语义，为一致性读与事务版本选择提供基础能力。",
+      "tags": [
+        "go",
+        "mvcc",
+        "storage-engine"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/version_chain.go:NewVersionChain",
+      "type": "function",
+      "name": "NewVersionChain",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "lineRange": [
+        21,
+        26
+      ],
+      "summary": "创建并初始化 VersionChain，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/version_chain.go:InsertVersion",
+      "type": "function",
+      "name": "InsertVersion",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "lineRange": [
+        29,
+        39
+      ],
+      "summary": "实现 MVCC 版本格式 中的 InsertVersion 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "data-access",
+        "storage",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/version_chain.go:FindVisibleVersion",
+      "type": "function",
+      "name": "FindVisibleVersion",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "lineRange": [
+        42,
+        56
+      ],
+      "summary": "实现 MVCC 版本格式 中的 FindVisibleVersion 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/version_chain.go:GetLatestVersion",
+      "type": "function",
+      "name": "GetLatestVersion",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "lineRange": [
+        59,
+        64
+      ],
+      "summary": "读取 MVCC 版本格式 中的 LatestVersion 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/version_chain.go:GetVersionByTxID",
+      "type": "function",
+      "name": "GetVersionByTxID",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "lineRange": [
+        67,
+        80
+      ],
+      "summary": "读取 MVCC 版本格式 中的 VersionByTxID 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/version_chain.go:GetLength",
+      "type": "function",
+      "name": "GetLength",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "lineRange": [
+        83,
+        88
+      ],
+      "summary": "读取 MVCC 版本格式 中的 Length 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/version_chain.go:PurgeOldVersions",
+      "type": "function",
+      "name": "PurgeOldVersions",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "lineRange": [
+        92,
+        126
+      ],
+      "summary": "实现 MVCC 版本格式 中的 PurgeOldVersions 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/version_chain.go:GetAllVersions",
+      "type": "function",
+      "name": "GetAllVersions",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "lineRange": [
+        129,
+        142
+      ],
+      "summary": "读取 MVCC 版本格式 中的 AllVersions 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/version_chain.go:String",
+      "type": "function",
+      "name": "String",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "lineRange": [
+        145,
+        150
+      ],
+      "summary": "实现 MVCC 版本格式 中的 String 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/version_chain.go:NewVersionChainManager",
+      "type": "function",
+      "name": "NewVersionChainManager",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "lineRange": [
+        160,
+        165
+      ],
+      "summary": "创建并初始化 VersionChainManager，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/version_chain.go:GetOrCreateChain",
+      "type": "function",
+      "name": "GetOrCreateChain",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "lineRange": [
+        168,
+        179
+      ],
+      "summary": "读取 MVCC 版本格式 中的 OrCreateChain 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/version_chain.go:GetChain",
+      "type": "function",
+      "name": "GetChain",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "lineRange": [
+        182,
+        187
+      ],
+      "summary": "读取 MVCC 版本格式 中的 Chain 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/version_chain.go:DeleteChain",
+      "type": "function",
+      "name": "DeleteChain",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "lineRange": [
+        190,
+        195
+      ],
+      "summary": "实现 MVCC 版本格式 中的 DeleteChain 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "data-access",
+        "storage",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/version_chain.go:PurgeAllChains",
+      "type": "function",
+      "name": "PurgeAllChains",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "lineRange": [
+        198,
+        213
+      ],
+      "summary": "实现 MVCC 版本格式 中的 PurgeAllChains 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/version_chain.go:GetChainCount",
+      "type": "function",
+      "name": "GetChainCount",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "lineRange": [
+        216,
+        221
+      ],
+      "summary": "读取 MVCC 版本格式 中的 ChainCount 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/version_chain.go:GetTotalVersionCount",
+      "type": "function",
+      "name": "GetTotalVersionCount",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "lineRange": [
+        224,
+        234
+      ],
+      "summary": "读取 MVCC 版本格式 中的 TotalVersionCount 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/version_chain.go:StartGC",
+      "type": "function",
+      "name": "StartGC",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "lineRange": [
+        237,
+        252
+      ],
+      "summary": "实现 MVCC 版本格式 中的 StartGC 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/version_chain.go:StopGC",
+      "type": "function",
+      "name": "StopGC",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "lineRange": [
+        255,
+        260
+      ],
+      "summary": "实现 MVCC 版本格式 中的 StopGC 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/format/mvcc/version_chain.go:VersionChain",
+      "type": "class",
+      "name": "VersionChain",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "lineRange": [
+        13,
+        18
+      ],
+      "summary": "定义 MVCC 版本格式 使用的 VersionChain 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/format/mvcc/version_chain.go:VersionChainManager",
+      "type": "class",
+      "name": "VersionChainManager",
+      "filePath": "server/innodb/storage/format/mvcc/version_chain.go",
+      "lineRange": [
+        153,
+        157
+      ],
+      "summary": "集中管理 MVCC 版本格式 中的 VersionChainManager 生命周期、状态与资源协调。",
+      "tags": [
+        "service",
+        "resource-management",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:NewRecordVersion",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:NewRecordVersion",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:GetVersion",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:GetVersion",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:GetTxID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:GetTxID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:GetRollPtr",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:GetRollPtr",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:GetCreateTime",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:GetCreateTime",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:GetKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:GetKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:GetValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:GetValue",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:GetNext",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:GetNext",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:SetNext",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:SetNext",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:IsDeleted",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:IsDeleted",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:MarkDeleted",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:MarkDeleted",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:IsVisible",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:IsVisible",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:IsVisibleToTx",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:IsVisibleToTx",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:Clone",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:Clone",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:GetVersionChainLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:GetVersionChainLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:FindVersionByTxID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:FindVersionByTxID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:GetLatestVisibleVersion",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:GetLatestVisibleVersion",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:GetAllVersions",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:GetAllVersions",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:String",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "function:server/innodb/storage/format/mvcc/record_version.go:String",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "class:server/innodb/storage/format/mvcc/record_version.go:RecordVersion",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "class:server/innodb/storage/format/mvcc/record_version.go:RecordVersion",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:NewVersionChain",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:NewVersionChain",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:InsertVersion",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:InsertVersion",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:FindVisibleVersion",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:FindVisibleVersion",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:GetLatestVersion",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:GetLatestVersion",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:GetVersionByTxID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:GetVersionByTxID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:GetLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:GetLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:PurgeOldVersions",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:PurgeOldVersions",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:GetAllVersions",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:GetAllVersions",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:String",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:String",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:NewVersionChainManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:NewVersionChainManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:GetOrCreateChain",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:GetOrCreateChain",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:GetChain",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:GetChain",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:DeleteChain",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:DeleteChain",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:PurgeAllChains",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:PurgeAllChains",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:GetChainCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:GetChainCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:GetTotalVersionCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:GetTotalVersionCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:StartGC",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:StartGC",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:StopGC",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "function:server/innodb/storage/format/mvcc/version_chain.go:StopGC",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "class:server/innodb/storage/format/mvcc/version_chain.go:VersionChain",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "class:server/innodb/storage/format/mvcc/version_chain.go:VersionChain",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "class:server/innodb/storage/format/mvcc/version_chain.go:VersionChainManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "class:server/innodb/storage/format/mvcc/version_chain.go:VersionChainManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

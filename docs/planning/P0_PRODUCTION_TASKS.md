@@ -1,5 +1,7 @@
 # XMySQL Server P0 上线任务分解（Tasks）
 
+> 2026-07-13 更新：P0 core 正确性路径已完成一轮最小闭环，当前 core 状态见 `docs/planning/P0_CORE_STATUS_20260713.md`。本文继续作为广义生产上线 P0 拆解，崩溃恢复、灰度、慢查询、指标告警仍需按原任务推进。
+
 ## 1. 使用说明
 
 - 本文档是 [P0_PRODUCTION_DEPLOYMENT_PLAN.md](file:///Users/zhukovasky/GolandProjects/xmysql-server/docs/planning/P0_PRODUCTION_DEPLOYMENT_PLAN.md) 的执行拆解版
@@ -15,6 +17,47 @@
   - Top 12 文件未清零
   - 关键路径仍存在 `TODO`、错误文本判定、旧/新实现并存
   - `go test ./server/innodb/engine` 已通过（含基线脚本可复现）
+
+### 当前状态补充（2026-07-13 P0 core）
+
+- 整体状态：`核心路径已完成一轮最小闭环`
+- 已关闭：
+  - DML operator 到 storage write 接口；
+  - StorageIntegratedDML 页内 append / replace / delete slot；
+  - SHOW DATABASES / TABLES / COLUMNS 真实元数据主路径；
+  - checkpoint 写阻塞语义；
+  - BufferPool pinned-page 驱逐；
+  - EnhancedBTree 最小 rebuild/drop；
+  - P0 core 可重复验证脚本。
+- 验证入口：
+
+```bash
+scripts/verify_p0_core.sh
+```
+
+- 剩余 A1 风险：
+  - `unified_executor.go` 和其余失败路径 `ExecutionError` 统一；
+  - `storage_integrated_index_helper.go` 全量重建、一致性检查。
+
+### 当前状态补充（2026-07-13 P0-03/P0-06/P0-07/P0-08/P0-09）
+
+- P0-03：
+  - `index_transaction_adapter.go` 已补 `lockManager == nil` 结构化错误，不再静默跳过；
+  - `storage_integrated_index_helper.go` 已补复合索引键构建；
+  - 仍需继续做全局 `ExecutionError` 扫描和全量索引一致性实现。
+- P0-06：
+  - 恢复演练脚本已输出 `before.json / after.json / diff.json`；
+  - 审计脚本已强制检查 redo / undo / half_commit 每轮证据；
+  - 已有自测：`bash scripts/p0_b_recovery_audit_selftest.sh`；
+  - 真实验收仍需跑 `CR_PROC_ROUNDS=3 scripts/crash_recovery_process_drill.sh` 并审计。
+- P0-07：
+  - canary 阶段日志已固定 `stage,schema,table,error_code,log_path,duration_ms`；
+  - 已有自测：`bash scripts/p0_e_canary_selftest.sh`；
+  - 真实验收仍需使用有效 `P0E_DSN` 跑 `P0E_MODE=canary scripts/p0_e_backup_snapshot.sh`。
+- P0-08：
+  - 慢查询日志已补齐 `schema / table / error_msg` 字段。
+- P0-09：
+  - 已新增 `OperationalMetrics`，覆盖 QPS、错误率、连接数、活跃事务、P50/P95/P99、redo/undo、锁等待和阈值告警。
 
 ### T-A1-01 去除错误掩盖型 fallback
 
@@ -67,10 +110,11 @@
   - 冲突/非冲突测试均通过
   - DML 回归通过
 - 当前状态：
-  - `部分实现`
+  - `核心路径已实现`
   - 已支持 `errors.Is/errors.As` 与 SQL 错误码判断
   - 已清理索引错误路径中的文本兜底判定（`strings.Contains("duplicate key", ...)`）
-  - 存在遗留场景仍需确认：若 `executor.go`/`unified_executor.go` 的 TODO 与兜底路径未闭环，仍需复核
+  - `dml_operators.go` 已接 `StorageAdapter.FindDuplicateRecord`
+  - 遗留场景：`executor.go` / `unified_executor.go` 的广义错误码统一仍需复核
 
 ## 3. A2：核心高风险文件整改（测试侧）
 
@@ -144,9 +188,10 @@
   - 脚本全场景通过
   - 校验结果一致
 - 当前状态：
-  - `部分实现`
+  - `部分实现，演练证据格式已补齐`
   - 已有 `scripts/crash_recovery_process_drill.sh`
   - 已补 `scripts/crash_recovery_process_drill.sh` 与 `scripts/p0_b_recovery_audit.sh` 的参数化/复放检查能力
+  - 已补每轮每场景 `before.json / after.json / diff.json` 证据输出与审计强校验
   - 已有演练报告：`reports/crash_recovery_process_drill_20260427_160436/summary.log`
   - 验收缺口：仍需演练固定脚本的 2+ 轮稳定结果与审计清单逐项对齐
 
@@ -160,9 +205,10 @@
 - 验证：
   - 评审通过并可复现
 - 当前状态：
-  - `未实现`
+  - `脚本输出已实现，真实多轮证据待生成`
   - 已新增 `docs/planning/P0_B_RECOVERY_EVIDENCE_MANIFEST.md`，包含可复核输出字段
-  - 验收缺口：仍缺多轮一致性归档与可复放的输入参数模板（下一步由 B 脚本输出覆盖）
+  - 已补 `scripts/p0_b_recovery_audit_selftest.sh`
+  - 验收缺口：仍缺 3 轮真实进程演练归档与审计报告
 
 ## 5. C：并发正确性验证
 
@@ -209,9 +255,10 @@
 - 验证：
   - 样例请求可在日志完整追踪
 - 当前状态：
-  - `部分实现`
+  - `部分实现，脚本契约已补齐`
   - 已有普通执行日志与 `slow_query_log` 系统变量定义
-  - 验收缺口：未发现错误字段规范文档、慢查询样例日志、trace 关联输出
+  - 慢查询 JSON 已补 `schema / table / error_msg` 字段
+  - 验收缺口：仍需真实 SQL 样例日志归档与 trace 关联输出
 
 ### T-D-02 接入核心指标与告警
 
@@ -225,9 +272,10 @@
 - 验证：
   - 人工注入故障，告警触发符合预期
 - 当前状态：
-  - `部分实现`
+  - `部分实现，最小指标聚合器已补齐`
   - 已有内部 `GetStats` / `CheckpointMonitor` / 长事务告警通道等基础结构
-  - 验收缺口：未发现 Prometheus/exporter、面板输出、告警规则和演练截图
+  - 已新增 `OperationalMetrics`，覆盖 QPS、错误率、连接数、活跃事务、P50/P95/P99、redo/undo、锁等待和阈值告警
+  - 验收缺口：仍需 exporter/面板接入与真实告警演练截图
 
 ## 7. E：回滚预案与灰度演练
 
@@ -280,7 +328,8 @@
   - `进行中`
   - 已形成一次真实尝试并补齐 `T-E-03` 复盘骨架：`reports/p0_e_backups/p0_e_canary_rehearsal_20260517_063552.md`
   - 已完成阶段 0 验证：`reports/p0_e_backups/p0_e_canary_rehearsal_20260517_065410.md`
-  - 缺口：阶段 1 写入验证在 `INSERT` 阶段失败（`table mysql.t1 not found in storage mapping`），告警触发与回退计时仍待执行
+  - 已补 `P0E_MODE=selftest` 与 `scripts/p0_e_canary_selftest.sh` 验证 read/write/restore 阶段日志契约
+  - 缺口：仍需使用真实 `P0E_DSN` 重跑 canary，归档写入、告警触发与回退计时证据
 
 ## 8. 统一验证命令（建议基线）
 

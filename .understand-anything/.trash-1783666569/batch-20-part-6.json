@@ -1,0 +1,249 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/metadata/migrate.go",
+      "type": "file",
+      "name": "migrate.go",
+      "filePath": "server/innodb/metadata/migrate.go",
+      "summary": "提供元数据与表结构的结构定义与转换逻辑，支撑数据库、表、列和查询结果模式的统一描述。",
+      "tags": [
+        "go",
+        "metadata",
+        "storage-engine"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/metadata/migrate.go:NewMigrator",
+      "type": "function",
+      "name": "NewMigrator",
+      "filePath": "server/innodb/metadata/migrate.go",
+      "lineRange": [
+        21,
+        26
+      ],
+      "summary": "创建并初始化 Migrator，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/migrate.go:MigrateAll",
+      "type": "function",
+      "name": "MigrateAll",
+      "filePath": "server/innodb/metadata/migrate.go",
+      "lineRange": [
+        29,
+        42
+      ],
+      "summary": "实现 元数据与表结构 中的 MigrateAll 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/migrate.go:MigrateSchema",
+      "type": "function",
+      "name": "MigrateSchema",
+      "filePath": "server/innodb/metadata/migrate.go",
+      "lineRange": [
+        45,
+        64
+      ],
+      "summary": "实现 元数据与表结构 中的 MigrateSchema 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/migrate.go:MigrateTable",
+      "type": "function",
+      "name": "MigrateTable",
+      "filePath": "server/innodb/metadata/migrate.go",
+      "lineRange": [
+        67,
+        81
+      ],
+      "summary": "实现 元数据与表结构 中的 MigrateTable 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/metadata/migrate.go:MetadataManager",
+      "type": "class",
+      "name": "MetadataManager",
+      "filePath": "server/innodb/metadata/migrate.go",
+      "lineRange": [
+        9,
+        12
+      ],
+      "summary": "集中管理 元数据与表结构 中的 MetadataManager 生命周期、状态与资源协调。",
+      "tags": [
+        "service",
+        "resource-management",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/metadata/migrate.go:Migrator",
+      "type": "class",
+      "name": "Migrator",
+      "filePath": "server/innodb/metadata/migrate.go",
+      "lineRange": [
+        15,
+        18
+      ],
+      "summary": "定义 元数据与表结构 使用的 Migrator 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "file",
+      "name": "performance_schemas.go",
+      "filePath": "server/innodb/metadata/performance_schemas.go",
+      "summary": "提供元数据与表结构的结构定义与转换逻辑，支撑数据库、表、列和查询结果模式的统一描述。",
+      "tags": [
+        "go",
+        "metadata",
+        "storage-engine"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/metadata/performance_schemas.go:PerformanceSchemas",
+      "type": "class",
+      "name": "PerformanceSchemas",
+      "filePath": "server/innodb/metadata/performance_schemas.go",
+      "lineRange": [
+        3,
+        4
+      ],
+      "summary": "定义 元数据与表结构 使用的 PerformanceSchemas 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "metadata"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/metadata/migrate.go",
+      "target": "function:server/innodb/metadata/migrate.go:NewMigrator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/migrate.go",
+      "target": "function:server/innodb/metadata/migrate.go:NewMigrator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/migrate.go",
+      "target": "function:server/innodb/metadata/migrate.go:MigrateAll",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/migrate.go",
+      "target": "function:server/innodb/metadata/migrate.go:MigrateAll",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/migrate.go",
+      "target": "function:server/innodb/metadata/migrate.go:MigrateSchema",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/migrate.go",
+      "target": "function:server/innodb/metadata/migrate.go:MigrateSchema",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/migrate.go",
+      "target": "function:server/innodb/metadata/migrate.go:MigrateTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/migrate.go",
+      "target": "function:server/innodb/metadata/migrate.go:MigrateTable",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/migrate.go",
+      "target": "class:server/innodb/metadata/migrate.go:MetadataManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/migrate.go",
+      "target": "class:server/innodb/metadata/migrate.go:MetadataManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/migrate.go",
+      "target": "class:server/innodb/metadata/migrate.go:Migrator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/migrate.go",
+      "target": "class:server/innodb/metadata/migrate.go:Migrator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/performance_schemas.go",
+      "target": "class:server/innodb/metadata/performance_schemas.go:PerformanceSchemas",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/performance_schemas.go",
+      "target": "class:server/innodb/metadata/performance_schemas.go:PerformanceSchemas",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+[CLIENT] mode=setup_redo db=drill_recovery_db_20260611_104049_r1 table=drill_txn_20260611_104049_r1 args=
+ping failed: commands out of sync. You can't run this command now
+[CLIENT] mode=snapshot db=drill_recovery_db_20260611_104049_r1 table=drill_txn_20260611_104049_r1 args=
+ping failed: commands out of sync. You can't run this command now
+[CLIENT] mode=snapshot db=drill_recovery_db_20260611_104049_r1 table=drill_txn_20260611_104049_r1 args=
+ping failed: commands out of sync. You can't run this command now
+[CLIENT] mode=verify_redo db=drill_recovery_db_20260611_104049_r1 table=drill_txn_20260611_104049_r1 args=
+ping failed: commands out of sync. You can't run this command now
+[CLIENT] mode=verify_show_tables_where db=drill_recovery_db_20260611_104049_r1 table=drill_txn_20260611_104049_r1 args=
+ping failed: commands out of sync. You can't run this command now
+[CLIENT] mode=snapshot db=drill_recovery_db_20260611_104049_r1 table=drill_txn_20260611_104049_r1 args=
+ping failed: commands out of sync. You can't run this command now
+mode=hold_undo failed: commands out of sync. You can't run this command now
+[CLIENT] mode=snapshot db=drill_recovery_db_20260611_104049_r1 table=drill_txn_20260611_104049_r1 args=
+ping failed: commands out of sync. You can't run this command now
+[CLIENT] mode=verify_undo db=drill_recovery_db_20260611_104049_r1 table=drill_txn_20260611_104049_r1 args=
+ping failed: commands out of sync. You can't run this command now
+[CLIENT] mode=snapshot db=drill_recovery_db_20260611_104049_r1 table=drill_txn_20260611_104049_r1 args=
+ping failed: commands out of sync. You can't run this command now
+mode=race_commit failed: commands out of sync. You can't run this command now
+[CLIENT] mode=snapshot db=drill_recovery_db_20260611_104049_r1 table=drill_txn_20260611_104049_r1 args=
+ping failed: commands out of sync. You can't run this command now
+[CLIENT] mode=verify_half_commit db=drill_recovery_db_20260611_104049_r1 table=drill_txn_20260611_104049_r1 args=
+ping failed: commands out of sync. You can't run this command now

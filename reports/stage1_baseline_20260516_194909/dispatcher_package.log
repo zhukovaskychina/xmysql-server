@@ -1,0 +1,4 @@
+# github.com/zhukovaskychina/xmysql-server/server/innodb/engine
+server/innodb/engine/executor.go:2213:53: undefined: rows
+FAIL	github.com/zhukovaskychina/xmysql-server/server/dispatcher [build failed]
+FAIL

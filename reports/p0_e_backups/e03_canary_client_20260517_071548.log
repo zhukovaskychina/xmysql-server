@@ -1,0 +1,17 @@
+Ping OK
+[OK]   SELECT 1
+  Result: 1
+[FAIL] SELECT @@version
+  Error: Error 1045: Access denied for user 'root'@'localhost' (using password: NO)
+[FAIL] SELECT @@version_comment
+  Error: Error 1045: Access denied for user 'root'@'localhost' (using password: NO)
+[FAIL] SELECT USER()
+  Error: Error 1045: Access denied for user 'root'@'localhost' (using password: NO)
+[FAIL] SELECT CURRENT_USER()
+  Error: Error 1045: Access denied for user 'root'@'localhost' (using password: NO)
+[FAIL] SELECT @@session.auto_increment_increment
+  Error: Error 1045: Access denied for user 'root'@'localhost' (using password: NO)
+[FAIL] SELECT @@session.time_zone
+  Error: Error 1045: Access denied for user 'root'@'localhost' (using password: NO)
+[FAIL] SELECT @@system_time_zone
+  Error: Error 1045: Access denied for user 'root'@'localhost' (using password: NO)

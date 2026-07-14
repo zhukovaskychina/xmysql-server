@@ -1,0 +1,181 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/storage/wrapper/segment/types.go",
+      "type": "file",
+      "name": "types.go",
+      "filePath": "server/innodb/storage/wrapper/segment/types.go",
+      "summary": "定义段包装接口与类型使用的常量、枚举和基础类型，为同包实现提供统一语义。",
+      "tags": [
+        "service",
+        "innodb",
+        "storage",
+        "adapter",
+        "type-definition"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/segment/types.go:SegmentStats",
+      "type": "class",
+      "name": "SegmentStats",
+      "filePath": "server/innodb/storage/wrapper/segment/types.go",
+      "lineRange": [
+        24,
+        33
+      ],
+      "summary": "封装段包装接口与类型中的 SegmentStats 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/segment/types.go:SegmentHeader",
+      "type": "class",
+      "name": "SegmentHeader",
+      "filePath": "server/innodb/storage/wrapper/segment/types.go",
+      "lineRange": [
+        36,
+        48
+      ],
+      "summary": "封装段包装接口与类型中的 SegmentHeader 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/segment/types.go:Segment",
+      "type": "class",
+      "name": "Segment",
+      "filePath": "server/innodb/storage/wrapper/segment/types.go",
+      "lineRange": [
+        51,
+        83
+      ],
+      "summary": "定义段包装接口与类型的 Segment 接口契约，约束实现方必须提供的操作。",
+      "tags": [
+        "interface",
+        "go-type",
+        "service",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/segment/types.go:SegmentManager",
+      "type": "class",
+      "name": "SegmentManager",
+      "filePath": "server/innodb/storage/wrapper/segment/types.go",
+      "lineRange": [
+        86,
+        103
+      ],
+      "summary": "定义段包装接口与类型的 SegmentManager 接口契约，约束实现方必须提供的操作。",
+      "tags": [
+        "interface",
+        "go-type",
+        "service",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/segment/types.go:SegmentManagerStats",
+      "type": "class",
+      "name": "SegmentManagerStats",
+      "filePath": "server/innodb/storage/wrapper/segment/types.go",
+      "lineRange": [
+        106,
+        115
+      ],
+      "summary": "封装段包装接口与类型中的 SegmentManagerStats 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/storage/wrapper/segment/types.go",
+      "target": "class:server/innodb/storage/wrapper/segment/types.go:SegmentStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/segment/types.go",
+      "target": "class:server/innodb/storage/wrapper/segment/types.go:SegmentStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/segment/types.go",
+      "target": "class:server/innodb/storage/wrapper/segment/types.go:SegmentHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/segment/types.go",
+      "target": "class:server/innodb/storage/wrapper/segment/types.go:SegmentHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/segment/types.go",
+      "target": "class:server/innodb/storage/wrapper/segment/types.go:Segment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/segment/types.go",
+      "target": "class:server/innodb/storage/wrapper/segment/types.go:Segment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/segment/types.go",
+      "target": "class:server/innodb/storage/wrapper/segment/types.go:SegmentManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/segment/types.go",
+      "target": "class:server/innodb/storage/wrapper/segment/types.go:SegmentManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/segment/types.go",
+      "target": "class:server/innodb/storage/wrapper/segment/types.go:SegmentManagerStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/segment/types.go",
+      "target": "class:server/innodb/storage/wrapper/segment/types.go:SegmentManagerStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

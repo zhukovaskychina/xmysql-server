@@ -1,0 +1,1059 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/plan/cnf_converter.go",
+      "type": "file",
+      "name": "cnf_converter.go",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "summary": "提供查询计划与优化器相关的数据结构与处理逻辑，核心结构包括 CNFConverter、NotExpression、NewCNFConverter、SetMaxClauses。",
+      "tags": [
+        "go",
+        "query-optimizer",
+        "storage-engine"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:NewCNFConverter",
+      "type": "function",
+      "name": "NewCNFConverter",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        19,
+        24
+      ],
+      "summary": "创建并初始化 CNFConverter，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:SetMaxClauses",
+      "type": "function",
+      "name": "SetMaxClauses",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        27,
+        29
+      ],
+      "summary": "更新 查询计划与优化器 中的 MaxClauses。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:SetMaxDepth",
+      "type": "function",
+      "name": "SetMaxDepth",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        32,
+        34
+      ],
+      "summary": "更新 查询计划与优化器 中的 MaxDepth。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:ConvertToCNF",
+      "type": "function",
+      "name": "ConvertToCNF",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        38,
+        59
+      ],
+      "summary": "转换 查询计划与优化器 中的数据表示，生成调用方需要的目标格式。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:isCNF",
+      "type": "function",
+      "name": "isCNF",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        63,
+        83
+      ],
+      "summary": "实现 查询计划与优化器 中的 isCNF 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:isDisjunctiveClause",
+      "type": "function",
+      "name": "isDisjunctiveClause",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        86,
+        101
+      ],
+      "summary": "实现 查询计划与优化器 中的 isDisjunctiveClause 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:isAtomicPredicate",
+      "type": "function",
+      "name": "isAtomicPredicate",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        104,
+        116
+      ],
+      "summary": "实现 查询计划与优化器 中的 isAtomicPredicate 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:eliminateDoubleNegation",
+      "type": "function",
+      "name": "eliminateDoubleNegation",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        120,
+        137
+      ],
+      "summary": "实现 查询计划与优化器 中的 eliminateDoubleNegation 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:pushDownNegation",
+      "type": "function",
+      "name": "pushDownNegation",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        142,
+        195
+      ],
+      "summary": "实现 查询计划与优化器 中的 pushDownNegation 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:negateOperator",
+      "type": "function",
+      "name": "negateOperator",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        202,
+        227
+      ],
+      "summary": "实现 查询计划与优化器 中的 negateOperator 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:applyDistributiveLaw",
+      "type": "function",
+      "name": "applyDistributiveLaw",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        233,
+        260
+      ],
+      "summary": "实现 查询计划与优化器 中的 applyDistributiveLaw 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:distributeOrOverRightAnd",
+      "type": "function",
+      "name": "distributeOrOverRightAnd",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        272,
+        291
+      ],
+      "summary": "实现 查询计划与优化器 中的 distributeOrOverRightAnd 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:distributeOrOverLeftAnd",
+      "type": "function",
+      "name": "distributeOrOverLeftAnd",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        295,
+        314
+      ],
+      "summary": "实现 查询计划与优化器 中的 distributeOrOverLeftAnd 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:distributeOrOverAnd",
+      "type": "function",
+      "name": "distributeOrOverAnd",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        318,
+        357
+      ],
+      "summary": "实现 查询计划与优化器 中的 distributeOrOverAnd 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:extractAndItems",
+      "type": "function",
+      "name": "extractAndItems",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        360,
+        370
+      ],
+      "summary": "实现 查询计划与优化器 中的 extractAndItems 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:flattenExpression",
+      "type": "function",
+      "name": "flattenExpression",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        374,
+        408
+      ],
+      "summary": "实现 查询计划与优化器 中的 flattenExpression 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:extractOrItems",
+      "type": "function",
+      "name": "extractOrItems",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        411,
+        421
+      ],
+      "summary": "实现 查询计划与优化器 中的 extractOrItems 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:simplifyClause",
+      "type": "function",
+      "name": "simplifyClause",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        425,
+        443
+      ],
+      "summary": "实现 查询计划与优化器 中的 simplifyClause 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:constantFolding",
+      "type": "function",
+      "name": "constantFolding",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        446,
+        582
+      ],
+      "summary": "实现 查询计划与优化器 中的 constantFolding 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:isPureFunction",
+      "type": "function",
+      "name": "isPureFunction",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        585,
+        596
+      ],
+      "summary": "实现 查询计划与优化器 中的 isPureFunction 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:removeDuplicates",
+      "type": "function",
+      "name": "removeDuplicates",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        599,
+        643
+      ],
+      "summary": "实现 查询计划与优化器 中的 removeDuplicates 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:uniqueExpressions",
+      "type": "function",
+      "name": "uniqueExpressions",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        646,
+        659
+      ],
+      "summary": "实现 查询计划与优化器 中的 uniqueExpressions 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:detectContradictions",
+      "type": "function",
+      "name": "detectContradictions",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        662,
+        690
+      ],
+      "summary": "实现 查询计划与优化器 中的 detectContradictions 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:areContradictory",
+      "type": "function",
+      "name": "areContradictory",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        693,
+        737
+      ],
+      "summary": "实现 查询计划与优化器 中的 areContradictory 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:isTautology",
+      "type": "function",
+      "name": "isTautology",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        740,
+        759
+      ],
+      "summary": "实现 查询计划与优化器 中的 isTautology 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:areComplementary",
+      "type": "function",
+      "name": "areComplementary",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        762,
+        801
+      ],
+      "summary": "实现 查询计划与优化器 中的 areComplementary 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:compareConstants",
+      "type": "function",
+      "name": "compareConstants",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        804,
+        830
+      ],
+      "summary": "实现 查询计划与优化器 中的 compareConstants 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:toInt64CNF",
+      "type": "function",
+      "name": "toInt64CNF",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        833,
+        858
+      ],
+      "summary": "实现 查询计划与优化器 中的 toInt64CNF 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:simplifyBooleanConstants",
+      "type": "function",
+      "name": "simplifyBooleanConstants",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        861,
+        913
+      ],
+      "summary": "实现 查询计划与优化器 中的 simplifyBooleanConstants 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:cloneExpression",
+      "type": "function",
+      "name": "cloneExpression",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        916,
+        953
+      ],
+      "summary": "实现 查询计划与优化器 中的 cloneExpression 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:ExtractConjuncts",
+      "type": "function",
+      "name": "ExtractConjuncts",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        957,
+        959
+      ],
+      "summary": "实现 查询计划与优化器 中的 ExtractConjuncts 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:ExtractDisjuncts",
+      "type": "function",
+      "name": "ExtractDisjuncts",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        962,
+        964
+      ],
+      "summary": "实现 查询计划与优化器 中的 ExtractDisjuncts 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:Eval",
+      "type": "function",
+      "name": "Eval",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        972,
+        981
+      ],
+      "summary": "实现 查询计划与优化器 中的 Eval 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_converter.go:String",
+      "type": "function",
+      "name": "String",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        983,
+        985
+      ],
+      "summary": "实现 查询计划与优化器 中的 String 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/cnf_converter.go:CNFConverter",
+      "type": "class",
+      "name": "CNFConverter",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        11,
+        16
+      ],
+      "summary": "定义 查询计划与优化器 使用的 CNFConverter 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/cnf_converter.go:NotExpression",
+      "type": "class",
+      "name": "NotExpression",
+      "filePath": "server/innodb/plan/cnf_converter.go",
+      "lineRange": [
+        967,
+        970
+      ],
+      "summary": "定义 查询计划与优化器 使用的 NotExpression 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/plan/cnf_integration_test.go",
+      "type": "file",
+      "name": "cnf_integration_test.go",
+      "filePath": "server/innodb/plan/cnf_integration_test.go",
+      "summary": "验证查询计划与优化器相关行为与边界条件，重点覆盖 CNFIntegrationWithPredicatePushdown、CNFConverterEdgeCases、CNFConverterMaxClausesLimit。",
+      "tags": [
+        "test",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_integration_test.go:TestCNFIntegrationWithPredicatePushdown",
+      "type": "function",
+      "name": "TestCNFIntegrationWithPredicatePushdown",
+      "filePath": "server/innodb/plan/cnf_integration_test.go",
+      "lineRange": [
+        8,
+        142
+      ],
+      "summary": "验证 CNFIntegrationWithPredicatePushdown 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_integration_test.go:TestCNFConverterEdgeCases",
+      "type": "function",
+      "name": "TestCNFConverterEdgeCases",
+      "filePath": "server/innodb/plan/cnf_integration_test.go",
+      "lineRange": [
+        145,
+        234
+      ],
+      "summary": "验证 CNFConverterEdgeCases 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/cnf_integration_test.go:TestCNFConverterMaxClausesLimit",
+      "type": "function",
+      "name": "TestCNFConverterMaxClausesLimit",
+      "filePath": "server/innodb/plan/cnf_integration_test.go",
+      "lineRange": [
+        237,
+        272
+      ],
+      "summary": "验证 CNFConverterMaxClausesLimit 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:NewCNFConverter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:NewCNFConverter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:SetMaxClauses",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:SetMaxClauses",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:SetMaxDepth",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:SetMaxDepth",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:ConvertToCNF",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:ConvertToCNF",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:isCNF",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:isDisjunctiveClause",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:isAtomicPredicate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:eliminateDoubleNegation",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:pushDownNegation",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:negateOperator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:applyDistributiveLaw",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:distributeOrOverRightAnd",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:distributeOrOverLeftAnd",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:distributeOrOverAnd",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:extractAndItems",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:flattenExpression",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:extractOrItems",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:simplifyClause",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:constantFolding",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:isPureFunction",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:removeDuplicates",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:uniqueExpressions",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:detectContradictions",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:areContradictory",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:isTautology",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:areComplementary",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:compareConstants",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:toInt64CNF",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:simplifyBooleanConstants",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:cloneExpression",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:ExtractConjuncts",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:ExtractConjuncts",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:ExtractDisjuncts",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:ExtractDisjuncts",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:Eval",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:Eval",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:String",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "function:server/innodb/plan/cnf_converter.go:String",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "class:server/innodb/plan/cnf_converter.go:CNFConverter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "class:server/innodb/plan/cnf_converter.go:CNFConverter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "class:server/innodb/plan/cnf_converter.go:NotExpression",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_converter.go",
+      "target": "class:server/innodb/plan/cnf_converter.go:NotExpression",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_integration_test.go",
+      "target": "function:server/innodb/plan/cnf_integration_test.go:TestCNFIntegrationWithPredicatePushdown",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_integration_test.go",
+      "target": "function:server/innodb/plan/cnf_integration_test.go:TestCNFIntegrationWithPredicatePushdown",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_integration_test.go",
+      "target": "function:server/innodb/plan/cnf_integration_test.go:TestCNFConverterEdgeCases",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_integration_test.go",
+      "target": "function:server/innodb/plan/cnf_integration_test.go:TestCNFConverterEdgeCases",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_integration_test.go",
+      "target": "function:server/innodb/plan/cnf_integration_test.go:TestCNFConverterMaxClausesLimit",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/cnf_integration_test.go",
+      "target": "function:server/innodb/plan/cnf_integration_test.go:TestCNFConverterMaxClausesLimit",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

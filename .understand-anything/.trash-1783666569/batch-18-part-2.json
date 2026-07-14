@@ -1,0 +1,2871 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "type": "file",
+      "name": "page_snapshot.go",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "summary": "实现MVCC 页面封装的数据结构和操作接口，封装页面读取、修改、快照或版本访问。",
+      "tags": [
+        "go",
+        "mvcc",
+        "storage-engine"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:String",
+      "type": "function",
+      "name": "String",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        40,
+        53
+      ],
+      "summary": "实现 MVCC 页面封装 中的 String 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:NewPageSnapshot",
+      "type": "function",
+      "name": "NewPageSnapshot",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        56,
+        67
+      ],
+      "summary": "创建并初始化 PageSnapshot，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetPageID",
+      "type": "function",
+      "name": "GetPageID",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        70,
+        72
+      ],
+      "summary": "读取 MVCC 页面封装 中的 PageID 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetSpaceID",
+      "type": "function",
+      "name": "GetSpaceID",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        75,
+        77
+      ],
+      "summary": "读取 MVCC 页面封装 中的 SpaceID 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetVersion",
+      "type": "function",
+      "name": "GetVersion",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        80,
+        82
+      ],
+      "summary": "读取 MVCC 页面封装 中的 Version 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetTxID",
+      "type": "function",
+      "name": "GetTxID",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        85,
+        87
+      ],
+      "summary": "读取 MVCC 页面封装 中的 TxID 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetCreateTime",
+      "type": "function",
+      "name": "GetCreateTime",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        90,
+        92
+      ],
+      "summary": "读取 MVCC 页面封装 中的 CreateTime 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetState",
+      "type": "function",
+      "name": "GetState",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        95,
+        97
+      ],
+      "summary": "读取 MVCC 页面封装 中的 State 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:SetState",
+      "type": "function",
+      "name": "SetState",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        100,
+        102
+      ],
+      "summary": "更新 MVCC 页面封装 中的 State。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:AddRecord",
+      "type": "function",
+      "name": "AddRecord",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        105,
+        112
+      ],
+      "summary": "实现 MVCC 页面封装 中的 AddRecord 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetRecord",
+      "type": "function",
+      "name": "GetRecord",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        115,
+        118
+      ],
+      "summary": "读取 MVCC 页面封装 中的 Record 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetAllRecords",
+      "type": "function",
+      "name": "GetAllRecords",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        121,
+        127
+      ],
+      "summary": "读取 MVCC 页面封装 中的 AllRecords 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetRecordCount",
+      "type": "function",
+      "name": "GetRecordCount",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        130,
+        132
+      ],
+      "summary": "读取 MVCC 页面封装 中的 RecordCount 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetVisibleRecords",
+      "type": "function",
+      "name": "GetVisibleRecords",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        135,
+        146
+      ],
+      "summary": "读取 MVCC 页面封装 中的 VisibleRecords 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:IsExpired",
+      "type": "function",
+      "name": "IsExpired",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        149,
+        151
+      ],
+      "summary": "实现 MVCC 页面封装 中的 IsExpired 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:SetMetadata",
+      "type": "function",
+      "name": "SetMetadata",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        154,
+        159
+      ],
+      "summary": "更新 MVCC 页面封装 中的 Metadata。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetMetadata",
+      "type": "function",
+      "name": "GetMetadata",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        162,
+        168
+      ],
+      "summary": "读取 MVCC 页面封装 中的 Metadata 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:Clone",
+      "type": "function",
+      "name": "Clone",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        171,
+        194
+      ],
+      "summary": "实现 MVCC 页面封装 中的 Clone 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:Validate",
+      "type": "function",
+      "name": "Validate",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        197,
+        211
+      ],
+      "summary": "实现 MVCC 页面封装 中的 Validate 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "validation",
+        "transformation",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetSize",
+      "type": "function",
+      "name": "GetSize",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        214,
+        227
+      ],
+      "summary": "读取 MVCC 页面封装 中的 Size 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetAge",
+      "type": "function",
+      "name": "GetAge",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        230,
+        232
+      ],
+      "summary": "读取 MVCC 页面封装 中的 Age 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:Merge",
+      "type": "function",
+      "name": "Merge",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        235,
+        258
+      ],
+      "summary": "实现 MVCC 页面封装 中的 Merge 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/mvcc/page_snapshot.go:PageSnapshot",
+      "type": "class",
+      "name": "PageSnapshot",
+      "filePath": "server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "lineRange": [
+        11,
+        20
+      ],
+      "summary": "定义 MVCC 页面封装 使用的 PageSnapshot 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/storage/wrapper/page/index.go",
+      "type": "file",
+      "name": "index.go",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "summary": "提供InnoDB 页面封装相关的数据结构与处理逻辑，核心结构包括 IndexPage、Lock、Unlock、RLock。",
+      "tags": [
+        "go",
+        "page-management",
+        "storage-engine"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:Lock",
+      "type": "function",
+      "name": "Lock",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        65,
+        67
+      ],
+      "summary": "实现 InnoDB 页面封装 中的 Lock 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:Unlock",
+      "type": "function",
+      "name": "Unlock",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        70,
+        72
+      ],
+      "summary": "实现 InnoDB 页面封装 中的 Unlock 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:RLock",
+      "type": "function",
+      "name": "RLock",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        75,
+        77
+      ],
+      "summary": "实现 InnoDB 页面封装 中的 RLock 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:RUnlock",
+      "type": "function",
+      "name": "RUnlock",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        80,
+        82
+      ],
+      "summary": "实现 InnoDB 页面封装 中的 RUnlock 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:NewIndexPage",
+      "type": "function",
+      "name": "NewIndexPage",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        85,
+        112
+      ],
+      "summary": "创建并初始化 IndexPage，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:GetFileHeader",
+      "type": "function",
+      "name": "GetFileHeader",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        118,
+        120
+      ],
+      "summary": "读取 InnoDB 页面封装 中的 FileHeader 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:GetFileTrailer",
+      "type": "function",
+      "name": "GetFileTrailer",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        123,
+        125
+      ],
+      "summary": "读取 InnoDB 页面封装 中的 FileTrailer 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:GetIndexID",
+      "type": "function",
+      "name": "GetIndexID",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        128,
+        130
+      ],
+      "summary": "读取 InnoDB 页面封装 中的 IndexID 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:SetIndexID",
+      "type": "function",
+      "name": "SetIndexID",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        133,
+        135
+      ],
+      "summary": "更新 InnoDB 页面封装 中的 IndexID。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:GetKeyCount",
+      "type": "function",
+      "name": "GetKeyCount",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        138,
+        140
+      ],
+      "summary": "读取 InnoDB 页面封装 中的 KeyCount 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:SetKeyCount",
+      "type": "function",
+      "name": "SetKeyCount",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        143,
+        145
+      ],
+      "summary": "更新 InnoDB 页面封装 中的 KeyCount。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:GetPageHeader",
+      "type": "function",
+      "name": "GetPageHeader",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        148,
+        150
+      ],
+      "summary": "读取 InnoDB 页面封装 中的 PageHeader 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:GetIndexPageHeader",
+      "type": "function",
+      "name": "GetIndexPageHeader",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        153,
+        155
+      ],
+      "summary": "读取 InnoDB 页面封装 中的 IndexPageHeader 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:GetSpaceID",
+      "type": "function",
+      "name": "GetSpaceID",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        158,
+        160
+      ],
+      "summary": "读取 InnoDB 页面封装 中的 SpaceID 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:GetPageNo",
+      "type": "function",
+      "name": "GetPageNo",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        163,
+        165
+      ],
+      "summary": "读取 InnoDB 页面封装 中的 PageNo 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:GetPageType",
+      "type": "function",
+      "name": "GetPageType",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        168,
+        170
+      ],
+      "summary": "读取 InnoDB 页面封装 中的 PageType 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:GetPageLSN",
+      "type": "function",
+      "name": "GetPageLSN",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        173,
+        175
+      ],
+      "summary": "读取 InnoDB 页面封装 中的 PageLSN 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:GetLSN",
+      "type": "function",
+      "name": "GetLSN",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        178,
+        180
+      ],
+      "summary": "读取 InnoDB 页面封装 中的 LSN 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:SetLSN",
+      "type": "function",
+      "name": "SetLSN",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        183,
+        185
+      ],
+      "summary": "更新 InnoDB 页面封装 中的 LSN。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:IsDirty",
+      "type": "function",
+      "name": "IsDirty",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        188,
+        190
+      ],
+      "summary": "实现 InnoDB 页面封装 中的 IsDirty 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:MarkDirty",
+      "type": "function",
+      "name": "MarkDirty",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        193,
+        196
+      ],
+      "summary": "实现 InnoDB 页面封装 中的 MarkDirty 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:GetState",
+      "type": "function",
+      "name": "GetState",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        199,
+        201
+      ],
+      "summary": "读取 InnoDB 页面封装 中的 State 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:SetState",
+      "type": "function",
+      "name": "SetState",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        204,
+        206
+      ],
+      "summary": "更新 InnoDB 页面封装 中的 State。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:GetStats",
+      "type": "function",
+      "name": "GetStats",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        209,
+        211
+      ],
+      "summary": "读取 InnoDB 页面封装 中的 Stats 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:Pin",
+      "type": "function",
+      "name": "Pin",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        214,
+        216
+      ],
+      "summary": "实现 InnoDB 页面封装 中的 Pin 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:Unpin",
+      "type": "function",
+      "name": "Unpin",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        219,
+        223
+      ],
+      "summary": "实现 InnoDB 页面封装 中的 Unpin 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:Read",
+      "type": "function",
+      "name": "Read",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        226,
+        250
+      ],
+      "summary": "从底层存储读取 数据，并完成必要的解码或可见性处理。",
+      "tags": [
+        "data-access",
+        "storage",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:Write",
+      "type": "function",
+      "name": "Write",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        253,
+        269
+      ],
+      "summary": "将 数据 写入底层结构，并维护相关状态。",
+      "tags": [
+        "data-access",
+        "storage",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:GetSegLeaf",
+      "type": "function",
+      "name": "GetSegLeaf",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        272,
+        274
+      ],
+      "summary": "读取 InnoDB 页面封装 中的 SegLeaf 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:SetSegLeaf",
+      "type": "function",
+      "name": "SetSegLeaf",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        277,
+        279
+      ],
+      "summary": "更新 InnoDB 页面封装 中的 SegLeaf。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:GetSegInt",
+      "type": "function",
+      "name": "GetSegInt",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        282,
+        284
+      ],
+      "summary": "读取 InnoDB 页面封装 中的 SegInt 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:SetSegInt",
+      "type": "function",
+      "name": "SetSegInt",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        287,
+        289
+      ],
+      "summary": "更新 InnoDB 页面封装 中的 SegInt。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:GetSegTop",
+      "type": "function",
+      "name": "GetSegTop",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        292,
+        294
+      ],
+      "summary": "读取 InnoDB 页面封装 中的 SegTop 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:InsertKey",
+      "type": "function",
+      "name": "InsertKey",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        297,
+        333
+      ],
+      "summary": "实现 InnoDB 页面封装 中的 InsertKey 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "data-access",
+        "storage",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:DeleteKey",
+      "type": "function",
+      "name": "DeleteKey",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        336,
+        354
+      ],
+      "summary": "实现 InnoDB 页面封装 中的 DeleteKey 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "data-access",
+        "storage",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:FindKey",
+      "type": "function",
+      "name": "FindKey",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        357,
+        371
+      ],
+      "summary": "实现 InnoDB 页面封装 中的 FindKey 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:GetKeys",
+      "type": "function",
+      "name": "GetKeys",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        374,
+        383
+      ],
+      "summary": "读取 InnoDB 页面封装 中的 Keys 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:GetEntries",
+      "type": "function",
+      "name": "GetEntries",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        386,
+        395
+      ],
+      "summary": "读取 InnoDB 页面封装 中的 Entries 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:SetParent",
+      "type": "function",
+      "name": "SetParent",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        398,
+        404
+      ],
+      "summary": "更新 InnoDB 页面封装 中的 Parent。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:SetLeftRight",
+      "type": "function",
+      "name": "SetLeftRight",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        407,
+        414
+      ],
+      "summary": "更新 InnoDB 页面封装 中的 LeftRight。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:IsLeaf",
+      "type": "function",
+      "name": "IsLeaf",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        417,
+        419
+      ],
+      "summary": "实现 InnoDB 页面封装 中的 IsLeaf 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:IsRoot",
+      "type": "function",
+      "name": "IsRoot",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        422,
+        424
+      ],
+      "summary": "实现 InnoDB 页面封装 中的 IsRoot 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:SetRoot",
+      "type": "function",
+      "name": "SetRoot",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        427,
+        433
+      ],
+      "summary": "更新 InnoDB 页面封装 中的 Root。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:GetLevel",
+      "type": "function",
+      "name": "GetLevel",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        436,
+        438
+      ],
+      "summary": "读取 InnoDB 页面封装 中的 Level 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/page/index.go:readIndexEntries",
+      "type": "function",
+      "name": "readIndexEntries",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        460,
+        471
+      ],
+      "summary": "实现 InnoDB 页面封装 中的 readIndexEntries 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/page/index.go:IndexPage",
+      "type": "class",
+      "name": "IndexPage",
+      "filePath": "server/innodb/storage/wrapper/page/index.go",
+      "lineRange": [
+        34,
+        62
+      ],
+      "summary": "定义 InnoDB 页面封装 使用的 IndexPage 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "page-management"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:String",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:String",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:NewPageSnapshot",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:NewPageSnapshot",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetPageID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetPageID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetSpaceID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetSpaceID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetVersion",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetVersion",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetTxID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetTxID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetCreateTime",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetCreateTime",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetState",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetState",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:SetState",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:SetState",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:AddRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:AddRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetAllRecords",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetAllRecords",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetRecordCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetRecordCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetVisibleRecords",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetVisibleRecords",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:IsExpired",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:IsExpired",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:SetMetadata",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:SetMetadata",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetMetadata",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetMetadata",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:Clone",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:Clone",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:Validate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:Validate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetSize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetSize",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetAge",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:GetAge",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:Merge",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "function:server/innodb/storage/wrapper/mvcc/page_snapshot.go:Merge",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "class:server/innodb/storage/wrapper/mvcc/page_snapshot.go:PageSnapshot",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "class:server/innodb/storage/wrapper/mvcc/page_snapshot.go:PageSnapshot",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/storage/format/mvcc/read_view_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/storage/format/mvcc/record_version.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/page_snapshot.go",
+      "target": "file:server/innodb/storage/format/mvcc/version_chain.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:Lock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:Lock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:Unlock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:Unlock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:RLock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:RLock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:RUnlock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:RUnlock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:NewIndexPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:NewIndexPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetFileHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetFileHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetFileTrailer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetFileTrailer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetIndexID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetIndexID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:SetIndexID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:SetIndexID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetKeyCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetKeyCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:SetKeyCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:SetKeyCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetPageHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetPageHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetIndexPageHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetIndexPageHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetSpaceID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetSpaceID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetPageNo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetPageNo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetPageType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetPageType",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetPageLSN",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetPageLSN",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetLSN",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetLSN",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:SetLSN",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:SetLSN",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:IsDirty",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:IsDirty",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:MarkDirty",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:MarkDirty",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetState",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetState",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:SetState",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:SetState",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:Pin",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:Pin",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:Unpin",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:Unpin",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:Read",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:Read",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:Write",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:Write",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetSegLeaf",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetSegLeaf",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:SetSegLeaf",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:SetSegLeaf",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetSegInt",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetSegInt",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:SetSegInt",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:SetSegInt",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetSegTop",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetSegTop",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:InsertKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:InsertKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:DeleteKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:DeleteKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:FindKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:FindKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetKeys",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetKeys",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetEntries",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetEntries",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:SetParent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:SetParent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:SetLeftRight",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:SetLeftRight",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:IsLeaf",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:IsLeaf",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:IsRoot",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:IsRoot",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:SetRoot",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:SetRoot",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetLevel",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:GetLevel",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "function:server/innodb/storage/wrapper/page/index.go:readIndexEntries",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "class:server/innodb/storage/wrapper/page/index.go:IndexPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "class:server/innodb/storage/wrapper/page/index.go:IndexPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/common/charset.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/common/const_trx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/common/constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/common/error_name.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/common/error_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/common/error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/common/errorcode.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/common/frm_constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/common/locale_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/common/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/common/privs_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/common/privs.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/common/sql_error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/common/sql_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/common/type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/common/type.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/common/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/storage/wrapper/types/base_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/storage/wrapper/types/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/storage/wrapper/types/index_entry.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/storage/wrapper/types/index_page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/storage/wrapper/types/index_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/storage/wrapper/types/key.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/storage/wrapper/types/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/storage/wrapper/types/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/storage/wrapper/types/record_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/storage/wrapper/types/sys_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/storage/wrapper/types/table_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/storage/wrapper/types/undo_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/storage/wrapper/types/unified_page_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/page/index.go",
+      "target": "file:server/innodb/storage/wrapper/types/unified_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

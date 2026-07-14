@@ -529,8 +529,10 @@ func (e *XMySQLEngine) logSlowQuery(session server.MySQLServerSession, query str
 
 	connID := e.getSessionConnectionID(session)
 	errorCode := ""
+	errorMsg := ""
 	if execErr != nil {
 		errorCode = e.getExecutionErrorCode(execErr)
+		errorMsg = execErr.Error()
 	}
 
 	e.slowQueryLogger.Record(
@@ -540,9 +542,64 @@ func (e *XMySQLEngine) logSlowQuery(session server.MySQLServerSession, query str
 		connID,
 		txnID,
 		errorCode,
+		errorMsg,
 		status,
 		stage,
+		e.getSlowQuerySchema(session),
+		extractSlowQueryTable(query),
 	)
+}
+
+func (e *XMySQLEngine) getSlowQuerySchema(session server.MySQLServerSession) string {
+	if session == nil {
+		return ""
+	}
+	if dbParam := session.GetParamByName("database"); dbParam != nil {
+		if db, ok := dbParam.(string); ok {
+			return strings.TrimSpace(db)
+		}
+	}
+	return ""
+}
+
+func extractSlowQueryTable(query string) string {
+	normalized := strings.NewReplacer("(", " ", ")", " ", ",", " ", ";", " ").Replace(query)
+	fields := strings.Fields(normalized)
+	if len(fields) == 0 {
+		return ""
+	}
+
+	tableAfter := func(keyword string) string {
+		for i := 0; i < len(fields)-1; i++ {
+			if strings.EqualFold(fields[i], keyword) {
+				return cleanSlowQueryTableName(fields[i+1])
+			}
+		}
+		return ""
+	}
+
+	switch strings.ToLower(fields[0]) {
+	case "insert":
+		return tableAfter("into")
+	case "update":
+		if len(fields) > 1 {
+			return cleanSlowQueryTableName(fields[1])
+		}
+	case "delete", "select":
+		return tableAfter("from")
+	case "replace":
+		return tableAfter("into")
+	}
+	return ""
+}
+
+func cleanSlowQueryTableName(raw string) string {
+	raw = strings.Trim(raw, "` ")
+	if raw == "" {
+		return ""
+	}
+	parts := strings.Split(raw, ".")
+	return strings.Trim(parts[len(parts)-1], "` ")
 }
 
 func (e *XMySQLEngine) getSessionConnectionID(session server.MySQLServerSession) uint32 {

@@ -1,0 +1,2113 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/dispatcher/query_dispatcher.go",
+      "type": "file",
+      "name": "query_dispatcher.go",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "summary": "实现SQL 请求分发与系统变量处理，覆盖 SQLDispatcher、SQLEngine、SQLRouter、SQLResult 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "dispatcher",
+        "service",
+        "source-file"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/dispatcher/query_dispatcher.go:NewSQLDispatcher",
+      "type": "function",
+      "name": "NewSQLDispatcher",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        47,
+        60
+      ],
+      "summary": "构造并初始化 NewSQLDispatcher 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/query_dispatcher.go:NewSQLDispatcherWithStorageManager",
+      "type": "function",
+      "name": "NewSQLDispatcherWithStorageManager",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        63,
+        100
+      ],
+      "summary": "构造并初始化 NewSQLDispatcherWithStorageManager 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/query_dispatcher.go:RegisterEngine",
+      "type": "function",
+      "name": "RegisterEngine",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        103,
+        107
+      ],
+      "summary": "实现 RegisterEngine 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/query_dispatcher.go:UnregisterEngine",
+      "type": "function",
+      "name": "UnregisterEngine",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        110,
+        114
+      ],
+      "summary": "实现 UnregisterEngine 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/query_dispatcher.go:SetRouter",
+      "type": "function",
+      "name": "SetRouter",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        117,
+        121
+      ],
+      "summary": "更新或持久化 SetRouter 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/query_dispatcher.go:Dispatch",
+      "type": "function",
+      "name": "Dispatch",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        124,
+        175
+      ],
+      "summary": "执行 Dispatch 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "execution",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/dispatcher/query_dispatcher.go:GetEngines",
+      "type": "function",
+      "name": "GetEngines",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        178,
+        187
+      ],
+      "summary": "读取或查找 GetEngines 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/query_dispatcher.go:NewInnoDBSQLEngine",
+      "type": "function",
+      "name": "NewInnoDBSQLEngine",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        197,
+        203
+      ],
+      "summary": "构造并初始化 NewInnoDBSQLEngine 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/query_dispatcher.go:Name",
+      "type": "function",
+      "name": "Name",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        206,
+        208
+      ],
+      "summary": "实现 Name 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/query_dispatcher.go:CanHandle",
+      "type": "function",
+      "name": "CanHandle",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        211,
+        227
+      ],
+      "summary": "检查 CanHandle 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/query_dispatcher.go:ExecuteQuery",
+      "type": "function",
+      "name": "ExecuteQuery",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        230,
+        247
+      ],
+      "summary": "执行 ExecuteQuery 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "execution",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/query_dispatcher.go:convertResult",
+      "type": "function",
+      "name": "convertResult",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        250,
+        287
+      ],
+      "summary": "实现 convertResult 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/query_dispatcher.go:convertSelectResult",
+      "type": "function",
+      "name": "convertSelectResult",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        290,
+        317
+      ],
+      "summary": "实现 convertSelectResult 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/query_dispatcher.go:NewDefaultSQLRouter",
+      "type": "function",
+      "name": "NewDefaultSQLRouter",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        323,
+        325
+      ],
+      "summary": "构造并初始化 NewDefaultSQLRouter 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "dispatcher",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/query_dispatcher.go:Route",
+      "type": "function",
+      "name": "Route",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        328,
+        384
+      ],
+      "summary": "实现 Route 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/dispatcher/query_dispatcher.go:isSystemVariableQuery",
+      "type": "function",
+      "name": "isSystemVariableQuery",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        387,
+        428
+      ],
+      "summary": "实现 isSystemVariableQuery 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/query_dispatcher.go:containsSystemVariableExpression",
+      "type": "function",
+      "name": "containsSystemVariableExpression",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        431,
+        450
+      ],
+      "summary": "实现 containsSystemVariableExpression 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/query_dispatcher.go:isShowSystemVariable",
+      "type": "function",
+      "name": "isShowSystemVariable",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        453,
+        473
+      ],
+      "summary": "实现 isShowSystemVariable 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/dispatcher/query_dispatcher.go:isSetSystemVariable",
+      "type": "function",
+      "name": "isSetSystemVariable",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        476,
+        505
+      ],
+      "summary": "实现 isSetSystemVariable 对应的SQL 请求分发与系统变量处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "dispatcher"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/dispatcher/query_dispatcher.go:SQLDispatcher",
+      "type": "class",
+      "name": "SQLDispatcher",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        17,
+        22
+      ],
+      "summary": "SQLDispatcher 定义SQL 请求分发与系统变量处理所需的数据结构，并通过 RegisterEngine、UnregisterEngine、SetRouter、Dispatch 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "dispatcher",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/dispatcher/query_dispatcher.go:SQLEngine",
+      "type": "class",
+      "name": "SQLEngine",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        25,
+        29
+      ],
+      "summary": "SQLEngine 定义SQL 请求分发与系统变量处理所需的数据结构，并通过 ExecuteQuery、Name、CanHandle 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "dispatcher",
+        "behavior"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/dispatcher/query_dispatcher.go:SQLRouter",
+      "type": "class",
+      "name": "SQLRouter",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        32,
+        34
+      ],
+      "summary": "SQLRouter 定义SQL 请求分发与系统变量处理所需的数据结构，并通过 Route 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "dispatcher",
+        "behavior"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/dispatcher/query_dispatcher.go:SQLResult",
+      "type": "class",
+      "name": "SQLResult",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        37,
+        44
+      ],
+      "summary": "SQLResult 定义SQL 请求分发与系统变量处理所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "dispatcher",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/dispatcher/query_dispatcher.go:InnoDBSQLEngine",
+      "type": "class",
+      "name": "InnoDBSQLEngine",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        190,
+        194
+      ],
+      "summary": "InnoDBSQLEngine 定义SQL 请求分发与系统变量处理所需的数据结构，并通过 Name、CanHandle、ExecuteQuery、convertResult 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "dispatcher",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/dispatcher/query_dispatcher.go:DefaultSQLRouter",
+      "type": "class",
+      "name": "DefaultSQLRouter",
+      "filePath": "server/dispatcher/query_dispatcher.go",
+      "lineRange": [
+        320,
+        320
+      ],
+      "summary": "DefaultSQLRouter 定义SQL 请求分发与系统变量处理所需的数据结构，并通过 Route、isSystemVariableQuery、containsSystemVariableExpression、isShowSystemVariable 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "dispatcher",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:NewSQLDispatcher",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:NewSQLDispatcher",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:NewSQLDispatcherWithStorageManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:NewSQLDispatcherWithStorageManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:RegisterEngine",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:RegisterEngine",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:UnregisterEngine",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:UnregisterEngine",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:SetRouter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:SetRouter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:Dispatch",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:Dispatch",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:GetEngines",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:GetEngines",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:NewInnoDBSQLEngine",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:NewInnoDBSQLEngine",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:Name",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:Name",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:CanHandle",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:CanHandle",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:ExecuteQuery",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:ExecuteQuery",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:convertResult",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:convertSelectResult",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:NewDefaultSQLRouter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:NewDefaultSQLRouter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:Route",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:Route",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:isSystemVariableQuery",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:containsSystemVariableExpression",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:isShowSystemVariable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "function:server/dispatcher/query_dispatcher.go:isSetSystemVariable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "class:server/dispatcher/query_dispatcher.go:SQLDispatcher",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "class:server/dispatcher/query_dispatcher.go:SQLDispatcher",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "class:server/dispatcher/query_dispatcher.go:SQLEngine",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "class:server/dispatcher/query_dispatcher.go:SQLEngine",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "class:server/dispatcher/query_dispatcher.go:SQLRouter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "class:server/dispatcher/query_dispatcher.go:SQLRouter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "class:server/dispatcher/query_dispatcher.go:SQLResult",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "class:server/dispatcher/query_dispatcher.go:SQLResult",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "class:server/dispatcher/query_dispatcher.go:InnoDBSQLEngine",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "class:server/dispatcher/query_dispatcher.go:InnoDBSQLEngine",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "class:server/dispatcher/query_dispatcher.go:DefaultSQLRouter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "class:server/dispatcher/query_dispatcher.go:DefaultSQLRouter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:logger/logger.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/conf/config_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/conf/config.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/conf/decoupled_config.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/common/result_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/adaptive_flush_strategy.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/apply_operator_conditions_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/checkpoint_optimization_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/cte_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/dirty_page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/dml_executor_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/dml_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/dml_index_sync_integration_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/dml_operators_duplicate_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/dml_operators.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/enginx_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/enginx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/execution_context.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/execution_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/executor_dbddl_and_column_type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/executor_logical_plan_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/executor_record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/executor_set_routing_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/executor_show_plan_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/executor_show_routing_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/executor_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/expression_eval_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/hash_operators_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/index_lookup_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/index_reading_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/index_transaction_adapter_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/index_transaction_adapter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/outer_join_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/persistence_demo.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/recovery_adapters.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/result.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/schema_fix_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/select_executor_projection_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/select_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/show_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/show_filter_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/show_filter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/show_parsing_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/show_parsing.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/show_where_filter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/simple_executor_record_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/slow_query_logger_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/slow_query_logger.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/stats_observer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/storage_adapter_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/storage_adapter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/storage_integrated_checkpoint.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/storage_integrated_dml_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/storage_integrated_dml_helper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/storage_integrated_dml_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/storage_integrated_example.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/storage_integrated_index_helper_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/storage_integrated_index_helper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/storage_integrated_persistence_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/storage_integrated_persistence.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/storage_integrated_wal.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/subquery_executor_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/task_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/transaction_integration_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/unified_executor_build_tree_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/unified_executor_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/unified_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/volcano_builder_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/volcano_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/volcano_refactor_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/engine/window_function_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/btree_cache_limit_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/btree_find_siblings_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/btree_improvements_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/btree_interface.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/btree_iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/btree_merge_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/btree_merge.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/btree_split_benchmark_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/btree_split_optimized.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/btree_split_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/btree_split.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/btree_undo_log_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/buffer_pool_adapter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/buffer_pool_flush_simple_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/buffer_pool_flush_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/buffer_pool_manager_optimized.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/buffer_pool_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/buffer_pool_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/checkpoint_monitor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/compression_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/crash_recovery_enhanced_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/crash_recovery_extended_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/crash_recovery_fault_injection_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/crash_recovery_integration_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/crash_recovery_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/crash_recovery.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/dictionary_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/encryption_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/enhanced_btree_index_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/enhanced_btree_index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/enhanced_btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/extent_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/extent_reuse_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/fuzzy_checkpoint_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/fuzzy_checkpoint.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/gap_lock_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/gap_lock.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/group_commit.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/history_list.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/ibuf_manager_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/ibuf_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/index_helper_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/index_iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/index_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/index_metadata.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/index_sync_fix_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/info_schema_generators.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/info_schema_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/lock_compatibility.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/lock_manager_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/lock_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/lock_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/log_archiver.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/log_components_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/log_recovery_example_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/log_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/long_transaction_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/lsn_manager_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/lsn_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/mtr.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/mvcc_integration_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/mvcc_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/mvcc_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/mysql_user_data.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/optimizer_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/p0_concurrency_consistency_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/page_allocator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/page_cache.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/page_fix_simplified.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/page_initialization_fix.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/page_tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/record_row_adapter_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/redo_fix_verification_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/redo_log_batch_writer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/redo_log_compression.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/redo_log_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/redo_log_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/redo_recovery_fix_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/savepoint_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/schema_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/schema_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/secondary_index_consistency_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/segment_space_optimizer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/space_expansion_concurrent_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/space_expansion_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/space_stats_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/storage_manager_init_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/storage_manager_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/storage_optimization_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/storage_provider_space_adapter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/system_page_initializer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/system_space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/system_variable_analyzer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/system_variable_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/system_variables_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/table_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/table_storage_mapping.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/tablespace_defragmenter_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/tablespace_defragmenter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/test_fix.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/transaction_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/undo_log_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/undo_log_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/undo_purge.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/undo_rollback_comprehensive_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/undo_rollback_fix_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/undo_segment_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/undo_segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/innodb/manager/undo_version_chain_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/session_context.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/dispatcher/query_dispatcher.go",
+      "target": "file:server/session.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

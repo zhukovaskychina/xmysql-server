@@ -1,0 +1,1155 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/plan/expression_normalizer.go",
+      "type": "file",
+      "name": "expression_normalizer.go",
+      "filePath": "server/innodb/plan/expression_normalizer.go",
+      "summary": "定义并处理查询计划与优化器中的表达式结构，覆盖规范化、求值、条件分解或列引用分析。",
+      "tags": [
+        "go",
+        "query-optimizer",
+        "storage-engine"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer.go:NewExpressionNormalizer",
+      "type": "function",
+      "name": "NewExpressionNormalizer",
+      "filePath": "server/innodb/plan/expression_normalizer.go",
+      "lineRange": [
+        14,
+        18
+      ],
+      "summary": "创建并初始化 ExpressionNormalizer，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer.go:Normalize",
+      "type": "function",
+      "name": "Normalize",
+      "filePath": "server/innodb/plan/expression_normalizer.go",
+      "lineRange": [
+        21,
+        39
+      ],
+      "summary": "规范化 查询计划与优化器输入，消除等价表示差异。",
+      "tags": [
+        "validation",
+        "transformation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer.go:algebraicSimplification",
+      "type": "function",
+      "name": "algebraicSimplification",
+      "filePath": "server/innodb/plan/expression_normalizer.go",
+      "lineRange": [
+        48,
+        96
+      ],
+      "summary": "实现 查询计划与优化器 中的 algebraicSimplification 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer.go:applyCommutativeLaw",
+      "type": "function",
+      "name": "applyCommutativeLaw",
+      "filePath": "server/innodb/plan/expression_normalizer.go",
+      "lineRange": [
+        99,
+        114
+      ],
+      "summary": "实现 查询计划与优化器 中的 applyCommutativeLaw 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer.go:applyAssociativeLaw",
+      "type": "function",
+      "name": "applyAssociativeLaw",
+      "filePath": "server/innodb/plan/expression_normalizer.go",
+      "lineRange": [
+        127,
+        138
+      ],
+      "summary": "实现 查询计划与优化器 中的 applyAssociativeLaw 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer.go:applyIdentityLaw",
+      "type": "function",
+      "name": "applyIdentityLaw",
+      "filePath": "server/innodb/plan/expression_normalizer.go",
+      "lineRange": [
+        151,
+        181
+      ],
+      "summary": "实现 查询计划与优化器 中的 applyIdentityLaw 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer.go:applyZeroLaw",
+      "type": "function",
+      "name": "applyZeroLaw",
+      "filePath": "server/innodb/plan/expression_normalizer.go",
+      "lineRange": [
+        184,
+        209
+      ],
+      "summary": "实现 查询计划与优化器 中的 applyZeroLaw 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer.go:applyIdempotentLaw",
+      "type": "function",
+      "name": "applyIdempotentLaw",
+      "filePath": "server/innodb/plan/expression_normalizer.go",
+      "lineRange": [
+        221,
+        232
+      ],
+      "summary": "实现 查询计划与优化器 中的 applyIdempotentLaw 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer.go:predicateNormalization",
+      "type": "function",
+      "name": "predicateNormalization",
+      "filePath": "server/innodb/plan/expression_normalizer.go",
+      "lineRange": [
+        236,
+        278
+      ],
+      "summary": "实现 查询计划与优化器 中的 predicateNormalization 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer.go:normalizeComparison",
+      "type": "function",
+      "name": "normalizeComparison",
+      "filePath": "server/innodb/plan/expression_normalizer.go",
+      "lineRange": [
+        282,
+        295
+      ],
+      "summary": "实现 查询计划与优化器 中的 normalizeComparison 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer.go:reverseComparisonOp",
+      "type": "function",
+      "name": "reverseComparisonOp",
+      "filePath": "server/innodb/plan/expression_normalizer.go",
+      "lineRange": [
+        309,
+        324
+      ],
+      "summary": "实现 查询计划与优化器 中的 reverseComparisonOp 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer.go:eliminateRedundancy",
+      "type": "function",
+      "name": "eliminateRedundancy",
+      "filePath": "server/innodb/plan/expression_normalizer.go",
+      "lineRange": [
+        342,
+        372
+      ],
+      "summary": "实现 查询计划与优化器 中的 eliminateRedundancy 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer.go:eliminateRedundantAnd",
+      "type": "function",
+      "name": "eliminateRedundantAnd",
+      "filePath": "server/innodb/plan/expression_normalizer.go",
+      "lineRange": [
+        375,
+        414
+      ],
+      "summary": "实现 查询计划与优化器 中的 eliminateRedundantAnd 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer.go:eliminateRedundantOr",
+      "type": "function",
+      "name": "eliminateRedundantOr",
+      "filePath": "server/innodb/plan/expression_normalizer.go",
+      "lineRange": [
+        417,
+        452
+      ],
+      "summary": "实现 查询计划与优化器 中的 eliminateRedundantOr 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer.go:removeSubsumedConditions",
+      "type": "function",
+      "name": "removeSubsumedConditions",
+      "filePath": "server/innodb/plan/expression_normalizer.go",
+      "lineRange": [
+        456,
+        476
+      ],
+      "summary": "实现 查询计划与优化器 中的 removeSubsumedConditions 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer.go:isSubsumed",
+      "type": "function",
+      "name": "isSubsumed",
+      "filePath": "server/innodb/plan/expression_normalizer.go",
+      "lineRange": [
+        480,
+        525
+      ],
+      "summary": "实现 查询计划与优化器 中的 isSubsumed 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/expression_normalizer.go:ExpressionNormalizer",
+      "type": "class",
+      "name": "ExpressionNormalizer",
+      "filePath": "server/innodb/plan/expression_normalizer.go",
+      "lineRange": [
+        9,
+        11
+      ],
+      "summary": "定义 查询计划与优化器 使用的 ExpressionNormalizer 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/plan/expression_normalizer_test.go",
+      "type": "file",
+      "name": "expression_normalizer_test.go",
+      "filePath": "server/innodb/plan/expression_normalizer_test.go",
+      "summary": "验证查询计划与优化器相关行为与边界条件，重点覆盖 ConstantComparisonFolding、NotConstantBooleanFolding、ConstantFolding。",
+      "tags": [
+        "test",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer_test.go:TestConstantComparisonFolding",
+      "type": "function",
+      "name": "TestConstantComparisonFolding",
+      "filePath": "server/innodb/plan/expression_normalizer_test.go",
+      "lineRange": [
+        8,
+        66
+      ],
+      "summary": "验证 ConstantComparisonFolding 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer_test.go:TestNotConstantBooleanFolding",
+      "type": "function",
+      "name": "TestNotConstantBooleanFolding",
+      "filePath": "server/innodb/plan/expression_normalizer_test.go",
+      "lineRange": [
+        69,
+        92
+      ],
+      "summary": "验证 NotConstantBooleanFolding 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer_test.go:TestConstantFolding",
+      "type": "function",
+      "name": "TestConstantFolding",
+      "filePath": "server/innodb/plan/expression_normalizer_test.go",
+      "lineRange": [
+        95,
+        157
+      ],
+      "summary": "验证 ConstantFolding 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer_test.go:TestPredicateNormalization",
+      "type": "function",
+      "name": "TestPredicateNormalization",
+      "filePath": "server/innodb/plan/expression_normalizer_test.go",
+      "lineRange": [
+        160,
+        203
+      ],
+      "summary": "验证 PredicateNormalization 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer_test.go:TestRedundancyElimination",
+      "type": "function",
+      "name": "TestRedundancyElimination",
+      "filePath": "server/innodb/plan/expression_normalizer_test.go",
+      "lineRange": [
+        206,
+        276
+      ],
+      "summary": "验证 RedundancyElimination 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer_test.go:TestIdempotentLaw",
+      "type": "function",
+      "name": "TestIdempotentLaw",
+      "filePath": "server/innodb/plan/expression_normalizer_test.go",
+      "lineRange": [
+        279,
+        298
+      ],
+      "summary": "验证 IdempotentLaw 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_normalizer_test.go:TestCommutativeLaw",
+      "type": "function",
+      "name": "TestCommutativeLaw",
+      "filePath": "server/innodb/plan/expression_normalizer_test.go",
+      "lineRange": [
+        301,
+        321
+      ],
+      "summary": "验证 CommutativeLaw 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/plan/expression_test.go",
+      "type": "file",
+      "name": "expression_test.go",
+      "filePath": "server/innodb/plan/expression_test.go",
+      "summary": "验证查询计划与优化器相关行为与边界条件，重点覆盖 ConstantExpression、ColumnExpression、BinaryOperation。",
+      "tags": [
+        "test",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_test.go:TestConstantExpression",
+      "type": "function",
+      "name": "TestConstantExpression",
+      "filePath": "server/innodb/plan/expression_test.go",
+      "lineRange": [
+        7,
+        44
+      ],
+      "summary": "验证 ConstantExpression 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_test.go:TestColumnExpression",
+      "type": "function",
+      "name": "TestColumnExpression",
+      "filePath": "server/innodb/plan/expression_test.go",
+      "lineRange": [
+        46,
+        92
+      ],
+      "summary": "验证 ColumnExpression 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_test.go:TestBinaryOperation",
+      "type": "function",
+      "name": "TestBinaryOperation",
+      "filePath": "server/innodb/plan/expression_test.go",
+      "lineRange": [
+        94,
+        157
+      ],
+      "summary": "验证 BinaryOperation 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_test.go:TestFunction",
+      "type": "function",
+      "name": "TestFunction",
+      "filePath": "server/innodb/plan/expression_test.go",
+      "lineRange": [
+        159,
+        227
+      ],
+      "summary": "验证 Function 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/expression_test.go:TestExpressionString",
+      "type": "function",
+      "name": "TestExpressionString",
+      "filePath": "server/innodb/plan/expression_test.go",
+      "lineRange": [
+        229,
+        271
+      ],
+      "summary": "验证 ExpressionString 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/plan/hyperloglog.go",
+      "type": "file",
+      "name": "hyperloglog.go",
+      "filePath": "server/innodb/plan/hyperloglog.go",
+      "summary": "提供查询计划与优化器相关的数据结构与处理逻辑，核心结构包括 HyperLogLog、StatisticsError、NewHyperLogLog、Add。",
+      "tags": [
+        "go",
+        "query-optimizer",
+        "storage-engine"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/plan/hyperloglog.go:NewHyperLogLog",
+      "type": "function",
+      "name": "NewHyperLogLog",
+      "filePath": "server/innodb/plan/hyperloglog.go",
+      "lineRange": [
+        24,
+        50
+      ],
+      "summary": "创建并初始化 HyperLogLog，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/hyperloglog.go:Add",
+      "type": "function",
+      "name": "Add",
+      "filePath": "server/innodb/plan/hyperloglog.go",
+      "lineRange": [
+        53,
+        68
+      ],
+      "summary": "实现 查询计划与优化器 中的 Add 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/hyperloglog.go:Count",
+      "type": "function",
+      "name": "Count",
+      "filePath": "server/innodb/plan/hyperloglog.go",
+      "lineRange": [
+        71,
+        98
+      ],
+      "summary": "实现 查询计划与优化器 中的 Count 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/hyperloglog.go:Merge",
+      "type": "function",
+      "name": "Merge",
+      "filePath": "server/innodb/plan/hyperloglog.go",
+      "lineRange": [
+        101,
+        113
+      ],
+      "summary": "实现 查询计划与优化器 中的 Merge 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/hyperloglog.go:Clear",
+      "type": "function",
+      "name": "Clear",
+      "filePath": "server/innodb/plan/hyperloglog.go",
+      "lineRange": [
+        116,
+        120
+      ],
+      "summary": "实现 查询计划与优化器 中的 Clear 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/hyperloglog.go:hash",
+      "type": "function",
+      "name": "hash",
+      "filePath": "server/innodb/plan/hyperloglog.go",
+      "lineRange": [
+        123,
+        161
+      ],
+      "summary": "实现 查询计划与优化器 中的 hash 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/hyperloglog.go:countLeadingZeros",
+      "type": "function",
+      "name": "countLeadingZeros",
+      "filePath": "server/innodb/plan/hyperloglog.go",
+      "lineRange": [
+        164,
+        195
+      ],
+      "summary": "实现 查询计划与优化器 中的 countLeadingZeros 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/hyperloglog.go:Error",
+      "type": "function",
+      "name": "Error",
+      "filePath": "server/innodb/plan/hyperloglog.go",
+      "lineRange": [
+        231,
+        233
+      ],
+      "summary": "实现 查询计划与优化器 中的 Error 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/hyperloglog.go:HyperLogLog",
+      "type": "class",
+      "name": "HyperLogLog",
+      "filePath": "server/innodb/plan/hyperloglog.go",
+      "lineRange": [
+        11,
+        20
+      ],
+      "summary": "定义 查询计划与优化器 使用的 HyperLogLog 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/hyperloglog.go:StatisticsError",
+      "type": "class",
+      "name": "StatisticsError",
+      "filePath": "server/innodb/plan/hyperloglog.go",
+      "lineRange": [
+        226,
+        229
+      ],
+      "summary": "定义 查询计划与优化器 使用的 StatisticsError 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/plan/expression_normalizer.go",
+      "target": "function:server/innodb/plan/expression_normalizer.go:NewExpressionNormalizer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer.go",
+      "target": "function:server/innodb/plan/expression_normalizer.go:NewExpressionNormalizer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer.go",
+      "target": "function:server/innodb/plan/expression_normalizer.go:Normalize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer.go",
+      "target": "function:server/innodb/plan/expression_normalizer.go:Normalize",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer.go",
+      "target": "function:server/innodb/plan/expression_normalizer.go:algebraicSimplification",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer.go",
+      "target": "function:server/innodb/plan/expression_normalizer.go:applyCommutativeLaw",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer.go",
+      "target": "function:server/innodb/plan/expression_normalizer.go:applyAssociativeLaw",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer.go",
+      "target": "function:server/innodb/plan/expression_normalizer.go:applyIdentityLaw",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer.go",
+      "target": "function:server/innodb/plan/expression_normalizer.go:applyZeroLaw",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer.go",
+      "target": "function:server/innodb/plan/expression_normalizer.go:applyIdempotentLaw",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer.go",
+      "target": "function:server/innodb/plan/expression_normalizer.go:predicateNormalization",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer.go",
+      "target": "function:server/innodb/plan/expression_normalizer.go:normalizeComparison",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer.go",
+      "target": "function:server/innodb/plan/expression_normalizer.go:reverseComparisonOp",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer.go",
+      "target": "function:server/innodb/plan/expression_normalizer.go:eliminateRedundancy",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer.go",
+      "target": "function:server/innodb/plan/expression_normalizer.go:eliminateRedundantAnd",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer.go",
+      "target": "function:server/innodb/plan/expression_normalizer.go:eliminateRedundantOr",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer.go",
+      "target": "function:server/innodb/plan/expression_normalizer.go:removeSubsumedConditions",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer.go",
+      "target": "function:server/innodb/plan/expression_normalizer.go:isSubsumed",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer.go",
+      "target": "class:server/innodb/plan/expression_normalizer.go:ExpressionNormalizer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer.go",
+      "target": "class:server/innodb/plan/expression_normalizer.go:ExpressionNormalizer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer_test.go",
+      "target": "function:server/innodb/plan/expression_normalizer_test.go:TestConstantComparisonFolding",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer_test.go",
+      "target": "function:server/innodb/plan/expression_normalizer_test.go:TestConstantComparisonFolding",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer_test.go",
+      "target": "function:server/innodb/plan/expression_normalizer_test.go:TestNotConstantBooleanFolding",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer_test.go",
+      "target": "function:server/innodb/plan/expression_normalizer_test.go:TestNotConstantBooleanFolding",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer_test.go",
+      "target": "function:server/innodb/plan/expression_normalizer_test.go:TestConstantFolding",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer_test.go",
+      "target": "function:server/innodb/plan/expression_normalizer_test.go:TestConstantFolding",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer_test.go",
+      "target": "function:server/innodb/plan/expression_normalizer_test.go:TestPredicateNormalization",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer_test.go",
+      "target": "function:server/innodb/plan/expression_normalizer_test.go:TestPredicateNormalization",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer_test.go",
+      "target": "function:server/innodb/plan/expression_normalizer_test.go:TestRedundancyElimination",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer_test.go",
+      "target": "function:server/innodb/plan/expression_normalizer_test.go:TestRedundancyElimination",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer_test.go",
+      "target": "function:server/innodb/plan/expression_normalizer_test.go:TestIdempotentLaw",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer_test.go",
+      "target": "function:server/innodb/plan/expression_normalizer_test.go:TestIdempotentLaw",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer_test.go",
+      "target": "function:server/innodb/plan/expression_normalizer_test.go:TestCommutativeLaw",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_normalizer_test.go",
+      "target": "function:server/innodb/plan/expression_normalizer_test.go:TestCommutativeLaw",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression_test.go",
+      "target": "function:server/innodb/plan/expression_test.go:TestConstantExpression",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_test.go",
+      "target": "function:server/innodb/plan/expression_test.go:TestConstantExpression",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression_test.go",
+      "target": "function:server/innodb/plan/expression_test.go:TestColumnExpression",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_test.go",
+      "target": "function:server/innodb/plan/expression_test.go:TestColumnExpression",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression_test.go",
+      "target": "function:server/innodb/plan/expression_test.go:TestBinaryOperation",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_test.go",
+      "target": "function:server/innodb/plan/expression_test.go:TestBinaryOperation",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression_test.go",
+      "target": "function:server/innodb/plan/expression_test.go:TestFunction",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_test.go",
+      "target": "function:server/innodb/plan/expression_test.go:TestFunction",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/expression_test.go",
+      "target": "function:server/innodb/plan/expression_test.go:TestExpressionString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/expression_test.go",
+      "target": "function:server/innodb/plan/expression_test.go:TestExpressionString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/hyperloglog.go",
+      "target": "function:server/innodb/plan/hyperloglog.go:NewHyperLogLog",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/hyperloglog.go",
+      "target": "function:server/innodb/plan/hyperloglog.go:NewHyperLogLog",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/hyperloglog.go",
+      "target": "function:server/innodb/plan/hyperloglog.go:Add",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/hyperloglog.go",
+      "target": "function:server/innodb/plan/hyperloglog.go:Add",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/hyperloglog.go",
+      "target": "function:server/innodb/plan/hyperloglog.go:Count",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/hyperloglog.go",
+      "target": "function:server/innodb/plan/hyperloglog.go:Count",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/hyperloglog.go",
+      "target": "function:server/innodb/plan/hyperloglog.go:Merge",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/hyperloglog.go",
+      "target": "function:server/innodb/plan/hyperloglog.go:Merge",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/hyperloglog.go",
+      "target": "function:server/innodb/plan/hyperloglog.go:Clear",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/hyperloglog.go",
+      "target": "function:server/innodb/plan/hyperloglog.go:Clear",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/hyperloglog.go",
+      "target": "function:server/innodb/plan/hyperloglog.go:hash",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/hyperloglog.go",
+      "target": "function:server/innodb/plan/hyperloglog.go:countLeadingZeros",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/hyperloglog.go",
+      "target": "function:server/innodb/plan/hyperloglog.go:Error",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/hyperloglog.go",
+      "target": "function:server/innodb/plan/hyperloglog.go:Error",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/hyperloglog.go",
+      "target": "class:server/innodb/plan/hyperloglog.go:HyperLogLog",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/hyperloglog.go",
+      "target": "class:server/innodb/plan/hyperloglog.go:HyperLogLog",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/hyperloglog.go",
+      "target": "class:server/innodb/plan/hyperloglog.go:StatisticsError",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/hyperloglog.go",
+      "target": "class:server/innodb/plan/hyperloglog.go:StatisticsError",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

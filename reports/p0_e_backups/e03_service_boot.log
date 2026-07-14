@@ -1,0 +1,5 @@
+# github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/page
+server/innodb/storage/wrapper/page/page_factory.go:28:9: cannot use types.NewUnifiedPage(spaceID, id, pageType) (value of type *types.UnifiedPage) as IPageWrapper value in return statement: *types.UnifiedPage does not implement types.IPageWrapper (missing method GetFileHeaderStruct)
+start=2026-05-17 06:35:52
+end=2026-05-17 06:35:54
+exit:0

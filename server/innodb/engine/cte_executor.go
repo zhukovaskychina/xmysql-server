@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
@@ -500,10 +501,34 @@ func ValidateCTEDefinition(def *CTEDefinition) error {
 
 	// 递归CTE的额外验证
 	if def.Recursive {
-		// TODO: 验证递归CTE的结构
-		// 1. 必须有UNION ALL
-		// 2. 必须有锚点查询和递归查询
-		// 3. 递归查询必须引用CTE本身
+		unionStmt, ok := def.Query.(*sqlparser.Union)
+		if !ok {
+			return fmt.Errorf("recursive CTE %s must use UNION ALL", def.Name)
+		}
+
+		if strings.ToLower(unionStmt.Type) != strings.ToLower(sqlparser.UnionAllStr) {
+			return fmt.Errorf("recursive CTE %s requires UNION ALL", def.Name)
+		}
+
+		_ = collectCTETableRefs(unionStmt.Left)
+		recursiveRefs := collectCTETableRefs(unionStmt.Right)
+
+		if len(collectCTETableRefs(unionStmt.Left)) == 0 || len(recursiveRefs) == 0 {
+			return fmt.Errorf("recursive CTE %s requires anchor and recursive parts", def.Name)
+		}
+
+		normalizedName := normalizeCTEName(def.Name)
+		hasSelfReference := false
+		for _, ref := range recursiveRefs {
+			if normalizeCTEName(ref) == normalizedName {
+				hasSelfReference = true
+				break
+			}
+		}
+		if !hasSelfReference {
+			return fmt.Errorf("recursive CTE %s must reference itself in recursive part", def.Name)
+		}
+
 	}
 
 	return nil
@@ -527,19 +552,152 @@ func BuildCTEContext(definitions []*CTEDefinition) (*CTEContext, error) {
 // ResolveCTEReferences 解析CTE引用
 // 检查主查询中引用的CTE是否都已定义
 func ResolveCTEReferences(mainQuery sqlparser.Statement, ctx *CTEContext) error {
-	// TODO: 遍历主查询的AST，找到所有表引用
-	// 检查每个表引用是否是CTE名称
-	// 如果是CTE，验证CTE已定义
+	if ctx == nil {
+		return fmt.Errorf("CTE context is nil")
+	}
 
-	// 简化实现：假设所有引用都已正确定义
+	tableRefs := collectCTETableRefs(mainQuery)
+	definedCTEs := make(map[string]struct{}, len(ctx.definitions))
+	for name := range ctx.definitions {
+		definedCTEs[normalizeCTEName(name)] = struct{}{}
+	}
+
+	for _, ref := range tableRefs {
+		normalizedRef := normalizeCTEName(ref)
+		if _, exists := definedCTEs[normalizedRef]; !exists {
+			continue
+		}
+
+		if _, ok := ctx.GetDefinition(ref); !ok {
+			return fmt.Errorf("undefined CTE reference in main query: %s", ref)
+		}
+	}
+
 	return nil
 }
 
 // DetectCTECycle 检测CTE定义中的循环依赖
 func DetectCTECycle(definitions []*CTEDefinition) error {
-	// TODO: 构建CTE依赖图
-	// 使用拓扑排序检测循环
+	if len(definitions) == 0 {
+		return nil
+	}
 
-	// 简化实现：假设没有循环
+	definitionsByName := make(map[string]*CTEDefinition)
+	for _, def := range definitions {
+		if def == nil {
+			return fmt.Errorf("CTE definition is nil")
+		}
+		if def.Name == "" {
+			return fmt.Errorf("CTE name cannot be empty")
+		}
+		name := normalizeCTEName(def.Name)
+		if _, exists := definitionsByName[name]; exists {
+			return fmt.Errorf("duplicate CTE definition: %s", def.Name)
+		}
+		definitionsByName[name] = def
+	}
+
+	graph := make(map[string]map[string]struct{}, len(definitionsByName))
+	inDegree := make(map[string]int, len(definitionsByName))
+	for name := range definitionsByName {
+		graph[name] = make(map[string]struct{})
+		inDegree[name] = 0
+	}
+
+	for _, def := range definitions {
+		from := normalizeCTEName(def.Name)
+		refs := collectCTETableRefs(def.Query)
+		for _, ref := range refs {
+			to := normalizeCTEName(ref)
+			if to == from {
+				// 对于recursive CTE，自引用允许；否则视为显式循环
+				if def.Recursive {
+					continue
+				}
+				return fmt.Errorf("CTE %s has direct self dependency", def.Name)
+			}
+
+			if _, exists := definitionsByName[to]; !exists {
+				continue
+			}
+			if _, exists := graph[from][to]; exists {
+				continue
+			}
+			graph[from][to] = struct{}{}
+			inDegree[to]++
+		}
+	}
+
+	queue := make([]string, 0, len(graph))
+	for name, degree := range inDegree {
+		if degree == 0 {
+			queue = append(queue, name)
+		}
+	}
+
+	processed := 0
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		processed++
+
+		for next := range graph[cur] {
+			inDegree[next]--
+			if inDegree[next] == 0 {
+				queue = append(queue, next)
+			}
+		}
+	}
+
+	if processed != len(graph) {
+		return fmt.Errorf("CTE cycle detected in definitions")
+	}
+
 	return nil
+}
+
+func normalizeCTEName(name string) string {
+	return strings.ToLower(strings.TrimSpace(name))
+}
+
+func collectCTETableRefs(stmt sqlparser.Statement) []string {
+	if stmt == nil {
+		return nil
+	}
+
+	refs := make([]string, 0)
+	seen := make(map[string]struct{})
+
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		var tbl sqlparser.TableName
+		switch n := node.(type) {
+		case sqlparser.TableName:
+			tbl = n
+		case *sqlparser.TableName:
+			if n == nil {
+				return true, nil
+			}
+			tbl = *n
+		default:
+			return true, nil
+		}
+
+		if tbl.Name.IsEmpty() {
+			return true, nil
+		}
+
+		ref := tbl.Name.String()
+		if ref == "" {
+			return true, nil
+		}
+		normalized := normalizeCTEName(ref)
+		if _, exists := seen[normalized]; exists {
+			return true, nil
+		}
+		seen[normalized] = struct{}{}
+		refs = append(refs, ref)
+		return true, nil
+	}, stmt)
+
+	return refs
 }

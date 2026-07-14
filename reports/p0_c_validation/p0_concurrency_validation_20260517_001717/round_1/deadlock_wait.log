@@ -1,0 +1,39 @@
+=== P0_C concurrency scenario ===
+round: 1
+scenario: deadlock_wait
+packages: ./server/innodb/storage/store/mvcc ./server/innodb/manager ./server/innodb/engine
+pattern: TestDeadlock|TestLockManager_DeadlockDetection|TestDeadlockScenarios|TestDeadlockDetectionPerformance
+timeout: 300s
+start: 2026-05-17T00:17:40+08:00
+
+>>> go test -count=1 -timeout=300s -run 'TestDeadlock|TestLockManager_DeadlockDetection|TestDeadlockScenarios|TestDeadlockDetectionPerformance' "./server/innodb/storage/store/mvcc" -v
+=== RUN   TestDeadlockScenarios
+=== RUN   TestDeadlockScenarios/TestSimpleDeadlock
+=== RUN   TestDeadlockScenarios/TestComplexDeadlock
+=== RUN   TestDeadlockScenarios/TestDeadlockDetectionPerformance
+--- PASS: TestDeadlockScenarios (0.01s)
+    --- PASS: TestDeadlockScenarios/TestSimpleDeadlock (0.00s)
+    --- PASS: TestDeadlockScenarios/TestComplexDeadlock (0.00s)
+    --- PASS: TestDeadlockScenarios/TestDeadlockDetectionPerformance (0.00s)
+PASS
+ok  	github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/mvcc	1.719s
+>>> go test -count=1 -timeout=300s -run 'TestDeadlock|TestLockManager_DeadlockDetection|TestDeadlockScenarios|TestDeadlockDetectionPerformance' "./server/innodb/manager" -v
+=== RUN   TestLockManager_DeadlockDetection
+--- PASS: TestLockManager_DeadlockDetection (0.00s)
+PASS
+ok  	github.com/zhukovaskychina/xmysql-server/server/innodb/manager	1.619s
+>>> go test -count=1 -timeout=300s -run 'TestDeadlock|TestLockManager_DeadlockDetection|TestDeadlockScenarios|TestDeadlockDetectionPerformance' "./server/innodb/engine" -v
+# github.com/zhukovaskychina/xmysql-server/server/innodb/engine [github.com/zhukovaskychina/xmysql-server/server/innodb/engine.test]
+server/innodb/engine/executor.go:726:31: v.Left undefined (type *plan.InExpression has no field or method Left)
+server/innodb/engine/executor.go:726:61: v.Right undefined (type *plan.InExpression has no field or method Right)
+server/innodb/engine/executor.go:729:31: v.Value undefined (type *plan.BetweenExpression has no field or method Value)
+server/innodb/engine/executor.go:732:31: v.Left undefined (type *plan.LikeExpression has no field or method Left)
+server/innodb/engine/executor.go:732:61: v.Right undefined (type *plan.LikeExpression has no field or method Right)
+server/innodb/engine/executor.go:735:31: v.Expr undefined (type *plan.IsNullExpression has no field or method Expr)
+server/innodb/engine/unified_executor_test.go:513:4: cannot refer to unexported field schemaManager in struct literal of type manager.TableManager
+server/innodb/engine/unified_executor_test.go:514:4: cannot refer to unexported field tableStorageManager in struct literal of type manager.TableManager
+server/innodb/engine/unified_executor_test.go:515:4: cannot refer to unexported field tableMetaCache in struct literal of type manager.TableManager
+server/innodb/engine/unified_executor_test.go:516:4: cannot refer to unexported field tableStatsCache in struct literal of type manager.TableManager
+server/innodb/engine/unified_executor_test.go:516:4: too many errors
+FAIL	github.com/zhukovaskychina/xmysql-server/server/innodb/engine [build failed]
+FAIL

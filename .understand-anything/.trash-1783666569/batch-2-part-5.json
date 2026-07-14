@@ -1,0 +1,3003 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "type": "file",
+      "name": "enhanced_btree_adapter.go",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "summary": "将InnoDB 存储管理协调适配为上层接口所需的数据访问与生命周期操作。",
+      "tags": [
+        "service",
+        "storage-manager",
+        "innodb"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:NewEnhancedBTreeAdapter",
+      "type": "function",
+      "name": "NewEnhancedBTreeAdapter",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        20,
+        27
+      ],
+      "summary": "创建或初始化InnoDB 存储管理协调中的 NewEnhancedBTreeAdapter 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:Init",
+      "type": "function",
+      "name": "Init",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        30,
+        68
+      ],
+      "summary": "创建或初始化InnoDB 存储管理协调中的 Init 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:GetAllLeafPages",
+      "type": "function",
+      "name": "GetAllLeafPages",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        71,
+        83
+      ],
+      "summary": "读取或查询InnoDB 存储管理协调中的 GetAllLeafPages 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:Search",
+      "type": "function",
+      "name": "Search",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        86,
+        99
+      ],
+      "summary": "读取或查询InnoDB 存储管理协调中的 Search 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:Insert",
+      "type": "function",
+      "name": "Insert",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        102,
+        110
+      ],
+      "summary": "写入或更新InnoDB 存储管理协调中的 Insert 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:RangeSearch",
+      "type": "function",
+      "name": "RangeSearch",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        113,
+        140
+      ],
+      "summary": "读取或查询InnoDB 存储管理协调中的 RangeSearch 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:GetFirstLeafPage",
+      "type": "function",
+      "name": "GetFirstLeafPage",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        143,
+        155
+      ],
+      "summary": "读取或查询InnoDB 存储管理协调中的 GetFirstLeafPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:convertKeyToBytes",
+      "type": "function",
+      "name": "convertKeyToBytes",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        158,
+        181
+      ],
+      "summary": "实现InnoDB 存储管理协调中的 convertKeyToBytes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:Less",
+      "type": "function",
+      "name": "Less",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        188,
+        191
+      ],
+      "summary": "校验或判断InnoDB 存储管理协调中的 Less 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:ToByte",
+      "type": "function",
+      "name": "ToByte",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        193,
+        198
+      ],
+      "summary": "编码或序列化InnoDB 存储管理协调中的 ToByte 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "serialization",
+        "binary-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:IsInfimumRow",
+      "type": "function",
+      "name": "IsInfimumRow",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        200,
+        202
+      ],
+      "summary": "校验或判断InnoDB 存储管理协调中的 IsInfimumRow 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:IsSupremumRow",
+      "type": "function",
+      "name": "IsSupremumRow",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        204,
+        206
+      ],
+      "summary": "校验或判断InnoDB 存储管理协调中的 IsSupremumRow 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:GetPageNumber",
+      "type": "function",
+      "name": "GetPageNumber",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        208,
+        213
+      ],
+      "summary": "读取或查询InnoDB 存储管理协调中的 GetPageNumber 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:WriteWithNull",
+      "type": "function",
+      "name": "WriteWithNull",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        215,
+        220
+      ],
+      "summary": "写入或更新InnoDB 存储管理协调中的 WriteWithNull 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:WriteBytesWithNullWithsPos",
+      "type": "function",
+      "name": "WriteBytesWithNullWithsPos",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        222,
+        227
+      ],
+      "summary": "写入或更新InnoDB 存储管理协调中的 WriteBytesWithNullWithsPos 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:GetRowLength",
+      "type": "function",
+      "name": "GetRowLength",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        229,
+        234
+      ],
+      "summary": "读取或查询InnoDB 存储管理协调中的 GetRowLength 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:GetHeaderLength",
+      "type": "function",
+      "name": "GetHeaderLength",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        236,
+        239
+      ],
+      "summary": "读取或查询InnoDB 存储管理协调中的 GetHeaderLength 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:GetPrimaryKey",
+      "type": "function",
+      "name": "GetPrimaryKey",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        241,
+        246
+      ],
+      "summary": "读取或查询InnoDB 存储管理协调中的 GetPrimaryKey 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:GetFieldLength",
+      "type": "function",
+      "name": "GetFieldLength",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        248,
+        250
+      ],
+      "summary": "读取或查询InnoDB 存储管理协调中的 GetFieldLength 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:ReadValueByIndex",
+      "type": "function",
+      "name": "ReadValueByIndex",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        252,
+        260
+      ],
+      "summary": "读取或查询InnoDB 存储管理协调中的 ReadValueByIndex 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:SetNOwned",
+      "type": "function",
+      "name": "SetNOwned",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        262,
+        264
+      ],
+      "summary": "写入或更新InnoDB 存储管理协调中的 SetNOwned 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:GetNOwned",
+      "type": "function",
+      "name": "GetNOwned",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        266,
+        268
+      ],
+      "summary": "读取或查询InnoDB 存储管理协调中的 GetNOwned 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:GetNextRowOffset",
+      "type": "function",
+      "name": "GetNextRowOffset",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        270,
+        272
+      ],
+      "summary": "读取或查询InnoDB 存储管理协调中的 GetNextRowOffset 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:SetNextRowOffset",
+      "type": "function",
+      "name": "SetNextRowOffset",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        274,
+        276
+      ],
+      "summary": "写入或更新InnoDB 存储管理协调中的 SetNextRowOffset 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:GetHeapNo",
+      "type": "function",
+      "name": "GetHeapNo",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        278,
+        280
+      ],
+      "summary": "读取或查询InnoDB 存储管理协调中的 GetHeapNo 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:SetHeapNo",
+      "type": "function",
+      "name": "SetHeapNo",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        282,
+        284
+      ],
+      "summary": "写入或更新InnoDB 存储管理协调中的 SetHeapNo 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:SetTransactionId",
+      "type": "function",
+      "name": "SetTransactionId",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        286,
+        290
+      ],
+      "summary": "写入或更新InnoDB 存储管理协调中的 SetTransactionId 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:GetValueByColName",
+      "type": "function",
+      "name": "GetValueByColName",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        292,
+        304
+      ],
+      "summary": "读取或查询InnoDB 存储管理协调中的 GetValueByColName 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:ToString",
+      "type": "function",
+      "name": "ToString",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        306,
+        311
+      ],
+      "summary": "实现InnoDB 存储管理协调中的 ToString 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:GetEnhancedManager",
+      "type": "function",
+      "name": "GetEnhancedManager",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        314,
+        316
+      ],
+      "summary": "读取或查询InnoDB 存储管理协调中的 GetEnhancedManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/enhanced_btree_adapter.go:Close",
+      "type": "function",
+      "name": "Close",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        319,
+        321
+      ],
+      "summary": "执行持久化或生命周期操作InnoDB 存储管理协调中的 Close 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/enhanced_btree_adapter.go:EnhancedBTreeAdapter",
+      "type": "class",
+      "name": "EnhancedBTreeAdapter",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        12,
+        17
+      ],
+      "summary": "封装InnoDB 存储管理协调中的 EnhancedBTreeAdapter 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/enhanced_btree_adapter.go:IndexRecordRowAdapter",
+      "type": "class",
+      "name": "IndexRecordRowAdapter",
+      "filePath": "server/innodb/manager/enhanced_btree_adapter.go",
+      "lineRange": [
+        184,
+        186
+      ],
+      "summary": "封装InnoDB 存储管理协调中的 IndexRecordRowAdapter 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:server/innodb/manager/page_manager.go",
+      "type": "file",
+      "name": "page_manager.go",
+      "filePath": "server/innodb/manager/page_manager.go",
+      "summary": "协调InnoDB 存储管理协调的创建、查询、更新与资源释放，封装底层实现细节。",
+      "tags": [
+        "service",
+        "storage-manager",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/page_manager.go:NewPageManager",
+      "type": "function",
+      "name": "NewPageManager",
+      "filePath": "server/innodb/manager/page_manager.go",
+      "lineRange": [
+        59,
+        74
+      ],
+      "summary": "创建或初始化InnoDB 存储管理协调中的 NewPageManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/page_manager.go:CreatePage",
+      "type": "function",
+      "name": "CreatePage",
+      "filePath": "server/innodb/manager/page_manager.go",
+      "lineRange": [
+        77,
+        103
+      ],
+      "summary": "创建或初始化InnoDB 存储管理协调中的 CreatePage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/page_manager.go:CreatePageWithData",
+      "type": "function",
+      "name": "CreatePageWithData",
+      "filePath": "server/innodb/manager/page_manager.go",
+      "lineRange": [
+        106,
+        137
+      ],
+      "summary": "创建或初始化InnoDB 存储管理协调中的 CreatePageWithData 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/page_manager.go:GetPage",
+      "type": "function",
+      "name": "GetPage",
+      "filePath": "server/innodb/manager/page_manager.go",
+      "lineRange": [
+        140,
+        171
+      ],
+      "summary": "读取或查询InnoDB 存储管理协调中的 GetPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/page_manager.go:FlushPage",
+      "type": "function",
+      "name": "FlushPage",
+      "filePath": "server/innodb/manager/page_manager.go",
+      "lineRange": [
+        174,
+        205
+      ],
+      "summary": "执行持久化或生命周期操作InnoDB 存储管理协调中的 FlushPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/page_manager.go:FlushAll",
+      "type": "function",
+      "name": "FlushAll",
+      "filePath": "server/innodb/manager/page_manager.go",
+      "lineRange": [
+        208,
+        223
+      ],
+      "summary": "执行持久化或生命周期操作InnoDB 存储管理协调中的 FlushAll 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/page_manager.go:BeginTx",
+      "type": "function",
+      "name": "BeginTx",
+      "filePath": "server/innodb/manager/page_manager.go",
+      "lineRange": [
+        226,
+        228
+      ],
+      "summary": "实现InnoDB 存储管理协调中的 BeginTx 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/page_manager.go:getDirtyPages",
+      "type": "function",
+      "name": "getDirtyPages",
+      "filePath": "server/innodb/manager/page_manager.go",
+      "lineRange": [
+        231,
+        243
+      ],
+      "summary": "实现InnoDB 存储管理协调中的 getDirtyPages 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/page_manager.go:DefaultPageManager",
+      "type": "class",
+      "name": "DefaultPageManager",
+      "filePath": "server/innodb/manager/page_manager.go",
+      "lineRange": [
+        12,
+        26
+      ],
+      "summary": "封装InnoDB 存储管理协调中的 DefaultPageManager 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "storage-page"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/page_manager.go:PageStats",
+      "type": "class",
+      "name": "PageStats",
+      "filePath": "server/innodb/manager/page_manager.go",
+      "lineRange": [
+        29,
+        41
+      ],
+      "summary": "封装InnoDB 存储管理协调中的 PageStats 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/page_manager.go:PageConfig",
+      "type": "class",
+      "name": "PageConfig",
+      "filePath": "server/innodb/manager/page_manager.go",
+      "lineRange": [
+        44,
+        56
+      ],
+      "summary": "封装InnoDB 存储管理协调中的 PageConfig 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/manager/record_row_adapter_test.go",
+      "type": "file",
+      "name": "record_row_adapter_test.go",
+      "filePath": "server/innodb/manager/record_row_adapter_test.go",
+      "summary": "验证InnoDB 存储管理协调中 record row adapter 的正常路径、边界条件与回归行为。",
+      "tags": [
+        "test",
+        "regression",
+        "record-format",
+        "serialization"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_WriteWithNull",
+      "type": "function",
+      "name": "TestRecordRowAdapter_WriteWithNull",
+      "filePath": "server/innodb/manager/record_row_adapter_test.go",
+      "lineRange": [
+        12,
+        20
+      ],
+      "summary": "验证InnoDB 存储管理协调中的 TestRecordRowAdapter_WriteWithNull 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_WriteBytesWithNullWithsPos",
+      "type": "function",
+      "name": "TestRecordRowAdapter_WriteBytesWithNullWithsPos",
+      "filePath": "server/innodb/manager/record_row_adapter_test.go",
+      "lineRange": [
+        22,
+        30
+      ],
+      "summary": "验证InnoDB 存储管理协调中的 TestRecordRowAdapter_WriteBytesWithNullWithsPos 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_GetPrimaryKey",
+      "type": "function",
+      "name": "TestRecordRowAdapter_GetPrimaryKey",
+      "filePath": "server/innodb/manager/record_row_adapter_test.go",
+      "lineRange": [
+        32,
+        40
+      ],
+      "summary": "验证InnoDB 存储管理协调中的 TestRecordRowAdapter_GetPrimaryKey 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_ReadValueByIndex",
+      "type": "function",
+      "name": "TestRecordRowAdapter_ReadValueByIndex",
+      "filePath": "server/innodb/manager/record_row_adapter_test.go",
+      "lineRange": [
+        42,
+        49
+      ],
+      "summary": "验证InnoDB 存储管理协调中的 TestRecordRowAdapter_ReadValueByIndex 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_GetValueByColName",
+      "type": "function",
+      "name": "TestRecordRowAdapter_GetValueByColName",
+      "filePath": "server/innodb/manager/record_row_adapter_test.go",
+      "lineRange": [
+        51,
+        60
+      ],
+      "summary": "验证InnoDB 存储管理协调中的 TestRecordRowAdapter_GetValueByColName 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_SetAndGetNOwned",
+      "type": "function",
+      "name": "TestRecordRowAdapter_SetAndGetNOwned",
+      "filePath": "server/innodb/manager/record_row_adapter_test.go",
+      "lineRange": [
+        62,
+        70
+      ],
+      "summary": "验证InnoDB 存储管理协调中的 TestRecordRowAdapter_SetAndGetNOwned 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_SetAndGetNextRowOffset",
+      "type": "function",
+      "name": "TestRecordRowAdapter_SetAndGetNextRowOffset",
+      "filePath": "server/innodb/manager/record_row_adapter_test.go",
+      "lineRange": [
+        72,
+        80
+      ],
+      "summary": "验证InnoDB 存储管理协调中的 TestRecordRowAdapter_SetAndGetNextRowOffset 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_SetAndGetHeapNo",
+      "type": "function",
+      "name": "TestRecordRowAdapter_SetAndGetHeapNo",
+      "filePath": "server/innodb/manager/record_row_adapter_test.go",
+      "lineRange": [
+        82,
+        90
+      ],
+      "summary": "验证InnoDB 存储管理协调中的 TestRecordRowAdapter_SetAndGetHeapNo 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_SetTransactionId",
+      "type": "function",
+      "name": "TestRecordRowAdapter_SetTransactionId",
+      "filePath": "server/innodb/manager/record_row_adapter_test.go",
+      "lineRange": [
+        92,
+        109
+      ],
+      "summary": "验证InnoDB 存储管理协调中的 TestRecordRowAdapter_SetTransactionId 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_GetPageNumber",
+      "type": "function",
+      "name": "TestRecordRowAdapter_GetPageNumber",
+      "filePath": "server/innodb/manager/record_row_adapter_test.go",
+      "lineRange": [
+        111,
+        117
+      ],
+      "summary": "验证InnoDB 存储管理协调中的 TestRecordRowAdapter_GetPageNumber 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_Less",
+      "type": "function",
+      "name": "TestRecordRowAdapter_Less",
+      "filePath": "server/innodb/manager/record_row_adapter_test.go",
+      "lineRange": [
+        119,
+        127
+      ],
+      "summary": "验证InnoDB 存储管理协调中的 TestRecordRowAdapter_Less 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:NewEnhancedBTreeAdapter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:NewEnhancedBTreeAdapter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:Init",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:Init",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetAllLeafPages",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetAllLeafPages",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:Search",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:Search",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:Insert",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:Insert",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:RangeSearch",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:RangeSearch",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetFirstLeafPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetFirstLeafPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:convertKeyToBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:Less",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:Less",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:ToByte",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:ToByte",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:IsInfimumRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:IsInfimumRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:IsSupremumRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:IsSupremumRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetPageNumber",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetPageNumber",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:WriteWithNull",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:WriteWithNull",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:WriteBytesWithNullWithsPos",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:WriteBytesWithNullWithsPos",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetRowLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetRowLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetHeaderLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetHeaderLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetPrimaryKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetPrimaryKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetFieldLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetFieldLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:ReadValueByIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:ReadValueByIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:SetNOwned",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:SetNOwned",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetNOwned",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetNOwned",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetNextRowOffset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetNextRowOffset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:SetNextRowOffset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:SetNextRowOffset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetHeapNo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetHeapNo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:SetHeapNo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:SetHeapNo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:SetTransactionId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:SetTransactionId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetValueByColName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetValueByColName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:ToString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:ToString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetEnhancedManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:GetEnhancedManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:Close",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "function:server/innodb/manager/enhanced_btree_adapter.go:Close",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "class:server/innodb/manager/enhanced_btree_adapter.go:EnhancedBTreeAdapter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "class:server/innodb/manager/enhanced_btree_adapter.go:EnhancedBTreeAdapter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "class:server/innodb/manager/enhanced_btree_adapter.go:IndexRecordRowAdapter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "class:server/innodb/manager/enhanced_btree_adapter.go:IndexRecordRowAdapter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:util/bitutils_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:util/bitutils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:util/buffer_reader.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:util/buffer_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:util/buffer_writer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:util/byte_util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:util/checker.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:util/configReader.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:util/fileutil_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:util/fileutil.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:util/hash_utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:util/hashutils_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:util/password.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:util/Random.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:util/rutime.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/enhanced_btree_adapter.go",
+      "target": "file:util/time_util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "function:server/innodb/manager/page_manager.go:NewPageManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "function:server/innodb/manager/page_manager.go:NewPageManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "function:server/innodb/manager/page_manager.go:CreatePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "function:server/innodb/manager/page_manager.go:CreatePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "function:server/innodb/manager/page_manager.go:CreatePageWithData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "function:server/innodb/manager/page_manager.go:CreatePageWithData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "function:server/innodb/manager/page_manager.go:GetPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "function:server/innodb/manager/page_manager.go:GetPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "function:server/innodb/manager/page_manager.go:FlushPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "function:server/innodb/manager/page_manager.go:FlushPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "function:server/innodb/manager/page_manager.go:FlushAll",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "function:server/innodb/manager/page_manager.go:FlushAll",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "function:server/innodb/manager/page_manager.go:BeginTx",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "function:server/innodb/manager/page_manager.go:BeginTx",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "function:server/innodb/manager/page_manager.go:getDirtyPages",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "class:server/innodb/manager/page_manager.go:DefaultPageManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "class:server/innodb/manager/page_manager.go:DefaultPageManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "class:server/innodb/manager/page_manager.go:PageStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "class:server/innodb/manager/page_manager.go:PageStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "class:server/innodb/manager/page_manager.go:PageConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "class:server/innodb/manager/page_manager.go:PageConfig",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/common/charset.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/common/const_trx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/common/constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/common/error_name.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/common/error_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/common/error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/common/errorcode.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/common/frm_constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/common/locale_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/common/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/common/privs_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/common/privs.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/common/sql_error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/common/sql_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/common/type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/common/type.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/common/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/buffer_pool/auto_tuning.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_block.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_lru_optimized.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_lru.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_pool_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/buffer_pool/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/buffer_pool/prefetch_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/buffer_pool/prefetch.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/page_manager.go",
+      "target": "file:server/innodb/buffer_pool/stats.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_WriteWithNull",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_WriteWithNull",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_WriteBytesWithNullWithsPos",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_WriteBytesWithNullWithsPos",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_GetPrimaryKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_GetPrimaryKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_ReadValueByIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_ReadValueByIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_GetValueByColName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_GetValueByColName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_SetAndGetNOwned",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_SetAndGetNOwned",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_SetAndGetNextRowOffset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_SetAndGetNextRowOffset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_SetAndGetHeapNo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_SetAndGetHeapNo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_SetTransactionId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_SetTransactionId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_GetPageNumber",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_GetPageNumber",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_Less",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "function:server/innodb/manager/record_row_adapter_test.go:TestRecordRowAdapter_Less",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/base.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/blob_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/blob.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/compressed_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/compression_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/constants.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/data_dict_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/data_dictionary_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/encrypted_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/file_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/fsp_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/ibuf_bitmap_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/ibuf_free_list_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/mvcc_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_allocated_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_constructors_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_constructors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_dict_wrapper_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_factory.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_fsp_wrapper_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_ibuf_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_impl.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_inode_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_wrapper_base_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_wrapper_base.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/rollback_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/trx_sys_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/undo_log_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/record_row_adapter_test.go",
+      "target": "file:server/innodb/storage/wrapper/page/xdes_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

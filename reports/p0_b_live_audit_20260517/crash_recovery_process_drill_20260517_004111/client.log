@@ -1,0 +1,9 @@
+[CLIENT] DSN=root:root%401234@tcp(127.0.0.1:3310)/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true db=drill_recovery_db_20260517_004111 table=drill_txn_20260517_004111 mode=setup_redo
+ping failed: commands out of sync. You can't run this command now
+exit status 1
+[CLIENT] DSN=root:root%401234@tcp(127.0.0.1:3310)/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true db=drill_recovery_db_20260517_004111 table=drill_txn_20260517_004111 mode=verify_redo
+ping failed: commands out of sync. You can't run this command now
+exit status 1
+[CLIENT] DSN=root:root%401234@tcp(127.0.0.1:3310)/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true db=drill_recovery_db_20260517_004111 table=drill_txn_20260517_004111 mode=verify_show_tables_where
+ping failed: commands out of sync. You can't run this command now
+exit status 1

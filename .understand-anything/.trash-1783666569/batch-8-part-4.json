@@ -1,0 +1,181 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/conf/decoupled_config.go",
+      "type": "file",
+      "name": "decoupled_config.go",
+      "filePath": "server/conf/decoupled_config.go",
+      "summary": "实现服务配置加载、校验与默认值处理，覆盖 DecoupledConfig、MessageBusConfig、ProtocolParserConfig、ProtocolEncoderConfig 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "configuration",
+        "service",
+        "source-file"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/conf/decoupled_config.go:GetDecoupledConfig",
+      "type": "function",
+      "name": "GetDecoupledConfig",
+      "filePath": "server/conf/decoupled_config.go",
+      "lineRange": [
+        53,
+        72
+      ],
+      "summary": "读取或查找 GetDecoupledConfig 对应的服务配置加载、校验与默认值处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "configuration",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/conf/decoupled_config.go:DecoupledConfig",
+      "type": "class",
+      "name": "DecoupledConfig",
+      "filePath": "server/conf/decoupled_config.go",
+      "lineRange": [
+        4,
+        13
+      ],
+      "summary": "DecoupledConfig 定义服务配置加载、校验与默认值处理所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "configuration",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/conf/decoupled_config.go:MessageBusConfig",
+      "type": "class",
+      "name": "MessageBusConfig",
+      "filePath": "server/conf/decoupled_config.go",
+      "lineRange": [
+        16,
+        26
+      ],
+      "summary": "MessageBusConfig 定义服务配置加载、校验与默认值处理所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "configuration",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/conf/decoupled_config.go:ProtocolParserConfig",
+      "type": "class",
+      "name": "ProtocolParserConfig",
+      "filePath": "server/conf/decoupled_config.go",
+      "lineRange": [
+        29,
+        38
+      ],
+      "summary": "ProtocolParserConfig 定义服务配置加载、校验与默认值处理所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "configuration",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/conf/decoupled_config.go:ProtocolEncoderConfig",
+      "type": "class",
+      "name": "ProtocolEncoderConfig",
+      "filePath": "server/conf/decoupled_config.go",
+      "lineRange": [
+        41,
+        50
+      ],
+      "summary": "ProtocolEncoderConfig 定义服务配置加载、校验与默认值处理所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "configuration",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/conf/decoupled_config.go",
+      "target": "function:server/conf/decoupled_config.go:GetDecoupledConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/decoupled_config.go",
+      "target": "function:server/conf/decoupled_config.go:GetDecoupledConfig",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/conf/decoupled_config.go",
+      "target": "class:server/conf/decoupled_config.go:DecoupledConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/decoupled_config.go",
+      "target": "class:server/conf/decoupled_config.go:DecoupledConfig",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/conf/decoupled_config.go",
+      "target": "class:server/conf/decoupled_config.go:MessageBusConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/decoupled_config.go",
+      "target": "class:server/conf/decoupled_config.go:MessageBusConfig",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/conf/decoupled_config.go",
+      "target": "class:server/conf/decoupled_config.go:ProtocolParserConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/decoupled_config.go",
+      "target": "class:server/conf/decoupled_config.go:ProtocolParserConfig",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/conf/decoupled_config.go",
+      "target": "class:server/conf/decoupled_config.go:ProtocolEncoderConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/decoupled_config.go",
+      "target": "class:server/conf/decoupled_config.go:ProtocolEncoderConfig",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

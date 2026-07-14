@@ -452,10 +452,17 @@ func (bpm *BufferPoolManager) maintainLRULists() {
 
 // evictPage 驱逐一个页面
 func (bpm *BufferPoolManager) evictPage() *buffer_pool.BufferBlock {
-	// TODO: 实现页面驱逐策略
-	// 1. 优先驱逐未固定的干净页
-	// 2. 如果没有干净页，则选择最旧的脏页刷新并驱逐
-	return nil
+	if bpm == nil || bpm.bufferPool == nil {
+		return nil
+	}
+
+	page := bpm.bufferPool.EvictPage()
+	if page == nil {
+		return nil
+	}
+
+	atomic.AddUint64(&bpm.stats.evictions, 1)
+	return buffer_pool.NewBufferBlock(page)
 }
 
 // Close 关闭缓冲池管理器

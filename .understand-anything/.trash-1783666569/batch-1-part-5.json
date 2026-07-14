@@ -1,0 +1,849 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/common/sql_error.go",
+      "type": "file",
+      "name": "sql_error.go",
+      "filePath": "server/common/sql_error.go",
+      "summary": "定义服务端通用常量与辅助逻辑的错误类型、错误码映射及判定辅助函数。",
+      "tags": [
+        "service",
+        "shared-types",
+        "mysql"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/common/sql_error.go:Error",
+      "type": "function",
+      "name": "Error",
+      "filePath": "server/common/sql_error.go",
+      "lineRange": [
+        26,
+        28
+      ],
+      "summary": "实现服务端通用常量与辅助逻辑中的 Error 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/sql_error.go:NewErr",
+      "type": "function",
+      "name": "NewErr",
+      "filePath": "server/common/sql_error.go",
+      "lineRange": [
+        31,
+        48
+      ],
+      "summary": "创建或初始化服务端通用常量与辅助逻辑中的 NewErr 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/sql_error.go:NewErrf",
+      "type": "function",
+      "name": "NewErrf",
+      "filePath": "server/common/sql_error.go",
+      "lineRange": [
+        51,
+        64
+      ],
+      "summary": "创建或初始化服务端通用常量与辅助逻辑中的 NewErrf 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/common/sql_error.go:SQLError",
+      "type": "class",
+      "name": "SQLError",
+      "filePath": "server/common/sql_error.go",
+      "lineRange": [
+        19,
+        23
+      ],
+      "summary": "封装服务端通用常量与辅助逻辑中的 SQLError 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/common/sql_error_test.go",
+      "type": "file",
+      "name": "sql_error_test.go",
+      "filePath": "server/common/sql_error_test.go",
+      "summary": "验证服务端通用常量与辅助逻辑中 sql error 的正常路径、边界条件与回归行为。",
+      "tags": [
+        "test",
+        "regression",
+        "shared-types",
+        "mysql"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/sql_error_test.go:TestErr",
+      "type": "function",
+      "name": "TestErr",
+      "filePath": "server/common/sql_error_test.go",
+      "lineRange": [
+        8,
+        13
+      ],
+      "summary": "验证服务端通用常量与辅助逻辑中的 TestErr 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/common/type.go",
+      "type": "file",
+      "name": "type.go",
+      "filePath": "server/common/type.go",
+      "summary": "实现字段标志与类型判定中的 type 能力，并向同包或上层组件提供可复用接口。",
+      "tags": [
+        "service",
+        "shared-types",
+        "mysql"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/common/type.go:HasDropColumnWithIndexFlag",
+      "type": "function",
+      "name": "HasDropColumnWithIndexFlag",
+      "filePath": "server/common/type.go",
+      "lineRange": [
+        87,
+        89
+      ],
+      "summary": "校验或判断字段标志与类型判定中的 HasDropColumnWithIndexFlag 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/type.go:HasNotNullFlag",
+      "type": "function",
+      "name": "HasNotNullFlag",
+      "filePath": "server/common/type.go",
+      "lineRange": [
+        92,
+        94
+      ],
+      "summary": "校验或判断字段标志与类型判定中的 HasNotNullFlag 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/type.go:HasNoDefaultValueFlag",
+      "type": "function",
+      "name": "HasNoDefaultValueFlag",
+      "filePath": "server/common/type.go",
+      "lineRange": [
+        97,
+        99
+      ],
+      "summary": "校验或判断字段标志与类型判定中的 HasNoDefaultValueFlag 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/type.go:HasAutoIncrementFlag",
+      "type": "function",
+      "name": "HasAutoIncrementFlag",
+      "filePath": "server/common/type.go",
+      "lineRange": [
+        102,
+        104
+      ],
+      "summary": "校验或判断字段标志与类型判定中的 HasAutoIncrementFlag 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/type.go:HasUnsignedFlag",
+      "type": "function",
+      "name": "HasUnsignedFlag",
+      "filePath": "server/common/type.go",
+      "lineRange": [
+        107,
+        109
+      ],
+      "summary": "校验或判断字段标志与类型判定中的 HasUnsignedFlag 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/type.go:HasZerofillFlag",
+      "type": "function",
+      "name": "HasZerofillFlag",
+      "filePath": "server/common/type.go",
+      "lineRange": [
+        112,
+        114
+      ],
+      "summary": "校验或判断字段标志与类型判定中的 HasZerofillFlag 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/type.go:HasBinaryFlag",
+      "type": "function",
+      "name": "HasBinaryFlag",
+      "filePath": "server/common/type.go",
+      "lineRange": [
+        117,
+        119
+      ],
+      "summary": "校验或判断字段标志与类型判定中的 HasBinaryFlag 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/type.go:HasPriKeyFlag",
+      "type": "function",
+      "name": "HasPriKeyFlag",
+      "filePath": "server/common/type.go",
+      "lineRange": [
+        122,
+        124
+      ],
+      "summary": "校验或判断字段标志与类型判定中的 HasPriKeyFlag 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/type.go:HasUniKeyFlag",
+      "type": "function",
+      "name": "HasUniKeyFlag",
+      "filePath": "server/common/type.go",
+      "lineRange": [
+        127,
+        129
+      ],
+      "summary": "校验或判断字段标志与类型判定中的 HasUniKeyFlag 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/type.go:HasMultipleKeyFlag",
+      "type": "function",
+      "name": "HasMultipleKeyFlag",
+      "filePath": "server/common/type.go",
+      "lineRange": [
+        132,
+        134
+      ],
+      "summary": "校验或判断字段标志与类型判定中的 HasMultipleKeyFlag 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/type.go:HasTimestampFlag",
+      "type": "function",
+      "name": "HasTimestampFlag",
+      "filePath": "server/common/type.go",
+      "lineRange": [
+        137,
+        139
+      ],
+      "summary": "校验或判断字段标志与类型判定中的 HasTimestampFlag 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/type.go:HasOnUpdateNowFlag",
+      "type": "function",
+      "name": "HasOnUpdateNowFlag",
+      "filePath": "server/common/type.go",
+      "lineRange": [
+        142,
+        144
+      ],
+      "summary": "校验或判断字段标志与类型判定中的 HasOnUpdateNowFlag 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/type.go:HasParseToJSONFlag",
+      "type": "function",
+      "name": "HasParseToJSONFlag",
+      "filePath": "server/common/type.go",
+      "lineRange": [
+        147,
+        149
+      ],
+      "summary": "校验或判断字段标志与类型判定中的 HasParseToJSONFlag 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/type.go:HasIsBooleanFlag",
+      "type": "function",
+      "name": "HasIsBooleanFlag",
+      "filePath": "server/common/type.go",
+      "lineRange": [
+        152,
+        154
+      ],
+      "summary": "校验或判断字段标志与类型判定中的 HasIsBooleanFlag 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/type.go:HasPreventNullInsertFlag",
+      "type": "function",
+      "name": "HasPreventNullInsertFlag",
+      "filePath": "server/common/type.go",
+      "lineRange": [
+        157,
+        159
+      ],
+      "summary": "校验或判断字段标志与类型判定中的 HasPreventNullInsertFlag 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/type.go:HasEnumSetAsIntFlag",
+      "type": "function",
+      "name": "HasEnumSetAsIntFlag",
+      "filePath": "server/common/type.go",
+      "lineRange": [
+        162,
+        164
+      ],
+      "summary": "校验或判断字段标志与类型判定中的 HasEnumSetAsIntFlag 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/common/type_test.go",
+      "type": "file",
+      "name": "type_test.go",
+      "filePath": "server/common/type_test.go",
+      "summary": "验证字段标志与类型判定中 type 的正常路径、边界条件与回归行为。",
+      "tags": [
+        "test",
+        "regression",
+        "shared-types",
+        "mysql"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/type_test.go:TestFlags",
+      "type": "function",
+      "name": "TestFlags",
+      "filePath": "server/common/type_test.go",
+      "lineRange": [
+        22,
+        35
+      ],
+      "summary": "验证字段标志与类型判定中的 TestFlags 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/common/util.go",
+      "type": "file",
+      "name": "util.go",
+      "filePath": "server/common/util.go",
+      "summary": "实现服务端通用常量与辅助逻辑中的 util 能力，并向同包或上层组件提供可复用接口。",
+      "tags": [
+        "service",
+        "shared-types",
+        "mysql"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/common/util.go:IsIntegerType",
+      "type": "function",
+      "name": "IsIntegerType",
+      "filePath": "server/common/util.go",
+      "lineRange": [
+        52,
+        58
+      ],
+      "summary": "校验或判断服务端通用常量与辅助逻辑中的 IsIntegerType 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/util.go:GetDefaultFieldLengthAndDecimal",
+      "type": "function",
+      "name": "GetDefaultFieldLengthAndDecimal",
+      "filePath": "server/common/util.go",
+      "lineRange": [
+        65,
+        71
+      ],
+      "summary": "读取或查询服务端通用常量与辅助逻辑中的 GetDefaultFieldLengthAndDecimal 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/common/util.go:GetDefaultFieldLengthAndDecimalForCast",
+      "type": "function",
+      "name": "GetDefaultFieldLengthAndDecimalForCast",
+      "filePath": "server/common/util.go",
+      "lineRange": [
+        89,
+        95
+      ],
+      "summary": "读取或查询服务端通用常量与辅助逻辑中的 GetDefaultFieldLengthAndDecimalForCast 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/common/sql_error.go",
+      "target": "function:server/common/sql_error.go:Error",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/sql_error.go",
+      "target": "function:server/common/sql_error.go:Error",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/sql_error.go",
+      "target": "function:server/common/sql_error.go:NewErr",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/sql_error.go",
+      "target": "function:server/common/sql_error.go:NewErr",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/sql_error.go",
+      "target": "function:server/common/sql_error.go:NewErrf",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/sql_error.go",
+      "target": "function:server/common/sql_error.go:NewErrf",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/sql_error.go",
+      "target": "class:server/common/sql_error.go:SQLError",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/sql_error.go",
+      "target": "class:server/common/sql_error.go:SQLError",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/sql_error_test.go",
+      "target": "function:server/common/sql_error_test.go:TestErr",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/sql_error_test.go",
+      "target": "function:server/common/sql_error_test.go:TestErr",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasDropColumnWithIndexFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasDropColumnWithIndexFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasNotNullFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasNotNullFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasNoDefaultValueFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasNoDefaultValueFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasAutoIncrementFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasAutoIncrementFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasUnsignedFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasUnsignedFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasZerofillFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasZerofillFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasBinaryFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasBinaryFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasPriKeyFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasPriKeyFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasUniKeyFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasUniKeyFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasMultipleKeyFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasMultipleKeyFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasTimestampFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasTimestampFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasOnUpdateNowFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasOnUpdateNowFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasParseToJSONFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasParseToJSONFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasIsBooleanFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasIsBooleanFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasPreventNullInsertFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasPreventNullInsertFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasEnumSetAsIntFlag",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/type.go",
+      "target": "function:server/common/type.go:HasEnumSetAsIntFlag",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/type_test.go",
+      "target": "function:server/common/type_test.go:TestFlags",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/type_test.go",
+      "target": "function:server/common/type_test.go:TestFlags",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/util.go",
+      "target": "function:server/common/util.go:IsIntegerType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/util.go",
+      "target": "function:server/common/util.go:IsIntegerType",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/util.go",
+      "target": "function:server/common/util.go:GetDefaultFieldLengthAndDecimal",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/util.go",
+      "target": "function:server/common/util.go:GetDefaultFieldLengthAndDecimal",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/common/util.go",
+      "target": "function:server/common/util.go:GetDefaultFieldLengthAndDecimalForCast",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/common/util.go",
+      "target": "function:server/common/util.go:GetDefaultFieldLengthAndDecimalForCast",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

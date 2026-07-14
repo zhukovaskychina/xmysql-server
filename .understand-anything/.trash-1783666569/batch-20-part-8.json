@@ -1,0 +1,249 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/metadata/table.go",
+      "type": "file",
+      "name": "table.go",
+      "filePath": "server/innodb/metadata/table.go",
+      "summary": "提供元数据与表结构的结构定义与转换逻辑，支撑数据库、表、列和查询结果模式的统一描述。",
+      "tags": [
+        "go",
+        "metadata",
+        "storage-engine"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "file",
+      "name": "tablemeta_methods_test.go",
+      "filePath": "server/innodb/metadata/tablemeta_methods_test.go",
+      "summary": "验证元数据与表结构相关行为与边界条件，重点覆盖 TableMeta AddColumnAndGetColumn、TableMeta AddIndex、TableMeta SetPrimaryKey。",
+      "tags": [
+        "test",
+        "go",
+        "metadata"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_AddColumnAndGetColumn",
+      "type": "function",
+      "name": "TestTableMeta_AddColumnAndGetColumn",
+      "filePath": "server/innodb/metadata/tablemeta_methods_test.go",
+      "lineRange": [
+        7,
+        19
+      ],
+      "summary": "验证 TableMeta AddColumnAndGetColumn 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_AddIndex",
+      "type": "function",
+      "name": "TestTableMeta_AddIndex",
+      "filePath": "server/innodb/metadata/tablemeta_methods_test.go",
+      "lineRange": [
+        21,
+        31
+      ],
+      "summary": "验证 TableMeta AddIndex 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_SetPrimaryKey",
+      "type": "function",
+      "name": "TestTableMeta_SetPrimaryKey",
+      "filePath": "server/innodb/metadata/tablemeta_methods_test.go",
+      "lineRange": [
+        33,
+        43
+      ],
+      "summary": "验证 TableMeta SetPrimaryKey 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_Validate",
+      "type": "function",
+      "name": "TestTableMeta_Validate",
+      "filePath": "server/innodb/metadata/tablemeta_methods_test.go",
+      "lineRange": [
+        45,
+        54
+      ],
+      "summary": "验证 TableMeta Validate 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_Validate_DuplicateColumn",
+      "type": "function",
+      "name": "TestTableMeta_Validate_DuplicateColumn",
+      "filePath": "server/innodb/metadata/tablemeta_methods_test.go",
+      "lineRange": [
+        56,
+        64
+      ],
+      "summary": "验证 TableMeta Validate DuplicateColumn 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_Validate_MissingPK",
+      "type": "function",
+      "name": "TestTableMeta_Validate_MissingPK",
+      "filePath": "server/innodb/metadata/tablemeta_methods_test.go",
+      "lineRange": [
+        66,
+        74
+      ],
+      "summary": "验证 TableMeta Validate MissingPK 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "metadata"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_Validate_IndexUnknownColumn",
+      "type": "function",
+      "name": "TestTableMeta_Validate_IndexUnknownColumn",
+      "filePath": "server/innodb/metadata/tablemeta_methods_test.go",
+      "lineRange": [
+        76,
+        84
+      ],
+      "summary": "验证 TableMeta Validate IndexUnknownColumn 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "metadata"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "target": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_AddColumnAndGetColumn",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "target": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_AddColumnAndGetColumn",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "target": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_AddIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "target": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_AddIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "target": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_SetPrimaryKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "target": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_SetPrimaryKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "target": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_Validate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "target": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_Validate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "target": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_Validate_DuplicateColumn",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "target": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_Validate_DuplicateColumn",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "target": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_Validate_MissingPK",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "target": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_Validate_MissingPK",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "target": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_Validate_IndexUnknownColumn",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "target": "function:server/innodb/metadata/tablemeta_methods_test.go:TestTableMeta_Validate_IndexUnknownColumn",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

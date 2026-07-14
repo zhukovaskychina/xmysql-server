@@ -1,0 +1,882 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/manager/storage_manager_init_test.go",
+      "type": "file",
+      "name": "storage_manager_init_test.go",
+      "filePath": "server/innodb/manager/storage_manager_init_test.go",
+      "summary": "验证InnoDB 存储与 SQL 执行相关逻辑，覆盖 TestStorageManagerSystemTablespaceInitialization、TestStorageManagerConfigurationHandling、TestStorageManagerErrorHandling 等符号，用于检查正常路径、边界条件和错误处理。",
+      "tags": [
+        "test",
+        "go",
+        "innodb",
+        "verification"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager_init_test.go:TestStorageManagerSystemTablespaceInitialization",
+      "type": "function",
+      "name": "TestStorageManagerSystemTablespaceInitialization",
+      "filePath": "server/innodb/manager/storage_manager_init_test.go",
+      "lineRange": [
+        12,
+        146
+      ],
+      "summary": "验证 TestStorageManagerSystemTablespaceInitialization 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager_init_test.go:TestStorageManagerConfigurationHandling",
+      "type": "function",
+      "name": "TestStorageManagerConfigurationHandling",
+      "filePath": "server/innodb/manager/storage_manager_init_test.go",
+      "lineRange": [
+        149,
+        197
+      ],
+      "summary": "验证 TestStorageManagerConfigurationHandling 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager_init_test.go:TestStorageManagerErrorHandling",
+      "type": "function",
+      "name": "TestStorageManagerErrorHandling",
+      "filePath": "server/innodb/manager/storage_manager_init_test.go",
+      "lineRange": [
+        200,
+        251
+      ],
+      "summary": "验证 TestStorageManagerErrorHandling 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:server/innodb/manager/storage_manager_test.go",
+      "type": "file",
+      "name": "storage_manager_test.go",
+      "filePath": "server/innodb/manager/storage_manager_test.go",
+      "summary": "验证InnoDB 存储与 SQL 执行相关逻辑，覆盖 TestStorageManagerInterface、TestStorageManagerMethods 等符号，用于检查正常路径、边界条件和错误处理。",
+      "tags": [
+        "test",
+        "go",
+        "innodb",
+        "verification"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager_test.go:TestStorageManagerInterface",
+      "type": "function",
+      "name": "TestStorageManagerInterface",
+      "filePath": "server/innodb/manager/storage_manager_test.go",
+      "lineRange": [
+        9,
+        17
+      ],
+      "summary": "验证 TestStorageManagerInterface 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_manager_test.go:TestStorageManagerMethods",
+      "type": "function",
+      "name": "TestStorageManagerMethods",
+      "filePath": "server/innodb/manager/storage_manager_test.go",
+      "lineRange": [
+        20,
+        94
+      ],
+      "summary": "验证 TestStorageManagerMethods 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:server/innodb/manager/storage_optimization_test.go",
+      "type": "file",
+      "name": "storage_optimization_test.go",
+      "filePath": "server/innodb/manager/storage_optimization_test.go",
+      "summary": "验证InnoDB 存储与 SQL 执行相关逻辑，覆盖 TestPreallocateSpace、TestDefragmentSpace、TestReclaimSpace、TestOptimizeStorage 等符号，用于检查正常路径、边界条件和错误处理。",
+      "tags": [
+        "test",
+        "go",
+        "innodb",
+        "verification"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_optimization_test.go:TestPreallocateSpace",
+      "type": "function",
+      "name": "TestPreallocateSpace",
+      "filePath": "server/innodb/manager/storage_optimization_test.go",
+      "lineRange": [
+        11,
+        49
+      ],
+      "summary": "验证 TestPreallocateSpace 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_optimization_test.go:TestDefragmentSpace",
+      "type": "function",
+      "name": "TestDefragmentSpace",
+      "filePath": "server/innodb/manager/storage_optimization_test.go",
+      "lineRange": [
+        52,
+        84
+      ],
+      "summary": "验证 TestDefragmentSpace 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_optimization_test.go:TestReclaimSpace",
+      "type": "function",
+      "name": "TestReclaimSpace",
+      "filePath": "server/innodb/manager/storage_optimization_test.go",
+      "lineRange": [
+        87,
+        119
+      ],
+      "summary": "验证 TestReclaimSpace 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_optimization_test.go:TestOptimizeStorage",
+      "type": "function",
+      "name": "TestOptimizeStorage",
+      "filePath": "server/innodb/manager/storage_optimization_test.go",
+      "lineRange": [
+        122,
+        154
+      ],
+      "summary": "验证 TestOptimizeStorage 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_optimization_test.go:TestSegmentDefragment",
+      "type": "function",
+      "name": "TestSegmentDefragment",
+      "filePath": "server/innodb/manager/storage_optimization_test.go",
+      "lineRange": [
+        157,
+        197
+      ],
+      "summary": "验证 TestSegmentDefragment 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/storage_optimization_test.go:TestFreeSegment",
+      "type": "function",
+      "name": "TestFreeSegment",
+      "filePath": "server/innodb/manager/storage_optimization_test.go",
+      "lineRange": [
+        200,
+        245
+      ],
+      "summary": "验证 TestFreeSegment 对应的InnoDB 存储与 SQL 执行相关逻辑流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "innodb"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/manager/storage_manager_init_test.go",
+      "target": "function:server/innodb/manager/storage_manager_init_test.go:TestStorageManagerSystemTablespaceInitialization",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_init_test.go",
+      "target": "function:server/innodb/manager/storage_manager_init_test.go:TestStorageManagerSystemTablespaceInitialization",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_init_test.go",
+      "target": "function:server/innodb/manager/storage_manager_init_test.go:TestStorageManagerConfigurationHandling",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_init_test.go",
+      "target": "function:server/innodb/manager/storage_manager_init_test.go:TestStorageManagerConfigurationHandling",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_init_test.go",
+      "target": "function:server/innodb/manager/storage_manager_init_test.go:TestStorageManagerErrorHandling",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_init_test.go",
+      "target": "function:server/innodb/manager/storage_manager_init_test.go:TestStorageManagerErrorHandling",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "function:server/innodb/manager/storage_manager_test.go:TestStorageManagerInterface",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "function:server/innodb/manager/storage_manager_test.go:TestStorageManagerInterface",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "function:server/innodb/manager/storage_manager_test.go:TestStorageManagerMethods",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "function:server/innodb/manager/storage_manager_test.go:TestStorageManagerMethods",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "function:server/innodb/manager/storage_optimization_test.go:TestPreallocateSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "function:server/innodb/manager/storage_optimization_test.go:TestPreallocateSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "function:server/innodb/manager/storage_optimization_test.go:TestDefragmentSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "function:server/innodb/manager/storage_optimization_test.go:TestDefragmentSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "function:server/innodb/manager/storage_optimization_test.go:TestReclaimSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "function:server/innodb/manager/storage_optimization_test.go:TestReclaimSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "function:server/innodb/manager/storage_optimization_test.go:TestOptimizeStorage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "function:server/innodb/manager/storage_optimization_test.go:TestOptimizeStorage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "function:server/innodb/manager/storage_optimization_test.go:TestSegmentDefragment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "function:server/innodb/manager/storage_optimization_test.go:TestSegmentDefragment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "function:server/innodb/manager/storage_optimization_test.go:TestFreeSegment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "function:server/innodb/manager/storage_optimization_test.go:TestFreeSegment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_init_test.go",
+      "target": "file:server/conf/config_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_init_test.go",
+      "target": "file:server/conf/config.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_init_test.go",
+      "target": "file:server/conf/decoupled_config.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_manager_test.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/conf/config_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/conf/config.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/conf/decoupled_config.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/storage_optimization_test.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

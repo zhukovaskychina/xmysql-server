@@ -1,0 +1,2894 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/record/unified_record.go",
+      "type": "file",
+      "name": "unified_record.go",
+      "filePath": "server/innodb/record/unified_record.go",
+      "summary": "实现InnoDB 记录抽象的编码、字段访问和系统记录处理，使页面中的物理记录可被执行与事务层使用。",
+      "tags": [
+        "go",
+        "record-format",
+        "storage-engine"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:NewExecutorRecord",
+      "type": "function",
+      "name": "NewExecutorRecord",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        18,
+        23
+      ],
+      "summary": "创建并初始化 ExecutorRecord，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetValue",
+      "type": "function",
+      "name": "GetValue",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        26,
+        39
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 Value 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:SetValue",
+      "type": "function",
+      "name": "SetValue",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        42,
+        56
+      ],
+      "summary": "更新 InnoDB 记录抽象 中的 Value。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetValues",
+      "type": "function",
+      "name": "GetValues",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        59,
+        61
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 Values 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:SetValues",
+      "type": "function",
+      "name": "SetValues",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        64,
+        66
+      ],
+      "summary": "更新 InnoDB 记录抽象 中的 Values。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetTableMeta",
+      "type": "function",
+      "name": "GetTableMeta",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        69,
+        71
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 TableMeta 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:NewUnifiedRecord",
+      "type": "function",
+      "name": "NewUnifiedRecord",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        128,
+        132
+      ],
+      "summary": "创建并初始化 UnifiedRecord，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:NewUnifiedRecordFromExecutor",
+      "type": "function",
+      "name": "NewUnifiedRecordFromExecutor",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        135,
+        140
+      ],
+      "summary": "创建并初始化 UnifiedRecordFromExecutor，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:NewUnifiedRecordFromStorage",
+      "type": "function",
+      "name": "NewUnifiedRecordFromStorage",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        143,
+        156
+      ],
+      "summary": "创建并初始化 UnifiedRecordFromStorage，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:parseValuesFromStorage",
+      "type": "function",
+      "name": "parseValuesFromStorage",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        159,
+        176
+      ],
+      "summary": "实现 InnoDB 记录抽象 中的 parseValuesFromStorage 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetValueByName",
+      "type": "function",
+      "name": "GetValueByName",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        179,
+        197
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 ValueByName 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:SetValueByName",
+      "type": "function",
+      "name": "SetValueByName",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        199,
+        216
+      ],
+      "summary": "更新 InnoDB 记录抽象 中的 ValueByName。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetColumnCount",
+      "type": "function",
+      "name": "GetColumnCount",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        218,
+        220
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 ColumnCount 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetValueByIndex",
+      "type": "function",
+      "name": "GetValueByIndex",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        222,
+        232
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 ValueByIndex 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:SetValueByIndex",
+      "type": "function",
+      "name": "SetValueByIndex",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        234,
+        240
+      ],
+      "summary": "更新 InnoDB 记录抽象 中的 ValueByIndex。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:SetTableMeta",
+      "type": "function",
+      "name": "SetTableMeta",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        278,
+        280
+      ],
+      "summary": "更新 InnoDB 记录抽象 中的 TableMeta。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetID",
+      "type": "function",
+      "name": "GetID",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        283,
+        285
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 ID 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:SetID",
+      "type": "function",
+      "name": "SetID",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        287,
+        289
+      ],
+      "summary": "更新 InnoDB 记录抽象 中的 ID。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetData",
+      "type": "function",
+      "name": "GetData",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        291,
+        297
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 Data 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:SetStorageData",
+      "type": "function",
+      "name": "SetStorageData",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        299,
+        301
+      ],
+      "summary": "更新 InnoDB 记录抽象 中的 StorageData。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetStorageData",
+      "type": "function",
+      "name": "GetStorageData",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        303,
+        305
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 StorageData 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetLength",
+      "type": "function",
+      "name": "GetLength",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        307,
+        309
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 Length 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetType",
+      "type": "function",
+      "name": "GetType",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        311,
+        316
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 Type 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:generateStorageData",
+      "type": "function",
+      "name": "generateStorageData",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        319,
+        342
+      ],
+      "summary": "实现 InnoDB 记录抽象 中的 generateStorageData 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:Less",
+      "type": "function",
+      "name": "Less",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        345,
+        350
+      ],
+      "summary": "实现 InnoDB 记录抽象 中的 Less 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:ToByte",
+      "type": "function",
+      "name": "ToByte",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        352,
+        354
+      ],
+      "summary": "转换 InnoDB 记录抽象 中的数据表示，生成调用方需要的目标格式。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:IsInfimumRow",
+      "type": "function",
+      "name": "IsInfimumRow",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        356,
+        358
+      ],
+      "summary": "实现 InnoDB 记录抽象 中的 IsInfimumRow 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:IsSupremumRow",
+      "type": "function",
+      "name": "IsSupremumRow",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        360,
+        362
+      ],
+      "summary": "实现 InnoDB 记录抽象 中的 IsSupremumRow 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetPageNumber",
+      "type": "function",
+      "name": "GetPageNumber",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        364,
+        371
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 PageNumber 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:WriteWithNull",
+      "type": "function",
+      "name": "WriteWithNull",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        373,
+        375
+      ],
+      "summary": "将 WithNull 写入底层结构，并维护相关状态。",
+      "tags": [
+        "data-access",
+        "storage",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:WriteBytesWithNullWithsPos",
+      "type": "function",
+      "name": "WriteBytesWithNullWithsPos",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        377,
+        380
+      ],
+      "summary": "将 BytesWithNullWithsPos 写入底层结构，并维护相关状态。",
+      "tags": [
+        "data-access",
+        "storage",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetRowLength",
+      "type": "function",
+      "name": "GetRowLength",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        382,
+        384
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 RowLength 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetHeaderLength",
+      "type": "function",
+      "name": "GetHeaderLength",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        386,
+        391
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 HeaderLength 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetPrimaryKey",
+      "type": "function",
+      "name": "GetPrimaryKey",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        393,
+        399
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 PrimaryKey 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetFieldLength",
+      "type": "function",
+      "name": "GetFieldLength",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        401,
+        403
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 FieldLength 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:ReadValueByIndex",
+      "type": "function",
+      "name": "ReadValueByIndex",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        405,
+        410
+      ],
+      "summary": "从底层存储读取 ValueByIndex，并完成必要的解码或可见性处理。",
+      "tags": [
+        "data-access",
+        "storage",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:SetNOwned",
+      "type": "function",
+      "name": "SetNOwned",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        412,
+        416
+      ],
+      "summary": "更新 InnoDB 记录抽象 中的 NOwned。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetNOwned",
+      "type": "function",
+      "name": "GetNOwned",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        418,
+        423
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 NOwned 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetNextRowOffset",
+      "type": "function",
+      "name": "GetNextRowOffset",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        425,
+        430
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 NextRowOffset 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:SetNextRowOffset",
+      "type": "function",
+      "name": "SetNextRowOffset",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        432,
+        436
+      ],
+      "summary": "更新 InnoDB 记录抽象 中的 NextRowOffset。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetHeapNo",
+      "type": "function",
+      "name": "GetHeapNo",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        438,
+        443
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 HeapNo 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:SetHeapNo",
+      "type": "function",
+      "name": "SetHeapNo",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        445,
+        449
+      ],
+      "summary": "更新 InnoDB 记录抽象 中的 HeapNo。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:SetTransactionId",
+      "type": "function",
+      "name": "SetTransactionId",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        451,
+        458
+      ],
+      "summary": "更新 InnoDB 记录抽象 中的 TransactionId。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetValueByColName",
+      "type": "function",
+      "name": "GetValueByColName",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        460,
+        466
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 ValueByColName 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:ToString",
+      "type": "function",
+      "name": "ToString",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        468,
+        470
+      ],
+      "summary": "转换 InnoDB 记录抽象 中的数据表示，生成调用方需要的目标格式。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:AsRecord",
+      "type": "function",
+      "name": "AsRecord",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        473,
+        475
+      ],
+      "summary": "实现 InnoDB 记录抽象 中的 AsRecord 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:AsExecutorRecord",
+      "type": "function",
+      "name": "AsExecutorRecord",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        477,
+        479
+      ],
+      "summary": "实现 InnoDB 记录抽象 中的 AsExecutorRecord 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:ToExecutorRecord",
+      "type": "function",
+      "name": "ToExecutorRecord",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        482,
+        487
+      ],
+      "summary": "转换 InnoDB 记录抽象 中的数据表示，生成调用方需要的目标格式。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:ToStorageRecord",
+      "type": "function",
+      "name": "ToStorageRecord",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        489,
+        494
+      ],
+      "summary": "转换 InnoDB 记录抽象 中的数据表示，生成调用方需要的目标格式。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetHeader",
+      "type": "function",
+      "name": "GetHeader",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        517,
+        519
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 Header 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:GetTableRowTuple",
+      "type": "function",
+      "name": "GetTableRowTuple",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        525,
+        527
+      ],
+      "summary": "读取 InnoDB 记录抽象 中的 TableRowTuple 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:NewRecordConverter",
+      "type": "function",
+      "name": "NewRecordConverter",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        618,
+        620
+      ],
+      "summary": "创建并初始化 RecordConverter，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:ExecutorToUnified",
+      "type": "function",
+      "name": "ExecutorToUnified",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        623,
+        625
+      ],
+      "summary": "实现 InnoDB 记录抽象 中的 ExecutorToUnified 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:StorageToUnified",
+      "type": "function",
+      "name": "StorageToUnified",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        628,
+        630
+      ],
+      "summary": "实现 InnoDB 记录抽象 中的 StorageToUnified 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:UnifiedToExecutor",
+      "type": "function",
+      "name": "UnifiedToExecutor",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        633,
+        635
+      ],
+      "summary": "实现 InnoDB 记录抽象 中的 UnifiedToExecutor 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/record/unified_record.go:UnifiedToStorage",
+      "type": "function",
+      "name": "UnifiedToStorage",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        638,
+        640
+      ],
+      "summary": "实现 InnoDB 记录抽象 中的 UnifiedToStorage 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/record/unified_record.go:ExecutorRecord",
+      "type": "class",
+      "name": "ExecutorRecord",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        12,
+        15
+      ],
+      "summary": "定义 InnoDB 记录抽象 使用的 ExecutorRecord 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/record/unified_record.go:UnifiedRecord",
+      "type": "class",
+      "name": "UnifiedRecord",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        74,
+        95
+      ],
+      "summary": "定义 InnoDB 记录抽象 使用的 UnifiedRecord 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/record/unified_record.go:StorageRecord",
+      "type": "class",
+      "name": "StorageRecord",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        98,
+        111
+      ],
+      "summary": "定义 InnoDB 记录抽象 使用的 StorageRecord 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/record/unified_record.go:UnifiedRecordImpl",
+      "type": "class",
+      "name": "UnifiedRecordImpl",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        114,
+        125
+      ],
+      "summary": "定义 InnoDB 记录抽象 使用的 UnifiedRecordImpl 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/record/unified_record.go:StorageRecordImpl",
+      "type": "class",
+      "name": "StorageRecordImpl",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        497,
+        499
+      ],
+      "summary": "定义 InnoDB 记录抽象 使用的 StorageRecordImpl 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/record/unified_record.go:RecordConverter",
+      "type": "class",
+      "name": "RecordConverter",
+      "filePath": "server/innodb/record/unified_record.go",
+      "lineRange": [
+        615,
+        615
+      ],
+      "summary": "定义 InnoDB 记录抽象 使用的 RecordConverter 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/sqlparser/analyzer_test.go",
+      "type": "file",
+      "name": "analyzer_test.go",
+      "filePath": "server/innodb/sqlparser/analyzer_test.go",
+      "summary": "验证SQL 解析与语义分析相关行为与边界条件，重点覆盖 Preview、IsDML、GetTableName。",
+      "tags": [
+        "test",
+        "go",
+        "sql-parser"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/sqlparser/analyzer_test.go:TestPreview",
+      "type": "function",
+      "name": "TestPreview",
+      "filePath": "server/innodb/sqlparser/analyzer_test.go",
+      "lineRange": [
+        28,
+        89
+      ],
+      "summary": "验证 Preview 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "sql-parser"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/sqlparser/analyzer_test.go:TestIsDML",
+      "type": "function",
+      "name": "TestIsDML",
+      "filePath": "server/innodb/sqlparser/analyzer_test.go",
+      "lineRange": [
+        91,
+        112
+      ],
+      "summary": "验证 IsDML 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "sql-parser"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/sqlparser/analyzer_test.go:TestGetTableName",
+      "type": "function",
+      "name": "TestGetTableName",
+      "filePath": "server/innodb/sqlparser/analyzer_test.go",
+      "lineRange": [
+        114,
+        139
+      ],
+      "summary": "验证 GetTableName 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "sql-parser"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/sqlparser/analyzer_test.go:TestIsColName",
+      "type": "function",
+      "name": "TestIsColName",
+      "filePath": "server/innodb/sqlparser/analyzer_test.go",
+      "lineRange": [
+        141,
+        157
+      ],
+      "summary": "验证 IsColName 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "sql-parser"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/sqlparser/analyzer_test.go:TestIsValue",
+      "type": "function",
+      "name": "TestIsValue",
+      "filePath": "server/innodb/sqlparser/analyzer_test.go",
+      "lineRange": [
+        159,
+        191
+      ],
+      "summary": "验证 IsValue 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "sql-parser"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/sqlparser/analyzer_test.go:TestIsNull",
+      "type": "function",
+      "name": "TestIsNull",
+      "filePath": "server/innodb/sqlparser/analyzer_test.go",
+      "lineRange": [
+        193,
+        209
+      ],
+      "summary": "验证 IsNull 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "sql-parser"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/sqlparser/analyzer_test.go:TestIsSimpleTuple",
+      "type": "function",
+      "name": "TestIsSimpleTuple",
+      "filePath": "server/innodb/sqlparser/analyzer_test.go",
+      "lineRange": [
+        211,
+        238
+      ],
+      "summary": "验证 IsSimpleTuple 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "sql-parser"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/sqlparser/analyzer_test.go:TestNewPlanValue",
+      "type": "function",
+      "name": "TestNewPlanValue",
+      "filePath": "server/innodb/sqlparser/analyzer_test.go",
+      "lineRange": [
+        240,
+        341
+      ],
+      "summary": "验证 NewPlanValue 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "sql-parser"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/sqlparser/analyzer_test.go:TestStringIn",
+      "type": "function",
+      "name": "TestStringIn",
+      "filePath": "server/innodb/sqlparser/analyzer_test.go",
+      "lineRange": [
+        343,
+        362
+      ],
+      "summary": "验证 StringIn 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "sql-parser"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/sqlparser/analyzer_test.go:TestExtractSetValues",
+      "type": "function",
+      "name": "TestExtractSetValues",
+      "filePath": "server/innodb/sqlparser/analyzer_test.go",
+      "lineRange": [
+        364,
+        496
+      ],
+      "summary": "验证 ExtractSetValues 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "sql-parser"
+      ],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:NewExecutorRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:NewExecutorRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetValue",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetValue",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetValues",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetValues",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetValues",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetValues",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetTableMeta",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetTableMeta",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:NewUnifiedRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:NewUnifiedRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:NewUnifiedRecordFromExecutor",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:NewUnifiedRecordFromExecutor",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:NewUnifiedRecordFromStorage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:NewUnifiedRecordFromStorage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:parseValuesFromStorage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetValueByName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetValueByName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetValueByName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetValueByName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetColumnCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetColumnCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetValueByIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetValueByIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetValueByIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetValueByIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetTableMeta",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetTableMeta",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetStorageData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetStorageData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetStorageData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetStorageData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetType",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:generateStorageData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:Less",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:Less",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:ToByte",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:ToByte",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:IsInfimumRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:IsInfimumRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:IsSupremumRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:IsSupremumRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetPageNumber",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetPageNumber",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:WriteWithNull",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:WriteWithNull",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:WriteBytesWithNullWithsPos",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:WriteBytesWithNullWithsPos",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetRowLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetRowLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetHeaderLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetHeaderLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetPrimaryKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetPrimaryKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetFieldLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetFieldLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:ReadValueByIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:ReadValueByIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetNOwned",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetNOwned",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetNOwned",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetNOwned",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetNextRowOffset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetNextRowOffset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetNextRowOffset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetNextRowOffset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetHeapNo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetHeapNo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetHeapNo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetHeapNo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetTransactionId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:SetTransactionId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetValueByColName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetValueByColName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:ToString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:ToString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:AsRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:AsRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:AsExecutorRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:AsExecutorRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:ToExecutorRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:ToExecutorRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:ToStorageRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:ToStorageRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetTableRowTuple",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:GetTableRowTuple",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:NewRecordConverter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:NewRecordConverter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:ExecutorToUnified",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:ExecutorToUnified",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:StorageToUnified",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:StorageToUnified",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:UnifiedToExecutor",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:UnifiedToExecutor",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:UnifiedToStorage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "function:server/innodb/record/unified_record.go:UnifiedToStorage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "class:server/innodb/record/unified_record.go:ExecutorRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "class:server/innodb/record/unified_record.go:ExecutorRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "class:server/innodb/record/unified_record.go:UnifiedRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "class:server/innodb/record/unified_record.go:UnifiedRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "class:server/innodb/record/unified_record.go:StorageRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "class:server/innodb/record/unified_record.go:StorageRecord",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "class:server/innodb/record/unified_record.go:UnifiedRecordImpl",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "class:server/innodb/record/unified_record.go:UnifiedRecordImpl",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "class:server/innodb/record/unified_record.go:StorageRecordImpl",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "class:server/innodb/record/unified_record.go:StorageRecordImpl",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "class:server/innodb/record/unified_record.go:RecordConverter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "class:server/innodb/record/unified_record.go:RecordConverter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/metadata/builder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/metadata/column_def.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/metadata/column.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/metadata/convert.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/metadata/database.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/metadata/information_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/metadata/migrate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/metadata/query_schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/metadata/schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/metadata/table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/metadata/tuple.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/metadata/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/record/unified_record.go",
+      "target": "file:server/innodb/metadata/utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "function:server/innodb/sqlparser/analyzer_test.go:TestPreview",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "function:server/innodb/sqlparser/analyzer_test.go:TestPreview",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "function:server/innodb/sqlparser/analyzer_test.go:TestIsDML",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "function:server/innodb/sqlparser/analyzer_test.go:TestIsDML",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "function:server/innodb/sqlparser/analyzer_test.go:TestGetTableName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "function:server/innodb/sqlparser/analyzer_test.go:TestGetTableName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "function:server/innodb/sqlparser/analyzer_test.go:TestIsColName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "function:server/innodb/sqlparser/analyzer_test.go:TestIsColName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "function:server/innodb/sqlparser/analyzer_test.go:TestIsValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "function:server/innodb/sqlparser/analyzer_test.go:TestIsValue",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "function:server/innodb/sqlparser/analyzer_test.go:TestIsNull",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "function:server/innodb/sqlparser/analyzer_test.go:TestIsNull",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "function:server/innodb/sqlparser/analyzer_test.go:TestIsSimpleTuple",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "function:server/innodb/sqlparser/analyzer_test.go:TestIsSimpleTuple",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "function:server/innodb/sqlparser/analyzer_test.go:TestNewPlanValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "function:server/innodb/sqlparser/analyzer_test.go:TestNewPlanValue",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "function:server/innodb/sqlparser/analyzer_test.go:TestStringIn",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "function:server/innodb/sqlparser/analyzer_test.go:TestStringIn",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "function:server/innodb/sqlparser/analyzer_test.go:TestExtractSetValues",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "function:server/innodb/sqlparser/analyzer_test.go:TestExtractSetValues",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/sqlparser/dependency/sqltypes/aggregation.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/sqlparser/dependency/sqltypes/arithmetic.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/sqlparser/dependency/sqltypes/bind_variables.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/sqlparser/dependency/sqltypes/const.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/sqlparser/dependency/sqltypes/plan_value_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/sqlparser/dependency/sqltypes/plan_value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/sqlparser/dependency/sqltypes/result.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/sqlparser/dependency/sqltypes/testing.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/sqlparser/dependency/sqltypes/time_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/sqlparser/dependency/sqltypes/time.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/sqlparser/dependency/sqltypes/type.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/sqlparser/dependency/sqltypes/value_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/sqlparser/analyzer_test.go",
+      "target": "file:server/innodb/sqlparser/dependency/sqltypes/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

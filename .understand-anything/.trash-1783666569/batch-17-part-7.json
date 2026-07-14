@@ -1,0 +1,652 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "type": "file",
+      "name": "read_view.go",
+      "filePath": "server/innodb/storage/format/mvcc/read_view.go",
+      "summary": "实现MVCC 版本格式的可见性判断、版本链和隔离语义，为一致性读与事务版本选择提供基础能力。",
+      "tags": [
+        "go",
+        "mvcc",
+        "storage-engine"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/read_view.go:NewReadView",
+      "type": "function",
+      "name": "NewReadView",
+      "filePath": "server/innodb/storage/format/mvcc/read_view.go",
+      "lineRange": [
+        36,
+        73
+      ],
+      "summary": "创建并初始化 ReadView，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/read_view.go:IsVisible",
+      "type": "function",
+      "name": "IsVisible",
+      "filePath": "server/innodb/storage/format/mvcc/read_view.go",
+      "lineRange": [
+        83,
+        106
+      ],
+      "summary": "实现 MVCC 版本格式 中的 IsVisible 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/read_view.go:IsVisibleFast",
+      "type": "function",
+      "name": "IsVisibleFast",
+      "filePath": "server/innodb/storage/format/mvcc/read_view.go",
+      "lineRange": [
+        110,
+        137
+      ],
+      "summary": "实现 MVCC 版本格式 中的 IsVisibleFast 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/read_view.go:GetTxID",
+      "type": "function",
+      "name": "GetTxID",
+      "filePath": "server/innodb/storage/format/mvcc/read_view.go",
+      "lineRange": [
+        140,
+        142
+      ],
+      "summary": "读取 MVCC 版本格式 中的 TxID 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/read_view.go:GetCreateTime",
+      "type": "function",
+      "name": "GetCreateTime",
+      "filePath": "server/innodb/storage/format/mvcc/read_view.go",
+      "lineRange": [
+        145,
+        147
+      ],
+      "summary": "读取 MVCC 版本格式 中的 CreateTime 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/read_view.go:GetLowWaterMark",
+      "type": "function",
+      "name": "GetLowWaterMark",
+      "filePath": "server/innodb/storage/format/mvcc/read_view.go",
+      "lineRange": [
+        150,
+        152
+      ],
+      "summary": "读取 MVCC 版本格式 中的 LowWaterMark 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/read_view.go:GetHighWaterMark",
+      "type": "function",
+      "name": "GetHighWaterMark",
+      "filePath": "server/innodb/storage/format/mvcc/read_view.go",
+      "lineRange": [
+        155,
+        157
+      ],
+      "summary": "读取 MVCC 版本格式 中的 HighWaterMark 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/read_view.go:GetActiveIDs",
+      "type": "function",
+      "name": "GetActiveIDs",
+      "filePath": "server/innodb/storage/format/mvcc/read_view.go",
+      "lineRange": [
+        160,
+        162
+      ],
+      "summary": "读取 MVCC 版本格式 中的 ActiveIDs 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/read_view.go:GetActiveCount",
+      "type": "function",
+      "name": "GetActiveCount",
+      "filePath": "server/innodb/storage/format/mvcc/read_view.go",
+      "lineRange": [
+        165,
+        167
+      ],
+      "summary": "读取 MVCC 版本格式 中的 ActiveCount 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/read_view.go:IsActive",
+      "type": "function",
+      "name": "IsActive",
+      "filePath": "server/innodb/storage/format/mvcc/read_view.go",
+      "lineRange": [
+        170,
+        172
+      ],
+      "summary": "实现 MVCC 版本格式 中的 IsActive 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/read_view.go:Clone",
+      "type": "function",
+      "name": "Clone",
+      "filePath": "server/innodb/storage/format/mvcc/read_view.go",
+      "lineRange": [
+        175,
+        192
+      ],
+      "summary": "实现 MVCC 版本格式 中的 Clone 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/read_view.go:String",
+      "type": "function",
+      "name": "String",
+      "filePath": "server/innodb/storage/format/mvcc/read_view.go",
+      "lineRange": [
+        195,
+        198
+      ],
+      "summary": "实现 MVCC 版本格式 中的 String 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/format/mvcc/read_view.go:ReadView",
+      "type": "class",
+      "name": "ReadView",
+      "filePath": "server/innodb/storage/format/mvcc/read_view.go",
+      "lineRange": [
+        12,
+        30
+      ],
+      "summary": "定义 MVCC 版本格式 使用的 ReadView 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/storage/format/mvcc/read_view_test.go",
+      "type": "file",
+      "name": "read_view_test.go",
+      "filePath": "server/innodb/storage/format/mvcc/read_view_test.go",
+      "summary": "验证MVCC 版本格式相关行为与边界条件，重点覆盖 NewReadView、ReadView IsVisible、ReadView IsVisibleFast。",
+      "tags": [
+        "test",
+        "go",
+        "mvcc"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/read_view_test.go:TestNewReadView",
+      "type": "function",
+      "name": "TestNewReadView",
+      "filePath": "server/innodb/storage/format/mvcc/read_view_test.go",
+      "lineRange": [
+        9,
+        47
+      ],
+      "summary": "验证 NewReadView 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/read_view_test.go:TestReadView_IsVisible",
+      "type": "function",
+      "name": "TestReadView_IsVisible",
+      "filePath": "server/innodb/storage/format/mvcc/read_view_test.go",
+      "lineRange": [
+        49,
+        85
+      ],
+      "summary": "验证 ReadView IsVisible 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/read_view_test.go:TestReadView_IsVisibleFast",
+      "type": "function",
+      "name": "TestReadView_IsVisibleFast",
+      "filePath": "server/innodb/storage/format/mvcc/read_view_test.go",
+      "lineRange": [
+        87,
+        100
+      ],
+      "summary": "验证 ReadView IsVisibleFast 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/read_view_test.go:TestReadView_EdgeCases",
+      "type": "function",
+      "name": "TestReadView_EdgeCases",
+      "filePath": "server/innodb/storage/format/mvcc/read_view_test.go",
+      "lineRange": [
+        102,
+        134
+      ],
+      "summary": "验证 ReadView EdgeCases 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/read_view_test.go:TestReadView_Concurrency",
+      "type": "function",
+      "name": "TestReadView_Concurrency",
+      "filePath": "server/innodb/storage/format/mvcc/read_view_test.go",
+      "lineRange": [
+        136,
+        147
+      ],
+      "summary": "验证 ReadView Concurrency 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/read_view_test.go:BenchmarkReadView_IsVisible",
+      "type": "function",
+      "name": "BenchmarkReadView_IsVisible",
+      "filePath": "server/innodb/storage/format/mvcc/read_view_test.go",
+      "lineRange": [
+        149,
+        170
+      ],
+      "summary": "衡量 ReadView IsVisible 场景下的执行耗时与资源开销。",
+      "tags": [
+        "benchmark",
+        "performance",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/format/mvcc/read_view_test.go:BenchmarkReadView_Creation",
+      "type": "function",
+      "name": "BenchmarkReadView_Creation",
+      "filePath": "server/innodb/storage/format/mvcc/read_view_test.go",
+      "lineRange": [
+        172,
+        182
+      ],
+      "summary": "衡量 ReadView Creation 场景下的执行耗时与资源开销。",
+      "tags": [
+        "benchmark",
+        "performance",
+        "mvcc"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:NewReadView",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:NewReadView",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:IsVisible",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:IsVisible",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:IsVisibleFast",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:IsVisibleFast",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:GetTxID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:GetTxID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:GetCreateTime",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:GetCreateTime",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:GetLowWaterMark",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:GetLowWaterMark",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:GetHighWaterMark",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:GetHighWaterMark",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:GetActiveIDs",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:GetActiveIDs",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:GetActiveCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:GetActiveCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:IsActive",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:IsActive",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:Clone",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:Clone",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:String",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view.go:String",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "class:server/innodb/storage/format/mvcc/read_view.go:ReadView",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view.go",
+      "target": "class:server/innodb/storage/format/mvcc/read_view.go:ReadView",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view_test.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view_test.go:TestNewReadView",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view_test.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view_test.go:TestNewReadView",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view_test.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view_test.go:TestReadView_IsVisible",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view_test.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view_test.go:TestReadView_IsVisible",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view_test.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view_test.go:TestReadView_IsVisibleFast",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view_test.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view_test.go:TestReadView_IsVisibleFast",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view_test.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view_test.go:TestReadView_EdgeCases",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view_test.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view_test.go:TestReadView_EdgeCases",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view_test.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view_test.go:TestReadView_Concurrency",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view_test.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view_test.go:TestReadView_Concurrency",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view_test.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view_test.go:BenchmarkReadView_IsVisible",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view_test.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view_test.go:BenchmarkReadView_IsVisible",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view_test.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view_test.go:BenchmarkReadView_Creation",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/format/mvcc/read_view_test.go",
+      "target": "function:server/innodb/storage/format/mvcc/read_view_test.go:BenchmarkReadView_Creation",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

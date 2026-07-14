@@ -1,0 +1,2115 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/util/unsafe.go",
+      "type": "file",
+      "name": "unsafe.go",
+      "filePath": "server/innodb/util/unsafe.go",
+      "summary": "实现底层内存与字节转换辅助操作，覆盖 BytesToString、StringToBytes、ToJSONString、MD5 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "unsafe-memory",
+        "service",
+        "source-file"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/util/unsafe.go:BytesToString",
+      "type": "function",
+      "name": "BytesToString",
+      "filePath": "server/innodb/util/unsafe.go",
+      "lineRange": [
+        24,
+        33
+      ],
+      "summary": "实现 BytesToString 对应的底层内存与字节转换辅助操作流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "unsafe-memory"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/util/unsafe.go:StringToBytes",
+      "type": "function",
+      "name": "StringToBytes",
+      "filePath": "server/innodb/util/unsafe.go",
+      "lineRange": [
+        36,
+        45
+      ],
+      "summary": "实现 StringToBytes 对应的底层内存与字节转换辅助操作流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "unsafe-memory"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/util/unsafe.go:ToJSONString",
+      "type": "function",
+      "name": "ToJSONString",
+      "filePath": "server/innodb/util/unsafe.go",
+      "lineRange": [
+        48,
+        97
+      ],
+      "summary": "实现 ToJSONString 对应的底层内存与字节转换辅助操作流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "unsafe-memory"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/util/unsafe.go:MD5",
+      "type": "function",
+      "name": "MD5",
+      "filePath": "server/innodb/util/unsafe.go",
+      "lineRange": [
+        100,
+        104
+      ],
+      "summary": "实现 MD5 对应的底层内存与字节转换辅助操作流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "unsafe-memory"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/util/unsafe.go:SHA1",
+      "type": "function",
+      "name": "SHA1",
+      "filePath": "server/innodb/util/unsafe.go",
+      "lineRange": [
+        107,
+        111
+      ],
+      "summary": "实现 SHA1 对应的底层内存与字节转换辅助操作流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "unsafe-memory"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/util/unsafe.go:CRC32",
+      "type": "function",
+      "name": "CRC32",
+      "filePath": "server/innodb/util/unsafe.go",
+      "lineRange": [
+        113,
+        115
+      ],
+      "summary": "实现 CRC32 对应的底层内存与字节转换辅助操作流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "unsafe-memory"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/util/unsafe_test.go",
+      "type": "file",
+      "name": "unsafe_test.go",
+      "filePath": "server/innodb/util/unsafe_test.go",
+      "summary": "验证底层内存与字节转换辅助操作，覆盖 TestBytesToString、TestSting、TestStingToBytes、TestToJSONString 等符号，用于检查正常路径、边界条件和错误处理。",
+      "tags": [
+        "test",
+        "go",
+        "unsafe-memory",
+        "verification"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/util/unsafe_test.go:TestBytesToString",
+      "type": "function",
+      "name": "TestBytesToString",
+      "filePath": "server/innodb/util/unsafe_test.go",
+      "lineRange": [
+        19,
+        33
+      ],
+      "summary": "验证 TestBytesToString 对应的底层内存与字节转换辅助操作流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "unsafe-memory"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/util/unsafe_test.go:TestSting",
+      "type": "function",
+      "name": "TestSting",
+      "filePath": "server/innodb/util/unsafe_test.go",
+      "lineRange": [
+        35,
+        47
+      ],
+      "summary": "验证 TestSting 对应的底层内存与字节转换辅助操作流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "unsafe-memory"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/util/unsafe_test.go:TestStingToBytes",
+      "type": "function",
+      "name": "TestStingToBytes",
+      "filePath": "server/innodb/util/unsafe_test.go",
+      "lineRange": [
+        49,
+        55
+      ],
+      "summary": "验证 TestStingToBytes 对应的底层内存与字节转换辅助操作流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "unsafe-memory"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/util/unsafe_test.go:TestToJSONString",
+      "type": "function",
+      "name": "TestToJSONString",
+      "filePath": "server/innodb/util/unsafe_test.go",
+      "lineRange": [
+        57,
+        79
+      ],
+      "summary": "验证 TestToJSONString 对应的底层内存与字节转换辅助操作流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "unsafe-memory"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/util/unsafe_test.go:TestCRC32",
+      "type": "function",
+      "name": "TestCRC32",
+      "filePath": "server/innodb/util/unsafe_test.go",
+      "lineRange": [
+        81,
+        89
+      ],
+      "summary": "验证 TestCRC32 对应的底层内存与字节转换辅助操作流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "unsafe-memory"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/util/unsafe_test.go:TestName",
+      "type": "function",
+      "name": "TestName",
+      "filePath": "server/innodb/util/unsafe_test.go",
+      "lineRange": [
+        91,
+        98
+      ],
+      "summary": "验证 TestName 对应的底层内存与字节转换辅助操作流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "unsafe-memory"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/net/decoupled_handler_test.go",
+      "type": "file",
+      "name": "decoupled_handler_test.go",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "summary": "验证解耦网络协议处理与请求执行，覆盖 MockSession、NewMockSession、Stat、SetAttribute 等符号，用于检查正常路径、边界条件和错误处理。",
+      "tags": [
+        "test",
+        "go",
+        "network-handler",
+        "verification"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:NewMockSession",
+      "type": "function",
+      "name": "NewMockSession",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        22,
+        30
+      ],
+      "summary": "构造并初始化 NewMockSession 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:Stat",
+      "type": "function",
+      "name": "Stat",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        32,
+        34
+      ],
+      "summary": "实现 Stat 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:SetAttribute",
+      "type": "function",
+      "name": "SetAttribute",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        36,
+        38
+      ],
+      "summary": "更新或持久化 SetAttribute 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:GetAttribute",
+      "type": "function",
+      "name": "GetAttribute",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        40,
+        42
+      ],
+      "summary": "读取或查找 GetAttribute 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:WriteBytes",
+      "type": "function",
+      "name": "WriteBytes",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        44,
+        53
+      ],
+      "summary": "更新或持久化 WriteBytes 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:Close",
+      "type": "function",
+      "name": "Close",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        55,
+        57
+      ],
+      "summary": "结束或提交 Close 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:ID",
+      "type": "function",
+      "name": "ID",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        60,
+        60
+      ],
+      "summary": "实现 ID 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:SetCompressType",
+      "type": "function",
+      "name": "SetCompressType",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        61,
+        61
+      ],
+      "summary": "更新或持久化 SetCompressType 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:LocalAddr",
+      "type": "function",
+      "name": "LocalAddr",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        62,
+        62
+      ],
+      "summary": "实现 LocalAddr 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:RemoteAddr",
+      "type": "function",
+      "name": "RemoteAddr",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        63,
+        68
+      ],
+      "summary": "实现 RemoteAddr 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:UpdateActive",
+      "type": "function",
+      "name": "UpdateActive",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        71,
+        71
+      ],
+      "summary": "更新或持久化 UpdateActive 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:GetActive",
+      "type": "function",
+      "name": "GetActive",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        72,
+        72
+      ],
+      "summary": "读取或查找 GetActive 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:SetReadTimeout",
+      "type": "function",
+      "name": "SetReadTimeout",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        74,
+        74
+      ],
+      "summary": "更新或持久化 SetReadTimeout 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:SetWriteTimeout",
+      "type": "function",
+      "name": "SetWriteTimeout",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        76,
+        76
+      ],
+      "summary": "更新或持久化 SetWriteTimeout 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:Reset",
+      "type": "function",
+      "name": "Reset",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        80,
+        80
+      ],
+      "summary": "实现 Reset 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:Conn",
+      "type": "function",
+      "name": "Conn",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        81,
+        81
+      ],
+      "summary": "实现 Conn 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:IsClosed",
+      "type": "function",
+      "name": "IsClosed",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        82,
+        82
+      ],
+      "summary": "检查 IsClosed 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:EndPoint",
+      "type": "function",
+      "name": "EndPoint",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        83,
+        83
+      ],
+      "summary": "结束或提交 EndPoint 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:SetMaxMsgLen",
+      "type": "function",
+      "name": "SetMaxMsgLen",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        84,
+        84
+      ],
+      "summary": "更新或持久化 SetMaxMsgLen 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:SetName",
+      "type": "function",
+      "name": "SetName",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        85,
+        85
+      ],
+      "summary": "更新或持久化 SetName 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:SetEventListener",
+      "type": "function",
+      "name": "SetEventListener",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        86,
+        86
+      ],
+      "summary": "更新或持久化 SetEventListener 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:SetPkgHandler",
+      "type": "function",
+      "name": "SetPkgHandler",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        87,
+        87
+      ],
+      "summary": "更新或持久化 SetPkgHandler 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:SetReader",
+      "type": "function",
+      "name": "SetReader",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        88,
+        88
+      ],
+      "summary": "更新或持久化 SetReader 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:SetWriter",
+      "type": "function",
+      "name": "SetWriter",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        89,
+        89
+      ],
+      "summary": "更新或持久化 SetWriter 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:SetCronPeriod",
+      "type": "function",
+      "name": "SetCronPeriod",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        90,
+        90
+      ],
+      "summary": "更新或持久化 SetCronPeriod 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:SetWQLen",
+      "type": "function",
+      "name": "SetWQLen",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        91,
+        91
+      ],
+      "summary": "更新或持久化 SetWQLen 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:SetWaitTime",
+      "type": "function",
+      "name": "SetWaitTime",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        92,
+        92
+      ],
+      "summary": "更新或持久化 SetWaitTime 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:RemoveAttribute",
+      "type": "function",
+      "name": "RemoveAttribute",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        93,
+        93
+      ],
+      "summary": "删除或释放 RemoveAttribute 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:WritePkg",
+      "type": "function",
+      "name": "WritePkg",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        94,
+        94
+      ],
+      "summary": "更新或持久化 WritePkg 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:WriteBytesArray",
+      "type": "function",
+      "name": "WriteBytesArray",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        95,
+        95
+      ],
+      "summary": "更新或持久化 WriteBytesArray 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:TestResolveAuthHost",
+      "type": "function",
+      "name": "TestResolveAuthHost",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        97,
+        144
+      ],
+      "summary": "验证 TestResolveAuthHost 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "network-handler"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:TestDecoupledMySQLMessageHandler",
+      "type": "function",
+      "name": "TestDecoupledMySQLMessageHandler",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        147,
+        187
+      ],
+      "summary": "验证 TestDecoupledMySQLMessageHandler 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "network-handler"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:TestMessageBusIntegration",
+      "type": "function",
+      "name": "TestMessageBusIntegration",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        190,
+        222
+      ],
+      "summary": "验证 TestMessageBusIntegration 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "network-handler"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:TestProtocolParserIntegration",
+      "type": "function",
+      "name": "TestProtocolParserIntegration",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        225,
+        252
+      ],
+      "summary": "验证 TestProtocolParserIntegration 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "network-handler"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:TestProtocolEncoderIntegration",
+      "type": "function",
+      "name": "TestProtocolEncoderIntegration",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        255,
+        286
+      ],
+      "summary": "验证 TestProtocolEncoderIntegration 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "network-handler"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:TestSendQueryResultSet_ClientDeprecateEOFUsesOK",
+      "type": "function",
+      "name": "TestSendQueryResultSet_ClientDeprecateEOFUsesOK",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        291,
+        395
+      ],
+      "summary": "验证 TestSendQueryResultSet_ClientDeprecateEOFUsesOK 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "network-handler"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:TestHandlePacketUnsupportedCommandReturnsErrorPacket",
+      "type": "function",
+      "name": "TestHandlePacketUnsupportedCommandReturnsErrorPacket",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        397,
+        430
+      ],
+      "summary": "验证 TestHandlePacketUnsupportedCommandReturnsErrorPacket 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "network-handler"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:TestHandlePacketComStmtSendLongDataUnsupported",
+      "type": "function",
+      "name": "TestHandlePacketComStmtSendLongDataUnsupported",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        432,
+        472
+      ],
+      "summary": "验证 TestHandlePacketComStmtSendLongDataUnsupported 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "network-handler"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/decoupled_handler_test.go:BenchmarkDecoupledHandler",
+      "type": "function",
+      "name": "BenchmarkDecoupledHandler",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        475,
+        492
+      ],
+      "summary": "基准测试 BenchmarkDecoupledHandler 对应的解耦网络协议处理与请求执行流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "benchmark",
+        "network-handler",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/net/decoupled_handler_test.go:MockSession",
+      "type": "class",
+      "name": "MockSession",
+      "filePath": "server/net/decoupled_handler_test.go",
+      "lineRange": [
+        14,
+        20
+      ],
+      "summary": "MockSession 定义解耦网络协议处理与请求执行所需的数据结构，并通过 Stat、SetAttribute、GetAttribute、WriteBytes 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "network-handler",
+        "behavior"
+      ],
+      "complexity": "complex"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/util/unsafe.go",
+      "target": "function:server/innodb/util/unsafe.go:BytesToString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/unsafe.go",
+      "target": "function:server/innodb/util/unsafe.go:BytesToString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/unsafe.go",
+      "target": "function:server/innodb/util/unsafe.go:StringToBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/unsafe.go",
+      "target": "function:server/innodb/util/unsafe.go:StringToBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/unsafe.go",
+      "target": "function:server/innodb/util/unsafe.go:ToJSONString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/unsafe.go",
+      "target": "function:server/innodb/util/unsafe.go:ToJSONString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/unsafe.go",
+      "target": "function:server/innodb/util/unsafe.go:MD5",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/unsafe.go",
+      "target": "function:server/innodb/util/unsafe.go:MD5",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/unsafe.go",
+      "target": "function:server/innodb/util/unsafe.go:SHA1",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/unsafe.go",
+      "target": "function:server/innodb/util/unsafe.go:SHA1",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/unsafe.go",
+      "target": "function:server/innodb/util/unsafe.go:CRC32",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/unsafe.go",
+      "target": "function:server/innodb/util/unsafe.go:CRC32",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/unsafe_test.go",
+      "target": "function:server/innodb/util/unsafe_test.go:TestBytesToString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/unsafe_test.go",
+      "target": "function:server/innodb/util/unsafe_test.go:TestBytesToString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/unsafe_test.go",
+      "target": "function:server/innodb/util/unsafe_test.go:TestSting",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/unsafe_test.go",
+      "target": "function:server/innodb/util/unsafe_test.go:TestSting",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/unsafe_test.go",
+      "target": "function:server/innodb/util/unsafe_test.go:TestStingToBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/unsafe_test.go",
+      "target": "function:server/innodb/util/unsafe_test.go:TestStingToBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/unsafe_test.go",
+      "target": "function:server/innodb/util/unsafe_test.go:TestToJSONString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/unsafe_test.go",
+      "target": "function:server/innodb/util/unsafe_test.go:TestToJSONString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/unsafe_test.go",
+      "target": "function:server/innodb/util/unsafe_test.go:TestCRC32",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/unsafe_test.go",
+      "target": "function:server/innodb/util/unsafe_test.go:TestCRC32",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/util/unsafe_test.go",
+      "target": "function:server/innodb/util/unsafe_test.go:TestName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/util/unsafe_test.go",
+      "target": "function:server/innodb/util/unsafe_test.go:TestName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:NewMockSession",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:NewMockSession",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:Stat",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:Stat",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetAttribute",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetAttribute",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:GetAttribute",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:GetAttribute",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:WriteBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:WriteBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:Close",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:Close",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:ID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:ID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetCompressType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetCompressType",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:LocalAddr",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:LocalAddr",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:RemoteAddr",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:RemoteAddr",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:UpdateActive",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:UpdateActive",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:GetActive",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:GetActive",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetReadTimeout",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetReadTimeout",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetWriteTimeout",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetWriteTimeout",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:Reset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:Reset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:Conn",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:Conn",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:IsClosed",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:IsClosed",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:EndPoint",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:EndPoint",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetMaxMsgLen",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetMaxMsgLen",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetEventListener",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetEventListener",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetPkgHandler",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetPkgHandler",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetReader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetReader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetWriter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetWriter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetCronPeriod",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetCronPeriod",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetWQLen",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetWQLen",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetWaitTime",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:SetWaitTime",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:RemoveAttribute",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:RemoveAttribute",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:WritePkg",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:WritePkg",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:WriteBytesArray",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:WriteBytesArray",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:TestResolveAuthHost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:TestResolveAuthHost",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:TestDecoupledMySQLMessageHandler",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:TestDecoupledMySQLMessageHandler",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:TestMessageBusIntegration",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:TestMessageBusIntegration",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:TestProtocolParserIntegration",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:TestProtocolParserIntegration",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:TestProtocolEncoderIntegration",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:TestProtocolEncoderIntegration",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:TestSendQueryResultSet_ClientDeprecateEOFUsesOK",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:TestSendQueryResultSet_ClientDeprecateEOFUsesOK",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:TestHandlePacketUnsupportedCommandReturnsErrorPacket",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:TestHandlePacketUnsupportedCommandReturnsErrorPacket",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:TestHandlePacketComStmtSendLongDataUnsupported",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:TestHandlePacketComStmtSendLongDataUnsupported",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:BenchmarkDecoupledHandler",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "function:server/net/decoupled_handler_test.go:BenchmarkDecoupledHandler",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "class:server/net/decoupled_handler_test.go:MockSession",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "class:server/net/decoupled_handler_test.go:MockSession",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/common/charset.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/common/const_trx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/common/constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/common/error_name.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/common/error_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/common/error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/common/errorcode.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/common/frm_constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/common/locale_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/common/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/common/privs_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/common/privs.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/common/sql_error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/common/sql_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/common/type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/common/type.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/common/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/conf/config_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/conf/config.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/conf/decoupled_config.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/advanced_features_example.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/auth.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/charset_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/column_type_mapping_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/com_query.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/compression.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/connection_attributes.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/encoder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/eof.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/error_helper_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/error_helper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/event_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/event_rotate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/event_table_map.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/event_write_rows.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/field.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/handshake.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/message_bus.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/message.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/mysql_codec.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/mysql_protocol_encoding_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/mysql_protocol_encoding.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/mysql_protocol.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/ok.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/packet_splitter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/packet.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/parser.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/prepared_statement_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/prepared_statement_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/quit.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/result_set.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/resultset_encoder_bench_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/resultset_encoder_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/resultset_encoder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/resultset.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/rowdata.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/select_response.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/session_track.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/decoupled_handler_test.go",
+      "target": "file:server/protocol/stmt_execute.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

@@ -1,0 +1,125 @@
+{
+  "nodes": [
+    {
+      "id": "document:docs/superpowers/plans/2025-03-16-xmysql-phase1-p0-implementation-plan.md",
+      "type": "document",
+      "name": "2025-03-16-xmysql-phase1-p0-implementation-plan.md",
+      "filePath": "docs/superpowers/plans/2025-03-16-xmysql-phase1-p0-implementation-plan.md",
+      "summary": "2025-03-16-xmysql-phase1-p0-implementation-plan.md 是项目文档，说明 docs/superpowers/plans 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2025-03-16-xmysql-phase2-implementation-plan.md",
+      "type": "document",
+      "name": "2025-03-16-xmysql-phase2-implementation-plan.md",
+      "filePath": "docs/superpowers/plans/2025-03-16-xmysql-phase2-implementation-plan.md",
+      "summary": "2025-03-16-xmysql-phase2-implementation-plan.md 是项目文档，说明 docs/superpowers/plans 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2025-03-16-xmysql-phase3-implementation-plan.md",
+      "type": "document",
+      "name": "2025-03-16-xmysql-phase3-implementation-plan.md",
+      "filePath": "docs/superpowers/plans/2025-03-16-xmysql-phase3-implementation-plan.md",
+      "summary": "2025-03-16-xmysql-phase3-implementation-plan.md 是项目文档，说明 docs/superpowers/plans 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2025-03-16-xmysql-phase4-implementation-plan.md",
+      "type": "document",
+      "name": "2025-03-16-xmysql-phase4-implementation-plan.md",
+      "filePath": "docs/superpowers/plans/2025-03-16-xmysql-phase4-implementation-plan.md",
+      "summary": "2025-03-16-xmysql-phase4-implementation-plan.md 是项目文档，说明 docs/superpowers/plans 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-03-16-xmysql-engine-buffer-pool-convergence-plan.md",
+      "type": "document",
+      "name": "2026-03-16-xmysql-engine-buffer-pool-convergence-plan.md",
+      "filePath": "docs/superpowers/plans/2026-03-16-xmysql-engine-buffer-pool-convergence-plan.md",
+      "summary": "2026-03-16-xmysql-engine-buffer-pool-convergence-plan.md 是项目文档，说明 docs/superpowers/plans 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-03-17-query-opt-002-001-tdd-plan.md",
+      "type": "document",
+      "name": "2026-03-17-query-opt-002-001-tdd-plan.md",
+      "filePath": "docs/superpowers/plans/2026-03-17-query-opt-002-001-tdd-plan.md",
+      "summary": "2026-03-17-query-opt-002-001-tdd-plan.md 是项目文档，说明 docs/superpowers/plans 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-03-17-xmysql-remaining-development-plan.md",
+      "type": "document",
+      "name": "2026-03-17-xmysql-remaining-development-plan.md",
+      "filePath": "docs/superpowers/plans/2026-03-17-xmysql-remaining-development-plan.md",
+      "summary": "2026-03-17-xmysql-remaining-development-plan.md 是项目文档，说明 docs/superpowers/plans 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-04-17-kernel-correctness-p0-implementation-plan.md",
+      "type": "document",
+      "name": "2026-04-17-kernel-correctness-p0-implementation-plan.md",
+      "filePath": "docs/superpowers/plans/2026-04-17-kernel-correctness-p0-implementation-plan.md",
+      "summary": "2026-04-17-kernel-correctness-p0-implementation-plan.md 是项目文档，说明 docs/superpowers/plans 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/superpowers/plans/CONVERGENCE.md",
+      "type": "document",
+      "name": "CONVERGENCE.md",
+      "filePath": "docs/superpowers/plans/CONVERGENCE.md",
+      "summary": "CONVERGENCE.md 是项目文档，说明 docs/superpowers/plans 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/superpowers/plans/README.md",
+      "type": "document",
+      "name": "README.md",
+      "filePath": "docs/superpowers/plans/README.md",
+      "summary": "README.md 是项目文档，说明 docs/superpowers/plans 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": []
+}

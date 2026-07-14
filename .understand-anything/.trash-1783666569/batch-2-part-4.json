@@ -1,0 +1,4299 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/latch/latch.go",
+      "type": "file",
+      "name": "latch.go",
+      "filePath": "server/innodb/latch/latch.go",
+      "summary": "实现xmysql-server 服务端逻辑中的 latch 能力，并向同包或上层组件提供可复用接口。",
+      "tags": [
+        "service",
+        "innodb",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/latch/latch.go:NewLatch",
+      "type": "function",
+      "name": "NewLatch",
+      "filePath": "server/innodb/latch/latch.go",
+      "lineRange": [
+        11,
+        13
+      ],
+      "summary": "创建或初始化xmysql-server 服务端逻辑中的 NewLatch 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/latch/latch.go:Lock",
+      "type": "function",
+      "name": "Lock",
+      "filePath": "server/innodb/latch/latch.go",
+      "lineRange": [
+        16,
+        18
+      ],
+      "summary": "实现xmysql-server 服务端逻辑中的 Lock 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/latch/latch.go:Unlock",
+      "type": "function",
+      "name": "Unlock",
+      "filePath": "server/innodb/latch/latch.go",
+      "lineRange": [
+        21,
+        23
+      ],
+      "summary": "实现xmysql-server 服务端逻辑中的 Unlock 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/latch/latch.go:RLock",
+      "type": "function",
+      "name": "RLock",
+      "filePath": "server/innodb/latch/latch.go",
+      "lineRange": [
+        26,
+        28
+      ],
+      "summary": "实现xmysql-server 服务端逻辑中的 RLock 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/latch/latch.go:RUnlock",
+      "type": "function",
+      "name": "RUnlock",
+      "filePath": "server/innodb/latch/latch.go",
+      "lineRange": [
+        31,
+        33
+      ],
+      "summary": "实现xmysql-server 服务端逻辑中的 RUnlock 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/latch/latch.go:TryLock",
+      "type": "function",
+      "name": "TryLock",
+      "filePath": "server/innodb/latch/latch.go",
+      "lineRange": [
+        36,
+        45
+      ],
+      "summary": "实现xmysql-server 服务端逻辑中的 TryLock 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/latch/latch.go:TryRLock",
+      "type": "function",
+      "name": "TryRLock",
+      "filePath": "server/innodb/latch/latch.go",
+      "lineRange": [
+        48,
+        57
+      ],
+      "summary": "实现xmysql-server 服务端逻辑中的 TryRLock 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/latch/latch.go:Latch",
+      "type": "class",
+      "name": "Latch",
+      "filePath": "server/innodb/latch/latch.go",
+      "lineRange": [
+        6,
+        8
+      ],
+      "summary": "封装xmysql-server 服务端逻辑中的 Latch 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/manager/bplus_tree_manager.go",
+      "type": "file",
+      "name": "bplus_tree_manager.go",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "summary": "协调B+Tree 索引管理的创建、查询、更新与资源释放，封装底层实现细节。",
+      "tags": [
+        "service",
+        "storage-manager",
+        "innodb"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:NewBPlusTreeManager",
+      "type": "function",
+      "name": "NewBPlusTreeManager",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        85,
+        112
+      ],
+      "summary": "创建或初始化B+Tree 索引管理中的 NewBPlusTreeManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:SetUndoLogManager",
+      "type": "function",
+      "name": "SetUndoLogManager",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        115,
+        119
+      ],
+      "summary": "写入或更新B+Tree 索引管理中的 SetUndoLogManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:SetLSNManager",
+      "type": "function",
+      "name": "SetLSNManager",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        122,
+        126
+      ],
+      "summary": "写入或更新B+Tree 索引管理中的 SetLSNManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:backgroundCleaner",
+      "type": "function",
+      "name": "backgroundCleaner",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        136,
+        148
+      ],
+      "summary": "实现B+Tree 索引管理中的 backgroundCleaner 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:Close",
+      "type": "function",
+      "name": "Close",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        150,
+        154
+      ],
+      "summary": "执行持久化或生命周期操作B+Tree 索引管理中的 Close 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:cleanCache",
+      "type": "function",
+      "name": "cleanCache",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        157,
+        186
+      ],
+      "summary": "实现B+Tree 索引管理中的 cleanCache 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:flushDirtyNodes",
+      "type": "function",
+      "name": "flushDirtyNodes",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        189,
+        198
+      ],
+      "summary": "实现B+Tree 索引管理中的 flushDirtyNodes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:flushDirtyNodesAsync",
+      "type": "function",
+      "name": "flushDirtyNodesAsync",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        201,
+        215
+      ],
+      "summary": "实现B+Tree 索引管理中的 flushDirtyNodesAsync 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:evictNodesAsync",
+      "type": "function",
+      "name": "evictNodesAsync",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        223,
+        277
+      ],
+      "summary": "实现B+Tree 索引管理中的 evictNodesAsync 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:evictLRU",
+      "type": "function",
+      "name": "evictLRU",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        280,
+        349
+      ],
+      "summary": "实现B+Tree 索引管理中的 evictLRU 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:flushNode",
+      "type": "function",
+      "name": "flushNode",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        352,
+        373
+      ],
+      "summary": "实现B+Tree 索引管理中的 flushNode 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:writeNodeToPage",
+      "type": "function",
+      "name": "writeNodeToPage",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        376,
+        419
+      ],
+      "summary": "实现B+Tree 索引管理中的 writeNodeToPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:allocateNewPage",
+      "type": "function",
+      "name": "allocateNewPage",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        422,
+        455
+      ],
+      "summary": "实现B+Tree 索引管理中的 allocateNewPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:Init",
+      "type": "function",
+      "name": "Init",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        457,
+        495
+      ],
+      "summary": "创建或初始化B+Tree 索引管理中的 Init 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:GetTreeHeight",
+      "type": "function",
+      "name": "GetTreeHeight",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        498,
+        502
+      ],
+      "summary": "读取或查询B+Tree 索引管理中的 GetTreeHeight 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:calculateTreeHeight",
+      "type": "function",
+      "name": "calculateTreeHeight",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        523,
+        547
+      ],
+      "summary": "实现B+Tree 索引管理中的 calculateTreeHeight 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:GetAllLeafPages",
+      "type": "function",
+      "name": "GetAllLeafPages",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        549,
+        569
+      ],
+      "summary": "读取或查询B+Tree 索引管理中的 GetAllLeafPages 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:Search",
+      "type": "function",
+      "name": "Search",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        571,
+        616
+      ],
+      "summary": "读取或查询B+Tree 索引管理中的 Search 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:Insert",
+      "type": "function",
+      "name": "Insert",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        618,
+        682
+      ],
+      "summary": "写入或更新B+Tree 索引管理中的 Insert 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:RangeSearch",
+      "type": "function",
+      "name": "RangeSearch",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        684,
+        733
+      ],
+      "summary": "读取或查询B+Tree 索引管理中的 RangeSearch 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:Delete",
+      "type": "function",
+      "name": "Delete",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        736,
+        785
+      ],
+      "summary": "删除或释放B+Tree 索引管理中的 Delete 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:InsertWithTransaction",
+      "type": "function",
+      "name": "InsertWithTransaction",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        800,
+        850
+      ],
+      "summary": "写入或更新B+Tree 索引管理中的 InsertWithTransaction 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:DeleteWithTransaction",
+      "type": "function",
+      "name": "DeleteWithTransaction",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        853,
+        911
+      ],
+      "summary": "删除或释放B+Tree 索引管理中的 DeleteWithTransaction 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:SearchWithVisibility",
+      "type": "function",
+      "name": "SearchWithVisibility",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        914,
+        937
+      ],
+      "summary": "读取或查询B+Tree 索引管理中的 SearchWithVisibility 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:GetNodeTransactionInfo",
+      "type": "function",
+      "name": "GetNodeTransactionInfo",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        940,
+        950
+      ],
+      "summary": "读取或查询B+Tree 索引管理中的 GetNodeTransactionInfo 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:GetFirstLeafPage",
+      "type": "function",
+      "name": "GetFirstLeafPage",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        952,
+        955
+      ],
+      "summary": "读取或查询B+Tree 索引管理中的 GetFirstLeafPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:getNode",
+      "type": "function",
+      "name": "getNode",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        958,
+        1007
+      ],
+      "summary": "实现B+Tree 索引管理中的 getNode 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:parseBufferPage",
+      "type": "function",
+      "name": "parseBufferPage",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1009,
+        1050
+      ],
+      "summary": "实现B+Tree 索引管理中的 parseBufferPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:findChildIndex",
+      "type": "function",
+      "name": "findChildIndex",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1052,
+        1064
+      ],
+      "summary": "实现B+Tree 索引管理中的 findChildIndex 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:findRecordIndex",
+      "type": "function",
+      "name": "findRecordIndex",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1066,
+        1078
+      ],
+      "summary": "实现B+Tree 索引管理中的 findRecordIndex 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:findFirstLeafPage",
+      "type": "function",
+      "name": "findFirstLeafPage",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1080,
+        1098
+      ],
+      "summary": "实现B+Tree 索引管理中的 findFirstLeafPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:findFirstLeafPageLockFree",
+      "type": "function",
+      "name": "findFirstLeafPageLockFree",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1101,
+        1119
+      ],
+      "summary": "实现B+Tree 索引管理中的 findFirstLeafPageLockFree 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:findLeafNode",
+      "type": "function",
+      "name": "findLeafNode",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1121,
+        1149
+      ],
+      "summary": "实现B+Tree 索引管理中的 findLeafNode 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:getRecord",
+      "type": "function",
+      "name": "getRecord",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1151,
+        1170
+      ],
+      "summary": "实现B+Tree 索引管理中的 getRecord 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:compareKeys",
+      "type": "function",
+      "name": "compareKeys",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1172,
+        1227
+      ],
+      "summary": "实现B+Tree 索引管理中的 compareKeys 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:compareKeyByFallback",
+      "type": "function",
+      "name": "compareKeyByFallback",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1229,
+        1248
+      ],
+      "summary": "实现B+Tree 索引管理中的 compareKeyByFallback 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:Less",
+      "type": "function",
+      "name": "Less",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1255,
+        1260
+      ],
+      "summary": "校验或判断B+Tree 索引管理中的 Less 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:ToByte",
+      "type": "function",
+      "name": "ToByte",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1262,
+        1267
+      ],
+      "summary": "编码或序列化B+Tree 索引管理中的 ToByte 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "serialization",
+        "binary-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:IsInfimumRow",
+      "type": "function",
+      "name": "IsInfimumRow",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1269,
+        1271
+      ],
+      "summary": "校验或判断B+Tree 索引管理中的 IsInfimumRow 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:IsSupremumRow",
+      "type": "function",
+      "name": "IsSupremumRow",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1273,
+        1275
+      ],
+      "summary": "校验或判断B+Tree 索引管理中的 IsSupremumRow 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:GetPageNumber",
+      "type": "function",
+      "name": "GetPageNumber",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1277,
+        1279
+      ],
+      "summary": "读取或查询B+Tree 索引管理中的 GetPageNumber 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:WriteWithNull",
+      "type": "function",
+      "name": "WriteWithNull",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1281,
+        1287
+      ],
+      "summary": "写入或更新B+Tree 索引管理中的 WriteWithNull 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:WriteBytesWithNullWithsPos",
+      "type": "function",
+      "name": "WriteBytesWithNullWithsPos",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1289,
+        1298
+      ],
+      "summary": "写入或更新B+Tree 索引管理中的 WriteBytesWithNullWithsPos 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:GetRowLength",
+      "type": "function",
+      "name": "GetRowLength",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1300,
+        1305
+      ],
+      "summary": "读取或查询B+Tree 索引管理中的 GetRowLength 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:GetHeaderLength",
+      "type": "function",
+      "name": "GetHeaderLength",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1307,
+        1309
+      ],
+      "summary": "读取或查询B+Tree 索引管理中的 GetHeaderLength 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:GetPrimaryKey",
+      "type": "function",
+      "name": "GetPrimaryKey",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1311,
+        1316
+      ],
+      "summary": "读取或查询B+Tree 索引管理中的 GetPrimaryKey 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:GetFieldLength",
+      "type": "function",
+      "name": "GetFieldLength",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1318,
+        1320
+      ],
+      "summary": "读取或查询B+Tree 索引管理中的 GetFieldLength 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:ReadValueByIndex",
+      "type": "function",
+      "name": "ReadValueByIndex",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1322,
+        1330
+      ],
+      "summary": "读取或查询B+Tree 索引管理中的 ReadValueByIndex 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:SetNOwned",
+      "type": "function",
+      "name": "SetNOwned",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1332,
+        1342
+      ],
+      "summary": "写入或更新B+Tree 索引管理中的 SetNOwned 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:GetNOwned",
+      "type": "function",
+      "name": "GetNOwned",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1344,
+        1349
+      ],
+      "summary": "读取或查询B+Tree 索引管理中的 GetNOwned 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:GetNextRowOffset",
+      "type": "function",
+      "name": "GetNextRowOffset",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1351,
+        1356
+      ],
+      "summary": "读取或查询B+Tree 索引管理中的 GetNextRowOffset 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:SetNextRowOffset",
+      "type": "function",
+      "name": "SetNextRowOffset",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1358,
+        1368
+      ],
+      "summary": "写入或更新B+Tree 索引管理中的 SetNextRowOffset 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:GetHeapNo",
+      "type": "function",
+      "name": "GetHeapNo",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1370,
+        1375
+      ],
+      "summary": "读取或查询B+Tree 索引管理中的 GetHeapNo 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:SetHeapNo",
+      "type": "function",
+      "name": "SetHeapNo",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1377,
+        1387
+      ],
+      "summary": "写入或更新B+Tree 索引管理中的 SetHeapNo 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:SetTransactionId",
+      "type": "function",
+      "name": "SetTransactionId",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1389,
+        1399
+      ],
+      "summary": "写入或更新B+Tree 索引管理中的 SetTransactionId 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:GetValueByColName",
+      "type": "function",
+      "name": "GetValueByColName",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1401,
+        1411
+      ],
+      "summary": "读取或查询B+Tree 索引管理中的 GetValueByColName 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:ToString",
+      "type": "function",
+      "name": "ToString",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1413,
+        1418
+      ],
+      "summary": "实现B+Tree 索引管理中的 ToString 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:storeRecordInPage",
+      "type": "function",
+      "name": "storeRecordInPage",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1421,
+        1455
+      ],
+      "summary": "实现B+Tree 索引管理中的 storeRecordInPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/bplus_tree_manager.go:insertIntoNewLeafNode",
+      "type": "function",
+      "name": "insertIntoNewLeafNode",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1458,
+        1499
+      ],
+      "summary": "实现B+Tree 索引管理中的 insertIntoNewLeafNode 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/bplus_tree_manager.go:BPlusTreeNode",
+      "type": "class",
+      "name": "BPlusTreeNode",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        19,
+        34
+      ],
+      "summary": "封装B+Tree 索引管理中的 BPlusTreeNode 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/bplus_tree_manager.go:DefaultBPlusTreeManager",
+      "type": "class",
+      "name": "DefaultBPlusTreeManager",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        37,
+        65
+      ],
+      "summary": "封装B+Tree 索引管理中的 DefaultBPlusTreeManager 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "innodb"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:server/innodb/manager/bplus_tree_manager.go:BPlusTreeConfig",
+      "type": "class",
+      "name": "BPlusTreeConfig",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        68,
+        75
+      ],
+      "summary": "封装B+Tree 索引管理中的 BPlusTreeConfig 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/bplus_tree_manager.go:BPlusTreeStats",
+      "type": "class",
+      "name": "BPlusTreeStats",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        129,
+        133
+      ],
+      "summary": "封装B+Tree 索引管理中的 BPlusTreeStats 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/bplus_tree_manager.go:RecordRowAdapter",
+      "type": "class",
+      "name": "RecordRowAdapter",
+      "filePath": "server/innodb/manager/bplus_tree_manager.go",
+      "lineRange": [
+        1251,
+        1253
+      ],
+      "summary": "封装B+Tree 索引管理中的 RecordRowAdapter 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:server/innodb/manager/dictionary_manager.go",
+      "type": "file",
+      "name": "dictionary_manager.go",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "summary": "协调InnoDB 数据字典管理的创建、查询、更新与资源释放，封装底层实现细节。",
+      "tags": [
+        "service",
+        "storage-manager",
+        "innodb"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:NewDictionaryManager",
+      "type": "function",
+      "name": "NewDictionaryManager",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        172,
+        188
+      ],
+      "summary": "创建或初始化InnoDB 数据字典管理中的 NewDictionaryManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:initialize",
+      "type": "function",
+      "name": "initialize",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        191,
+        211
+      ],
+      "summary": "实现InnoDB 数据字典管理中的 initialize 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:loadRootPage",
+      "type": "function",
+      "name": "loadRootPage",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        221,
+        242
+      ],
+      "summary": "实现InnoDB 数据字典管理中的 loadRootPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:rebuildCacheFromWrapper",
+      "type": "function",
+      "name": "rebuildCacheFromWrapper",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        245,
+        276
+      ],
+      "summary": "实现InnoDB 数据字典管理中的 rebuildCacheFromWrapper 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:createNewDictionary",
+      "type": "function",
+      "name": "createNewDictionary",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        279,
+        295
+      ],
+      "summary": "实现InnoDB 数据字典管理中的 createNewDictionary 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:createSystemSegments",
+      "type": "function",
+      "name": "createSystemSegments",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        298,
+        328
+      ],
+      "summary": "实现InnoDB 数据字典管理中的 createSystemSegments 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:createSystemIndexes",
+      "type": "function",
+      "name": "createSystemIndexes",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        331,
+        371
+      ],
+      "summary": "实现InnoDB 数据字典管理中的 createSystemIndexes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:allocateNewPage",
+      "type": "function",
+      "name": "allocateNewPage",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        374,
+        387
+      ],
+      "summary": "实现InnoDB 数据字典管理中的 allocateNewPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:loadSystemIndexes",
+      "type": "function",
+      "name": "loadSystemIndexes",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        390,
+        413
+      ],
+      "summary": "实现InnoDB 数据字典管理中的 loadSystemIndexes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:CreateTable",
+      "type": "function",
+      "name": "CreateTable",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        426,
+        487
+      ],
+      "summary": "创建或初始化InnoDB 数据字典管理中的 CreateTable 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:persistTableDef",
+      "type": "function",
+      "name": "persistTableDef",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        490,
+        541
+      ],
+      "summary": "实现InnoDB 数据字典管理中的 persistTableDef 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:GetTable",
+      "type": "function",
+      "name": "GetTable",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        544,
+        573
+      ],
+      "summary": "读取或查询InnoDB 数据字典管理中的 GetTable 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:GetTableByName",
+      "type": "function",
+      "name": "GetTableByName",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        576,
+        615
+      ],
+      "summary": "读取或查询InnoDB 数据字典管理中的 GetTableByName 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:GetStats",
+      "type": "function",
+      "name": "GetStats",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        618,
+        625
+      ],
+      "summary": "读取或查询InnoDB 数据字典管理中的 GetStats 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:GetDictPage",
+      "type": "function",
+      "name": "GetDictPage",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        628,
+        632
+      ],
+      "summary": "读取或查询InnoDB 数据字典管理中的 GetDictPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:GetDictPageWrapper",
+      "type": "function",
+      "name": "GetDictPageWrapper",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        635,
+        639
+      ],
+      "summary": "读取或查询InnoDB 数据字典管理中的 GetDictPageWrapper 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:GetDataDictWrapper",
+      "type": "function",
+      "name": "GetDataDictWrapper",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        642,
+        656
+      ],
+      "summary": "读取或查询InnoDB 数据字典管理中的 GetDataDictWrapper 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:Close",
+      "type": "function",
+      "name": "Close",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        659,
+        678
+      ],
+      "summary": "执行持久化或生命周期操作InnoDB 数据字典管理中的 Close 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:AddIndex",
+      "type": "function",
+      "name": "AddIndex",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        681,
+        764
+      ],
+      "summary": "写入或更新InnoDB 数据字典管理中的 AddIndex 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:persistIndexDef",
+      "type": "function",
+      "name": "persistIndexDef",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        767,
+        782
+      ],
+      "summary": "实现InnoDB 数据字典管理中的 persistIndexDef 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:DropTable",
+      "type": "function",
+      "name": "DropTable",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        785,
+        835
+      ],
+      "summary": "删除或释放InnoDB 数据字典管理中的 DropTable 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:convertPageTableDefToManager",
+      "type": "function",
+      "name": "convertPageTableDefToManager",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        837,
+        908
+      ],
+      "summary": "实现InnoDB 数据字典管理中的 convertPageTableDefToManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/manager/dictionary_manager.go:parseUint32FromProperty",
+      "type": "function",
+      "name": "parseUint32FromProperty",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        910,
+        922
+      ],
+      "summary": "实现InnoDB 数据字典管理中的 parseUint32FromProperty 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/dictionary_manager.go:DictionaryManager",
+      "type": "class",
+      "name": "DictionaryManager",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        26,
+        54
+      ],
+      "summary": "封装InnoDB 数据字典管理中的 DictionaryManager 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "innodb"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:server/innodb/manager/dictionary_manager.go:DictRootPage",
+      "type": "class",
+      "name": "DictRootPage",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        57,
+        82
+      ],
+      "summary": "封装InnoDB 数据字典管理中的 DictRootPage 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/dictionary_manager.go:DictPageHeader",
+      "type": "class",
+      "name": "DictPageHeader",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        85,
+        92
+      ],
+      "summary": "封装InnoDB 数据字典管理中的 DictPageHeader 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/dictionary_manager.go:DictBTreeIndex",
+      "type": "class",
+      "name": "DictBTreeIndex",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        95,
+        101
+      ],
+      "summary": "封装InnoDB 数据字典管理中的 DictBTreeIndex 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/dictionary_manager.go:DictStats",
+      "type": "class",
+      "name": "DictStats",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        104,
+        111
+      ],
+      "summary": "封装InnoDB 数据字典管理中的 DictStats 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/manager/dictionary_manager.go:TableDef",
+      "type": "class",
+      "name": "TableDef",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        114,
+        130
+      ],
+      "summary": "封装InnoDB 数据字典管理中的 TableDef 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/dictionary_manager.go:ColumnDef",
+      "type": "class",
+      "name": "ColumnDef",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        133,
+        145
+      ],
+      "summary": "封装InnoDB 数据字典管理中的 ColumnDef 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/dictionary_manager.go:IndexDef",
+      "type": "class",
+      "name": "IndexDef",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        148,
+        159
+      ],
+      "summary": "封装InnoDB 数据字典管理中的 IndexDef 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/manager/dictionary_manager.go:ForeignKey",
+      "type": "class",
+      "name": "ForeignKey",
+      "filePath": "server/innodb/manager/dictionary_manager.go",
+      "lineRange": [
+        162,
+        169
+      ],
+      "summary": "封装InnoDB 数据字典管理中的 ForeignKey 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "innodb"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/latch/latch.go",
+      "target": "function:server/innodb/latch/latch.go:NewLatch",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/latch/latch.go",
+      "target": "function:server/innodb/latch/latch.go:NewLatch",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/latch/latch.go",
+      "target": "function:server/innodb/latch/latch.go:Lock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/latch/latch.go",
+      "target": "function:server/innodb/latch/latch.go:Lock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/latch/latch.go",
+      "target": "function:server/innodb/latch/latch.go:Unlock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/latch/latch.go",
+      "target": "function:server/innodb/latch/latch.go:Unlock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/latch/latch.go",
+      "target": "function:server/innodb/latch/latch.go:RLock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/latch/latch.go",
+      "target": "function:server/innodb/latch/latch.go:RLock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/latch/latch.go",
+      "target": "function:server/innodb/latch/latch.go:RUnlock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/latch/latch.go",
+      "target": "function:server/innodb/latch/latch.go:RUnlock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/latch/latch.go",
+      "target": "function:server/innodb/latch/latch.go:TryLock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/latch/latch.go",
+      "target": "function:server/innodb/latch/latch.go:TryLock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/latch/latch.go",
+      "target": "function:server/innodb/latch/latch.go:TryRLock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/latch/latch.go",
+      "target": "function:server/innodb/latch/latch.go:TryRLock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/latch/latch.go",
+      "target": "class:server/innodb/latch/latch.go:Latch",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/latch/latch.go",
+      "target": "class:server/innodb/latch/latch.go:Latch",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:NewBPlusTreeManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:NewBPlusTreeManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:SetUndoLogManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:SetUndoLogManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:SetLSNManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:SetLSNManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:backgroundCleaner",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:Close",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:Close",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:cleanCache",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:flushDirtyNodes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:flushDirtyNodesAsync",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:evictNodesAsync",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:evictLRU",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:flushNode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:writeNodeToPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:allocateNewPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:Init",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:Init",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetTreeHeight",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetTreeHeight",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:calculateTreeHeight",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetAllLeafPages",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetAllLeafPages",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:Search",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:Search",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:Insert",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:Insert",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:RangeSearch",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:RangeSearch",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:Delete",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:Delete",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:InsertWithTransaction",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:InsertWithTransaction",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:DeleteWithTransaction",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:DeleteWithTransaction",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:SearchWithVisibility",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:SearchWithVisibility",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetNodeTransactionInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetNodeTransactionInfo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetFirstLeafPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetFirstLeafPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:getNode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:parseBufferPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:findChildIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:findRecordIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:findFirstLeafPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:findFirstLeafPageLockFree",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:findLeafNode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:getRecord",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:compareKeys",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:compareKeyByFallback",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:Less",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:Less",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:ToByte",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:ToByte",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:IsInfimumRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:IsInfimumRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:IsSupremumRow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:IsSupremumRow",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetPageNumber",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetPageNumber",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:WriteWithNull",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:WriteWithNull",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:WriteBytesWithNullWithsPos",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:WriteBytesWithNullWithsPos",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetRowLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetRowLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetHeaderLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetHeaderLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetPrimaryKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetPrimaryKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetFieldLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetFieldLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:ReadValueByIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:ReadValueByIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:SetNOwned",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:SetNOwned",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetNOwned",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetNOwned",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetNextRowOffset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetNextRowOffset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:SetNextRowOffset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:SetNextRowOffset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetHeapNo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetHeapNo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:SetHeapNo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:SetHeapNo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:SetTransactionId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:SetTransactionId",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetValueByColName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:GetValueByColName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:ToString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:ToString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:storeRecordInPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "function:server/innodb/manager/bplus_tree_manager.go:insertIntoNewLeafNode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "class:server/innodb/manager/bplus_tree_manager.go:BPlusTreeNode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "class:server/innodb/manager/bplus_tree_manager.go:BPlusTreeNode",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "class:server/innodb/manager/bplus_tree_manager.go:DefaultBPlusTreeManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "class:server/innodb/manager/bplus_tree_manager.go:DefaultBPlusTreeManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "class:server/innodb/manager/bplus_tree_manager.go:BPlusTreeConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "class:server/innodb/manager/bplus_tree_manager.go:BPlusTreeConfig",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "class:server/innodb/manager/bplus_tree_manager.go:BPlusTreeStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "class:server/innodb/manager/bplus_tree_manager.go:BPlusTreeStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "class:server/innodb/manager/bplus_tree_manager.go:RecordRowAdapter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "class:server/innodb/manager/bplus_tree_manager.go:RecordRowAdapter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:logger/logger.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/buffer_pool/auto_tuning.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_block.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_lru_optimized.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_lru.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_pool_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/buffer_pool/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/buffer_pool/prefetch_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/buffer_pool/prefetch.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/buffer_pool/stats.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/base.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/blob_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/blob.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/compressed_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/compression_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/constants.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/data_dict_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/data_dictionary_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/encrypted_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/file_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/fsp_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/ibuf_bitmap_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/ibuf_free_list_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/mvcc_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_allocated_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_constructors_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_constructors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_dict_wrapper_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_factory.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_fsp_wrapper_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_ibuf_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_impl.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_inode_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_wrapper_base_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_wrapper_base.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/rollback_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/trx_sys_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/undo_log_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/bplus_tree_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/xdes_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:NewDictionaryManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:NewDictionaryManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:initialize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:loadRootPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:rebuildCacheFromWrapper",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:createNewDictionary",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:createSystemSegments",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:createSystemIndexes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:allocateNewPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:loadSystemIndexes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:CreateTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:CreateTable",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:persistTableDef",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:GetTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:GetTable",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:GetTableByName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:GetTableByName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:GetStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:GetStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:GetDictPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:GetDictPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:GetDictPageWrapper",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:GetDictPageWrapper",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:GetDataDictWrapper",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:GetDataDictWrapper",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:Close",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:Close",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:AddIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:AddIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:persistIndexDef",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:DropTable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:DropTable",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:convertPageTableDefToManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "function:server/innodb/manager/dictionary_manager.go:parseUint32FromProperty",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "class:server/innodb/manager/dictionary_manager.go:DictionaryManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "class:server/innodb/manager/dictionary_manager.go:DictionaryManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "class:server/innodb/manager/dictionary_manager.go:DictRootPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "class:server/innodb/manager/dictionary_manager.go:DictRootPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "class:server/innodb/manager/dictionary_manager.go:DictPageHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "class:server/innodb/manager/dictionary_manager.go:DictPageHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "class:server/innodb/manager/dictionary_manager.go:DictBTreeIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "class:server/innodb/manager/dictionary_manager.go:DictBTreeIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "class:server/innodb/manager/dictionary_manager.go:DictStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "class:server/innodb/manager/dictionary_manager.go:DictStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "class:server/innodb/manager/dictionary_manager.go:TableDef",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "class:server/innodb/manager/dictionary_manager.go:TableDef",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "class:server/innodb/manager/dictionary_manager.go:ColumnDef",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "class:server/innodb/manager/dictionary_manager.go:ColumnDef",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "class:server/innodb/manager/dictionary_manager.go:IndexDef",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "class:server/innodb/manager/dictionary_manager.go:IndexDef",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "class:server/innodb/manager/dictionary_manager.go:ForeignKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "class:server/innodb/manager/dictionary_manager.go:ForeignKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:logger/logger.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/buffer_pool/auto_tuning.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_block.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_lru_optimized.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_lru.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_pool_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_pool.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/buffer_pool/buffer_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/buffer_pool/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/buffer_pool/flush_strategy.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/buffer_pool/prefetch_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/buffer_pool/prefetch.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/buffer_pool/stats.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/allocated_page_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/blob_page_roundtrip_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/blob_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/cluster_index_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/compressed_page_roundtrip_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/compressed_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/data_dictionary_hdr_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/encrypted_page_roundtrip_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/encrypted_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/file_page_type_sys_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/fsp_hdr_inode_roundtrip_deser_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/fsp_hrd_page_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/fsp_hrd_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/fsp_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/ibuf_bitmap_page_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/ibuf_bitmap_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/ibuf_free_list_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/inode_page_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/inode_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/page_integrity_checker.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/page_serializer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/rollback_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/sys_trx_sys_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/system_page_roundtrip_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/undo_log_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/store/pages/xdes_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/base.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/blob_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/blob.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/checksum_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/compressed_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/compression_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/constants.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/data_dict_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/data_dictionary_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/encrypted_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/file_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/fsp_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/ibuf_bitmap_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/ibuf_free_list_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/mvcc_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_allocated_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_constructors_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_constructors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_dict_wrapper_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_factory.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_fsp_wrapper_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_ibuf_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_impl.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_inode_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_wrapper_base_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_wrapper_base.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/rollback_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/trx_sys_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/undo_log_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/page/xdes_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/types/base_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/types/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/types/index_entry.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/types/index_page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/types/index_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/types/key.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/types/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/types/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/types/record_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/types/sys_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/types/table_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/types/undo_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/types/unified_page_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/manager/dictionary_manager.go",
+      "target": "file:server/innodb/storage/wrapper/types/unified_page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

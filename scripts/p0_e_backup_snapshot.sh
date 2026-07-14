@@ -30,9 +30,10 @@ Usage:
   MODE=restore P0E_MODE=restore P0E_BACKUP_FILE=<backup.tar.gz> [P0E_RESTORE_DIR=./data_restored]
   MODE=list    bash scripts/p0_e_backup_snapshot.sh
   MODE=canary  P0E_MODE=canary [P0E_DSN=root:...@tcp(127.0.0.1:3309)/mysql] bash scripts/p0_e_backup_snapshot.sh
+  MODE=selftest P0E_MODE=selftest bash scripts/p0_e_backup_snapshot.sh
 
 Environment:
-  P0E_MODE: backup | restore | list | canary
+  P0E_MODE: backup | restore | list | canary | selftest
   P0E_DATA_DIR: source data directory for backup
   P0E_BACKUP_ROOT: directory to store backups
   P0E_RESTORE_DIR: restore output dir for restore mode
@@ -171,6 +172,7 @@ run_canary() {
   echo "work_dir: $CANARY_WORK_DIR" >> "$summary_file"
 
   local overall=0
+  echo "stage,schema,table,error_code,log_path,duration_ms" >"$CANARY_STAGE_LOG"
   {
     build_canary_client
   } || {
@@ -224,6 +226,57 @@ run_canary() {
   return "$overall"
 }
 
+fake_canary_stage() {
+  local label="$1"
+  echo "${label}_OK"
+}
+
+run_canary_selftest() {
+  mkdir -p "$CANARY_WORK_DIR"
+  local summary_file="$CANARY_WORK_DIR/summary.md"
+  CANARY_STAGE_LOG="$CANARY_WORK_DIR/stage_events.log"
+  echo "stage,schema,table,error_code,log_path,duration_ms" >"$CANARY_STAGE_LOG"
+
+  echo "# P0-E Canary rehearsal selftest" > "$summary_file"
+  echo "work_dir: $CANARY_WORK_DIR" >> "$summary_file"
+
+  local overall=0
+  if ! run_stage "read" "$CANARY_SCHEMA" "$CANARY_TABLE" fake_canary_stage "READ"; then
+    overall=1
+    echo "- read stage failed" >> "$summary_file"
+  else
+    echo "- read stage passed" >> "$summary_file"
+  fi
+
+  if ! run_stage "write" "$CANARY_SCHEMA" "$CANARY_TABLE" fake_canary_stage "WRITE"; then
+    overall=1
+    echo "- write stage failed" >> "$summary_file"
+  else
+    echo "- write stage passed" >> "$summary_file"
+  fi
+
+  if ! run_stage "restore" "$CANARY_SCHEMA" "$CANARY_TABLE" fake_canary_stage "RESTORE"; then
+    overall=1
+    echo "- restore stage failed" >> "$summary_file"
+  else
+    echo "- restore stage passed" >> "$summary_file"
+  fi
+
+  echo "canary_db: $CANARY_DB" >> "$summary_file"
+  echo "canary_table: $CANARY_TABLE" >> "$summary_file"
+  echo "schema: $CANARY_SCHEMA" >> "$summary_file"
+  echo "stage_events: $CANARY_STAGE_LOG" >> "$summary_file"
+
+  if [[ "$overall" -eq 0 ]]; then
+    echo "result: PASS" >> "$summary_file"
+  else
+    echo "result: FAIL" >> "$summary_file"
+  fi
+
+  echo "canary_summary: $summary_file"
+  return "$overall"
+}
+
 case "$MODE" in
   backup)
     do_backup "$SNAPSHOT_TAG"
@@ -240,6 +293,10 @@ case "$MODE" in
 
   canary)
     run_canary
+    ;;
+
+  selftest)
+    run_canary_selftest
     ;;
 
   *)

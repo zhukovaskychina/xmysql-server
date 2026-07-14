@@ -1,0 +1,500 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/conf/config.go",
+      "type": "file",
+      "name": "config.go",
+      "filePath": "server/conf/config.go",
+      "summary": "实现服务配置加载、校验与默认值处理，覆盖 CommandLineArgs、Cfg、InnodbEncryptionConfig、MySQLSessionParam 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "configuration",
+        "service",
+        "source-file"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/conf/config.go:NewCfg",
+      "type": "function",
+      "name": "NewCfg",
+      "filePath": "server/conf/config.go",
+      "lineRange": [
+        108,
+        145
+      ],
+      "summary": "构造并初始化 NewCfg 对应的服务配置加载、校验与默认值处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "configuration",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/conf/config.go:Load",
+      "type": "function",
+      "name": "Load",
+      "filePath": "server/conf/config.go",
+      "lineRange": [
+        147,
+        161
+      ],
+      "summary": "读取或查找 Load 对应的服务配置加载、校验与默认值处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "configuration",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/conf/config.go:parseMysqlSessionCfg",
+      "type": "function",
+      "name": "parseMysqlSessionCfg",
+      "filePath": "server/conf/config.go",
+      "lineRange": [
+        173,
+        210
+      ],
+      "summary": "实现 parseMysqlSessionCfg 对应的服务配置加载、校验与默认值处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "configuration"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/conf/config.go:parseMysqldCfg",
+      "type": "function",
+      "name": "parseMysqldCfg",
+      "filePath": "server/conf/config.go",
+      "lineRange": [
+        212,
+        249
+      ],
+      "summary": "实现 parseMysqldCfg 对应的服务配置加载、校验与默认值处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "configuration"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/conf/config.go:parseInt",
+      "type": "function",
+      "name": "parseInt",
+      "filePath": "server/conf/config.go",
+      "lineRange": [
+        260,
+        270
+      ],
+      "summary": "实现 parseInt 对应的服务配置加载、校验与默认值处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "configuration"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/conf/config.go:parseBool",
+      "type": "function",
+      "name": "parseBool",
+      "filePath": "server/conf/config.go",
+      "lineRange": [
+        272,
+        282
+      ],
+      "summary": "实现 parseBool 对应的服务配置加载、校验与默认值处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "configuration"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/conf/config.go:normalizeBindAddress",
+      "type": "function",
+      "name": "normalizeBindAddress",
+      "filePath": "server/conf/config.go",
+      "lineRange": [
+        293,
+        302
+      ],
+      "summary": "实现 normalizeBindAddress 对应的服务配置加载、校验与默认值处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "configuration"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/conf/config.go:loadConfiguration",
+      "type": "function",
+      "name": "loadConfiguration",
+      "filePath": "server/conf/config.go",
+      "lineRange": [
+        313,
+        339
+      ],
+      "summary": "实现 loadConfiguration 对应的服务配置加载、校验与默认值处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "configuration"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/conf/config.go:valueAsString",
+      "type": "function",
+      "name": "valueAsString",
+      "filePath": "server/conf/config.go",
+      "lineRange": [
+        341,
+        350
+      ],
+      "summary": "实现 valueAsString 对应的服务配置加载、校验与默认值处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "configuration"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/conf/config.go:GetString",
+      "type": "function",
+      "name": "GetString",
+      "filePath": "server/conf/config.go",
+      "lineRange": [
+        353,
+        373
+      ],
+      "summary": "读取或查找 GetString 对应的服务配置加载、校验与默认值处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "configuration",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/conf/config.go:GetInt",
+      "type": "function",
+      "name": "GetInt",
+      "filePath": "server/conf/config.go",
+      "lineRange": [
+        376,
+        392
+      ],
+      "summary": "读取或查找 GetInt 对应的服务配置加载、校验与默认值处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "configuration",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/conf/config.go:parseInnodbCfg",
+      "type": "function",
+      "name": "parseInnodbCfg",
+      "filePath": "server/conf/config.go",
+      "lineRange": [
+        394,
+        479
+      ],
+      "summary": "实现 parseInnodbCfg 对应的服务配置加载、校验与默认值处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "configuration"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/conf/config.go:parseLogsCfg",
+      "type": "function",
+      "name": "parseLogsCfg",
+      "filePath": "server/conf/config.go",
+      "lineRange": [
+        481,
+        535
+      ],
+      "summary": "实现 parseLogsCfg 对应的服务配置加载、校验与默认值处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "configuration"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/conf/config.go:CommandLineArgs",
+      "type": "class",
+      "name": "CommandLineArgs",
+      "filePath": "server/conf/config.go",
+      "lineRange": [
+        17,
+        19
+      ],
+      "summary": "CommandLineArgs 定义服务配置加载、校验与默认值处理所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "configuration",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/conf/config.go:Cfg",
+      "type": "class",
+      "name": "Cfg",
+      "filePath": "server/conf/config.go",
+      "lineRange": [
+        32,
+        80
+      ],
+      "summary": "Cfg 定义服务配置加载、校验与默认值处理所需的数据结构，并通过 Load、parseMysqlSessionCfg、parseMysqldCfg、loadConfiguration 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "configuration",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/conf/config.go:InnodbEncryptionConfig",
+      "type": "class",
+      "name": "InnodbEncryptionConfig",
+      "filePath": "server/conf/config.go",
+      "lineRange": [
+        81,
+        86
+      ],
+      "summary": "InnodbEncryptionConfig 定义服务配置加载、校验与默认值处理所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "configuration",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/conf/config.go:MySQLSessionParam",
+      "type": "class",
+      "name": "MySQLSessionParam",
+      "filePath": "server/conf/config.go",
+      "lineRange": [
+        88,
+        106
+      ],
+      "summary": "MySQLSessionParam 定义服务配置加载、校验与默认值处理所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "configuration",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/conf/config.go",
+      "target": "function:server/conf/config.go:NewCfg",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "function:server/conf/config.go:NewCfg",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "function:server/conf/config.go:Load",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "function:server/conf/config.go:Load",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "function:server/conf/config.go:parseMysqlSessionCfg",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "function:server/conf/config.go:parseMysqldCfg",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "function:server/conf/config.go:parseInt",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "function:server/conf/config.go:parseBool",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "function:server/conf/config.go:normalizeBindAddress",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "function:server/conf/config.go:loadConfiguration",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "function:server/conf/config.go:valueAsString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "function:server/conf/config.go:GetString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "function:server/conf/config.go:GetString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "function:server/conf/config.go:GetInt",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "function:server/conf/config.go:GetInt",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "function:server/conf/config.go:parseInnodbCfg",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "function:server/conf/config.go:parseLogsCfg",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "class:server/conf/config.go:CommandLineArgs",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "class:server/conf/config.go:CommandLineArgs",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "class:server/conf/config.go:Cfg",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "class:server/conf/config.go:Cfg",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "class:server/conf/config.go:InnodbEncryptionConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "class:server/conf/config.go:InnodbEncryptionConfig",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "class:server/conf/config.go:MySQLSessionParam",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "class:server/conf/config.go:MySQLSessionParam",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/conf/config.go",
+      "target": "file:logger/logger.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

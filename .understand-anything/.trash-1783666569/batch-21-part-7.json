@@ -1,0 +1,1344 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "type": "file",
+      "name": "version_chain_test.go",
+      "filePath": "server/innodb/storage/wrapper/record/version_chain_test.go",
+      "summary": "验证InnoDB 记录格式封装相关行为与边界条件，重点覆盖 ClusterLeafRowData HiddenColumns、ClusterLeafRow VersionInfo、ClusterLeafRow VersionChain。",
+      "tags": [
+        "test",
+        "go",
+        "record-format"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/version_chain_test.go:TestClusterLeafRowData_HiddenColumns",
+      "type": "function",
+      "name": "TestClusterLeafRowData_HiddenColumns",
+      "filePath": "server/innodb/storage/wrapper/record/version_chain_test.go",
+      "lineRange": [
+        10,
+        41
+      ],
+      "summary": "验证 ClusterLeafRowData HiddenColumns 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/version_chain_test.go:TestClusterLeafRow_VersionInfo",
+      "type": "function",
+      "name": "TestClusterLeafRow_VersionInfo",
+      "filePath": "server/innodb/storage/wrapper/record/version_chain_test.go",
+      "lineRange": [
+        44,
+        84
+      ],
+      "summary": "验证 ClusterLeafRow VersionInfo 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/version_chain_test.go:TestClusterLeafRow_VersionChain",
+      "type": "function",
+      "name": "TestClusterLeafRow_VersionChain",
+      "filePath": "server/innodb/storage/wrapper/record/version_chain_test.go",
+      "lineRange": [
+        87,
+        130
+      ],
+      "summary": "验证 ClusterLeafRow VersionChain 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/version_chain_test.go:TestClusterLeafRow_DBRowID",
+      "type": "function",
+      "name": "TestClusterLeafRow_DBRowID",
+      "filePath": "server/innodb/storage/wrapper/record/version_chain_test.go",
+      "lineRange": [
+        133,
+        150
+      ],
+      "summary": "验证 ClusterLeafRow DBRowID 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/version_chain_test.go:TestClusterLeafRow_ZeroValues",
+      "type": "function",
+      "name": "TestClusterLeafRow_ZeroValues",
+      "filePath": "server/innodb/storage/wrapper/record/version_chain_test.go",
+      "lineRange": [
+        153,
+        175
+      ],
+      "summary": "验证 ClusterLeafRow ZeroValues 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/version_chain_test.go:TestClusterLeafRow_LargeValues",
+      "type": "function",
+      "name": "TestClusterLeafRow_LargeValues",
+      "filePath": "server/innodb/storage/wrapper/record/version_chain_test.go",
+      "lineRange": [
+        178,
+        208
+      ],
+      "summary": "验证 ClusterLeafRow LargeValues 的正常路径、错误处理或边界行为。",
+      "tags": [
+        "test",
+        "validation",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/version_chain_test.go:GetColumnLength",
+      "type": "function",
+      "name": "GetColumnLength",
+      "filePath": "server/innodb/storage/wrapper/record/version_chain_test.go",
+      "lineRange": [
+        223,
+        225
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 ColumnLength 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/version_chain_test.go:GetVarColumns",
+      "type": "function",
+      "name": "GetVarColumns",
+      "filePath": "server/innodb/storage/wrapper/record/version_chain_test.go",
+      "lineRange": [
+        227,
+        234
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 VarColumns 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/record/version_chain_test.go:GetColumnInfos",
+      "type": "function",
+      "name": "GetColumnInfos",
+      "filePath": "server/innodb/storage/wrapper/record/version_chain_test.go",
+      "lineRange": [
+        236,
+        241
+      ],
+      "summary": "读取 InnoDB 记录格式封装 中的 ColumnInfos 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/record/version_chain_test.go:mockTuple",
+      "type": "class",
+      "name": "mockTuple",
+      "filePath": "server/innodb/storage/wrapper/record/version_chain_test.go",
+      "lineRange": [
+        219,
+        221
+      ],
+      "summary": "定义 InnoDB 记录格式封装 使用的 mockTuple 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "record-format"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "type": "file",
+      "name": "index_types.go",
+      "filePath": "server/innodb/storage/wrapper/types/index_types.go",
+      "summary": "提供存储层类型定义相关的数据结构与处理逻辑，核心结构包括 IIndexPage、TableTupleMeta、SysTableTuple。",
+      "tags": [
+        "go",
+        "type-definition",
+        "storage-engine"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/types/index_types.go:IIndexPage",
+      "type": "class",
+      "name": "IIndexPage",
+      "filePath": "server/innodb/storage/wrapper/types/index_types.go",
+      "lineRange": [
+        8,
+        23
+      ],
+      "summary": "定义 存储层类型定义 使用的 IIndexPage 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/types/index_types.go:TableTupleMeta",
+      "type": "class",
+      "name": "TableTupleMeta",
+      "filePath": "server/innodb/storage/wrapper/types/index_types.go",
+      "lineRange": [
+        26,
+        32
+      ],
+      "summary": "定义 存储层类型定义 使用的 TableTupleMeta 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/types/index_types.go:SysTableTuple",
+      "type": "class",
+      "name": "SysTableTuple",
+      "filePath": "server/innodb/storage/wrapper/types/index_types.go",
+      "lineRange": [
+        35,
+        41
+      ],
+      "summary": "定义 存储层类型定义 使用的 SysTableTuple 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/net/mysql_server.go",
+      "type": "file",
+      "name": "mysql_server.go",
+      "filePath": "server/net/mysql_server.go",
+      "summary": "实现 MySQL 协议服务的监听、连接接入和生命周期管理，并将客户端会话交给服务端处理链。",
+      "tags": [
+        "go",
+        "network-server",
+        "storage-engine"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/net/mysql_server.go:NewMySQLServer",
+      "type": "function",
+      "name": "NewMySQLServer",
+      "filePath": "server/net/mysql_server.go",
+      "lineRange": [
+        55,
+        69
+      ],
+      "summary": "创建并初始化 MySQLServer，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "network-server"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/mysql_server.go:Start",
+      "type": "function",
+      "name": "Start",
+      "filePath": "server/net/mysql_server.go",
+      "lineRange": [
+        71,
+        95
+      ],
+      "summary": "实现 MySQL 网络服务 中的 Start 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "network-server"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/mysql_server.go:initProfiling",
+      "type": "function",
+      "name": "initProfiling",
+      "filePath": "server/net/mysql_server.go",
+      "lineRange": [
+        97,
+        106
+      ],
+      "summary": "实现 MySQL 网络服务 中的 initProfiling 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "network-server"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/mysql_server.go:initServer",
+      "type": "function",
+      "name": "initServer",
+      "filePath": "server/net/mysql_server.go",
+      "lineRange": [
+        108,
+        158
+      ],
+      "summary": "实现 MySQL 网络服务 中的 initServer 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "network-server"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/net/mysql_server.go:uninitServer",
+      "type": "function",
+      "name": "uninitServer",
+      "filePath": "server/net/mysql_server.go",
+      "lineRange": [
+        160,
+        172
+      ],
+      "summary": "实现 MySQL 网络服务 中的 uninitServer 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "network-server"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/net/mysql_server.go:initSignal",
+      "type": "function",
+      "name": "initSignal",
+      "filePath": "server/net/mysql_server.go",
+      "lineRange": [
+        174,
+        201
+      ],
+      "summary": "实现 MySQL 网络服务 中的 initSignal 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "network-server"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/net/mysql_server.go:MySQLServer",
+      "type": "class",
+      "name": "MySQLServer",
+      "filePath": "server/net/mysql_server.go",
+      "lineRange": [
+        47,
+        53
+      ],
+      "summary": "定义 MySQL 网络服务 使用的 MySQLServer 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "network-server"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "function:server/innodb/storage/wrapper/record/version_chain_test.go:TestClusterLeafRowData_HiddenColumns",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "function:server/innodb/storage/wrapper/record/version_chain_test.go:TestClusterLeafRowData_HiddenColumns",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "function:server/innodb/storage/wrapper/record/version_chain_test.go:TestClusterLeafRow_VersionInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "function:server/innodb/storage/wrapper/record/version_chain_test.go:TestClusterLeafRow_VersionInfo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "function:server/innodb/storage/wrapper/record/version_chain_test.go:TestClusterLeafRow_VersionChain",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "function:server/innodb/storage/wrapper/record/version_chain_test.go:TestClusterLeafRow_VersionChain",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "function:server/innodb/storage/wrapper/record/version_chain_test.go:TestClusterLeafRow_DBRowID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "function:server/innodb/storage/wrapper/record/version_chain_test.go:TestClusterLeafRow_DBRowID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "function:server/innodb/storage/wrapper/record/version_chain_test.go:TestClusterLeafRow_ZeroValues",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "function:server/innodb/storage/wrapper/record/version_chain_test.go:TestClusterLeafRow_ZeroValues",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "function:server/innodb/storage/wrapper/record/version_chain_test.go:TestClusterLeafRow_LargeValues",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "function:server/innodb/storage/wrapper/record/version_chain_test.go:TestClusterLeafRow_LargeValues",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "function:server/innodb/storage/wrapper/record/version_chain_test.go:GetColumnLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "function:server/innodb/storage/wrapper/record/version_chain_test.go:GetColumnLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "function:server/innodb/storage/wrapper/record/version_chain_test.go:GetVarColumns",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "function:server/innodb/storage/wrapper/record/version_chain_test.go:GetVarColumns",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "function:server/innodb/storage/wrapper/record/version_chain_test.go:GetColumnInfos",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "function:server/innodb/storage/wrapper/record/version_chain_test.go:GetColumnInfos",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "class:server/innodb/storage/wrapper/record/version_chain_test.go:mockTuple",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "file:server/innodb/metadata/builder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "file:server/innodb/metadata/column_def.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "file:server/innodb/metadata/column.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "file:server/innodb/metadata/convert.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "file:server/innodb/metadata/database.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "file:server/innodb/metadata/information_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "file:server/innodb/metadata/migrate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "file:server/innodb/metadata/query_schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "file:server/innodb/metadata/schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "file:server/innodb/metadata/table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "file:server/innodb/metadata/tuple.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "file:server/innodb/metadata/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/record/version_chain_test.go",
+      "target": "file:server/innodb/metadata/utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "class:server/innodb/storage/wrapper/types/index_types.go:IIndexPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "class:server/innodb/storage/wrapper/types/index_types.go:IIndexPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "class:server/innodb/storage/wrapper/types/index_types.go:TableTupleMeta",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "class:server/innodb/storage/wrapper/types/index_types.go:TableTupleMeta",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "class:server/innodb/storage/wrapper/types/index_types.go:SysTableTuple",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "class:server/innodb/storage/wrapper/types/index_types.go:SysTableTuple",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "file:server/innodb/metadata/builder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "file:server/innodb/metadata/column_def.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "file:server/innodb/metadata/column.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "file:server/innodb/metadata/convert.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "file:server/innodb/metadata/database.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "file:server/innodb/metadata/information_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "file:server/innodb/metadata/migrate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "file:server/innodb/metadata/query_schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "file:server/innodb/metadata/schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "file:server/innodb/metadata/table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "file:server/innodb/metadata/tuple.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "file:server/innodb/metadata/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/index_types.go",
+      "target": "file:server/innodb/metadata/utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "function:server/net/mysql_server.go:NewMySQLServer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "function:server/net/mysql_server.go:NewMySQLServer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "function:server/net/mysql_server.go:Start",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "function:server/net/mysql_server.go:Start",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "function:server/net/mysql_server.go:initProfiling",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "function:server/net/mysql_server.go:initServer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "function:server/net/mysql_server.go:uninitServer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "function:server/net/mysql_server.go:initSignal",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "class:server/net/mysql_server.go:MySQLServer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "class:server/net/mysql_server.go:MySQLServer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:logger/logger.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/conf/config_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/conf/config.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/conf/decoupled_config.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/adaptive_flush_strategy.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/apply_operator_conditions_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/checkpoint_optimization_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/cte_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/dirty_page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/dml_executor_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/dml_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/dml_index_sync_integration_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/dml_operators_duplicate_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/dml_operators.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/enginx_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/enginx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/execution_context.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/execution_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/executor_dbddl_and_column_type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/executor_logical_plan_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/executor_record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/executor_set_routing_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/executor_show_plan_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/executor_show_routing_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/executor_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/expression_eval_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/hash_operators_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/index_lookup_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/index_reading_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/index_transaction_adapter_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/index_transaction_adapter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/outer_join_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/persistence_demo.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/recovery_adapters.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/result.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/schema_fix_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/select_executor_projection_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/select_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/show_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/show_filter_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/show_filter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/show_parsing_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/show_parsing.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/show_where_filter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/simple_executor_record_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/slow_query_logger_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/slow_query_logger.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/stats_observer.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/storage_adapter_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/storage_adapter.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/storage_integrated_checkpoint.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/storage_integrated_dml_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/storage_integrated_dml_helper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/storage_integrated_dml_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/storage_integrated_example.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/storage_integrated_index_helper_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/storage_integrated_index_helper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/storage_integrated_persistence_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/storage_integrated_persistence.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/storage_integrated_wal.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/subquery_executor_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/task_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/transaction_integration_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/unified_executor_build_tree_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/unified_executor_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/unified_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/volcano_builder_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/volcano_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/volcano_refactor_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/net/mysql_server.go",
+      "target": "file:server/innodb/engine/window_function_executor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

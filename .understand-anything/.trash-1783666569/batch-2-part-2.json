@@ -1,0 +1,1035 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/buffer_pool/prefetch.go",
+      "type": "file",
+      "name": "prefetch.go",
+      "filePath": "server/innodb/buffer_pool/prefetch.go",
+      "summary": "实现InnoDB Buffer Pool 缓存、淘汰与刷盘中的 prefetch 能力，并向同包或上层组件提供可复用接口。",
+      "tags": [
+        "service",
+        "buffer-pool",
+        "cache"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/prefetch.go:NewPrefetchManager",
+      "type": "function",
+      "name": "NewPrefetchManager",
+      "filePath": "server/innodb/buffer_pool/prefetch.go",
+      "lineRange": [
+        54,
+        75
+      ],
+      "summary": "创建或初始化InnoDB Buffer Pool 缓存、淘汰与刷盘中的 NewPrefetchManager 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/prefetch.go:TriggerPrefetch",
+      "type": "function",
+      "name": "TriggerPrefetch",
+      "filePath": "server/innodb/buffer_pool/prefetch.go",
+      "lineRange": [
+        78,
+        91
+      ],
+      "summary": "启动并协调InnoDB Buffer Pool 缓存、淘汰与刷盘中的 TriggerPrefetch 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/prefetch.go:TriggerPrefetchWithPriority",
+      "type": "function",
+      "name": "TriggerPrefetchWithPriority",
+      "filePath": "server/innodb/buffer_pool/prefetch.go",
+      "lineRange": [
+        94,
+        106
+      ],
+      "summary": "启动并协调InnoDB Buffer Pool 缓存、淘汰与刷盘中的 TriggerPrefetchWithPriority 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/prefetch.go:addPrefetchRequest",
+      "type": "function",
+      "name": "addPrefetchRequest",
+      "filePath": "server/innodb/buffer_pool/prefetch.go",
+      "lineRange": [
+        109,
+        148
+      ],
+      "summary": "实现InnoDB Buffer Pool 缓存、淘汰与刷盘中的 addPrefetchRequest 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/prefetch.go:prefetchWorker",
+      "type": "function",
+      "name": "prefetchWorker",
+      "filePath": "server/innodb/buffer_pool/prefetch.go",
+      "lineRange": [
+        151,
+        195
+      ],
+      "summary": "实现InnoDB Buffer Pool 缓存、淘汰与刷盘中的 prefetchWorker 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/prefetch.go:getNextRequest",
+      "type": "function",
+      "name": "getNextRequest",
+      "filePath": "server/innodb/buffer_pool/prefetch.go",
+      "lineRange": [
+        198,
+        210
+      ],
+      "summary": "实现InnoDB Buffer Pool 缓存、淘汰与刷盘中的 getNextRequest 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/prefetch.go:GetQueueLength",
+      "type": "function",
+      "name": "GetQueueLength",
+      "filePath": "server/innodb/buffer_pool/prefetch.go",
+      "lineRange": [
+        213,
+        217
+      ],
+      "summary": "读取或查询InnoDB Buffer Pool 缓存、淘汰与刷盘中的 GetQueueLength 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/prefetch.go:ClearQueue",
+      "type": "function",
+      "name": "ClearQueue",
+      "filePath": "server/innodb/buffer_pool/prefetch.go",
+      "lineRange": [
+        220,
+        224
+      ],
+      "summary": "删除或释放InnoDB Buffer Pool 缓存、淘汰与刷盘中的 ClearQueue 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/prefetch.go:PauseWorkers",
+      "type": "function",
+      "name": "PauseWorkers",
+      "filePath": "server/innodb/buffer_pool/prefetch.go",
+      "lineRange": [
+        227,
+        231
+      ],
+      "summary": "实现InnoDB Buffer Pool 缓存、淘汰与刷盘中的 PauseWorkers 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/prefetch.go:ResumeWorkers",
+      "type": "function",
+      "name": "ResumeWorkers",
+      "filePath": "server/innodb/buffer_pool/prefetch.go",
+      "lineRange": [
+        234,
+        238
+      ],
+      "summary": "实现InnoDB Buffer Pool 缓存、淘汰与刷盘中的 ResumeWorkers 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/prefetch.go:UpdateAccessHistory",
+      "type": "function",
+      "name": "UpdateAccessHistory",
+      "filePath": "server/innodb/buffer_pool/prefetch.go",
+      "lineRange": [
+        241,
+        257
+      ],
+      "summary": "写入或更新InnoDB Buffer Pool 缓存、淘汰与刷盘中的 UpdateAccessHistory 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/prefetch.go:AnalyzeAccessPattern",
+      "type": "function",
+      "name": "AnalyzeAccessPattern",
+      "filePath": "server/innodb/buffer_pool/prefetch.go",
+      "lineRange": [
+        260,
+        313
+      ],
+      "summary": "实现InnoDB Buffer Pool 缓存、淘汰与刷盘中的 AnalyzeAccessPattern 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "buffer-pool"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/prefetch.go:TriggerSmartPrefetch",
+      "type": "function",
+      "name": "TriggerSmartPrefetch",
+      "filePath": "server/innodb/buffer_pool/prefetch.go",
+      "lineRange": [
+        316,
+        344
+      ],
+      "summary": "启动并协调InnoDB Buffer Pool 缓存、淘汰与刷盘中的 TriggerSmartPrefetch 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/buffer_pool/prefetch.go:PageAccess",
+      "type": "class",
+      "name": "PageAccess",
+      "filePath": "server/innodb/buffer_pool/prefetch.go",
+      "lineRange": [
+        20,
+        24
+      ],
+      "summary": "封装InnoDB Buffer Pool 缓存、淘汰与刷盘中的 PageAccess 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/buffer_pool/prefetch.go:PrefetchManager",
+      "type": "class",
+      "name": "PrefetchManager",
+      "filePath": "server/innodb/buffer_pool/prefetch.go",
+      "lineRange": [
+        27,
+        42
+      ],
+      "summary": "封装InnoDB Buffer Pool 缓存、淘汰与刷盘中的 PrefetchManager 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "buffer-pool"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/buffer_pool/prefetch.go:PrefetchRequest",
+      "type": "class",
+      "name": "PrefetchRequest",
+      "filePath": "server/innodb/buffer_pool/prefetch.go",
+      "lineRange": [
+        45,
+        51
+      ],
+      "summary": "封装InnoDB Buffer Pool 缓存、淘汰与刷盘中的 PrefetchRequest 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/buffer_pool/prefetch_test.go",
+      "type": "file",
+      "name": "prefetch_test.go",
+      "filePath": "server/innodb/buffer_pool/prefetch_test.go",
+      "summary": "验证InnoDB Buffer Pool 缓存、淘汰与刷盘中 prefetch 的正常路径、边界条件与回归行为。",
+      "tags": [
+        "test",
+        "regression",
+        "buffer-pool",
+        "cache"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/prefetch_test.go:newTestBufferPool",
+      "type": "function",
+      "name": "newTestBufferPool",
+      "filePath": "server/innodb/buffer_pool/prefetch_test.go",
+      "lineRange": [
+        9,
+        22
+      ],
+      "summary": "实现InnoDB Buffer Pool 缓存、淘汰与刷盘中的 newTestBufferPool 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/prefetch_test.go:waitUntil",
+      "type": "function",
+      "name": "waitUntil",
+      "filePath": "server/innodb/buffer_pool/prefetch_test.go",
+      "lineRange": [
+        24,
+        44
+      ],
+      "summary": "实现InnoDB Buffer Pool 缓存、淘汰与刷盘中的 waitUntil 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/prefetch_test.go:TestPrefetchManagerBehavior",
+      "type": "function",
+      "name": "TestPrefetchManagerBehavior",
+      "filePath": "server/innodb/buffer_pool/prefetch_test.go",
+      "lineRange": [
+        46,
+        117
+      ],
+      "summary": "验证InnoDB Buffer Pool 缓存、淘汰与刷盘中的 TestPrefetchManagerBehavior 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "buffer-pool"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/prefetch_test.go:TestPrefetchIntegration",
+      "type": "function",
+      "name": "TestPrefetchIntegration",
+      "filePath": "server/innodb/buffer_pool/prefetch_test.go",
+      "lineRange": [
+        119,
+        162
+      ],
+      "summary": "验证InnoDB Buffer Pool 缓存、淘汰与刷盘中的 TestPrefetchIntegration 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/buffer_pool/stats.go",
+      "type": "file",
+      "name": "stats.go",
+      "filePath": "server/innodb/buffer_pool/stats.go",
+      "summary": "实现InnoDB Buffer Pool 缓存、淘汰与刷盘中的 stats 能力，并向同包或上层组件提供可复用接口。",
+      "tags": [
+        "service",
+        "buffer-pool",
+        "cache"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/stats.go:NewBufferPoolStats",
+      "type": "function",
+      "name": "NewBufferPoolStats",
+      "filePath": "server/innodb/buffer_pool/stats.go",
+      "lineRange": [
+        44,
+        48
+      ],
+      "summary": "创建或初始化InnoDB Buffer Pool 缓存、淘汰与刷盘中的 NewBufferPoolStats 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/stats.go:RecordPageRequest",
+      "type": "function",
+      "name": "RecordPageRequest",
+      "filePath": "server/innodb/buffer_pool/stats.go",
+      "lineRange": [
+        51,
+        58
+      ],
+      "summary": "写入或更新InnoDB Buffer Pool 缓存、淘汰与刷盘中的 RecordPageRequest 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/stats.go:RecordPageIO",
+      "type": "function",
+      "name": "RecordPageIO",
+      "filePath": "server/innodb/buffer_pool/stats.go",
+      "lineRange": [
+        61,
+        69
+      ],
+      "summary": "写入或更新InnoDB Buffer Pool 缓存、淘汰与刷盘中的 RecordPageIO 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/stats.go:RecordPrefetch",
+      "type": "function",
+      "name": "RecordPrefetch",
+      "filePath": "server/innodb/buffer_pool/stats.go",
+      "lineRange": [
+        72,
+        79
+      ],
+      "summary": "写入或更新InnoDB Buffer Pool 缓存、淘汰与刷盘中的 RecordPrefetch 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/stats.go:RecordFlush",
+      "type": "function",
+      "name": "RecordFlush",
+      "filePath": "server/innodb/buffer_pool/stats.go",
+      "lineRange": [
+        82,
+        89
+      ],
+      "summary": "写入或更新InnoDB Buffer Pool 缓存、淘汰与刷盘中的 RecordFlush 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/stats.go:UpdatePageCounts",
+      "type": "function",
+      "name": "UpdatePageCounts",
+      "filePath": "server/innodb/buffer_pool/stats.go",
+      "lineRange": [
+        92,
+        98
+      ],
+      "summary": "写入或更新InnoDB Buffer Pool 缓存、淘汰与刷盘中的 UpdatePageCounts 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/stats.go:GetHitRatio",
+      "type": "function",
+      "name": "GetHitRatio",
+      "filePath": "server/innodb/buffer_pool/stats.go",
+      "lineRange": [
+        101,
+        108
+      ],
+      "summary": "读取或查询InnoDB Buffer Pool 缓存、淘汰与刷盘中的 GetHitRatio 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/stats.go:GetPrefetchHitRatio",
+      "type": "function",
+      "name": "GetPrefetchHitRatio",
+      "filePath": "server/innodb/buffer_pool/stats.go",
+      "lineRange": [
+        111,
+        118
+      ],
+      "summary": "读取或查询InnoDB Buffer Pool 缓存、淘汰与刷盘中的 GetPrefetchHitRatio 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/stats.go:GetAvgReadLatency",
+      "type": "function",
+      "name": "GetAvgReadLatency",
+      "filePath": "server/innodb/buffer_pool/stats.go",
+      "lineRange": [
+        121,
+        128
+      ],
+      "summary": "读取或查询InnoDB Buffer Pool 缓存、淘汰与刷盘中的 GetAvgReadLatency 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/stats.go:GetAvgWriteLatency",
+      "type": "function",
+      "name": "GetAvgWriteLatency",
+      "filePath": "server/innodb/buffer_pool/stats.go",
+      "lineRange": [
+        131,
+        138
+      ],
+      "summary": "读取或查询InnoDB Buffer Pool 缓存、淘汰与刷盘中的 GetAvgWriteLatency 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/buffer_pool/stats.go:Reset",
+      "type": "function",
+      "name": "Reset",
+      "filePath": "server/innodb/buffer_pool/stats.go",
+      "lineRange": [
+        141,
+        157
+      ],
+      "summary": "实现InnoDB Buffer Pool 缓存、淘汰与刷盘中的 Reset 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "buffer-pool"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/buffer_pool/stats.go:BufferPoolStats",
+      "type": "class",
+      "name": "BufferPoolStats",
+      "filePath": "server/innodb/buffer_pool/stats.go",
+      "lineRange": [
+        9,
+        41
+      ],
+      "summary": "封装InnoDB Buffer Pool 缓存、淘汰与刷盘中的 BufferPoolStats 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "buffer-pool"
+      ],
+      "complexity": "complex"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:NewPrefetchManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:NewPrefetchManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:TriggerPrefetch",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:TriggerPrefetch",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:TriggerPrefetchWithPriority",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:TriggerPrefetchWithPriority",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:addPrefetchRequest",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:prefetchWorker",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:getNextRequest",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:GetQueueLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:GetQueueLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:ClearQueue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:ClearQueue",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:PauseWorkers",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:PauseWorkers",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:ResumeWorkers",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:ResumeWorkers",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:UpdateAccessHistory",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:UpdateAccessHistory",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:AnalyzeAccessPattern",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:AnalyzeAccessPattern",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:TriggerSmartPrefetch",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "function:server/innodb/buffer_pool/prefetch.go:TriggerSmartPrefetch",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "class:server/innodb/buffer_pool/prefetch.go:PageAccess",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "class:server/innodb/buffer_pool/prefetch.go:PageAccess",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "class:server/innodb/buffer_pool/prefetch.go:PrefetchManager",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "class:server/innodb/buffer_pool/prefetch.go:PrefetchManager",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "class:server/innodb/buffer_pool/prefetch.go:PrefetchRequest",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch.go",
+      "target": "class:server/innodb/buffer_pool/prefetch.go:PrefetchRequest",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch_test.go",
+      "target": "function:server/innodb/buffer_pool/prefetch_test.go:newTestBufferPool",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch_test.go",
+      "target": "function:server/innodb/buffer_pool/prefetch_test.go:waitUntil",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch_test.go",
+      "target": "function:server/innodb/buffer_pool/prefetch_test.go:TestPrefetchManagerBehavior",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch_test.go",
+      "target": "function:server/innodb/buffer_pool/prefetch_test.go:TestPrefetchManagerBehavior",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch_test.go",
+      "target": "function:server/innodb/buffer_pool/prefetch_test.go:TestPrefetchIntegration",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/prefetch_test.go",
+      "target": "function:server/innodb/buffer_pool/prefetch_test.go:TestPrefetchIntegration",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:NewBufferPoolStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:NewBufferPoolStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:RecordPageRequest",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:RecordPageRequest",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:RecordPageIO",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:RecordPageIO",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:RecordPrefetch",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:RecordPrefetch",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:RecordFlush",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:RecordFlush",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:UpdatePageCounts",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:UpdatePageCounts",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:GetHitRatio",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:GetHitRatio",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:GetPrefetchHitRatio",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:GetPrefetchHitRatio",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:GetAvgReadLatency",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:GetAvgReadLatency",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:GetAvgWriteLatency",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:GetAvgWriteLatency",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:Reset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "function:server/innodb/buffer_pool/stats.go:Reset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "class:server/innodb/buffer_pool/stats.go:BufferPoolStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/buffer_pool/stats.go",
+      "target": "class:server/innodb/buffer_pool/stats.go:BufferPoolStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

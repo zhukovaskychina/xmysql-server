@@ -117,6 +117,10 @@ func NewOptimizedBufferPoolManager(config *BufferPoolConfig) (*OptimizedBufferPo
 		prefetchQueue: make(chan PrefetchRequest, config.MaxQueueSize),
 	}
 
+	lruCache.SetEvictedFunc(func(interface{}, interface{}) {
+		atomic.AddUint64(&bpm.stats.evictions, 1)
+	})
+
 	// 初始化对象池
 	bpm.pagePool.New = func() interface{} {
 		return &buffer_pool.BufferPage{}
@@ -394,7 +398,6 @@ func (bpm *OptimizedBufferPoolManager) GetStatistics() *BufferPoolStatistics {
 	}
 }
 
-
 // ApplyHint applies a buffer pool tuning hint. The current implementation is a
 // no-op used to satisfy integration code expectations.
 func (bpm *OptimizedBufferPoolManager) ApplyHint(hint string) error {
@@ -413,7 +416,6 @@ func (bpm *OptimizedBufferPoolManager) SetReadAheadPages(pages int) error {
 	}
 	return nil
 }
-
 
 // calculateHitRate 计算缓存命中率
 func (bpm *OptimizedBufferPoolManager) calculateHitRate() float64 {

@@ -45,6 +45,8 @@ type LockManager struct {
 	waitGraph map[uint64][]uint64  // 等待图
 	txnLocks  map[uint64][]string  // 事务持有的锁
 	stopChan  chan struct{}        // 停止信号
+	// 回滚回调：用于在死锁检测中通知事务管理器回滚事务
+	onAbortTransaction func(uint64)
 
 	// TXN-012: Gap锁和Next-Key锁支持
 	gapLocks        map[string][]*GapLockInfo             // Gap锁表 (key: tableID_indexID)
@@ -76,6 +78,13 @@ func NewLockManager() *LockManager {
 // Close 关闭锁管理器
 func (lm *LockManager) Close() {
 	close(lm.stopChan)
+}
+
+// SetAbortTransactionHandler 设置死锁回滚回调
+func (lm *LockManager) SetAbortTransactionHandler(handler func(uint64)) {
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
+	lm.onAbortTransaction = handler
 }
 
 // makeResourceID 生成资源ID
@@ -140,16 +149,21 @@ func (lm *LockManager) deadlockDetection() {
 		select {
 		case <-ticker.C:
 			lm.mu.Lock()
+			var victimTxID uint64
 			// 检查每个事务是否存在死锁
 			for txID := range lm.waitGraph {
 				visited := make(map[uint64]bool)
 				if lm.checkDeadlock(txID, visited) {
 					// 找到最老的等待事务进行回滚
-					oldestTxID := lm.findOldestWaitingTx()
-					lm.abortTransaction(oldestTxID)
+					victimTxID = lm.findOldestWaitingTx()
+					break
 				}
 			}
 			lm.mu.Unlock()
+
+			if victimTxID != 0 {
+				lm.abortTransaction(victimTxID)
+			}
 		case <-lm.stopChan:
 			return
 		}
@@ -175,11 +189,20 @@ func (lm *LockManager) findOldestWaitingTx() uint64 {
 
 // abortTransaction 中止事务
 func (lm *LockManager) abortTransaction(txID uint64) {
+	if txID == 0 {
+		return
+	}
+
 	// 释放该事务持有的所有锁
 	lm.ReleaseLocks(txID)
-	// 从等待图中移除
-	lm.removeFromWaitGraph(txID)
-	// TODO: 通知事务管理器回滚事务
+
+	lm.mu.Lock()
+	callback := lm.onAbortTransaction
+	lm.mu.Unlock()
+
+	if callback != nil {
+		callback(txID)
+	}
 }
 
 // AcquireLock 获取锁
@@ -278,7 +301,22 @@ func (lm *LockManager) AcquireLock(txID uint64, tableID, pageID uint32, rowID ui
 func (lm *LockManager) ReleaseLocks(txID uint64) {
 	lm.mu.Lock()
 	defer lm.mu.Unlock()
+	lm.releaseLocksLocked(txID)
+}
 
+// ReleaseLock 释放事务在指定资源上的锁
+func (lm *LockManager) ReleaseLock(txID uint64, resourceID string) error {
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
+
+	if resourceID == "" {
+		return ErrInvalidParam
+	}
+	return lm.releaseSingleLockLocked(txID, resourceID)
+}
+
+// releaseLocksLocked 释放事务持有的所有锁（调用者已持有锁）
+func (lm *LockManager) releaseLocksLocked(txID uint64) {
 	// 1. 释放Record Lock
 	// 获取事务持有的所有资源ID
 	resourceIDs := lm.txnLocks[txID]
@@ -286,27 +324,7 @@ func (lm *LockManager) ReleaseLocks(txID uint64) {
 
 	// 释放每个资源上的锁
 	for _, resourceID := range resourceIDs {
-		info := lm.lockTable[resourceID]
-		if info == nil {
-			continue
-		}
-
-		// 移除该事务的锁请求
-		var newRequests []*LockRequest
-		for _, req := range info.Requests {
-			if req.TxID != txID {
-				newRequests = append(newRequests, req)
-			}
-		}
-
-		// 更新或删除锁信息
-		if len(newRequests) == 0 {
-			delete(lm.lockTable, resourceID)
-		} else {
-			info.Requests = newRequests
-			// 尝试授予等待的锁
-			lm.grantWaitingLocks(info)
-		}
+		_ = lm.releaseSingleLockLocked(txID, resourceID)
 	}
 
 	// 2. TXN-012: 释放Gap锁
@@ -356,6 +374,53 @@ func (lm *LockManager) ReleaseLocks(txID uint64) {
 
 	// 从等待图中移除事务
 	lm.removeFromWaitGraph(txID)
+}
+
+// releaseSingleLockLocked 释放指定资源上的锁（调用者已持有锁）
+func (lm *LockManager) releaseSingleLockLocked(txID uint64, resourceID string) error {
+	info := lm.lockTable[resourceID]
+	if info == nil {
+		return ErrLockNotFound
+	}
+
+	found := false
+	var newRequests []*LockRequest
+	for _, req := range info.Requests {
+		if req.TxID == txID {
+			found = true
+			continue
+		}
+		newRequests = append(newRequests, req)
+	}
+
+	if !found {
+		return ErrLockNotFound
+	}
+
+	// 更新或删除锁信息
+	if len(newRequests) == 0 {
+		delete(lm.lockTable, resourceID)
+	} else {
+		info.Requests = newRequests
+		// 尝试授予等待的锁
+		lm.grantWaitingLocks(info)
+	}
+
+	// 更新事务持有锁列表
+	resourceIDs := lm.txnLocks[txID]
+	newResourceIDs := make([]string, 0, len(resourceIDs))
+	for _, id := range resourceIDs {
+		if id != resourceID {
+			newResourceIDs = append(newResourceIDs, id)
+		}
+	}
+	if len(newResourceIDs) == 0 {
+		delete(lm.txnLocks, txID)
+	} else {
+		lm.txnLocks[txID] = newResourceIDs
+	}
+
+	return nil
 }
 
 // grantWaitingLocks 尝试授予等待的锁

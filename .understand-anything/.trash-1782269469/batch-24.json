@@ -1,0 +1,170 @@
+{
+  "nodes": [
+    {
+      "id": "config:.goreleaser.yml",
+      "type": "config",
+      "name": ".goreleaser.yml",
+      "filePath": ".goreleaser.yml",
+      "summary": ".goreleaser.yml 提供项目配置，影响构建、运行参数或工具行为。",
+      "tags": [
+        "configuration",
+        "config"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:README.md",
+      "type": "document",
+      "name": "README.md",
+      "filePath": "README.md",
+      "summary": "README.md 是项目文档，说明 仓库 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:build.bat",
+      "type": "file",
+      "name": "build.bat",
+      "filePath": "build.bat",
+      "summary": "build.bat 是自动化脚本，用于构建、清理、验证或运维流程。",
+      "tags": [
+        "script"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:build.sh",
+      "type": "file",
+      "name": "build.sh",
+      "filePath": "build.sh",
+      "summary": "build.sh 是自动化脚本，用于构建、清理、验证或运维流程。",
+      "tags": [
+        "script",
+        "logic"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:build.sh:buildServer",
+      "type": "function",
+      "name": "buildServer",
+      "filePath": "build.sh",
+      "summary": "buildServer 定义在 build.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:build.sh:buildClient",
+      "type": "function",
+      "name": "buildClient",
+      "filePath": "build.sh",
+      "summary": "buildClient 定义在 build.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:build.sh:copyConfigs",
+      "type": "function",
+      "name": "copyConfigs",
+      "filePath": "build.sh",
+      "summary": "copyConfigs 定义在 build.sh 中，封装该文件中的一段可复用逻辑。",
+      "tags": [
+        "function",
+        "internal",
+        "shell"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:clean.bat",
+      "type": "file",
+      "name": "clean.bat",
+      "filePath": "clean.bat",
+      "summary": "clean.bat 是自动化脚本，用于构建、清理、验证或运维流程。",
+      "tags": [
+        "script"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:clean.sh",
+      "type": "file",
+      "name": "clean.sh",
+      "filePath": "clean.sh",
+      "summary": "clean.sh 是自动化脚本，用于构建、清理、验证或运维流程。",
+      "tags": [
+        "script"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:fix_atomic.sh",
+      "type": "file",
+      "name": "fix_atomic.sh",
+      "filePath": "fix_atomic.sh",
+      "summary": "fix_atomic.sh 是自动化脚本，用于构建、清理、验证或运维流程。",
+      "tags": [
+        "script"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:go.mod",
+      "type": "config",
+      "name": "go.mod",
+      "filePath": "go.mod",
+      "summary": "go.mod 提供项目配置，影响构建、运行参数或工具行为。",
+      "tags": [
+        "configuration",
+        "config"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:go.sum",
+      "type": "config",
+      "name": "go.sum",
+      "filePath": "go.sum",
+      "summary": "go.sum 提供项目配置，影响构建、运行参数或工具行为。",
+      "tags": [
+        "configuration",
+        "config"
+      ],
+      "complexity": "complex"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:build.sh",
+      "target": "function:build.sh:buildServer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:build.sh",
+      "target": "function:build.sh:buildClient",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:build.sh",
+      "target": "function:build.sh:copyConfigs",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    }
+  ]
+}

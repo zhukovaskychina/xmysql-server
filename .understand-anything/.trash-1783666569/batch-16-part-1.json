@@ -1,0 +1,877 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/basic/types.go",
+      "type": "file",
+      "name": "types.go",
+      "filePath": "server/innodb/basic/types.go",
+      "summary": "实现InnoDB 基础接口和共享类型定义，覆盖 Key、Value、PageStats、String 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "type-definition",
+        "service",
+        "source-file"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/basic/types.go:String",
+      "type": "function",
+      "name": "String",
+      "filePath": "server/innodb/basic/types.go",
+      "lineRange": [
+        47,
+        112
+      ],
+      "summary": "实现 String 对应的InnoDB 基础接口和共享类型定义流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "type-definition"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/basic/types.go:IsNumeric",
+      "type": "function",
+      "name": "IsNumeric",
+      "filePath": "server/innodb/basic/types.go",
+      "lineRange": [
+        115,
+        123
+      ],
+      "summary": "检查 IsNumeric 对应的InnoDB 基础接口和共享类型定义流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "type-definition",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/types.go:IsString",
+      "type": "function",
+      "name": "IsString",
+      "filePath": "server/innodb/basic/types.go",
+      "lineRange": [
+        126,
+        134
+      ],
+      "summary": "检查 IsString 对应的InnoDB 基础接口和共享类型定义流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "type-definition",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/types.go:IsBinary",
+      "type": "function",
+      "name": "IsBinary",
+      "filePath": "server/innodb/basic/types.go",
+      "lineRange": [
+        137,
+        145
+      ],
+      "summary": "检查 IsBinary 对应的InnoDB 基础接口和共享类型定义流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "type-definition",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/types.go:IsTemporal",
+      "type": "function",
+      "name": "IsTemporal",
+      "filePath": "server/innodb/basic/types.go",
+      "lineRange": [
+        148,
+        155
+      ],
+      "summary": "检查 IsTemporal 对应的InnoDB 基础接口和共享类型定义流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "type-definition",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/types.go:IsJSON",
+      "type": "function",
+      "name": "IsJSON",
+      "filePath": "server/innodb/basic/types.go",
+      "lineRange": [
+        158,
+        160
+      ],
+      "summary": "检查 IsJSON 对应的InnoDB 基础接口和共享类型定义流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "type-definition",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/types.go:GetSize",
+      "type": "function",
+      "name": "GetSize",
+      "filePath": "server/innodb/basic/types.go",
+      "lineRange": [
+        163,
+        194
+      ],
+      "summary": "读取或查找 GetSize 对应的InnoDB 基础接口和共享类型定义流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "type-definition",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/types.go:IncReadCount",
+      "type": "function",
+      "name": "IncReadCount",
+      "filePath": "server/innodb/basic/types.go",
+      "lineRange": [
+        264,
+        266
+      ],
+      "summary": "实现 IncReadCount 对应的InnoDB 基础接口和共享类型定义流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/types.go:IncWriteCount",
+      "type": "function",
+      "name": "IncWriteCount",
+      "filePath": "server/innodb/basic/types.go",
+      "lineRange": [
+        269,
+        271
+      ],
+      "summary": "实现 IncWriteCount 对应的InnoDB 基础接口和共享类型定义流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/types.go:GetCurrentTimestamp",
+      "type": "function",
+      "name": "GetCurrentTimestamp",
+      "filePath": "server/innodb/basic/types.go",
+      "lineRange": [
+        274,
+        277
+      ],
+      "summary": "读取或查找 GetCurrentTimestamp 对应的InnoDB 基础接口和共享类型定义流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "type-definition",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/types.go:Key",
+      "type": "class",
+      "name": "Key",
+      "filePath": "server/innodb/basic/types.go",
+      "lineRange": [
+        6,
+        6
+      ],
+      "summary": "Key 定义InnoDB 基础接口和共享类型定义所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/basic/types.go:Value",
+      "type": "class",
+      "name": "Value",
+      "filePath": "server/innodb/basic/types.go",
+      "lineRange": [
+        197,
+        211
+      ],
+      "summary": "Value 定义InnoDB 基础接口和共享类型定义所需的数据结构，并通过 Compare、Raw、ToString、Bytes 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "type-definition",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/basic/types.go:PageStats",
+      "type": "class",
+      "name": "PageStats",
+      "filePath": "server/innodb/basic/types.go",
+      "lineRange": [
+        252,
+        261
+      ],
+      "summary": "PageStats 定义InnoDB 基础接口和共享类型定义所需的数据结构，并通过 IncReadCount、IncWriteCount 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "type-definition",
+        "behavior"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "file",
+      "name": "value_conversion_test.go",
+      "filePath": "server/innodb/basic/value_conversion_test.go",
+      "summary": "验证SQL 值类型、比较和 Go 类型转换，覆盖 TestInt64Conversion、TestFloat64Conversion、TestStringConversion、TestBytesConversion 等符号，用于检查正常路径、边界条件和错误处理。",
+      "tags": [
+        "test",
+        "go",
+        "value-conversion",
+        "verification"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/basic/value_conversion_test.go:TestInt64Conversion",
+      "type": "function",
+      "name": "TestInt64Conversion",
+      "filePath": "server/innodb/basic/value_conversion_test.go",
+      "lineRange": [
+        9,
+        62
+      ],
+      "summary": "验证 TestInt64Conversion 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "value-conversion"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/basic/value_conversion_test.go:TestFloat64Conversion",
+      "type": "function",
+      "name": "TestFloat64Conversion",
+      "filePath": "server/innodb/basic/value_conversion_test.go",
+      "lineRange": [
+        65,
+        112
+      ],
+      "summary": "验证 TestFloat64Conversion 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value_conversion_test.go:TestStringConversion",
+      "type": "function",
+      "name": "TestStringConversion",
+      "filePath": "server/innodb/basic/value_conversion_test.go",
+      "lineRange": [
+        115,
+        153
+      ],
+      "summary": "验证 TestStringConversion 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value_conversion_test.go:TestBytesConversion",
+      "type": "function",
+      "name": "TestBytesConversion",
+      "filePath": "server/innodb/basic/value_conversion_test.go",
+      "lineRange": [
+        156,
+        188
+      ],
+      "summary": "验证 TestBytesConversion 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value_conversion_test.go:TestCrossTypeConversion",
+      "type": "function",
+      "name": "TestCrossTypeConversion",
+      "filePath": "server/innodb/basic/value_conversion_test.go",
+      "lineRange": [
+        191,
+        237
+      ],
+      "summary": "验证 TestCrossTypeConversion 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value_conversion_test.go:TestNullValue",
+      "type": "function",
+      "name": "TestNullValue",
+      "filePath": "server/innodb/basic/value_conversion_test.go",
+      "lineRange": [
+        240,
+        264
+      ],
+      "summary": "验证 TestNullValue 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value_conversion_test.go:TestBoolConversion",
+      "type": "function",
+      "name": "TestBoolConversion",
+      "filePath": "server/innodb/basic/value_conversion_test.go",
+      "lineRange": [
+        267,
+        288
+      ],
+      "summary": "验证 TestBoolConversion 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value_conversion_test.go:TestTimeConversion",
+      "type": "function",
+      "name": "TestTimeConversion",
+      "filePath": "server/innodb/basic/value_conversion_test.go",
+      "lineRange": [
+        290,
+        323
+      ],
+      "summary": "验证 TestTimeConversion 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value_conversion_test.go:TestSimpleRowMutationAndHeaderState",
+      "type": "function",
+      "name": "TestSimpleRowMutationAndHeaderState",
+      "filePath": "server/innodb/basic/value_conversion_test.go",
+      "lineRange": [
+        325,
+        347
+      ],
+      "summary": "验证 TestSimpleRowMutationAndHeaderState 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/basic/value_conversion_test.go:TestSimpleRowReadMissingValueAsNull",
+      "type": "function",
+      "name": "TestSimpleRowReadMissingValueAsNull",
+      "filePath": "server/innodb/basic/value_conversion_test.go",
+      "lineRange": [
+        349,
+        359
+      ],
+      "summary": "验证 TestSimpleRowReadMissingValueAsNull 对应的SQL 值类型、比较和 Go 类型转换流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "value-conversion"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "function:server/innodb/basic/types.go:String",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "function:server/innodb/basic/types.go:String",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "function:server/innodb/basic/types.go:IsNumeric",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "function:server/innodb/basic/types.go:IsNumeric",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "function:server/innodb/basic/types.go:IsString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "function:server/innodb/basic/types.go:IsString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "function:server/innodb/basic/types.go:IsBinary",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "function:server/innodb/basic/types.go:IsBinary",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "function:server/innodb/basic/types.go:IsTemporal",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "function:server/innodb/basic/types.go:IsTemporal",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "function:server/innodb/basic/types.go:IsJSON",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "function:server/innodb/basic/types.go:IsJSON",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "function:server/innodb/basic/types.go:GetSize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "function:server/innodb/basic/types.go:GetSize",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "function:server/innodb/basic/types.go:IncReadCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "function:server/innodb/basic/types.go:IncReadCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "function:server/innodb/basic/types.go:IncWriteCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "function:server/innodb/basic/types.go:IncWriteCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "function:server/innodb/basic/types.go:GetCurrentTimestamp",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "function:server/innodb/basic/types.go:GetCurrentTimestamp",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "class:server/innodb/basic/types.go:Key",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "class:server/innodb/basic/types.go:Key",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "class:server/innodb/basic/types.go:Value",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "class:server/innodb/basic/types.go:Value",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "class:server/innodb/basic/types.go:PageStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "class:server/innodb/basic/types.go:PageStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value_conversion_test.go",
+      "target": "function:server/innodb/basic/value_conversion_test.go:TestInt64Conversion",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value_conversion_test.go",
+      "target": "function:server/innodb/basic/value_conversion_test.go:TestInt64Conversion",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value_conversion_test.go",
+      "target": "function:server/innodb/basic/value_conversion_test.go:TestFloat64Conversion",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value_conversion_test.go",
+      "target": "function:server/innodb/basic/value_conversion_test.go:TestFloat64Conversion",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value_conversion_test.go",
+      "target": "function:server/innodb/basic/value_conversion_test.go:TestStringConversion",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value_conversion_test.go",
+      "target": "function:server/innodb/basic/value_conversion_test.go:TestStringConversion",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value_conversion_test.go",
+      "target": "function:server/innodb/basic/value_conversion_test.go:TestBytesConversion",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value_conversion_test.go",
+      "target": "function:server/innodb/basic/value_conversion_test.go:TestBytesConversion",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value_conversion_test.go",
+      "target": "function:server/innodb/basic/value_conversion_test.go:TestCrossTypeConversion",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value_conversion_test.go",
+      "target": "function:server/innodb/basic/value_conversion_test.go:TestCrossTypeConversion",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value_conversion_test.go",
+      "target": "function:server/innodb/basic/value_conversion_test.go:TestNullValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value_conversion_test.go",
+      "target": "function:server/innodb/basic/value_conversion_test.go:TestNullValue",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value_conversion_test.go",
+      "target": "function:server/innodb/basic/value_conversion_test.go:TestBoolConversion",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value_conversion_test.go",
+      "target": "function:server/innodb/basic/value_conversion_test.go:TestBoolConversion",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value_conversion_test.go",
+      "target": "function:server/innodb/basic/value_conversion_test.go:TestTimeConversion",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value_conversion_test.go",
+      "target": "function:server/innodb/basic/value_conversion_test.go:TestTimeConversion",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value_conversion_test.go",
+      "target": "function:server/innodb/basic/value_conversion_test.go:TestSimpleRowMutationAndHeaderState",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value_conversion_test.go",
+      "target": "function:server/innodb/basic/value_conversion_test.go:TestSimpleRowMutationAndHeaderState",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/value_conversion_test.go",
+      "target": "function:server/innodb/basic/value_conversion_test.go:TestSimpleRowReadMissingValueAsNull",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/basic/value_conversion_test.go",
+      "target": "function:server/innodb/basic/value_conversion_test.go:TestSimpleRowReadMissingValueAsNull",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "file:server/common/charset.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "file:server/common/const_trx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "file:server/common/constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "file:server/common/error_name.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "file:server/common/error_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "file:server/common/error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "file:server/common/errorcode.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "file:server/common/frm_constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "file:server/common/locale_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "file:server/common/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "file:server/common/privs_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "file:server/common/privs.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "file:server/common/sql_error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "file:server/common/sql_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "file:server/common/type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "file:server/common/type.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/basic/types.go",
+      "target": "file:server/common/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

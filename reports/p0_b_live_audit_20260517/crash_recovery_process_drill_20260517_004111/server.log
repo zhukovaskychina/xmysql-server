@@ -1,0 +1,982 @@
+Starting XMySQL Server...
+Parsing command line arguments...
+[00:41:12 CST 2026/05/17] [INFO] (main.go:main.main:60) Logger initialized successfully with level: info
+
+[00:41:12 CST 2026/05/17] [INFO] (main.go:main.main:62) XMySQL Server starting...
+[00:41:12 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 128 record count mismatch
+[00:41:12 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:216) No checkpoint found, starting recovery from LSN 0
+[00:41:12 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[00:41:12 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:216) No checkpoint found, starting recovery from LSN 0
+[00:41:12 CST 2026/05/17] [INFO] (main.go:main.main:66) Starting MySQL server...
+[00:41:12 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:75) 🚀 Starting XMySQL Engine...
+[00:41:12 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:78) 🏥 Performing crash recovery...
+[00:41:12 CST 2026/05/17] [INFO] (mysql_server.go:github.com/zhukovaskychina/xmysql-server/server/net.initProfiling:101) App Profiling startup on address{127.0.0.1:0/debug/pprof/}
+[00:41:12 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:82) ✅ Crash recovery completed successfully
+[00:41:12 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:85) 💾 Starting Checkpoint Manager...
+[00:41:12 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:103) 🚀 启动检查点管理器
+[00:41:12 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:117) 📄 没有找到有效的检查点，将从头开始
+[00:41:12 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:122)  检查点管理器启动成功
+[00:41:12 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:90) ✅ XMySQL Engine started successfully
+MySQL服务器正在初始化...
+MySQL服务器初始化完成！
+
+******************************************************************************************
+
+ __   ____  __        _____  ____  _          _____ ______ _______      ________ _____  
+ \ \ / /  \/  |      / ____|/ __ \| |        / ____|  ____|  __ \ \    / /  ____|  __ \ 
+  \ V /| \  / |_   _| (___ | |  | | |  _____| (___ | |__  | |__) \ \  / /| |__  | |__) |
+   > < | |\/| | | | |\___ \| |  | | | |______\___ \|  __| |  _  / \ \/ / |  __| |  _  / 
+  / . \| |  | | |_| |____) | |__| | |____    ____) | |____| | \ \  \  /  | |____| | \ \ 
+ /_/ \_\_|  |_|\__, |_____/ \___\_\______|  |_____/|______|_|  \_\  \/   |______|_|  \_\
+                __/ |                                                                   
+               |___/                                                                    
+******************************************************************************************
+
+启动成功
+ starts successfull! its version=1.3.0, its listen ends=127.0.0.1:3310
+[00:41:12 CST 2026/05/17] [INFO] (mysql_server.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MySQLServer).Start:88)  starts successfull! its version=1.3.0, its listen ends=127.0.0.1:3310
+[00:41:12 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:1:127.0.0.1:3310<->127.0.0.1:49266}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:12 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49266, now:2026-05-17 00:41:12.752669 +0800 CST m=+0.587238274, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:12 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:12 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:1:127.0.0.1:3310<->127.0.0.1:49266}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49266: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:12 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49266, Error=read tcp 127.0.0.1:3310->127.0.0.1:49266: read: connection reset by peer
+[00:41:12 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:1:127.0.0.1:3310<->127.0.0.1:49266}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:12 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49266: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:12 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:12 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:12 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:14 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:2:127.0.0.1:3310<->127.0.0.1:49267}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:14 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49267, now:2026-05-17 00:41:14.616737 +0800 CST m=+2.451249973, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 27 164 23 154 190 243 4 245 192 16 57 35 146 223 90 176 88 106 70 179 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[00:41:14 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:355)   [SelectExecutor] 无法获取存储管理器，创建默认 mysql.user 数据
+[00:41:14 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:355)   [SelectExecutor] 无法获取存储管理器，创建默认 mysql.user 数据
+[00:41:14 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).handleAuthentication:747) 认证失败: Access denied for user 'root'@'127.0.0.1' (using password: YES)
+[00:41:14 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49267, now:2026-05-17 00:41:14.618446 +0800 CST m=+2.452959056, length:76, err:%!!(MISSING)s(<nil>)
+[00:41:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:692) {xmysql-server:TCP_SERVER:2:127.0.0.1:3310<->127.0.0.1:49267}, [session.conn.read] = error:EOF
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:2:127.0.0.1:3310<->127.0.0.1:49267}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 90, Write Bytes: 168, Read Pkgs: 1, Write Pkgs: 2, [session.handleLoop] got done signal. wQ is nil.
+[00:41:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 90, Write Bytes: 168, Read Pkgs: 1, Write Pkgs: 2, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:14 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:3:127.0.0.1:3310<->127.0.0.1:49268}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:14 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49268, now:2026-05-17 00:41:14.653882 +0800 CST m=+2.488394098, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:14 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:3:127.0.0.1:3310<->127.0.0.1:49268}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49268: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:3:127.0.0.1:3310<->127.0.0.1:49268}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:14 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49268: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:14 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49268, Error=read tcp 127.0.0.1:3310->127.0.0.1:49268: read: connection reset by peer
+[00:41:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:15 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:4:127.0.0.1:3310<->127.0.0.1:49269}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:15 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49269, now:2026-05-17 00:41:15.675363 +0800 CST m=+3.509844565, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:15 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:15 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:4:127.0.0.1:3310<->127.0.0.1:49269}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49269: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:15 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:4:127.0.0.1:3310<->127.0.0.1:49269}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:15 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49269: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:15 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:15 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49269, Error=read tcp 127.0.0.1:3310->127.0.0.1:49269: read: connection reset by peer
+[00:41:15 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:15 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:16 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:5:127.0.0.1:3310<->127.0.0.1:49270}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:16 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49270, now:2026-05-17 00:41:16.694087 +0800 CST m=+4.528537524, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:16 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:16 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:5:127.0.0.1:3310<->127.0.0.1:49270}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49270: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:16 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:5:127.0.0.1:3310<->127.0.0.1:49270}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:16 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49270, Error=read tcp 127.0.0.1:3310->127.0.0.1:49270: read: connection reset by peer
+[00:41:16 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49270: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:16 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:16 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:16 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:17 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:6:127.0.0.1:3310<->127.0.0.1:49271}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:17 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49271, now:2026-05-17 00:41:17.710675 +0800 CST m=+5.545095386, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:17 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:17 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:6:127.0.0.1:3310<->127.0.0.1:49271}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49271: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:17 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:6:127.0.0.1:3310<->127.0.0.1:49271}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:17 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49271: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:17 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49271, Error=read tcp 127.0.0.1:3310->127.0.0.1:49271: read: connection reset by peer
+[00:41:17 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:17 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:17 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:18 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:7:127.0.0.1:3310<->127.0.0.1:49274}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:18 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49274, now:2026-05-17 00:41:18.73012 +0800 CST m=+6.564510265, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:18 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:7:127.0.0.1:3310<->127.0.0.1:49274}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49274: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:7:127.0.0.1:3310<->127.0.0.1:49274}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:18 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49274: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:18 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49274, Error=read tcp 127.0.0.1:3310->127.0.0.1:49274: read: connection reset by peer
+[00:41:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:19 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:8:127.0.0.1:3310<->127.0.0.1:49275}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:19 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49275, now:2026-05-17 00:41:19.748661 +0800 CST m=+7.583020286, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:19 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:19 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:8:127.0.0.1:3310<->127.0.0.1:49275}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49275: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:19 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:8:127.0.0.1:3310<->127.0.0.1:49275}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:19 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49275: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:19 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:19 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49275, Error=read tcp 127.0.0.1:3310->127.0.0.1:49275: read: connection reset by peer
+[00:41:19 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:19 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:20 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:9:127.0.0.1:3310<->127.0.0.1:49276}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:20 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49276, now:2026-05-17 00:41:20.767622 +0800 CST m=+8.601950991, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:20 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:20 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:9:127.0.0.1:3310<->127.0.0.1:49276}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49276: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:20 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:9:127.0.0.1:3310<->127.0.0.1:49276}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:20 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49276: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:20 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49276, Error=read tcp 127.0.0.1:3310->127.0.0.1:49276: read: connection reset by peer
+[00:41:20 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:20 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:20 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:21 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:10:127.0.0.1:3310<->127.0.0.1:49277}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:21 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49277, now:2026-05-17 00:41:21.781626 +0800 CST m=+9.615924346, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:21 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:21 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:10:127.0.0.1:3310<->127.0.0.1:49277}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49277: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:21 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:10:127.0.0.1:3310<->127.0.0.1:49277}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:21 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49277: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:21 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49277, Error=read tcp 127.0.0.1:3310->127.0.0.1:49277: read: connection reset by peer
+[00:41:21 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:21 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:21 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:22 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:11:127.0.0.1:3310<->127.0.0.1:49278}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:22 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49278, now:2026-05-17 00:41:22.796495 +0800 CST m=+10.630762681, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:22 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:22 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:11:127.0.0.1:3310<->127.0.0.1:49278}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49278: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:22 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:11:127.0.0.1:3310<->127.0.0.1:49278}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:22 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49278, Error=read tcp 127.0.0.1:3310->127.0.0.1:49278: read: connection reset by peer
+[00:41:22 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49278: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:22 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:22 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:22 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:23 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:12:127.0.0.1:3310<->127.0.0.1:49281}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:23 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49281, now:2026-05-17 00:41:23.81436 +0800 CST m=+11.648596853, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:23 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:23 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:12:127.0.0.1:3310<->127.0.0.1:49281}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49281: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:23 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49281, Error=read tcp 127.0.0.1:3310->127.0.0.1:49281: read: connection reset by peer
+[00:41:23 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:12:127.0.0.1:3310<->127.0.0.1:49281}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:23 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49281: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:23 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:23 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:23 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:24 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:13:127.0.0.1:3310<->127.0.0.1:49282}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:24 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49282, now:2026-05-17 00:41:24.829753 +0800 CST m=+12.663960064, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:24 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:24 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:13:127.0.0.1:3310<->127.0.0.1:49282}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49282: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:24 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:13:127.0.0.1:3310<->127.0.0.1:49282}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:24 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49282: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:24 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49282, Error=read tcp 127.0.0.1:3310->127.0.0.1:49282: read: connection reset by peer
+[00:41:24 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:24 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:24 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:25 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:14:127.0.0.1:3310<->127.0.0.1:49283}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:25 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:25 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49283, now:2026-05-17 00:41:25.847759 +0800 CST m=+13.681935145, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:25 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:14:127.0.0.1:3310<->127.0.0.1:49283}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49283: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:25 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:14:127.0.0.1:3310<->127.0.0.1:49283}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:25 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49283: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:25 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49283, Error=read tcp 127.0.0.1:3310->127.0.0.1:49283: read: connection reset by peer
+[00:41:25 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:25 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:25 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:26 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:15:127.0.0.1:3310<->127.0.0.1:49284}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:26 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49284, now:2026-05-17 00:41:26.867117 +0800 CST m=+14.701262440, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:26 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:26 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:15:127.0.0.1:3310<->127.0.0.1:49284}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49284: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:26 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:15:127.0.0.1:3310<->127.0.0.1:49284}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:26 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49284, Error=read tcp 127.0.0.1:3310->127.0.0.1:49284: read: connection reset by peer
+[00:41:26 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49284: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:26 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:26 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:26 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:27 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:16:127.0.0.1:3310<->127.0.0.1:49285}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:27 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49285, now:2026-05-17 00:41:27.887051 +0800 CST m=+15.721166171, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:27 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:27 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:16:127.0.0.1:3310<->127.0.0.1:49285}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49285: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:27 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:16:127.0.0.1:3310<->127.0.0.1:49285}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:27 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49285, Error=read tcp 127.0.0.1:3310->127.0.0.1:49285: read: connection reset by peer
+[00:41:27 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49285: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:27 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:27 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:27 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:28 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:17:127.0.0.1:3310<->127.0.0.1:49286}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:28 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49286, now:2026-05-17 00:41:28.907021 +0800 CST m=+16.741105368, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:28 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:28 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:17:127.0.0.1:3310<->127.0.0.1:49286}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49286: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:28 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:17:127.0.0.1:3310<->127.0.0.1:49286}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:28 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49286: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:28 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49286, Error=read tcp 127.0.0.1:3310->127.0.0.1:49286: read: connection reset by peer
+[00:41:28 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:28 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:28 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:29 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:18:127.0.0.1:3310<->127.0.0.1:49287}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:29 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49287, now:2026-05-17 00:41:29.92604 +0800 CST m=+17.760093624, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:29 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:29 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:18:127.0.0.1:3310<->127.0.0.1:49287}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49287: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:29 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:18:127.0.0.1:3310<->127.0.0.1:49287}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:29 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49287, Error=read tcp 127.0.0.1:3310->127.0.0.1:49287: read: connection reset by peer
+[00:41:29 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49287: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:29 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:29 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:29 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:30 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:19:127.0.0.1:3310<->127.0.0.1:49288}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:30 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49288, now:2026-05-17 00:41:30.944915 +0800 CST m=+18.778938334, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:30 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:30 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:19:127.0.0.1:3310<->127.0.0.1:49288}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49288: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:30 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:19:127.0.0.1:3310<->127.0.0.1:49288}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:30 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49288, Error=read tcp 127.0.0.1:3310->127.0.0.1:49288: read: connection reset by peer
+[00:41:30 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49288: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:30 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:30 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:30 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:31 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:20:127.0.0.1:3310<->127.0.0.1:49289}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:31 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49289, now:2026-05-17 00:41:31.963749 +0800 CST m=+19.797741788, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:31 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:31 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:20:127.0.0.1:3310<->127.0.0.1:49289}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49289: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:31 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:20:127.0.0.1:3310<->127.0.0.1:49289}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:31 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49289: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:31 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49289, Error=read tcp 127.0.0.1:3310->127.0.0.1:49289: read: connection reset by peer
+[00:41:31 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:31 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:31 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:32 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:21:127.0.0.1:3310<->127.0.0.1:49290}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:32 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49290, now:2026-05-17 00:41:32.97997 +0800 CST m=+20.813931958, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:32 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:32 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:21:127.0.0.1:3310<->127.0.0.1:49290}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49290: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:32 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:21:127.0.0.1:3310<->127.0.0.1:49290}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:32 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49290: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:32 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:32 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49290, Error=read tcp 127.0.0.1:3310->127.0.0.1:49290: read: connection reset by peer
+[00:41:32 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:32 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:33 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:22:127.0.0.1:3310<->127.0.0.1:49291}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:33 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49291, now:2026-05-17 00:41:33.997715 +0800 CST m=+21.831647230, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:33 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:33 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:22:127.0.0.1:3310<->127.0.0.1:49291}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49291: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:33 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:22:127.0.0.1:3310<->127.0.0.1:49291}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:33 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49291, Error=read tcp 127.0.0.1:3310->127.0.0.1:49291: read: connection reset by peer
+[00:41:33 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49291: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:33 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:33 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:33 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:35 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:23:127.0.0.1:3310<->127.0.0.1:49292}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:35 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49292, now:2026-05-17 00:41:35.014622 +0800 CST m=+22.848523005, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:35 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:35 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:23:127.0.0.1:3310<->127.0.0.1:49292}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49292: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:35 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:23:127.0.0.1:3310<->127.0.0.1:49292}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:35 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49292, Error=read tcp 127.0.0.1:3310->127.0.0.1:49292: read: connection reset by peer
+[00:41:35 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49292: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:35 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:35 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:35 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:36 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:24:127.0.0.1:3310<->127.0.0.1:49293}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:36 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49293, now:2026-05-17 00:41:36.035426 +0800 CST m=+23.869297088, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:36 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:36 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:24:127.0.0.1:3310<->127.0.0.1:49293}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49293: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:36 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:24:127.0.0.1:3310<->127.0.0.1:49293}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:36 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49293: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:36 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49293, Error=read tcp 127.0.0.1:3310->127.0.0.1:49293: read: connection reset by peer
+[00:41:36 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:36 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:36 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:37 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:25:127.0.0.1:3310<->127.0.0.1:49294}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:37 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49294, now:2026-05-17 00:41:37.051616 +0800 CST m=+24.885455929, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:37 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:37 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:25:127.0.0.1:3310<->127.0.0.1:49294}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49294: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:37 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:25:127.0.0.1:3310<->127.0.0.1:49294}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:37 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49294: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:37 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49294, Error=read tcp 127.0.0.1:3310->127.0.0.1:49294: read: connection reset by peer
+[00:41:37 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:37 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:37 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:38 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:26:127.0.0.1:3310<->127.0.0.1:49295}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:38 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49295, now:2026-05-17 00:41:38.066075 +0800 CST m=+25.899884923, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:38 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:38 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:26:127.0.0.1:3310<->127.0.0.1:49295}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49295: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:38 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:26:127.0.0.1:3310<->127.0.0.1:49295}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:38 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49295: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:38 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49295, Error=read tcp 127.0.0.1:3310->127.0.0.1:49295: read: connection reset by peer
+[00:41:38 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:38 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:38 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:39 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:27:127.0.0.1:3310<->127.0.0.1:49296}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:39 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49296, now:2026-05-17 00:41:39.083266 +0800 CST m=+26.917045133, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:39 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:39 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:27:127.0.0.1:3310<->127.0.0.1:49296}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49296: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:39 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:27:127.0.0.1:3310<->127.0.0.1:49296}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:39 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49296: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:39 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49296, Error=read tcp 127.0.0.1:3310->127.0.0.1:49296: read: connection reset by peer
+[00:41:39 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:39 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:39 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:40 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:28:127.0.0.1:3310<->127.0.0.1:49297}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:40 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49297, now:2026-05-17 00:41:40.100369 +0800 CST m=+27.934117285, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:40 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:40 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:28:127.0.0.1:3310<->127.0.0.1:49297}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49297: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:40 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49297, Error=read tcp 127.0.0.1:3310->127.0.0.1:49297: read: connection reset by peer
+[00:41:40 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:28:127.0.0.1:3310<->127.0.0.1:49297}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:40 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49297: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:40 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:40 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:40 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:41 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:29:127.0.0.1:3310<->127.0.0.1:49303}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:41 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49303, now:2026-05-17 00:41:41.112582 +0800 CST m=+28.946300640, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:41 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:41 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:29:127.0.0.1:3310<->127.0.0.1:49303}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49303: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:41 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:29:127.0.0.1:3310<->127.0.0.1:49303}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:41 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49303: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:41 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:41 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49303, Error=read tcp 127.0.0.1:3310->127.0.0.1:49303: read: connection reset by peer
+[00:41:41 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:41 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:42 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:30:127.0.0.1:3310<->127.0.0.1:49305}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:42 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49305, now:2026-05-17 00:41:42.13116 +0800 CST m=+29.964847939, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:42 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:42 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:30:127.0.0.1:3310<->127.0.0.1:49305}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49305: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:42 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:30:127.0.0.1:3310<->127.0.0.1:49305}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:42 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49305, Error=read tcp 127.0.0.1:3310->127.0.0.1:49305: read: connection reset by peer
+[00:41:42 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49305: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:42 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:42 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:42 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:43 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:31:127.0.0.1:3310<->127.0.0.1:49306}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:43 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49306, now:2026-05-17 00:41:43.153043 +0800 CST m=+30.986699761, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:43 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:43 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:31:127.0.0.1:3310<->127.0.0.1:49306}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49306: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:43 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:31:127.0.0.1:3310<->127.0.0.1:49306}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:43 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49306: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:43 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49306, Error=read tcp 127.0.0.1:3310->127.0.0.1:49306: read: connection reset by peer
+[00:41:43 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:43 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:43 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:44 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:32:127.0.0.1:3310<->127.0.0.1:49307}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:44 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49307, now:2026-05-17 00:41:44.170348 +0800 CST m=+32.003974654, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:44 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:44 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:32:127.0.0.1:3310<->127.0.0.1:49307}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49307: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:44 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49307, Error=read tcp 127.0.0.1:3310->127.0.0.1:49307: read: connection reset by peer
+[00:41:44 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:32:127.0.0.1:3310<->127.0.0.1:49307}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:44 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49307: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:44 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:44 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:44 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+Starting XMySQL Server...
+Parsing command line arguments...
+[00:41:47 CST 2026/05/17] [INFO] (main.go:main.main:60) Logger initialized successfully with level: info
+
+[00:41:47 CST 2026/05/17] [INFO] (main.go:main.main:62) XMySQL Server starting...
+[00:41:47 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[00:41:47 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:216) No checkpoint found, starting recovery from LSN 0
+[00:41:47 CST 2026/05/17] [WARN] (mysql_user_data.go:github.com/zhukovaskychina/xmysql-server/server/innodb/manager.(*StorageManager).InitializeMySQLUserData:781) Warning: Enhanced B+tree verification warning: consistency check failed: page 64 record count mismatch
+[00:41:47 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).initRecoveryLayer:216) No checkpoint found, starting recovery from LSN 0
+[00:41:47 CST 2026/05/17] [INFO] (main.go:main.main:66) Starting MySQL server...
+[00:41:47 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:75) 🚀 Starting XMySQL Engine...
+[00:41:47 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:78) 🏥 Performing crash recovery...
+[00:41:47 CST 2026/05/17] [INFO] (mysql_server.go:github.com/zhukovaskychina/xmysql-server/server/net.initProfiling:101) App Profiling startup on address{127.0.0.1:0/debug/pprof/}
+[00:41:47 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:82) ✅ Crash recovery completed successfully
+[00:41:47 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:85) 💾 Starting Checkpoint Manager...
+[00:41:47 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:103) 🚀 启动检查点管理器
+[00:41:47 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:117) 📄 没有找到有效的检查点，将从头开始
+[00:41:47 CST 2026/05/17] [INFO] (storage_integrated_checkpoint.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*CheckpointManager).Start:122)  检查点管理器启动成功
+[00:41:47 CST 2026/05/17] [INFO] (enginx.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*XMySQLEngine).Start:90) ✅ XMySQL Engine started successfully
+MySQL服务器正在初始化...
+MySQL服务器初始化完成！
+
+******************************************************************************************
+
+ __   ____  __        _____  ____  _          _____ ______ _______      ________ _____  
+ \ \ / /  \/  |      / ____|/ __ \| |        / ____|  ____|  __ \ \    / /  ____|  __ \ 
+  \ V /| \  / |_   _| (___ | |  | | |  _____| (___ | |__  | |__) \ \  / /| |__  | |__) |
+   > < | |\/| | | | |\___ \| |  | | | |______\___ \|  __| |  _  / \ \/ / |  __| |  _  / 
+  / . \| |  | | |_| |____) | |__| | |____    ____) | |____| | \ \  \  /  | |____| | \ \ 
+ /_/ \_\_|  |_|\__, |_____/ \___\_\______|  |_____/|______|_|  \_\  \/   |______|_|  \_\
+                __/ |                                                                   
+               |___/                                                                    
+******************************************************************************************
+
+启动成功
+ starts successfull! its version=1.3.0, its listen ends=127.0.0.1:3310
+[00:41:47 CST 2026/05/17] [INFO] (mysql_server.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MySQLServer).Start:88)  starts successfull! its version=1.3.0, its listen ends=127.0.0.1:3310
+[00:41:47 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:1:127.0.0.1:3310<->127.0.0.1:49314}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:47 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49314, now:2026-05-17 00:41:47.846074 +0800 CST m=+0.565395082, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:47 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:47 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:1:127.0.0.1:3310<->127.0.0.1:49314}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49314: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:47 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:1:127.0.0.1:3310<->127.0.0.1:49314}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:47 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49314, Error=read tcp 127.0.0.1:3310->127.0.0.1:49314: read: connection reset by peer
+[00:41:47 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49314: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:47 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:47 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:47 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:49 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:2:127.0.0.1:3310<->127.0.0.1:49317}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:49 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49317, now:2026-05-17 00:41:49.626422 +0800 CST m=+2.345689027, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:49 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 62 94 224 239 2 163 243 201 138 214 117 45 61 19 58 133 210 126 171 144 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[00:41:49 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:355)   [SelectExecutor] 无法获取存储管理器，创建默认 mysql.user 数据
+[00:41:49 CST 2026/05/17] [WARN] (select_executor.go:github.com/zhukovaskychina/xmysql-server/server/innodb/engine.(*SelectExecutor).executeUserTableQuery:355)   [SelectExecutor] 无法获取存储管理器，创建默认 mysql.user 数据
+[00:41:49 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).handleAuthentication:747) 认证失败: Access denied for user 'root'@'127.0.0.1' (using password: YES)
+[00:41:49 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49317, now:2026-05-17 00:41:49.628161 +0800 CST m=+2.347427935, length:76, err:%!!(MISSING)s(<nil>)
+[00:41:49 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:692) {xmysql-server:TCP_SERVER:2:127.0.0.1:3310<->127.0.0.1:49317}, [session.conn.read] = error:EOF
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:49 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:2:127.0.0.1:3310<->127.0.0.1:49317}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:49 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 90, Write Bytes: 168, Read Pkgs: 1, Write Pkgs: 2, [session.handleLoop] got done signal. wQ is nil.
+[00:41:49 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:49 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 90, Write Bytes: 168, Read Pkgs: 1, Write Pkgs: 2, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:49 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:3:127.0.0.1:3310<->127.0.0.1:49318}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:49 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49318, now:2026-05-17 00:41:49.983543 +0800 CST m=+2.702799132, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:49 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 90, 内容: [86 0 0 1 141 162 10 0 0 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 114 111 111 116 0 20 205 177 206 172 76 201 48 144 184 101 73 120 91 16 86 40 120 4 112 213 109 121 115 113 108 0 109 121 115 113 108 95 110 97 116 105 118 101 95 112 97 115 115 119 111 114 100 0]
+
+[00:41:49 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).handleAuthentication:747) 认证失败: Access denied for user 'root'@'127.0.0.1' (using password: YES)
+[00:41:49 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49318, now:2026-05-17 00:41:49.984107 +0800 CST m=+2.703363103, length:76, err:%!!(MISSING)s(<nil>)
+[00:41:49 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:692) {xmysql-server:TCP_SERVER:3:127.0.0.1:3310<->127.0.0.1:49318}, [session.conn.read] = error:EOF
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:49 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:3:127.0.0.1:3310<->127.0.0.1:49318}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:49 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 90, Write Bytes: 168, Read Pkgs: 1, Write Pkgs: 2, [session.handleLoop] got done signal. wQ is nil.
+[00:41:49 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:49 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 90, Write Bytes: 168, Read Pkgs: 1, Write Pkgs: 2, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:56 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:4:127.0.0.1:3310<->127.0.0.1:49321}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:56 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49321, now:2026-05-17 00:41:56.160375 +0800 CST m=+8.879445943, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:56 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:56 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:4:127.0.0.1:3310<->127.0.0.1:49321}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49321: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:56 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49321, Error=read tcp 127.0.0.1:3310->127.0.0.1:49321: read: connection reset by peer
+[00:41:56 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:4:127.0.0.1:3310<->127.0.0.1:49321}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:56 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49321: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:56 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:56 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:56 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:57 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:5:127.0.0.1:3310<->127.0.0.1:49322}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:57 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49322, now:2026-05-17 00:41:57.179175 +0800 CST m=+9.898215330, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:57 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:57 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:5:127.0.0.1:3310<->127.0.0.1:49322}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49322: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:57 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:5:127.0.0.1:3310<->127.0.0.1:49322}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:57 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49322, Error=read tcp 127.0.0.1:3310->127.0.0.1:49322: read: connection reset by peer
+[00:41:57 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49322: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:57 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:57 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:57 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:58 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:6:127.0.0.1:3310<->127.0.0.1:49323}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:58 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49323, now:2026-05-17 00:41:58.198924 +0800 CST m=+10.917933868, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:58 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:58 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:6:127.0.0.1:3310<->127.0.0.1:49323}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49323: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:58 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:6:127.0.0.1:3310<->127.0.0.1:49323}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:58 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49323: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:58 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49323, Error=read tcp 127.0.0.1:3310->127.0.0.1:49323: read: connection reset by peer
+[00:41:58 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:58 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:58 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:41:59 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:7:127.0.0.1:3310<->127.0.0.1:49324}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:41:59 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49324, now:2026-05-17 00:41:59.216063 +0800 CST m=+11.935042720, length:92, err:%!!(MISSING)s(<nil>)
+[00:41:59 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:41:59 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:7:127.0.0.1:3310<->127.0.0.1:49324}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49324: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:41:59 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:7:127.0.0.1:3310<->127.0.0.1:49324}, [session.handlePackage] gr will exit now, left gr num 1
+[00:41:59 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49324, Error=read tcp 127.0.0.1:3310->127.0.0.1:49324: read: connection reset by peer
+[00:41:59 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49324: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:41:59 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:41:59 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:41:59 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:00 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:8:127.0.0.1:3310<->127.0.0.1:49325}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:00 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49325, now:2026-05-17 00:42:00.228626 +0800 CST m=+12.947575313, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:00 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:00 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:8:127.0.0.1:3310<->127.0.0.1:49325}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49325: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:00 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49325, Error=read tcp 127.0.0.1:3310->127.0.0.1:49325: read: connection reset by peer
+[00:42:00 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:8:127.0.0.1:3310<->127.0.0.1:49325}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:00 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49325: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:00 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:00 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:00 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:01 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:9:127.0.0.1:3310<->127.0.0.1:49326}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:01 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49326, now:2026-05-17 00:42:01.247829 +0800 CST m=+13.966748118, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:01 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:01 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:9:127.0.0.1:3310<->127.0.0.1:49326}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49326: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:01 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:9:127.0.0.1:3310<->127.0.0.1:49326}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:01 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49326: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:01 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49326, Error=read tcp 127.0.0.1:3310->127.0.0.1:49326: read: connection reset by peer
+[00:42:01 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:01 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:01 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:02 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:10:127.0.0.1:3310<->127.0.0.1:49338}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:02 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49338, now:2026-05-17 00:42:02.267094 +0800 CST m=+14.985982051, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:02 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:02 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:10:127.0.0.1:3310<->127.0.0.1:49338}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49338: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:02 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49338, Error=read tcp 127.0.0.1:3310->127.0.0.1:49338: read: connection reset by peer
+[00:42:02 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:10:127.0.0.1:3310<->127.0.0.1:49338}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:02 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49338: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:02 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:02 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:02 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:03 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:11:127.0.0.1:3310<->127.0.0.1:49341}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:03 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49341, now:2026-05-17 00:42:03.283261 +0800 CST m=+16.002118602, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:03 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:03 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:11:127.0.0.1:3310<->127.0.0.1:49341}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49341: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:03 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49341, Error=read tcp 127.0.0.1:3310->127.0.0.1:49341: read: connection reset by peer
+[00:42:03 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:11:127.0.0.1:3310<->127.0.0.1:49341}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:03 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49341: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:03 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:03 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:03 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:04 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:12:127.0.0.1:3310<->127.0.0.1:49342}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:04 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49342, now:2026-05-17 00:42:04.304383 +0800 CST m=+17.023210500, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:04 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:04 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:12:127.0.0.1:3310<->127.0.0.1:49342}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49342: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:04 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:12:127.0.0.1:3310<->127.0.0.1:49342}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:04 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49342, Error=read tcp 127.0.0.1:3310->127.0.0.1:49342: read: connection reset by peer
+[00:42:04 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49342: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:04 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:04 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:04 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:05 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:13:127.0.0.1:3310<->127.0.0.1:49345}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:05 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49345, now:2026-05-17 00:42:05.324698 +0800 CST m=+18.043494052, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:05 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:05 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:13:127.0.0.1:3310<->127.0.0.1:49345}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49345: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:05 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:13:127.0.0.1:3310<->127.0.0.1:49345}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:05 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49345: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:05 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49345, Error=read tcp 127.0.0.1:3310->127.0.0.1:49345: read: connection reset by peer
+[00:42:05 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:05 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:05 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:06 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:14:127.0.0.1:3310<->127.0.0.1:49346}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:06 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49346, now:2026-05-17 00:42:06.337297 +0800 CST m=+19.056063380, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:06 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:06 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:14:127.0.0.1:3310<->127.0.0.1:49346}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49346: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:06 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:14:127.0.0.1:3310<->127.0.0.1:49346}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:06 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49346: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:06 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:06 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:06 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49346, Error=read tcp 127.0.0.1:3310->127.0.0.1:49346: read: connection reset by peer
+[00:42:06 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:07 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:15:127.0.0.1:3310<->127.0.0.1:49347}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:07 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:07 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49347, now:2026-05-17 00:42:07.353549 +0800 CST m=+20.072284852, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:07 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:15:127.0.0.1:3310<->127.0.0.1:49347}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49347: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:07 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:15:127.0.0.1:3310<->127.0.0.1:49347}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:07 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49347: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:07 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49347, Error=read tcp 127.0.0.1:3310->127.0.0.1:49347: read: connection reset by peer
+[00:42:07 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:07 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:07 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:08 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:16:127.0.0.1:3310<->127.0.0.1:49348}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:08 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49348, now:2026-05-17 00:42:08.375366 +0800 CST m=+21.094070449, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:08 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:08 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:16:127.0.0.1:3310<->127.0.0.1:49348}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49348: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:08 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49348, Error=read tcp 127.0.0.1:3310->127.0.0.1:49348: read: connection reset by peer
+[00:42:08 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:16:127.0.0.1:3310<->127.0.0.1:49348}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:08 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49348: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:08 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:08 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:08 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:09 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:17:127.0.0.1:3310<->127.0.0.1:49351}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:09 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49351, now:2026-05-17 00:42:09.387695 +0800 CST m=+22.106369949, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:09 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:09 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:17:127.0.0.1:3310<->127.0.0.1:49351}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49351: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:09 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:17:127.0.0.1:3310<->127.0.0.1:49351}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:09 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49351: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:09 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49351, Error=read tcp 127.0.0.1:3310->127.0.0.1:49351: read: connection reset by peer
+[00:42:09 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:09 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:09 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:10 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:18:127.0.0.1:3310<->127.0.0.1:49352}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:10 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49352, now:2026-05-17 00:42:10.408202 +0800 CST m=+23.126846267, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:10 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:10 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:18:127.0.0.1:3310<->127.0.0.1:49352}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49352: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:10 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:18:127.0.0.1:3310<->127.0.0.1:49352}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:10 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49352, Error=read tcp 127.0.0.1:3310->127.0.0.1:49352: read: connection reset by peer
+[00:42:10 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49352: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:10 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:10 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:10 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:11 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:19:127.0.0.1:3310<->127.0.0.1:49353}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:11 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49353, now:2026-05-17 00:42:11.425404 +0800 CST m=+24.144016860, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:11 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:11 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:19:127.0.0.1:3310<->127.0.0.1:49353}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49353: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:11 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:19:127.0.0.1:3310<->127.0.0.1:49353}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:11 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49353: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:11 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49353, Error=read tcp 127.0.0.1:3310->127.0.0.1:49353: read: connection reset by peer
+[00:42:11 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:11 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:11 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:12 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:20:127.0.0.1:3310<->127.0.0.1:49354}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:12 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:12 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49354, now:2026-05-17 00:42:12.447097 +0800 CST m=+25.165679689, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:12 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:20:127.0.0.1:3310<->127.0.0.1:49354}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49354: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:12 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:20:127.0.0.1:3310<->127.0.0.1:49354}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:12 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49354: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:12 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:12 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49354, Error=read tcp 127.0.0.1:3310->127.0.0.1:49354: read: connection reset by peer
+[00:42:12 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:12 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:13 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:21:127.0.0.1:3310<->127.0.0.1:49355}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:13 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49355, now:2026-05-17 00:42:13.466805 +0800 CST m=+26.185357546, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:13 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:13 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:21:127.0.0.1:3310<->127.0.0.1:49355}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49355: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:13 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49355, Error=read tcp 127.0.0.1:3310->127.0.0.1:49355: read: connection reset by peer
+[00:42:13 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:21:127.0.0.1:3310<->127.0.0.1:49355}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:13 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49355: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:13 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:13 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:13 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:14 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:22:127.0.0.1:3310<->127.0.0.1:49356}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:14 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49356, now:2026-05-17 00:42:14.479759 +0800 CST m=+27.198280854, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:14 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:22:127.0.0.1:3310<->127.0.0.1:49356}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49356: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:22:127.0.0.1:3310<->127.0.0.1:49356}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:14 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49356: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:14 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49356, Error=read tcp 127.0.0.1:3310->127.0.0.1:49356: read: connection reset by peer
+[00:42:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:14 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:15 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:23:127.0.0.1:3310<->127.0.0.1:49357}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:15 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49357, now:2026-05-17 00:42:15.498262 +0800 CST m=+28.216752989, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:15 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:15 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:23:127.0.0.1:3310<->127.0.0.1:49357}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49357: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:15 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:23:127.0.0.1:3310<->127.0.0.1:49357}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:15 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49357: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:15 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49357, Error=read tcp 127.0.0.1:3310->127.0.0.1:49357: read: connection reset by peer
+[00:42:15 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:15 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:15 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:16 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:24:127.0.0.1:3310<->127.0.0.1:49358}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:16 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49358, now:2026-05-17 00:42:16.517278 +0800 CST m=+29.235738972, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:16 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:16 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:24:127.0.0.1:3310<->127.0.0.1:49358}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49358: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:16 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:24:127.0.0.1:3310<->127.0.0.1:49358}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:16 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49358: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:16 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49358, Error=read tcp 127.0.0.1:3310->127.0.0.1:49358: read: connection reset by peer
+[00:42:16 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:16 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:16 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:17 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:25:127.0.0.1:3310<->127.0.0.1:49359}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:17 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49359, now:2026-05-17 00:42:17.534143 +0800 CST m=+30.252572912, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:17 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:17 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:25:127.0.0.1:3310<->127.0.0.1:49359}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49359: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:17 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:25:127.0.0.1:3310<->127.0.0.1:49359}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:17 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49359: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:17 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49359, Error=read tcp 127.0.0.1:3310->127.0.0.1:49359: read: connection reset by peer
+[00:42:17 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:17 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:17 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:18 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:26:127.0.0.1:3310<->127.0.0.1:49360}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:18 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49360, now:2026-05-17 00:42:18.550601 +0800 CST m=+31.269000272, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:18 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:26:127.0.0.1:3310<->127.0.0.1:49360}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49360: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:26:127.0.0.1:3310<->127.0.0.1:49360}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:18 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49360: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:18 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49360, Error=read tcp 127.0.0.1:3310->127.0.0.1:49360: read: connection reset by peer
+[00:42:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:18 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:19 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:27:127.0.0.1:3310<->127.0.0.1:49361}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:19 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:19 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49361, now:2026-05-17 00:42:19.567252 +0800 CST m=+32.285620609, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:19 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:27:127.0.0.1:3310<->127.0.0.1:49361}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49361: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:19 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:27:127.0.0.1:3310<->127.0.0.1:49361}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:19 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49361: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:19 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49361, Error=read tcp 127.0.0.1:3310->127.0.0.1:49361: read: connection reset by peer
+[00:42:19 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:19 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:19 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:20 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:28:127.0.0.1:3310<->127.0.0.1:49363}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:20 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49363, now:2026-05-17 00:42:20.583651 +0800 CST m=+33.301989143, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:20 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:20 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:28:127.0.0.1:3310<->127.0.0.1:49363}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49363: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:20 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:28:127.0.0.1:3310<->127.0.0.1:49363}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:20 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49363: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:20 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49363, Error=read tcp 127.0.0.1:3310->127.0.0.1:49363: read: connection reset by peer
+[00:42:20 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:20 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:20 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:21 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:29:127.0.0.1:3310<->127.0.0.1:49365}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:21 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49365, now:2026-05-17 00:42:21.601016 +0800 CST m=+34.319324397, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:21 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:21 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:29:127.0.0.1:3310<->127.0.0.1:49365}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49365: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:21 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:29:127.0.0.1:3310<->127.0.0.1:49365}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:21 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49365: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:21 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49365, Error=read tcp 127.0.0.1:3310->127.0.0.1:49365: read: connection reset by peer
+[00:42:21 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:21 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:21 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:22 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:30:127.0.0.1:3310<->127.0.0.1:49370}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:22 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49370, now:2026-05-17 00:42:22.613077 +0800 CST m=+35.331354988, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:22 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:22 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:30:127.0.0.1:3310<->127.0.0.1:49370}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49370: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:22 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49370, Error=read tcp 127.0.0.1:3310->127.0.0.1:49370: read: connection reset by peer
+[00:42:22 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:30:127.0.0.1:3310<->127.0.0.1:49370}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:22 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49370: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:22 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:22 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:22 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:23 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:31:127.0.0.1:3310<->127.0.0.1:49371}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:23 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49371, now:2026-05-17 00:42:23.634498 +0800 CST m=+36.352745099, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:23 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:23 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:31:127.0.0.1:3310<->127.0.0.1:49371}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49371: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:23 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:31:127.0.0.1:3310<->127.0.0.1:49371}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:23 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49371, Error=read tcp 127.0.0.1:3310->127.0.0.1:49371: read: connection reset by peer
+[00:42:23 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49371: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:23 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:23 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:23 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:24 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:32:127.0.0.1:3310<->127.0.0.1:49372}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:24 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49372, now:2026-05-17 00:42:24.652994 +0800 CST m=+37.371210116, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:24 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:24 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:32:127.0.0.1:3310<->127.0.0.1:49372}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49372: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:24 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49372, Error=read tcp 127.0.0.1:3310->127.0.0.1:49372: read: connection reset by peer
+[00:42:24 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:32:127.0.0.1:3310<->127.0.0.1:49372}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:24 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49372: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:24 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:24 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:24 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0
+[00:42:25 CST 2026/05/17] [DEBG] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).SetWQLen:278) session {xmysql-server:TCP_SERVER:33:127.0.0.1:3310<->127.0.0.1:49373}, Read Bytes: 0, Write Bytes: 0, Read Pkgs: 0, Write Pkgs: 0, [session.SetWQLen] wQ{len:0, cap:1024}
+[00:42:25 CST 2026/05/17] [DEBG] (connection.go:github.com/zhukovaskychina/xmysql-server/server/net.(*MysqlTCPConn).send:315) localAddr: 127.0.0.1:3310, remoteAddr:127.0.0.1:49373, now:2026-05-17 00:42:25.673337 +0800 CST m=+38.391523418, length:92, err:%!!(MISSING)s(<nil>)
+[00:42:25 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:709) [session.handleTCPPackage] 收到数据，长度: 1, 内容: [10]
+
+[00:42:25 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleTCPPackage:697) {xmysql-server:TCP_SERVER:33:127.0.0.1:3310<->127.0.0.1:49373}, [session.conn.read] = error:read tcp 127.0.0.1:3310->127.0.0.1:49373: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+[00:42:25 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:624) {xmysql-server:TCP_SERVER:33:127.0.0.1:3310<->127.0.0.1:49373}, [session.handlePackage] gr will exit now, left gr num 1
+[00:42:25 CST 2026/05/17] [ERRO] (decoupled_handler.go:github.com/zhukovaskychina/xmysql-server/server/net.(*DecoupledMySQLMessageHandler).OnError:282) [OnError] 会话错误: SessionID=session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, RemoteAddr=127.0.0.1:49373, Error=read tcp 127.0.0.1:3310->127.0.0.1:49373: read: connection reset by peer
+[00:42:25 CST 2026/05/17] [EROR] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handlePackage.func1:627) session-closed, [session.handlePackage] error:read tcp 127.0.0.1:3310->127.0.0.1:49373: read: connection reset by peer
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/connection.go:273: 
+/Users/zhukovasky/GolandProjects/xmysql-server/server/net/session.go:748: 
+[00:42:25 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop:519) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] got done signal. wQ is nil.
+[00:42:25 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).Close:807) session-closed closed now. its current gr num is 0
+[00:42:25 CST 2026/05/17] [INFO] (session.go:github.com/zhukovaskychina/xmysql-server/server/net.(*session).handleLoop.func1:502) session session-closed, Read Bytes: 1, Write Bytes: 92, Read Pkgs: 0, Write Pkgs: 1, [session.handleLoop] goroutine exit now, left gr num 0

@@ -1,0 +1,371 @@
+{
+  "nodes": [
+    {
+      "id": "document:docs/planning/P0_A1_02_PAGE_SINGLE_ENTRYPOINT_MIGRATION.md",
+      "type": "document",
+      "name": "P0_A1_02_PAGE_SINGLE_ENTRYPOINT_MIGRATION.md",
+      "filePath": "docs/planning/P0_A1_02_PAGE_SINGLE_ENTRYPOINT_MIGRATION.md",
+      "summary": "规划文档《P0 A1-02 单入口收敛迁移说明》共整理 6 个章节，覆盖单入口定义（本轮已落实）、兼容层边界、当前未迁移调用点（兼容保留）、使用约束（新增代码）。",
+      "tags": [
+        "documentation",
+        "planning",
+        "production-readiness"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/planning/P0_A_BASE_IMPLEMENTATION_PLAN.md",
+      "type": "document",
+      "name": "P0_A_BASE_IMPLEMENTATION_PLAN.md",
+      "filePath": "docs/planning/P0_A_BASE_IMPLEMENTATION_PLAN.md",
+      "summary": "规划文档《P0-A-Base Implementation Plan》共整理 9 个章节，覆盖Chunk 1: G-01 Minimum Baseline Recovery、Chunk 2: T-A1-03 Structured Duplicate-Key Detection、Chunk 3: Verification and Handoff。",
+      "tags": [
+        "documentation",
+        "planning",
+        "production-readiness"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/P0_B_RECOVERY_EVIDENCE_MANIFEST.md",
+      "type": "document",
+      "name": "P0_B_RECOVERY_EVIDENCE_MANIFEST.md",
+      "filePath": "docs/planning/P0_B_RECOVERY_EVIDENCE_MANIFEST.md",
+      "summary": "规划文档《P0 B 组恢复演练证据清单（草案）》共整理 6 个章节，覆盖目标、标准输入、必须产出、必检项（每项附文件路径）。",
+      "tags": [
+        "documentation",
+        "planning",
+        "production-readiness"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/planning/P0_D_OBSERVABILITY_READINESS_TEMPLATE.md",
+      "type": "document",
+      "name": "P0_D_OBSERVABILITY_READINESS_TEMPLATE.md",
+      "filePath": "docs/planning/P0_D_OBSERVABILITY_READINESS_TEMPLATE.md",
+      "summary": "规划文档《XMySQL Server P0-D 可观测性上线就绪模板》共整理 18 个章节，覆盖文档约束、统一日志字段规范（T-D-01）、慢查询日志（T-D-01）、指标与告警（T-D-02）。",
+      "tags": [
+        "documentation",
+        "planning",
+        "production-readiness"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/P0_E_CANARY_REHEARSAL_20260517.md",
+      "type": "document",
+      "name": "P0_E_CANARY_REHEARSAL_20260517.md",
+      "filePath": "docs/planning/P0_E_CANARY_REHEARSAL_20260517.md",
+      "summary": "规划文档《P0-E-03 全链路演练记录模板》共整理 12 个章节，覆盖基础信息、变更与范围、灰度执行记录、回退执行。",
+      "tags": [
+        "documentation",
+        "planning",
+        "production-readiness"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/P0_E_ROLLBACK_AND_CANARY_RUNBOOK.md",
+      "type": "document",
+      "name": "P0_E_ROLLBACK_AND_CANARY_RUNBOOK.md",
+      "filePath": "docs/planning/P0_E_ROLLBACK_AND_CANARY_RUNBOOK.md",
+      "summary": "规划文档《XMySQL Server P0-E 灰度、回退与全链路演练手册（执行版）》共整理 20 个章节，覆盖前置条件、变更发布范围、灰度流程（E-01）、快速回退流程（E-01 + E-03）。",
+      "tags": [
+        "documentation",
+        "planning",
+        "production-readiness"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/P0_PRODUCTION_CHECKLIST.md",
+      "type": "document",
+      "name": "P0_PRODUCTION_CHECKLIST.md",
+      "filePath": "docs/planning/P0_PRODUCTION_CHECKLIST.md",
+      "summary": "规划文档《XMySQL Server P0 上线验收清单（Checklist）》共整理 10 个章节，覆盖使用说明、核心高风险文件整改（A）、崩溃恢复验证（B）、并发正确性验证（C）。",
+      "tags": [
+        "documentation",
+        "planning",
+        "production-readiness"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/P0_PRODUCTION_DEPLOYMENT_PLAN.md",
+      "type": "document",
+      "name": "P0_PRODUCTION_DEPLOYMENT_PLAN.md",
+      "filePath": "docs/planning/P0_PRODUCTION_DEPLOYMENT_PLAN.md",
+      "summary": "规划文档《XMySQL Server P0 上线门槛开发计划》共整理 35 个章节，覆盖目标与范围、入口与完成定义、工作流 A：核心高风险文件整改（Top 12）、工作流 B：崩溃恢复验证。",
+      "tags": [
+        "documentation",
+        "planning",
+        "production-readiness"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/P0_PRODUCTION_GAP_ANALYSIS.md",
+      "type": "document",
+      "name": "P0_PRODUCTION_GAP_ANALYSIS.md",
+      "filePath": "docs/planning/P0_PRODUCTION_GAP_ANALYSIS.md",
+      "summary": "规划文档《XMySQL Server P0 未实现项总表（Gap Analysis）》共整理 24 个章节，覆盖目的、状态定义、总览、全局阻塞。",
+      "tags": [
+        "documentation",
+        "planning",
+        "production-readiness"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/P0_PRODUCTION_TASKS.md",
+      "type": "document",
+      "name": "P0_PRODUCTION_TASKS.md",
+      "filePath": "docs/planning/P0_PRODUCTION_TASKS.md",
+      "summary": "规划文档《XMySQL Server P0 上线任务分解（Tasks）》共整理 28 个章节，覆盖使用说明、A1：核心高风险文件整改（实现侧）、A2：核心高风险文件整改（测试侧）、B：崩溃恢复验证。",
+      "tags": [
+        "documentation",
+        "planning",
+        "production-readiness"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/planning/P0_STAGE1_BASELINE_REPORT_TEMPLATE.md",
+      "type": "document",
+      "name": "P0_STAGE1_BASELINE_REPORT_TEMPLATE.md",
+      "filePath": "docs/planning/P0_STAGE1_BASELINE_REPORT_TEMPLATE.md",
+      "summary": "规划文档《P0 Stage1 基线验证模板》共整理 5 个章节，覆盖运行命令、输出位置、报告字段（按行）、阶段条件（Stage1 门槛）。",
+      "tags": [
+        "documentation",
+        "planning",
+        "production-readiness"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/planning/P0_WEEK1_SPRINT_PLAN.md",
+      "type": "document",
+      "name": "P0_WEEK1_SPRINT_PLAN.md",
+      "filePath": "docs/planning/P0_WEEK1_SPRINT_PLAN.md",
+      "summary": "规划文档《XMySQL Server P0 第一周冲刺计划》共整理 16 个章节，覆盖冲刺目标、本周范围（仅 Week 1）、人天预算与角色分配、详细任务卡（按依赖顺序）。",
+      "tags": [
+        "documentation",
+        "planning",
+        "production-readiness"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/PRIORITY_TASK_LIST.md",
+      "type": "document",
+      "name": "PRIORITY_TASK_LIST.md",
+      "filePath": "docs/planning/PRIORITY_TASK_LIST.md",
+      "summary": "规划文档《优先级任务清单（已合并）》共整理 2 个章节，覆盖请改用。",
+      "tags": [
+        "documentation",
+        "planning",
+        "production-readiness"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/planning/PRODUCTION_GAP_EXECUTION_TABLE.md",
+      "type": "document",
+      "name": "PRODUCTION_GAP_EXECUTION_TABLE.md",
+      "filePath": "docs/planning/PRODUCTION_GAP_EXECUTION_TABLE.md",
+      "summary": "规划文档《XMySQL Server Production Gap Execution Table》共整理 14 个章节，覆盖使用说明、P0 执行表、P1 执行表、P2 执行表。",
+      "tags": [
+        "documentation",
+        "planning",
+        "production-readiness"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/planning/PRODUCTION_GAP_LIST.md",
+      "type": "document",
+      "name": "PRODUCTION_GAP_LIST.md",
+      "filePath": "docs/planning/PRODUCTION_GAP_LIST.md",
+      "summary": "规划文档《XMySQL Server Production Gap List》共整理 25 个章节，覆盖目的、状态定义、当前判断摘要、P0 必补 Gap List。",
+      "tags": [
+        "documentation",
+        "planning",
+        "production-readiness"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/planning/TODO_DETAILED_CHECKLIST.md",
+      "type": "document",
+      "name": "TODO_DETAILED_CHECKLIST.md",
+      "filePath": "docs/planning/TODO_DETAILED_CHECKLIST.md",
+      "summary": "规划文档《XMySQL Server - TODO详细清单》共整理 42 个章节，覆盖📋 说明、-07-08 本次更新、🔴 P0级别 - 核心功能缺失（必须修复）、🟡 P1级别 - 重要功能（近期修复）。",
+      "tags": [
+        "documentation",
+        "planning",
+        "production-readiness"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/planning/TODO_EXECUTION_PLAN.md",
+      "type": "document",
+      "name": "TODO_EXECUTION_PLAN.md",
+      "filePath": "docs/planning/TODO_EXECUTION_PLAN.md",
+      "summary": "规划文档《TODO 执行计划（已合并为导航）》共整理 2 个章节，覆盖请改用。",
+      "tags": [
+        "documentation",
+        "planning",
+        "production-readiness"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/planning/TODO_STATISTICS_REPORT.md",
+      "type": "document",
+      "name": "TODO_STATISTICS_REPORT.md",
+      "filePath": "docs/planning/TODO_STATISTICS_REPORT.md",
+      "summary": "规划文档《TODO 统计报告（已合并为导航）》共整理 2 个章节，覆盖请改用。",
+      "tags": [
+        "documentation",
+        "planning",
+        "production-readiness"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/planning/TODO_SUMMARY.md",
+      "type": "document",
+      "name": "TODO_SUMMARY.md",
+      "filePath": "docs/planning/TODO_SUMMARY.md",
+      "summary": "规划文档《TODO 总结报告（已合并为导航）》共整理 2 个章节，覆盖请改用。",
+      "tags": [
+        "documentation",
+        "planning",
+        "production-readiness"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/planning/UNIMPLEMENTED_CAPABILITY_BASELINE_2026-04.md",
+      "type": "document",
+      "name": "UNIMPLEMENTED_CAPABILITY_BASELINE_2026-04.md",
+      "filePath": "docs/planning/UNIMPLEMENTED_CAPABILITY_BASELINE_2026-04.md",
+      "summary": "规划文档《XMySQL 未实现能力基线盘点（2026-04）》共整理 17 个章节，覆盖结论摘要、证据基线与权重、能力现状矩阵（已实现 / 部分实现 / 未实现）、P0 / P1 / P2 缺口排序（按生产影响）。",
+      "tags": [
+        "documentation",
+        "planning",
+        "production-readiness"
+      ],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "document:docs/planning/P0_A_BASE_IMPLEMENTATION_PLAN.md",
+      "target": "document:docs/planning/P0_A1_02_PAGE_SINGLE_ENTRYPOINT_MIGRATION.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/planning/P0_B_RECOVERY_EVIDENCE_MANIFEST.md",
+      "target": "document:docs/planning/P0_PRODUCTION_DEPLOYMENT_PLAN.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/planning/P0_D_OBSERVABILITY_READINESS_TEMPLATE.md",
+      "target": "document:docs/planning/P0_PRODUCTION_CHECKLIST.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/planning/P0_E_ROLLBACK_AND_CANARY_RUNBOOK.md",
+      "target": "document:docs/planning/P0_E_CANARY_REHEARSAL_20260517.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/planning/P0_PRODUCTION_DEPLOYMENT_PLAN.md",
+      "target": "document:docs/planning/P0_PRODUCTION_CHECKLIST.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/planning/P0_PRODUCTION_DEPLOYMENT_PLAN.md",
+      "target": "document:docs/planning/P0_WEEK1_SPRINT_PLAN.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/planning/P0_PRODUCTION_GAP_ANALYSIS.md",
+      "target": "document:docs/planning/PRODUCTION_GAP_LIST.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/planning/P0_PRODUCTION_GAP_ANALYSIS.md",
+      "target": "document:docs/planning/PRODUCTION_GAP_EXECUTION_TABLE.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/planning/P0_PRODUCTION_TASKS.md",
+      "target": "document:docs/planning/PRIORITY_TASK_LIST.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/planning/P0_PRODUCTION_TASKS.md",
+      "target": "document:docs/planning/TODO_DETAILED_CHECKLIST.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/planning/P0_STAGE1_BASELINE_REPORT_TEMPLATE.md",
+      "target": "document:docs/planning/P0_A_BASE_IMPLEMENTATION_PLAN.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/planning/TODO_DETAILED_CHECKLIST.md",
+      "target": "document:docs/planning/TODO_EXECUTION_PLAN.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/planning/TODO_DETAILED_CHECKLIST.md",
+      "target": "document:docs/planning/TODO_STATISTICS_REPORT.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/planning/TODO_DETAILED_CHECKLIST.md",
+      "target": "document:docs/planning/TODO_SUMMARY.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/planning/UNIMPLEMENTED_CAPABILITY_BASELINE_2026-04.md",
+      "target": "document:docs/planning/PRODUCTION_GAP_LIST.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    }
+  ]
+}

@@ -11,6 +11,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/logger"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/page"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/record"
@@ -988,18 +989,38 @@ func (idx *EnhancedBTreeIndex) rangeSearchInPage(page *BTreePage, startKey, endK
 
 // parsePageContent 解析页面内容
 func (idx *EnhancedBTreeIndex) parsePageContent(bufferPage interface{}) (*BTreePage, error) {
-	p, ok := bufferPage.(basic.IPage)
-	if !ok {
+	var (
+		data   []byte
+		pageNo uint32
+		dirty  bool
+		leaf   bool
+	)
+
+	switch p := bufferPage.(type) {
+	case basic.IPage:
+		data = p.GetData()
+		pageNo = p.GetPageNo()
+		dirty = p.IsDirty()
+		leaf = p.IsLeafPage()
+	case *buffer_pool.BufferPage:
+		data = p.GetData()
+		pageNo = p.GetPageNo()
+		dirty = p.IsDirty()
+		leaf = true
+		if len(data) >= 60 {
+			level := binary.LittleEndian.Uint16(data[58:60])
+			leaf = level == 0
+		}
+	default:
 		return nil, fmt.Errorf("invalid buffer page")
 	}
 
-	data := p.GetData()
 	if len(data) < 42 {
 		return nil, fmt.Errorf("invalid page data")
 	}
 
 	pageType := BTreePageTypeLeaf
-	if !p.IsLeafPage() {
+	if !leaf {
 		pageType = BTreePageTypeInternal
 	}
 
@@ -1008,7 +1029,7 @@ func (idx *EnhancedBTreeIndex) parsePageContent(bufferPage interface{}) (*BTreeP
 	next := binary.LittleEndian.Uint32(data[12:16])
 
 	page := &BTreePage{
-		PageNo:      p.GetPageNo(),
+		PageNo:      pageNo,
 		PageType:    pageType,
 		Level:       0,
 		RecordCount: recordCount,
@@ -1017,7 +1038,7 @@ func (idx *EnhancedBTreeIndex) parsePageContent(bufferPage interface{}) (*BTreeP
 		PrevPage:    prev,
 		Records:     make([]IndexRecord, 0),
 		IsLoaded:    true,
-		IsDirty:     p.IsDirty(),
+		IsDirty:     dirty,
 		LastAccess:  time.Now(),
 		PinCount:    1,
 	}

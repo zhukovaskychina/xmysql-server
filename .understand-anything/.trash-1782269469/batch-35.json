@@ -1,0 +1,109 @@
+{
+  "nodes": [
+    {
+      "id": "document:docs/innodb/IBD_README.md",
+      "type": "document",
+      "name": "IBD_README.md",
+      "filePath": "docs/innodb/IBD_README.md",
+      "summary": "IBD_README.md 是项目文档，说明 docs/innodb 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "innodb",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/innodb/MVCC_README.md",
+      "type": "document",
+      "name": "MVCC_README.md",
+      "filePath": "docs/innodb/MVCC_README.md",
+      "summary": "MVCC_README.md 是项目文档，说明 docs/innodb 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "innodb",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/innodb/MYSQL_USER_RECORD_FORMAT.md",
+      "type": "document",
+      "name": "MYSQL_USER_RECORD_FORMAT.md",
+      "filePath": "docs/innodb/MYSQL_USER_RECORD_FORMAT.md",
+      "summary": "MYSQL_USER_RECORD_FORMAT.md 是项目文档，说明 docs/innodb 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "innodb",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/innodb/PAGES_README.md",
+      "type": "document",
+      "name": "PAGES_README.md",
+      "filePath": "docs/innodb/PAGES_README.md",
+      "summary": "PAGES_README.md 是项目文档，说明 docs/innodb 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "innodb",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/innodb/WRAPPER_README.md",
+      "type": "document",
+      "name": "WRAPPER_README.md",
+      "filePath": "docs/innodb/WRAPPER_README.md",
+      "summary": "WRAPPER_README.md 是项目文档，说明 docs/innodb 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "innodb",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/innodb/inode_README.md",
+      "type": "document",
+      "name": "inode_README.md",
+      "filePath": "docs/innodb/inode_README.md",
+      "summary": "inode_README.md 是项目文档，说明 docs/innodb 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "innodb",
+        "docs"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/innodb/mysql_user_initialization_process.md",
+      "type": "document",
+      "name": "mysql_user_initialization_process.md",
+      "filePath": "docs/innodb/mysql_user_initialization_process.md",
+      "summary": "mysql_user_initialization_process.md 是项目文档，说明 docs/innodb 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "innodb",
+        "docs"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/innodb/storage_architecture_doc.md",
+      "type": "document",
+      "name": "storage_architecture_doc.md",
+      "filePath": "docs/innodb/storage_architecture_doc.md",
+      "summary": "storage_architecture_doc.md 是项目文档，说明 docs/innodb 相关设计、计划或使用方式。",
+      "tags": [
+        "documentation",
+        "innodb",
+        "docs"
+      ],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": []
+}

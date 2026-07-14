@@ -1,0 +1,24 @@
+# P0 Stage1 Baseline Report
+repo: /Users/zhukovasky/GolandProjects/xmysql-server
+timestamp: 20260516_194512
+report_dir: /Users/zhukovasky/GolandProjects/xmysql-server/reports/stage1_baseline_20260516_194512
+dry_run: 1
+go_min_minor: 24
+go_binary: /Users/zhukovasky/sdk/go1.24.3/bin/go
+go_version_line: go version go1.24.3 darwin/amd64
+required_min_version: 1.24
+[OK] Go 版本检查通过: go1.24
+=== go_version ===
+command: go version
+[SKIP] DRY-RUN enabled
+=== engine_focused_baseline ===
+command: go test ./server/innodb/engine -run 'TestIndexScanOperator|TestIndexReading|Test.*Duplicate.*'
+[SKIP] DRY-RUN enabled
+=== dispatcher_package ===
+command: go test ./server/dispatcher
+[SKIP] DRY-RUN enabled
+
+=== final ===
+RESULT: PASS
+summary_file=/Users/zhukovasky/GolandProjects/xmysql-server/reports/stage1_baseline_20260516_194512/summary.log
+run_dir=/Users/zhukovasky/GolandProjects/xmysql-server/reports/stage1_baseline_20260516_194512

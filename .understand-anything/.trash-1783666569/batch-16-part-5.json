@@ -1,0 +1,1414 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "type": "file",
+      "name": "hash_operators_bench_test.go",
+      "filePath": "server/innodb/engine/hash_operators_bench_test.go",
+      "summary": "验证哈希连接与哈希聚合算子的执行行为，覆盖 BenchmarkHashJoin_SmallTables、BenchmarkHashJoin_MediumTables、BenchmarkHashJoin_LargeTables、BenchmarkHashJoin_SkewedData 等符号，用于检查正常路径、边界条件和错误处理。",
+      "tags": [
+        "test",
+        "go",
+        "hash-operator",
+        "verification"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashJoin_SmallTables",
+      "type": "function",
+      "name": "BenchmarkHashJoin_SmallTables",
+      "filePath": "server/innodb/engine/hash_operators_bench_test.go",
+      "lineRange": [
+        16,
+        18
+      ],
+      "summary": "基准测试 BenchmarkHashJoin_SmallTables 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "benchmark",
+        "hash-operator",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashJoin_MediumTables",
+      "type": "function",
+      "name": "BenchmarkHashJoin_MediumTables",
+      "filePath": "server/innodb/engine/hash_operators_bench_test.go",
+      "lineRange": [
+        20,
+        22
+      ],
+      "summary": "基准测试 BenchmarkHashJoin_MediumTables 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "benchmark",
+        "hash-operator",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashJoin_LargeTables",
+      "type": "function",
+      "name": "BenchmarkHashJoin_LargeTables",
+      "filePath": "server/innodb/engine/hash_operators_bench_test.go",
+      "lineRange": [
+        24,
+        26
+      ],
+      "summary": "基准测试 BenchmarkHashJoin_LargeTables 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "benchmark",
+        "hash-operator",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashJoin_SkewedData",
+      "type": "function",
+      "name": "BenchmarkHashJoin_SkewedData",
+      "filePath": "server/innodb/engine/hash_operators_bench_test.go",
+      "lineRange": [
+        28,
+        75
+      ],
+      "summary": "基准测试 BenchmarkHashJoin_SkewedData 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "benchmark",
+        "hash-operator",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_bench_test.go:benchmarkHashJoin",
+      "type": "function",
+      "name": "benchmarkHashJoin",
+      "filePath": "server/innodb/engine/hash_operators_bench_test.go",
+      "lineRange": [
+        77,
+        120
+      ],
+      "summary": "实现 benchmarkHashJoin 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "hash-operator",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashAgg_SmallGroups",
+      "type": "function",
+      "name": "BenchmarkHashAgg_SmallGroups",
+      "filePath": "server/innodb/engine/hash_operators_bench_test.go",
+      "lineRange": [
+        126,
+        128
+      ],
+      "summary": "基准测试 BenchmarkHashAgg_SmallGroups 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "benchmark",
+        "hash-operator",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashAgg_MediumGroups",
+      "type": "function",
+      "name": "BenchmarkHashAgg_MediumGroups",
+      "filePath": "server/innodb/engine/hash_operators_bench_test.go",
+      "lineRange": [
+        130,
+        132
+      ],
+      "summary": "基准测试 BenchmarkHashAgg_MediumGroups 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "benchmark",
+        "hash-operator",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashAgg_LargeGroups",
+      "type": "function",
+      "name": "BenchmarkHashAgg_LargeGroups",
+      "filePath": "server/innodb/engine/hash_operators_bench_test.go",
+      "lineRange": [
+        134,
+        136
+      ],
+      "summary": "基准测试 BenchmarkHashAgg_LargeGroups 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "benchmark",
+        "hash-operator",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashAgg_ManyAggFuncs",
+      "type": "function",
+      "name": "BenchmarkHashAgg_ManyAggFuncs",
+      "filePath": "server/innodb/engine/hash_operators_bench_test.go",
+      "lineRange": [
+        138,
+        175
+      ],
+      "summary": "基准测试 BenchmarkHashAgg_ManyAggFuncs 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "benchmark",
+        "hash-operator",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_bench_test.go:benchmarkHashAgg",
+      "type": "function",
+      "name": "benchmarkHashAgg",
+      "filePath": "server/innodb/engine/hash_operators_bench_test.go",
+      "lineRange": [
+        177,
+        210
+      ],
+      "summary": "实现 benchmarkHashAgg 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "hash-operator",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_bench_test.go:generateSequentialData",
+      "type": "function",
+      "name": "generateSequentialData",
+      "filePath": "server/innodb/engine/hash_operators_bench_test.go",
+      "lineRange": [
+        217,
+        226
+      ],
+      "summary": "实现 generateSequentialData 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "hash-operator",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_bench_test.go:generateGroupedData",
+      "type": "function",
+      "name": "generateGroupedData",
+      "filePath": "server/innodb/engine/hash_operators_bench_test.go",
+      "lineRange": [
+        229,
+        239
+      ],
+      "summary": "实现 generateGroupedData 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "hash-operator",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_bench_test.go:generateSkewedData",
+      "type": "function",
+      "name": "generateSkewedData",
+      "filePath": "server/innodb/engine/hash_operators_bench_test.go",
+      "lineRange": [
+        242,
+        258
+      ],
+      "summary": "实现 generateSkewedData 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "hash-operator",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/engine/hash_operators_test.go",
+      "type": "file",
+      "name": "hash_operators_test.go",
+      "filePath": "server/innodb/engine/hash_operators_test.go",
+      "summary": "验证哈希连接与哈希聚合算子的执行行为，覆盖 MockDataOperator、testColumn、TestHashJoinOperator_InnerJoin、TestHashJoinOperator_EmptyBuildSide 等符号，用于检查正常路径、边界条件和错误处理。",
+      "tags": [
+        "test",
+        "go",
+        "hash-operator",
+        "verification"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_test.go:TestHashJoinOperator_InnerJoin",
+      "type": "function",
+      "name": "TestHashJoinOperator_InnerJoin",
+      "filePath": "server/innodb/engine/hash_operators_test.go",
+      "lineRange": [
+        16,
+        89
+      ],
+      "summary": "验证 TestHashJoinOperator_InnerJoin 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "hash-operator"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_test.go:TestHashJoinOperator_EmptyBuildSide",
+      "type": "function",
+      "name": "TestHashJoinOperator_EmptyBuildSide",
+      "filePath": "server/innodb/engine/hash_operators_test.go",
+      "lineRange": [
+        91,
+        127
+      ],
+      "summary": "验证 TestHashJoinOperator_EmptyBuildSide 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "hash-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_test.go:TestHashAggregateOperator_Count",
+      "type": "function",
+      "name": "TestHashAggregateOperator_Count",
+      "filePath": "server/innodb/engine/hash_operators_test.go",
+      "lineRange": [
+        133,
+        195
+      ],
+      "summary": "验证 TestHashAggregateOperator_Count 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "hash-operator"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_test.go:TestHashAggregateOperator_SumAvg",
+      "type": "function",
+      "name": "TestHashAggregateOperator_SumAvg",
+      "filePath": "server/innodb/engine/hash_operators_test.go",
+      "lineRange": [
+        197,
+        254
+      ],
+      "summary": "验证 TestHashAggregateOperator_SumAvg 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "hash-operator"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_test.go:TestHashAggregateOperator_MinMax",
+      "type": "function",
+      "name": "TestHashAggregateOperator_MinMax",
+      "filePath": "server/innodb/engine/hash_operators_test.go",
+      "lineRange": [
+        256,
+        313
+      ],
+      "summary": "验证 TestHashAggregateOperator_MinMax 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "hash-operator"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_test.go:TestHashAggregateOperator_NoGroupBy",
+      "type": "function",
+      "name": "TestHashAggregateOperator_NoGroupBy",
+      "filePath": "server/innodb/engine/hash_operators_test.go",
+      "lineRange": [
+        315,
+        353
+      ],
+      "summary": "验证 TestHashAggregateOperator_NoGroupBy 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "hash-operator"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_test.go:NewMockDataOperator",
+      "type": "function",
+      "name": "NewMockDataOperator",
+      "filePath": "server/innodb/engine/hash_operators_test.go",
+      "lineRange": [
+        366,
+        374
+      ],
+      "summary": "构造并初始化 NewMockDataOperator 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "hash-operator",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_test.go:Open",
+      "type": "function",
+      "name": "Open",
+      "filePath": "server/innodb/engine/hash_operators_test.go",
+      "lineRange": [
+        376,
+        380
+      ],
+      "summary": "启动或初始化 Open 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "hash-operator",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_test.go:Next",
+      "type": "function",
+      "name": "Next",
+      "filePath": "server/innodb/engine/hash_operators_test.go",
+      "lineRange": [
+        382,
+        392
+      ],
+      "summary": "实现 Next 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "hash-operator",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/engine/hash_operators_test.go:createTestSchema",
+      "type": "function",
+      "name": "createTestSchema",
+      "filePath": "server/innodb/engine/hash_operators_test.go",
+      "lineRange": [
+        404,
+        414
+      ],
+      "summary": "实现 createTestSchema 对应的哈希连接与哈希聚合算子的执行行为流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "hash-operator",
+        "test"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/engine/hash_operators_test.go:MockDataOperator",
+      "type": "class",
+      "name": "MockDataOperator",
+      "filePath": "server/innodb/engine/hash_operators_test.go",
+      "lineRange": [
+        360,
+        364
+      ],
+      "summary": "MockDataOperator 定义哈希连接与哈希聚合算子的执行行为所需的数据结构，并通过 Open、Next 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "hash-operator",
+        "behavior"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashJoin_SmallTables",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashJoin_SmallTables",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashJoin_MediumTables",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashJoin_MediumTables",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashJoin_LargeTables",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashJoin_LargeTables",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashJoin_SkewedData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashJoin_SkewedData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:benchmarkHashJoin",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashAgg_SmallGroups",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashAgg_SmallGroups",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashAgg_MediumGroups",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashAgg_MediumGroups",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashAgg_LargeGroups",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashAgg_LargeGroups",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashAgg_ManyAggFuncs",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:BenchmarkHashAgg_ManyAggFuncs",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:benchmarkHashAgg",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:generateSequentialData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:generateGroupedData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "function:server/innodb/engine/hash_operators_bench_test.go:generateSkewedData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "function:server/innodb/engine/hash_operators_test.go:TestHashJoinOperator_InnerJoin",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "function:server/innodb/engine/hash_operators_test.go:TestHashJoinOperator_InnerJoin",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "function:server/innodb/engine/hash_operators_test.go:TestHashJoinOperator_EmptyBuildSide",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "function:server/innodb/engine/hash_operators_test.go:TestHashJoinOperator_EmptyBuildSide",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "function:server/innodb/engine/hash_operators_test.go:TestHashAggregateOperator_Count",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "function:server/innodb/engine/hash_operators_test.go:TestHashAggregateOperator_Count",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "function:server/innodb/engine/hash_operators_test.go:TestHashAggregateOperator_SumAvg",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "function:server/innodb/engine/hash_operators_test.go:TestHashAggregateOperator_SumAvg",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "function:server/innodb/engine/hash_operators_test.go:TestHashAggregateOperator_MinMax",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "function:server/innodb/engine/hash_operators_test.go:TestHashAggregateOperator_MinMax",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "function:server/innodb/engine/hash_operators_test.go:TestHashAggregateOperator_NoGroupBy",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "function:server/innodb/engine/hash_operators_test.go:TestHashAggregateOperator_NoGroupBy",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "function:server/innodb/engine/hash_operators_test.go:NewMockDataOperator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "function:server/innodb/engine/hash_operators_test.go:NewMockDataOperator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "function:server/innodb/engine/hash_operators_test.go:Open",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "function:server/innodb/engine/hash_operators_test.go:Open",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "function:server/innodb/engine/hash_operators_test.go:Next",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "function:server/innodb/engine/hash_operators_test.go:Next",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "function:server/innodb/engine/hash_operators_test.go:createTestSchema",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "class:server/innodb/engine/hash_operators_test.go:MockDataOperator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "class:server/innodb/engine/hash_operators_test.go:MockDataOperator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/metadata/builder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/metadata/column_def.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/metadata/column.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/metadata/convert.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/metadata/database.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/metadata/information_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/metadata/migrate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/metadata/query_schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/metadata/schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/metadata/table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/metadata/tuple.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/metadata/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_bench_test.go",
+      "target": "file:server/innodb/metadata/utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/metadata/builder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/metadata/column_def.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/metadata/column.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/metadata/convert.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/metadata/database.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/metadata/information_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/metadata/migrate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/metadata/query_schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/metadata/schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/metadata/table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/metadata/tuple.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/metadata/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/engine/hash_operators_test.go",
+      "target": "file:server/innodb/metadata/utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

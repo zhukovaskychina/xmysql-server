@@ -1,0 +1,1240 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "type": "file",
+      "name": "xdes.go",
+      "filePath": "server/innodb/storage/wrapper/system/xdes.go",
+      "summary": "实现InnoDB 系统页结构的读取、写入与封装，覆盖 XDESPage、NewXDESPage、AllocateExtent、FreeExtent 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "system-page",
+        "storage-wrapper",
+        "source-file"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/system/xdes.go:NewXDESPage",
+      "type": "function",
+      "name": "NewXDESPage",
+      "filePath": "server/innodb/storage/wrapper/system/xdes.go",
+      "lineRange": [
+        40,
+        48
+      ],
+      "summary": "构造并初始化 NewXDESPage 对应的InnoDB 系统页结构的读取、写入与封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "system-page",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/system/xdes.go:AllocateExtent",
+      "type": "function",
+      "name": "AllocateExtent",
+      "filePath": "server/innodb/storage/wrapper/system/xdes.go",
+      "lineRange": [
+        51,
+        74
+      ],
+      "summary": "创建或分配 AllocateExtent 对应的InnoDB 系统页结构的读取、写入与封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "system-page",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/system/xdes.go:FreeExtent",
+      "type": "function",
+      "name": "FreeExtent",
+      "filePath": "server/innodb/storage/wrapper/system/xdes.go",
+      "lineRange": [
+        77,
+        106
+      ],
+      "summary": "删除或释放 FreeExtent 对应的InnoDB 系统页结构的读取、写入与封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "system-page",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/system/xdes.go:GetExtent",
+      "type": "function",
+      "name": "GetExtent",
+      "filePath": "server/innodb/storage/wrapper/system/xdes.go",
+      "lineRange": [
+        109,
+        119
+      ],
+      "summary": "读取或查找 GetExtent 对应的InnoDB 系统页结构的读取、写入与封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "system-page",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/system/xdes.go:AllocatePage",
+      "type": "function",
+      "name": "AllocatePage",
+      "filePath": "server/innodb/storage/wrapper/system/xdes.go",
+      "lineRange": [
+        122,
+        163
+      ],
+      "summary": "创建或分配 AllocatePage 对应的InnoDB 系统页结构的读取、写入与封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "system-page",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/system/xdes.go:FreePage",
+      "type": "function",
+      "name": "FreePage",
+      "filePath": "server/innodb/storage/wrapper/system/xdes.go",
+      "lineRange": [
+        166,
+        209
+      ],
+      "summary": "删除或释放 FreePage 对应的InnoDB 系统页结构的读取、写入与封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "delete",
+        "system-page",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/system/xdes.go:GetFreeExtents",
+      "type": "function",
+      "name": "GetFreeExtents",
+      "filePath": "server/innodb/storage/wrapper/system/xdes.go",
+      "lineRange": [
+        212,
+        221
+      ],
+      "summary": "读取或查找 GetFreeExtents 对应的InnoDB 系统页结构的读取、写入与封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "system-page",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/system/xdes.go:GetFullExtents",
+      "type": "function",
+      "name": "GetFullExtents",
+      "filePath": "server/innodb/storage/wrapper/system/xdes.go",
+      "lineRange": [
+        224,
+        233
+      ],
+      "summary": "读取或查找 GetFullExtents 对应的InnoDB 系统页结构的读取、写入与封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "system-page",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/system/xdes.go:Read",
+      "type": "function",
+      "name": "Read",
+      "filePath": "server/innodb/storage/wrapper/system/xdes.go",
+      "lineRange": [
+        236,
+        266
+      ],
+      "summary": "读取或查找 Read 对应的InnoDB 系统页结构的读取、写入与封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "system-page",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/system/xdes.go:Write",
+      "type": "function",
+      "name": "Write",
+      "filePath": "server/innodb/storage/wrapper/system/xdes.go",
+      "lineRange": [
+        269,
+        296
+      ],
+      "summary": "更新或持久化 Write 对应的InnoDB 系统页结构的读取、写入与封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "system-page",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/system/xdes.go:Validate",
+      "type": "function",
+      "name": "Validate",
+      "filePath": "server/innodb/storage/wrapper/system/xdes.go",
+      "lineRange": [
+        299,
+        313
+      ],
+      "summary": "检查 Validate 对应的InnoDB 系统页结构的读取、写入与封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "system-page",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/system/xdes.go:Recover",
+      "type": "function",
+      "name": "Recover",
+      "filePath": "server/innodb/storage/wrapper/system/xdes.go",
+      "lineRange": [
+        316,
+        335
+      ],
+      "summary": "恢复 Recover 对应的InnoDB 系统页结构的读取、写入与封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "recovery",
+        "system-page",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/system/xdes.go:XDESPage",
+      "type": "class",
+      "name": "XDESPage",
+      "filePath": "server/innodb/storage/wrapper/system/xdes.go",
+      "lineRange": [
+        31,
+        37
+      ],
+      "summary": "XDESPage 定义InnoDB 系统页结构的读取、写入与封装所需的数据结构，并通过 AllocateExtent、FreeExtent、GetExtent、AllocatePage 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "system-page",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "type": "file",
+      "name": "blob_page.go",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "summary": "实现InnoDB 页、记录和索引结构的统一封装，覆盖 BlobHeader、BlobPage、NewBlobPage、serializeBlobHeader 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "page-wrapper",
+        "storage-wrapper",
+        "source-file"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/types/blob_page.go:NewBlobPage",
+      "type": "function",
+      "name": "NewBlobPage",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        52,
+        70
+      ],
+      "summary": "构造并初始化 NewBlobPage 对应的InnoDB 页、记录和索引结构的统一封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "factory",
+        "page-wrapper",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/types/blob_page.go:serializeBlobHeader",
+      "type": "function",
+      "name": "serializeBlobHeader",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        73,
+        90
+      ],
+      "summary": "实现 serializeBlobHeader 对应的InnoDB 页、记录和索引结构的统一封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "page-wrapper"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/types/blob_page.go:deserializeBlobHeader",
+      "type": "function",
+      "name": "deserializeBlobHeader",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        93,
+        110
+      ],
+      "summary": "实现 deserializeBlobHeader 对应的InnoDB 页、记录和索引结构的统一封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "page-wrapper"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/types/blob_page.go:SetBlobData",
+      "type": "function",
+      "name": "SetBlobData",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        113,
+        134
+      ],
+      "summary": "更新或持久化 SetBlobData 对应的InnoDB 页、记录和索引结构的统一封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "page-wrapper",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/types/blob_page.go:GetBlobData",
+      "type": "function",
+      "name": "GetBlobData",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        137,
+        141
+      ],
+      "summary": "读取或查找 GetBlobData 对应的InnoDB 页、记录和索引结构的统一封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "page-wrapper",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/types/blob_page.go:GetBlobHeader",
+      "type": "function",
+      "name": "GetBlobHeader",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        144,
+        146
+      ],
+      "summary": "读取或查找 GetBlobHeader 对应的InnoDB 页、记录和索引结构的统一封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "page-wrapper",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/types/blob_page.go:GetNextPageNo",
+      "type": "function",
+      "name": "GetNextPageNo",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        149,
+        151
+      ],
+      "summary": "读取或查找 GetNextPageNo 对应的InnoDB 页、记录和索引结构的统一封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "page-wrapper",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/types/blob_page.go:SetNextPageNo",
+      "type": "function",
+      "name": "SetNextPageNo",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        154,
+        158
+      ],
+      "summary": "更新或持久化 SetNextPageNo 对应的InnoDB 页、记录和索引结构的统一封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "page-wrapper",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/types/blob_page.go:IsLastPage",
+      "type": "function",
+      "name": "IsLastPage",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        161,
+        163
+      ],
+      "summary": "检查 IsLastPage 对应的InnoDB 页、记录和索引结构的统一封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "page-wrapper",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/types/blob_page.go:GetSegmentID",
+      "type": "function",
+      "name": "GetSegmentID",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        166,
+        168
+      ],
+      "summary": "读取或查找 GetSegmentID 对应的InnoDB 页、记录和索引结构的统一封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "page-wrapper",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/types/blob_page.go:GetTotalLength",
+      "type": "function",
+      "name": "GetTotalLength",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        171,
+        173
+      ],
+      "summary": "读取或查找 GetTotalLength 对应的InnoDB 页、记录和索引结构的统一封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "page-wrapper",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/types/blob_page.go:GetOffset",
+      "type": "function",
+      "name": "GetOffset",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        176,
+        178
+      ],
+      "summary": "读取或查找 GetOffset 对应的InnoDB 页、记录和索引结构的统一封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "page-wrapper",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/types/blob_page.go:GetDataSize",
+      "type": "function",
+      "name": "GetDataSize",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        181,
+        183
+      ],
+      "summary": "读取或查找 GetDataSize 对应的InnoDB 页、记录和索引结构的统一封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "page-wrapper",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/types/blob_page.go:GetAvailableSpace",
+      "type": "function",
+      "name": "GetAvailableSpace",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        186,
+        188
+      ],
+      "summary": "读取或查找 GetAvailableSpace 对应的InnoDB 页、记录和索引结构的统一封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "read",
+        "page-wrapper",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/types/blob_page.go:AppendData",
+      "type": "function",
+      "name": "AppendData",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        191,
+        201
+      ],
+      "summary": "创建或分配 AppendData 对应的InnoDB 页、记录和索引结构的统一封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "create",
+        "page-wrapper",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/types/blob_page.go:ClearData",
+      "type": "function",
+      "name": "ClearData",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        204,
+        211
+      ],
+      "summary": "实现 ClearData 对应的InnoDB 页、记录和索引结构的统一封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "page-wrapper"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/types/blob_page.go:ParseFromBytes",
+      "type": "function",
+      "name": "ParseFromBytes",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        214,
+        224
+      ],
+      "summary": "解析 ParseFromBytes 对应的InnoDB 页、记录和索引结构的统一封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "parser",
+        "page-wrapper",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/types/blob_page.go:ToBytes",
+      "type": "function",
+      "name": "ToBytes",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        227,
+        233
+      ],
+      "summary": "实现 ToBytes 对应的InnoDB 页、记录和索引结构的统一封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "page-wrapper"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/types/blob_page.go:ValidateBlobChain",
+      "type": "function",
+      "name": "ValidateBlobChain",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        236,
+        250
+      ],
+      "summary": "检查 ValidateBlobChain 对应的InnoDB 页、记录和索引结构的统一封装流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "page-wrapper",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/types/blob_page.go:BlobHeader",
+      "type": "class",
+      "name": "BlobHeader",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        33,
+        38
+      ],
+      "summary": "BlobHeader 定义InnoDB 页、记录和索引结构的统一封装所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "page-wrapper",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/types/blob_page.go:BlobPage",
+      "type": "class",
+      "name": "BlobPage",
+      "filePath": "server/innodb/storage/wrapper/types/blob_page.go",
+      "lineRange": [
+        41,
+        49
+      ],
+      "summary": "BlobPage 定义InnoDB 页、记录和索引结构的统一封装所需的数据结构，并通过 serializeBlobHeader、deserializeBlobHeader、SetBlobData、GetBlobData 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "page-wrapper",
+        "behavior"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:server/innodb/storage/wrapper/types/errors.go",
+      "type": "file",
+      "name": "errors.go",
+      "filePath": "server/innodb/storage/wrapper/types/errors.go",
+      "summary": "实现InnoDB 页、记录和索引结构的统一封装，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "page-wrapper",
+        "storage-wrapper",
+        "source-file"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:NewXDESPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:NewXDESPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:AllocateExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:AllocateExtent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:FreeExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:FreeExtent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:GetExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:GetExtent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:AllocatePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:AllocatePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:FreePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:FreePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:GetFreeExtents",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:GetFreeExtents",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:GetFullExtents",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:GetFullExtents",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:Read",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:Read",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:Write",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:Write",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:Validate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:Validate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:Recover",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "function:server/innodb/storage/wrapper/system/xdes.go:Recover",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "class:server/innodb/storage/wrapper/system/xdes.go:XDESPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/system/xdes.go",
+      "target": "class:server/innodb/storage/wrapper/system/xdes.go:XDESPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:NewBlobPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:NewBlobPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:serializeBlobHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:deserializeBlobHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:SetBlobData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:SetBlobData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:GetBlobData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:GetBlobData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:GetBlobHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:GetBlobHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:GetNextPageNo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:GetNextPageNo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:SetNextPageNo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:SetNextPageNo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:IsLastPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:IsLastPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:GetSegmentID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:GetSegmentID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:GetTotalLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:GetTotalLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:GetOffset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:GetOffset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:GetDataSize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:GetDataSize",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:GetAvailableSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:GetAvailableSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:AppendData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:AppendData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:ClearData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:ClearData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:ParseFromBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:ParseFromBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:ToBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:ToBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:ValidateBlobChain",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "function:server/innodb/storage/wrapper/types/blob_page.go:ValidateBlobChain",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "class:server/innodb/storage/wrapper/types/blob_page.go:BlobHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "class:server/innodb/storage/wrapper/types/blob_page.go:BlobHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "class:server/innodb/storage/wrapper/types/blob_page.go:BlobPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "class:server/innodb/storage/wrapper/types/blob_page.go:BlobPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "file:server/common/charset.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "file:server/common/const_trx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "file:server/common/constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "file:server/common/error_name.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "file:server/common/error_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "file:server/common/error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "file:server/common/errorcode.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "file:server/common/frm_constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "file:server/common/locale_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "file:server/common/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "file:server/common/privs_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "file:server/common/privs.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "file:server/common/sql_error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "file:server/common/sql_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "file:server/common/type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "file:server/common/type.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/types/blob_page.go",
+      "target": "file:server/common/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

@@ -1,0 +1,176 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/conf/config_test.go",
+      "type": "file",
+      "name": "config_test.go",
+      "filePath": "server/conf/config_test.go",
+      "summary": "验证服务配置加载、校验与默认值处理，覆盖 TestNormalizeBindAddress_Localhost、TestIsLocalBindAddress、TestShouldRejectDevBypass、TestCfg_ParseLogsCfg 等符号，用于检查正常路径、边界条件和错误处理。",
+      "tags": [
+        "test",
+        "go",
+        "configuration",
+        "verification"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:server/conf/config_test.go:TestNormalizeBindAddress_Localhost",
+      "type": "function",
+      "name": "TestNormalizeBindAddress_Localhost",
+      "filePath": "server/conf/config_test.go",
+      "lineRange": [
+        12,
+        17
+      ],
+      "summary": "验证 TestNormalizeBindAddress_Localhost 对应的服务配置加载、校验与默认值处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "configuration"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/conf/config_test.go:TestIsLocalBindAddress",
+      "type": "function",
+      "name": "TestIsLocalBindAddress",
+      "filePath": "server/conf/config_test.go",
+      "lineRange": [
+        19,
+        38
+      ],
+      "summary": "验证 TestIsLocalBindAddress 对应的服务配置加载、校验与默认值处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "configuration"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/conf/config_test.go:TestShouldRejectDevBypass",
+      "type": "function",
+      "name": "TestShouldRejectDevBypass",
+      "filePath": "server/conf/config_test.go",
+      "lineRange": [
+        40,
+        60
+      ],
+      "summary": "验证 TestShouldRejectDevBypass 对应的服务配置加载、校验与默认值处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "configuration"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/conf/config_test.go:TestCfg_ParseLogsCfg",
+      "type": "function",
+      "name": "TestCfg_ParseLogsCfg",
+      "filePath": "server/conf/config_test.go",
+      "lineRange": [
+        62,
+        78
+      ],
+      "summary": "验证 TestCfg_ParseLogsCfg 对应的服务配置加载、校验与默认值处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "configuration"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/conf/config_test.go:TestCfg_ParseLogsCfgInvalidLongQueryTimeFallsBack",
+      "type": "function",
+      "name": "TestCfg_ParseLogsCfgInvalidLongQueryTimeFallsBack",
+      "filePath": "server/conf/config_test.go",
+      "lineRange": [
+        80,
+        95
+      ],
+      "summary": "验证 TestCfg_ParseLogsCfgInvalidLongQueryTimeFallsBack 对应的服务配置加载、校验与默认值处理流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "test",
+        "configuration"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/conf/config_test.go",
+      "target": "function:server/conf/config_test.go:TestNormalizeBindAddress_Localhost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config_test.go",
+      "target": "function:server/conf/config_test.go:TestNormalizeBindAddress_Localhost",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/conf/config_test.go",
+      "target": "function:server/conf/config_test.go:TestIsLocalBindAddress",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config_test.go",
+      "target": "function:server/conf/config_test.go:TestIsLocalBindAddress",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/conf/config_test.go",
+      "target": "function:server/conf/config_test.go:TestShouldRejectDevBypass",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config_test.go",
+      "target": "function:server/conf/config_test.go:TestShouldRejectDevBypass",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/conf/config_test.go",
+      "target": "function:server/conf/config_test.go:TestCfg_ParseLogsCfg",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config_test.go",
+      "target": "function:server/conf/config_test.go:TestCfg_ParseLogsCfg",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/conf/config_test.go",
+      "target": "function:server/conf/config_test.go:TestCfg_ParseLogsCfgInvalidLongQueryTimeFallsBack",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/conf/config_test.go",
+      "target": "function:server/conf/config_test.go:TestCfg_ParseLogsCfgInvalidLongQueryTimeFallsBack",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

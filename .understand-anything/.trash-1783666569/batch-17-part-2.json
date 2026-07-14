@@ -1,0 +1,940 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/plan/plan.go",
+      "type": "file",
+      "name": "plan.go",
+      "filePath": "server/innodb/plan/plan.go",
+      "summary": "定义查询计划与优化器的计划节点及代价、行数估算和扫描接口，供优化与执行阶段复用。",
+      "tags": [
+        "go",
+        "query-optimizer",
+        "storage-engine"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/plan.go:Plan",
+      "type": "class",
+      "name": "Plan",
+      "filePath": "server/innodb/plan/plan.go",
+      "lineRange": [
+        8,
+        26
+      ],
+      "summary": "表示 查询计划与优化器 中的 Plan 计划节点及其估算或执行信息。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "type": "file",
+      "name": "statistics_collector_enhanced.go",
+      "filePath": "server/innodb/plan/statistics_collector_enhanced.go",
+      "summary": "实现查询计划与优化器的统计信息采集与辅助计算，为基于代价的计划选择提供行数、基数和分布估计。",
+      "tags": [
+        "go",
+        "query-optimizer",
+        "storage-engine"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_enhanced.go:NewAdaptiveSampler",
+      "type": "function",
+      "name": "NewAdaptiveSampler",
+      "filePath": "server/innodb/plan/statistics_collector_enhanced.go",
+      "lineRange": [
+        62,
+        71
+      ],
+      "summary": "创建并初始化 AdaptiveSampler，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_enhanced.go:GetSampleRate",
+      "type": "function",
+      "name": "GetSampleRate",
+      "filePath": "server/innodb/plan/statistics_collector_enhanced.go",
+      "lineRange": [
+        74,
+        86
+      ],
+      "summary": "读取 查询计划与优化器 中的 SampleRate 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_enhanced.go:GetSampleSize",
+      "type": "function",
+      "name": "GetSampleSize",
+      "filePath": "server/innodb/plan/statistics_collector_enhanced.go",
+      "lineRange": [
+        89,
+        102
+      ],
+      "summary": "读取 查询计划与优化器 中的 SampleSize 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_enhanced.go:NewEnhancedStatisticsCollector",
+      "type": "function",
+      "name": "NewEnhancedStatisticsCollector",
+      "filePath": "server/innodb/plan/statistics_collector_enhanced.go",
+      "lineRange": [
+        105,
+        138
+      ],
+      "summary": "创建并初始化 EnhancedStatisticsCollector，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_enhanced.go:CollectTableStatistics",
+      "type": "function",
+      "name": "CollectTableStatistics",
+      "filePath": "server/innodb/plan/statistics_collector_enhanced.go",
+      "lineRange": [
+        141,
+        197
+      ],
+      "summary": "采集 TableStatistics 并整理为优化器可用的数据。",
+      "tags": [
+        "query-planning",
+        "algorithm",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_enhanced.go:CollectColumnStatistics",
+      "type": "function",
+      "name": "CollectColumnStatistics",
+      "filePath": "server/innodb/plan/statistics_collector_enhanced.go",
+      "lineRange": [
+        200,
+        299
+      ],
+      "summary": "采集 ColumnStatistics 并整理为优化器可用的数据。",
+      "tags": [
+        "query-planning",
+        "algorithm",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/plan/statistics_collector_enhanced.go:CollectIndexStatistics",
+      "type": "function",
+      "name": "CollectIndexStatistics",
+      "filePath": "server/innodb/plan/statistics_collector_enhanced.go",
+      "lineRange": [
+        302,
+        375
+      ],
+      "summary": "采集 IndexStatistics 并整理为优化器可用的数据。",
+      "tags": [
+        "query-planning",
+        "algorithm",
+        "query-optimizer"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/plan/statistics_collector_enhanced.go:EnhancedStatisticsCollector",
+      "type": "class",
+      "name": "EnhancedStatisticsCollector",
+      "filePath": "server/innodb/plan/statistics_collector_enhanced.go",
+      "lineRange": [
+        16,
+        38
+      ],
+      "summary": "定义 查询计划与优化器 使用的 EnhancedStatisticsCollector 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/statistics_collector_enhanced.go:StorageEngineAccessor",
+      "type": "class",
+      "name": "StorageEngineAccessor",
+      "filePath": "server/innodb/plan/statistics_collector_enhanced.go",
+      "lineRange": [
+        41,
+        52
+      ],
+      "summary": "定义 查询计划与优化器 使用的 StorageEngineAccessor 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/plan/statistics_collector_enhanced.go:AdaptiveSampler",
+      "type": "class",
+      "name": "AdaptiveSampler",
+      "filePath": "server/innodb/plan/statistics_collector_enhanced.go",
+      "lineRange": [
+        55,
+        59
+      ],
+      "summary": "定义 查询计划与优化器 使用的 AdaptiveSampler 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "query-optimizer"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "class:server/innodb/plan/plan.go:Plan",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "class:server/innodb/plan/plan.go:Plan",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/session_context.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/plan.go",
+      "target": "file:server/session.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "function:server/innodb/plan/statistics_collector_enhanced.go:NewAdaptiveSampler",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "function:server/innodb/plan/statistics_collector_enhanced.go:NewAdaptiveSampler",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "function:server/innodb/plan/statistics_collector_enhanced.go:GetSampleRate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "function:server/innodb/plan/statistics_collector_enhanced.go:GetSampleRate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "function:server/innodb/plan/statistics_collector_enhanced.go:GetSampleSize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "function:server/innodb/plan/statistics_collector_enhanced.go:GetSampleSize",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "function:server/innodb/plan/statistics_collector_enhanced.go:NewEnhancedStatisticsCollector",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "function:server/innodb/plan/statistics_collector_enhanced.go:NewEnhancedStatisticsCollector",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "function:server/innodb/plan/statistics_collector_enhanced.go:CollectTableStatistics",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "function:server/innodb/plan/statistics_collector_enhanced.go:CollectTableStatistics",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "function:server/innodb/plan/statistics_collector_enhanced.go:CollectColumnStatistics",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "function:server/innodb/plan/statistics_collector_enhanced.go:CollectColumnStatistics",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "function:server/innodb/plan/statistics_collector_enhanced.go:CollectIndexStatistics",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "function:server/innodb/plan/statistics_collector_enhanced.go:CollectIndexStatistics",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "class:server/innodb/plan/statistics_collector_enhanced.go:EnhancedStatisticsCollector",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "class:server/innodb/plan/statistics_collector_enhanced.go:EnhancedStatisticsCollector",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "class:server/innodb/plan/statistics_collector_enhanced.go:StorageEngineAccessor",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "class:server/innodb/plan/statistics_collector_enhanced.go:StorageEngineAccessor",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "class:server/innodb/plan/statistics_collector_enhanced.go:AdaptiveSampler",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "class:server/innodb/plan/statistics_collector_enhanced.go:AdaptiveSampler",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/metadata/builder.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/metadata/column_def.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/metadata/column.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/metadata/convert.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/metadata/database.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/metadata/information_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/metadata/migrate.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/metadata/performance_schemas.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/metadata/query_schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/metadata/schema.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/metadata/table.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/metadata/tablemeta_methods_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/metadata/tuple.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/metadata/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/plan/statistics_collector_enhanced.go",
+      "target": "file:server/innodb/metadata/utils.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

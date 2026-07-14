@@ -1,0 +1,1806 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "type": "file",
+      "name": "allocated_page.go",
+      "filePath": "server/innodb/storage/store/pages/allocated_page.go",
+      "summary": "实现InnoDB 物理页结构与序列化的页结构、字段访问和持久化操作。",
+      "tags": [
+        "service",
+        "storage-page",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/allocated_page.go:NewAllocatedPage",
+      "type": "function",
+      "name": "NewAllocatedPage",
+      "filePath": "server/innodb/storage/store/pages/allocated_page.go",
+      "lineRange": [
+        59,
+        65
+      ],
+      "summary": "创建或初始化InnoDB 物理页结构与序列化中的 NewAllocatedPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/allocated_page.go:Initialize",
+      "type": "function",
+      "name": "Initialize",
+      "filePath": "server/innodb/storage/store/pages/allocated_page.go",
+      "lineRange": [
+        68,
+        80
+      ],
+      "summary": "创建或初始化InnoDB 物理页结构与序列化中的 Initialize 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/allocated_page.go:GetSpaceID",
+      "type": "function",
+      "name": "GetSpaceID",
+      "filePath": "server/innodb/storage/store/pages/allocated_page.go",
+      "lineRange": [
+        83,
+        85
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetSpaceID 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/allocated_page.go:GetPageNo",
+      "type": "function",
+      "name": "GetPageNo",
+      "filePath": "server/innodb/storage/store/pages/allocated_page.go",
+      "lineRange": [
+        88,
+        90
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetPageNo 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/allocated_page.go:GetPageType",
+      "type": "function",
+      "name": "GetPageType",
+      "filePath": "server/innodb/storage/store/pages/allocated_page.go",
+      "lineRange": [
+        93,
+        95
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetPageType 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/allocated_page.go:GetData",
+      "type": "function",
+      "name": "GetData",
+      "filePath": "server/innodb/storage/store/pages/allocated_page.go",
+      "lineRange": [
+        98,
+        100
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetData 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/allocated_page.go:SetData",
+      "type": "function",
+      "name": "SetData",
+      "filePath": "server/innodb/storage/store/pages/allocated_page.go",
+      "lineRange": [
+        103,
+        109
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetData 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/allocated_page.go:IsDirty",
+      "type": "function",
+      "name": "IsDirty",
+      "filePath": "server/innodb/storage/store/pages/allocated_page.go",
+      "lineRange": [
+        112,
+        114
+      ],
+      "summary": "校验或判断InnoDB 物理页结构与序列化中的 IsDirty 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/allocated_page.go:SetDirty",
+      "type": "function",
+      "name": "SetDirty",
+      "filePath": "server/innodb/storage/store/pages/allocated_page.go",
+      "lineRange": [
+        117,
+        119
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetDirty 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/allocated_page.go:IsInitialized",
+      "type": "function",
+      "name": "IsInitialized",
+      "filePath": "server/innodb/storage/store/pages/allocated_page.go",
+      "lineRange": [
+        122,
+        124
+      ],
+      "summary": "校验或判断InnoDB 物理页结构与序列化中的 IsInitialized 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/allocated_page.go:GetSerializeBytes",
+      "type": "function",
+      "name": "GetSerializeBytes",
+      "filePath": "server/innodb/storage/store/pages/allocated_page.go",
+      "lineRange": [
+        127,
+        129
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetSerializeBytes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/allocated_page.go:LoadPageBody",
+      "type": "function",
+      "name": "LoadPageBody",
+      "filePath": "server/innodb/storage/store/pages/allocated_page.go",
+      "lineRange": [
+        132,
+        134
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 LoadPageBody 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/allocated_page.go:ValidatePageContent",
+      "type": "function",
+      "name": "ValidatePageContent",
+      "filePath": "server/innodb/storage/store/pages/allocated_page.go",
+      "lineRange": [
+        137,
+        142
+      ],
+      "summary": "校验或判断InnoDB 物理页结构与序列化中的 ValidatePageContent 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/allocated_page.go:GetPageBody",
+      "type": "function",
+      "name": "GetPageBody",
+      "filePath": "server/innodb/storage/store/pages/allocated_page.go",
+      "lineRange": [
+        145,
+        147
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetPageBody 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/allocated_page.go:SetChecksum",
+      "type": "function",
+      "name": "SetChecksum",
+      "filePath": "server/innodb/storage/store/pages/allocated_page.go",
+      "lineRange": [
+        150,
+        165
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetChecksum 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/allocated_page.go:AllocatedPage",
+      "type": "class",
+      "name": "AllocatedPage",
+      "filePath": "server/innodb/storage/store/pages/allocated_page.go",
+      "lineRange": [
+        50,
+        56
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 AllocatedPage 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "storage-page"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:server/innodb/storage/store/pages/blob_page.go",
+      "type": "file",
+      "name": "blob_page.go",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "summary": "实现InnoDB 物理页结构与序列化的页结构、字段访问和持久化操作。",
+      "tags": [
+        "service",
+        "storage-page",
+        "innodb"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:NewBlobPage",
+      "type": "function",
+      "name": "NewBlobPage",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        71,
+        90
+      ],
+      "summary": "创建或初始化InnoDB 物理页结构与序列化中的 NewBlobPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "factory",
+        "initialization",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:SetBlobData",
+      "type": "function",
+      "name": "SetBlobData",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        93,
+        109
+      ],
+      "summary": "写入或更新InnoDB 物理页结构与序列化中的 SetBlobData 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "mutation",
+        "storage",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:GetBlobData",
+      "type": "function",
+      "name": "GetBlobData",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        112,
+        120
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetBlobData 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:GetNextPageNo",
+      "type": "function",
+      "name": "GetNextPageNo",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        123,
+        125
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetNextPageNo 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:IsLastPage",
+      "type": "function",
+      "name": "IsLastPage",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        128,
+        130
+      ],
+      "summary": "校验或判断InnoDB 物理页结构与序列化中的 IsLastPage 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:GetSegmentID",
+      "type": "function",
+      "name": "GetSegmentID",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        133,
+        135
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetSegmentID 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:GetTotalLength",
+      "type": "function",
+      "name": "GetTotalLength",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        138,
+        140
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetTotalLength 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:GetCurrentOffset",
+      "type": "function",
+      "name": "GetCurrentOffset",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        143,
+        145
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetCurrentOffset 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:Serialize",
+      "type": "function",
+      "name": "Serialize",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        148,
+        168
+      ],
+      "summary": "编码或序列化InnoDB 物理页结构与序列化中的 Serialize 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "serialization",
+        "binary-format",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:Deserialize",
+      "type": "function",
+      "name": "Deserialize",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        171,
+        200
+      ],
+      "summary": "解析或反序列化InnoDB 物理页结构与序列化中的 Deserialize 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "serialization",
+        "binary-format",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:serializeBlobHeader",
+      "type": "function",
+      "name": "serializeBlobHeader",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        208,
+        217
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 serializeBlobHeader 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:deserializeBlobHeader",
+      "type": "function",
+      "name": "deserializeBlobHeader",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        230,
+        241
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 deserializeBlobHeader 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:Validate",
+      "type": "function",
+      "name": "Validate",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        250,
+        267
+      ],
+      "summary": "校验或判断InnoDB 物理页结构与序列化中的 Validate 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:GetFileHeader",
+      "type": "function",
+      "name": "GetFileHeader",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        270,
+        272
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetFileHeader 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:GetFileTrailer",
+      "type": "function",
+      "name": "GetFileTrailer",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        275,
+        277
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetFileTrailer 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:GetSerializeBytes",
+      "type": "function",
+      "name": "GetSerializeBytes",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        280,
+        282
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetSerializeBytes 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:LoadFileHeader",
+      "type": "function",
+      "name": "LoadFileHeader",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        285,
+        287
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 LoadFileHeader 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:LoadFileTrailer",
+      "type": "function",
+      "name": "LoadFileTrailer",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        290,
+        292
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 LoadFileTrailer 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:GetPageType",
+      "type": "function",
+      "name": "GetPageType",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        295,
+        297
+      ],
+      "summary": "读取或查询InnoDB 物理页结构与序列化中的 GetPageType 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "data-access",
+        "query",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:ValidateChecksum",
+      "type": "function",
+      "name": "ValidateChecksum",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        300,
+        307
+      ],
+      "summary": "校验或判断InnoDB 物理页结构与序列化中的 ValidateChecksum 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:CalculateChecksum",
+      "type": "function",
+      "name": "CalculateChecksum",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        310,
+        317
+      ],
+      "summary": "实现InnoDB 物理页结构与序列化中的 CalculateChecksum 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "service-logic",
+        "workflow",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page.go:IsCorrupted",
+      "type": "function",
+      "name": "IsCorrupted",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        320,
+        327
+      ],
+      "summary": "校验或判断InnoDB 物理页结构与序列化中的 IsCorrupted 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "validation",
+        "guard",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/blob_page.go:BlobHeader",
+      "type": "class",
+      "name": "BlobHeader",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        55,
+        60
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 BlobHeader 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/blob_page.go:BlobPage",
+      "type": "class",
+      "name": "BlobPage",
+      "filePath": "server/innodb/storage/store/pages/blob_page.go",
+      "lineRange": [
+        63,
+        68
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 BlobPage 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "service",
+        "storage-page"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:server/innodb/storage/store/pages/blob_page_roundtrip_test.go",
+      "type": "file",
+      "name": "blob_page_roundtrip_test.go",
+      "filePath": "server/innodb/storage/store/pages/blob_page_roundtrip_test.go",
+      "summary": "验证InnoDB 物理页结构与序列化中 blob page roundtrip 的正常路径、边界条件与回归行为。",
+      "tags": [
+        "test",
+        "regression",
+        "storage-page",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/blob_page_roundtrip_test.go:TestBlobPage_SerializeAndValidate",
+      "type": "function",
+      "name": "TestBlobPage_SerializeAndValidate",
+      "filePath": "server/innodb/storage/store/pages/blob_page_roundtrip_test.go",
+      "lineRange": [
+        7,
+        23
+      ],
+      "summary": "验证InnoDB 物理页结构与序列化中的 TestBlobPage_SerializeAndValidate 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:NewAllocatedPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:NewAllocatedPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:Initialize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:Initialize",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:GetSpaceID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:GetSpaceID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:GetPageNo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:GetPageNo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:GetPageType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:GetPageType",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:GetData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:GetData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:SetData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:SetData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:IsDirty",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:IsDirty",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:SetDirty",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:SetDirty",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:IsInitialized",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:IsInitialized",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:GetSerializeBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:GetSerializeBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:LoadPageBody",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:LoadPageBody",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:ValidatePageContent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:ValidatePageContent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:GetPageBody",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:GetPageBody",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:SetChecksum",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "function:server/innodb/storage/store/pages/allocated_page.go:SetChecksum",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "class:server/innodb/storage/store/pages/allocated_page.go:AllocatedPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "class:server/innodb/storage/store/pages/allocated_page.go:AllocatedPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/common/charset.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/common/const_trx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/common/constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/common/error_name.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/common/error_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/common/error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/common/errorcode.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/common/frm_constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/common/locale_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/common/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/common/privs_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/common/privs.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/common/sql_error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/common/sql_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/common/type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/common/type.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/common/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/allocated_page.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:NewBlobPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:NewBlobPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:SetBlobData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:SetBlobData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:GetBlobData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:GetBlobData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:GetNextPageNo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:GetNextPageNo",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:IsLastPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:IsLastPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:GetSegmentID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:GetSegmentID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:GetTotalLength",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:GetTotalLength",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:GetCurrentOffset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:GetCurrentOffset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:Serialize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:Serialize",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:Deserialize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:Deserialize",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:serializeBlobHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:deserializeBlobHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:Validate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:Validate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:GetFileHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:GetFileHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:GetFileTrailer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:GetFileTrailer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:GetSerializeBytes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:GetSerializeBytes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:LoadFileHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:LoadFileHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:LoadFileTrailer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:LoadFileTrailer",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:GetPageType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:GetPageType",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:ValidateChecksum",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:ValidateChecksum",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:CalculateChecksum",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:CalculateChecksum",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:IsCorrupted",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page.go:IsCorrupted",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "class:server/innodb/storage/store/pages/blob_page.go:BlobHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "class:server/innodb/storage/store/pages/blob_page.go:BlobHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "class:server/innodb/storage/store/pages/blob_page.go:BlobPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "class:server/innodb/storage/store/pages/blob_page.go:BlobPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "file:server/common/charset.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "file:server/common/const_trx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "file:server/common/constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "file:server/common/error_name.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "file:server/common/error_state.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "file:server/common/error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "file:server/common/errorcode.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "file:server/common/frm_constant.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "file:server/common/locale_format.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "file:server/common/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "file:server/common/privs_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "file:server/common/privs.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "file:server/common/sql_error_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "file:server/common/sql_error.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "file:server/common/type_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "file:server/common/type.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page.go",
+      "target": "file:server/common/util.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page_roundtrip_test.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page_roundtrip_test.go:TestBlobPage_SerializeAndValidate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/blob_page_roundtrip_test.go",
+      "target": "function:server/innodb/storage/store/pages/blob_page_roundtrip_test.go:TestBlobPage_SerializeAndValidate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

@@ -1,0 +1,1565 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "type": "file",
+      "name": "unified_extent.go",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "summary": "实现InnoDB extent 管理的数据结构与分配操作，管理连续页面范围及其状态变化。",
+      "tags": [
+        "go",
+        "extent-management",
+        "storage-engine"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:NewUnifiedExtent",
+      "type": "function",
+      "name": "NewUnifiedExtent",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        73,
+        97
+      ],
+      "summary": "创建并初始化 UnifiedExtent，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:NewUnifiedExtentFromEntry",
+      "type": "function",
+      "name": "NewUnifiedExtentFromEntry",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        100,
+        125
+      ],
+      "summary": "创建并初始化 UnifiedExtentFromEntry，设置其运行所需的依赖和默认状态。",
+      "tags": [
+        "factory",
+        "constructor",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:mapExtentState",
+      "type": "function",
+      "name": "mapExtentState",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        128,
+        141
+      ],
+      "summary": "实现 InnoDB extent 管理 中的 mapExtentState 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:mapToStoreState",
+      "type": "function",
+      "name": "mapToStoreState",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        144,
+        157
+      ],
+      "summary": "实现 InnoDB extent 管理 中的 mapToStoreState 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetID",
+      "type": "function",
+      "name": "GetID",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        164,
+        166
+      ],
+      "summary": "读取 InnoDB extent 管理 中的 ID 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetState",
+      "type": "function",
+      "name": "GetState",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        169,
+        173
+      ],
+      "summary": "读取 InnoDB extent 管理 中的 State 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetType",
+      "type": "function",
+      "name": "GetType",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        176,
+        178
+      ],
+      "summary": "读取 InnoDB extent 管理 中的 Type 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetSpaceID",
+      "type": "function",
+      "name": "GetSpaceID",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        181,
+        183
+      ],
+      "summary": "读取 InnoDB extent 管理 中的 SpaceID 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetSegmentID",
+      "type": "function",
+      "name": "GetSegmentID",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        186,
+        190
+      ],
+      "summary": "读取 InnoDB extent 管理 中的 SegmentID 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:SetSegmentID",
+      "type": "function",
+      "name": "SetSegmentID",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        193,
+        198
+      ],
+      "summary": "更新 InnoDB extent 管理 中的 SegmentID。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:AllocatePage",
+      "type": "function",
+      "name": "AllocatePage",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        201,
+        233
+      ],
+      "summary": "实现 InnoDB extent 管理 中的 AllocatePage 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:FreePage",
+      "type": "function",
+      "name": "FreePage",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        236,
+        267
+      ],
+      "summary": "实现 InnoDB extent 管理 中的 FreePage 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetPageCount",
+      "type": "function",
+      "name": "GetPageCount",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        270,
+        274
+      ],
+      "summary": "读取 InnoDB extent 管理 中的 PageCount 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetFreePages",
+      "type": "function",
+      "name": "GetFreePages",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        277,
+        288
+      ],
+      "summary": "读取 InnoDB extent 管理 中的 FreePages 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetFreeSpace",
+      "type": "function",
+      "name": "GetFreeSpace",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        291,
+        295
+      ],
+      "summary": "读取 InnoDB extent 管理 中的 FreeSpace 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:IsFull",
+      "type": "function",
+      "name": "IsFull",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        298,
+        302
+      ],
+      "summary": "实现 InnoDB extent 管理 中的 IsFull 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:IsEmpty",
+      "type": "function",
+      "name": "IsEmpty",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        305,
+        309
+      ],
+      "summary": "实现 InnoDB extent 管理 中的 IsEmpty 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetStats",
+      "type": "function",
+      "name": "GetStats",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        312,
+        317
+      ],
+      "summary": "读取 InnoDB extent 管理 中的 Stats 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:Defragment",
+      "type": "function",
+      "name": "Defragment",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        320,
+        360
+      ],
+      "summary": "实现 InnoDB extent 管理 中的 Defragment 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:Reset",
+      "type": "function",
+      "name": "Reset",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        363,
+        387
+      ],
+      "summary": "实现 InnoDB extent 管理 中的 Reset 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:Lock",
+      "type": "function",
+      "name": "Lock",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        390,
+        392
+      ],
+      "summary": "实现 InnoDB extent 管理 中的 Lock 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:Unlock",
+      "type": "function",
+      "name": "Unlock",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        395,
+        397
+      ],
+      "summary": "实现 InnoDB extent 管理 中的 Unlock 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:RLock",
+      "type": "function",
+      "name": "RLock",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        400,
+        402
+      ],
+      "summary": "实现 InnoDB extent 管理 中的 RLock 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:RUnlock",
+      "type": "function",
+      "name": "RUnlock",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        405,
+        407
+      ],
+      "summary": "实现 InnoDB extent 管理 中的 RUnlock 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:StartPage",
+      "type": "function",
+      "name": "StartPage",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        410,
+        412
+      ],
+      "summary": "实现 InnoDB extent 管理 中的 StartPage 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetStartPage",
+      "type": "function",
+      "name": "GetStartPage",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        415,
+        417
+      ],
+      "summary": "读取 InnoDB extent 管理 中的 StartPage 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetBitmap",
+      "type": "function",
+      "name": "GetBitmap",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        420,
+        428
+      ],
+      "summary": "读取 InnoDB extent 管理 中的 Bitmap 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetPurpose",
+      "type": "function",
+      "name": "GetPurpose",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        435,
+        437
+      ],
+      "summary": "读取 InnoDB extent 管理 中的 Purpose 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:SetPurpose",
+      "type": "function",
+      "name": "SetPurpose",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        440,
+        444
+      ],
+      "summary": "更新 InnoDB extent 管理 中的 Purpose。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:IsPageAllocated",
+      "type": "function",
+      "name": "IsPageAllocated",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        447,
+        457
+      ],
+      "summary": "实现 InnoDB extent 管理 中的 IsPageAllocated 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetAllocatedPages",
+      "type": "function",
+      "name": "GetAllocatedPages",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        460,
+        472
+      ],
+      "summary": "读取 InnoDB extent 管理 中的 AllocatedPages 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:Serialize",
+      "type": "function",
+      "name": "Serialize",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        475,
+        479
+      ],
+      "summary": "实现 InnoDB extent 管理 中的 Serialize 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetEntry",
+      "type": "function",
+      "name": "GetEntry",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        482,
+        486
+      ],
+      "summary": "读取 InnoDB extent 管理 中的 Entry 并返回统一结果。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/wrapper/extent/unified_extent.go:String",
+      "type": "function",
+      "name": "String",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        489,
+        496
+      ],
+      "summary": "实现 InnoDB extent 管理 中的 String 操作，封装该步骤的核心判断与状态变更。",
+      "tags": [
+        "method",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/wrapper/extent/unified_extent.go:UnifiedExtent",
+      "type": "class",
+      "name": "UnifiedExtent",
+      "filePath": "server/innodb/storage/wrapper/extent/unified_extent.go",
+      "lineRange": [
+        44,
+        70
+      ],
+      "summary": "定义 InnoDB extent 管理 使用的 UnifiedExtent 结构，保存该组件的核心状态和依赖。",
+      "tags": [
+        "data-model",
+        "go",
+        "extent-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "type": "file",
+      "name": "errors.go",
+      "filePath": "server/innodb/storage/wrapper/mvcc/errors.go",
+      "summary": "提供MVCC 页面封装相关的数据结构与处理逻辑。",
+      "tags": [
+        "go",
+        "mvcc",
+        "storage-engine"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:NewUnifiedExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:NewUnifiedExtent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:NewUnifiedExtentFromEntry",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:NewUnifiedExtentFromEntry",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:mapExtentState",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:mapToStoreState",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetState",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetState",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetType",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetSpaceID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetSpaceID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetSegmentID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetSegmentID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:SetSegmentID",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:SetSegmentID",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:AllocatePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:AllocatePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:FreePage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:FreePage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetPageCount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetPageCount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetFreePages",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetFreePages",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetFreeSpace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetFreeSpace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:IsFull",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:IsFull",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:IsEmpty",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:IsEmpty",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetStats",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:Defragment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:Defragment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:Reset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:Reset",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:Lock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:Lock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:Unlock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:Unlock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:RLock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:RLock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:RUnlock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:RUnlock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:StartPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:StartPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetStartPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetStartPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetBitmap",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetBitmap",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetPurpose",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetPurpose",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:SetPurpose",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:SetPurpose",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:IsPageAllocated",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:IsPageAllocated",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetAllocatedPages",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetAllocatedPages",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:Serialize",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:Serialize",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetEntry",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:GetEntry",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:String",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "function:server/innodb/storage/wrapper/extent/unified_extent.go:String",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "class:server/innodb/storage/wrapper/extent/unified_extent.go:UnifiedExtent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "class:server/innodb/storage/wrapper/extent/unified_extent.go:UnifiedExtent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/storage/store/extents/extent_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/extent/unified_extent.go",
+      "target": "file:server/innodb/storage/store/extents/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/base_page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/bplus_tree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/btree_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/btree_statistics.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/btree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/cursor.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/errors.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/extent.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/filesystem.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/index_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/index.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/interfaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/iterator.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/page_header.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/page_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/page_types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/page_wrapper.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/page.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/record.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/row.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/segment_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/segment.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/space_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/spaces.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/storage_manager.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/storage.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/tablespace.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/tree.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/tx.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/types.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/value_conversion_test.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server/innodb/storage/wrapper/mvcc/errors.go",
+      "target": "file:server/innodb/basic/value.go",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

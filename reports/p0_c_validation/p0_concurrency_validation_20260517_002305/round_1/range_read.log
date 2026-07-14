@@ -1,0 +1,54 @@
+=== P0_C concurrency scenario ===
+round: 1
+scenario: range_read
+packages: ./server/innodb/storage/store/mvcc ./server/innodb/manager ./server/innodb/engine
+pattern: TestGapLock|TestDeadlock|TestRange|TestSimpleDeadlock|TestComplexDeadlock|TestMVCC_ConcurrentTransactions
+timeout: 300s
+start: 2026-05-17T00:23:09+08:00
+
+>>> go test -count=1 -timeout=300s -run 'TestGapLock|TestDeadlock|TestRange|TestSimpleDeadlock|TestComplexDeadlock|TestMVCC_ConcurrentTransactions' "./server/innodb/storage/store/mvcc" -v
+=== RUN   TestDeadlockScenarios
+=== RUN   TestDeadlockScenarios/TestSimpleDeadlock
+=== RUN   TestDeadlockScenarios/TestComplexDeadlock
+=== RUN   TestDeadlockScenarios/TestDeadlockDetectionPerformance
+--- PASS: TestDeadlockScenarios (0.00s)
+    --- PASS: TestDeadlockScenarios/TestSimpleDeadlock (0.00s)
+    --- PASS: TestDeadlockScenarios/TestComplexDeadlock (0.00s)
+    --- PASS: TestDeadlockScenarios/TestDeadlockDetectionPerformance (0.00s)
+PASS
+ok  	github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/mvcc	1.243s
+>>> go test -count=1 -timeout=300s -run 'TestGapLock|TestDeadlock|TestRange|TestSimpleDeadlock|TestComplexDeadlock|TestMVCC_ConcurrentTransactions' "./server/innodb/manager" -v
+=== RUN   TestRangeQueryOptimization
+    btree_improvements_test.go:324: ✅ Range query optimization test passed: found 41 results in 10.201494ms
+--- PASS: TestRangeQueryOptimization (0.02s)
+=== RUN   TestGapLockBasic
+    gap_lock_test.go:46: Gap lock basic test passed
+--- PASS: TestGapLockBasic (0.00s)
+=== RUN   TestGapLockAndInsertIntention
+    gap_lock_test.go:84: Insert intention lock is correctly blocked by Gap lock
+    gap_lock_test.go:99: Insert intention lock granted after Gap lock release
+--- PASS: TestGapLockAndInsertIntention (0.10s)
+=== RUN   TestGapLockRangeCheck
+    gap_lock_test.go:268: Gap lock range check test passed
+--- PASS: TestGapLockRangeCheck (0.00s)
+=== RUN   TestMVCC_ConcurrentTransactions
+    mvcc_integration_test.go:387: Transaction T0 started with ID=2
+    mvcc_integration_test.go:387: Transaction T1 started with ID=3
+    mvcc_integration_test.go:387: Transaction T2 started with ID=4
+    mvcc_integration_test.go:387: Transaction T3 started with ID=5
+    mvcc_integration_test.go:387: Transaction T4 started with ID=6
+    mvcc_integration_test.go:395: Transaction T0 committed
+    mvcc_integration_test.go:395: Transaction T1 committed
+    mvcc_integration_test.go:402: T2 sees T0's version: false (expected: false)
+    mvcc_integration_test.go:402: T2 sees T1's version: false (expected: false)
+    mvcc_integration_test.go:402: T3 sees T0's version: false (expected: false)
+    mvcc_integration_test.go:402: T3 sees T1's version: false (expected: false)
+    mvcc_integration_test.go:402: T4 sees T0's version: false (expected: false)
+    mvcc_integration_test.go:402: T4 sees T1's version: false (expected: false)
+--- PASS: TestMVCC_ConcurrentTransactions (0.00s)
+PASS
+ok  	github.com/zhukovaskychina/xmysql-server/server/innodb/manager	1.034s
+>>> go test -count=1 -timeout=300s -run 'TestGapLock|TestDeadlock|TestRange|TestSimpleDeadlock|TestComplexDeadlock|TestMVCC_ConcurrentTransactions' "./server/innodb/engine" -v
+testing: warning: no tests to run
+PASS
+ok  	github.com/zhukovaskychina/xmysql-server/server/innodb/engine	1.154s [no tests to run]

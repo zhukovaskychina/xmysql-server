@@ -1,0 +1,302 @@
+{
+  "nodes": [
+    {
+      "id": "file:server/innodb/storage/store/pages/sys_trx_sys_page.go",
+      "type": "file",
+      "name": "sys_trx_sys_page.go",
+      "filePath": "server/innodb/storage/store/pages/sys_trx_sys_page.go",
+      "summary": "实现InnoDB 物理页结构与序列化的页结构、字段访问和持久化操作。",
+      "tags": [
+        "service",
+        "storage-page",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/sys_trx_sys_page.go:SysTrxSysPage",
+      "type": "class",
+      "name": "SysTrxSysPage",
+      "filePath": "server/innodb/storage/store/pages/sys_trx_sys_page.go",
+      "lineRange": [
+        4,
+        24
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 SysTrxSysPage 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/storage/store/pages/system_page_roundtrip_test.go",
+      "type": "file",
+      "name": "system_page_roundtrip_test.go",
+      "filePath": "server/innodb/storage/store/pages/system_page_roundtrip_test.go",
+      "summary": "验证InnoDB 物理页结构与序列化中 system page roundtrip 的正常路径、边界条件与回归行为。",
+      "tags": [
+        "test",
+        "regression",
+        "storage-page",
+        "innodb"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server/innodb/storage/store/pages/system_page_roundtrip_test.go:TestSystemPage_SerializeAndValidate",
+      "type": "function",
+      "name": "TestSystemPage_SerializeAndValidate",
+      "filePath": "server/innodb/storage/store/pages/system_page_roundtrip_test.go",
+      "lineRange": [
+        5,
+        21
+      ],
+      "summary": "验证InnoDB 物理页结构与序列化中的 TestSystemPage_SerializeAndValidate 流程，并返回调用方所需结果。",
+      "tags": [
+        "function",
+        "test",
+        "regression",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server/innodb/storage/store/pages/undo_log_page.go",
+      "type": "file",
+      "name": "undo_log_page.go",
+      "filePath": "server/innodb/storage/store/pages/undo_log_page.go",
+      "summary": "实现InnoDB 物理页结构与序列化的页结构、字段访问和持久化操作。",
+      "tags": [
+        "service",
+        "storage-page",
+        "innodb"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/undo_log_page.go:UndoLogPageHeader",
+      "type": "class",
+      "name": "UndoLogPageHeader",
+      "filePath": "server/innodb/storage/store/pages/undo_log_page.go",
+      "lineRange": [
+        4,
+        9
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 UndoLogPageHeader 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/undo_log_page.go:PageNode",
+      "type": "class",
+      "name": "PageNode",
+      "filePath": "server/innodb/storage/store/pages/undo_log_page.go",
+      "lineRange": [
+        12,
+        19
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 PageNode 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/undo_log_page.go:UndoLogSegmentHeader",
+      "type": "class",
+      "name": "UndoLogSegmentHeader",
+      "filePath": "server/innodb/storage/store/pages/undo_log_page.go",
+      "lineRange": [
+        22,
+        27
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 UndoLogSegmentHeader 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/undo_log_page.go:UndoLogHeader",
+      "type": "class",
+      "name": "UndoLogHeader",
+      "filePath": "server/innodb/storage/store/pages/undo_log_page.go",
+      "lineRange": [
+        39,
+        51
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 UndoLogHeader 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/undo_log_page.go:UndoLogPage",
+      "type": "class",
+      "name": "UndoLogPage",
+      "filePath": "server/innodb/storage/store/pages/undo_log_page.go",
+      "lineRange": [
+        54,
+        57
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 UndoLogPage 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server/innodb/storage/store/pages/undo_log_page.go:UndoFirstLogPage",
+      "type": "class",
+      "name": "UndoFirstLogPage",
+      "filePath": "server/innodb/storage/store/pages/undo_log_page.go",
+      "lineRange": [
+        68,
+        69
+      ],
+      "summary": "封装InnoDB 物理页结构与序列化中的 UndoFirstLogPage 状态与行为，作为相关操作的核心数据结构。",
+      "tags": [
+        "data-model",
+        "go-type",
+        "type-definition",
+        "storage-page"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:server/innodb/storage/store/pages/sys_trx_sys_page.go",
+      "target": "class:server/innodb/storage/store/pages/sys_trx_sys_page.go:SysTrxSysPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/sys_trx_sys_page.go",
+      "target": "class:server/innodb/storage/store/pages/sys_trx_sys_page.go:SysTrxSysPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/system_page_roundtrip_test.go",
+      "target": "function:server/innodb/storage/store/pages/system_page_roundtrip_test.go:TestSystemPage_SerializeAndValidate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/system_page_roundtrip_test.go",
+      "target": "function:server/innodb/storage/store/pages/system_page_roundtrip_test.go:TestSystemPage_SerializeAndValidate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/undo_log_page.go",
+      "target": "class:server/innodb/storage/store/pages/undo_log_page.go:UndoLogPageHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/undo_log_page.go",
+      "target": "class:server/innodb/storage/store/pages/undo_log_page.go:UndoLogPageHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/undo_log_page.go",
+      "target": "class:server/innodb/storage/store/pages/undo_log_page.go:PageNode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/undo_log_page.go",
+      "target": "class:server/innodb/storage/store/pages/undo_log_page.go:PageNode",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/undo_log_page.go",
+      "target": "class:server/innodb/storage/store/pages/undo_log_page.go:UndoLogSegmentHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/undo_log_page.go",
+      "target": "class:server/innodb/storage/store/pages/undo_log_page.go:UndoLogSegmentHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/undo_log_page.go",
+      "target": "class:server/innodb/storage/store/pages/undo_log_page.go:UndoLogHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/undo_log_page.go",
+      "target": "class:server/innodb/storage/store/pages/undo_log_page.go:UndoLogHeader",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/undo_log_page.go",
+      "target": "class:server/innodb/storage/store/pages/undo_log_page.go:UndoLogPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/undo_log_page.go",
+      "target": "class:server/innodb/storage/store/pages/undo_log_page.go:UndoLogPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/undo_log_page.go",
+      "target": "class:server/innodb/storage/store/pages/undo_log_page.go:UndoFirstLogPage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:server/innodb/storage/store/pages/undo_log_page.go",
+      "target": "class:server/innodb/storage/store/pages/undo_log_page.go:UndoFirstLogPage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

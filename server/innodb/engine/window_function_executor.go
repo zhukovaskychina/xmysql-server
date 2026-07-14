@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
@@ -550,9 +551,150 @@ func (w *WindowFunctionOperator) getWindowFrame(partition []int, currentRowIdx i
 		return partition[:currentPos+1]
 	}
 
-	// TODO: 实现完整的窗口帧逻辑（ROWS/RANGE BETWEEN ... AND ...）
-	// 简化实现：返回整个分区
-	return partition
+	if len(partition) == 0 {
+		return []int{}
+	}
+
+	currentPos := -1
+	for i, idx := range partition {
+		if idx == currentRowIdx {
+			currentPos = i
+			break
+		}
+	}
+	if currentPos < 0 {
+		return []int{}
+	}
+
+	switch w.windowSpec.Frame.Type {
+	case FrameTypeRows:
+		return w.getRowsFrame(partition, currentPos)
+	case FrameTypeRange:
+		return w.getRangeFrame(partition, currentPos)
+	default:
+		return partition
+	}
+}
+
+func (w *WindowFunctionOperator) getRowsFrame(partition []int, currentPos int) []int {
+	if len(partition) == 0 {
+		return []int{}
+	}
+
+	start := w.boundToIndex(partition, w.windowSpec.Frame.Start, currentPos)
+	end := w.boundToIndex(partition, w.windowSpec.Frame.End, currentPos)
+
+	if start < 0 {
+		start = 0
+	}
+	if end >= len(partition) {
+		end = len(partition) - 1
+	}
+
+	if start > end || end < 0 || start >= len(partition) {
+		return []int{}
+	}
+
+	frame := make([]int, 0, end-start+1)
+	for i := start; i <= end; i++ {
+		frame = append(frame, partition[i])
+	}
+	return frame
+}
+
+func (w *WindowFunctionOperator) getRangeFrame(partition []int, currentPos int) []int {
+	if len(partition) == 0 {
+		return []int{}
+	}
+
+	// RANGE 语义依赖 ORDER BY，缺失 ORDER BY 时退化为 ROWS 行范围
+	if len(w.windowSpec.OrderBy) == 0 {
+		return w.getRowsFrame(partition, currentPos)
+	}
+
+	currentRowIdx := partition[currentPos]
+	currentOrderValue := w.getOrderValue(currentRowIdx)
+	if !currentOrderValue.ok {
+		return w.getRowsFrame(partition, currentPos)
+	}
+
+	startValue, startOk := w.boundRangeValue(w.windowSpec.Frame.Start, currentOrderValue.value)
+	endValue, endOk := w.boundRangeValue(w.windowSpec.Frame.End, currentOrderValue.value)
+	if !startOk || !endOk {
+		return w.getRowsFrame(partition, currentPos)
+	}
+
+	frame := make([]int, 0)
+	for _, rowIdx := range partition {
+		value := w.getOrderValue(rowIdx)
+		if !value.ok {
+			continue
+		}
+		if value.value >= startValue && value.value <= endValue {
+			frame = append(frame, rowIdx)
+		}
+	}
+	return frame
+}
+
+func (w *WindowFunctionOperator) boundToIndex(partition []int, bound WindowFrameBound, currentPos int) int {
+	switch bound.Type {
+	case "UNBOUNDED_PRECEDING":
+		return 0
+	case "CURRENT_ROW":
+		return currentPos
+	case "N_PRECEDING":
+		return currentPos - int(bound.Offset)
+	case "N_FOLLOWING":
+		return currentPos + int(bound.Offset)
+	case "UNBOUNDED_FOLLOWING":
+		return len(partition) - 1
+	default:
+		return currentPos
+	}
+}
+
+type orderedValue struct {
+	value float64
+	ok    bool
+}
+
+func (w *WindowFunctionOperator) getOrderValue(rowIdx int) orderedValue {
+	values := w.allRows[rowIdx].GetValues()
+	if len(w.windowSpec.OrderBy) == 0 {
+		return orderedValue{ok: false}
+	}
+
+	orderBy := w.windowSpec.OrderBy[0]
+	if orderBy.ColumnIndex < 0 || orderBy.ColumnIndex >= len(values) {
+		return orderedValue{ok: false}
+	}
+	val := values[orderBy.ColumnIndex]
+	if val == nil || val.IsNull() {
+		return orderedValue{ok: false}
+	}
+
+	return orderedValue{
+		value: val.Float64(),
+		ok:    true,
+	}
+}
+
+func (w *WindowFunctionOperator) boundRangeValue(bound WindowFrameBound, current float64) (float64, bool) {
+	switch bound.Type {
+	case "UNBOUNDED_PRECEDING":
+		return math.Inf(-1), true
+	case "UNBOUNDED_FOLLOWING":
+		return math.Inf(1), true
+	case "CURRENT_ROW":
+		return current, true
+	case "N_PRECEDING":
+		return current - float64(bound.Offset), true
+	case "N_FOLLOWING":
+		return current + float64(bound.Offset), true
+	default:
+		return 0, false
+	}
 }
 
 // rowsEqualByOrderBy 检查两行在ORDER BY列上是否相等

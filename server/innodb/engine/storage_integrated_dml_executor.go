@@ -31,6 +31,7 @@ type StorageIntegratedDMLExecutor struct {
 
 	// 持久化管理器
 	persistenceManager *PersistenceManager
+	checkpointManager  *CheckpointManager
 
 	// 执行状态
 	schemaName    string
@@ -95,6 +96,9 @@ func NewStorageIntegratedDMLExecutor(
 		storageManager,
 		dataDir,
 	)
+	if executor.persistenceManager != nil {
+		executor.checkpointManager = executor.persistenceManager.checkpointManager
+	}
 
 	return executor
 }
@@ -457,6 +461,16 @@ func extractTransactionIDFromStorageCtx(txn interface{}) uint64 {
 	return ctx.TransactionID
 }
 
+func (dml *StorageIntegratedDMLExecutor) waitForCheckpointWritePermit(ctx context.Context) error {
+	if dml == nil || dml.checkpointManager == nil {
+		return nil
+	}
+	if err := dml.checkpointManager.WaitForWritePermit(ctx); err != nil {
+		return fmt.Errorf("checkpoint write gate blocked DML write: %w", err)
+	}
+	return nil
+}
+
 // ===== 存储引擎集成的实际实现方法 =====
 
 // insertRowToStorage 将行插入到存储引擎
@@ -468,6 +482,22 @@ func (dml *StorageIntegratedDMLExecutor) insertRowToStorage(
 	tableStorageInfo *manager.TableStorageInfo,
 	btreeManager basic.BPlusTreeManager,
 ) (uint64, error) {
+	if row == nil {
+		return 0, fmt.Errorf("插入行数据不能为空")
+	}
+	if tableStorageInfo == nil {
+		return 0, fmt.Errorf("表存储信息未初始化")
+	}
+	if err := dml.waitForCheckpointWritePermit(ctx); err != nil {
+		return 0, err
+	}
+	if btreeManager == nil {
+		return 0, fmt.Errorf("B+树管理器未初始化")
+	}
+	if dml.bufferPoolManager == nil {
+		return 0, fmt.Errorf("缓冲池管理器未初始化")
+	}
+
 	logger.Debugf(" 插入行到存储引擎: SpaceID=%d, 数据=%+v", tableStorageInfo.SpaceID, row.ColumnValues)
 
 	// 1. 生成主键值
@@ -486,6 +516,20 @@ func (dml *StorageIntegratedDMLExecutor) insertRowToStorage(
 	err = btreeManager.Insert(ctx, primaryKey, serializedRow)
 	if err != nil {
 		return 0, fmt.Errorf("插入到B+树失败: %v", err)
+	}
+
+	bufferPage, err := dml.bufferPoolManager.GetPage(tableStorageInfo.SpaceID, tableStorageInfo.RootPageNo)
+	if err != nil {
+		return 0, fmt.Errorf("获取插入目标页失败: %v", err)
+	}
+	updatedPageContent, _, err := appendDMLPageRow(bufferPage.GetContent(), serializedRow)
+	if err != nil {
+		return 0, fmt.Errorf("写入页内行集合失败: %v", err)
+	}
+	bufferPage.SetContent(updatedPageContent)
+	bufferPage.MarkDirty()
+	if txnCtx, ok := txn.(*StorageTransactionContext); ok && txnCtx != nil {
+		txnCtx.ModifiedPages[fmt.Sprintf("%d:%d", tableStorageInfo.SpaceID, tableStorageInfo.RootPageNo)] = tableStorageInfo.RootPageNo
 	}
 
 	// 4. 立即持久化页面到磁盘（确保数据安全）
@@ -520,6 +564,22 @@ func (dml *StorageIntegratedDMLExecutor) updateRowInStorage(
 	tableStorageInfo *manager.TableStorageInfo,
 	btreeManager basic.BPlusTreeManager,
 ) error {
+	if rowInfo == nil {
+		return fmt.Errorf("待更新行信息不能为空")
+	}
+	if tableStorageInfo == nil {
+		return fmt.Errorf("表存储信息未初始化")
+	}
+	if err := dml.waitForCheckpointWritePermit(ctx); err != nil {
+		return err
+	}
+	if btreeManager == nil {
+		return fmt.Errorf("B+树管理器未初始化")
+	}
+	if dml.bufferPoolManager == nil {
+		return fmt.Errorf("缓冲池管理器未初始化")
+	}
+
 	logger.Debugf(" 在存储引擎中更新行: RowID=%d, 更新列数=%d", rowInfo.RowId, len(updateExprs))
 
 	// 1. 根据RowID查找现有行数据
@@ -556,6 +616,20 @@ func (dml *StorageIntegratedDMLExecutor) updateRowInStorage(
 		return fmt.Errorf("更新B+树记录失败: %v", err)
 	}
 
+	bufferPage, err := dml.bufferPoolManager.GetPage(tableStorageInfo.SpaceID, pageNo)
+	if err != nil {
+		return fmt.Errorf("获取更新目标页失败: %v", err)
+	}
+	updatedPageContent, err := replaceDMLPageRow(bufferPage.GetContent(), slot, serializedRow)
+	if err != nil {
+		return fmt.Errorf("覆盖页内行失败: %v", err)
+	}
+	bufferPage.SetContent(updatedPageContent)
+	bufferPage.MarkDirty()
+	if txnCtx, ok := txn.(*StorageTransactionContext); ok && txnCtx != nil {
+		txnCtx.ModifiedPages[fmt.Sprintf("%d:%d", tableStorageInfo.SpaceID, pageNo)] = pageNo
+	}
+
 	// 6. 立即持久化更新的页面（确保数据安全）
 	if dml.persistenceManager != nil {
 		err = dml.persistenceManager.FlushPage(ctx, tableStorageInfo.SpaceID, pageNo)
@@ -586,6 +660,22 @@ func (dml *StorageIntegratedDMLExecutor) deleteRowFromStorage(
 	tableStorageInfo *manager.TableStorageInfo,
 	btreeManager basic.BPlusTreeManager,
 ) error {
+	if rowInfo == nil {
+		return fmt.Errorf("待删除行信息不能为空")
+	}
+	if tableStorageInfo == nil {
+		return fmt.Errorf("表存储信息未初始化")
+	}
+	if err := dml.waitForCheckpointWritePermit(ctx); err != nil {
+		return err
+	}
+	if btreeManager == nil {
+		return fmt.Errorf("B+树管理器未初始化")
+	}
+	if dml.bufferPoolManager == nil {
+		return fmt.Errorf("缓冲池管理器未初始化")
+	}
+
 	logger.Debugf("🗑️ 从存储引擎删除行: RowID=%d", rowInfo.RowId)
 
 	// 1. 根据RowID查找行位置

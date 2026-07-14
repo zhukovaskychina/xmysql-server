@@ -1,0 +1,119 @@
+[
+  {
+    "order": 1,
+    "title": "项目概览",
+    "description": "先从 README 了解 xmysql-server 的目标：用 Go 构建面向单机场景的 MySQL 兼容数据库内核。文档给出了 Storage、BufferPool、Record、Index、Txn 和 SQL Pipeline 的整体分层，也明确了当前生产就绪度与后续阅读主线。",
+    "nodeIds": [
+      "document:README.md"
+    ]
+  },
+  {
+    "order": 2,
+    "title": "启动与配置",
+    "description": "在项目定位清楚后，从 main.go 进入实际运行路径：加载配置、初始化 MySQL 兼容服务并启动监听。config.go 集中处理命令行参数、默认值和 InnoDB 相关配置，是理解后续组件如何获得运行参数的基础。",
+    "nodeIds": [
+      "file:main.go",
+      "file:server/conf/config.go"
+    ]
+  },
+  {
+    "order": 3,
+    "title": "网络连接入口",
+    "description": "服务启动后，mysql_server.go 负责监听端口、接受连接并管理服务生命周期。decoupled_handler.go 将网络协议处理与请求执行解耦，让连接层可以把完整请求交给后续协议和分发流程。",
+    "nodeIds": [
+      "file:server/net/mysql_server.go",
+      "file:server/net/decoupled_handler.go"
+    ]
+  },
+  {
+    "order": 4,
+    "title": "MySQL 协议",
+    "description": "连接建立后，handshake.go 完成客户端握手与会话建立，mysql_protocol.go 处理 MySQL 数据包的编解码和命令语义。理解这一步可以看清网络字节流如何变成服务器能够分发的协议请求。",
+    "nodeIds": [
+      "file:server/protocol/handshake.go",
+      "file:server/protocol/mysql_protocol.go"
+    ]
+  },
+  {
+    "order": 5,
+    "title": "SQL 请求分发",
+    "description": "协议层得到 SQL 命令后，enhanced_message_handler.go 负责消息处理衔接，query_dispatcher.go 决定请求应进入查询、系统变量或其他执行路径。它们是协议层与数据库内核之间的路由边界，也解释了不同 SQL 类型如何进入各自处理器。",
+    "nodeIds": [
+      "file:server/dispatcher/enhanced_message_handler.go",
+      "file:server/dispatcher/query_dispatcher.go"
+    ]
+  },
+  {
+    "order": 6,
+    "title": "解析与查询计划",
+    "description": "请求进入内核后，sql.go 和 analyzer.go 将 SQL 转换为可分析的语法与语义结构。optimizer.go 再应用优化规则选择候选方案，physical_plan.go 把结果表达为带有代价、行数估算和扫描接口的物理计划，为执行器准备明确输入。",
+    "nodeIds": [
+      "file:server/innodb/sqlparser/sql.go",
+      "file:server/innodb/sqlparser/analyzer.go",
+      "file:server/innodb/plan/optimizer.go",
+      "file:server/innodb/plan/physical_plan.go"
+    ]
+  },
+  {
+    "order": 7,
+    "title": "执行引擎",
+    "description": "物理计划随后交给 executor.go 和 unified_executor.go 组织执行路径。volcano_executor.go 具有全图最高 fan-out，集中实现算子构建、拉取式迭代和结果流转，是串联计划、表达式与底层记录访问的核心文件。",
+    "nodeIds": [
+      "file:server/innodb/engine/executor.go",
+      "file:server/innodb/engine/unified_executor.go",
+      "file:server/innodb/engine/volcano_executor.go"
+    ],
+    "languageLesson": "Go 的 interface 适合定义统一算子协议；Volcano 模型通常通过 Open、Next、Close 一类方法组合执行树，使不同扫描、连接和聚合算子可以替换与嵌套。"
+  },
+  {
+    "order": 8,
+    "title": "事务与崩溃恢复",
+    "description": "执行结果需要事务语义保护，transaction_manager.go 负责事务生命周期、锁与提交回滚协调。redo_log_manager.go 记录可重放变更，crash_recovery.go 在异常退出后利用日志恢复一致状态，这一组文件构成正确性和持久性的关键闭环。",
+    "nodeIds": [
+      "file:server/innodb/manager/transaction_manager.go",
+      "file:server/innodb/manager/redo_log_manager.go",
+      "file:server/innodb/manager/crash_recovery.go"
+    ]
+  },
+  {
+    "order": 9,
+    "title": "页与缓存管理",
+    "description": "事务和执行层最终依赖页面访问，buffer_pool_manager.go 负责把磁盘页缓存在内存并协调读写生命周期。page_index_wrapper.go 提供类型化的页面字段访问，ibd_file.go 则连接独立表空间文件，使内存页与持久化页形成完整通路。",
+    "nodeIds": [
+      "file:server/innodb/manager/buffer_pool_manager.go",
+      "file:server/innodb/storage/wrapper/page/page_index_wrapper.go",
+      "file:server/innodb/storage/store/ibd/ibd_file.go"
+    ]
+  },
+  {
+    "order": 10,
+    "title": "B+Tree 索引",
+    "description": "在页面基础上，basic 层的 bplus_tree_manager.go 是高 fan-in 的公共索引契约与能力入口。manager 层的同名实现进一步协调 B+Tree 的创建、查询、更新和资源释放，展示索引逻辑如何建立在页与表空间之上。",
+    "nodeIds": [
+      "file:server/innodb/basic/bplus_tree_manager.go",
+      "file:server/innodb/manager/bplus_tree_manager.go"
+    ]
+  },
+  {
+    "order": 11,
+    "title": "关键路径验证",
+    "description": "理解主链路后，用协议预处理、Volcano 计划构建和崩溃恢复测试验证三个关键边界。GitHub Actions 流水线把这些自动化检查纳入持续集成，使协议、执行和恢复的回归证据能够重复生成。",
+    "nodeIds": [
+      "file:server/protocol/prepared_statement_test.go",
+      "file:server/innodb/engine/volcano_builder_test.go",
+      "file:server/innodb/manager/crash_recovery_test.go",
+      "pipeline:.github/workflows/go.yml"
+    ]
+  },
+  {
+    "order": 12,
+    "title": "生产就绪闭环",
+    "description": "最后回到生产就绪文档：任务分解说明要完成什么，验收清单定义完成标准，部署计划描述上线门槛。灰度与回退手册补上发布和止损流程，让前面学习的代码、测试与恢复能力落到可执行的交付闭环。",
+    "nodeIds": [
+      "document:docs/planning/P0_PRODUCTION_TASKS.md",
+      "document:docs/planning/P0_PRODUCTION_CHECKLIST.md",
+      "document:docs/planning/P0_PRODUCTION_DEPLOYMENT_PLAN.md",
+      "document:docs/planning/P0_E_ROLLBACK_AND_CANARY_RUNBOOK.md"
+    ]
+  }
+]

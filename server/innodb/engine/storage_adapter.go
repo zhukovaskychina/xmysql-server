@@ -3,8 +3,11 @@ package engine
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
@@ -31,6 +34,11 @@ type StorageAdapter struct {
 	bufferPoolManager   *manager.OptimizedBufferPoolManager
 	storageManager      *manager.StorageManager
 	tableStorageManager *manager.TableStorageManager
+
+	insertRecordFunc        func(ctx context.Context, schemaName, tableName string, row map[string]interface{}, schema *metadata.Table, txn *Transaction) error
+	findDuplicateRecordFunc func(ctx context.Context, schemaName, tableName string, row map[string]interface{}, schema *metadata.Table, txn *Transaction) (Record, error)
+	updateRecordFunc        func(ctx context.Context, schemaName, tableName string, oldRecord Record, newRecord Record, schema *metadata.Table, txn *Transaction) error
+	deleteRecordFunc        func(ctx context.Context, schemaName, tableName string, record Record, schema *metadata.Table, txn *Transaction) error
 }
 
 var (
@@ -39,6 +47,7 @@ var (
 	ErrStorageAdapterBufferPoolManagerNil   = errors.New("storage adapter buffer pool manager is nil")
 	ErrStorageAdapterSchemaNil              = errors.New("storage adapter schema is nil")
 	ErrStorageAdapterRecordNotFound         = errors.New("storage adapter record not found")
+	errStorageAdapterNoPrimaryKey           = errors.New("storage adapter primary key is not defined")
 )
 
 func getTableSchemaName(schema *metadata.Table) string {
@@ -61,6 +70,313 @@ func NewStorageAdapter(
 		storageManager:      storageManager,
 		tableStorageManager: tableStorageManager,
 	}
+}
+
+// InsertRecord persists one logical table row through the table B+Tree mapping.
+func (sa *StorageAdapter) InsertRecord(ctx context.Context, schemaName, tableName string, row map[string]interface{}, schema *metadata.Table, txn *Transaction) error {
+	if sa != nil && sa.insertRecordFunc != nil {
+		return sa.insertRecordFunc(ctx, schemaName, tableName, row, schema, txn)
+	}
+	if sa == nil {
+		return fmt.Errorf("storage adapter is nil")
+	}
+	normalized, err := normalizeStorageRow(row, schema)
+	if err != nil {
+		return err
+	}
+	duplicate, err := sa.FindDuplicateRecord(ctx, schemaName, tableName, normalized, schema, txn)
+	if err != nil && !errors.Is(err, ErrStorageAdapterRecordNotFound) {
+		return err
+	}
+	if duplicate != nil {
+		return basic.ErrDuplicateKey
+	}
+	btreeManager, err := sa.btreeManagerForTable(ctx, schemaName, tableName)
+	if err != nil {
+		return err
+	}
+	key, err := primaryKeyValueFromRow(normalized, schema)
+	if err != nil {
+		return err
+	}
+	payload, err := encodeStorageRow(normalized, schema)
+	if err != nil {
+		return err
+	}
+	if err := btreeManager.Insert(ctx, key, payload); err != nil {
+		return err
+	}
+	return nil
+}
+
+// FindDuplicateRecord checks primary/unique key conflicts visible through the storage mapping.
+func (sa *StorageAdapter) FindDuplicateRecord(ctx context.Context, schemaName, tableName string, row map[string]interface{}, schema *metadata.Table, txn *Transaction) (Record, error) {
+	if sa != nil && sa.findDuplicateRecordFunc != nil {
+		return sa.findDuplicateRecordFunc(ctx, schemaName, tableName, row, schema, txn)
+	}
+	if sa == nil {
+		return nil, fmt.Errorf("storage adapter is nil")
+	}
+	if schema == nil {
+		return nil, ErrStorageAdapterSchemaNil
+	}
+	key, err := primaryKeyValueFromRow(row, schema)
+	if err != nil {
+		if errors.Is(err, errStorageAdapterNoPrimaryKey) {
+			return nil, ErrStorageAdapterRecordNotFound
+		}
+		return nil, err
+	}
+	btreeManager, err := sa.btreeManagerForTable(ctx, schemaName, tableName)
+	if err != nil {
+		return nil, err
+	}
+	pageNo, slot, err := btreeManager.Search(ctx, key)
+	if err != nil {
+		return nil, ErrStorageAdapterRecordNotFound
+	}
+	if sa.tableStorageManager == nil {
+		return nil, ErrStorageAdapterTableStorageManagerNil
+	}
+	tableInfo, err := sa.tableStorageManager.GetTableStorageInfo(schemaName, tableName)
+	if err != nil {
+		return nil, err
+	}
+	page, err := sa.ReadPage(ctx, tableInfo.SpaceID, pageNo)
+	if err != nil {
+		return nil, err
+	}
+	records, err := sa.ParseRecords(ctx, page, schema)
+	if err != nil {
+		return nil, err
+	}
+	if slot < 0 || slot >= len(records) {
+		return nil, ErrStorageAdapterRecordNotFound
+	}
+	return records[slot], nil
+}
+
+// UpdateRecord persists a logical record replacement. If the concrete B+Tree manager
+// supports Delete, old primary-key entries are removed before inserting the replacement.
+func (sa *StorageAdapter) UpdateRecord(ctx context.Context, schemaName, tableName string, oldRecord Record, newRecord Record, schema *metadata.Table, txn *Transaction) error {
+	if sa != nil && sa.updateRecordFunc != nil {
+		return sa.updateRecordFunc(ctx, schemaName, tableName, oldRecord, newRecord, schema, txn)
+	}
+	if sa == nil {
+		return fmt.Errorf("storage adapter is nil")
+	}
+	if oldRecord == nil || newRecord == nil {
+		return fmt.Errorf("old and new records are required")
+	}
+	btreeManager, err := sa.btreeManagerForTable(ctx, schemaName, tableName)
+	if err != nil {
+		return err
+	}
+	oldRow := recordToStorageRow(oldRecord, schema)
+	newRow := recordToStorageRow(newRecord, schema)
+	oldKey, oldKeyErr := primaryKeyValueFromRow(oldRow, schema)
+	newKey, err := primaryKeyValueFromRow(newRow, schema)
+	if err != nil {
+		return err
+	}
+	if oldKeyErr == nil && fmt.Sprintf("%v", oldKey) != fmt.Sprintf("%v", newKey) {
+		deleter, ok := btreeManager.(interface {
+			Delete(context.Context, interface{}) error
+		})
+		if !ok {
+			return fmt.Errorf("B+树管理器不支持删除旧主键，无法更新索引列")
+		}
+		if err := deleter.Delete(ctx, oldKey); err != nil {
+			return err
+		}
+	}
+	payload, err := encodeStorageRow(newRow, schema)
+	if err != nil {
+		return err
+	}
+	return btreeManager.Insert(ctx, newKey, payload)
+}
+
+// DeleteRecord deletes one logical record using its primary key when the B+Tree manager supports Delete.
+func (sa *StorageAdapter) DeleteRecord(ctx context.Context, schemaName, tableName string, record Record, schema *metadata.Table, txn *Transaction) error {
+	if sa != nil && sa.deleteRecordFunc != nil {
+		return sa.deleteRecordFunc(ctx, schemaName, tableName, record, schema, txn)
+	}
+	if sa == nil {
+		return fmt.Errorf("storage adapter is nil")
+	}
+	if record == nil {
+		return fmt.Errorf("record is required")
+	}
+	btreeManager, err := sa.btreeManagerForTable(ctx, schemaName, tableName)
+	if err != nil {
+		return err
+	}
+	deleter, ok := btreeManager.(interface {
+		Delete(context.Context, interface{}) error
+	})
+	if !ok {
+		return fmt.Errorf("B+树管理器不支持删除")
+	}
+	key, err := primaryKeyValueFromRow(recordToStorageRow(record, schema), schema)
+	if err != nil {
+		return err
+	}
+	return deleter.Delete(ctx, key)
+}
+
+func (sa *StorageAdapter) btreeManagerForTable(ctx context.Context, schemaName, tableName string) (basic.BPlusTreeManager, error) {
+	if sa.tableStorageManager == nil {
+		return nil, ErrStorageAdapterTableStorageManagerNil
+	}
+	return sa.tableStorageManager.CreateBTreeManagerForTable(ctx, schemaName, tableName)
+}
+
+func normalizeStorageRow(row map[string]interface{}, schema *metadata.Table) (map[string]interface{}, error) {
+	if schema == nil {
+		return nil, ErrStorageAdapterSchemaNil
+	}
+	if row == nil {
+		return nil, fmt.Errorf("row is nil")
+	}
+	normalized := make(map[string]interface{}, len(schema.Columns))
+	seen := make(map[string]bool, len(row))
+	for rawName, value := range row {
+		col, ok := schema.GetColumn(rawName)
+		if !ok {
+			return nil, fmt.Errorf("column %s not found in table %s", rawName, schema.Name)
+		}
+		converted, err := convertStorageValueForColumn(value, col)
+		if err != nil {
+			return nil, fmt.Errorf("column %s value conversion failed: %w", col.Name, err)
+		}
+		normalized[col.Name] = converted
+		seen[strings.ToLower(col.Name)] = true
+	}
+	for _, col := range schema.Columns {
+		if col == nil {
+			continue
+		}
+		if seen[strings.ToLower(col.Name)] {
+			continue
+		}
+		if col.DefaultValue != nil {
+			normalized[col.Name] = col.DefaultValue
+			continue
+		}
+		if col.IsNullable {
+			normalized[col.Name] = nil
+			continue
+		}
+		return nil, fmt.Errorf("column %s has no value and no default", col.Name)
+	}
+	return normalized, nil
+}
+
+func convertStorageValueForColumn(value interface{}, col *metadata.Column) (interface{}, error) {
+	if value == nil {
+		if col != nil && !col.IsNullable {
+			return nil, fmt.Errorf("column is not nullable")
+		}
+		return nil, nil
+	}
+	if col == nil {
+		return value, nil
+	}
+	switch col.DataType {
+	case metadata.TypeTinyInt, metadata.TypeSmallInt, metadata.TypeMediumInt, metadata.TypeInt, metadata.TypeBigInt:
+		switch v := value.(type) {
+		case int:
+			return int64(v), nil
+		case int32:
+			return int64(v), nil
+		case int64:
+			return v, nil
+		case uint:
+			return int64(v), nil
+		case uint32:
+			return int64(v), nil
+		case uint64:
+			if v > uint64(^uint64(0)>>1) {
+				return nil, fmt.Errorf("integer overflows int64")
+			}
+			return int64(v), nil
+		case string:
+			return strconv.ParseInt(v, 10, 64)
+		default:
+			return value, nil
+		}
+	case metadata.TypeFloat, metadata.TypeDouble, metadata.TypeDecimal:
+		switch v := value.(type) {
+		case float32:
+			return float64(v), nil
+		case float64:
+			return v, nil
+		case int64:
+			return float64(v), nil
+		case string:
+			return strconv.ParseFloat(v, 64)
+		default:
+			return value, nil
+		}
+	default:
+		return value, nil
+	}
+}
+
+func primaryKeyValueFromRow(row map[string]interface{}, schema *metadata.Table) (interface{}, error) {
+	if schema == nil {
+		return nil, ErrStorageAdapterSchemaNil
+	}
+	var columns []string
+	if schema.PrimaryKey != nil && len(schema.PrimaryKey.Columns) > 0 {
+		columns = schema.PrimaryKey.Columns
+	} else {
+		for _, idx := range schema.Indices {
+			if idx != nil && idx.IsPrimary && len(idx.Columns) > 0 {
+				columns = idx.Columns
+				break
+			}
+		}
+	}
+	if len(columns) == 0 {
+		return nil, errStorageAdapterNoPrimaryKey
+	}
+	parts := make([]string, 0, len(columns))
+	for _, col := range columns {
+		value, ok := row[col]
+		if !ok {
+			return nil, fmt.Errorf("primary key column %s not found in row", col)
+		}
+		parts = append(parts, fmt.Sprintf("%v", value))
+	}
+	if len(parts) == 1 {
+		return row[columns[0]], nil
+	}
+	return strings.Join(parts, "\x1f"), nil
+}
+
+func recordToStorageRow(record Record, schema *metadata.Table) map[string]interface{} {
+	row := make(map[string]interface{})
+	if record == nil || schema == nil {
+		return row
+	}
+	values := record.GetValues()
+	for idx, col := range schema.Columns {
+		if col == nil || idx >= len(values) || values[idx] == nil {
+			continue
+		}
+		row[col.Name] = values[idx].Raw()
+	}
+	return row
+}
+
+func encodeStorageRow(row map[string]interface{}, schema *metadata.Table) ([]byte, error) {
+	normalized, err := normalizeStorageRow(row, schema)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(normalized)
 }
 
 // GetTableMetadata 获取表的元数据

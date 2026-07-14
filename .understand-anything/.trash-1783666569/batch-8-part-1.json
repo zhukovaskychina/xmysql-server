@@ -1,0 +1,844 @@
+{
+  "nodes": [
+    {
+      "id": "file:logger/logger.go",
+      "type": "file",
+      "name": "logger.go",
+      "filePath": "logger/logger.go",
+      "summary": "实现日志格式化、级别控制与输出适配，覆盖 LogConfig、CustomFormatter、Format、getCaller 等符号，为 xmysql-server 的对应运行路径提供基础能力。",
+      "tags": [
+        "go",
+        "logging",
+        "service",
+        "source-file"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Go 文件以 package 组织类型与函数，并通过首字母大写控制包级导出。"
+    },
+    {
+      "id": "function:logger/logger.go:Format",
+      "type": "function",
+      "name": "Format",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        36,
+        57
+      ],
+      "summary": "编码或格式化 Format 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "serialization",
+        "logging",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:getCaller",
+      "type": "function",
+      "name": "getCaller",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        60,
+        90
+      ],
+      "summary": "实现 getCaller 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:parseLogLevel",
+      "type": "function",
+      "name": "parseLogLevel",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        93,
+        110
+      ],
+      "summary": "实现 parseLogLevel 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:InitLogger",
+      "type": "function",
+      "name": "InitLogger",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        113,
+        164
+      ],
+      "summary": "启动或初始化 InitLogger 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "lifecycle",
+        "logging",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:logger/logger.go:openLogFile",
+      "type": "function",
+      "name": "openLogFile",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        167,
+        176
+      ],
+      "summary": "实现 openLogFile 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:Info",
+      "type": "function",
+      "name": "Info",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        179,
+        183
+      ],
+      "summary": "实现 Info 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:Infof",
+      "type": "function",
+      "name": "Infof",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        186,
+        190
+      ],
+      "summary": "实现 Infof 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:Debug",
+      "type": "function",
+      "name": "Debug",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        193,
+        197
+      ],
+      "summary": "实现 Debug 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:Debugf",
+      "type": "function",
+      "name": "Debugf",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        200,
+        204
+      ],
+      "summary": "实现 Debugf 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:Warn",
+      "type": "function",
+      "name": "Warn",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        207,
+        211
+      ],
+      "summary": "实现 Warn 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:Warnf",
+      "type": "function",
+      "name": "Warnf",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        214,
+        218
+      ],
+      "summary": "实现 Warnf 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:Error",
+      "type": "function",
+      "name": "Error",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        221,
+        225
+      ],
+      "summary": "实现 Error 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:Errorf",
+      "type": "function",
+      "name": "Errorf",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        228,
+        232
+      ],
+      "summary": "实现 Errorf 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:Fatal",
+      "type": "function",
+      "name": "Fatal",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        235,
+        239
+      ],
+      "summary": "实现 Fatal 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:Fatalf",
+      "type": "function",
+      "name": "Fatalf",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        242,
+        246
+      ],
+      "summary": "实现 Fatalf 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:Printf",
+      "type": "function",
+      "name": "Printf",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        249,
+        256
+      ],
+      "summary": "实现 Printf 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:Print",
+      "type": "function",
+      "name": "Print",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        259,
+        266
+      ],
+      "summary": "实现 Print 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:Println",
+      "type": "function",
+      "name": "Println",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        269,
+        276
+      ],
+      "summary": "实现 Println 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:Notice",
+      "type": "function",
+      "name": "Notice",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        279,
+        281
+      ],
+      "summary": "实现 Notice 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:WriteNoticeLog",
+      "type": "function",
+      "name": "WriteNoticeLog",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        284,
+        286
+      ],
+      "summary": "更新或持久化 WriteNoticeLog 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "logging",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:WriteErrorLog",
+      "type": "function",
+      "name": "WriteErrorLog",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        289,
+        291
+      ],
+      "summary": "更新或持久化 WriteErrorLog 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "write",
+        "logging",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:Log",
+      "type": "function",
+      "name": "Log",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        294,
+        296
+      ],
+      "summary": "实现 Log 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:LogErr",
+      "type": "function",
+      "name": "LogErr",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        299,
+        301
+      ],
+      "summary": "实现 LogErr 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:LogDebug",
+      "type": "function",
+      "name": "LogDebug",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        304,
+        306
+      ],
+      "summary": "实现 LogDebug 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "function",
+        "logging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:logger/logger.go:CheckError",
+      "type": "function",
+      "name": "CheckError",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        309,
+        313
+      ],
+      "summary": "检查 CheckError 对应的日志格式化、级别控制与输出适配流程，并封装该步骤的输入、状态变化与返回结果。",
+      "tags": [
+        "go",
+        "validation",
+        "logging",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:logger/logger.go:LogConfig",
+      "type": "class",
+      "name": "LogConfig",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        24,
+        28
+      ],
+      "summary": "LogConfig 定义日志格式化、级别控制与输出适配所需的数据结构。",
+      "tags": [
+        "go",
+        "data-model",
+        "logging",
+        "type-definition"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:logger/logger.go:CustomFormatter",
+      "type": "class",
+      "name": "CustomFormatter",
+      "filePath": "logger/logger.go",
+      "lineRange": [
+        31,
+        33
+      ],
+      "summary": "CustomFormatter 定义日志格式化、级别控制与输出适配所需的数据结构，并通过 Format 等方法暴露行为。",
+      "tags": [
+        "go",
+        "data-model",
+        "logging",
+        "behavior"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Format",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Format",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:getCaller",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:parseLogLevel",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:InitLogger",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:InitLogger",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:openLogFile",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Info",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Info",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Infof",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Infof",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Debug",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Debug",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Debugf",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Debugf",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Warn",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Warn",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Warnf",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Warnf",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Error",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Error",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Errorf",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Errorf",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Fatal",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Fatal",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Fatalf",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Fatalf",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Printf",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Printf",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Print",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Print",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Println",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Println",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Notice",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Notice",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:WriteNoticeLog",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:WriteNoticeLog",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:WriteErrorLog",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:WriteErrorLog",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Log",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:Log",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:LogErr",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:LogErr",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:LogDebug",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:LogDebug",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:CheckError",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "function:logger/logger.go:CheckError",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "class:logger/logger.go:LogConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "class:logger/logger.go:LogConfig",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "class:logger/logger.go:CustomFormatter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:logger/logger.go",
+      "target": "class:logger/logger.go:CustomFormatter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}
