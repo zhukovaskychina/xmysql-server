@@ -110,8 +110,8 @@ func (dw *DataDictionaryPageWrapper) ParseFromBytes(data []byte) error {
 
 // ToBytes 序列化数据字典页面为字节数组
 func (dw *DataDictionaryPageWrapper) ToBytes() ([]byte, error) {
-	dw.RLock()
-	defer dw.RUnlock()
+	dw.Lock()
+	defer dw.Unlock()
 
 	if dw.dictPage == nil {
 		dw.dictPage = pages.NewDataDictHeaderPage()
@@ -154,8 +154,32 @@ func (dw *DataDictionaryPageWrapper) ToBytes() ([]byte, error) {
 		data[i] = 0
 	}
 
-	dw.UpdateChecksum()
+	dw.updateSerializedChecksumLocked(data)
+	if len(dw.content) != len(data) {
+		dw.content = make([]byte, len(data))
+	}
+	copy(dw.content, data)
+	dw.markDirtyLocked()
 	return data, nil
+}
+
+func (dw *DataDictionaryPageWrapper) updateSerializedChecksumLocked(data []byte) {
+	if len(data) < pages.FileHeaderSize+pages.FileTrailerSize {
+		return
+	}
+
+	checker := pages.NewPageIntegrityChecker(pages.ChecksumCRC32)
+	checksum32 := checker.CalculateChecksum(data)
+	binary.LittleEndian.PutUint32(data[0:4], checksum32)
+
+	dw.trailer.SetChecksum(uint64(checksum32))
+	copy(data[len(data)-pages.FileTrailerSize:], dw.trailer.FileTrailer[:])
+}
+
+func (dw *DataDictionaryPageWrapper) markDirtyLocked() {
+	dw.dirty = true
+	dw.state = basic.PageStateDirty
+	dw.stats.DirtyCount++
 }
 
 // parseDataDictContent 解析数据字典内容
@@ -356,7 +380,7 @@ func (dw *DataDictionaryPageWrapper) AddTableDef(def *TableDef) error {
 	}
 
 	dw.syncTableIndexesLocked()
-	dw.MarkDirty()
+	dw.markDirtyLocked()
 	return nil
 }
 
@@ -383,7 +407,7 @@ func (dw *DataDictionaryPageWrapper) RemoveTableDef(id uint64) error {
 	}
 
 	dw.syncTableIndexesLocked()
-	dw.MarkDirty()
+	dw.markDirtyLocked()
 	return nil
 }
 
@@ -463,7 +487,7 @@ func (dw *DataDictionaryPageWrapper) AddIndexDefForTable(index *IndexDef, tableI
 	}
 
 	dw.syncTableIndexesLocked()
-	dw.MarkDirty()
+	dw.markDirtyLocked()
 	return nil
 }
 
@@ -501,7 +525,7 @@ func (dw *DataDictionaryPageWrapper) RemoveIndexDef(id uint64) error {
 	}
 
 	dw.syncTableIndexesLocked()
-	dw.MarkDirty()
+	dw.markDirtyLocked()
 	return nil
 }
 
