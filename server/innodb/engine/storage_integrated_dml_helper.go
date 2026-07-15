@@ -55,6 +55,15 @@ func (dml *StorageIntegratedDMLExecutor) generatePrimaryKey(row *InsertRowData, 
 
 // serializeRowData 序列化行数据
 func (dml *StorageIntegratedDMLExecutor) serializeRowData(row *InsertRowData, tableMeta *metadata.TableMeta) ([]byte, error) {
+	if tableMeta != nil {
+		encoded, err := EncodeClusteredRecord(row, tableMeta)
+		if err != nil {
+			return nil, err
+		}
+		logger.Debugf(" 序列化行数据完成，大小: %d bytes", len(encoded))
+		return encoded, nil
+	}
+
 	// 创建行数据缓冲区
 	var buffer []byte
 
@@ -127,7 +136,14 @@ func (dml *StorageIntegratedDMLExecutor) serializeValue(value interface{}) ([]by
 }
 
 // deserializeRowData 反序列化行数据
-func (dml *StorageIntegratedDMLExecutor) deserializeRowData(data []byte) (*InsertRowData, error) {
+func (dml *StorageIntegratedDMLExecutor) deserializeRowData(data []byte, tableMetaOpt ...*metadata.TableMeta) (*InsertRowData, error) {
+	if len(tableMetaOpt) > 0 && tableMetaOpt[0] != nil {
+		return DecodeClusteredRecord(data, tableMetaOpt[0])
+	}
+	if strings.HasPrefix(string(data), clusteredRecordMagic) {
+		return nil, fmt.Errorf("clustered record metadata is required")
+	}
+
 	if len(data) < 2 {
 		return nil, fmt.Errorf("数据长度不足")
 	}
@@ -569,7 +585,7 @@ func (dml *StorageIntegratedDMLExecutor) findRowsToUpdateInStorage(
 			}
 
 			// 读取现有数据作为OldValues
-			existingData, err := dml.readRowFromStorage(ctx, pageNo, slot, tableStorageInfo)
+			existingData, err := dml.readRowFromStorage(ctx, pageNo, slot, tableStorageInfo, tableMeta)
 			if err != nil {
 				logger.Debugf("  读取现有数据失败: %v", err)
 				continue
@@ -616,7 +632,7 @@ func (dml *StorageIntegratedDMLExecutor) scanRowsForConditions(
 		if pageRow.Deleted {
 			continue
 		}
-		rowData, err := dml.deserializeRowData(pageRow.Data)
+		rowData, err := dml.deserializeRowData(pageRow.Data, tableMeta)
 		if err != nil {
 			return nil, fmt.Errorf("反序列化行数据失败: %v", err)
 		}
@@ -666,7 +682,7 @@ func (dml *StorageIntegratedDMLExecutor) findRowsToDeleteInStorage(
 			}
 
 			// 读取现有数据作为OldValues
-			existingData, err := dml.readRowFromStorage(ctx, pageNo, slot, tableStorageInfo)
+			existingData, err := dml.readRowFromStorage(ctx, pageNo, slot, tableStorageInfo, tableMeta)
 			if err != nil {
 				logger.Debugf("  读取现有数据失败: %v", err)
 				continue
@@ -706,6 +722,7 @@ func (dml *StorageIntegratedDMLExecutor) readRowFromStorage(
 	pageNo uint32,
 	slot int,
 	tableStorageInfo *manager.TableStorageInfo,
+	tableMetaOpt ...*metadata.TableMeta,
 ) (*InsertRowData, error) {
 	logger.Debugf("📖 从存储引擎读取行数据: PageNo=%d, Slot=%d", pageNo, slot)
 
@@ -732,7 +749,11 @@ func (dml *StorageIntegratedDMLExecutor) readRowFromStorage(
 		return nil, fmt.Errorf("slot %d has been deleted", slot)
 	}
 
-	rowData, err := dml.deserializeRowData(rows[slot].Data)
+	var tableMeta *metadata.TableMeta
+	if len(tableMetaOpt) > 0 {
+		tableMeta = tableMetaOpt[0]
+	}
+	rowData, err := dml.deserializeRowData(rows[slot].Data, tableMeta)
 	if err != nil {
 		return nil, fmt.Errorf("反序列化行数据失败: %v", err)
 	}
