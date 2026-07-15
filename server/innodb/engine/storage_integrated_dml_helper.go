@@ -15,13 +15,6 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
-var dmlPageRowsMagic = []byte("XDMLROWS1")
-
-type dmlPageRow struct {
-	Deleted bool
-	Data    []byte
-}
-
 // ===== 数据序列化与反序列化方法 =====
 
 // generatePrimaryKey 生成主键值
@@ -231,149 +224,6 @@ func (dml *StorageIntegratedDMLExecutor) deserializeValue(data []byte) (interfac
 	default:
 		return nil, fmt.Errorf("未知类型标记: %d", typeFlag)
 	}
-}
-
-func encodeDMLPageRows(rows []dmlPageRow) ([]byte, error) {
-	if len(rows) > int(^uint16(0)) {
-		return nil, fmt.Errorf("too many rows in page: %d", len(rows))
-	}
-
-	buffer := make([]byte, 0)
-	buffer = append(buffer, dmlPageRowsMagic...)
-
-	countBytes := make([]byte, 2)
-	binary.LittleEndian.PutUint16(countBytes, uint16(len(rows)))
-	buffer = append(buffer, countBytes...)
-
-	for idx, row := range rows {
-		if len(row.Data) > int(^uint32(0)) {
-			return nil, fmt.Errorf("row %d too large: %d bytes", idx, len(row.Data))
-		}
-		if row.Deleted {
-			buffer = append(buffer, 1)
-		} else {
-			buffer = append(buffer, 0)
-		}
-
-		lenBytes := make([]byte, 4)
-		binary.LittleEndian.PutUint32(lenBytes, uint32(len(row.Data)))
-		buffer = append(buffer, lenBytes...)
-		buffer = append(buffer, row.Data...)
-	}
-
-	return buffer, nil
-}
-
-func decodeDMLPageRows(content []byte) ([]dmlPageRow, error) {
-	if len(content) == 0 {
-		return []dmlPageRow{}, nil
-	}
-
-	if isEmptyDMLPageContent(content) {
-		return []dmlPageRow{}, nil
-	}
-
-	if !strings.HasPrefix(string(content), string(dmlPageRowsMagic)) {
-		return []dmlPageRow{{Data: content}}, nil
-	}
-
-	offset := len(dmlPageRowsMagic)
-	if offset+2 > len(content) {
-		return nil, fmt.Errorf("页内行集合头不完整")
-	}
-
-	rowCount := int(binary.LittleEndian.Uint16(content[offset:]))
-	offset += 2
-
-	rows := make([]dmlPageRow, 0, rowCount)
-	for i := 0; i < rowCount; i++ {
-		if offset+5 > len(content) {
-			return nil, fmt.Errorf("页内行集合第 %d 行头不完整", i)
-		}
-
-		deleted := content[offset] == 1
-		offset++
-
-		rowLen := int(binary.LittleEndian.Uint32(content[offset:]))
-		offset += 4
-		if rowLen < 0 || offset+rowLen > len(content) {
-			return nil, fmt.Errorf("页内行集合第 %d 行数据不完整", i)
-		}
-
-		rowData := make([]byte, rowLen)
-		copy(rowData, content[offset:offset+rowLen])
-		offset += rowLen
-
-		rows = append(rows, dmlPageRow{Deleted: deleted, Data: rowData})
-	}
-
-	return rows, nil
-}
-
-func isEmptyDMLPageContent(content []byte) bool {
-	for _, b := range content {
-		if b != 0 {
-			return false
-		}
-	}
-	return true
-}
-
-func appendDMLPageRow(content []byte, rowData []byte) ([]byte, int, error) {
-	rows, err := decodeDMLPageRows(content)
-	if err != nil {
-		return nil, -1, err
-	}
-	nextSlot := len(rows)
-	rowCopy := make([]byte, len(rowData))
-	copy(rowCopy, rowData)
-	rows = append(rows, dmlPageRow{Data: rowCopy})
-
-	encoded, err := encodeDMLPageRows(rows)
-	if err != nil {
-		return nil, -1, err
-	}
-	return encoded, nextSlot, nil
-}
-
-func replaceDMLPageRow(content []byte, slot int, rowData []byte) ([]byte, error) {
-	if slot < 0 {
-		return nil, fmt.Errorf("slot index cannot be negative: %d", slot)
-	}
-
-	rows, err := decodeDMLPageRows(content)
-	if err != nil {
-		return nil, err
-	}
-	if slot >= len(rows) {
-		return nil, fmt.Errorf("slot %d out of range, row count %d", slot, len(rows))
-	}
-	if rows[slot].Deleted {
-		return nil, fmt.Errorf("slot %d has been deleted", slot)
-	}
-
-	rowCopy := make([]byte, len(rowData))
-	copy(rowCopy, rowData)
-	rows[slot].Data = rowCopy
-
-	return encodeDMLPageRows(rows)
-}
-
-func markDMLPageRowDeleted(content []byte, slot int) ([]byte, error) {
-	if slot < 0 {
-		return nil, fmt.Errorf("slot index cannot be negative: %d", slot)
-	}
-
-	rows, err := decodeDMLPageRows(content)
-	if err != nil {
-		return nil, err
-	}
-	if slot >= len(rows) {
-		return nil, fmt.Errorf("slot %d out of range, row count %d", slot, len(rows))
-	}
-
-	rows[slot].Deleted = true
-	return encodeDMLPageRows(rows)
 }
 
 // convertPrimaryKeyToUint64 将主键转换为uint64
@@ -616,43 +466,7 @@ func (dml *StorageIntegratedDMLExecutor) scanRowsForConditions(
 	tableMeta *metadata.TableMeta,
 	tableStorageInfo *manager.TableStorageInfo,
 ) ([]*RowUpdateInfo, error) {
-	pageNo := tableStorageInfo.RootPageNo
-	bufferPage, err := dml.bufferPoolManager.GetPage(tableStorageInfo.SpaceID, pageNo)
-	if err != nil {
-		return nil, fmt.Errorf("获取页面失败: %v", err)
-	}
-
-	pageRows, err := decodeDMLPageRows(bufferPage.GetContent())
-	if err != nil {
-		return nil, fmt.Errorf("解析页内行数据失败: %v", err)
-	}
-
-	matched := make([]*RowUpdateInfo, 0)
-	for slot, pageRow := range pageRows {
-		if pageRow.Deleted {
-			continue
-		}
-		rowData, err := dml.deserializeRowData(pageRow.Data, tableMeta)
-		if err != nil {
-			return nil, fmt.Errorf("反序列化行数据失败: %v", err)
-		}
-		ok, err := rowMatchesWhereConditions(rowData.ColumnValues, whereConditions)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			continue
-		}
-		rowID := dml.rowIDFromRowData(rowData, tableMeta)
-		matched = append(matched, &RowUpdateInfo{
-			RowId:     rowID,
-			PageNum:   pageNo,
-			SlotIndex: slot,
-			OldValues: rowData.ColumnValues,
-		})
-	}
-
-	return matched, nil
+	return nil, fmt.Errorf("B+Tree row scanner is not wired for storage-integrated DML yet")
 }
 
 // findRowsToDeleteInStorage 在存储引擎中查找待删除的行
@@ -725,73 +539,7 @@ func (dml *StorageIntegratedDMLExecutor) readRowFromStorage(
 	tableMetaOpt ...*metadata.TableMeta,
 ) (*InsertRowData, error) {
 	logger.Debugf("📖 从存储引擎读取行数据: PageNo=%d, Slot=%d", pageNo, slot)
-
-	// 获取页面
-	bufferPage, err := dml.bufferPoolManager.GetPage(tableStorageInfo.SpaceID, pageNo)
-	if err != nil {
-		return nil, fmt.Errorf("获取页面失败: %v", err)
-	}
-
-	// 读取页面内容
-	pageContent := bufferPage.GetContent()
-	if len(pageContent) == 0 {
-		return nil, fmt.Errorf("页面内容为空")
-	}
-
-	rows, err := decodeDMLPageRows(pageContent)
-	if err != nil {
-		return nil, fmt.Errorf("解析页内行数据失败: %v", err)
-	}
-	if slot < 0 || slot >= len(rows) {
-		return nil, fmt.Errorf("slot %d out of range, row count %d", slot, len(rows))
-	}
-	if rows[slot].Deleted {
-		return nil, fmt.Errorf("slot %d has been deleted", slot)
-	}
-
-	var tableMeta *metadata.TableMeta
-	if len(tableMetaOpt) > 0 {
-		tableMeta = tableMetaOpt[0]
-	}
-	rowData, err := dml.deserializeRowData(rows[slot].Data, tableMeta)
-	if err != nil {
-		return nil, fmt.Errorf("反序列化行数据失败: %v", err)
-	}
-
-	logger.Debugf(" 成功读取行数据: %+v", rowData.ColumnValues)
-	return rowData, nil
-}
-
-// markRowAsDeletedInStorage 在存储引擎中标记行为已删除
-func (dml *StorageIntegratedDMLExecutor) markRowAsDeletedInStorage(
-	ctx context.Context,
-	pageNo uint32,
-	slot int,
-	tableStorageInfo *manager.TableStorageInfo,
-) error {
-	if err := dml.waitForCheckpointWritePermit(ctx); err != nil {
-		return err
-	}
-
-	logger.Debugf("🗑️ 在存储引擎中标记行为已删除: PageNo=%d, Slot=%d", pageNo, slot)
-
-	// 获取页面
-	bufferPage, err := dml.bufferPoolManager.GetPage(tableStorageInfo.SpaceID, pageNo)
-	if err != nil {
-		return fmt.Errorf("获取页面失败: %v", err)
-	}
-
-	pageContent := bufferPage.GetContent()
-	updatedContent, err := markDMLPageRowDeleted(pageContent, slot)
-	if err != nil {
-		return fmt.Errorf("标记页内行为已删除失败: %v", err)
-	}
-
-	bufferPage.SetContent(updatedContent)
-	bufferPage.MarkDirty()
-
-	logger.Debugf(" 成功标记行为已删除")
-	return nil
+	return nil, fmt.Errorf("B+Tree record reader is not wired for storage-integrated DML yet")
 }
 
 // ===== 辅助解析方法 =====

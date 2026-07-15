@@ -88,6 +88,11 @@ func (m *MockBTreeManager) Insert(ctx context.Context, key interface{}, value []
 	return nil
 }
 
+func (m *MockBTreeManager) Delete(ctx context.Context, key interface{}) error {
+	delete(m.insertedData, key)
+	return nil
+}
+
 func (m *MockBTreeManager) RangeSearch(ctx context.Context, startKey, endKey interface{}) ([]basic.Row, error) {
 	return nil, nil
 }

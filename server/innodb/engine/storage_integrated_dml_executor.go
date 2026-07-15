@@ -553,9 +553,6 @@ func (dml *StorageIntegratedDMLExecutor) insertRowToStorage(
 	if btreeManager == nil {
 		return 0, fmt.Errorf("B+树管理器未初始化")
 	}
-	if dml.bufferPoolManager == nil {
-		return 0, fmt.Errorf("缓冲池管理器未初始化")
-	}
 
 	logger.Debugf(" 插入行到存储引擎: SpaceID=%d, 数据=%+v", tableStorageInfo.SpaceID, row.ColumnValues)
 
@@ -577,39 +574,7 @@ func (dml *StorageIntegratedDMLExecutor) insertRowToStorage(
 		return 0, fmt.Errorf("插入到B+树失败: %v", err)
 	}
 
-	bufferPage, err := dml.bufferPoolManager.GetPage(tableStorageInfo.SpaceID, tableStorageInfo.RootPageNo)
-	if err != nil {
-		return 0, fmt.Errorf("获取插入目标页失败: %v", err)
-	}
-	updatedPageContent, _, err := appendDMLPageRow(bufferPage.GetContent(), serializedRow)
-	if err != nil {
-		return 0, fmt.Errorf("写入页内行集合失败: %v", err)
-	}
-	bufferPage.SetContent(updatedPageContent)
-	bufferPage.MarkDirty()
-	if txnCtx, ok := txn.(*StorageTransactionContext); ok && txnCtx != nil {
-		txnCtx.ModifiedPages[fmt.Sprintf("%d:%d", tableStorageInfo.SpaceID, tableStorageInfo.RootPageNo)] = tableStorageInfo.RootPageNo
-	}
-
-	// 4. 立即持久化页面到磁盘（确保数据安全）
-	if dml.persistenceManager != nil {
-		err = dml.persistenceManager.FlushPage(ctx, tableStorageInfo.SpaceID, tableStorageInfo.RootPageNo)
-		if err != nil {
-			logger.Errorf(" 立即持久化页面失败: %v", err)
-			// 不返回错误，但记录日志
-		} else {
-			logger.Debugf("💾 页面已立即持久化: SpaceID=%d, PageNo=%d",
-				tableStorageInfo.SpaceID, tableStorageInfo.RootPageNo)
-		}
-	}
-
-	// 5. 强制刷新缓冲池页面到磁盘（双重保障）
-	err = dml.bufferPoolManager.FlushPage(tableStorageInfo.SpaceID, tableStorageInfo.RootPageNo)
-	if err != nil {
-		logger.Debugf("  警告: 刷新页面到磁盘失败: %v", err)
-	}
-
-	logger.Debugf(" 行成功插入到存储引擎并持久化，主键: %v", primaryKey)
+	logger.Debugf(" 行成功插入到B+树，主键: %v", primaryKey)
 	return dml.convertPrimaryKeyToUint64(primaryKey), nil
 }
 
@@ -635,78 +600,42 @@ func (dml *StorageIntegratedDMLExecutor) updateRowInStorage(
 	if btreeManager == nil {
 		return fmt.Errorf("B+树管理器未初始化")
 	}
-	if dml.bufferPoolManager == nil {
-		return fmt.Errorf("缓冲池管理器未初始化")
-	}
 
 	logger.Debugf(" 在存储引擎中更新行: RowID=%d, 更新列数=%d", rowInfo.RowId, len(updateExprs))
 
-	// 1. 根据RowID查找现有行数据
+	if len(rowInfo.OldValues) == 0 {
+		return fmt.Errorf("B+Tree record reader is not wired for UPDATE old values")
+	}
+
+	// 1. 使用查找阶段记录的旧值构造现有行数据
 	primaryKey := rowInfo.RowId
-	pageNo, slot, err := btreeManager.Search(ctx, primaryKey)
-	if err != nil {
-		return fmt.Errorf("查找行失败: %v", err)
+	existingRowData := &InsertRowData{
+		ColumnValues: make(map[string]interface{}, len(rowInfo.OldValues)),
+		ColumnTypes:  make(map[string]metadata.DataType, len(rowInfo.OldValues)),
+	}
+	for columnName, value := range rowInfo.OldValues {
+		existingRowData.ColumnValues[columnName] = value
 	}
 
-	logger.Debugf(" 找到行位置: PageNo=%d, Slot=%d", pageNo, slot)
-
-	// 2. 读取现有行数据
-	existingRowData, err := dml.readRowFromStorage(ctx, pageNo, slot, tableStorageInfo)
-	if err != nil {
-		return fmt.Errorf("读取现有行数据失败: %v", err)
-	}
-
-	// 3. 应用更新表达式
+	// 2. 应用更新表达式
 	updatedRowData, err := dml.applyUpdateExpressions(existingRowData, updateExprs, tableMeta)
 	if err != nil {
 		return fmt.Errorf("应用更新表达式失败: %v", err)
 	}
 
-	// 4. 序列化更新后的行数据
+	// 3. 序列化更新后的行数据
 	serializedRow, err := dml.serializeRowData(updatedRowData, tableMeta)
 	if err != nil {
 		return fmt.Errorf("序列化更新后的行数据失败: %v", err)
 	}
 
-	// 5. 在B+树中更新记录（先删除后插入）
-	// 注意：这里简化处理，实际应该有更复杂的就地更新逻辑
+	// 4. 在B+树中更新记录
 	err = btreeManager.Insert(ctx, primaryKey, serializedRow)
 	if err != nil {
 		return fmt.Errorf("更新B+树记录失败: %v", err)
 	}
 
-	bufferPage, err := dml.bufferPoolManager.GetPage(tableStorageInfo.SpaceID, pageNo)
-	if err != nil {
-		return fmt.Errorf("获取更新目标页失败: %v", err)
-	}
-	updatedPageContent, err := replaceDMLPageRow(bufferPage.GetContent(), slot, serializedRow)
-	if err != nil {
-		return fmt.Errorf("覆盖页内行失败: %v", err)
-	}
-	bufferPage.SetContent(updatedPageContent)
-	bufferPage.MarkDirty()
-	if txnCtx, ok := txn.(*StorageTransactionContext); ok && txnCtx != nil {
-		txnCtx.ModifiedPages[fmt.Sprintf("%d:%d", tableStorageInfo.SpaceID, pageNo)] = pageNo
-	}
-
-	// 6. 立即持久化更新的页面（确保数据安全）
-	if dml.persistenceManager != nil {
-		err = dml.persistenceManager.FlushPage(ctx, tableStorageInfo.SpaceID, pageNo)
-		if err != nil {
-			logger.Errorf(" 立即持久化更新页面失败: %v", err)
-		} else {
-			logger.Debugf("💾 更新页面已立即持久化: SpaceID=%d, PageNo=%d",
-				tableStorageInfo.SpaceID, pageNo)
-		}
-	}
-
-	// 7. 强制刷新到磁盘（双重保障）
-	err = dml.bufferPoolManager.FlushPage(tableStorageInfo.SpaceID, pageNo)
-	if err != nil {
-		logger.Debugf("  警告: 刷新更新页面到磁盘失败: %v", err)
-	}
-
-	logger.Debugf(" 行成功在存储引擎中更新并持久化")
+	logger.Debugf(" 行成功在B+树中更新")
 	return nil
 }
 
@@ -731,45 +660,17 @@ func (dml *StorageIntegratedDMLExecutor) deleteRowFromStorage(
 	if btreeManager == nil {
 		return fmt.Errorf("B+树管理器未初始化")
 	}
-	if dml.bufferPoolManager == nil {
-		return fmt.Errorf("缓冲池管理器未初始化")
-	}
 
 	logger.Debugf("🗑️ 从存储引擎删除行: RowID=%d", rowInfo.RowId)
 
-	// 1. 根据RowID查找行位置
+	// 1. 从B+树删除记录
 	primaryKey := rowInfo.RowId
-	pageNo, slot, err := btreeManager.Search(ctx, primaryKey)
+	err := btreeManager.Delete(ctx, primaryKey)
 	if err != nil {
-		return fmt.Errorf("查找待删除行失败: %v", err)
+		return fmt.Errorf("删除B+树记录失败: %v", err)
 	}
 
-	logger.Debugf(" 找到待删除行位置: PageNo=%d, Slot=%d", pageNo, slot)
-
-	// 2. 从存储页面中标记删除记录
-	err = dml.markRowAsDeletedInStorage(ctx, pageNo, slot, tableStorageInfo)
-	if err != nil {
-		return fmt.Errorf("标记行为已删除失败: %v", err)
-	}
-
-	// 3. 立即持久化删除操作（确保数据安全）
-	if dml.persistenceManager != nil {
-		err = dml.persistenceManager.FlushPage(ctx, tableStorageInfo.SpaceID, pageNo)
-		if err != nil {
-			logger.Errorf(" 立即持久化删除页面失败: %v", err)
-		} else {
-			logger.Debugf("💾 删除页面已立即持久化: SpaceID=%d, PageNo=%d",
-				tableStorageInfo.SpaceID, pageNo)
-		}
-	}
-
-	// 4. 强制刷新到磁盘（双重保障）
-	err = dml.bufferPoolManager.FlushPage(tableStorageInfo.SpaceID, pageNo)
-	if err != nil {
-		logger.Debugf("  警告: 刷新删除页面到磁盘失败: %v", err)
-	}
-
-	logger.Debugf(" 行成功从存储引擎删除并持久化")
+	logger.Debugf(" 行成功从B+树删除")
 	return nil
 }
 

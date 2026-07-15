@@ -2,10 +2,15 @@ package engine
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
 func TestStorageIntegratedDMLExecutor_FindRowsToUpdateRejectsMissingWhere(t *testing.T) {
@@ -26,83 +31,57 @@ func TestStorageIntegratedDMLExecutor_FindRowsToDeleteRejectsMissingWhere(t *tes
 	assert.Nil(t, rows)
 }
 
-func TestStorageIntegratedDMLExecutor_MarkRowDeletedInPageContentPreservesOtherRows(t *testing.T) {
+func TestStorageIntegratedDMLExecutor_RowSerializationUsesClusteredRecordWithoutLegacyPagePayload(t *testing.T) {
 	executor := NewStorageIntegratedDMLExecutor(nil, nil, nil, nil, nil, nil, nil, nil)
+	tableMeta := &metadata.TableMeta{
+		Name: "users",
+		Columns: []*metadata.ColumnMeta{
+			{Name: "id", Type: metadata.TypeInt, IsPrimary: true},
+			{Name: "name", Type: metadata.TypeVarchar},
+		},
+	}
+	row := &InsertRowData{
+		ColumnValues: map[string]interface{}{
+			"id":   int64(1),
+			"name": "alice",
+		},
+		ColumnTypes: map[string]metadata.DataType{
+			"id":   metadata.TypeInt,
+			"name": metadata.TypeVarchar,
+		},
+	}
 
-	first, err := executor.serializeRowData(&InsertRowData{ColumnValues: map[string]interface{}{"id": int64(1)}}, nil)
-	require.NoError(t, err)
-	second, err := executor.serializeRowData(&InsertRowData{ColumnValues: map[string]interface{}{"id": int64(2)}}, nil)
+	serialized, err := executor.serializeRowData(row, tableMeta)
 	require.NoError(t, err)
 
-	pageContent, err := encodeDMLPageRows([]dmlPageRow{
-		{Data: first},
-		{Data: second},
-	})
-	require.NoError(t, err)
-
-	updatedContent, err := markDMLPageRowDeleted(pageContent, 0)
-	require.NoError(t, err)
-
-	rows, err := decodeDMLPageRows(updatedContent)
-	require.NoError(t, err)
-	require.Len(t, rows, 2)
-	assert.True(t, rows[0].Deleted)
-	assert.False(t, rows[1].Deleted)
-
-	row, err := executor.deserializeRowData(rows[1].Data)
-	require.NoError(t, err)
-	assert.Equal(t, int64(2), row.ColumnValues["id"])
+	assert.True(t, strings.HasPrefix(string(serialized), clusteredRecordMagic))
+	assert.NotContains(t, string(serialized), "XDML"+"ROWS1")
 }
 
-func TestStorageIntegratedDMLExecutor_PageRowsAppendAndReplace(t *testing.T) {
-	executor := NewStorageIntegratedDMLExecutor(nil, nil, nil, nil, nil, nil, nil, nil)
+func TestStorageIntegratedDMLExecutor_SourceHasNoLegacyRootPageRowHelpers(t *testing.T) {
+	_, currentFile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	engineDir := filepath.Dir(currentFile)
+	files := []string{
+		"storage_integrated_dml_helper.go",
+		"storage_integrated_dml_executor.go",
+		"select_executor.go",
+	}
+	forbidden := []string{
+		"XDML" + "ROWS1",
+		"dml" + "Page" + "RowsMagic",
+		"append" + "DML" + "PageRow",
+		"replace" + "DML" + "PageRow",
+		"mark" + "DML" + "PageRowDeleted",
+		"encode" + "DML" + "PageRows",
+		"decode" + "DML" + "PageRows",
+	}
 
-	first, err := executor.serializeRowData(&InsertRowData{ColumnValues: map[string]interface{}{"id": int64(1), "name": "alice"}}, nil)
-	require.NoError(t, err)
-	second, err := executor.serializeRowData(&InsertRowData{ColumnValues: map[string]interface{}{"id": int64(2), "name": "bob"}}, nil)
-	require.NoError(t, err)
-
-	content, slot, err := appendDMLPageRow(make([]byte, 128), first)
-	require.NoError(t, err)
-	assert.Equal(t, 0, slot)
-
-	content, slot, err = appendDMLPageRow(content, second)
-	require.NoError(t, err)
-	assert.Equal(t, 1, slot)
-
-	replacement, err := executor.serializeRowData(&InsertRowData{ColumnValues: map[string]interface{}{"id": int64(1), "name": "carol"}}, nil)
-	require.NoError(t, err)
-
-	content, err = replaceDMLPageRow(content, 0, replacement)
-	require.NoError(t, err)
-
-	rows, err := decodeDMLPageRows(content)
-	require.NoError(t, err)
-	require.Len(t, rows, 2)
-
-	replaced, err := executor.deserializeRowData(rows[0].Data)
-	require.NoError(t, err)
-	assert.Equal(t, "carol", replaced.ColumnValues["name"])
-
-	unchanged, err := executor.deserializeRowData(rows[1].Data)
-	require.NoError(t, err)
-	assert.Equal(t, "bob", unchanged.ColumnValues["name"])
-}
-
-func TestStorageIntegratedDMLExecutor_PageRowsRejectReplaceDeletedSlot(t *testing.T) {
-	executor := NewStorageIntegratedDMLExecutor(nil, nil, nil, nil, nil, nil, nil, nil)
-
-	first, err := executor.serializeRowData(&InsertRowData{ColumnValues: map[string]interface{}{"id": int64(1)}}, nil)
-	require.NoError(t, err)
-	content, _, err := appendDMLPageRow(nil, first)
-	require.NoError(t, err)
-
-	content, err = markDMLPageRowDeleted(content, 0)
-	require.NoError(t, err)
-
-	replacement, err := executor.serializeRowData(&InsertRowData{ColumnValues: map[string]interface{}{"id": int64(2)}}, nil)
-	require.NoError(t, err)
-
-	_, err = replaceDMLPageRow(content, 0, replacement)
-	assert.Error(t, err)
+	for _, file := range files {
+		source, err := os.ReadFile(filepath.Join(engineDir, file))
+		require.NoError(t, err)
+		for _, term := range forbidden {
+			assert.NotContains(t, string(source), term, "%s still contains legacy page-row symbol %q", file, term)
+		}
+	}
 }

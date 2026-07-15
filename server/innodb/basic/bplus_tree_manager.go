@@ -18,6 +18,9 @@ type BPlusTreeManager interface {
 	// 插入一个键值对
 	Insert(ctx context.Context, key interface{}, value []byte) error
 
+	// 删除一个键值对
+	Delete(ctx context.Context, key interface{}) error
+
 	// 范围查询
 	RangeSearch(ctx context.Context, startKey, endKey interface{}) ([]Row, error)
 

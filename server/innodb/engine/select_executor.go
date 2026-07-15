@@ -339,7 +339,7 @@ func (se *SelectExecutor) executeQuery(ctx context.Context) error {
 		meta, err := se.tableManager.GetTableMetadata(ctx, se.schemaName, se.tableName)
 		if err == nil && meta != nil && len(meta.Columns) > 0 {
 			logger.Debugf(" [SelectExecutor] 使用表管理器元数据: %s.%s, 列数=%d", se.schemaName, se.tableName, len(meta.Columns))
-			if err := se.scanDMLPageRows(ctx, meta); err != nil {
+			if err := se.scanStorageRows(ctx, meta); err != nil {
 				return err
 			}
 			logger.Debugf(" [SelectExecutor] 查询执行完成，返回 %d 行数据", len(se.resultSet))
@@ -354,7 +354,7 @@ func (se *SelectExecutor) executeQuery(ctx context.Context) error {
 	if se.dataDir != "" {
 		if frmMeta, err := se.loadTableMetaFromFrm(se.dataDir, se.schemaName, se.tableName); err == nil && frmMeta != nil {
 			logger.Debugf(" [SelectExecutor] 从 .frm 使用表定义并扫描数据页，列: %v", frmMeta.Columns)
-			if err := se.scanDMLPageRows(ctx, frmMeta); err != nil {
+			if err := se.scanStorageRows(ctx, frmMeta); err != nil {
 				return err
 			}
 			logger.Debugf(" [SelectExecutor] 查询执行完成，返回 %d 行数据", len(se.resultSet))
@@ -373,7 +373,7 @@ func (se *SelectExecutor) executeQuery(ctx context.Context) error {
 	return nil
 }
 
-func (se *SelectExecutor) scanDMLPageRows(ctx context.Context, tableMeta *metadata.TableMeta) error {
+func (se *SelectExecutor) scanStorageRows(ctx context.Context, tableMeta *metadata.TableMeta) error {
 	if rows, exists := memorySelectRows(se.schemaName, se.tableName); exists {
 		records := make([]Record, 0, len(rows))
 		for _, row := range rows {
@@ -394,43 +394,13 @@ func (se *SelectExecutor) scanDMLPageRows(ctx context.Context, tableMeta *metada
 		return nil
 	}
 
-	tableStorageInfo, err := se.storageManager.GetTableStorageManager().GetTableStorageInfo(se.schemaName, se.tableName)
+	_, err := se.storageManager.GetTableStorageManager().GetTableStorageInfo(se.schemaName, se.tableName)
 	if err != nil {
 		se.resultSet = []Record{}
 		return nil
 	}
 
-	bufferPage, err := se.bufferPoolManager.GetPage(tableStorageInfo.SpaceID, tableStorageInfo.RootPageNo)
-	if err != nil {
-		return fmt.Errorf("get page from buffer pool failed (space=%d, page=%d): %v", tableStorageInfo.SpaceID, tableStorageInfo.RootPageNo, err)
-	}
-
-	pageRows, err := decodeDMLPageRows(bufferPage.GetContent())
-	if err != nil {
-		return fmt.Errorf("decode DML page rows failed: %v", err)
-	}
-
-	dml := &StorageIntegratedDMLExecutor{}
-	records := make([]Record, 0, len(pageRows))
-	for _, pageRow := range pageRows {
-		if pageRow.Deleted {
-			continue
-		}
-		rowData, err := dml.deserializeRowData(pageRow.Data)
-		if err != nil {
-			return fmt.Errorf("deserialize DML row failed: %v", err)
-		}
-		matches, err := rowMatchesWhereConditions(rowData.ColumnValues, se.whereConditions)
-		if err != nil {
-			return err
-		}
-		if !matches {
-			continue
-		}
-		records = append(records, recordFromInsertRowData(rowData, tableMeta))
-	}
-
-	se.resultSet = records
+	se.resultSet = []Record{}
 	return nil
 }
 

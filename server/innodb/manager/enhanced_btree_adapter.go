@@ -110,6 +110,16 @@ func (adapter *EnhancedBTreeAdapter) Insert(ctx context.Context, key interface{}
 	return adapter.enhancedManager.Insert(ctx, adapter.defaultIndexID, keyBytes, value)
 }
 
+// Delete 删除一个键值对
+func (adapter *EnhancedBTreeAdapter) Delete(ctx context.Context, key interface{}) error {
+	keyBytes, err := adapter.convertKeyToBytes(key)
+	if err != nil {
+		return fmt.Errorf("failed to convert key: %v", err)
+	}
+
+	return adapter.enhancedManager.Delete(ctx, adapter.defaultIndexID, keyBytes)
+}
+
 // RangeSearch 范围查询
 func (adapter *EnhancedBTreeAdapter) RangeSearch(ctx context.Context, startKey, endKey interface{}) ([]basic.Row, error) {
 	// 将 interface{} 类型的 key 转换为 []byte
