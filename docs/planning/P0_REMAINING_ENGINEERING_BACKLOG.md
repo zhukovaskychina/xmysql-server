@@ -1,5 +1,13 @@
 # P0 Remaining Engineering Backlog
 
+## 2026-07-15 superseding capability backlog
+
+This document remains a historical delivery-evidence backlog. The current production-blocking capability backlog is now:
+
+- `docs/planning/P0_CAPABILITY_BACKLOG_20260715.md`
+
+Use the new backlog first. Evidence tooling remains necessary, but it is not sufficient until the runtime capabilities in the new P0 backlog are implemented and verified.
+
 ## Purpose
 
 This backlog lists the remaining engineering work required before XMySQL can be considered complete for P0 production gray-release approval.
@@ -810,4 +818,3 @@ Optional switches can disable individual focused evidence generators when extern
 ```
 
 Scope boundary: this runner does not relax any delivery readiness gates. It only reduces operator error by collecting the focused evidence defaults into one command. A candidate is deliverable only if the underlying suite, verifiers, approval packet, evidence bundle, and delivery readiness audit all pass.
-

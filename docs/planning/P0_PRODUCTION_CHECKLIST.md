@@ -1,5 +1,14 @@
 # XMySQL Server P0 上线验收清单（Checklist）
 
+## 2026-07-15 当前验收口径
+
+当前 P0 验收必须先对齐新的能力 backlog：
+
+- `docs/planning/CAPABILITY_PRIORITY_INDEX_20260715.md`
+- `docs/planning/P0_CAPABILITY_BACKLOG_20260715.md`
+
+基础 CRUD/JDBC 通过只能作为 P0 验收的输入证据，不能单独证明生产就绪。本文后续历史勾选项如果只证明脚本、模板或 focused evidence 存在，不能自动抵扣新的 P0 能力项。
+
 ## 0. 使用说明
 
 - 勾选原则：必须有“证据链接或报告路径”

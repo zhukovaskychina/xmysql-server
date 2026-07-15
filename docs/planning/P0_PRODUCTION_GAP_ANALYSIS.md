@@ -1,5 +1,14 @@
 # XMySQL Server P0 未实现项总表（Gap Analysis）
 
+## 2026-07-15 当前结论
+
+新的 P0 缺口总表见：
+
+- `docs/planning/CAPABILITY_PRIORITY_INDEX_20260715.md`
+- `docs/planning/P0_CAPABILITY_BACKLOG_20260715.md`
+
+本文保留历史 P0 上线证据工作流 A/B/C/D/E 的拆解。当前生产阻塞项已经升级为能力闭环：完整页/记录格式、B+Tree 持久化扫描、二级索引、事务/MVCC/恢复、SQL/JDBC 兼容性和真实运行态证据。历史 evidence suite 或脚本通过不等同于这些能力完成。
+
 ## 1. 目的
 
 本文档用于把以下 3 份 P0 文档中的“目标态”映射为“当前仓库已实现状态”：

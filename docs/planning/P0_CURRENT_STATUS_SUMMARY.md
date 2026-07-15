@@ -1,5 +1,21 @@
 # P0 Current Status Summary
 
+## 2026-07-15 capability-priority reset
+
+Current canonical priority source:
+
+- `docs/planning/CAPABILITY_PRIORITY_INDEX_20260715.md`
+- `docs/planning/P0_CAPABILITY_BACKLOG_20260715.md`
+- `docs/planning/P1_CAPABILITY_BACKLOG_20260715.md`
+- `docs/planning/PX_CAPABILITY_BACKLOG_20260715.md`
+
+Current interpretation:
+
+- Basic CRUD and JDBC DML are working in the focused tested path.
+- Production approval is still not complete.
+- Older evidence-suite PASS records prove that the evidence tooling can run; they do not close the new P0 capability backlog.
+- The highest-priority blockers are now storage page/B+Tree closure, durable secondary indexes, transaction/MVCC/recovery correctness, SQL/JDBC compatibility, and live production-readiness evidence.
+
 ## Purpose
 
 This document summarizes the current P0 production-readiness state for XMySQL.
@@ -208,17 +224,17 @@ Result:
 - Missing evidence count reported by approval packet: 0
 
 Generated evidence:
-- P0-B crash recovery report: eports/crash_recovery_drill_20260615_001527.md
-- P0-B state evidence: eports/crash_recovery_drill_20260615_001527.state.json
-- P0-C concurrency report: eports/concurrency_validation_20260615_001537.md
-- P0-D observability smoke: eports/observability_smoke_20260615_001536.md
-- P0-D metrics export: eports/metrics_export_20260615_001536.md
-- P0-D structured logging: eports/structured_logging_20260615_001536.md
-- P0-D alert drill: eports/alert_drill_20260615_001537.md
-- P0-E full-chain drill: eports/full_chain_drill_20260615_001550.md
-- Final regression gate: eports/final_regression_gate_20260615_001551.md
-- Evidence bundle: eports/p0_evidence_bundle_20260615_001559.md
-- Release approval packet: eports/p0_release_approval_packet_20260615_001559.md
+- P0-B crash recovery report: `reports/crash_recovery_drill_20260615_001527.md`
+- P0-B state evidence: `reports/crash_recovery_drill_20260615_001527.state.json`
+- P0-C concurrency report: `reports/concurrency_validation_20260615_001537.md`
+- P0-D observability smoke: `reports/observability_smoke_20260615_001536.md`
+- P0-D metrics export: `reports/metrics_export_20260615_001536.md`
+- P0-D structured logging: `reports/structured_logging_20260615_001536.md`
+- P0-D alert drill: `reports/alert_drill_20260615_001537.md`
+- P0-E full-chain drill: `reports/full_chain_drill_20260615_001550.md`
+- Final regression gate: `reports/final_regression_gate_20260615_001551.md`
+- Evidence bundle: `reports/p0_evidence_bundle_20260615_001559.md`
+- Release approval packet: `reports/p0_release_approval_packet_20260615_001559.md`
 
 Tooling note:
 - The first suite run exposed a PowerShell singleton-array counting issue in the P0-C concurrency tooling.

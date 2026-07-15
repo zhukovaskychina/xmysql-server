@@ -1,5 +1,20 @@
 # P0 Next Actions
 
+## 2026-07-15 current next actions
+
+Use the new priority documents first:
+
+- `docs/planning/CAPABILITY_PRIORITY_INDEX_20260715.md`
+- `docs/planning/P0_CAPABILITY_BACKLOG_20260715.md`
+
+Current next action order:
+
+1. Close `P0-STG-001` to `P0-STG-003`: unified row/page format and durable B+Tree scan/split/merge/delete behavior.
+2. Close `P0-IDX-001` to `P0-IDX-003`: secondary index read path, UNIQUE enforcement, rebuild/validate/repair.
+3. Close `P0-TXN-001` to `P0-TXN-004`: JDBC transactions, MVCC visibility, crash recovery state proof, undo purge.
+4. Close `P0-SQL-001`, `P0-SQL-002`, `P0-JDBC-001`, and `P0-JDBC-002`: core SQL/JDBC compatibility.
+5. Run the delivery/evidence/governance gates only after the runtime P0 capability closure is verified.
+
 ## Immediate next actions
 
 1. Run tooling preflight.

@@ -32,6 +32,16 @@ XMySQL Server 是一个使用 Go 实现的、面向单机场景的 MySQL 兼容�
 
 ## 项目实施
 
+### 当前权威口径（2026-07-15）
+
+- 基础 CRUD 与 JDBC DML 专项测试当前可跑通。
+- 这只代表最小集成路径可用，不代表完整 MySQL/InnoDB 生产能力完成。
+- 当前缺口与优先级以以下文档为准：
+  - `docs/planning/CAPABILITY_PRIORITY_INDEX_20260715.md`
+  - `docs/planning/P0_CAPABILITY_BACKLOG_20260715.md`
+  - `docs/planning/P1_CAPABILITY_BACKLOG_20260715.md`
+  - `docs/planning/PX_CAPABILITY_BACKLOG_20260715.md`
+
 ### 当前实施方式
 
 - 以任务清单驱动交付（P0/P1/P2 + 模块化任务分解）
@@ -40,6 +50,10 @@ XMySQL Server 是一个使用 Go 实现的、面向单机场景的 MySQL 兼容�
 
 ### 关键实施文档
 
+- 当前能力优先级索引：`docs/planning/CAPABILITY_PRIORITY_INDEX_20260715.md`
+- P0 生产阻塞能力 backlog：`docs/planning/P0_CAPABILITY_BACKLOG_20260715.md`
+- P1 重要能力 backlog：`docs/planning/P1_CAPABILITY_BACKLOG_20260715.md`
+- P* 未来能力 backlog：`docs/planning/PX_CAPABILITY_BACKLOG_20260715.md`
 - 开发路线图（导航 + 权威链接）：`docs/planning/DEVELOPMENT_ROADMAP.md`
 - 路线图任务版（可执行视角）：`docs/development/DEVELOPMENT_ROADMAP_TASKS.md`
 - P0 上线任务分解：`docs/planning/P0_PRODUCTION_TASKS.md`
@@ -57,15 +71,15 @@ XMySQL Server 是一个使用 Go 实现的、面向单机场景的 MySQL 兼容�
 
 ---
 
-## 项目现状（2026-04）
+## 项目现状（2026-07）
 
-> 说明：本节以仓库内代码与 `docs/development/*`、`docs/未实现功能梳理.md` 的最近一次对齐为准；生产就绪仍以 P0 清单为准。
+> 说明：本节以 2026-07-15 的 CRUD/JDBC 验证和能力缺口盘点为准；历史 P0 证据文档若与本节冲突，以 `CAPABILITY_PRIORITY_INDEX_20260715.md` 为准。
 
 ### 状态结论
 
-- 项目已具备较完整单机内核原型，**距离“可安全生产灰度”仍有差距**（观测、发布证据、全场景恢复审计等）
-- 相对 2026-03 描述，代码侧已落地多项原标记为“未开始/未实现”的能力，文档与路线图已同步调高模块完成度
-- P0 上线清单中仍有不少运维与质量闭环条目待完成
+- 项目已具备基础单机 CRUD + JDBC DML 能力。
+- 当前主要缺口不再是“能否执行简单增删改查”，而是“是否具备生产级 MySQL/InnoDB 正确性、恢复、索引、事务、协议和运维闭环”。
+- P0 上线清单需要按新的 P0 能力 backlog 重新验收，不能仅凭历史 evidence suite 或基础测试通过判断生产就绪。
 
 ### 已具备能力（与代码对齐的要点）
 
@@ -78,11 +92,11 @@ XMySQL Server 是一个使用 Go 实现的、面向单机场景的 MySQL 兼容�
 
 ### 仍需重点补齐
 
-- 崩溃恢复与 Undo/Redo 的**生产级**正确性审计（与路线图 LOG-* 一致）
-- 优化器 CBO、子查询、连接顺序等高级规则
-- 锁与隔离在极端并发下的行为验证与工具链
-- 可观测性与告警闭环
-- 生产发布、灰度、回滚与演练证据
+- 完整统一的 InnoDB 风格页/记录格式和 B+Tree 持久化扫描闭环
+- 二级索引查询、唯一约束、重建/校验/修复闭环
+- JDBC 多连接事务、MVCC 可见性、Undo/Purge、崩溃恢复状态证明
+- MySQL/JDBC 核心兼容性矩阵，包括 prepared statement、metadata、错误码和常见 DML 扩展
+- 真实运行态可观测性、并发压测、灰度/回滚演练和治理签署
 
 ---
 
@@ -111,11 +125,11 @@ XMySQL Server 是一个使用 Go 实现的、面向单机场景的 MySQL 兼容�
 
 ## 生产就绪度入口（建议按此阅读）
 
-1. `docs/planning/P0_PRODUCTION_TASKS.md`（做什么）
-2. `docs/planning/P0_PRODUCTION_CHECKLIST.md`（做到什么算完成）
-3. `docs/planning/P0_PRODUCTION_DEPLOYMENT_PLAN.md`（如何上线与回退）
-4. `docs/planning/DEVELOPMENT_ROADMAP.md`（规划入口，指向 16 周计划与 114 项任务）
-5. `docs/analysis/REMAINING_ISSUES_ANALYSIS.md`（核心风险与剩余差距）
+1. `docs/planning/CAPABILITY_PRIORITY_INDEX_20260715.md`（当前唯一优先级入口）
+2. `docs/planning/P0_CAPABILITY_BACKLOG_20260715.md`（生产阻塞能力）
+3. `docs/planning/P1_CAPABILITY_BACKLOG_20260715.md`（重要后续能力）
+4. `docs/planning/PX_CAPABILITY_BACKLOG_20260715.md`（P2/P3/future）
+5. `docs/planning/P0_PRODUCTION_CHECKLIST.md`（上线证据清单，需按新 P0 重新验收）
 
 ---
 

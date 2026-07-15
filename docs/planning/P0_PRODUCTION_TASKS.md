@@ -1,5 +1,7 @@
 # XMySQL Server P0 上线任务分解（Tasks）
 
+> 2026-07-15 更新：基础 CRUD/JDBC DML 已完成聚焦验证，但生产级 P0 口径已调整为能力闭环。新的当前入口见 `docs/planning/CAPABILITY_PRIORITY_INDEX_20260715.md` 和 `docs/planning/P0_CAPABILITY_BACKLOG_20260715.md`。本文保留历史 A/B/C/D/E 上线任务拆解，不再作为唯一 P0 缺口来源。
+
 > 2026-07-13 更新：P0 core 正确性路径已完成一轮最小闭环，当前 core 状态见 `docs/planning/P0_CORE_STATUS_20260713.md`。本文继续作为广义生产上线 P0 拆解，崩溃恢复、灰度、慢查询、指标告警仍需按原任务推进。
 
 ## 1. 使用说明
