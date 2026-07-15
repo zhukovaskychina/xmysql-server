@@ -1908,6 +1908,9 @@ func isTableStorageAlreadyRegisteredError(err error) bool {
 }
 
 func (e *XMySQLExecutor) truncateTableImpl(databaseName, tableName string) error {
+	if err := clearAutoIncrementTable(e.getDataDir(), databaseName, tableName); err != nil {
+		return fmt.Errorf("clear auto increment state failed: %v", err)
+	}
 	if err := validateDatabaseName(databaseName); err != nil {
 		return newExecutorErrorf(
 			"truncate-table",
@@ -2185,6 +2188,9 @@ func (e *XMySQLExecutor) executeDropDatabaseStatement(ctx *ExecutionContext, stm
 
 // dropDatabaseImpl 实际的数据库删除实现
 func (e *XMySQLExecutor) dropDatabaseImpl(dbName string, ifExists bool) error {
+	if err := clearAutoIncrementDatabase(e.getDataDir(), dbName); err != nil {
+		return fmt.Errorf("clear auto increment state failed: %v", err)
+	}
 	// 1. 检查是否为系统数据库
 	if isSystemDatabase(dbName) {
 		return fmt.Errorf("cannot drop system database '%s'", dbName)
@@ -2315,6 +2321,9 @@ func (e *XMySQLExecutor) createTableImpl(dbName, tableName string, stmt *sqlpars
 // dropTableImpl 实际的表删除实现
 func (e *XMySQLExecutor) dropTableImpl(dbName, tableName string) error {
 	logger.Debugf("🗑️ Dropping table %s.%s", dbName, tableName)
+	if err := clearAutoIncrementTable(e.getDataDir(), dbName, tableName); err != nil {
+		return fmt.Errorf("clear auto increment state failed: %v", err)
+	}
 
 	// 获取数据目录
 	dataDir := e.getDataDir()

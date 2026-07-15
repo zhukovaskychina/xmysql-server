@@ -19,24 +19,42 @@ import (
 
 // generatePrimaryKey 生成主键值
 func (dml *StorageIntegratedDMLExecutor) generatePrimaryKey(row *InsertRowData, tableMeta *metadata.TableMeta) (interface{}, error) {
-	if idValue, exists := row.ColumnValues["id"]; exists {
-		return idValue, nil
+	if tableMeta == nil {
+		if idValue, exists := row.ColumnValues["id"]; exists {
+			return idValue, nil
+		}
 	}
 
-	if tableMeta != nil {
-		for _, col := range tableMeta.Columns {
-			if col == nil || !col.IsPrimary {
-				continue
-			}
-			if value, exists := row.ColumnValues[col.Name]; exists && value != nil {
-				return value, nil
-			}
+	if tableMeta == nil {
+		value := time.Now().UnixNano()
+		row.ColumnValues["id"] = value
+		row.ColumnTypes["id"] = metadata.TypeInt
+		return value, nil
+	}
+
+	for _, col := range tableMeta.Columns {
+		if col == nil || !col.IsPrimary {
+			continue
+		}
+		if value, exists := row.ColumnValues[col.Name]; exists && value != nil {
 			if col.IsAutoIncrement {
-				value := time.Now().UnixNano()
-				row.ColumnValues[col.Name] = value
-				row.ColumnTypes[col.Name] = col.Type
-				return value, nil
+				if numericValue, ok := autoIncrementValueAsUint64(value); ok {
+					if err := observeAutoIncrementValue(dml.dataDir, dml.schemaName, dml.tableName, col.Name, numericValue); err != nil {
+						return nil, err
+					}
+				}
 			}
+			return value, nil
+		}
+		if col.IsAutoIncrement {
+			next, err := allocateAutoIncrementValue(dml.dataDir, dml.schemaName, dml.tableName, col.Name)
+			if err != nil {
+				return nil, err
+			}
+			value := int64(next)
+			row.ColumnValues[col.Name] = value
+			row.ColumnTypes[col.Name] = col.Type
+			return value, nil
 		}
 	}
 
@@ -44,6 +62,48 @@ func (dml *StorageIntegratedDMLExecutor) generatePrimaryKey(row *InsertRowData, 
 	row.ColumnValues["id"] = value
 	row.ColumnTypes["id"] = metadata.TypeInt
 	return value, nil
+}
+
+func autoIncrementValueAsUint64(value interface{}) (uint64, bool) {
+	switch v := value.(type) {
+	case int:
+		if v < 0 {
+			return 0, false
+		}
+		return uint64(v), true
+	case int8:
+		if v < 0 {
+			return 0, false
+		}
+		return uint64(v), true
+	case int16:
+		if v < 0 {
+			return 0, false
+		}
+		return uint64(v), true
+	case int32:
+		if v < 0 {
+			return 0, false
+		}
+		return uint64(v), true
+	case int64:
+		if v < 0 {
+			return 0, false
+		}
+		return uint64(v), true
+	case uint:
+		return uint64(v), true
+	case uint8:
+		return uint64(v), true
+	case uint16:
+		return uint64(v), true
+	case uint32:
+		return uint64(v), true
+	case uint64:
+		return v, true
+	default:
+		return 0, false
+	}
 }
 
 // serializeRowData 序列化行数据
