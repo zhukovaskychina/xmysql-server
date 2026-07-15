@@ -595,7 +595,10 @@ func (dml *StorageIntegratedDMLExecutor) updateRowInStorage(
 		return fmt.Errorf("序列化更新后的行数据失败: %v", err)
 	}
 
-	// 4. 在B+树中更新记录
+	// 4. 在B+树中用同一主键替换记录
+	if err := btreeManager.Delete(ctx, primaryKey); err != nil {
+		return fmt.Errorf("删除旧B+树记录失败: %v", err)
+	}
 	err = btreeManager.Insert(ctx, primaryKey, serializedRow)
 	if err != nil {
 		return fmt.Errorf("更新B+树记录失败: %v", err)

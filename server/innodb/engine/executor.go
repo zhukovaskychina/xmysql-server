@@ -1944,6 +1944,9 @@ func (e *XMySQLExecutor) truncateTableImpl(databaseName, tableName string) error
 	if err != nil {
 		return err
 	}
+	if err := clearBTreeSidecarForSpace(e.getDataDir(), oldInfo.SpaceID); err != nil {
+		return fmt.Errorf("clear B+Tree sidecar records failed: %v", err)
+	}
 
 	if err := e.tableStorageManager.UnregisterTable(databaseName, tableName); err != nil {
 		return err
@@ -2198,6 +2201,18 @@ func (e *XMySQLExecutor) dropDatabaseImpl(dbName string, ifExists bool) error {
 
 	// 2. 获取数据目录
 	dataDir := e.getDataDir()
+	if e.tableStorageManager != nil {
+		for _, info := range e.tableStorageManager.ListAllTables() {
+			if strings.EqualFold(info.SchemaName, dbName) {
+				if err := clearBTreeSidecarForSpace(dataDir, info.SpaceID); err != nil {
+					return fmt.Errorf("clear B+Tree sidecar records failed: %v", err)
+				}
+				if err := e.tableStorageManager.UnregisterTable(info.SchemaName, info.TableName); err != nil {
+					return fmt.Errorf("unregister table storage failed: %v", err)
+				}
+			}
+		}
+	}
 
 	// 3. 构建数据库路径
 	dbPath := filepath.Join(dataDir, dbName)
@@ -2327,6 +2342,16 @@ func (e *XMySQLExecutor) dropTableImpl(dbName, tableName string) error {
 
 	// 获取数据目录
 	dataDir := e.getDataDir()
+	if e.tableStorageManager != nil {
+		if info, err := e.tableStorageManager.GetTableStorageInfo(dbName, tableName); err == nil {
+			if err := clearBTreeSidecarForSpace(dataDir, info.SpaceID); err != nil {
+				return fmt.Errorf("clear B+Tree sidecar records failed: %v", err)
+			}
+			if err := e.tableStorageManager.UnregisterTable(dbName, tableName); err != nil {
+				return fmt.Errorf("unregister table storage failed: %v", err)
+			}
+		}
+	}
 
 	dbPath := filepath.Join(dataDir, dbName)
 

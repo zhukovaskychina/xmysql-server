@@ -1242,11 +1242,18 @@ func (idx *EnhancedBTreeIndex) flushPage(ctx context.Context, page *BTreePage) e
 	}
 
 	data := bufferPage.GetContent()
+	if len(data) == 0 {
+		data = idx.initializeEmptyPage()
+		bufferPage.SetContent(data)
+	}
 	if len(data) >= 42 {
 		binary.LittleEndian.PutUint32(data[8:12], page.PrevPage)
 		binary.LittleEndian.PutUint32(data[12:16], page.NextPage)
 		binary.LittleEndian.PutUint16(data[40:42], page.RecordCount)
 		bufferPage.SetContent(data)
+	}
+	if err := idx.persistIndexRecords(bufferPage, page); err != nil {
+		return err
 	}
 
 	bufferPage.MarkDirty()

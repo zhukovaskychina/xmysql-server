@@ -380,7 +380,13 @@ func (se *SelectExecutor) scanStorageRows(ctx context.Context, tableMeta *metada
 	}
 
 	btreeManager := se.btreeManager
-	if se.tableManager != nil {
+	if storageTableManager := se.storageManager.GetTableStorageManager(); storageTableManager != nil {
+		tableBTreeManager, err := storageTableManager.CreateBTreeManagerForTable(ctx, se.schemaName, se.tableName)
+		if err == nil && tableBTreeManager != nil {
+			btreeManager = tableBTreeManager
+		}
+	}
+	if btreeManager == nil && se.tableManager != nil {
 		tableBTreeManager, err := se.tableManager.GetTableBTreeManager(ctx, se.schemaName, se.tableName)
 		if err == nil && tableBTreeManager != nil {
 			btreeManager = tableBTreeManager

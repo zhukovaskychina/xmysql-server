@@ -14,6 +14,8 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/space"
 )
 
+const firstUserSpaceID uint32 = 1000
+
 // SpaceManagerImpl implements the SpaceManager interface
 type SpaceManagerImpl struct {
 	sync.RWMutex
@@ -65,7 +67,7 @@ func NewSpaceManager(dataDir string) basic.SpaceManager {
 		spaces:   make(map[uint32]*space.IBDSpace),
 		ibdFiles: make(map[uint32]*ibd.IBD_File),
 		nameToID: make(map[string]uint32),
-		nextID:   1,
+		nextID:   firstUserSpaceID,
 		dataDir:  dataDir,
 		txID:     1,
 	}
@@ -474,6 +476,11 @@ func (sm *SpaceManagerImpl) scanDirectory(dirPath, relativePath string) error {
 		} else if strings.HasSuffix(entry.Name(), ".ibd") {
 			// 找到IBD文件，尝试加载
 			tableName := strings.TrimSuffix(currentRelativePath, ".ibd")
+			if tableName != "ibdata1" && (strings.HasPrefix(tableName, "mysql/") ||
+				strings.HasPrefix(tableName, "information_schema/") ||
+				strings.HasPrefix(tableName, "performance_schema/")) {
+				continue
+			}
 
 			// 跳过已经加载的表空间
 			if _, exists := sm.nameToID[tableName]; exists {
