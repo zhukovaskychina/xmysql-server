@@ -33,7 +33,8 @@ type BPlusTreeNode struct {
 	RollPtr uint64 // Undo日志指针
 }
 
-// DefaultBPlusTreeManager B+树管理器默认实现
+// DefaultBPlusTreeManager is the legacy B+Tree implementation kept for legacy helper tests.
+// Production table/index wiring must use EnhancedBTreeAdapter.
 type DefaultBPlusTreeManager struct {
 	spaceId           uint32
 	rootPage          uint32
@@ -81,7 +82,8 @@ var DefaultBPlusTreeConfig = BPlusTreeConfig{
 	EvictionPolicy: "LRU",
 }
 
-// NewBPlusTreeManager 创建B+树管理器
+// NewBPlusTreeManager creates the legacy B+Tree manager for legacy tests and helpers.
+// Production table/index wiring must use EnhancedBTreeAdapter.
 func NewBPlusTreeManager(bpm *OptimizedBufferPoolManager, config *BPlusTreeConfig) *DefaultBPlusTreeManager {
 	if config == nil {
 		config = &DefaultBPlusTreeConfig

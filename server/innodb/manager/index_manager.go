@@ -128,14 +128,6 @@ func NewIndexManager(segmentManager *SegmentManager, bufferPoolManager *Optimize
 		stats:             &IndexManagerStats{},
 	}
 
-	// 暂时使用传统的B+树管理器，等待重构
-	// TODO: 需要重构以正确传递 StorageManager
-	im.btreeManager = NewBPlusTreeManager(bufferPoolManager, &BPlusTreeConfig{
-		MaxCacheSize:   config.CacheSize,
-		DirtyThreshold: 0.7,
-		EvictionPolicy: "LRU",
-	})
-
 	return im
 }
 
@@ -191,6 +183,10 @@ func (im *IndexManager) CreateIndex(tableID uint64, spaceID uint32, name string,
 	if uint64(len(im.indexes)) >= im.config.MaxIndexes {
 		return nil, fmt.Errorf("maximum number of indexes reached: %d", im.config.MaxIndexes)
 	}
+	btreeManager, err := im.requireBTreeManager()
+	if err != nil {
+		return nil, err
+	}
 
 	// 生成新的索引ID
 	indexID := uint64(len(im.indexes) + 1)
@@ -215,7 +211,7 @@ func (im *IndexManager) CreateIndex(tableID uint64, spaceID uint32, name string,
 
 	// 初始化B+树
 	ctx := context.Background()
-	if err := im.btreeManager.Init(ctx, spaceID, rootPage); err != nil {
+	if err := btreeManager.Init(ctx, spaceID, rootPage); err != nil {
 		return nil, fmt.Errorf("failed to initialize B+tree: %v", err)
 	}
 
@@ -301,11 +297,15 @@ func (im *IndexManager) InsertKey(indexID uint64, key interface{}, value []byte)
 	if idx.State != IndexStateActive {
 		return fmt.Errorf("index %d is not active", indexID)
 	}
+	btreeManager, err := im.requireBTreeManager()
+	if err != nil {
+		return err
+	}
 
 	// 检查唯一性约束
 	if idx.IsUnique {
 		ctx := context.Background()
-		_, _, err := im.btreeManager.Search(ctx, key)
+		_, _, err := btreeManager.Search(ctx, key)
 		if err == nil {
 			return basic.ErrDuplicateKey
 		}
@@ -313,7 +313,7 @@ func (im *IndexManager) InsertKey(indexID uint64, key interface{}, value []byte)
 
 	// 插入到B+树
 	ctx := context.Background()
-	if err := im.btreeManager.Insert(ctx, key, value); err != nil {
+	if err := btreeManager.Insert(ctx, key, value); err != nil {
 		return fmt.Errorf("failed to insert key: %v", err)
 	}
 
@@ -353,12 +353,16 @@ func (im *IndexManager) DeleteKey(indexID uint64, key interface{}) error {
 	if idx.State != IndexStateActive {
 		return fmt.Errorf("index %d is not active", indexID)
 	}
+	btreeManager, err := im.requireBTreeManager()
+	if err != nil {
+		return err
+	}
 
 	// 从B+树删除
 	ctx := context.Background()
 
 	// 如果底层B+Tree实现支持删除接口，则直接调用
-	if deleter, ok := im.btreeManager.(interface {
+	if deleter, ok := btreeManager.(interface {
 		Delete(ctx context.Context, key interface{}) error
 	}); ok {
 		if err := deleter.Delete(ctx, key); err != nil {
@@ -366,7 +370,7 @@ func (im *IndexManager) DeleteKey(indexID uint64, key interface{}) error {
 		}
 	} else {
 		// 旧的B+Tree实现没有提供删除接口，退化为查找并忽略操作
-		if _, _, err := im.btreeManager.Search(ctx, key); err != nil {
+		if _, _, err := btreeManager.Search(ctx, key); err != nil {
 			return fmt.Errorf("key not found: %v", err)
 		}
 		// 无直接删除能力，只更新统计信息
@@ -395,10 +399,14 @@ func (im *IndexManager) SearchKey(indexID uint64, key interface{}) (pageNo uint3
 	if idx.State != IndexStateActive {
 		return 0, 0, fmt.Errorf("index %d is not active", indexID)
 	}
+	btreeManager, err := im.requireBTreeManager()
+	if err != nil {
+		return 0, 0, err
+	}
 
 	// 在B+树中查找
 	ctx := context.Background()
-	pageNo, slot, err = im.btreeManager.Search(ctx, key)
+	pageNo, slot, err = btreeManager.Search(ctx, key)
 	if err != nil {
 		return 0, 0, fmt.Errorf("search failed: %v", err)
 	}
@@ -422,10 +430,14 @@ func (im *IndexManager) RangeSearch(indexID uint64, startKey, endKey interface{}
 	if idx.State != IndexStateActive {
 		return nil, fmt.Errorf("index %d is not active", indexID)
 	}
+	btreeManager, err := im.requireBTreeManager()
+	if err != nil {
+		return nil, err
+	}
 
 	// 执行范围查询
 	ctx := context.Background()
-	rows, err := im.btreeManager.RangeSearch(ctx, startKey, endKey)
+	rows, err := btreeManager.RangeSearch(ctx, startKey, endKey)
 	if err != nil {
 		return nil, fmt.Errorf("range search failed: %v", err)
 	}
@@ -445,6 +457,10 @@ func (im *IndexManager) DropIndex(indexID uint64) error {
 	if idx == nil {
 		return ErrIndexNotFound
 	}
+	btreeManager, err := im.requireBTreeManager()
+	if err != nil {
+		return err
+	}
 
 	// 标记为删除状态
 	idx.State = IndexStateDropping
@@ -453,7 +469,7 @@ func (im *IndexManager) DropIndex(indexID uint64) error {
 	// 清理B+树中的所有页面
 	ctx := context.Background()
 
-	leafPages, err := im.btreeManager.GetAllLeafPages(ctx)
+	leafPages, err := btreeManager.GetAllLeafPages(ctx)
 	if err == nil {
 		for _, pageNo := range leafPages {
 			// 释放缓冲池及存储中的页面
@@ -496,6 +512,10 @@ func (im *IndexManager) RebuildIndex(indexID uint64) error {
 	if idx == nil {
 		return ErrIndexNotFound
 	}
+	btreeManager, err := im.requireBTreeManager()
+	if err != nil {
+		return err
+	}
 
 	// 标记为构建状态
 	idx.State = IndexStateBuilding
@@ -518,7 +538,7 @@ func (im *IndexManager) RebuildIndex(indexID uint64) error {
 	}
 
 	ctx := context.Background()
-	if err := im.btreeManager.Init(ctx, idx.SpaceID, rootPage); err != nil {
+	if err := btreeManager.Init(ctx, idx.SpaceID, rootPage); err != nil {
 		return fmt.Errorf("failed to init btree: %v", err)
 	}
 
@@ -766,6 +786,13 @@ func (im *IndexManager) updateStats(idx *Index, isCreate bool) {
 			im.stats.UniqueIndexes--
 		}
 	}
+}
+
+func (im *IndexManager) requireBTreeManager() (basic.BPlusTreeManager, error) {
+	if im == nil || im.btreeManager == nil {
+		return nil, ErrBTreeManagerUnavailable
+	}
+	return im.btreeManager, nil
 }
 
 // FlushIndexes 刷新所有索引到磁盘

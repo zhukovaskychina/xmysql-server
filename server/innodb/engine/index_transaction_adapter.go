@@ -21,7 +21,7 @@ func newTxnAdapterError(stage string, code ExecutionErrorCode, txnID uint64, err
 // IndexAdapter 索引适配器，提供索引访问接口
 type IndexAdapter struct {
 	indexManager        *manager.IndexManager
-	btreeManager        interface{} // B+树管理器（可能是DefaultBPlusTreeManager）
+	btreeManager        interface{} // B+树管理器
 	storageAdapter      *StorageAdapter
 	tableStorageManager *manager.TableStorageManager
 }

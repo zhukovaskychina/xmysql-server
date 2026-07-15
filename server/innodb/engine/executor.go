@@ -460,9 +460,6 @@ func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sql
 		// 尝试断言为 basic.BPlusTreeManager 接口
 		if btm, ok := e.btreeManager.(basic.BPlusTreeManager); ok {
 			btreeManager = btm
-		} else if btm, ok := e.btreeManager.(*manager.DefaultBPlusTreeManager); ok {
-			// 向后兼容：如果是 DefaultBPlusTreeManager，也接受
-			btreeManager = btm
 		}
 	}
 	if e.tableManager != nil {
@@ -990,8 +987,6 @@ func (e *XMySQLExecutor) executeInsertStatement(ctx *ExecutionContext, stmt *sql
 	if e.btreeManager != nil {
 		if btm, ok := e.btreeManager.(basic.BPlusTreeManager); ok {
 			btreeManager = btm
-		} else if btm, ok := e.btreeManager.(*manager.DefaultBPlusTreeManager); ok {
-			btreeManager = btm
 		}
 	}
 	if e.tableManager != nil {
@@ -1078,8 +1073,6 @@ func (e *XMySQLExecutor) executeUpdateStatement(ctx *ExecutionContext, stmt *sql
 	if e.btreeManager != nil {
 		if btm, ok := e.btreeManager.(basic.BPlusTreeManager); ok {
 			btreeManager = btm
-		} else if btm, ok := e.btreeManager.(*manager.DefaultBPlusTreeManager); ok {
-			btreeManager = btm
 		}
 	}
 	if e.tableManager != nil {
@@ -1162,8 +1155,6 @@ func (e *XMySQLExecutor) executeDeleteStatement(ctx *ExecutionContext, stmt *sql
 	}
 	if e.btreeManager != nil {
 		if btm, ok := e.btreeManager.(basic.BPlusTreeManager); ok {
-			btreeManager = btm
-		} else if btm, ok := e.btreeManager.(*manager.DefaultBPlusTreeManager); ok {
 			btreeManager = btm
 		}
 	}
