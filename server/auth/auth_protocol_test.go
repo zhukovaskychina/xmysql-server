@@ -110,16 +110,11 @@ func TestPasswordValidatorFactory(t *testing.T) {
 		}
 	})
 
-	// 测试默认验证器
-	t.Run("TestDefaultValidator", func(t *testing.T) {
+	// 测试未知插件
+	t.Run("TestUnsupportedValidator", func(t *testing.T) {
 		validator := factory.CreateValidator("unknown_plugin")
-		if validator == nil {
-			t.Errorf("Failed to create default validator")
-		}
-
-		// 应该返回MySQL原生验证器
-		if _, ok := validator.(*MySQLNativePasswordValidator); !ok {
-			t.Errorf("Expected MySQLNativePasswordValidator as default, got %T", validator)
+		if validator != nil {
+			t.Errorf("Expected nil validator for unsupported plugin, got %T", validator)
 		}
 	})
 }

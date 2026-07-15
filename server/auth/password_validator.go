@@ -289,7 +289,6 @@ func (f *PasswordValidatorFactory) CreateValidator(authPlugin string) PasswordVa
 	case "caching_sha2_password":
 		return NewCachingSHA2PasswordValidator()
 	default:
-		// 默认使用原生密码验证器
-		return NewMySQLNativePasswordValidator()
+		return nil
 	}
 }

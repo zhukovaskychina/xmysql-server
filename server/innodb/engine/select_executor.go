@@ -433,8 +433,7 @@ func (se *SelectExecutor) executeUserTableQuery(ctx context.Context) error {
 	// 优先使用真实存储管理器获取 mysql.user 信息
 	storageManager := se.storageManager
 	if storageManager == nil {
-		logger.Warnf("  [SelectExecutor] 存储管理器未注入，创建默认 mysql.user 数据")
-		return se.createDefaultUserData()
+		return fmt.Errorf("storage manager is required for mysql.user query")
 	}
 
 	if se.storageManager != nil {
@@ -472,7 +471,7 @@ func (se *SelectExecutor) executeUserTableQuery(ctx context.Context) error {
 
 			// 将用户数据转换为记录
 			if err := se.convertMySQLUserToRecord(user); err != nil {
-				logger.Warnf("  [SelectExecutor] 转换用户数据失败: %v，使用默认数据", err)
+				logger.Warnf("  [SelectExecutor] 转换用户数据失败: %v", err)
 				continue
 			}
 
@@ -480,11 +479,10 @@ func (se *SelectExecutor) executeUserTableQuery(ctx context.Context) error {
 			return nil
 		}
 
-		logger.Warnf("  [SelectExecutor] 存储管理器未能匹配用户: user=%s host=%s，使用默认数据", username, host)
+		return fmt.Errorf("mysql.user record not found for %s@%s", username, host)
 	}
 
-	logger.Warnf("  [SelectExecutor] 存储管理器查询失败，创建默认 mysql.user 数据")
-	return se.createDefaultUserData()
+	return fmt.Errorf("mysql.user query failed")
 }
 
 // parseUserQueryConditions 解析WHERE条件中的用户名和主机

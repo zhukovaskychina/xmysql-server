@@ -150,6 +150,8 @@ type StorageManager struct {
 	indexManager        *IndexManager
 	transactionManager  *TransactionManager
 	btreeManager        basic.BPlusTreeManager
+
+	mysqlUserBTreeManager *EnhancedBTreeManager
 }
 
 func (sm *StorageManager) Init() {
@@ -1052,6 +1054,17 @@ func (sm *StorageManager) Flush() error {
 func (sm *StorageManager) Close() error {
 	if sm == nil {
 		return fmt.Errorf("storage manager is not initialized")
+	}
+
+	sm.mu.Lock()
+	mysqlUserBTreeManager := sm.mysqlUserBTreeManager
+	sm.mysqlUserBTreeManager = nil
+	sm.mu.Unlock()
+
+	if mysqlUserBTreeManager != nil {
+		if err := mysqlUserBTreeManager.Close(); err != nil {
+			return fmt.Errorf("failed to close mysql.user btree manager: %v", err)
+		}
 	}
 
 	sm.mu.Lock()

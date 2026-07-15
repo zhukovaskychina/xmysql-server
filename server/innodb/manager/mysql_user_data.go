@@ -563,7 +563,12 @@ func (sm *StorageManager) InitializeMySQLUserData() error {
 
 	// 创建增强版B+树管理器
 	btreeManager := NewEnhancedBTreeManager(sm, DefaultBTreeConfig)
-	defer btreeManager.Close()
+	keepBTreeManager := false
+	defer func() {
+		if !keepBTreeManager {
+			_ = btreeManager.Close()
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -806,6 +811,12 @@ func (sm *StorageManager) InitializeMySQLUserData() error {
 	logger.Debugf("   - Dynamically allocated pages: %v", allocatedPages)
 	logger.Debugf("   - Dictionary registration: %v", dictManager != nil)
 
+	if sm.mysqlUserBTreeManager != nil {
+		_ = sm.mysqlUserBTreeManager.Close()
+	}
+	sm.mysqlUserBTreeManager = btreeManager
+	keepBTreeManager = true
+
 	return nil
 }
 
@@ -821,36 +832,16 @@ func (sm *StorageManager) QueryMySQLUser(username, host string) (*MySQLUser, err
 
 	logger.Debugf(" Using mysql.user tablespace: Space ID = %d", userTableHandle.SpaceID)
 
-	// 创建增强版B+树管理器
-	btreeManager := NewEnhancedBTreeManager(sm, DefaultBTreeConfig)
-	defer btreeManager.Close()
+	btreeManager, cleanup := sm.mysqlUserBTreeForQuery()
+	defer cleanup()
 
 	ctx := context.Background()
 
 	// 尝试获取已存在的主键索引
 	userIndex, err := btreeManager.GetIndexByName(1, "PRIMARY") // TableID=1, IndexName="PRIMARY"
 	if err != nil {
-		// 如果索引不存在，说明是元数据持久化问题
-		// 作为临时解决方案，我们直接返回硬编码的用户数据
-		logger.Warnf("Warning: Primary index not found due to metadata persistence issue")
-		logger.Warnf("Falling back to hardcoded user lookup for: %s@%s", username, host)
-
-		// 对于root用户，返回默认配置
-		if username == "root" && (host == "localhost" || host == "%" || host == "127.0.0.1" || host == "::1") {
-			user := createDefaultRootUser()
-			if host == "127.0.0.1" || host == "::1" {
-				user.Host = "%"
-			} else {
-				user.Host = host
-			}
-			if host == "%" {
-				user.Host = "%"
-			}
-			logger.Debugf("Returned hardcoded root user for compatibility")
-			return user, nil
-		}
-
-		return nil, fmt.Errorf("user %s@%s not found (metadata persistence issue)", username, host)
+		logger.Warnf("Primary index not found for mysql.user: %v", err)
+		return nil, fmt.Errorf("mysql.user primary index unavailable: %v", err)
 	}
 
 	// 构造主键 (复合主键: Host + User)
@@ -869,11 +860,9 @@ func (sm *StorageManager) QueryMySQLUser(username, host string) (*MySQLUser, err
 	logger.Debugf("Found user record at page %d, slot %d", record.PageNo, record.SlotNo)
 
 	// 从记录中反序列化用户数据
-	user, err := sm.deserializeUserFromRecord(record.Value)
+	user, err := sm.deserializeUserFromRecord(record.Value, username, host)
 	if err != nil {
-		logger.Warnf("Warning: Failed to deserialize user record: %v", err)
-		// 如果反序列化失败，返回一个基于查询参数的用户对象（兼容模式）
-		return sm.createUserFromQueryParams(username, host)
+		return nil, fmt.Errorf("failed to deserialize mysql.user record for %s@%s: %v", username, host, err)
 	}
 
 	logger.Debugf("Successfully retrieved user: %s@%s via B+tree", user.User, user.Host)
@@ -887,123 +876,102 @@ func (sm *StorageManager) QueryMySQLUser(username, host string) (*MySQLUser, err
 	return user, nil
 }
 
+func (sm *StorageManager) mysqlUserBTreeForQuery() (*EnhancedBTreeManager, func()) {
+	sm.mu.RLock()
+	cached := sm.mysqlUserBTreeManager
+	sm.mu.RUnlock()
+	if cached != nil {
+		return cached, func() {}
+	}
+
+	manager := NewEnhancedBTreeManager(sm, DefaultBTreeConfig)
+	return manager, func() {
+		_ = manager.Close()
+	}
+}
+
 // deserializeUserFromRecord 从存储记录中反序列化用户数据
-func (sm *StorageManager) deserializeUserFromRecord(recordData []byte) (*MySQLUser, error) {
+func (sm *StorageManager) deserializeUserFromRecord(recordData []byte, expectedUsername, expectedHost string) (*MySQLUser, error) {
 	if len(recordData) == 0 {
 		return nil, fmt.Errorf("empty record data")
 	}
 
 	logger.Debugf("Deserializing user record (%d bytes)", len(recordData))
 
-	// 由于我们使用了标准InnoDB记录格式，需要解析记录结构
-	// 这里实现简化的记录解析逻辑
-
-	if len(recordData) < 200 {
-		return nil, fmt.Errorf("record too short, expected at least 200 bytes, got %d", len(recordData))
+	payload, err := sm.extractMySQLUserPayload(recordData)
+	if err != nil {
+		return nil, err
 	}
 
-	// 解析记录的基本结构
-	// 跳过变长字段长度列表和NULL标志位，定位到实际数据
-	offset := 0
+	if len(payload) < 200 {
+		return nil, fmt.Errorf("record too short, expected at least 200 bytes, got %d", len(payload))
+	}
 
-	// 跳过变长字段长度列表（假设有2个变长字段，每个2字节）
-	offset += 4
-
-	// 跳过NULL标志位（40个字段需要5个字节）
-	offset += 5
-
-	// 跳过记录头部（5字节）
-	offset += 5
-
-	// 现在开始解析实际字段数据
+	userAttrsLen := int(binary.LittleEndian.Uint16(payload[0:2]))
+	authStringLen := int(binary.LittleEndian.Uint16(payload[2:4]))
+	offset := 4 + 5 + 5
 	user := &MySQLUser{}
 
-	// Host字段 (60字节)
-	if offset+60 <= len(recordData) {
-		hostBytes := recordData[offset : offset+60]
-		// 找到第一个0字节作为字符串结束
-		hostEnd := 0
-		for i, b := range hostBytes {
-			if b == 0 {
-				hostEnd = i
-				break
-			}
-		}
-		if hostEnd == 0 {
-			hostEnd = len(hostBytes)
-		}
-		user.Host = string(hostBytes[:hostEnd])
-		offset += 60
+	var field []byte
+	if field, offset, err = readFixedField(payload, offset, 60); err != nil {
+		return nil, fmt.Errorf("failed to parse Host: %v", err)
+	}
+	user.Host = trimNullPaddedString(field)
+
+	if field, offset, err = readFixedField(payload, offset, 32); err != nil {
+		return nil, fmt.Errorf("failed to parse User: %v", err)
+	}
+	user.User = trimNullPaddedString(field)
+
+	if field, offset, err = readFixedField(payload, offset, 29); err != nil {
+		return nil, fmt.Errorf("failed to parse privileges: %v", err)
+	}
+	applyMySQLUserPrivileges(user, field)
+
+	if field, offset, err = readFixedField(payload, offset, authStringLen); err != nil {
+		return nil, fmt.Errorf("failed to parse authentication_string: %v", err)
+	}
+	user.AuthenticationString = string(field)
+
+	if field, offset, err = readFixedField(payload, offset, 1); err != nil {
+		return nil, fmt.Errorf("failed to parse password_expired: %v", err)
+	}
+	user.PasswordExpired = normalizeYN(field[0])
+
+	user.PasswordLifetime = nil
+
+	if field, offset, err = readFixedField(payload, offset, 1); err != nil {
+		return nil, fmt.Errorf("failed to parse account_locked: %v", err)
+	}
+	user.AccountLocked = normalizeYN(field[0])
+
+	if field, offset, err = readFixedField(payload, offset, 19); err != nil {
+		return nil, fmt.Errorf("failed to parse password_last_changed: %v", err)
+	}
+	if changed, parseErr := time.Parse("2006-01-02 15:04:05", string(field)); parseErr == nil {
+		user.PasswordLastChanged = changed
 	}
 
-	// User字段 (32字节)
-	if offset+32 <= len(recordData) {
-		userBytes := recordData[offset : offset+32]
-		userEnd := 0
-		for i, b := range userBytes {
-			if b == 0 {
-				userEnd = i
-				break
-			}
-		}
-		if userEnd == 0 {
-			userEnd = len(userBytes)
-		}
-		user.User = string(userBytes[:userEnd])
-		offset += 32
+	user.PasswordReuseCcount = nil
+	user.PasswordReuseTime = nil
+
+	if field, offset, err = readFixedField(payload, offset, 1); err != nil {
+		return nil, fmt.Errorf("failed to parse password_require_current: %v", err)
 	}
+	user.PasswordRequireCurrent = normalizeYN(field[0])
 
-	// 权限字段 (29个字段，每个1字节)
-	if offset+29 <= len(recordData) {
-		privs := recordData[offset : offset+29]
-
-		user.SelectPriv = boolToYN(privs[0] == 1)
-		user.InsertPriv = boolToYN(privs[1] == 1)
-		user.UpdatePriv = boolToYN(privs[2] == 1)
-		user.DeletePriv = boolToYN(privs[3] == 1)
-		user.CreatePriv = boolToYN(privs[4] == 1)
-		user.DropPriv = boolToYN(privs[5] == 1)
-		user.ReloadPriv = boolToYN(privs[6] == 1)
-		user.ShutdownPriv = boolToYN(privs[7] == 1)
-		user.ProcessPriv = boolToYN(privs[8] == 1)
-		user.FilePriv = boolToYN(privs[9] == 1)
-		user.GrantPriv = boolToYN(privs[10] == 1)
-		user.ReferencesPriv = boolToYN(privs[11] == 1)
-		user.IndexPriv = boolToYN(privs[12] == 1)
-		user.AlterPriv = boolToYN(privs[13] == 1)
-		user.ShowDbPriv = boolToYN(privs[14] == 1)
-		user.SuperPriv = boolToYN(privs[15] == 1)
-		user.CreateTmpTablePriv = boolToYN(privs[16] == 1)
-		user.LockTablesPriv = boolToYN(privs[17] == 1)
-		user.ExecutePriv = boolToYN(privs[18] == 1)
-		user.ReplSlavePriv = boolToYN(privs[19] == 1)
-		user.ReplClientPriv = boolToYN(privs[20] == 1)
-		user.CreateViewPriv = boolToYN(privs[21] == 1)
-		user.ShowViewPriv = boolToYN(privs[22] == 1)
-		user.CreateRoutinePriv = boolToYN(privs[23] == 1)
-		user.AlterRoutinePriv = boolToYN(privs[24] == 1)
-		user.CreateUserPriv = boolToYN(privs[25] == 1)
-		user.EventPriv = boolToYN(privs[26] == 1)
-		user.TriggerPriv = boolToYN(privs[27] == 1)
-		user.CreateTablespacePriv = boolToYN(privs[28] == 1)
-
-		offset += 29
+	if field, _, err = readFixedField(payload, offset, userAttrsLen); err != nil {
+		return nil, fmt.Errorf("failed to parse user_attributes: %v", err)
 	}
-
-	// 密码哈希字段 (变长字段，从记录的特定位置读取)
-	// 简化处理：使用默认密码哈希
-	user.AuthenticationString = generatePasswordHash("root@1234")
-
-	// 其他字段设置默认值
-	user.PasswordExpired = "N"
-	user.AccountLocked = "N"
-	user.PasswordLastChanged = time.Now()
-	user.PasswordRequireCurrent = "Y"
-	user.UserAttributes = "{}"
+	user.UserAttributes = string(field)
 
 	// 验证解析结果
 	if user.Host == "" || user.User == "" {
 		return nil, fmt.Errorf("failed to parse host or user from record")
+	}
+	if user.User != expectedUsername || user.Host != expectedHost {
+		return nil, fmt.Errorf("record key mismatch: got %s@%s, want %s@%s",
+			user.User, user.Host, expectedUsername, expectedHost)
 	}
 
 	logger.Debugf("Successfully deserialized user: %s@%s", user.User, user.Host)
@@ -1011,6 +979,89 @@ func (sm *StorageManager) deserializeUserFromRecord(recordData []byte) (*MySQLUs
 	logger.Debugf("   - SUPER privilege: %s", user.SuperPriv)
 
 	return user, nil
+}
+
+func (sm *StorageManager) extractMySQLUserPayload(recordData []byte) ([]byte, error) {
+	outerHeaderLength := len(createMySQLUserTableMetadata().GetVarColumns())*2 + 5 + 5
+	if len(recordData) > outerHeaderLength+14 && looksLikeMySQLUserPayload(recordData[outerHeaderLength:]) {
+		return recordData[outerHeaderLength:], nil
+	}
+	if looksLikeMySQLUserPayload(recordData) {
+		return recordData, nil
+	}
+	return nil, fmt.Errorf("invalid mysql.user storage record header")
+}
+
+func looksLikeMySQLUserPayload(data []byte) bool {
+	if len(data) < 14+60+32+29 {
+		return false
+	}
+	authStringLen := int(binary.LittleEndian.Uint16(data[2:4]))
+	userAttrsLen := int(binary.LittleEndian.Uint16(data[0:2]))
+	if authStringLen <= 0 || authStringLen > 1024 || userAttrsLen > 1024 {
+		return false
+	}
+	dataStart := 4 + 5 + 5
+	minLength := dataStart + 60 + 32 + 29 + authStringLen + 1 + 1 + 19 + 1 + userAttrsLen
+	return minLength <= len(data)
+}
+
+func readFixedField(data []byte, offset, length int) ([]byte, int, error) {
+	if length < 0 {
+		return nil, offset, fmt.Errorf("negative field length %d", length)
+	}
+	end := offset + length
+	if offset < 0 || end > len(data) {
+		return nil, offset, fmt.Errorf("need %d bytes at offset %d, record length %d", length, offset, len(data))
+	}
+	return data[offset:end], end, nil
+}
+
+func trimNullPaddedString(data []byte) string {
+	end := len(data)
+	for end > 0 && data[end-1] == 0 {
+		end--
+	}
+	return string(data[:end])
+}
+
+func applyMySQLUserPrivileges(user *MySQLUser, privs []byte) {
+	user.SelectPriv = normalizeYN(privs[0])
+	user.InsertPriv = normalizeYN(privs[1])
+	user.UpdatePriv = normalizeYN(privs[2])
+	user.DeletePriv = normalizeYN(privs[3])
+	user.CreatePriv = normalizeYN(privs[4])
+	user.DropPriv = normalizeYN(privs[5])
+	user.ReloadPriv = normalizeYN(privs[6])
+	user.ShutdownPriv = normalizeYN(privs[7])
+	user.ProcessPriv = normalizeYN(privs[8])
+	user.FilePriv = normalizeYN(privs[9])
+	user.GrantPriv = normalizeYN(privs[10])
+	user.ReferencesPriv = normalizeYN(privs[11])
+	user.IndexPriv = normalizeYN(privs[12])
+	user.AlterPriv = normalizeYN(privs[13])
+	user.ShowDbPriv = normalizeYN(privs[14])
+	user.SuperPriv = normalizeYN(privs[15])
+	user.CreateTmpTablePriv = normalizeYN(privs[16])
+	user.LockTablesPriv = normalizeYN(privs[17])
+	user.ExecutePriv = normalizeYN(privs[18])
+	user.ReplSlavePriv = normalizeYN(privs[19])
+	user.ReplClientPriv = normalizeYN(privs[20])
+	user.CreateViewPriv = normalizeYN(privs[21])
+	user.ShowViewPriv = normalizeYN(privs[22])
+	user.CreateRoutinePriv = normalizeYN(privs[23])
+	user.AlterRoutinePriv = normalizeYN(privs[24])
+	user.CreateUserPriv = normalizeYN(privs[25])
+	user.EventPriv = normalizeYN(privs[26])
+	user.TriggerPriv = normalizeYN(privs[27])
+	user.CreateTablespacePriv = normalizeYN(privs[28])
+}
+
+func normalizeYN(value byte) string {
+	if value == 1 || value == 'Y' || value == 'y' {
+		return "Y"
+	}
+	return "N"
 }
 
 // boolToYN 将布尔值转换为Y/N字符串
@@ -1135,28 +1186,6 @@ func (sm *StorageManager) containsUserRecords(content []byte) bool {
 
 	// 如果有足够的非零字节，认为包含用户记录
 	return nonZeroBytes > 30
-}
-
-// createUserFromQueryParams 基于查询参数创建用户对象（兼容模式）
-func (sm *StorageManager) createUserFromQueryParams(username, host string) (*MySQLUser, error) {
-	logger.Debugf("Creating user from query parameters (fallback mode): %s@%s", username, host)
-
-	// 这是一个兼容性方法，当B+树查询找到记录但反序列化失败时使用
-	if username == "root" && (host == "localhost" || host == "%" || host == "127.0.0.1" || host == "::1") {
-		user := createDefaultRootUser()
-		if host == "127.0.0.1" || host == "::1" {
-			user.Host = "%"
-		} else {
-			user.Host = host
-		}
-		if host == "%" {
-			user.Host = "%"
-		}
-		logger.Debugf("Created fallback user object for %s@%s", username, host)
-		return user, nil
-	}
-
-	return nil, fmt.Errorf("cannot create user object for %s@%s", username, host)
 }
 
 // VerifyUserPassword 验证用户密码
@@ -1309,18 +1338,7 @@ func (sm *StorageManager) QueryMySQLUserViaBTree(username, host string) (*MySQLU
 
 	logger.Debugf("   Found user at page %d, slot %d", record.PageNo, record.SlotNo)
 
-	// 从记录中反序列化用户数据（简化实现）
-	// 实际需要解析record.Value并反序列化用户数据
-	if username == "root" && (host == "localhost" || host == "%") {
-		user := createDefaultRootUser()
-		if host == "%" {
-			user.Host = "%"
-		}
-		logger.Debugf("   Successfully retrieved user via Enhanced B+tree")
-		return user, nil
-	}
-
-	return nil, fmt.Errorf("user %s@%s not found in Enhanced B+tree", username, host)
+	return nil, fmt.Errorf("mysql.user record deserialization via Enhanced B+tree is not implemented for %s@%s", username, host)
 }
 
 // verifyEnhancedBTreeStructure 验证增强版B+树中的用户数据
