@@ -324,6 +324,7 @@ type UpdateExpression struct {
 	ColumnName string
 	NewValue   interface{}
 	ColumnType metadata.DataType
+	Expr       sqlparser.Expr
 }
 
 // getTableMetadata 获取表元数据

@@ -12,6 +12,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 )
 
 // InnoDBEngineAccess InnoDB引擎访问实现
@@ -36,6 +37,10 @@ func escapeStringLiteral(value string) string {
 
 // QueryUser 查询用户信息
 func (ea *InnoDBEngineAccess) QueryUser(ctx context.Context, user, host string) (*UserInfo, error) {
+	if userInfo, err := ea.queryUserFromStorage(user, host); err == nil {
+		return userInfo, nil
+	}
+
 	escapedUser := escapeStringLiteral(user)
 	escapedHost := escapeStringLiteral(host)
 
@@ -72,6 +77,110 @@ func (ea *InnoDBEngineAccess) QueryUser(ctx context.Context, user, host string) 
 	}
 
 	return userInfo, nil
+}
+
+func (ea *InnoDBEngineAccess) queryUserFromStorage(user, host string) (*UserInfo, error) {
+	if ea.engine == nil || ea.engine.GetStorageManager() == nil {
+		return nil, fmt.Errorf("storage manager unavailable")
+	}
+
+	candidates := authHostCandidates(host)
+	var lastErr error
+	for _, candidateHost := range candidates {
+		mysqlUser, err := ea.engine.GetStorageManager().QueryMySQLUser(user, candidateHost)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		return mysqlUserToUserInfo(mysqlUser), nil
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, fmt.Errorf("user '%s'@'%s' not found", user, host)
+}
+
+func authHostCandidates(host string) []string {
+	candidates := []string{host}
+	if host == "127.0.0.1" || host == "::1" {
+		candidates = append(candidates, "localhost")
+	}
+	if host != "%" {
+		candidates = append(candidates, "%")
+	}
+
+	seen := make(map[string]struct{}, len(candidates))
+	result := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
+		}
+		if _, exists := seen[candidate]; exists {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		result = append(result, candidate)
+	}
+	return result
+}
+
+func mysqlUserToUserInfo(mysqlUser *manager.MySQLUser) *UserInfo {
+	if mysqlUser == nil {
+		return nil
+	}
+	return &UserInfo{
+		User:               mysqlUser.User,
+		Host:               mysqlUser.Host,
+		Password:           mysqlUser.AuthenticationString,
+		AccountLocked:      strings.EqualFold(mysqlUser.AccountLocked, "Y"),
+		PasswordExpired:    strings.EqualFold(mysqlUser.PasswordExpired, "Y"),
+		MaxConnections:     0,
+		MaxUserConnections: 0,
+		GlobalPrivileges:   mysqlUserGlobalPrivileges(mysqlUser),
+		DatabasePrivileges: make(map[string][]common.PrivilegeType),
+		TablePrivileges:    make(map[string]map[string][]common.PrivilegeType),
+	}
+}
+
+func mysqlUserGlobalPrivileges(mysqlUser *manager.MySQLUser) []common.PrivilegeType {
+	privileges := make([]common.PrivilegeType, 0, 29)
+	add := func(flag string, privilege common.PrivilegeType) {
+		if strings.EqualFold(flag, "Y") {
+			privileges = append(privileges, privilege)
+		}
+	}
+
+	add(mysqlUser.SelectPriv, common.SelectPriv)
+	add(mysqlUser.InsertPriv, common.InsertPriv)
+	add(mysqlUser.UpdatePriv, common.UpdatePriv)
+	add(mysqlUser.DeletePriv, common.DeletePriv)
+	add(mysqlUser.CreatePriv, common.CreatePriv)
+	add(mysqlUser.DropPriv, common.DropPriv)
+	add(mysqlUser.ReloadPriv, common.ReloadPriv)
+	add(mysqlUser.ShutdownPriv, common.ShutdownPriv)
+	add(mysqlUser.ProcessPriv, common.ProcessPriv)
+	add(mysqlUser.FilePriv, common.FilePriv)
+	add(mysqlUser.GrantPriv, common.GrantPriv)
+	add(mysqlUser.ReferencesPriv, common.ReferencesPriv)
+	add(mysqlUser.IndexPriv, common.IndexPriv)
+	add(mysqlUser.AlterPriv, common.AlterPriv)
+	add(mysqlUser.ShowDbPriv, common.ShowDBPriv)
+	add(mysqlUser.SuperPriv, common.SuperPriv)
+	add(mysqlUser.CreateTmpTablePriv, common.CreateTMPTablePriv)
+	add(mysqlUser.LockTablesPriv, common.LockTablesPriv)
+	add(mysqlUser.ExecutePriv, common.ExecutePriv)
+	add(mysqlUser.ReplSlavePriv, common.ReplicationSlavePriv)
+	add(mysqlUser.ReplClientPriv, common.ReplicationClientPriv)
+	add(mysqlUser.CreateViewPriv, common.CreateViewPriv)
+	add(mysqlUser.ShowViewPriv, common.ShowViewPriv)
+	add(mysqlUser.CreateRoutinePriv, common.CreateRoutinePriv)
+	add(mysqlUser.AlterRoutinePriv, common.AlterRoutinePriv)
+	add(mysqlUser.CreateUserPriv, common.CreateUserPriv)
+	add(mysqlUser.EventPriv, common.EventPriv)
+	add(mysqlUser.TriggerPriv, common.TriggerPriv)
+	add(mysqlUser.CreateTablespacePriv, common.CreateTablespacePriv)
+
+	return privileges
 }
 
 // queryUserWithWildcard 使用通配符查询用户
@@ -144,6 +253,10 @@ func (ea *InnoDBEngineAccess) QueryDatabase(ctx context.Context, database string
 
 // QueryUserPrivileges 查询用户全局权限
 func (ea *InnoDBEngineAccess) QueryUserPrivileges(ctx context.Context, user, host string) ([]common.PrivilegeType, error) {
+	if userInfo, err := ea.queryUserFromStorage(user, host); err == nil {
+		return userInfo.GlobalPrivileges, nil
+	}
+
 	escapedUser := escapeStringLiteral(user)
 	escapedHost := escapeStringLiteral(host)
 

@@ -63,6 +63,7 @@ func (adapter *EnhancedBTreeAdapter) Init(ctx context.Context, spaceId uint32, r
 	if err != nil {
 		return fmt.Errorf("failed to create default index: %v", err)
 	}
+	adapter.rootPageNo = metadata.RootPageNo
 
 	return nil
 }

@@ -273,6 +273,12 @@ func (tsm *TableStorageManager) CreateBTreeManagerForTable(ctx context.Context, 
 	if err != nil {
 		return nil, fmt.Errorf("init btree manager failed: %v", err)
 	}
+	if btreeManager.rootPageNo != 0 && btreeManager.rootPageNo != info.RootPageNo {
+		tsm.mu.Lock()
+		info.RootPageNo = btreeManager.rootPageNo
+		info.IndexPageNo = btreeManager.rootPageNo
+		tsm.mu.Unlock()
+	}
 
 	logger.Debugf("Created Enhanced BTreeManager for table %s.%s (Space: %d, Root: %d)\n",
 		schemaName, tableName, info.SpaceID, info.RootPageNo)

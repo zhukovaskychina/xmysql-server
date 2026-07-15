@@ -8,6 +8,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
@@ -35,12 +36,14 @@ type SQLRouter interface {
 
 // SQLResult SQL执行结果
 type SQLResult struct {
-	Err        error
-	Data       interface{}
-	ResultType string
-	Message    string
-	Columns    []string
-	Rows       [][]interface{}
+	Err          error
+	Data         interface{}
+	ResultType   string
+	Message      string
+	Columns      []string
+	Rows         [][]interface{}
+	AffectedRows uint64
+	LastInsertID uint64
 }
 
 // NewSQLDispatcher 创建SQL分发器
@@ -275,8 +278,16 @@ func (e *InnoDBSQLEngine) convertResult(xmysqlResult *engine.Result) *SQLResult 
 			result.Columns = []string{}     // 确保没有列
 			result.Rows = [][]interface{}{} // 确保没有行
 		} else {
-			// 其他QUERY类型，正常转换
-			result = e.convertSelectResult(xmysqlResult, result)
+			if dmlResult, ok := xmysqlResult.Data.(*engine.DMLResult); ok {
+				result.Message = dmlResult.Message
+				result.AffectedRows = uint64(dmlResult.AffectedRows)
+				result.LastInsertID = dmlResult.LastInsertId
+				result.Columns = []string{}
+				result.Rows = [][]interface{}{}
+			} else {
+				// 其他QUERY类型，正常转换
+				result = e.convertSelectResult(xmysqlResult, result)
+			}
 		}
 	default:
 		result.ResultType = xmysqlResult.ResultType
@@ -288,6 +299,28 @@ func (e *InnoDBSQLEngine) convertResult(xmysqlResult *engine.Result) *SQLResult 
 
 // convertSelectResult 转换SELECT查询结果
 func (e *InnoDBSQLEngine) convertSelectResult(xmysqlResult *engine.Result, result *SQLResult) *SQLResult {
+	if selectResult, ok := xmysqlResult.Data.(*engine.SelectResult); ok {
+		result.Columns = selectResult.Columns
+		result.Rows = make([][]interface{}, 0, len(selectResult.Records))
+		for _, record := range selectResult.Records {
+			if record == nil {
+				continue
+			}
+			values := record.GetValues()
+			row := make([]interface{}, 0, len(values))
+			for _, value := range values {
+				if value == nil {
+					row = append(row, nil)
+				} else {
+					row = append(row, basicValueToInterface(value))
+				}
+			}
+			result.Rows = append(result.Rows, row)
+		}
+		result.Message = selectResult.Message
+		return result
+	}
+
 	// 这里需要根据XMySQLEngine的实际数据结构来转换
 	if data, ok := xmysqlResult.Data.(map[string]interface{}); ok {
 		if columns, exists := data["columns"]; exists {
@@ -314,6 +347,23 @@ func (e *InnoDBSQLEngine) convertSelectResult(xmysqlResult *engine.Result, resul
 
 	result.Message = "Query executed successfully"
 	return result
+}
+
+func basicValueToInterface(value basic.Value) interface{} {
+	if value == nil || value.IsNull() {
+		return nil
+	}
+
+	switch value.Type() {
+	case basic.ValueTypeTinyInt, basic.ValueTypeSmallInt, basic.ValueTypeMediumInt, basic.ValueTypeInt, basic.ValueTypeBigInt:
+		return value.Int()
+	case basic.ValueTypeFloat, basic.ValueTypeDouble, basic.ValueTypeDecimal:
+		return value.Float64()
+	case basic.ValueTypeBool, basic.ValueTypeBoolean:
+		return value.Bool()
+	default:
+		return value.ToString()
+	}
 }
 
 // DefaultSQLRouter 默认SQL路由器

@@ -99,7 +99,7 @@ func (h *EnhancedBusinessMessageHandler) HandleQueryWithRealSession(realSession 
 	}
 
 	//  特殊处理简单查询
-	if strings.TrimSpace(strings.ToUpper(query)) == "SELECT 1" {
+	if isSelectOneQuery(query) {
 		logger.Debugf(" 检测到 SELECT 1 查询，返回硬编码响应")
 		// 创建临时消息用于响应生成
 		tempMsg := &protocol.QueryMessage{
@@ -139,11 +139,13 @@ func (h *EnhancedBusinessMessageHandler) HandleQueryWithRealSession(realSession 
 
 		// 转换结果格式
 		queryResult := &protocol.MessageQueryResult{
-			Columns: result.Columns,
-			Rows:    result.Rows,
-			Error:   result.Err,
-			Message: result.Message,
-			Type:    result.ResultType,
+			Columns:      result.Columns,
+			Rows:         result.Rows,
+			Error:        result.Err,
+			Message:      result.Message,
+			Type:         result.ResultType,
+			AffectedRows: result.AffectedRows,
+			LastInsertID: result.LastInsertID,
 		}
 
 		responseMsg := &protocol.ResponseMessage{
@@ -264,7 +266,7 @@ func (h *EnhancedBusinessMessageHandler) handleQueryMessage(ctx context.Context,
 	}
 
 	//  特殊处理简单查询
-	if strings.TrimSpace(strings.ToUpper(queryMsg.SQL)) == "SELECT 1" {
+	if isSelectOneQuery(queryMsg.SQL) {
 		logger.Debugf(" 检测到 SELECT 1 查询，返回硬编码响应")
 		return h.createSelectOneResponse(msg), nil
 	}
@@ -314,12 +316,14 @@ func (h *EnhancedBusinessMessageHandler) handleQueryMessage(ctx context.Context,
 		}
 
 		queryResult := &protocol.MessageQueryResult{
-			Columns:     result.Columns,
-			ColumnTypes: columnTypes,
-			Rows:        result.Rows,
-			Error:       result.Err,
-			Message:     result.Message,
-			Type:        result.ResultType,
+			Columns:      result.Columns,
+			ColumnTypes:  columnTypes,
+			Rows:         result.Rows,
+			Error:        result.Err,
+			Message:      result.Message,
+			Type:         result.ResultType,
+			AffectedRows: result.AffectedRows,
+			LastInsertID: result.LastInsertID,
 		}
 
 		responseMsg := &protocol.ResponseMessage{
@@ -866,4 +870,13 @@ func (h *EnhancedBusinessMessageHandler) createSelectOneResponse(msg protocol.Me
 
 	logger.Debugf(" SELECT 1 硬编码响应创建完成")
 	return responseMsg
+}
+
+func isSelectOneQuery(query string) bool {
+	normalized := strings.ToUpper(strings.TrimSpace(query))
+	normalized = strings.TrimSuffix(normalized, ";")
+	if strings.Contains(normalized, " FROM ") {
+		return false
+	}
+	return normalized == "SELECT 1" || strings.HasPrefix(normalized, "SELECT 1 AS ")
 }

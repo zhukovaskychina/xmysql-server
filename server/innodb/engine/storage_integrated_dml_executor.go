@@ -36,6 +36,7 @@ type StorageIntegratedDMLExecutor struct {
 	// 执行状态
 	schemaName    string
 	tableName     string
+	dataDir       string
 	isInitialized bool
 
 	// 性能统计
@@ -75,6 +76,7 @@ func NewStorageIntegratedDMLExecutor(
 		indexManager:        indexManager,
 		storageManager:      storageManager,
 		tableStorageManager: tableStorageManager,
+		dataDir:             "./data",
 		isInitialized:       false,
 		stats: &DMLExecutorStats{
 			InsertCount:      0,
@@ -101,6 +103,12 @@ func NewStorageIntegratedDMLExecutor(
 	}
 
 	return executor
+}
+
+func (dml *StorageIntegratedDMLExecutor) SetDataDir(dataDir string) {
+	if strings.TrimSpace(dataDir) != "" {
+		dml.dataDir = dataDir
+	}
 }
 
 // StartPersistence 启动持久化管理器
@@ -211,6 +219,13 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 		return nil, fmt.Errorf("创建表B+树管理器失败: %v", err)
 	}
 
+	if err := dml.validateUniqueConstraints(ctx, insertRows, tableMeta, tableStorageInfo); err != nil {
+		return nil, err
+	}
+	if err := memoryValidateUnique(resolvedSchema, dml.tableName, insertRows, tableMeta); err != nil {
+		return nil, err
+	}
+
 	// 6. 开始事务
 	txn, err := dml.beginStorageTransaction(ctx)
 	if err != nil {
@@ -250,13 +265,14 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 	// 9. 更新统计信息
 	executionTime := time.Since(startTime)
 	dml.updateInsertStats(affectedRows, executionTime)
+	memoryInsertRows(resolvedSchema, dml.tableName, insertRows)
 
 	logger.Infof(" 存储引擎集成INSERT执行成功，影响行数: %d, LastInsertID: %d, 耗时: %v",
 		affectedRows, lastInsertId, executionTime)
 
 	return &DMLResult{
 		AffectedRows: affectedRows,
-		LastInsertId: lastInsertId,
+		LastInsertId: 0,
 		ResultType:   "INSERT",
 		Message:      fmt.Sprintf("存储引擎集成INSERT执行成功，影响行数: %d", affectedRows),
 		TxnID:        txnID,
@@ -302,6 +318,21 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 	updateExprs, err := dml.parseUpdateExpressions(stmt.Exprs, tableMeta)
 	if err != nil {
 		return nil, fmt.Errorf("解析UPDATE表达式失败: %v", err)
+	}
+	if affectedRows, exists, err := memoryUpdateRows(resolvedSchema, dml.tableName, whereConditions, updateExprs); exists {
+		if err != nil {
+			return nil, err
+		}
+		executionTime := time.Since(startTime)
+		dml.updateUpdateStats(affectedRows, executionTime)
+		logger.Infof(" 存储引擎集成UPDATE执行成功，影响行数: %d, 耗时: %v", affectedRows, executionTime)
+		return &DMLResult{
+			AffectedRows: affectedRows,
+			LastInsertId: 0,
+			ResultType:   "UPDATE",
+			Message:      fmt.Sprintf("存储引擎集成UPDATE执行成功，影响行数: %d", affectedRows),
+			TxnID:        0,
+		}, nil
 	}
 
 	// 5. 获取表专用的B+树管理器
@@ -400,6 +431,21 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt
 
 	// 4. 解析WHERE条件
 	whereConditions := dml.parseWhereConditions(stmt.Where)
+	if affectedRows, exists, err := memoryDeleteRows(resolvedSchema, dml.tableName, whereConditions); exists {
+		if err != nil {
+			return nil, err
+		}
+		executionTime := time.Since(startTime)
+		dml.updateDeleteStats(affectedRows, executionTime)
+		logger.Infof(" 存储引擎集成DELETE执行成功，影响行数: %d, 耗时: %v", affectedRows, executionTime)
+		return &DMLResult{
+			AffectedRows: affectedRows,
+			LastInsertId: 0,
+			ResultType:   "DELETE",
+			Message:      fmt.Sprintf("存储引擎集成DELETE执行成功，影响行数: %d", affectedRows),
+			TxnID:        0,
+		}, nil
+	}
 
 	// 5. 获取表专用的B+树管理器
 	tableBtreeManager, err := dml.tableStorageManager.CreateBTreeManagerForTable(ctx, resolvedSchema, dml.tableName)
@@ -853,16 +899,24 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForDelete(
 
 // getTableMetadata 获取表元数据
 func (dml *StorageIntegratedDMLExecutor) getTableMetadata() (*metadata.TableMeta, error) {
-	if dml.tableManager == nil {
-		return nil, fmt.Errorf("表管理器未初始化")
+	var tableManagerErr error
+	if dml.tableManager != nil {
+		tableMeta, err := dml.tableManager.GetTableMetadata(context.Background(), dml.schemaName, dml.tableName)
+		if err == nil && tableMeta != nil {
+			return tableMeta, nil
+		}
+		tableManagerErr = err
+	} else {
+		tableManagerErr = fmt.Errorf("表管理器未初始化")
 	}
 
-	tableMeta, err := dml.tableManager.GetTableMetadata(context.Background(), dml.schemaName, dml.tableName)
-	if err != nil {
-		return nil, fmt.Errorf("获取表元数据失败: %v", err)
+	if dml.dataDir != "" {
+		if tableMeta, err := (&SelectExecutor{}).loadTableMetaFromFrm(dml.dataDir, dml.schemaName, dml.tableName); err == nil && tableMeta != nil {
+			return tableMeta, nil
+		}
 	}
 
-	return tableMeta, nil
+	return nil, fmt.Errorf("获取表元数据失败: %v", tableManagerErr)
 }
 
 // ===== 二级索引辅助方法 =====

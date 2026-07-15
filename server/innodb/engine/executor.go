@@ -256,12 +256,54 @@ func (e *XMySQLExecutor) executeDDL(stmt *sqlparser.DDL, mysqlSession server.MyS
 	case "drop":
 		logger.Debugf("🗑️ DROP TABLE使用数据库: %s", currentDB)
 		e.executeDropTableStatement(ctx, stmt)
+	case "truncate":
+		logger.Debugf("TRUNCATE TABLE使用数据库: %s", currentDB)
+		e.executeTruncateTableStatement(ctx, currentDB, stmt)
 	default:
 		results <- &Result{
 			Err:        newExecutorErrorf("ddl-action", ExecutionErrorCodeValidation, currentDB, "", "", fmt.Errorf("unsupported DDL action: %s", stmt.Action), "unsupported DDL action"),
 			ResultType: common.RESULT_TYPE_DDL,
 			Message:    fmt.Sprintf("Unsupported DDL action: %s", stmt.Action),
 		}
+	}
+}
+
+// executeTruncateTableStatement 执行 TRUNCATE TABLE，保留表元数据并重建表空间。
+func (e *XMySQLExecutor) executeTruncateTableStatement(ctx *ExecutionContext, currentDB string, stmt *sqlparser.DDL) {
+	tableName := stmt.Table.Name.String()
+	databaseName := stmt.Table.Qualifier.String()
+	if databaseName == "" {
+		databaseName = currentDB
+	}
+
+	if tableName == "" {
+		ctx.Results <- &Result{
+			Err:        fmt.Errorf("table name cannot be empty"),
+			ResultType: common.RESULT_TYPE_DDL,
+			Message:    "TRUNCATE TABLE failed: table name cannot be empty",
+		}
+		return
+	}
+	if databaseName == "" {
+		ctx.Results <- &Result{
+			Err:        fmt.Errorf("no database selected"),
+			ResultType: common.RESULT_TYPE_DDL,
+			Message:    "TRUNCATE TABLE failed: no database selected",
+		}
+		return
+	}
+	if err := e.truncateTableImpl(databaseName, tableName); err != nil {
+		ctx.Results <- &Result{
+			Err:        err,
+			ResultType: common.RESULT_TYPE_DDL,
+			Message:    fmt.Sprintf("TRUNCATE TABLE failed: %v", err),
+		}
+		return
+	}
+
+	ctx.Results <- &Result{
+		ResultType: common.RESULT_TYPE_DDL,
+		Message:    fmt.Sprintf("Table '%s' truncated successfully", tableName),
 	}
 }
 
@@ -961,6 +1003,7 @@ func (e *XMySQLExecutor) executeInsertStatement(ctx *ExecutionContext, stmt *sql
 			storageManager,
 			tableStorageManager,
 		)
+		storageIntegratedExecutor.SetDataDir(e.getDataDir())
 
 		// 执行INSERT语句
 		result, err := storageIntegratedExecutor.ExecuteInsert(ctx.Context, stmt, targetSchema)
@@ -1074,6 +1117,7 @@ func (e *XMySQLExecutor) executeUpdateStatement(ctx *ExecutionContext, stmt *sql
 			storageManager,
 			tableStorageManager,
 		)
+		storageIntegratedExecutor.SetDataDir(e.getDataDir())
 
 		// 执行UPDATE语句
 		result, err := storageIntegratedExecutor.ExecuteUpdate(ctx.Context, stmt, targetSchema)
@@ -1184,6 +1228,7 @@ func (e *XMySQLExecutor) executeDeleteStatement(ctx *ExecutionContext, stmt *sql
 			storageManager,
 			tableStorageManager,
 		)
+		storageIntegratedExecutor.SetDataDir(e.getDataDir())
 
 		// 执行DELETE语句
 		result, err := storageIntegratedExecutor.ExecuteDelete(ctx.Context, stmt, targetSchema)
@@ -1862,6 +1907,69 @@ func isTableStorageAlreadyRegisteredError(err error) bool {
 	return errors.Is(err, manager.ErrTableStorageAlreadyRegistered)
 }
 
+func (e *XMySQLExecutor) truncateTableImpl(databaseName, tableName string) error {
+	memoryClearTable(databaseName, tableName)
+	if err := validateDatabaseName(databaseName); err != nil {
+		return newExecutorErrorf(
+			"truncate-table",
+			ExecutionErrorCodeValidation,
+			databaseName,
+			tableName,
+			"",
+			err,
+			"invalid database name '%s'",
+			databaseName,
+		)
+	}
+	if err := e.validateDatabaseExists(databaseName); err != nil {
+		return err
+	}
+	exists, err := e.checkTableExists(databaseName, tableName)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("table '%s.%s' does not exist", databaseName, tableName)
+	}
+	if e.storageManager == nil {
+		return fmt.Errorf("storage manager not available")
+	}
+	if e.tableStorageManager == nil {
+		return fmt.Errorf("table storage manager not available")
+	}
+
+	oldInfo, err := e.tableStorageManager.GetTableStorageInfo(databaseName, tableName)
+	if err != nil {
+		return err
+	}
+
+	if err := e.tableStorageManager.UnregisterTable(databaseName, tableName); err != nil {
+		return err
+	}
+
+	spaceName := fmt.Sprintf("%s/%s_truncate_%d", databaseName, tableName, time.Now().UnixNano())
+	handle, err := e.storageManager.CreateTablespace(spaceName)
+	if err != nil {
+		return fmt.Errorf("create new tablespace failed: %v", err)
+	}
+
+	info := &manager.TableStorageInfo{
+		SchemaName:    databaseName,
+		TableName:     tableName,
+		SpaceID:       handle.SpaceID,
+		RootPageNo:    3,
+		IndexPageNo:   3,
+		DataSegmentID: handle.DataSegmentID,
+		Type:          oldInfo.Type,
+	}
+	if err := e.tableStorageManager.RegisterTable(context.Background(), info); err != nil {
+		return fmt.Errorf("register truncated table storage failed: %v", err)
+	}
+
+	logger.Infof("TRUNCATE TABLE '%s.%s' remapped tablespace oldSpaceID=%d newSpaceID=%d", databaseName, tableName, oldInfo.SpaceID, handle.SpaceID)
+	return nil
+}
+
 // executeDropTableStatement 执行 DROP TABLE
 func (e *XMySQLExecutor) executeDropTableStatement(ctx *ExecutionContext, stmt *sqlparser.DDL) {
 	logger.Debugf("🗑️ Executing DROP TABLE: %s", stmt.Table.Name.String())
@@ -2078,6 +2186,7 @@ func (e *XMySQLExecutor) executeDropDatabaseStatement(ctx *ExecutionContext, stm
 
 // dropDatabaseImpl 实际的数据库删除实现
 func (e *XMySQLExecutor) dropDatabaseImpl(dbName string, ifExists bool) error {
+	memoryClearDatabase(dbName)
 	// 1. 检查是否为系统数据库
 	if isSystemDatabase(dbName) {
 		return fmt.Errorf("cannot drop system database '%s'", dbName)
@@ -2208,6 +2317,7 @@ func (e *XMySQLExecutor) createTableImpl(dbName, tableName string, stmt *sqlpars
 // dropTableImpl 实际的表删除实现
 func (e *XMySQLExecutor) dropTableImpl(dbName, tableName string) error {
 	logger.Debugf("🗑️ Dropping table %s.%s", dbName, tableName)
+	memoryClearTable(dbName, tableName)
 
 	// 获取数据目录
 	dataDir := e.getDataDir()
@@ -2244,12 +2354,15 @@ func (e *XMySQLExecutor) dropTableImpl(dbName, tableName string) error {
 // createTableStructureFile 创建表结构文件 (.frm)
 func (e *XMySQLExecutor) createTableStructureFile(dbPath, tableName string, stmt *sqlparser.DDL) error {
 	frmPath := filepath.Join(dbPath, tableName+".frm")
+	columns := e.parseTableColumns(stmt.TableSpec)
+	indexes := e.parseTableIndexes(stmt.TableSpec)
+	applyIndexMetadataToColumns(columns, indexes)
 
 	// 构建表结构信息
 	tableInfo := map[string]interface{}{
 		"table_name": tableName,
-		"columns":    e.parseTableColumns(stmt.TableSpec),
-		"indexes":    e.parseTableIndexes(stmt.TableSpec),
+		"columns":    columns,
+		"indexes":    indexes,
 		"options":    e.parseTableOptions(stmt.TableSpec),
 		"created_at": time.Now().Format(time.RFC3339),
 	}
@@ -2316,6 +2429,14 @@ func (e *XMySQLExecutor) parseTableColumns(spec *sqlparser.TableSpec) []map[stri
 		if col.Type.Autoincrement {
 			column["auto_increment"] = true
 		}
+		typeText := strings.ToLower(sqlparser.String(&col.Type))
+		if strings.Contains(typeText, "primary key") {
+			column["primary"] = true
+			column["unique"] = true
+		}
+		if strings.Contains(typeText, "unique") {
+			column["unique"] = true
+		}
 
 		// 解析默认值
 		if col.Type.Default != nil {
@@ -2355,6 +2476,33 @@ func (e *XMySQLExecutor) parseTableColumns(spec *sqlparser.TableSpec) []map[stri
 	}
 
 	return columns
+}
+
+func applyIndexMetadataToColumns(columns []map[string]interface{}, indexes []map[string]interface{}) {
+	byName := make(map[string]map[string]interface{}, len(columns))
+	for _, col := range columns {
+		if name, _ := col["name"].(string); name != "" {
+			byName[name] = col
+		}
+	}
+	for _, idx := range indexes {
+		rawColumns, _ := idx["columns"].([]string)
+		if len(rawColumns) == 0 {
+			continue
+		}
+		isPrimary, _ := idx["primary"].(bool)
+		isUnique, _ := idx["unique"].(bool)
+		for _, name := range rawColumns {
+			if col, ok := byName[name]; ok {
+				if isPrimary {
+					col["primary"] = true
+					col["unique"] = true
+				} else if isUnique {
+					col["unique"] = true
+				}
+			}
+		}
+	}
 }
 
 // parseTableIndexes 解析表索引定义

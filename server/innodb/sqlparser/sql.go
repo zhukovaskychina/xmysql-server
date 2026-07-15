@@ -3080,7 +3080,7 @@ yydefault:
 		yyDollar = yyS[yypt-4 : yypt+1]
 //line ./sql.y:613
 		{
-			yyVAL.ddl = &DDL{Action: CreateStr, NewName: yyDollar[4].tableName}
+			yyVAL.ddl = &DDL{Action: CreateStr, NewName: yyDollar[4].tableName, IfExists: yyDollar[3].byt != 0}
 			setDDL(yylex, yyVAL.ddl)
 		}
 	case 76:

@@ -26,14 +26,31 @@ type dmlPageRow struct {
 
 // generatePrimaryKey 生成主键值
 func (dml *StorageIntegratedDMLExecutor) generatePrimaryKey(row *InsertRowData, tableMeta *metadata.TableMeta) (interface{}, error) {
-	// 简化实现：如果有id列，使用id作为主键；否则生成一个
 	if idValue, exists := row.ColumnValues["id"]; exists {
 		return idValue, nil
 	}
 
-	// 生成自增主键
-	timestamp := time.Now().UnixNano()
-	return timestamp, nil
+	if tableMeta != nil {
+		for _, col := range tableMeta.Columns {
+			if col == nil || !col.IsPrimary {
+				continue
+			}
+			if value, exists := row.ColumnValues[col.Name]; exists && value != nil {
+				return value, nil
+			}
+			if col.IsAutoIncrement {
+				value := time.Now().UnixNano()
+				row.ColumnValues[col.Name] = value
+				row.ColumnTypes[col.Name] = col.Type
+				return value, nil
+			}
+		}
+	}
+
+	value := time.Now().UnixNano()
+	row.ColumnValues["id"] = value
+	row.ColumnTypes["id"] = metadata.TypeInt
+	return value, nil
 }
 
 // serializeRowData 序列化行数据
@@ -570,7 +587,56 @@ func (dml *StorageIntegratedDMLExecutor) findRowsToUpdateInStorage(
 		}
 	}
 
-	return rowsToUpdate, nil
+	if len(rowsToUpdate) > 0 {
+		return rowsToUpdate, nil
+	}
+
+	return dml.scanRowsForConditions(ctx, whereConditions, tableMeta, tableStorageInfo)
+}
+
+func (dml *StorageIntegratedDMLExecutor) scanRowsForConditions(
+	ctx context.Context,
+	whereConditions []string,
+	tableMeta *metadata.TableMeta,
+	tableStorageInfo *manager.TableStorageInfo,
+) ([]*RowUpdateInfo, error) {
+	pageNo := tableStorageInfo.RootPageNo
+	bufferPage, err := dml.bufferPoolManager.GetPage(tableStorageInfo.SpaceID, pageNo)
+	if err != nil {
+		return nil, fmt.Errorf("获取页面失败: %v", err)
+	}
+
+	pageRows, err := decodeDMLPageRows(bufferPage.GetContent())
+	if err != nil {
+		return nil, fmt.Errorf("解析页内行数据失败: %v", err)
+	}
+
+	matched := make([]*RowUpdateInfo, 0)
+	for slot, pageRow := range pageRows {
+		if pageRow.Deleted {
+			continue
+		}
+		rowData, err := dml.deserializeRowData(pageRow.Data)
+		if err != nil {
+			return nil, fmt.Errorf("反序列化行数据失败: %v", err)
+		}
+		ok, err := rowMatchesWhereConditions(rowData.ColumnValues, whereConditions)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			continue
+		}
+		rowID := dml.rowIDFromRowData(rowData, tableMeta)
+		matched = append(matched, &RowUpdateInfo{
+			RowId:     rowID,
+			PageNum:   pageNo,
+			SlotIndex: slot,
+			OldValues: rowData.ColumnValues,
+		})
+	}
+
+	return matched, nil
 }
 
 // findRowsToDeleteInStorage 在存储引擎中查找待删除的行
@@ -587,7 +653,7 @@ func (dml *StorageIntegratedDMLExecutor) findRowsToDeleteInStorage(
 	var rowsToDelete []*RowUpdateInfo
 
 	if !hasEffectiveWhereConditions(whereConditions) {
-		return nil, fmt.Errorf("DELETE without WHERE is not supported by storage integrated DML helper")
+		return dml.scanRowsForConditions(ctx, nil, tableMeta, tableStorageInfo)
 	}
 
 	// 解析WHERE条件中的主键值
@@ -618,7 +684,11 @@ func (dml *StorageIntegratedDMLExecutor) findRowsToDeleteInStorage(
 		}
 	}
 
-	return rowsToDelete, nil
+	if len(rowsToDelete) > 0 {
+		return rowsToDelete, nil
+	}
+
+	return dml.scanRowsForConditions(ctx, whereConditions, tableMeta, tableStorageInfo)
 }
 
 func hasEffectiveWhereConditions(whereConditions []string) bool {
@@ -820,9 +890,17 @@ func (dml *StorageIntegratedDMLExecutor) applyUpdateExpressions(
 
 	// 应用更新表达式
 	for _, expr := range updateExprs {
-		updatedData.ColumnValues[expr.ColumnName] = expr.NewValue
+		newValue := expr.NewValue
+		if expr.Expr != nil {
+			value, err := evaluateExpressionWithRow(expr.Expr, updatedData.ColumnValues)
+			if err != nil {
+				return nil, err
+			}
+			newValue = value
+		}
+		updatedData.ColumnValues[expr.ColumnName] = newValue
 		updatedData.ColumnTypes[expr.ColumnName] = expr.ColumnType
-		logger.Debugf(" 更新列 %s: %v", expr.ColumnName, expr.NewValue)
+		logger.Debugf(" 更新列 %s: %v", expr.ColumnName, newValue)
 	}
 
 	return updatedData, nil
@@ -944,12 +1022,6 @@ func (dml *StorageIntegratedDMLExecutor) parseSQLVal(val *sqlparser.SQLVal) (int
 	}
 }
 
-// validateInsertData 验证插入数据 - 复用原有实现
-func (dml *StorageIntegratedDMLExecutor) validateInsertData(rows []*InsertRowData, tableMeta *metadata.TableMeta) error {
-	logger.Debugf(" 验证插入数据，行数: %d", len(rows))
-	return nil
-}
-
 // parseTableName 解析表名 - 复用原有实现
 func (dml *StorageIntegratedDMLExecutor) parseTableName(tableExpr sqlparser.TableExpr) (string, error) {
 	switch v := tableExpr.(type) {
@@ -998,17 +1070,332 @@ func (dml *StorageIntegratedDMLExecutor) parseUpdateExpressions(exprs sqlparser.
 		columnName := expr.Name.Name.String()
 		value, err := dml.evaluateExpression(expr.Expr)
 		if err != nil {
-			return nil, fmt.Errorf("计算更新表达式值失败: %v", err)
+			if _, ok := expr.Expr.(*sqlparser.BinaryExpr); !ok {
+				return nil, fmt.Errorf("计算更新表达式值失败: %v", err)
+			}
 		}
 
 		updateExpr := &UpdateExpression{
 			ColumnName: columnName,
 			NewValue:   value,
 			ColumnType: metadata.TypeVarchar,
+			Expr:       expr.Expr,
 		}
 
 		updateExprs = append(updateExprs, updateExpr)
 	}
 
 	return updateExprs, nil
+}
+
+func (dml *StorageIntegratedDMLExecutor) validateInsertData(rows []*InsertRowData, tableMeta *metadata.TableMeta) error {
+	logger.Debugf(" 验证插入数据，行数: %d", len(rows))
+	if tableMeta == nil {
+		return fmt.Errorf("表元数据为空")
+	}
+
+	for _, row := range rows {
+		if row == nil {
+			return fmt.Errorf("存在空行数据")
+		}
+		for _, col := range tableMeta.Columns {
+			if col == nil || col.Name == "" {
+				continue
+			}
+			if _, exists := row.ColumnValues[col.Name]; exists {
+				continue
+			}
+			if col.IsAutoIncrement {
+				continue
+			}
+			if col.DefaultValue != nil {
+				row.ColumnValues[col.Name] = normalizeDefaultValue(col.DefaultValue, col.Type)
+				row.ColumnTypes[col.Name] = col.Type
+				continue
+			}
+			if !col.IsNullable {
+				return fmt.Errorf("列 %s 不允许为 NULL", col.Name)
+			}
+		}
+	}
+
+	return nil
+}
+
+func normalizeDefaultValue(raw interface{}, dataType metadata.DataType) interface{} {
+	s := strings.TrimSpace(fmt.Sprintf("%v", raw))
+	if len(s) >= 2 {
+		if (s[0] == '\'' && s[len(s)-1] == '\'') || (s[0] == '"' && s[len(s)-1] == '"') {
+			s = s[1 : len(s)-1]
+		}
+	}
+	switch strings.ToUpper(string(dataType)) {
+	case "INT", "INTEGER", "BIGINT", "SMALLINT", "TINYINT":
+		if n, err := strconv.ParseInt(s, 10, 64); err == nil {
+			return n
+		}
+	case "DECIMAL", "FLOAT", "DOUBLE":
+		if f, err := strconv.ParseFloat(s, 64); err == nil {
+			return f
+		}
+	}
+	return s
+}
+
+func (dml *StorageIntegratedDMLExecutor) validateUniqueConstraints(
+	ctx context.Context,
+	insertRows []*InsertRowData,
+	tableMeta *metadata.TableMeta,
+	tableStorageInfo *manager.TableStorageInfo,
+) error {
+	uniqueColumns := make([]string, 0)
+	for _, col := range tableMeta.Columns {
+		if col != nil && col.IsUnique {
+			uniqueColumns = append(uniqueColumns, col.Name)
+		}
+	}
+	if len(uniqueColumns) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{})
+	for _, row := range insertRows {
+		for _, colName := range uniqueColumns {
+			value, exists := row.ColumnValues[colName]
+			if !exists || value == nil {
+				continue
+			}
+			key := strings.ToLower(colName) + "=" + fmt.Sprintf("%v", value)
+			if _, exists := seen[key]; exists {
+				return fmt.Errorf("Duplicate entry '%v' for key '%s'", value, colName)
+			}
+			seen[key] = struct{}{}
+		}
+	}
+
+	existingRows, err := dml.scanRowsForConditions(ctx, nil, tableMeta, tableStorageInfo)
+	if err != nil {
+		return err
+	}
+	for _, rowInfo := range existingRows {
+		for _, colName := range uniqueColumns {
+			existing, exists := rowInfo.OldValues[colName]
+			if !exists || existing == nil {
+				continue
+			}
+			for _, row := range insertRows {
+				incoming, exists := row.ColumnValues[colName]
+				if !exists || incoming == nil {
+					continue
+				}
+				if compareScalarValues(existing, incoming) == 0 {
+					return fmt.Errorf("Duplicate entry '%v' for key '%s'", incoming, colName)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (dml *StorageIntegratedDMLExecutor) rowIDFromRowData(row *InsertRowData, tableMeta *metadata.TableMeta) uint64 {
+	if row == nil {
+		return 0
+	}
+	for _, col := range tableMeta.Columns {
+		if col == nil || !col.IsPrimary {
+			continue
+		}
+		if value, exists := row.ColumnValues[col.Name]; exists {
+			return dml.convertPrimaryKeyToUint64(value)
+		}
+	}
+	if value, exists := row.ColumnValues["id"]; exists {
+		return dml.convertPrimaryKeyToUint64(value)
+	}
+	return 0
+}
+
+func rowMatchesWhereConditions(values map[string]interface{}, whereConditions []string) (bool, error) {
+	if !hasEffectiveWhereConditions(whereConditions) {
+		return true, nil
+	}
+	for _, condition := range whereConditions {
+		condition = strings.TrimSpace(condition)
+		if condition == "" {
+			continue
+		}
+		stmt, err := sqlparser.Parse("SELECT 1 FROM dual WHERE " + condition)
+		if err != nil {
+			return false, err
+		}
+		selectStmt, ok := stmt.(*sqlparser.Select)
+		if !ok || selectStmt.Where == nil {
+			return false, nil
+		}
+		return evalPredicate(selectStmt.Where.Expr, values)
+	}
+	return true, nil
+}
+
+func evalPredicate(expr sqlparser.Expr, values map[string]interface{}) (bool, error) {
+	switch v := expr.(type) {
+	case *sqlparser.AndExpr:
+		left, err := evalPredicate(v.Left, values)
+		if err != nil || !left {
+			return left, err
+		}
+		return evalPredicate(v.Right, values)
+	case *sqlparser.OrExpr:
+		left, err := evalPredicate(v.Left, values)
+		if err != nil || left {
+			return left, err
+		}
+		return evalPredicate(v.Right, values)
+	case *sqlparser.ParenExpr:
+		return evalPredicate(v.Expr, values)
+	case *sqlparser.ComparisonExpr:
+		left, err := evaluateExpressionWithRow(v.Left, values)
+		if err != nil {
+			return false, err
+		}
+		right, err := evaluateExpressionWithRow(v.Right, values)
+		if err != nil {
+			return false, err
+		}
+		cmp := compareScalarValues(left, right)
+		switch v.Operator {
+		case sqlparser.EqualStr:
+			return cmp == 0, nil
+		case sqlparser.NotEqualStr:
+			return cmp != 0, nil
+		case sqlparser.LessThanStr:
+			return cmp < 0, nil
+		case sqlparser.LessEqualStr:
+			return cmp <= 0, nil
+		case sqlparser.GreaterThanStr:
+			return cmp > 0, nil
+		case sqlparser.GreaterEqualStr:
+			return cmp >= 0, nil
+		default:
+			return false, fmt.Errorf("不支持的比较操作符: %s", v.Operator)
+		}
+	default:
+		return false, fmt.Errorf("不支持的WHERE表达式类型: %T", expr)
+	}
+}
+
+func evaluateExpressionWithRow(expr sqlparser.Expr, values map[string]interface{}) (interface{}, error) {
+	switch v := expr.(type) {
+	case *sqlparser.SQLVal:
+		return (&StorageIntegratedDMLExecutor{}).parseSQLVal(v)
+	case *sqlparser.NullVal:
+		return nil, nil
+	case sqlparser.BoolVal:
+		return bool(v), nil
+	case *sqlparser.ColName:
+		name := strings.Trim(v.Name.String(), "` ")
+		if value, exists := values[name]; exists {
+			return value, nil
+		}
+		return nil, fmt.Errorf("列 %s 不存在", name)
+	case *sqlparser.ParenExpr:
+		return evaluateExpressionWithRow(v.Expr, values)
+	case *sqlparser.UnaryExpr:
+		value, err := evaluateExpressionWithRow(v.Expr, values)
+		if err != nil {
+			return nil, err
+		}
+		if v.Operator == sqlparser.UMinusStr {
+			if n, ok := toFloat64(value); ok {
+				return -n, nil
+			}
+		}
+		return value, nil
+	case *sqlparser.BinaryExpr:
+		left, err := evaluateExpressionWithRow(v.Left, values)
+		if err != nil {
+			return nil, err
+		}
+		right, err := evaluateExpressionWithRow(v.Right, values)
+		if err != nil {
+			return nil, err
+		}
+		leftNum, leftOK := toFloat64(left)
+		rightNum, rightOK := toFloat64(right)
+		if !leftOK || !rightOK {
+			return nil, fmt.Errorf("二元表达式只支持数字: %s", sqlparser.String(expr))
+		}
+		switch v.Operator {
+		case sqlparser.PlusStr:
+			return normalizeNumericResult(leftNum + rightNum), nil
+		case sqlparser.MinusStr:
+			return normalizeNumericResult(leftNum - rightNum), nil
+		case sqlparser.MultStr:
+			return normalizeNumericResult(leftNum * rightNum), nil
+		case sqlparser.DivStr:
+			if rightNum == 0 {
+				return nil, fmt.Errorf("division by zero")
+			}
+			return leftNum / rightNum, nil
+		default:
+			return nil, fmt.Errorf("不支持的二元操作符: %s", v.Operator)
+		}
+	default:
+		return nil, fmt.Errorf("不支持的表达式类型: %T", expr)
+	}
+}
+
+func normalizeNumericResult(v float64) interface{} {
+	if v == float64(int64(v)) {
+		return int64(v)
+	}
+	return v
+}
+
+func compareScalarValues(left, right interface{}) int {
+	if leftNum, ok := toFloat64(left); ok {
+		if rightNum, ok := toFloat64(right); ok {
+			switch {
+			case leftNum < rightNum:
+				return -1
+			case leftNum > rightNum:
+				return 1
+			default:
+				return 0
+			}
+		}
+	}
+	leftStr := fmt.Sprintf("%v", left)
+	rightStr := fmt.Sprintf("%v", right)
+	switch {
+	case leftStr < rightStr:
+		return -1
+	case leftStr > rightStr:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func toFloat64(value interface{}) (float64, bool) {
+	switch v := value.(type) {
+	case int:
+		return float64(v), true
+	case int32:
+		return float64(v), true
+	case int64:
+		return float64(v), true
+	case uint64:
+		return float64(v), true
+	case float32:
+		return float64(v), true
+	case float64:
+		return v, true
+	case string:
+		n, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		return n, err == nil
+	default:
+		return 0, false
+	}
 }

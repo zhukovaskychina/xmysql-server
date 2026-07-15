@@ -339,8 +339,9 @@ func (se *SelectExecutor) executeQuery(ctx context.Context) error {
 		meta, err := se.tableManager.GetTableMetadata(ctx, se.schemaName, se.tableName)
 		if err == nil && meta != nil && len(meta.Columns) > 0 {
 			logger.Debugf(" [SelectExecutor] 使用表管理器元数据: %s.%s, 列数=%d", se.schemaName, se.tableName, len(meta.Columns))
-			// 使用表管理器时暂不扫表，返回正确列结构、空结果集；后续可在此接入 BTree/存储扫描
-			se.resultSet = []Record{}
+			if err := se.scanDMLPageRows(ctx, meta); err != nil {
+				return err
+			}
 			logger.Debugf(" [SelectExecutor] 查询执行完成，返回 %d 行数据", len(se.resultSet))
 			return nil
 		}
@@ -352,8 +353,10 @@ func (se *SelectExecutor) executeQuery(ctx context.Context) error {
 	// 无表管理器或表中未在表管理器注册时：从 .frm 加载表定义（与 CREATE TABLE 写入一致）
 	if se.dataDir != "" {
 		if frmMeta, err := se.loadTableMetaFromFrm(se.dataDir, se.schemaName, se.tableName); err == nil && frmMeta != nil {
-			logger.Debugf(" [SelectExecutor] 从 .frm 使用表定义，返回 0 行（列: %v）", frmMeta.Columns)
-			se.resultSet = []Record{}
+			logger.Debugf(" [SelectExecutor] 从 .frm 使用表定义并扫描数据页，列: %v", frmMeta.Columns)
+			if err := se.scanDMLPageRows(ctx, frmMeta); err != nil {
+				return err
+			}
 			logger.Debugf(" [SelectExecutor] 查询执行完成，返回 %d 行数据", len(se.resultSet))
 			return nil
 		}
@@ -368,6 +371,82 @@ func (se *SelectExecutor) executeQuery(ctx context.Context) error {
 
 	logger.Debugf(" [SelectExecutor] 查询执行完成，返回 %d 行数据", len(se.resultSet))
 	return nil
+}
+
+func (se *SelectExecutor) scanDMLPageRows(ctx context.Context, tableMeta *metadata.TableMeta) error {
+	if rows, exists := memorySelectRows(se.schemaName, se.tableName); exists {
+		records := make([]Record, 0, len(rows))
+		for _, row := range rows {
+			matches, err := rowMatchesWhereConditions(row, se.whereConditions)
+			if err != nil {
+				return err
+			}
+			if matches {
+				records = append(records, recordFromRowMap(row, tableMeta))
+			}
+		}
+		se.resultSet = records
+		return nil
+	}
+
+	if se.storageManager == nil || se.storageManager.GetTableStorageManager() == nil || se.bufferPoolManager == nil {
+		se.resultSet = []Record{}
+		return nil
+	}
+
+	tableStorageInfo, err := se.storageManager.GetTableStorageManager().GetTableStorageInfo(se.schemaName, se.tableName)
+	if err != nil {
+		se.resultSet = []Record{}
+		return nil
+	}
+
+	bufferPage, err := se.bufferPoolManager.GetPage(tableStorageInfo.SpaceID, tableStorageInfo.RootPageNo)
+	if err != nil {
+		return fmt.Errorf("get page from buffer pool failed (space=%d, page=%d): %v", tableStorageInfo.SpaceID, tableStorageInfo.RootPageNo, err)
+	}
+
+	pageRows, err := decodeDMLPageRows(bufferPage.GetContent())
+	if err != nil {
+		return fmt.Errorf("decode DML page rows failed: %v", err)
+	}
+
+	dml := &StorageIntegratedDMLExecutor{}
+	records := make([]Record, 0, len(pageRows))
+	for _, pageRow := range pageRows {
+		if pageRow.Deleted {
+			continue
+		}
+		rowData, err := dml.deserializeRowData(pageRow.Data)
+		if err != nil {
+			return fmt.Errorf("deserialize DML row failed: %v", err)
+		}
+		matches, err := rowMatchesWhereConditions(rowData.ColumnValues, se.whereConditions)
+		if err != nil {
+			return err
+		}
+		if !matches {
+			continue
+		}
+		records = append(records, recordFromInsertRowData(rowData, tableMeta))
+	}
+
+	se.resultSet = records
+	return nil
+}
+
+func recordFromInsertRowData(row *InsertRowData, tableMeta *metadata.TableMeta) Record {
+	return recordFromRowMap(row.ColumnValues, tableMeta)
+}
+
+func recordFromRowMap(row map[string]interface{}, tableMeta *metadata.TableMeta) Record {
+	values := make([]interface{}, 0, len(tableMeta.Columns))
+	for _, col := range tableMeta.Columns {
+		if col == nil {
+			continue
+		}
+		values = append(values, row[col.Name])
+	}
+	return NewExecutorRecordFromInterface(values, tableMeta)
 }
 
 // executeUserTableQuery 执行 mysql.user 表的特殊查询逻辑
@@ -828,12 +907,25 @@ func (se *SelectExecutor) loadTableMetaFromFrm(dataDir, schemaName, tableName st
 		if b, ok := col["nullable"].(bool); ok {
 			nullable = b
 		}
-		meta.Columns = append(meta.Columns, &metadata.ColumnMeta{
+		isPrimary, _ := col["primary"].(bool)
+		isUnique, _ := col["unique"].(bool)
+		isAutoIncrement, _ := col["auto_increment"].(bool)
+		columnMeta := &metadata.ColumnMeta{
 			Name:       name,
 			Type:       metadata.DataType(typeStr),
 			Length:     length,
 			IsNullable: nullable,
-		})
+			IsPrimary:  isPrimary,
+			IsUnique:   isUnique,
+		}
+		columnMeta.IsAutoIncrement = isAutoIncrement
+		if defaultValue, ok := col["default"]; ok {
+			columnMeta.DefaultValue = defaultValue
+		}
+		meta.Columns = append(meta.Columns, columnMeta)
+		if isPrimary {
+			meta.PrimaryKey = append(meta.PrimaryKey, name)
+		}
 	}
 	logger.Debugf(" [SelectExecutor] 从 .frm 加载表定义: %s.%s, 列数=%d", schemaName, tableName, len(meta.Columns))
 	return meta, nil
@@ -1146,6 +1238,26 @@ func (se *SelectExecutor) buildSelectResult() *SelectResult {
 	// 应用投影
 	projectedRecords := se.applyProjection(se.resultSet)
 
+	if se.isCountStarQuery() {
+		columns := se.getColumnNames()
+		if len(columns) == 0 {
+			columns = []string{"COUNT(*)"}
+		}
+		record := NewExecutorRecordFromInterface([]interface{}{int64(len(se.resultSet))}, &metadata.TableMeta{
+			Name: se.tableName,
+			Columns: []*metadata.ColumnMeta{
+				{Name: columns[0], Type: metadata.TypeInt},
+			},
+		})
+		return &SelectResult{
+			Records:    []Record{record},
+			RowCount:   1,
+			Columns:    columns,
+			ResultType: common.RESULT_TYPE_QUERY,
+			Message:    "Query OK, 1 row in set",
+		}
+	}
+
 	// 应用排序
 	sortedRecords := se.applyOrderBy(projectedRecords)
 
@@ -1375,6 +1487,9 @@ func (se *SelectExecutor) applyLimitOffset(records []Record) []Record {
 
 // getColumnNames 获取列名。SELECT * 时从 getTableMetadata 取列（含从 .frm 加载）；否则用解析出的 select 表达式。
 func (se *SelectExecutor) getColumnNames() []string {
+	if se.isCountStarQuery() {
+		return []string{se.selectExprs[0]}
+	}
 	if len(se.selectExprs) == 1 && se.selectExprs[0] == "*" {
 		tableMeta, err := se.getTableMetadata()
 		if err != nil || tableMeta == nil {
@@ -1387,6 +1502,14 @@ func (se *SelectExecutor) getColumnNames() []string {
 		return names
 	}
 	return se.selectExprs
+}
+
+func (se *SelectExecutor) isCountStarQuery() bool {
+	if len(se.selectExprs) != 1 {
+		return false
+	}
+	normalized := strings.ToLower(strings.ReplaceAll(se.selectExprs[0], " ", ""))
+	return normalized == "count(*)"
 }
 
 // SelectResult SELECT查询结果

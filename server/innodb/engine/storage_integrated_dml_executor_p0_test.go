@@ -3,10 +3,13 @@ package engine
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
@@ -36,6 +39,63 @@ func TestStorageIntegratedDMLExecuteInsertMissingStorageMappingReturnsExecutionE
 	}
 	if execErr.Schema != "p0e_db" || execErr.Table != "t1" {
 		t.Fatalf("expected schema/table p0e_db.t1, got %s.%s", execErr.Schema, execErr.Table)
+	}
+}
+
+func TestStorageIntegratedDMLGetTableMetadataFallsBackToFrm(t *testing.T) {
+	dataDir := t.TempDir()
+	dbDir := filepath.Join(dataDir, "p0e_db")
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		t.Fatalf("mkdir db dir: %v", err)
+	}
+	frm := `{"table_name":"t1","columns":[{"name":"id","type":"INT","length":11,"nullable":false,"primary":true,"unique":true,"auto_increment":true},{"name":"name","type":"VARCHAR","length":50,"nullable":true}]}`
+	if err := os.WriteFile(filepath.Join(dbDir, "t1.frm"), []byte(frm), 0644); err != nil {
+		t.Fatalf("write frm: %v", err)
+	}
+
+	dml := NewStorageIntegratedDMLExecutor(nil, nil, nil, nil, nil, nil, nil, nil)
+	dml.SetDataDir(dataDir)
+	dml.schemaName = "p0e_db"
+	dml.tableName = "t1"
+
+	meta, err := dml.getTableMetadata()
+	if err != nil {
+		t.Fatalf("getTableMetadata returned error: %v", err)
+	}
+	if len(meta.Columns) != 2 || meta.Columns[0].Name != "id" || meta.Columns[1].Name != "name" {
+		t.Fatalf("unexpected metadata columns: %#v", meta.Columns)
+	}
+	if !meta.Columns[0].IsPrimary || !meta.Columns[0].IsAutoIncrement {
+		t.Fatalf("expected id to be primary auto_increment, got %#v", meta.Columns[0])
+	}
+	if len(meta.PrimaryKey) != 1 || meta.PrimaryKey[0] != "id" {
+		t.Fatalf("unexpected primary key metadata: %#v", meta.PrimaryKey)
+	}
+}
+
+func TestStorageIntegratedDMLGeneratePrimaryKeyWritesAutoIncrementColumn(t *testing.T) {
+	dml := NewStorageIntegratedDMLExecutor(nil, nil, nil, nil, nil, nil, nil, nil)
+	row := &InsertRowData{
+		ColumnValues: map[string]interface{}{"name": "alice"},
+		ColumnTypes:  map[string]metadata.DataType{"name": metadata.TypeVarchar},
+	}
+	meta := &metadata.TableMeta{
+		Name: "users",
+		Columns: []*metadata.ColumnMeta{
+			{Name: "id", Type: metadata.TypeInt, IsPrimary: true, IsAutoIncrement: true},
+			{Name: "name", Type: metadata.TypeVarchar},
+		},
+	}
+
+	pk, err := dml.generatePrimaryKey(row, meta)
+	if err != nil {
+		t.Fatalf("generatePrimaryKey returned error: %v", err)
+	}
+	if pk == nil || row.ColumnValues["id"] != pk {
+		t.Fatalf("expected generated id to be written back, pk=%v row=%#v", pk, row.ColumnValues)
+	}
+	if row.ColumnTypes["id"] != metadata.TypeInt {
+		t.Fatalf("expected id column type to be restored, got %v", row.ColumnTypes["id"])
 	}
 }
 

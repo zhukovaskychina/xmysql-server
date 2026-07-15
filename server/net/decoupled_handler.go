@@ -595,8 +595,8 @@ func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session,
 	case *protocol.ResponseMessage:
 		if resp.Result != nil {
 			typeStr := strings.ToLower(resp.Result.Type)
-			if typeStr == "set" || typeStr == "ddl" || (len(resp.Result.Columns) == 0 && len(resp.Result.Rows) == 0) {
-				return h.sendMySQLOKPacket(session, 0, 0, 1)
+			if typeStr == "set" || typeStr == "ddl" || typeStr == "query" || (len(resp.Result.Columns) == 0 && len(resp.Result.Rows) == 0) {
+				return h.sendMySQLOKPacket(session, resp.Result.AffectedRows, resp.Result.LastInsertID, 1)
 			}
 			return h.sendQueryResultSet(session, resp.Result, 1)
 		}
@@ -999,15 +999,9 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	// 使用复用的协议编码器（避免重复创建，提升性能）
 	encoder := h.resultSetEncoder
 
-	// 检查客户端能力标志，确定是否需要使用 OK 包替代 EOF 包（CLIENT_DEPRECATE_EOF）
+	// Connector/J 8 的 loadServerVariables 路径会把当前 OK terminator 误读为 RowData。
+	// 这里保持 EOF terminator 兼容模式，避免连接初始化阶段解析错包。
 	useDeprecatedEOF := true
-	if capsVal := session.GetAttribute("client_capabilities"); capsVal != nil {
-		if caps, ok := capsVal.(uint32); ok {
-			if (caps & common.CLIENT_DEPRECATE_EOF) != 0 {
-				useDeprecatedEOF = false
-			}
-		}
-	}
 
 	// ========================================================================
 	// Step 1: 发送 Column Count Packet

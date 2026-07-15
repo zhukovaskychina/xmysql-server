@@ -285,16 +285,16 @@ func TestProtocolEncoderIntegration(t *testing.T) {
 	}
 }
 
-// TestSendQueryResultSet_ClientDeprecateEOFUsesOK 验证在协商了 CLIENT_DEPRECATE_EOF 时
-// sendQueryResultSet 会使用 OK 包而不是 EOF 包作为列定义结束和结果集结束标记，
-// 并且整体包数量与 19 列单行结果集的预期一致。
-func TestSendQueryResultSet_ClientDeprecateEOFUsesOK(t *testing.T) {
+// TestSendQueryResultSet_ClientDeprecateEOFStillUsesEOF 验证 JDBC 初始化查询使用
+// EOF 作为列定义和结果集结束标记。Connector/J 8 在 loadServerVariables 路径
+// 会把当前 OK 终止包误读为 RowData，导致连接初始化失败。
+func TestSendQueryResultSet_ClientDeprecateEOFStillUsesEOF(t *testing.T) {
 	config := conf.NewCfg()
 	// 使用真实的处理器，但通过 MockSession 捕获输出
 	handler := NewDecoupledMySQLMessageHandler(config)
 	session := NewMockSession("test_sendQueryResultSet_deprecateEOF")
 
-	// 模拟客户端能力：开启 CLIENT_DEPRECATE_EOF
+	// 模拟客户端能力：即使客户端开启 CLIENT_DEPRECATE_EOF，服务端也保持 EOF 兼容模式。
 	session.SetAttribute("client_capabilities", common.CLIENT_DEPRECATE_EOF)
 
 	// 构造与 JDBC init 查询等价的 19 列系统变量结果集
@@ -354,7 +354,7 @@ func TestSendQueryResultSet_ClientDeprecateEOFUsesOK(t *testing.T) {
 	}
 
 	// 对于 19 列、1 行的结果集，预期包数量：
-	// 1 (ColumnCount) + 19 (ColumnDefinitions) + 1 (列结束 OK) + 1 (Row) + 1 (结果集结束 OK) = 23
+	// 1 (ColumnCount) + 19 (ColumnDefinitions) + 1 (列结束 EOF) + 1 (Row) + 1 (结果集结束 EOF) = 23
 	if len(session.written) != 23 {
 		t.Fatalf("unexpected packet count: got %d, want 23", len(session.written))
 	}
@@ -379,9 +379,9 @@ func TestSendQueryResultSet_ClientDeprecateEOFUsesOK(t *testing.T) {
 	if len(colTermPkt) < 5 {
 		t.Fatalf("column terminator packet too short: %d bytes", len(colTermPkt))
 	}
-	// payload 第一个字节应该是 OK 标记 0x00，而不是 EOF 标记 0xFE
-	if colTermPkt[4] != 0x00 {
-		t.Fatalf("expected OK packet (0x00) as column terminator, got 0x%02X", colTermPkt[4])
+	// payload 第一个字节应该是 EOF 标记 0xFE。
+	if colTermPkt[4] != 0xFE {
+		t.Fatalf("expected EOF packet (0xFE) as column terminator, got 0x%02X", colTermPkt[4])
 	}
 
 	// 结果集结束包是最后一个包
@@ -389,8 +389,8 @@ func TestSendQueryResultSet_ClientDeprecateEOFUsesOK(t *testing.T) {
 	if len(rowTermPkt) < 5 {
 		t.Fatalf("row terminator packet too short: %d bytes", len(rowTermPkt))
 	}
-	if rowTermPkt[4] != 0x00 {
-		t.Fatalf("expected OK packet (0x00) as row terminator, got 0x%02X", rowTermPkt[4])
+	if rowTermPkt[4] != 0xFE {
+		t.Fatalf("expected EOF packet (0xFE) as row terminator, got 0x%02X", rowTermPkt[4])
 	}
 }
 
