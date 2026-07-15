@@ -755,19 +755,9 @@ func (sm *StorageManager) InitializeMySQLUserData() error {
 		// 通过增强版B+树插入用户数据
 		err := btreeManager.Insert(ctx, userIndex.GetIndexID(), primaryKey, userRecord.GetStorageData())
 		if err != nil {
-			logger.Warnf("Warning: Failed to insert user %s via Enhanced B+tree: %v", primaryKeyStr, err)
-
-			// 降级为直接页面写入（为了保证兼容性）
-			fallbackPageNo := allocatedPages[successCount%len(allocatedPages)] // 使用动态分配的页面
-			err = sm.insertUserRecordDirectly(userTableHandle.SpaceID, fallbackPageNo, primaryKeyStr, userRecord)
-			if err != nil {
-				logger.Errorf("Failed to insert user record for %s: %v", primaryKeyStr, err)
-				continue
-			}
-			logger.Debug("  Successfully inserted via Enhanced B+tree index")
-		} else {
-			logger.Debug("   Successfully inserted via Enhanced B+tree index")
+			return fmt.Errorf("failed to insert mysql.user record %s via Enhanced B+tree: %v", primaryKeyStr, err)
 		}
+		logger.Debug("   Successfully inserted via Enhanced B+tree index")
 
 		successCount++
 
@@ -1240,38 +1230,6 @@ func (sm *StorageManager) insertUserDataDirectly(spaceID, pageNo uint32, primary
 	}
 
 	logger.Debugf("    → Direct write: %d bytes to page %d in space %d", len(recordData), pageNo, spaceID)
-	return nil
-}
-
-// insertUserRecordDirectly 直接插入标准InnoDB记录到指定页面（新方法）
-func (sm *StorageManager) insertUserRecordDirectly(spaceID, pageNo uint32, primaryKey string, userRecord record.UnifiedRecord) error {
-	// 获取缓冲池管理器
-	bufferPoolManager := sm.bufferPoolMgr // 直接访问字段避免死锁
-	if bufferPoolManager == nil {
-		return fmt.Errorf("buffer pool manager not available")
-	}
-
-	// 获取或创建页面
-	bufferPage, err := bufferPoolManager.GetPage(spaceID, pageNo)
-	if err != nil {
-		return fmt.Errorf("failed to get page %d in space %d: %v", pageNo, spaceID, err)
-	}
-
-	// 使用标准记录格式
-	recordData := userRecord.GetStorageData()
-
-	// 设置页面内容
-	bufferPage.SetContent(recordData)
-	bufferPage.MarkDirty()
-
-	// 刷新到磁盘
-	err = bufferPoolManager.FlushPage(spaceID, pageNo)
-	if err != nil {
-		return fmt.Errorf("failed to flush page %d: %v", pageNo, err)
-	}
-
-	logger.Debugf("    → Direct write: %d bytes (standard record format) to page %d in space %d",
-		len(recordData), pageNo, spaceID)
 	return nil
 }
 
