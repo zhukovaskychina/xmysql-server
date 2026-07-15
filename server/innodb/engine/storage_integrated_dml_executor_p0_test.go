@@ -99,6 +99,19 @@ func TestStorageIntegratedDMLGeneratePrimaryKeyWritesAutoIncrementColumn(t *test
 	}
 }
 
+func TestStorageIntegratedDMLInsertResultKeepsGeneratedLastInsertID(t *testing.T) {
+	result := buildInsertDMLResult(1, 42, 1001)
+	if result.AffectedRows != 1 {
+		t.Fatalf("expected affected rows 1, got %d", result.AffectedRows)
+	}
+	if result.LastInsertId != 42 {
+		t.Fatalf("expected LastInsertId 42, got %d", result.LastInsertId)
+	}
+	if result.TxnID != 1001 {
+		t.Fatalf("expected transaction id 1001, got %d", result.TxnID)
+	}
+}
+
 func TestStorageIntegratedDMLInsertFailsWhenBTreeManagerMissing(t *testing.T) {
 	dml := NewStorageIntegratedDMLExecutor(nil, nil, nil, nil, nil, nil, nil, nil)
 

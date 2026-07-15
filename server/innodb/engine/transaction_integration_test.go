@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
@@ -286,33 +287,13 @@ func TestTransactionWithoutManager(t *testing.T) {
 
 	// 开始事务
 	txn, err := executor.beginStorageTransaction(ctx)
-	if err != nil {
-		t.Fatalf("Failed to begin transaction: %v", err)
+	if err == nil {
+		t.Fatalf("expected missing transaction manager error, got txn=%#v", txn)
 	}
-
-	txnCtx, ok := txn.(*StorageTransactionContext)
-	if !ok {
-		t.Fatal("Invalid transaction context type")
+	if txn != nil {
+		t.Fatalf("expected nil transaction when txManager is missing, got %#v", txn)
 	}
-
-	// 验证使用简化事务上下文
-	if txnCtx.RealTransaction != nil {
-		t.Error("RealTransaction should be nil when txManager is not present")
-	}
-
-	if txnCtx.Status != "ACTIVE" {
-		t.Errorf("Expected status ACTIVE, got %s", txnCtx.Status)
-	}
-
-	t.Logf("✅ Simplified transaction: TxnID=%d", txnCtx.TransactionID)
-
-	// 提交事务
-	err = executor.commitStorageTransaction(ctx, txn)
-	if err != nil {
-		t.Fatalf("Failed to commit transaction: %v", err)
-	}
-
-	if txnCtx.Status != "COMMITTED" {
-		t.Errorf("Expected status COMMITTED, got %s", txnCtx.Status)
+	if !strings.Contains(err.Error(), "transaction manager") {
+		t.Fatalf("expected transaction manager error, got %v", err)
 	}
 }

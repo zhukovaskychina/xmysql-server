@@ -266,13 +266,17 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 	logger.Infof(" 存储引擎集成INSERT执行成功，影响行数: %d, LastInsertID: %d, 耗时: %v",
 		affectedRows, lastInsertId, executionTime)
 
+	return buildInsertDMLResult(affectedRows, lastInsertId, txnID), nil
+}
+
+func buildInsertDMLResult(affectedRows int, lastInsertID uint64, txnID uint64) *DMLResult {
 	return &DMLResult{
 		AffectedRows: affectedRows,
-		LastInsertId: 0,
+		LastInsertId: lastInsertID,
 		ResultType:   "INSERT",
 		Message:      fmt.Sprintf("存储引擎集成INSERT执行成功，影响行数: %d", affectedRows),
 		TxnID:        txnID,
-	}, nil
+	}
 }
 
 // ExecuteUpdate 执行UPDATE语句 - 存储引擎集成版本

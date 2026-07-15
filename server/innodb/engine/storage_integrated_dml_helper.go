@@ -316,45 +316,45 @@ func (dml *StorageIntegratedDMLExecutor) serializePrimaryKey(key interface{}) ([
 func (dml *StorageIntegratedDMLExecutor) beginStorageTransaction(ctx context.Context) (interface{}, error) {
 	logger.Debugf("🔄 开始存储引擎事务")
 
+	if dml.txManager == nil {
+		return nil, fmt.Errorf("transaction manager is not initialized for storage-integrated DML")
+	}
+
 	// 创建事务上下文
 	txnContext := &StorageTransactionContext{
-		TransactionID: uint64(time.Now().UnixNano()),
 		StartTime:     time.Now(),
 		Status:        "ACTIVE",
 		ModifiedPages: make(map[string]uint32),
 	}
 
-	// 如果有事务管理器，使用真实的事务
-	if dml.txManager != nil {
-		// 从上下文中获取隔离级别，默认为可重复读
-		isolationLevel := manager.TRX_ISO_REPEATABLE_READ
-		if level, ok := ctx.Value("isolation_level").(uint8); ok {
-			isolationLevel = level
-		}
-
-		// 从上下文中获取是否只读，默认为false
-		isReadOnly := false
-		if ro, ok := ctx.Value("read_only").(bool); ok {
-			isReadOnly = ro
-		}
-
-		// 使用事务管理器开始真实事务
-		trx, err := dml.txManager.Begin(isReadOnly, isolationLevel)
-		if err != nil {
-			return nil, fmt.Errorf("事务管理器开始事务失败: %v", err)
-		}
-
-		// 将真实事务保存到上下文中
-		txnContext.RealTransaction = trx
-		txnContext.TransactionID = uint64(trx.ID)
-
-		logger.Debugf(" 使用事务管理器开始事务: TrxID=%d, IsolationLevel=%d, ReadOnly=%v",
-			trx.ID, isolationLevel, isReadOnly)
-	} else {
-		logger.Debugf("⚠️ 事务管理器未初始化，使用简化事务上下文")
+	// 从上下文中获取隔离级别，默认为可重复读
+	isolationLevel := manager.TRX_ISO_REPEATABLE_READ
+	if level, ok := ctx.Value("isolation_level").(uint8); ok {
+		isolationLevel = level
 	}
 
-	dml.stats.TransactionCount++
+	// 从上下文中获取是否只读，默认为false
+	isReadOnly := false
+	if ro, ok := ctx.Value("read_only").(bool); ok {
+		isReadOnly = ro
+	}
+
+	// 使用事务管理器开始真实事务
+	trx, err := dml.txManager.Begin(isReadOnly, isolationLevel)
+	if err != nil {
+		return nil, fmt.Errorf("事务管理器开始事务失败: %v", err)
+	}
+
+	// 将真实事务保存到上下文中
+	txnContext.RealTransaction = trx
+	txnContext.TransactionID = uint64(trx.ID)
+
+	logger.Debugf(" 使用事务管理器开始事务: TrxID=%d, IsolationLevel=%d, ReadOnly=%v",
+		trx.ID, isolationLevel, isReadOnly)
+
+	if dml.stats != nil {
+		dml.stats.TransactionCount++
+	}
 	return txnContext, nil
 }
 

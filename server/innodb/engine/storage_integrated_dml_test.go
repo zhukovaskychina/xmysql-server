@@ -3,9 +3,12 @@ package engine
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
@@ -194,7 +197,22 @@ func TestStorageIntegratedDMLExecutor_DataSerialization(t *testing.T) {
 }
 
 func TestStorageIntegratedDMLExecutor_TransactionContext(t *testing.T) {
-	executor := NewStorageIntegratedDMLExecutor(nil, nil, nil, nil, nil, nil, nil, nil)
+	tmpDir := t.TempDir()
+	redoDir := filepath.Join(tmpDir, "redo")
+	undoDir := filepath.Join(tmpDir, "undo")
+	if err := os.MkdirAll(redoDir, 0755); err != nil {
+		t.Fatalf("create redo dir: %v", err)
+	}
+	if err := os.MkdirAll(undoDir, 0755); err != nil {
+		t.Fatalf("create undo dir: %v", err)
+	}
+	txManager, err := manager.NewTransactionManager(redoDir, undoDir)
+	if err != nil {
+		t.Fatalf("create transaction manager: %v", err)
+	}
+	defer txManager.Close()
+
+	executor := NewStorageIntegratedDMLExecutor(nil, nil, nil, nil, txManager, nil, nil, nil)
 
 	ctx := context.Background()
 
