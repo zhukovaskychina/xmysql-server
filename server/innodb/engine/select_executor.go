@@ -1198,16 +1198,64 @@ func (se *SelectExecutor) applyWhereFilter(records []Record) []Record {
 		return records
 	}
 
-	var filteredRecords []Record
-
-	// 简化实现：只是返回一部分记录来模拟过滤效果
-	for i, record := range records {
-		if i%2 == 0 { // 简单的过滤逻辑：只返回偶数索引的记录
+	filteredRecords := make([]Record, 0, len(records))
+	for _, record := range records {
+		values, err := se.recordValuesForWhere(record)
+		if err != nil {
+			logger.Warnf(" [applyWhereFilter] failed to read record values: %v", err)
+			continue
+		}
+		matched, err := rowMatchesWhereConditions(values, se.whereConditions)
+		if err != nil {
+			logger.Warnf(" [applyWhereFilter] failed to evaluate WHERE %v: %v", se.whereConditions, err)
+			continue
+		}
+		if matched {
 			filteredRecords = append(filteredRecords, record)
 		}
 	}
 
 	return filteredRecords
+}
+
+func (se *SelectExecutor) recordValuesForWhere(record Record) (map[string]interface{}, error) {
+	if record == nil {
+		return nil, fmt.Errorf("record is nil")
+	}
+	tableMeta, err := se.getRecordTableMeta(record)
+	if err != nil {
+		return nil, err
+	}
+	values := make(map[string]interface{}, len(tableMeta.Columns))
+	for idx, column := range tableMeta.Columns {
+		if column == nil {
+			continue
+		}
+		value := record.GetValueByIndex(idx)
+		if value == nil {
+			values[column.Name] = nil
+			continue
+		}
+		values[column.Name] = recordValueForPredicate(value, column.Type)
+	}
+	return values, nil
+}
+
+func recordValueForPredicate(value basic.Value, dataType metadata.DataType) interface{} {
+	if value == nil || value.IsNull() {
+		return nil
+	}
+	switch dataType {
+	case metadata.TypeTinyInt, metadata.TypeSmallInt, metadata.TypeMediumInt, metadata.TypeInt,
+		metadata.TypeBigInt, metadata.TypeYear:
+		return value.Int()
+	case metadata.TypeFloat, metadata.TypeDouble, metadata.TypeDecimal:
+		return value.Float64()
+	case metadata.TypeBool, metadata.TypeBoolean:
+		return value.Bool()
+	default:
+		return value.String()
+	}
 }
 
 // buildSelectResult 构建SELECT结果

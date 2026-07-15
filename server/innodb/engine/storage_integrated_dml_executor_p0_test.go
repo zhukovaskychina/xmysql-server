@@ -123,3 +123,72 @@ func TestStorageIntegratedDMLInsertFailsWhenBTreeManagerMissing(t *testing.T) {
 		t.Fatalf("expected B+ tree manager error, got %v", err)
 	}
 }
+
+func TestXMySQLExecutorDMLRejectsMissingStorageIntegratedManagers(t *testing.T) {
+	txManager, err := manager.NewTransactionManager(
+		filepath.Join(t.TempDir(), "redo"),
+		filepath.Join(t.TempDir(), "undo"),
+	)
+	if err != nil {
+		t.Fatalf("create transaction manager: %v", err)
+	}
+	storageManager := &manager.StorageManager{}
+	storageManager.SetTransactionManager(txManager)
+
+	executor := NewXMySQLExecutor(nil, nil)
+	executor.SetTransactionManager(txManager)
+	executor.SetAdditionalManagers(nil, storageManager, nil)
+	ctx := &ExecutionContext{Context: context.Background(), DatabaseName: "testdb"}
+
+	cases := []struct {
+		name string
+		sql  string
+		run  func(*ExecutionContext, interface{}) (*DMLResult, error)
+	}{
+		{
+			name: "insert",
+			sql:  "insert into users(id, name) values (1, 'alice')",
+			run: func(ctx *ExecutionContext, parsed interface{}) (*DMLResult, error) {
+				return executor.executeInsertStatement(ctx, parsed.(*sqlparser.Insert), "testdb")
+			},
+		},
+		{
+			name: "update",
+			sql:  "update users set name = 'bob' where id = 1",
+			run: func(ctx *ExecutionContext, parsed interface{}) (*DMLResult, error) {
+				return executor.executeUpdateStatement(ctx, parsed.(*sqlparser.Update), "testdb")
+			},
+		},
+		{
+			name: "delete",
+			sql:  "delete from users where id = 1",
+			run: func(ctx *ExecutionContext, parsed interface{}) (*DMLResult, error) {
+				return executor.executeDeleteStatement(ctx, parsed.(*sqlparser.Delete), "testdb")
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			stmt, err := sqlparser.Parse(tc.sql)
+			if err != nil {
+				t.Fatalf("parse %s: %v", tc.name, err)
+			}
+
+			_, err = tc.run(ctx, stmt)
+			if err == nil {
+				t.Fatalf("expected missing storage-integrated managers error")
+			}
+			var execErr *ExecutionError
+			if !errors.As(err, &execErr) {
+				t.Fatalf("expected ExecutionError, got %T: %v", err, err)
+			}
+			if execErr.ErrorCode != ExecutionErrorCodeStorageMissing {
+				t.Fatalf("expected %s, got %s: %v", ExecutionErrorCodeStorageMissing, execErr.ErrorCode, err)
+			}
+			if !strings.Contains(err.Error(), "storage-integrated DML requires") {
+				t.Fatalf("expected storage-integrated DML manager error, got %v", err)
+			}
+		})
+	}
+}

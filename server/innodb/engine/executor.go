@@ -72,6 +72,38 @@ func newExecutorErrorf(stage string, code ExecutionErrorCode, schema, table, sql
 	return NewExecutionErrorf("engine", stage, code, schema, table, sql, 0, err, message, args...)
 }
 
+func (e *XMySQLExecutor) missingStorageIntegratedDMLManagersError(
+	stage string,
+	schema string,
+	table string,
+	indexManager *manager.IndexManager,
+	storageManager *manager.StorageManager,
+	tableStorageManager *manager.TableStorageManager,
+) error {
+	missing := make([]string, 0, 3)
+	if indexManager == nil {
+		missing = append(missing, "indexManager")
+	}
+	if storageManager == nil {
+		missing = append(missing, "storageManager")
+	}
+	if tableStorageManager == nil {
+		missing = append(missing, "tableStorageManager")
+	}
+	err := fmt.Errorf("storage-integrated DML requires managers: missing %s", strings.Join(missing, ", "))
+	return NewExecutionErrorWithCause(
+		"engine",
+		stage,
+		ExecutionErrorCodeStorageMissing,
+		schema,
+		table,
+		"",
+		0,
+		err,
+		"storage-integrated DML requires managers",
+	)
+}
+
 // SetManagers 设置管理器组件
 func (e *XMySQLExecutor) SetManagers(
 	optimizerManager interface{},
@@ -989,67 +1021,37 @@ func (e *XMySQLExecutor) executeInsertStatement(ctx *ExecutionContext, stmt *sql
 	logger.Debugf("INSERT schema resolve: databaseName=%q ctx.DatabaseName=%q stmt.Table.Qualifier=%q table=%q => targetSchema=%q",
 		databaseName, ctxSchema, rawSchema, tableName, targetSchema)
 
-	if useStorageIntegrated && indexManager != nil && storageManager != nil && tableStorageManager != nil {
-		logger.Debugf("🚀 Using storage-integrated DML executor for INSERT")
-
-		// 使用存储引擎集成的DML执行器
-		storageIntegratedExecutor := NewStorageIntegratedDMLExecutor(
-			optimizerManager,
-			bufferPoolManager,
-			btreeManager,
-			tableManager,
-			txManager,
-			indexManager,
-			storageManager,
-			tableStorageManager,
-		)
-		storageIntegratedExecutor.SetDataDir(e.getDataDir())
-
-		// 执行INSERT语句
-		result, err := storageIntegratedExecutor.ExecuteInsert(ctx.Context, stmt, targetSchema)
-		if err != nil {
-			return nil, newExecutorErrorf(
-				"execute-insert",
-				ExecutionErrorCodeUnknown,
-				targetSchema,
-				tableName,
-				"",
-				err,
-				"execute storage-integrated INSERT failed",
-			)
-		}
-
-		return result, nil
-	} else {
-		logger.Debugf(" Falling back to basic DML executor for INSERT (missing managers: indexManager=%v, storageManager=%v, tableStorageManager=%v)",
-			indexManager != nil, storageManager != nil, tableStorageManager != nil)
-
-		// 回退到原有的DML执行器
-		dmlExecutor := NewDMLExecutor(
-			optimizerManager,
-			bufferPoolManager,
-			btreeManager,
-			tableManager,
-			txManager,
-			e.indexManager, // 索引管理器
-		)
-
-		// 执行INSERT语句
-		result, err := dmlExecutor.ExecuteInsert(ctx.Context, stmt, targetSchema)
-		if err != nil {
-			return nil, newExecutorErrorf(
-				"execute-insert",
-				ExecutionErrorCodeUnknown,
-				targetSchema,
-				tableName,
-				"",
-				err,
-				"execute INSERT failed",
-			)
-		}
-
-		return result, nil
+	if useStorageIntegrated && (indexManager == nil || storageManager == nil || tableStorageManager == nil) {
+		return nil, e.missingStorageIntegratedDMLManagersError("execute-insert", targetSchema, tableName, indexManager, storageManager, tableStorageManager)
 	}
+
+	logger.Debugf("🚀 Using storage-integrated DML executor for INSERT")
+	storageIntegratedExecutor := NewStorageIntegratedDMLExecutor(
+		optimizerManager,
+		bufferPoolManager,
+		btreeManager,
+		tableManager,
+		txManager,
+		indexManager,
+		storageManager,
+		tableStorageManager,
+	)
+	storageIntegratedExecutor.SetDataDir(e.getDataDir())
+
+	result, err := storageIntegratedExecutor.ExecuteInsert(ctx.Context, stmt, targetSchema)
+	if err != nil {
+		return nil, newExecutorErrorf(
+			"execute-insert",
+			ExecutionErrorCodeUnknown,
+			targetSchema,
+			tableName,
+			"",
+			err,
+			"execute storage-integrated INSERT failed",
+		)
+	}
+
+	return result, nil
 }
 
 // executeUpdateStatement 执行 UPDATE 语句
@@ -1105,62 +1107,36 @@ func (e *XMySQLExecutor) executeUpdateStatement(ctx *ExecutionContext, stmt *sql
 	}
 	targetSchema = e.resolveDmlSchema(ctx, databaseName, targetSchema)
 
-	if useStorageIntegrated && indexManager != nil && storageManager != nil && tableStorageManager != nil {
-		// 使用存储引擎集成的DML执行器
-		storageIntegratedExecutor := NewStorageIntegratedDMLExecutor(
-			optimizerManager,
-			bufferPoolManager,
-			btreeManager,
-			tableManager,
-			txManager,
-			indexManager,
-			storageManager,
-			tableStorageManager,
-		)
-		storageIntegratedExecutor.SetDataDir(e.getDataDir())
-
-		// 执行UPDATE语句
-		result, err := storageIntegratedExecutor.ExecuteUpdate(ctx.Context, stmt, targetSchema)
-		if err != nil {
-			return nil, newExecutorErrorf(
-				"execute-update",
-				ExecutionErrorCodeUnknown,
-				targetSchema,
-				"",
-				"",
-				err,
-				"execute storage-integrated UPDATE failed",
-			)
-		}
-
-		return result, nil
-	} else {
-		// 回退到原有的DML执行器
-		dmlExecutor := NewDMLExecutor(
-			optimizerManager,
-			bufferPoolManager,
-			btreeManager,
-			tableManager,
-			txManager,
-			e.indexManager, // 索引管理器
-		)
-
-		// 执行UPDATE语句
-		result, err := dmlExecutor.ExecuteUpdate(ctx.Context, stmt, targetSchema)
-		if err != nil {
-			return nil, newExecutorErrorf(
-				"execute-update",
-				ExecutionErrorCodeUnknown,
-				targetSchema,
-				"",
-				"",
-				err,
-				"execute UPDATE failed",
-			)
-		}
-
-		return result, nil
+	if useStorageIntegrated && (indexManager == nil || storageManager == nil || tableStorageManager == nil) {
+		return nil, e.missingStorageIntegratedDMLManagersError("execute-update", targetSchema, "", indexManager, storageManager, tableStorageManager)
 	}
+
+	storageIntegratedExecutor := NewStorageIntegratedDMLExecutor(
+		optimizerManager,
+		bufferPoolManager,
+		btreeManager,
+		tableManager,
+		txManager,
+		indexManager,
+		storageManager,
+		tableStorageManager,
+	)
+	storageIntegratedExecutor.SetDataDir(e.getDataDir())
+
+	result, err := storageIntegratedExecutor.ExecuteUpdate(ctx.Context, stmt, targetSchema)
+	if err != nil {
+		return nil, newExecutorErrorf(
+			"execute-update",
+			ExecutionErrorCodeUnknown,
+			targetSchema,
+			"",
+			"",
+			err,
+			"execute storage-integrated UPDATE failed",
+		)
+	}
+
+	return result, nil
 }
 
 // executeDeleteStatement 执行 DELETE 语句
@@ -1216,62 +1192,36 @@ func (e *XMySQLExecutor) executeDeleteStatement(ctx *ExecutionContext, stmt *sql
 	}
 	targetSchema = e.resolveDmlSchema(ctx, databaseName, targetSchema)
 
-	if useStorageIntegrated && indexManager != nil && storageManager != nil && tableStorageManager != nil {
-		// 使用存储引擎集成的DML执行器
-		storageIntegratedExecutor := NewStorageIntegratedDMLExecutor(
-			optimizerManager,
-			bufferPoolManager,
-			btreeManager,
-			tableManager,
-			txManager,
-			indexManager,
-			storageManager,
-			tableStorageManager,
-		)
-		storageIntegratedExecutor.SetDataDir(e.getDataDir())
-
-		// 执行DELETE语句
-		result, err := storageIntegratedExecutor.ExecuteDelete(ctx.Context, stmt, targetSchema)
-		if err != nil {
-			return nil, newExecutorErrorf(
-				"execute-delete",
-				ExecutionErrorCodeUnknown,
-				targetSchema,
-				"",
-				"",
-				err,
-				"execute storage-integrated DELETE failed",
-			)
-		}
-
-		return result, nil
-	} else {
-		// 回退到原有的DML执行器
-		dmlExecutor := NewDMLExecutor(
-			optimizerManager,
-			bufferPoolManager,
-			btreeManager,
-			tableManager,
-			txManager,
-			e.indexManager, // 索引管理器
-		)
-
-		// 执行DELETE语句
-		result, err := dmlExecutor.ExecuteDelete(ctx.Context, stmt, targetSchema)
-		if err != nil {
-			return nil, newExecutorErrorf(
-				"execute-delete",
-				ExecutionErrorCodeUnknown,
-				targetSchema,
-				"",
-				"",
-				err,
-				"execute DELETE failed",
-			)
-		}
-
-		return result, nil
+	if useStorageIntegrated && (indexManager == nil || storageManager == nil || tableStorageManager == nil) {
+		return nil, e.missingStorageIntegratedDMLManagersError("execute-delete", targetSchema, "", indexManager, storageManager, tableStorageManager)
 	}
+
+	storageIntegratedExecutor := NewStorageIntegratedDMLExecutor(
+		optimizerManager,
+		bufferPoolManager,
+		btreeManager,
+		tableManager,
+		txManager,
+		indexManager,
+		storageManager,
+		tableStorageManager,
+	)
+	storageIntegratedExecutor.SetDataDir(e.getDataDir())
+
+	result, err := storageIntegratedExecutor.ExecuteDelete(ctx.Context, stmt, targetSchema)
+	if err != nil {
+		return nil, newExecutorErrorf(
+			"execute-delete",
+			ExecutionErrorCodeUnknown,
+			targetSchema,
+			"",
+			"",
+			err,
+			"execute storage-integrated DELETE failed",
+		)
+	}
+
+	return result, nil
 }
 
 // executeCreateDatabaseStatement 执行 CREATE DATABASE
