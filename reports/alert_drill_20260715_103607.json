@@ -1,0 +1,8 @@
+{
+  "generated_at": "2026-07-15T02:36:22.303788+00:00",
+  "status": "PASS",
+  "evidence_type": "alert_drill",
+  "trigger_condition": "sample_error_rate_threshold",
+  "firing_observed": true,
+  "recovery_observed": true
+}

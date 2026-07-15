@@ -1,0 +1,35 @@
+{
+  "evidence_type": "p0b_recovery_snapshot",
+  "generated_at": "2026-07-15T02:36:17.98114Z",
+  "scope": "wal_replay_diff",
+  "scenario": "redo_idempotent_page_replay",
+  "items": [
+    {
+      "operation": "insert",
+      "page_id": 1,
+      "lsn": 100,
+      "expected_applied": true,
+      "actual_page_lsn_after_replay": 300,
+      "actual_value_after_replay": "p0b-row-1-updated",
+      "idempotent_replay_attempted": false
+    },
+    {
+      "operation": "insert",
+      "page_id": 2,
+      "lsn": 200,
+      "expected_applied": true,
+      "actual_page_lsn_after_replay": 200,
+      "actual_value_after_replay": "p0b-row-2-inserted",
+      "idempotent_replay_attempted": true
+    },
+    {
+      "operation": "update",
+      "page_id": 1,
+      "lsn": 300,
+      "expected_applied": true,
+      "actual_page_lsn_after_replay": 300,
+      "actual_value_after_replay": "p0b-row-1-updated",
+      "idempotent_replay_attempted": false
+    }
+  ]
+}

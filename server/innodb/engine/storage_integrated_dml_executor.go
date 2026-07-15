@@ -162,6 +162,19 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 	dml.tableName = stmt.Table.Name.String()
 
 	// 1. 获取表的存储信息
+	if dml.tableStorageManager == nil {
+		return nil, NewExecutionErrorWithCause(
+			"engine",
+			"storage-integrated-insert-mapping",
+			ExecutionErrorCodeStorageMissing,
+			resolvedSchema,
+			dml.tableName,
+			sqlparser.String(stmt),
+			0,
+			fmt.Errorf("table storage manager is nil"),
+			"table storage manager is not initialized",
+		)
+	}
 	tableStorageInfo, err := dml.tableStorageManager.GetTableStorageInfo(resolvedSchema, dml.tableName)
 	if err != nil {
 		allTables := dml.tableStorageManager.ListAllTables()

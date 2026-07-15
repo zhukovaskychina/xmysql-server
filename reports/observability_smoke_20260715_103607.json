@@ -1,0 +1,9 @@
+{
+  "generated_at": "2026-07-15T02:36:22.303788+00:00",
+  "status": "PASS",
+  "evidence_type": "observability_smoke",
+  "metrics_export": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/metrics_export_20260715_103607.json",
+  "metrics_endpoint": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/metrics_endpoint_probe_20260715_103607.json",
+  "structured_logging": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/structured_logging_20260715_103607.json",
+  "alert_drill": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/alert_drill_20260715_103607.json"
+}

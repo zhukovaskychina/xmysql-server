@@ -1,0 +1,10 @@
+{
+  "generated_at": "2026-07-15T02:36:50Z",
+  "run_id": "p0_release_approval_packet_20260715_103607",
+  "status": "READY_FOR_REVIEW",
+  "delivery_status": "READY_FOR_REVIEW",
+  "missing_evidence_count": 0,
+  "owner_signoff_json": "",
+  "owner_signoff_present": false,
+  "evidence_bundle_json": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/p0_evidence_bundle_20260715_103607.json"
+}

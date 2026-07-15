@@ -1,0 +1,15 @@
+{
+  "generated_at": "2026-07-15T02:36:22.570769+00:00",
+  "status": "PASS",
+  "evidence_type": "full_chain_drill",
+  "timed_rollback_evidence": {
+    "generated_at": "2026-07-15T02:36:22.570769+00:00",
+    "evidence_type": "p0e_timed_rollback_evidence",
+    "status": "PASS",
+    "rollback_window_seconds": 300,
+    "rollback_duration_seconds": 120,
+    "within_window": true,
+    "recovery_point": "focused-backup-manifest",
+    "replay_boundary": "focused-replay-boundary"
+  }
+}

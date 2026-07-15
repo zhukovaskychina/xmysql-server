@@ -1,0 +1,44 @@
+{
+  "generated_at": "2026-07-15T02:36:50Z",
+  "run_id": "delivery_readiness_audit_20260715_103607",
+  "status": "READY_FOR_REVIEW",
+  "technical_status": "PASS",
+  "owner_signoff_present": false,
+  "checks": [
+    {
+      "name": "P0-B recovery state evidence",
+      "status": "PASS",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/crash_recovery_drill_20260715_103607.state.json"
+    },
+    {
+      "name": "P0-C concurrency acceptance",
+      "status": "PASS",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/concurrency_validation_20260715_103607.json"
+    },
+    {
+      "name": "P0-D live metrics endpoint evidence",
+      "status": "PASS",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/metrics_endpoint_probe_20260715_103607.json"
+    },
+    {
+      "name": "P0-E timed rollback evidence",
+      "status": "PASS",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/full_chain_drill_20260715_103607.json"
+    },
+    {
+      "name": "Final regression gate",
+      "status": "PASS",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/final_regression_gate_20260715_103607.json"
+    }
+  ],
+  "blockers": [
+    {
+      "name": "Owner sign-off",
+      "status": "PENDING",
+      "next_action": "Provide a verified owner sign-off JSON after review."
+    }
+  ],
+  "next_actions": [
+    "Provide a verified owner sign-off JSON after review."
+  ]
+}

@@ -466,7 +466,7 @@ func (cr *CrashRecovery) redoInsert(entry *RedoLogEntry) error {
 
 	// 应用修改：将日志数据写入页面
 	if len(entry.Data) > 0 {
-		page.SetData(entry.Data)
+		page.SetData(replacePageData(page.GetData(), entry.Data))
 	}
 
 	// 更新页面LSN
@@ -474,6 +474,17 @@ func (cr *CrashRecovery) redoInsert(entry *RedoLogEntry) error {
 	page.SetDirty(true)
 
 	return nil
+}
+
+func replacePageData(existing []byte, redoData []byte) []byte {
+	targetLen := len(existing)
+	if len(redoData) > targetLen {
+		targetLen = len(redoData)
+	}
+
+	out := make([]byte, targetLen)
+	copy(out, redoData)
+	return out
 }
 
 // redoUpdate 重做UPDATE操作
@@ -555,7 +566,7 @@ func (cr *CrashRecovery) redoWithStorage(entry *RedoLogEntry) error {
 	// 应用修改
 	if len(entry.Data) > 0 {
 		// 更新页面数据
-		copy(pageData, entry.Data)
+		pageData = replacePageData(pageData, entry.Data)
 
 		// 更新页面LSN（写入前8字节）
 		if len(pageData) >= 8 {

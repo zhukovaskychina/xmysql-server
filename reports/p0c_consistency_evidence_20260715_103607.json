@@ -1,0 +1,97 @@
+{
+  "evidence_type": "p0c_consistency_evidence",
+  "generated_at": "2026-07-15T02:36:19.611884Z",
+  "status": "PASS",
+  "scenario": "focused_concurrency_consistency_contract",
+  "checks": [
+    {
+      "name": "lock_wait_metrics_summary",
+      "status": "PASS",
+      "expected": "conflicting lock request is recorded as waiting with one wait-for edge",
+      "actual": "lock conflict observed through LockManager and wait graph",
+      "metrics": {
+        "conflict_observed": true,
+        "wait_graph_edges": 1,
+        "waiting_locks": 1
+      }
+    },
+    {
+      "name": "full_isolation_matrix",
+      "status": "PASS",
+      "expected": "RR keeps transaction snapshot stable while RC sees committed version after commit",
+      "actual": "focused RR/RC visibility matrix evaluated through TransactionManager.IsVisible",
+      "metrics": {
+        "rc_after_commit_visible": true,
+        "rr_after_commit_visible": false,
+        "rr_before_commit_visible": false
+      }
+    },
+    {
+      "name": "long_transaction_runtime_metrics",
+      "status": "PASS",
+      "expected": "active transaction count and transaction age are observable before and after commit",
+      "actual": "TransactionManager active map and transaction StartTime were sampled",
+      "metrics": {
+        "active_after_commit": 0,
+        "active_before_commit": 1,
+        "age_nanos": 2361
+      }
+    },
+    {
+      "name": "explicit_final_state_diff",
+      "status": "PASS",
+      "expected": "concurrent transfer final state equals deterministic expected balances",
+      "actual": "in-process final-state map compared after concurrent operations complete",
+      "metrics": {
+        "actual": {
+          "account_a": 90,
+          "account_b": 110
+        },
+        "expected": {
+          "account_a": 90,
+          "account_b": 110
+        },
+        "mismatches": 0
+      }
+    },
+    {
+      "name": "wrapper_state_snapshot_diff",
+      "status": "PASS",
+      "expected": "wrapper-style ordered snapshot equals expected concurrent write result",
+      "actual": "focused ordered snapshot diff completed after concurrent writes",
+      "metrics": {
+        "actual": [
+          "k001=v001",
+          "k002=v002",
+          "k003=v003"
+        ],
+        "expected": [
+          "k001=v001",
+          "k002=v002",
+          "k003=v003"
+        ],
+        "mismatches": 0
+      }
+    },
+    {
+      "name": "deadlock_victim_report",
+      "status": "PASS",
+      "expected": "two-transaction wait cycle is detected and a victim transaction is identified",
+      "actual": "LockManager returned ErrDeadlockDetected for the second transaction forming the cycle",
+      "metrics": {
+        "cycle": [
+          1,
+          2,
+          1
+        ],
+        "deadlock_detected": true,
+        "victim_tx_id": 2
+      }
+    }
+  ],
+  "limitations": [
+    "This is focused Go test-side consistency evidence.",
+    "It exercises lock conflicts, deadlock detection, MVCC visibility, deterministic final-state comparison, and snapshot comparison with in-process components.",
+    "It does not replace a full multi-client SQL workload or storage-engine Jepsen-style history checker."
+  ]
+}

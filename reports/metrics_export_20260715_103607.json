@@ -1,0 +1,12 @@
+{
+  "generated_at": "2026-07-15T02:36:22.303788+00:00",
+  "status": "PASS",
+  "evidence_type": "metrics_export",
+  "required_metrics": [
+    "xmysql_queries_total",
+    "xmysql_query_latency_ms",
+    "xmysql_connections_active",
+    "xmysql_lock_waits_total"
+  ],
+  "metrics_text": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/metrics_export_20260715_103607.prom"
+}

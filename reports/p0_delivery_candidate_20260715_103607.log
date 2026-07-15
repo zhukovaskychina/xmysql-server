@@ -1,0 +1,182 @@
+=== P0 delivery candidate 2026-07-15T02:36:07Z ===
+run_id: p0_delivery_candidate_20260715_103607
+repo: /Users/zhukovasky/GolandProjects/xmysql-server
+report_dir: /Users/zhukovasky/GolandProjects/xmysql-server/reports
+
+=== P0 core verification ===
+command: bash scripts/verify_p0_core.sh
+==> engine P0 suite: dml-operators
+=== RUN   TestInsertOperator_ParseInsertRows_MapsExplicitColumns
+--- PASS: TestInsertOperator_ParseInsertRows_MapsExplicitColumns (0.00s)
+=== RUN   TestInsertOperator_ParseInsertRows_UsesSchemaOrderWhenColumnsOmitted
+--- PASS: TestInsertOperator_ParseInsertRows_UsesSchemaOrderWhenColumnsOmitted (0.00s)
+=== RUN   TestInsertOperator_ParseInsertRows_RejectsValueCountMismatch
+--- PASS: TestInsertOperator_ParseInsertRows_RejectsValueCountMismatch (0.00s)
+=== RUN   TestUpdateOperatorApplySetClauseChangesTargetColumn
+--- PASS: TestUpdateOperatorApplySetClauseChangesTargetColumn (0.00s)
+=== RUN   TestInsertOperatorInsertRowWritesThroughStorageAdapter
+--- PASS: TestInsertOperatorInsertRowWritesThroughStorageAdapter (0.00s)
+=== RUN   TestInsertOperatorDuplicateKeyReturnsError
+--- PASS: TestInsertOperatorDuplicateKeyReturnsError (0.00s)
+=== RUN   TestInsertOperatorFindDuplicateRecordUsesStorageAdapter
+--- PASS: TestInsertOperatorFindDuplicateRecordUsesStorageAdapter (0.00s)
+=== RUN   TestUpdateOperatorPersistsUpdatedRecord
+--- PASS: TestUpdateOperatorPersistsUpdatedRecord (0.00s)
+=== RUN   TestDeleteOperatorDeletesOnlyScannedRecords
+--- PASS: TestDeleteOperatorDeletesOnlyScannedRecords (0.00s)
+PASS
+ok  	github.com/zhukovaskychina/xmysql-server/server/innodb/engine	0.685s
+==> engine P0 suite: storage-integrated-dml
+=== RUN   TestStorageIntegratedDMLWriteReturnsContextErrorWhenCheckpointGateTimesOut
+--- PASS: TestStorageIntegratedDMLWriteReturnsContextErrorWhenCheckpointGateTimesOut (0.01s)
+=== RUN   TestStorageIntegratedDMLInsertFailsWhenBTreeManagerMissing
+--- PASS: TestStorageIntegratedDMLInsertFailsWhenBTreeManagerMissing (0.00s)
+=== RUN   TestStorageIntegratedDMLExecutor_FindRowsToUpdateRejectsMissingWhere
+--- PASS: TestStorageIntegratedDMLExecutor_FindRowsToUpdateRejectsMissingWhere (0.00s)
+=== RUN   TestStorageIntegratedDMLExecutor_FindRowsToDeleteRejectsMissingWhere
+--- PASS: TestStorageIntegratedDMLExecutor_FindRowsToDeleteRejectsMissingWhere (0.00s)
+=== RUN   TestStorageIntegratedDMLExecutor_MarkRowDeletedInPageContentPreservesOtherRows
+--- PASS: TestStorageIntegratedDMLExecutor_MarkRowDeletedInPageContentPreservesOtherRows (0.00s)
+=== RUN   TestStorageIntegratedDMLExecutor_PageRowsAppendAndReplace
+--- PASS: TestStorageIntegratedDMLExecutor_PageRowsAppendAndReplace (0.00s)
+=== RUN   TestStorageIntegratedDMLExecutor_PageRowsRejectReplaceDeletedSlot
+--- PASS: TestStorageIntegratedDMLExecutor_PageRowsRejectReplaceDeletedSlot (0.00s)
+=== RUN   TestStorageIntegratedDMLExecutor_DataSerialization
+    storage_integrated_dml_test.go:171:  序列化数据大小: 113 bytes
+    storage_integrated_dml_test.go:193:  数据序列化/反序列化测试通过
+--- PASS: TestStorageIntegratedDMLExecutor_DataSerialization (0.00s)
+PASS
+ok  	github.com/zhukovaskychina/xmysql-server/server/innodb/engine	0.698s
+==> engine P0 suite: show
+=== RUN   TestXMySQLExecutor_ExecuteQuery_ShowRoutesToExecuteShowStatement
+--- PASS: TestXMySQLExecutor_ExecuteQuery_ShowRoutesToExecuteShowStatement (0.00s)
+=== RUN   TestXMySQLExecutor_ExecuteQuery_ShowTablesWithoutSessionReturnsError
+--- PASS: TestXMySQLExecutor_ExecuteQuery_ShowTablesWithoutSessionReturnsError (0.00s)
+=== RUN   TestXMySQLExecutor_ExecuteQuery_ShowTablesWithoutDatabaseReturnsError
+--- PASS: TestXMySQLExecutor_ExecuteQuery_ShowTablesWithoutDatabaseReturnsError (0.00s)
+=== RUN   TestXMySQLExecutor_ExecuteQuery_ShowCreateTableReturnsQueryData
+--- PASS: TestXMySQLExecutor_ExecuteQuery_ShowCreateTableReturnsQueryData (0.00s)
+=== RUN   TestXMySQLExecutor_ExecuteQuery_ShowCreateTableWithSchemaNameParsesTable
+--- PASS: TestXMySQLExecutor_ExecuteQuery_ShowCreateTableWithSchemaNameParsesTable (0.00s)
+=== RUN   TestXMySQLExecutor_ExecuteQuery_ShowColumnsReturnsStubColumns
+--- PASS: TestXMySQLExecutor_ExecuteQuery_ShowColumnsReturnsStubColumns (0.00s)
+=== RUN   TestXMySQLExecutor_ExecuteQuery_ShowFieldsReturnsStubColumns
+--- PASS: TestXMySQLExecutor_ExecuteQuery_ShowFieldsReturnsStubColumns (0.00s)
+=== RUN   TestXMySQLExecutor_ExecuteQuery_ShowTablesReturnsRows
+--- PASS: TestXMySQLExecutor_ExecuteQuery_ShowTablesReturnsRows (0.00s)
+=== RUN   TestXMySQLExecutor_ExecuteQuery_ShowTablesLikeFiltersRows
+--- PASS: TestXMySQLExecutor_ExecuteQuery_ShowTablesLikeFiltersRows (0.00s)
+=== RUN   TestXMySQLExecutor_ExecuteQuery_ShowDatabasesReturnsQueryData
+--- PASS: TestXMySQLExecutor_ExecuteQuery_ShowDatabasesReturnsQueryData (0.00s)
+=== RUN   TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowDatabasesLikeFiltersRows
+--- PASS: TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowDatabasesLikeFiltersRows (0.00s)
+=== RUN   TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowDatabasesUsesStmtFilterWithoutRawQuery
+--- PASS: TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowDatabasesUsesStmtFilterWithoutRawQuery (0.00s)
+=== RUN   TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowVariablesLikeFiltersRows
+--- PASS: TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowVariablesLikeFiltersRows (0.00s)
+=== RUN   TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowGlobalStatusLikeFiltersRows
+--- PASS: TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowGlobalStatusLikeFiltersRows (0.00s)
+=== RUN   TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowVariablesUsesStmtFilterWithoutRawQuery
+--- PASS: TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowVariablesUsesStmtFilterWithoutRawQuery (0.00s)
+=== RUN   TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowStatusUsesStmtFilterWithoutRawQuery
+--- PASS: TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowStatusUsesStmtFilterWithoutRawQuery (0.00s)
+=== RUN   TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowVariablesUsesStmtWhereWithoutRawQuery
+--- PASS: TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowVariablesUsesStmtWhereWithoutRawQuery (0.00s)
+=== RUN   TestXMySQLExecutor_ExecuteQuery_ShowDatabasesWhereFiltersRows
+--- PASS: TestXMySQLExecutor_ExecuteQuery_ShowDatabasesWhereFiltersRows (0.00s)
+=== RUN   TestXMySQLExecutor_ExecuteQuery_ShowTablesWhereFiltersRows
+--- PASS: TestXMySQLExecutor_ExecuteQuery_ShowTablesWhereFiltersRows (0.00s)
+=== RUN   TestShowExecutor_ShowDatabasesUsesInfoSchema
+--- PASS: TestShowExecutor_ShowDatabasesUsesInfoSchema (0.00s)
+=== RUN   TestShowExecutor_ShowTablesUsesInfoSchema
+--- PASS: TestShowExecutor_ShowTablesUsesInfoSchema (0.00s)
+=== RUN   TestShowExecutor_ShowColumnsUsesInfoSchema
+--- PASS: TestShowExecutor_ShowColumnsUsesInfoSchema (0.00s)
+=== RUN   TestXMySQLExecutor_ShowTablesUsesInfoSchemaInsteadOfDataDir
+--- PASS: TestXMySQLExecutor_ShowTablesUsesInfoSchemaInsteadOfDataDir (0.00s)
+PASS
+ok  	github.com/zhukovaskychina/xmysql-server/server/innodb/engine	0.719s
+==> engine P0 suite: checkpoint
+=== RUN   TestCheckpointManager_WriteGateBlocksAndUnblocksWritePermits
+--- PASS: TestCheckpointManager_WriteGateBlocksAndUnblocksWritePermits (0.02s)
+=== RUN   TestCheckpointManager_WriteSharpCheckpointUnblocksOnSuccess
+--- PASS: TestCheckpointManager_WriteSharpCheckpointUnblocksOnSuccess (0.03s)
+=== RUN   TestCheckpointManager_WriteSharpCheckpointUnblocksOnError
+--- PASS: TestCheckpointManager_WriteSharpCheckpointUnblocksOnError (0.00s)
+PASS
+ok  	github.com/zhukovaskychina/xmysql-server/server/innodb/engine	0.816s
+=== RUN   TestOptimizedLRUCacheEvictReturnsOriginalPageIdentity
+--- PASS: TestOptimizedLRUCacheEvictReturnsOriginalPageIdentity (0.00s)
+=== RUN   TestOptimizedLRUCacheEvictFallsBackToYoungList
+--- PASS: TestOptimizedLRUCacheEvictFallsBackToYoungList (0.00s)
+=== RUN   TestBufferPagePinCount
+--- PASS: TestBufferPagePinCount (0.00s)
+=== RUN   TestOptimizedLRUCacheEvictSkipsPinnedPages
+--- PASS: TestOptimizedLRUCacheEvictSkipsPinnedPages (0.00s)
+PASS
+ok  	github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool	0.556s
+=== RUN   TestOptimizedBufferPoolManagerCountsLRUSetEvictions
+--- PASS: TestOptimizedBufferPoolManagerCountsLRUSetEvictions (0.00s)
+=== RUN   TestBufferPoolManagerEvictPageRemovesCleanUnpinnedPage
+--- PASS: TestBufferPoolManagerEvictPageRemovesCleanUnpinnedPage (0.00s)
+=== RUN   TestBufferPoolManagerEvictPageFlushesDirtyUnpinnedPage
+--- PASS: TestBufferPoolManagerEvictPageFlushesDirtyUnpinnedPage (0.00s)
+=== RUN   TestBufferPoolManagerEvictPageSkipsPinnedPage
+--- PASS: TestBufferPoolManagerEvictPageSkipsPinnedPage (0.00s)
+=== RUN   TestEnhancedBTreeManagerRebuildIndexReloadsIndex
+--- PASS: TestEnhancedBTreeManagerRebuildIndexReloadsIndex (0.00s)
+=== RUN   TestEnhancedBTreeManagerRebuildIndexPreservesRecords
+--- PASS: TestEnhancedBTreeManagerRebuildIndexPreservesRecords (0.00s)
+=== RUN   TestEnhancedBTreeManagerDropIndexRemovesMetadataCacheAndRootPage
+--- PASS: TestEnhancedBTreeManagerDropIndexRemovesMetadataCacheAndRootPage (0.00s)
+=== RUN   TestEnhancedBTreeManagerDropIndexFreesLoadedCachedPages
+--- PASS: TestEnhancedBTreeManagerDropIndexFreesLoadedCachedPages (0.00s)
+PASS
+ok  	github.com/zhukovaskychina/xmysql-server/server/innodb/manager	0.736s
+result: PASS
+
+=== P0-B focused state snapshot export ===
+command: env P0B_STATE_SNAPSHOT_DIR=/Users/zhukovasky/GolandProjects/xmysql-server/reports/p0b_state_snapshot_20260715_103607 /Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/manager -run TestP0BStateSnapshotExport -count=1 -v
+=== RUN   TestP0BStateSnapshotExport
+--- PASS: TestP0BStateSnapshotExport (0.00s)
+PASS
+ok  	github.com/zhukovaskychina/xmysql-server/server/innodb/manager	0.663s
+result: PASS
+
+=== P0-C focused consistency evidence export ===
+command: env P0C_CONSISTENCY_EVIDENCE_DIR=/Users/zhukovasky/GolandProjects/xmysql-server/reports/p0c_consistency_20260715_103607 /Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/manager -run TestP0CConsistencyEvidenceExport -count=1 -v
+=== RUN   TestP0CConsistencyEvidenceExport
+--- PASS: TestP0CConsistencyEvidenceExport (0.00s)
+PASS
+ok  	github.com/zhukovaskychina/xmysql-server/server/innodb/manager	0.661s
+result: PASS
+
+=== P0-D metrics text export ===
+command: /Users/zhukovasky/sdk/go1.24.3/bin/go run ./cmd/p0_metrics_export -output /Users/zhukovasky/GolandProjects/xmysql-server/reports/metrics_export_20260715_103607.prom
+result: PASS
+
+=== P0-E canary selftest ===
+command: bash scripts/p0_e_canary_selftest.sh
+PASS: canary selftest stage log contract is valid
+result: PASS
+scope=packages (fixed package set)
+RESULT: PASS
+RESULT: PASS
+RESULT: PASS
+RESULT: PASS
+RESULT: PASS
+RESULT: PASS
+RESULT: PASS
+RESULT: PASS
+
+=== final ===
+packages_total=8
+packages_passed=8
+packages_failed=0
+failed_packages=
+failure_summary=
+total_duration_sec=28
+overall=PASS
+
+Summary: /Users/zhukovasky/GolandProjects/xmysql-server/reports/p0_release_candidate_20260715_103607/20260715_103622/summary.log
+{"candidate_json": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/p0_delivery_candidate_20260715_103607.json", "candidate_md": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/p0_delivery_candidate_20260715_103607.md", "delivery_status": "READY_FOR_REVIEW", "technical_status": "PASS"}

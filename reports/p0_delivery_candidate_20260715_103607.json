@@ -1,0 +1,41 @@
+{
+  "generated_at": "2026-07-15T02:36:50Z",
+  "run_id": "p0_delivery_candidate_20260715_103607",
+  "status": "PASS",
+  "evidence_type": "p0_delivery_candidate",
+  "repository": "/Users/zhukovasky/GolandProjects/xmysql-server",
+  "report_dir": "/Users/zhukovasky/GolandProjects/xmysql-server/reports",
+  "started_at": "2026-07-15T02:36:07Z",
+  "finished_at": "2026-07-15T02:36:50Z",
+  "exit_code": 0,
+  "enabled_focused_evidence": [
+    "P0-B focused state snapshot evidence",
+    "P0-C focused consistency evidence",
+    "P0-D focused metrics endpoint evidence",
+    "P0-E focused timed rollback evidence"
+  ],
+  "disabled_focused_evidence": [],
+  "accepted_deferrals_json": "",
+  "owner_signoff_json": "",
+  "governance_review_mode": "risk_register_only",
+  "governance_gate_required": false,
+  "governance_gate_attempted": false,
+  "governance_gate_status": "NOT_RUN",
+  "governance_gate_json": "",
+  "governance_gate_markdown": "",
+  "recommended_next_action": "Collect owner sign-off and run governance gate.",
+  "suite_summary_json": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/p0_evidence_suite_20260715_103607.summary.json",
+  "suite_summary_markdown": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/p0_evidence_suite_20260715_103607.summary.md",
+  "delivery_readiness_json": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/delivery_readiness_audit_20260715_103607.json",
+  "delivery_readiness_markdown": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/delivery_readiness_audit_20260715_103607.md",
+  "delivery_remediation_json": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/delivery_remediation_packet_20260715_103607.json",
+  "delivery_remediation_markdown": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/delivery_remediation_packet_20260715_103607.md",
+  "raw_log": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/p0_delivery_candidate_20260715_103607.log",
+  "candidate_markdown": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/p0_delivery_candidate_20260715_103607.md",
+  "failure": "",
+  "limitations": [
+    "This shell runner is a macOS/Linux equivalent for technical P0 delivery evidence.",
+    "It does not fabricate owner sign-off.",
+    "READY_FOR_REVIEW means technical evidence is present but human approval is still pending."
+  ]
+}

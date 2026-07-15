@@ -1,0 +1,141 @@
+{
+  "generated_at": "2026-07-15T02:36:50Z",
+  "run_id": "p0_evidence_bundle_20260715_103607",
+  "status": "PASS",
+  "evidence_type": "p0_evidence_bundle",
+  "repository": "/Users/zhukovasky/GolandProjects/xmysql-server",
+  "artifacts": [
+    {
+      "name": "p0b_report",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/crash_recovery_drill_20260715_103607.md",
+      "exists": true
+    },
+    {
+      "name": "p0b_log",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/crash_recovery_drill_20260715_103607.log",
+      "exists": true
+    },
+    {
+      "name": "p0b_state",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/crash_recovery_drill_20260715_103607.state.json",
+      "exists": true
+    },
+    {
+      "name": "p0b_row_state_diff",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/p0b_state_diff_row_state_diff_20260715_103607.json",
+      "exists": true
+    },
+    {
+      "name": "p0b_page_state_diff",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/p0b_state_diff_page_state_diff_20260715_103607.json",
+      "exists": true
+    },
+    {
+      "name": "p0b_wal_replay_diff",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/p0b_state_diff_wal_replay_diff_20260715_103607.json",
+      "exists": true
+    },
+    {
+      "name": "p0c_report",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/concurrency_validation_20260715_103607.md",
+      "exists": true
+    },
+    {
+      "name": "p0c_json",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/concurrency_validation_20260715_103607.json",
+      "exists": true
+    },
+    {
+      "name": "p0c_consistency_evidence",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/p0c_consistency_evidence_20260715_103607.json",
+      "exists": true
+    },
+    {
+      "name": "p0d_observability_json",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/observability_smoke_20260715_103607.json",
+      "exists": true
+    },
+    {
+      "name": "p0d_observability_report",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/observability_smoke_20260715_103607.md",
+      "exists": true
+    },
+    {
+      "name": "p0d_metrics_json",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/metrics_export_20260715_103607.json",
+      "exists": true
+    },
+    {
+      "name": "p0d_metrics_report",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/metrics_export_20260715_103607.md",
+      "exists": true
+    },
+    {
+      "name": "p0d_metrics_endpoint_json",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/metrics_endpoint_probe_20260715_103607.json",
+      "exists": true
+    },
+    {
+      "name": "p0d_structured_logging_json",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/structured_logging_20260715_103607.json",
+      "exists": true
+    },
+    {
+      "name": "p0d_alert_json",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/alert_drill_20260715_103607.json",
+      "exists": true
+    },
+    {
+      "name": "p0e_json",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/full_chain_drill_20260715_103607.json",
+      "exists": true
+    },
+    {
+      "name": "p0e_report",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/full_chain_drill_20260715_103607.md",
+      "exists": true
+    },
+    {
+      "name": "p0e_timed_rollback_json",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/p0e_timed_rollback_evidence_20260715_103607.json",
+      "exists": true
+    },
+    {
+      "name": "final_regression_json",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/final_regression_gate_20260715_103607.json",
+      "exists": true
+    },
+    {
+      "name": "final_regression_report",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/final_regression_gate_20260715_103607.md",
+      "exists": true
+    }
+  ],
+  "checks": [
+    {
+      "name": "P0-B recovery state evidence",
+      "status": "PASS",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/crash_recovery_drill_20260715_103607.state.json"
+    },
+    {
+      "name": "P0-C concurrency acceptance",
+      "status": "PASS",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/concurrency_validation_20260715_103607.json"
+    },
+    {
+      "name": "P0-D live metrics endpoint evidence",
+      "status": "PASS",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/metrics_endpoint_probe_20260715_103607.json"
+    },
+    {
+      "name": "P0-E timed rollback evidence",
+      "status": "PASS",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/full_chain_drill_20260715_103607.json"
+    },
+    {
+      "name": "Final regression gate",
+      "status": "PASS",
+      "path": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/final_regression_gate_20260715_103607.json"
+    }
+  ]
+}

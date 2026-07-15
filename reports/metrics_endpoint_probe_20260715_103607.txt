@@ -1,0 +1,82 @@
+# HELP xmysql_checkpoint_dirty_pages Dirty pages tracked by checkpoint subsystem.
+# TYPE xmysql_checkpoint_dirty_pages gauge
+xmysql_checkpoint_dirty_pages{space="system"} 42
+# HELP xmysql_checkpoint_runs_total Checkpoint execution count.
+# TYPE xmysql_checkpoint_runs_total counter
+xmysql_checkpoint_runs_total{result="pass"} 5
+# HELP xmysql_connections_active Currently active client connections.
+# TYPE xmysql_connections_active gauge
+xmysql_connections_active{listener="focused"} 7
+# HELP xmysql_lock_wait_duration_ms Lock wait duration in milliseconds.
+# TYPE xmysql_lock_wait_duration_ms histogram
+xmysql_lock_wait_duration_ms_bucket{lock_type="next_key",resource_type="index",le="1"} 0
+xmysql_lock_wait_duration_ms_bucket{lock_type="next_key",resource_type="index",le="5"} 0
+xmysql_lock_wait_duration_ms_bucket{lock_type="next_key",resource_type="index",le="10"} 0
+xmysql_lock_wait_duration_ms_bucket{lock_type="next_key",resource_type="index",le="25"} 1
+xmysql_lock_wait_duration_ms_bucket{lock_type="next_key",resource_type="index",le="50"} 1
+xmysql_lock_wait_duration_ms_bucket{lock_type="next_key",resource_type="index",le="100"} 1
+xmysql_lock_wait_duration_ms_bucket{lock_type="next_key",resource_type="index",le="250"} 1
+xmysql_lock_wait_duration_ms_bucket{lock_type="next_key",resource_type="index",le="500"} 1
+xmysql_lock_wait_duration_ms_bucket{lock_type="next_key",resource_type="index",le="1000"} 1
+xmysql_lock_wait_duration_ms_bucket{lock_type="next_key",resource_type="index",le="2500"} 1
+xmysql_lock_wait_duration_ms_bucket{lock_type="next_key",resource_type="index",le="5000"} 1
+xmysql_lock_wait_duration_ms_bucket{lock_type="next_key",resource_type="index",le="+Inf"} 1
+xmysql_lock_wait_duration_ms_sum{lock_type="next_key",resource_type="index"} 18
+xmysql_lock_wait_duration_ms_count{lock_type="next_key",resource_type="index"} 1
+# HELP xmysql_lock_waits_total Lock wait events.
+# TYPE xmysql_lock_waits_total counter
+xmysql_lock_waits_total{lock_type="next_key",resource_type="index"} 9
+# HELP xmysql_long_transactions_active Current long transaction count.
+# TYPE xmysql_long_transactions_active gauge
+xmysql_long_transactions_active{level="warning"} 1
+# HELP xmysql_queries_total Total accepted SQL or query requests.
+# TYPE xmysql_queries_total counter
+xmysql_queries_total{database="test",status="ok"} 1200
+# HELP xmysql_query_errors_total Total query execution errors.
+# TYPE xmysql_query_errors_total counter
+xmysql_query_errors_total{database="test",error_class="duplicate_key",error_code="ER_DUP_ENTRY"} 3
+# HELP xmysql_query_latency_ms Query execution latency in milliseconds.
+# TYPE xmysql_query_latency_ms histogram
+xmysql_query_latency_ms_bucket{database="test",statement_type="insert",status="ok",le="1"} 0
+xmysql_query_latency_ms_bucket{database="test",statement_type="insert",status="ok",le="5"} 0
+xmysql_query_latency_ms_bucket{database="test",statement_type="insert",status="ok",le="10"} 0
+xmysql_query_latency_ms_bucket{database="test",statement_type="insert",status="ok",le="25"} 0
+xmysql_query_latency_ms_bucket{database="test",statement_type="insert",status="ok",le="50"} 0
+xmysql_query_latency_ms_bucket{database="test",statement_type="insert",status="ok",le="100"} 0
+xmysql_query_latency_ms_bucket{database="test",statement_type="insert",status="ok",le="250"} 1
+xmysql_query_latency_ms_bucket{database="test",statement_type="insert",status="ok",le="500"} 1
+xmysql_query_latency_ms_bucket{database="test",statement_type="insert",status="ok",le="1000"} 1
+xmysql_query_latency_ms_bucket{database="test",statement_type="insert",status="ok",le="2500"} 1
+xmysql_query_latency_ms_bucket{database="test",statement_type="insert",status="ok",le="5000"} 1
+xmysql_query_latency_ms_bucket{database="test",statement_type="insert",status="ok",le="+Inf"} 1
+xmysql_query_latency_ms_sum{database="test",statement_type="insert",status="ok"} 245
+xmysql_query_latency_ms_count{database="test",statement_type="insert",status="ok"} 1
+xmysql_query_latency_ms_bucket{database="test",statement_type="select",status="ok",le="1"} 0
+xmysql_query_latency_ms_bucket{database="test",statement_type="select",status="ok",le="5"} 0
+xmysql_query_latency_ms_bucket{database="test",statement_type="select",status="ok",le="10"} 0
+xmysql_query_latency_ms_bucket{database="test",statement_type="select",status="ok",le="25"} 1
+xmysql_query_latency_ms_bucket{database="test",statement_type="select",status="ok",le="50"} 1
+xmysql_query_latency_ms_bucket{database="test",statement_type="select",status="ok",le="100"} 1
+xmysql_query_latency_ms_bucket{database="test",statement_type="select",status="ok",le="250"} 1
+xmysql_query_latency_ms_bucket{database="test",statement_type="select",status="ok",le="500"} 1
+xmysql_query_latency_ms_bucket{database="test",statement_type="select",status="ok",le="1000"} 1
+xmysql_query_latency_ms_bucket{database="test",statement_type="select",status="ok",le="2500"} 1
+xmysql_query_latency_ms_bucket{database="test",statement_type="select",status="ok",le="5000"} 1
+xmysql_query_latency_ms_bucket{database="test",statement_type="select",status="ok",le="+Inf"} 1
+xmysql_query_latency_ms_sum{database="test",statement_type="select",status="ok"} 12
+xmysql_query_latency_ms_count{database="test",statement_type="select",status="ok"} 1
+# HELP xmysql_recovery_failures_total Crash recovery failure count.
+# TYPE xmysql_recovery_failures_total counter
+xmysql_recovery_failures_total{stage="redo"} 0
+# HELP xmysql_recovery_runs_total Crash recovery run count.
+# TYPE xmysql_recovery_runs_total counter
+xmysql_recovery_runs_total{result="pass"} 1
+# HELP xmysql_transactions_active Currently active transactions.
+# TYPE xmysql_transactions_active gauge
+xmysql_transactions_active{isolation_level="repeatable_read"} 2
+# HELP xmysql_transactions_committed_total Committed transaction count.
+# TYPE xmysql_transactions_committed_total counter
+xmysql_transactions_committed_total{isolation_level="repeatable_read"} 340
+# HELP xmysql_transactions_rolled_back_total Rolled-back transaction count.
+# TYPE xmysql_transactions_rolled_back_total counter
+xmysql_transactions_rolled_back_total{isolation_level="repeatable_read",reason="client_abort"} 4

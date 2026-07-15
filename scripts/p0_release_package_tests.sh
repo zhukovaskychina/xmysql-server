@@ -63,6 +63,7 @@ run_package() {
   local safe_pkg out_file
   local attempt=0
   local max_attempts=$((RETRY_TIMES + 1))
+  local last_ec=0
 
   safe_pkg="${pkg//\//_}"
   safe_pkg="${safe_pkg//./}"
@@ -90,6 +91,7 @@ run_package() {
     fi
 
     local ec=$?
+    last_ec=$ec
     local end_ts=$(date +%s)
     duration_ms=$(( (end_ts - start_ts) * 1000 ))
 
@@ -106,15 +108,15 @@ run_package() {
   FAILED_PACKAGES+=("$pkg")
   local tail_lines
   tail_lines="$(tail -n 40 "$out_file")"
-  FAILED_DETAILS+="$pkg: ${RETRY_TIMES} retry(ies) exhausted, final exit=$ec. output=$out_file
+  FAILED_DETAILS+="$pkg: ${RETRY_TIMES} retry(ies) exhausted, final exit=$last_ec. output=$out_file
 "
   {
     echo "FAILURE_DETAILS_BEGIN"
     echo "$tail_lines"
     echo "FAILURE_DETAILS_END"
   } >>"$SUMMARY_FILE"
-  echo "RESULT: FAIL exit=$ec" | tee -a "$SUMMARY_FILE"
-  return "$ec"
+  echo "RESULT: FAIL exit=$last_ec" | tee -a "$SUMMARY_FILE"
+  return "$last_ec"
 }
 
 run_package_suite() {
