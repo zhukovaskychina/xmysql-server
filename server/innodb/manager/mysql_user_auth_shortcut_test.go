@@ -46,3 +46,27 @@ func TestQueryMySQLUserReadsInitializedRootFromBTree(t *testing.T) {
 		t.Fatalf("QueryMySQLUser(root@localhost) privileges = SELECT:%s SUPER:%s, want Y/Y", user.SelectPriv, user.SuperPriv)
 	}
 }
+
+func TestQueryMySQLUserViaBTreeReadsInitializedRoot(t *testing.T) {
+	dataDir := t.TempDir()
+	storage := NewStorageManager(&conf.Cfg{
+		DataDir:              dataDir,
+		InnodbDataDir:        filepath.Join(dataDir, "innodb"),
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+		InnodbPageSize:       16384,
+	})
+	t.Cleanup(func() {
+		_ = storage.Close()
+	})
+
+	user, err := storage.QueryMySQLUserViaBTree("root", "localhost")
+	if err != nil {
+		t.Fatalf("QueryMySQLUserViaBTree(root@localhost) error = %v", err)
+	}
+	if user.User != "root" || user.Host != "localhost" {
+		t.Fatalf("QueryMySQLUserViaBTree(root@localhost) = %#v", user)
+	}
+	if user.SelectPriv != "Y" || user.SuperPriv != "Y" || user.AuthenticationString == "" {
+		t.Fatalf("QueryMySQLUserViaBTree(root@localhost) returned incomplete user %#v", user)
+	}
+}

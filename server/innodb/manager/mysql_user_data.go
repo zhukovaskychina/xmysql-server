@@ -1310,18 +1310,15 @@ func (sm *StorageManager) verifyUserDataBTree(ctx context.Context, btreeManager 
 func (sm *StorageManager) QueryMySQLUserViaBTree(username, host string) (*MySQLUser, error) {
 	logger.Debugf("Querying MySQL user via Enhanced B+tree: %s@%s", username, host)
 
-	// 创建增强版B+树管理器
-	btreeManager := NewEnhancedBTreeManager(sm, DefaultBTreeConfig)
-	defer btreeManager.Close()
+	btreeManager, cleanup := sm.mysqlUserBTreeForQuery()
+	defer cleanup()
 
 	ctx := context.Background()
 
 	// 尝试获取已存在的主键索引
 	userIndex, err := btreeManager.GetIndexByName(1, "PRIMARY") // TableID=1, IndexName="PRIMARY"
 	if err != nil {
-		// 如果索引不存在，降级为原来的方法
-		logger.Debugf("    Primary index not found, falling back to traditional method")
-		return sm.QueryMySQLUser(username, host)
+		return nil, fmt.Errorf("mysql.user primary index unavailable: %v", err)
 	}
 
 	// 构造主键
@@ -1331,14 +1328,17 @@ func (sm *StorageManager) QueryMySQLUserViaBTree(username, host string) (*MySQLU
 	// 通过增强版B+树搜索
 	record, err := btreeManager.Search(ctx, userIndex.GetIndexID(), primaryKey)
 	if err != nil {
-		// 搜索失败，降级为原来的方法
-		logger.Debugf("    Search failed: %v, falling back to traditional method", err)
-		return sm.QueryMySQLUser(username, host)
+		return nil, fmt.Errorf("user %s@%s not found: %v", username, host, err)
 	}
 
 	logger.Debugf("   Found user at page %d, slot %d", record.PageNo, record.SlotNo)
 
-	return nil, fmt.Errorf("mysql.user record deserialization via Enhanced B+tree is not implemented for %s@%s", username, host)
+	user, err := sm.deserializeUserFromRecord(record.Value, username, host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to deserialize mysql.user record for %s@%s: %v", username, host, err)
+	}
+
+	return user, nil
 }
 
 // verifyEnhancedBTreeStructure 验证增强版B+树中的用户数据
