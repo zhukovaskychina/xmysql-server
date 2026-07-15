@@ -394,13 +394,29 @@ func (se *SelectExecutor) scanStorageRows(ctx context.Context, tableMeta *metada
 		return nil
 	}
 
-	_, err := se.storageManager.GetTableStorageManager().GetTableStorageInfo(se.schemaName, se.tableName)
-	if err != nil {
+	btreeManager := se.btreeManager
+	if se.tableManager != nil {
+		tableBTreeManager, err := se.tableManager.GetTableBTreeManager(ctx, se.schemaName, se.tableName)
+		if err == nil && tableBTreeManager != nil {
+			btreeManager = tableBTreeManager
+		}
+	}
+	if btreeManager == nil {
 		se.resultSet = []Record{}
 		return nil
 	}
 
-	se.resultSet = []Record{}
+	scanner := NewClusteredIndexScanner(btreeManager, tableMeta)
+	rows, err := scanner.Scan(ctx, se.whereConditions)
+	if err != nil {
+		return fmt.Errorf("scan clustered index failed: %v", err)
+	}
+
+	records := make([]Record, 0, len(rows))
+	for _, row := range rows {
+		records = append(records, recordFromInsertRowData(row, tableMeta))
+	}
+	se.resultSet = records
 	return nil
 }
 

@@ -1173,17 +1173,19 @@ func (m *DefaultBPlusTreeManager) compareKeys(a, b interface{}) int {
 	// 根据实际类型实现比较逻辑
 	switch v1 := a.(type) {
 	case int:
-		v2, ok := b.(int)
+		cmp, ok := compareNumericKeys(v1, b)
 		if !ok {
 			logger.Debugf("compareKeys fallback: unsupported key type pair a=%T b=%T", a, b)
 			return compareKeyByFallback(a, b)
 		}
-		if v1 < v2 {
-			return -1
-		} else if v1 > v2 {
-			return 1
+		return cmp
+	case int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+		cmp, ok := compareNumericKeys(a, b)
+		if !ok {
+			logger.Debugf("compareKeys fallback: unsupported key type pair a=%T b=%T", a, b)
+			return compareKeyByFallback(a, b)
 		}
-		return 0
+		return cmp
 	case string:
 		v2, ok := b.(string)
 		if !ok {
@@ -1223,6 +1225,122 @@ func (m *DefaultBPlusTreeManager) compareKeys(a, b interface{}) int {
 	default:
 		logger.Debugf("compareKeys fallback: unsupported key type pair a=%T b=%T", a, b)
 		return compareKeyByFallback(a, b)
+	}
+}
+
+func compareNumericKeys(a, b interface{}) (int, bool) {
+	left, ok := keyAsNumeric(a)
+	if !ok {
+		return 0, false
+	}
+	right, ok := keyAsNumeric(b)
+	if !ok {
+		return 0, false
+	}
+
+	if left.isFloat || right.isFloat {
+		leftFloat := left.float64()
+		rightFloat := right.float64()
+		if leftFloat < rightFloat {
+			return -1, true
+		}
+		if leftFloat > rightFloat {
+			return 1, true
+		}
+		return 0, true
+	}
+
+	if left.signed && right.signed {
+		if left.i < right.i {
+			return -1, true
+		}
+		if left.i > right.i {
+			return 1, true
+		}
+		return 0, true
+	}
+	if left.signed {
+		if left.i < 0 {
+			return -1, true
+		}
+		leftUnsigned := uint64(left.i)
+		if leftUnsigned < right.u {
+			return -1, true
+		}
+		if leftUnsigned > right.u {
+			return 1, true
+		}
+		return 0, true
+	}
+	if right.signed {
+		if right.i < 0 {
+			return 1, true
+		}
+		rightUnsigned := uint64(right.i)
+		if left.u < rightUnsigned {
+			return -1, true
+		}
+		if left.u > rightUnsigned {
+			return 1, true
+		}
+		return 0, true
+	}
+
+	if left.u < right.u {
+		return -1, true
+	}
+	if left.u > right.u {
+		return 1, true
+	}
+	return 0, true
+}
+
+type numericKey struct {
+	signed  bool
+	isFloat bool
+	i       int64
+	u       uint64
+	f       float64
+}
+
+func (n numericKey) float64() float64 {
+	if n.isFloat {
+		return n.f
+	}
+	if n.signed {
+		return float64(n.i)
+	}
+	return float64(n.u)
+}
+
+func keyAsNumeric(value interface{}) (numericKey, bool) {
+	switch v := value.(type) {
+	case int:
+		return numericKey{signed: true, i: int64(v)}, true
+	case int8:
+		return numericKey{signed: true, i: int64(v)}, true
+	case int16:
+		return numericKey{signed: true, i: int64(v)}, true
+	case int32:
+		return numericKey{signed: true, i: int64(v)}, true
+	case int64:
+		return numericKey{signed: true, i: v}, true
+	case uint:
+		return numericKey{u: uint64(v)}, true
+	case uint8:
+		return numericKey{u: uint64(v)}, true
+	case uint16:
+		return numericKey{u: uint64(v)}, true
+	case uint32:
+		return numericKey{u: uint64(v)}, true
+	case uint64:
+		return numericKey{u: v}, true
+	case float32:
+		return numericKey{isFloat: true, f: float64(v)}, true
+	case float64:
+		return numericKey{isFloat: true, f: v}, true
+	default:
+		return numericKey{}, false
 	}
 }
 

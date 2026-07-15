@@ -150,6 +150,40 @@ func (adapter *EnhancedBTreeAdapter) RangeSearch(ctx context.Context, startKey, 
 	return rows, nil
 }
 
+// FullScan 顺序扫描默认索引的全部未删除记录。
+func (adapter *EnhancedBTreeAdapter) FullScan(ctx context.Context) ([]basic.Row, error) {
+	index, err := adapter.enhancedManager.GetIndex(adapter.defaultIndexID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get index: %v", err)
+	}
+
+	enhancedIndex, ok := index.(*EnhancedBTreeIndex)
+	if !ok {
+		return nil, fmt.Errorf("invalid index type")
+	}
+
+	iterator, err := enhancedIndex.Iterator(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer iterator.Close()
+
+	rows := make([]basic.Row, 0)
+	for iterator.HasNext() {
+		record, err := iterator.Next()
+		if err != nil {
+			return nil, err
+		}
+		if record == nil || record.DeleteMark {
+			continue
+		}
+		row := &IndexRecordRowAdapter{record: record}
+		rows = append(rows, row)
+	}
+
+	return rows, nil
+}
+
 // GetFirstLeafPage 获取第一个叶子节点
 func (adapter *EnhancedBTreeAdapter) GetFirstLeafPage(ctx context.Context) (uint32, error) {
 	index, err := adapter.enhancedManager.GetIndex(adapter.defaultIndexID)
