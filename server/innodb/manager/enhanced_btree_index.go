@@ -3,7 +3,10 @@ package manager
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,6 +19,10 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/page"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/record"
 )
+
+var enhancedBTreeRecordBlockMagic = []byte("XBTREC1")
+
+const enhancedBTreeRecordBlockOffset = 256
 
 // ctxKey is the type used for context keys in this package.
 type ctxKey string
@@ -605,6 +612,12 @@ func (idx *EnhancedBTreeIndex) insertIntoPage(ctx context.Context, page *BTreePa
 	copy(indexRecord.Key, key)
 	copy(indexRecord.Value, value)
 	page.Records = append(page.Records, indexRecord)
+	if err := idx.persistIndexRecords(bufferPage, page); err != nil {
+		return fmt.Errorf("failed to persist index records: %v", err)
+	}
+	if err := idx.storageManager.GetBufferPoolManager().FlushPage(idx.metadata.SpaceID, page.PageNo); err != nil {
+		logger.Debugf("  Warning: Failed to flush persisted index records: %v\n", err)
+	}
 
 	// 8. 再次验证页面内容以确保插入成功
 	content := bufferPage.GetContent()
@@ -931,6 +944,13 @@ func (idx *EnhancedBTreeIndex) deleteFromPage(ctx context.Context, page *BTreePa
 			page.Records[i].DeleteMark = true
 			page.IsDirty = true
 			page.LastAccess = time.Now()
+			bufferPage, err := idx.storageManager.GetBufferPoolManager().GetPage(idx.metadata.SpaceID, page.PageNo)
+			if err != nil {
+				return err
+			}
+			if err := idx.persistIndexRecords(bufferPage, page); err != nil {
+				return err
+			}
 			return nil
 		}
 	}
@@ -1042,8 +1062,175 @@ func (idx *EnhancedBTreeIndex) parsePageContent(bufferPage interface{}) (*BTreeP
 		LastAccess:  time.Now(),
 		PinCount:    1,
 	}
+	if records, err := parsePersistentIndexRecords(data, pageNo); err == nil && len(records) > 0 {
+		page.Records = records
+		page.RecordCount = uint16(len(records))
+	} else if records, err := idx.loadIndexRecordsSidecar(pageNo); err == nil && len(records) > 0 {
+		page.Records = records
+		page.RecordCount = uint16(len(records))
+	}
 
 	return page, nil
+}
+
+func (idx *EnhancedBTreeIndex) persistIndexRecords(bufferPage *buffer_pool.BufferPage, page *BTreePage) error {
+	content := bufferPage.GetContent()
+	if len(content) == 0 {
+		content = make([]byte, 16*1024)
+	}
+	if len(content) < enhancedBTreeRecordBlockOffset {
+		return fmt.Errorf("page content too small for index record block: %d", len(content))
+	}
+
+	block := make([]byte, 0)
+	block = append(block, enhancedBTreeRecordBlockMagic...)
+	block = binary.BigEndian.AppendUint16(block, uint16(len(page.Records)))
+	for _, record := range page.Records {
+		if record.DeleteMark {
+			block = append(block, 1)
+		} else {
+			block = append(block, 0)
+		}
+		block = binary.BigEndian.AppendUint32(block, uint32(len(record.Key)))
+		block = binary.BigEndian.AppendUint32(block, uint32(len(record.Value)))
+		block = append(block, record.Key...)
+		block = append(block, record.Value...)
+	}
+
+	if enhancedBTreeRecordBlockOffset+len(block) > len(content) {
+		return fmt.Errorf("index record block too large: %d bytes", len(block))
+	}
+	next := append([]byte(nil), content...)
+	copy(next[enhancedBTreeRecordBlockOffset:], block)
+	bufferPage.SetContent(next)
+	bufferPage.MarkDirty()
+	return idx.saveIndexRecordsSidecar(page)
+}
+
+func parsePersistentIndexRecords(content []byte, pageNo uint32) ([]IndexRecord, error) {
+	if len(content) < enhancedBTreeRecordBlockOffset+len(enhancedBTreeRecordBlockMagic)+2 {
+		return nil, fmt.Errorf("index record block not present")
+	}
+	offset := enhancedBTreeRecordBlockOffset
+	if string(content[offset:offset+len(enhancedBTreeRecordBlockMagic)]) != string(enhancedBTreeRecordBlockMagic) {
+		return nil, fmt.Errorf("index record block magic not present")
+	}
+	offset += len(enhancedBTreeRecordBlockMagic)
+
+	count := int(binary.BigEndian.Uint16(content[offset : offset+2]))
+	offset += 2
+	records := make([]IndexRecord, 0, count)
+	for i := 0; i < count; i++ {
+		if offset+9 > len(content) {
+			return nil, fmt.Errorf("index record block entry %d header truncated", i)
+		}
+		deleted := content[offset] == 1
+		offset++
+		keyLen := int(binary.BigEndian.Uint32(content[offset : offset+4]))
+		offset += 4
+		valueLen := int(binary.BigEndian.Uint32(content[offset : offset+4]))
+		offset += 4
+		if keyLen < 0 || valueLen < 0 || offset+keyLen+valueLen > len(content) {
+			return nil, fmt.Errorf("index record block entry %d value truncated", i)
+		}
+		key := append([]byte(nil), content[offset:offset+keyLen]...)
+		offset += keyLen
+		value := append([]byte(nil), content[offset:offset+valueLen]...)
+		offset += valueLen
+		records = append(records, IndexRecord{
+			Key:        key,
+			Value:      value,
+			PageNo:     pageNo,
+			SlotNo:     uint16(i),
+			DeleteMark: deleted,
+		})
+	}
+	return records, nil
+}
+
+func (idx *EnhancedBTreeIndex) saveIndexRecordsSidecar(page *BTreePage) error {
+	path := idx.indexRecordsSidecarPath(page.PageNo)
+	if path == "" {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, mustMarshalIndexRecords(page.Records), 0644)
+}
+
+func (idx *EnhancedBTreeIndex) loadIndexRecordsSidecar(pageNo uint32) ([]IndexRecord, error) {
+	path := idx.indexRecordsSidecarPath(pageNo)
+	if path == "" {
+		return nil, fmt.Errorf("index record sidecar path unavailable")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var records []IndexRecord
+	if err := json.Unmarshal(data, &records); err != nil {
+		return nil, err
+	}
+	for i := range records {
+		records[i].PageNo = pageNo
+		records[i].SlotNo = uint16(i)
+	}
+	return records, nil
+}
+
+func (idx *EnhancedBTreeIndex) loadAllIndexRecordsSidecars() ([]IndexRecord, error) {
+	dir := idx.indexRecordsSidecarDir()
+	if dir == "" {
+		return nil, fmt.Errorf("index record sidecar dir unavailable")
+	}
+	matches, err := filepath.Glob(filepath.Join(dir, fmt.Sprintf("space_%d_page_*.json", idx.metadata.SpaceID)))
+	if err != nil {
+		return nil, err
+	}
+	records := make([]IndexRecord, 0)
+	for _, path := range matches {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		var pageRecords []IndexRecord
+		if err := json.Unmarshal(data, &pageRecords); err != nil {
+			return nil, err
+		}
+		records = append(records, pageRecords...)
+	}
+	return records, nil
+}
+
+func (idx *EnhancedBTreeIndex) indexRecordsSidecarPath(pageNo uint32) string {
+	dir := idx.indexRecordsSidecarDir()
+	if dir == "" {
+		return ""
+	}
+	return filepath.Join(dir, fmt.Sprintf("space_%d_page_%d.json", idx.metadata.SpaceID, pageNo))
+}
+
+func (idx *EnhancedBTreeIndex) indexRecordsSidecarDir() string {
+	if idx == nil || idx.storageManager == nil || idx.storageManager.config == nil {
+		return ""
+	}
+	dataDir := idx.storageManager.config.InnodbDataDir
+	if dataDir == "" {
+		dataDir = idx.storageManager.config.DataDir
+	}
+	if dataDir == "" {
+		dataDir = "data"
+	}
+	return filepath.Join(dataDir, "_xmysql_btree_records")
+}
+
+func mustMarshalIndexRecords(records []IndexRecord) []byte {
+	data, err := json.MarshalIndent(records, "", "  ")
+	if err != nil {
+		return []byte("[]")
+	}
+	return data
 }
 
 // flushPage 刷新页面到存储

@@ -162,23 +162,42 @@ func (adapter *EnhancedBTreeAdapter) FullScan(ctx context.Context) ([]basic.Row,
 		return nil, fmt.Errorf("invalid index type")
 	}
 
-	iterator, err := enhancedIndex.Iterator(ctx)
+	firstLeafPageNo, err := enhancedIndex.GetFirstLeafPage(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer iterator.Close()
 
 	rows := make([]basic.Row, 0)
-	for iterator.HasNext() {
-		record, err := iterator.Next()
+	currentPageNo := firstLeafPageNo
+	for currentPageNo != 0 {
+		page, err := enhancedIndex.GetPage(ctx, currentPageNo)
 		if err != nil {
 			return nil, err
 		}
-		if record == nil || record.DeleteMark {
-			continue
+		for idx := range page.Records {
+			record := page.Records[idx]
+			if record.DeleteMark {
+				continue
+			}
+			recordCopy := record
+			row := &IndexRecordRowAdapter{record: &recordCopy}
+			rows = append(rows, row)
 		}
-		row := &IndexRecordRowAdapter{record: record}
-		rows = append(rows, row)
+		currentPageNo = page.NextPage
+	}
+	if len(rows) == 0 {
+		records, err := enhancedIndex.loadAllIndexRecordsSidecars()
+		if err == nil {
+			for idx := range records {
+				record := records[idx]
+				if record.DeleteMark {
+					continue
+				}
+				recordCopy := record
+				row := &IndexRecordRowAdapter{record: &recordCopy}
+				rows = append(rows, row)
+			}
+		}
 	}
 
 	return rows, nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
@@ -40,7 +41,11 @@ func (s *ClusteredIndexScanner) Scan(ctx context.Context, whereConditions []stri
 		if storedRow == nil {
 			continue
 		}
-		rowData, err := DecodeClusteredRecord(storedRow.ToByte(), s.tableMeta)
+		payload := storedRow.ToByte()
+		if !strings.HasPrefix(string(payload), clusteredRecordMagic) {
+			continue
+		}
+		rowData, err := DecodeClusteredRecord(payload, s.tableMeta)
 		if err != nil {
 			return nil, fmt.Errorf("decode clustered record: %v", err)
 		}
