@@ -38,6 +38,7 @@ This does not mean the project is production-ready. The current boundary is:
 | `docs/planning/P0_CAPABILITY_BACKLOG_20260715.md` | Production-blocking missing capabilities |
 | `docs/planning/P1_CAPABILITY_BACKLOG_20260715.md` | Important next capabilities after P0 |
 | `docs/planning/PX_CAPABILITY_BACKLOG_20260715.md` | P2/P3/future capability backlog |
+| `docs/planning/CODEBASE_CLEANUP_DEVELOPMENT_CHECKLIST_20260715.md` | Development checklist for cleaning confusing code paths |
 
 ## P0 Summary
 
@@ -56,4 +57,3 @@ This does not mean the project is production-ready. The current boundary is:
 3. Close transaction/MVCC/recovery correctness under JDBC multi-connection workloads.
 4. Close SQL/JDBC compatibility gaps for core MySQL client behavior.
 5. Run production-readiness evidence and governance gates against the completed runtime behavior.
-
