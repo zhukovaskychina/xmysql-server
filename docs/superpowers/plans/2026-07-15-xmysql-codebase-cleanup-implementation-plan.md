@@ -32,11 +32,11 @@
 - Modify: `server/innodb/engine/unified_executor.go`
 - Test: `server/innodb/engine/select_executor_projection_test.go`
 
-- [ ] **Step 1: Add a failing test for WHERE correctness**
+- [x] **Step 1: Add a failing test for WHERE correctness**
 
 Add a test that inserts or builds three rows where only one row matches `id = 2`, then asserts the result is exactly that row. The failure must prove that returning even-indexed rows is not acceptable.
 
-- [ ] **Step 2: Run the focused test**
+- [x] **Step 2: Run the focused test**
 
 ```bash
 /Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/engine -run 'Select|Where' -count=1
@@ -44,18 +44,18 @@ Add a test that inserts or builds three rows where only one row matches `id = 2`
 
 Expected before the fix: a WHERE correctness failure or unsupported-path failure that points to the legacy path.
 
-- [ ] **Step 3: Remove or bypass `applyWhereFilter` simulated logic**
+- [x] **Step 3: Remove or bypass `applyWhereFilter` simulated logic**
 
 Change production SELECT routing so WHERE predicates are evaluated by the planner/operator path or `ClusteredIndexScanner` predicate evaluation. Do not keep `i%2 == 0` behavior in any production method.
 
-- [ ] **Step 4: Re-run focused and baseline tests**
+- [x] **Step 4: Re-run focused and baseline tests**
 
 ```bash
 /Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/engine -run 'Select|Where|Clustered' -count=1
 /Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/engine ./server/innodb/manager -count=1
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/innodb/engine/select_executor.go server/innodb/engine/unified_executor.go server/innodb/engine/*select*_test.go
@@ -70,27 +70,27 @@ git commit -m "fix: remove simulated select filtering"
 - Test: `server/innodb/engine/unified_executor_test.go`
 - Test: `server/innodb/engine/storage_integrated_dml_executor_p0_test.go`
 
-- [ ] **Step 1: Add a failing test for missing manager behavior**
+- [x] **Step 1: Add a failing test for missing manager behavior**
 
 Create a test that constructs an executor without `storageManager` or `tableStorageManager`, runs INSERT/UPDATE/DELETE, and expects a structured error instead of fallback to `DMLExecutor`.
 
-- [ ] **Step 2: Run the focused DML tests**
+- [x] **Step 2: Run the focused DML tests**
 
 ```bash
 /Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/engine -run 'DML|StorageIntegrated|ExecuteInsert|ExecuteUpdate|ExecuteDelete' -count=1
 ```
 
-- [ ] **Step 3: Remove silent fallback in `executor.go`**
+- [x] **Step 3: Remove silent fallback in `executor.go`**
 
 Replace fallback construction of `NewDMLExecutor` with a clear validation error when production managers are missing. Keep `DMLExecutor` only for parser/unit helper tests if still needed.
 
-- [ ] **Step 4: Re-run JDBC DML**
+- [x] **Step 4: Re-run JDBC DML**
 
 ```bash
 mvn test -Dtest=DMLOperationsTest
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/innodb/engine/executor.go server/innodb/engine/dml_executor.go server/innodb/engine/*dml*_test.go server/innodb/engine/unified_executor_test.go
@@ -104,28 +104,28 @@ git commit -m "refactor: require storage integrated dml path"
 - Modify: `server/innodb/engine/storage_integrated_dml_executor.go`
 - Test: `server/innodb/engine/transaction_integration_test.go`
 
-- [ ] **Step 1: Add failing tests for nil transaction manager**
+- [x] **Step 1: Add failing tests for nil transaction manager**
 
 Add tests that production INSERT/UPDATE/DELETE with missing `txManager` either uses an explicit autocommit implementation with WAL/undo boundaries or returns a structured error. The test must reject timestamp-only fake transaction IDs.
 
-- [ ] **Step 2: Run transaction tests**
+- [x] **Step 2: Run transaction tests**
 
 ```bash
 /Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/engine -run 'Transaction|Rollback|StorageIntegrated' -count=1
 ```
 
-- [ ] **Step 3: Remove simplified transaction continuation**
+- [x] **Step 3: Remove simplified transaction continuation**
 
 Update `beginStorageTransaction` so production DML cannot silently proceed without `txManager`. If autocommit is kept, implement it through the real transaction manager.
 
-- [ ] **Step 4: Re-run engine and JDBC tests**
+- [x] **Step 4: Re-run engine and JDBC tests**
 
 ```bash
 /Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/engine ./server/innodb/manager -count=1
 mvn test -Dtest=DMLOperationsTest
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/innodb/engine/storage_integrated_dml_helper.go server/innodb/engine/storage_integrated_dml_executor.go server/innodb/engine/transaction_integration_test.go
@@ -142,25 +142,25 @@ git commit -m "fix: require real transactions for storage dml"
 - Test: `server/innodb/engine/clustered_index_scanner_test.go`
 - Test: `server/innodb/manager/enhanced_btree_index_test.go`
 
-- [ ] **Step 1: Add restart and page-parse tests**
+- [x] **Step 1: Add restart and page-parse tests**
 
 Add tests that insert multiple rows, flush, restart/reload, scan from pages, and assert all rows are present without reading sidecar JSON.
 
-- [ ] **Step 2: Run storage tests**
+- [x] **Step 2: Run storage tests**
 
 ```bash
 /Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/engine ./server/innodb/manager -run 'Clustered|BTree|Persistence|Restart' -count=1
 ```
 
-- [ ] **Step 3: Choose the canonical persisted format**
+- [x] **Step 3: Choose the canonical persisted format**
 
 Use one record block for clustered row payloads and B+Tree scan. If `XIR1` remains the row codec, B+Tree pages must store and scan `XIR1` payloads directly. Do not persist the same records through sidecar JSON.
 
-- [ ] **Step 4: Remove sidecar fallback**
+- [x] **Step 4: Remove sidecar fallback**
 
 Delete or isolate `loadAllIndexRecordsSidecars`, `loadIndexRecordsSidecar`, `saveIndexRecordsSidecar`, and sidecar delete fallback from production scan/delete paths. Keep migration cleanup only if needed for old local data.
 
-- [ ] **Step 5: Re-run restart and JDBC tests**
+- [x] **Step 5: Re-run restart and JDBC tests**
 
 ```bash
 /Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/engine ./server/innodb/manager -count=1
@@ -168,7 +168,7 @@ mvn test -Dtest=DMLOperationsTest
 mvn test -Pjdbc-connectivity
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add server/innodb/engine/record_codec.go server/innodb/engine/clustered_index_scanner.go server/innodb/manager/enhanced_btree_index.go server/innodb/manager/enhanced_btree_adapter.go server/innodb/engine/*clustered*_test.go server/innodb/manager/*btree*_test.go
@@ -183,27 +183,27 @@ git commit -m "refactor: unify clustered btree persistence format"
 - Modify: `server/innodb/manager/enhanced_btree_adapter.go`
 - Test: `server/innodb/manager/btree_improvements_test.go`
 
-- [ ] **Step 1: Add production-construction assertions**
+- [x] **Step 1: Add production-construction assertions**
 
 Add tests that table storage mapping creates the selected production B+Tree implementation and does not accidentally return the legacy manager for user tables.
 
-- [ ] **Step 2: Run B+Tree tests**
+- [x] **Step 2: Run B+Tree tests**
 
 ```bash
 /Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/manager -run 'BTree|TableStorage' -count=1
 ```
 
-- [ ] **Step 3: Mark legacy manager boundary**
+- [x] **Step 3: Mark legacy manager boundary**
 
 Either remove legacy production wiring or add explicit package comments and constructor names showing that it is test/legacy only.
 
-- [ ] **Step 4: Re-run manager and engine tests**
+- [x] **Step 4: Re-run manager and engine tests**
 
 ```bash
 /Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/manager ./server/innodb/engine -count=1
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/innodb/manager/bplus_tree_manager.go server/innodb/manager/table_storage_mapping.go server/innodb/manager/enhanced_btree_adapter.go server/innodb/manager/*btree*_test.go
@@ -219,28 +219,28 @@ git commit -m "refactor: isolate legacy btree manager"
 - Test: `server/dispatcher`
 - Test: `server/auth`
 
-- [ ] **Step 1: Add negative auth tests**
+- [x] **Step 1: Add negative auth tests**
 
 Add tests that non-root users cannot read `mysql.user` without privilege, root bypass is not used for missing privilege, and all required privileges are checked.
 
-- [ ] **Step 2: Run auth tests**
+- [x] **Step 2: Run auth tests**
 
 ```bash
 /Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/dispatcher ./server/auth -count=1
 ```
 
-- [ ] **Step 3: Move shortcuts behind explicit test mode**
+- [x] **Step 3: Move shortcuts behind explicit test mode**
 
 Remove hardcoded `mysql.user` responses and root bypass from normal runtime. If a shortcut is needed for tests, guard it behind a test-only constructor or config flag that defaults off.
 
-- [ ] **Step 4: Re-run protocol/JDBC connectivity**
+- [x] **Step 4: Re-run protocol/JDBC connectivity**
 
 ```bash
 /Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/dispatcher ./server/auth ./server/net -count=1
 mvn test -Pjdbc-connectivity
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/dispatcher/enhanced_message_handler.go server/auth/password_validator.go server/auth/engine_access.go server/dispatcher/*test.go server/auth/*test.go
@@ -258,3 +258,18 @@ mvn test -Pjdbc-connectivity
 git diff --check
 ```
 
+## Completion Evidence
+
+- Task 1-2: `6df0386 fix: remove legacy select and dml fallbacks`
+- Task 3: `5dae75c fix: require real storage dml transactions`
+- Task 4: `7791d10 refactor: remove btree sidecar fallback`
+- Task 5: `13554c6 refactor: isolate legacy btree manager`
+- Task 6: `fee0709 fix: remove runtime auth shortcuts`
+- Follow-up auth storage lookup closure: `b788e1a fix: complete mysql user btree lookup`
+
+Latest verified regression commands:
+
+```bash
+/Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/manager ./server/innodb/engine ./server/auth ./server/dispatcher ./server/net -count=1
+git diff --check
+```
