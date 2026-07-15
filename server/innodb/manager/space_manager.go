@@ -256,6 +256,12 @@ func (sm *SpaceManagerImpl) CreateTableSpace(name string) (uint32, error) {
 
 	// 设置为活动状态
 	ibdSpace.SetActive(true)
+	if fileExists {
+		if err := ibdSpace.RecoverAllocationsFromFileSize(); err != nil {
+			ibdFile.Close()
+			return 0, fmt.Errorf("failed to recover page allocations for %s: %v", name, err)
+		}
+	}
 
 	// 如果是新创建的文件，分配第一个extent用于系统页面
 	if !fileExists {

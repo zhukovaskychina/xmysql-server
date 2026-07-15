@@ -3,10 +3,7 @@ package manager
 import (
 	"context"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -821,15 +818,27 @@ func (idx *EnhancedBTreeIndex) initializeEmptyPage() []byte {
 }
 
 // parseOrCreateIndexPage 解析或创建索引页面
-func (idx *EnhancedBTreeIndex) parseOrCreateIndexPage(pageContent []byte) (basic.IIndexPage, error) {
+func (idx *EnhancedBTreeIndex) parseOrCreateIndexPage(pageContent []byte) (indexPage basic.IIndexPage, err error) {
 	// 使用现有的页面包装器解析页面
 	if len(pageContent) < 100 {
 		// 页面太小，重新初始化
 		pageContent = idx.initializeEmptyPage()
 	}
+	if len(pageContent) >= enhancedBTreeRecordBlockOffset+len(enhancedBTreeRecordBlockMagic) &&
+		string(pageContent[enhancedBTreeRecordBlockOffset:enhancedBTreeRecordBlockOffset+len(enhancedBTreeRecordBlockMagic)]) == string(enhancedBTreeRecordBlockMagic) {
+		pageContent = idx.initializeEmptyPage()
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			indexPage = page.NewPageIndexByLoadBytes(idx.initializeEmptyPage())
+			if indexPage == nil {
+				err = fmt.Errorf("failed to recover index page parser panic: %v", recovered)
+			}
+		}
+	}()
 
 	// 尝试使用标准的页面包装器
-	indexPage := page.NewPageIndexByLoadBytes(pageContent)
+	indexPage = page.NewPageIndexByLoadBytes(pageContent)
 	if indexPage == nil {
 		return nil, fmt.Errorf("failed to create index page from content")
 	}
@@ -1065,9 +1074,6 @@ func (idx *EnhancedBTreeIndex) parsePageContent(bufferPage interface{}) (*BTreeP
 	if records, err := parsePersistentIndexRecords(data, pageNo); err == nil && len(records) > 0 {
 		page.Records = records
 		page.RecordCount = uint16(len(records))
-	} else if records, err := idx.loadIndexRecordsSidecar(pageNo); err == nil && len(records) > 0 {
-		page.Records = records
-		page.RecordCount = uint16(len(records))
 	}
 
 	return page, nil
@@ -1077,6 +1083,11 @@ func (idx *EnhancedBTreeIndex) persistIndexRecords(bufferPage *buffer_pool.Buffe
 	content := bufferPage.GetContent()
 	if len(content) == 0 {
 		content = make([]byte, 16*1024)
+	}
+	if len(content) < PAGE_SIZE {
+		padded := make([]byte, PAGE_SIZE)
+		copy(padded, content)
+		content = padded
 	}
 	if len(content) < enhancedBTreeRecordBlockOffset {
 		return fmt.Errorf("page content too small for index record block: %d", len(content))
@@ -1104,7 +1115,20 @@ func (idx *EnhancedBTreeIndex) persistIndexRecords(bufferPage *buffer_pool.Buffe
 	copy(next[enhancedBTreeRecordBlockOffset:], block)
 	bufferPage.SetContent(next)
 	bufferPage.MarkDirty()
-	return idx.saveIndexRecordsSidecar(page)
+	if idx.storageManager == nil || idx.storageManager.GetBufferPoolManager() == nil || idx.storageManager.GetBufferPoolManager().storage == nil {
+		return fmt.Errorf("storage provider unavailable for index record persistence")
+	}
+	bpm := idx.storageManager.GetBufferPoolManager()
+	if err := bpm.storage.WritePage(idx.metadata.SpaceID, bufferPage.GetPageNo(), next); err != nil {
+		return fmt.Errorf("write index record block to page %d failed: %v", bufferPage.GetPageNo(), err)
+	}
+	bufferPage.SetDirty(false)
+	cachedPage := buffer_pool.NewBufferPage(idx.metadata.SpaceID, bufferPage.GetPageNo())
+	cachedPage.SetContent(next)
+	if err := bpm.lruCache.Set(idx.metadata.SpaceID, bufferPage.GetPageNo(), buffer_pool.NewBufferBlock(cachedPage)); err != nil {
+		return fmt.Errorf("update cached index record block for page %d failed: %v", bufferPage.GetPageNo(), err)
+	}
+	return nil
 }
 
 func parsePersistentIndexRecords(content []byte, pageNo uint32) ([]IndexRecord, error) {
@@ -1146,91 +1170,6 @@ func parsePersistentIndexRecords(content []byte, pageNo uint32) ([]IndexRecord, 
 		})
 	}
 	return records, nil
-}
-
-func (idx *EnhancedBTreeIndex) saveIndexRecordsSidecar(page *BTreePage) error {
-	path := idx.indexRecordsSidecarPath(page.PageNo)
-	if path == "" {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return err
-	}
-	return os.WriteFile(path, mustMarshalIndexRecords(page.Records), 0644)
-}
-
-func (idx *EnhancedBTreeIndex) loadIndexRecordsSidecar(pageNo uint32) ([]IndexRecord, error) {
-	path := idx.indexRecordsSidecarPath(pageNo)
-	if path == "" {
-		return nil, fmt.Errorf("index record sidecar path unavailable")
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var records []IndexRecord
-	if err := json.Unmarshal(data, &records); err != nil {
-		return nil, err
-	}
-	for i := range records {
-		records[i].PageNo = pageNo
-		records[i].SlotNo = uint16(i)
-	}
-	return records, nil
-}
-
-func (idx *EnhancedBTreeIndex) loadAllIndexRecordsSidecars() ([]IndexRecord, error) {
-	dir := idx.indexRecordsSidecarDir()
-	if dir == "" {
-		return nil, fmt.Errorf("index record sidecar dir unavailable")
-	}
-	matches, err := filepath.Glob(filepath.Join(dir, fmt.Sprintf("space_%d_page_*.json", idx.metadata.SpaceID)))
-	if err != nil {
-		return nil, err
-	}
-	records := make([]IndexRecord, 0)
-	for _, path := range matches {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
-		var pageRecords []IndexRecord
-		if err := json.Unmarshal(data, &pageRecords); err != nil {
-			return nil, err
-		}
-		records = append(records, pageRecords...)
-	}
-	return records, nil
-}
-
-func (idx *EnhancedBTreeIndex) indexRecordsSidecarPath(pageNo uint32) string {
-	dir := idx.indexRecordsSidecarDir()
-	if dir == "" {
-		return ""
-	}
-	return filepath.Join(dir, fmt.Sprintf("space_%d_page_%d.json", idx.metadata.SpaceID, pageNo))
-}
-
-func (idx *EnhancedBTreeIndex) indexRecordsSidecarDir() string {
-	if idx == nil || idx.storageManager == nil || idx.storageManager.config == nil {
-		return ""
-	}
-	dataDir := idx.storageManager.config.InnodbDataDir
-	if dataDir == "" {
-		dataDir = idx.storageManager.config.DataDir
-	}
-	if dataDir == "" {
-		dataDir = "data"
-	}
-	return filepath.Join(dataDir, "_xmysql_btree_records")
-}
-
-func mustMarshalIndexRecords(records []IndexRecord) []byte {
-	data, err := json.MarshalIndent(records, "", "  ")
-	if err != nil {
-		return []byte("[]")
-	}
-	return data
 }
 
 // flushPage 刷新页面到存储

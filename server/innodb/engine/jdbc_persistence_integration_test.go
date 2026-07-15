@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -85,6 +86,115 @@ func TestClusteredRecordPersistsAcrossStorageManagerRestart(t *testing.T) {
 	}
 	if rows[0].ColumnValues["name"] != "alice" {
 		t.Fatalf("persisted row = %#v", rows[0].ColumnValues)
+	}
+}
+
+func TestClusteredRecordPersistenceDoesNotWriteBTreeSidecar(t *testing.T) {
+	ctx := context.Background()
+	dataDir := t.TempDir()
+	storage := newRestartTestStorageManager(dataDir)
+	tableStorage := manager.NewTableStorageManager(storage)
+	if _, err := storage.CreateTablespace("mysql/user"); err != nil {
+		t.Fatalf("CreateTablespace() error = %v", err)
+	}
+	btree, err := tableStorage.CreateBTreeManagerForTable(ctx, "mysql", "user")
+	if err != nil {
+		t.Fatalf("CreateBTreeManagerForTable() error = %v", err)
+	}
+
+	tableMeta := &metadata.TableMeta{
+		Name: "users",
+		Columns: []*metadata.ColumnMeta{
+			{Name: "id", Type: metadata.TypeInt, IsPrimary: true},
+			{Name: "name", Type: metadata.TypeVarchar},
+		},
+		PrimaryKey: []string{"id"},
+	}
+	row := &InsertRowData{ColumnValues: map[string]interface{}{"id": int64(1), "name": "alice"}}
+	encoded, err := EncodeClusteredRecord(row, tableMeta)
+	if err != nil {
+		t.Fatalf("EncodeClusteredRecord() error = %v", err)
+	}
+	if err := btree.Insert(ctx, int64(1), encoded); err != nil {
+		t.Fatalf("Insert() error = %v", err)
+	}
+	if err := storage.Flush(); err != nil {
+		t.Fatalf("Flush() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = storage.Close()
+	})
+
+	sidecarDir := filepath.Join(dataDir, "innodb", "_xmysql_btree_records")
+	matches, err := filepath.Glob(filepath.Join(sidecarDir, "*.json"))
+	if err != nil {
+		t.Fatalf("glob sidecar files: %v", err)
+	}
+	if _, statErr := os.Stat(sidecarDir); statErr == nil || len(matches) > 0 {
+		t.Fatalf("expected no B+Tree sidecar JSON, dir=%s files=%v", sidecarDir, matches)
+	} else if !os.IsNotExist(statErr) {
+		t.Fatalf("stat sidecar dir: %v", statErr)
+	}
+}
+
+func TestClusteredRecordVisibleToNewBTreeManagerWithoutRestart(t *testing.T) {
+	ctx := context.Background()
+	dataDir := t.TempDir()
+	storage := newRestartTestStorageManager(dataDir)
+	t.Cleanup(func() {
+		_ = storage.Close()
+	})
+	tableStorage := manager.NewTableStorageManager(storage)
+	if _, err := storage.CreateTablespace("mysql/user"); err != nil {
+		t.Fatalf("CreateTablespace() error = %v", err)
+	}
+	btree, err := tableStorage.CreateBTreeManagerForTable(ctx, "mysql", "user")
+	if err != nil {
+		t.Fatalf("CreateBTreeManagerForTable(first) error = %v", err)
+	}
+	info, err := tableStorage.GetTableStorageInfo("mysql", "user")
+	if err != nil {
+		t.Fatalf("GetTableStorageInfo(first) error = %v", err)
+	}
+
+	tableMeta := &metadata.TableMeta{
+		Name: "users",
+		Columns: []*metadata.ColumnMeta{
+			{Name: "id", Type: metadata.TypeInt, IsPrimary: true},
+			{Name: "name", Type: metadata.TypeVarchar},
+		},
+		PrimaryKey: []string{"id"},
+	}
+	row := &InsertRowData{ColumnValues: map[string]interface{}{"id": int64(1), "name": "alice"}}
+	encoded, err := EncodeClusteredRecord(row, tableMeta)
+	if err != nil {
+		t.Fatalf("EncodeClusteredRecord() error = %v", err)
+	}
+	if err := btree.Insert(ctx, int64(1), encoded); err != nil {
+		t.Fatalf("Insert() error = %v", err)
+	}
+
+	secondTableStorage := manager.NewTableStorageManager(storage)
+	secondInfo, err := secondTableStorage.GetTableStorageInfo("mysql", "user")
+	if err != nil {
+		t.Fatalf("GetTableStorageInfo(second) error = %v", err)
+	}
+	secondInfo.RootPageNo = info.RootPageNo
+	secondInfo.IndexPageNo = info.IndexPageNo
+	secondBTree, err := secondTableStorage.CreateBTreeManagerForTable(ctx, "mysql", "user")
+	if err != nil {
+		t.Fatalf("CreateBTreeManagerForTable(second) error = %v", err)
+	}
+
+	rows, err := NewClusteredIndexScanner(secondBTree, tableMeta).Scan(ctx, nil)
+	if err != nil {
+		t.Fatalf("Scan(second) error = %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("same-process row count = %d, want 1", len(rows))
+	}
+	if rows[0].ColumnValues["name"] != "alice" {
+		t.Fatalf("same-process row = %#v", rows[0].ColumnValues)
 	}
 }
 

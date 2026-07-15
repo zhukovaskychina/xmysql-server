@@ -1,12 +1,8 @@
 package manager
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/util"
@@ -138,13 +134,7 @@ func (adapter *EnhancedBTreeAdapter) Delete(ctx context.Context, key interface{}
 		return fmt.Errorf("failed to convert key: %v", err)
 	}
 
-	if err := adapter.enhancedManager.Delete(ctx, adapter.defaultIndexID, keyBytes); err != nil {
-		if sidecarErr := adapter.markSidecarRecordDeleted(keyBytes); sidecarErr == nil {
-			return nil
-		}
-		return err
-	}
-	return nil
+	return adapter.enhancedManager.Delete(ctx, adapter.defaultIndexID, keyBytes)
 }
 
 // RangeSearch 范围查询
@@ -181,10 +171,6 @@ func (adapter *EnhancedBTreeAdapter) RangeSearch(ctx context.Context, startKey, 
 func (adapter *EnhancedBTreeAdapter) FullScan(ctx context.Context) ([]basic.Row, error) {
 	index, err := adapter.enhancedManager.GetIndex(adapter.defaultIndexID)
 	if err != nil {
-		rows, sidecarErr := adapter.loadAllSidecarRows()
-		if sidecarErr == nil {
-			return rows, nil
-		}
 		return nil, fmt.Errorf("failed to get index: %v", err)
 	}
 
@@ -216,113 +202,7 @@ func (adapter *EnhancedBTreeAdapter) FullScan(ctx context.Context) ([]basic.Row,
 		}
 		currentPageNo = page.NextPage
 	}
-	if len(rows) == 0 {
-		records, err := enhancedIndex.loadAllIndexRecordsSidecars()
-		if err == nil {
-			for idx := range records {
-				record := records[idx]
-				if record.DeleteMark {
-					continue
-				}
-				recordCopy := record
-				row := &IndexRecordRowAdapter{record: &recordCopy}
-				rows = append(rows, row)
-			}
-		}
-	}
-
 	return rows, nil
-}
-
-func (adapter *EnhancedBTreeAdapter) loadAllSidecarRows() ([]basic.Row, error) {
-	records, err := adapter.loadAllSidecarRecords()
-	if err != nil {
-		return nil, err
-	}
-	rows := make([]basic.Row, 0, len(records))
-	for idx := range records {
-		record := records[idx]
-		if record.DeleteMark {
-			continue
-		}
-		recordCopy := record
-		rows = append(rows, &IndexRecordRowAdapter{record: &recordCopy})
-	}
-	return rows, nil
-}
-
-func (adapter *EnhancedBTreeAdapter) loadAllSidecarRecords() ([]IndexRecord, error) {
-	dir := adapter.indexRecordsSidecarDir()
-	if dir == "" {
-		return nil, fmt.Errorf("index record sidecar dir unavailable")
-	}
-	matches, err := filepath.Glob(filepath.Join(dir, fmt.Sprintf("space_%d_page_*.json", adapter.spaceID)))
-	if err != nil {
-		return nil, err
-	}
-	records := make([]IndexRecord, 0)
-	for _, path := range matches {
-		pageRecords, err := readIndexRecordsSidecar(path)
-		if err != nil {
-			return nil, err
-		}
-		records = append(records, pageRecords...)
-	}
-	return records, nil
-}
-
-func (adapter *EnhancedBTreeAdapter) markSidecarRecordDeleted(key []byte) error {
-	dir := adapter.indexRecordsSidecarDir()
-	if dir == "" {
-		return fmt.Errorf("index record sidecar dir unavailable")
-	}
-	matches, err := filepath.Glob(filepath.Join(dir, fmt.Sprintf("space_%d_page_*.json", adapter.spaceID)))
-	if err != nil {
-		return err
-	}
-	for _, path := range matches {
-		records, err := readIndexRecordsSidecar(path)
-		if err != nil {
-			return err
-		}
-		changed := false
-		for idx := range records {
-			if bytes.Equal(records[idx].Key, key) {
-				records[idx].DeleteMark = true
-				changed = true
-			}
-		}
-		if changed {
-			return os.WriteFile(path, mustMarshalIndexRecords(records), 0644)
-		}
-	}
-	return fmt.Errorf("sidecar record not found")
-}
-
-func (adapter *EnhancedBTreeAdapter) indexRecordsSidecarDir() string {
-	if adapter == nil || adapter.enhancedManager == nil || adapter.enhancedManager.storageManager == nil || adapter.enhancedManager.storageManager.config == nil {
-		return ""
-	}
-	dataDir := adapter.enhancedManager.storageManager.config.InnodbDataDir
-	if dataDir == "" {
-		dataDir = adapter.enhancedManager.storageManager.config.DataDir
-	}
-	if dataDir == "" {
-		dataDir = "data"
-	}
-	return filepath.Join(dataDir, "_xmysql_btree_records")
-}
-
-func readIndexRecordsSidecar(path string) ([]IndexRecord, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var records []IndexRecord
-	if err := json.Unmarshal(data, &records); err != nil {
-		return nil, err
-	}
-	return records, nil
 }
 
 // GetFirstLeafPage 获取第一个叶子节点
