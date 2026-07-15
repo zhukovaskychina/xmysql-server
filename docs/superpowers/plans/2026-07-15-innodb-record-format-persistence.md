@@ -81,7 +81,7 @@ Delete:
 - Create: `server/innodb/engine/record_codec_test.go`
 - Modify: `server/innodb/engine/storage_integrated_dml_helper.go`
 
-- [ ] **Step 1: Write failing codec tests**
+- [x] **Step 1: Write failing codec tests**
 
 Create `server/innodb/engine/record_codec_test.go`:
 
@@ -140,7 +140,7 @@ func TestRecordCodecRejectsCorruptPayload(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Run:
 
@@ -150,7 +150,7 @@ Run:
 
 Expected: FAIL with `undefined: EncodeClusteredRecord` and `undefined: DecodeClusteredRecord`.
 
-- [ ] **Step 3: Implement record codec**
+- [x] **Step 3: Implement record codec**
 
 Create `server/innodb/engine/record_codec.go`:
 
@@ -362,7 +362,7 @@ func asFloat64(value interface{}) (float64, error) {
 }
 ```
 
-- [ ] **Step 4: Route existing helpers through codec**
+- [x] **Step 4: Route existing helpers through codec**
 
 Modify `server/innodb/engine/storage_integrated_dml_helper.go`:
 
@@ -378,7 +378,7 @@ func (dml *StorageIntegratedDMLExecutor) deserializeRowData(data []byte, tableMe
 
 Update all callers of `deserializeRowData(data)` to call `deserializeRowData(data, tableMeta)`.
 
-- [ ] **Step 5: Run codec tests**
+- [x] **Step 5: Run codec tests**
 
 Run:
 
@@ -388,7 +388,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add server/innodb/engine/record_codec.go server/innodb/engine/record_codec_test.go server/innodb/engine/storage_integrated_dml_helper.go
@@ -402,7 +402,7 @@ git commit -m "feat: add clustered record codec"
 - Modify: `server/innodb/engine/storage_integrated_dml_helper_p0_test.go`
 - Modify: `server/innodb/engine/storage_integrated_dml_executor.go`
 
-- [ ] **Step 1: Write failing guard test that rejects XDMLROWS1 usage**
+- [x] **Step 1: Write failing guard test that rejects XDMLROWS1 usage**
 
 Create or modify `server/innodb/engine/storage_integrated_dml_helper_p0_test.go`:
 
@@ -420,7 +420,7 @@ Run:
 
 Expected before cleanup: FAIL if the old magic is still referenced in row write path, or compile failure after symbols are removed but tests still reference old helpers.
 
-- [ ] **Step 2: Remove old page collection symbols**
+- [x] **Step 2: Remove old page collection symbols**
 
 Delete these declarations from `server/innodb/engine/storage_integrated_dml_helper.go`:
 
@@ -440,7 +440,7 @@ replaceDMLPageRow
 markDMLPageRowDeleted
 ```
 
-- [ ] **Step 3: Stop writing row collections directly into the root page**
+- [x] **Step 3: Stop writing row collections directly into the root page**
 
 Modify `insertRowToStorage` in `server/innodb/engine/storage_integrated_dml_executor.go` so it only writes through `btreeManager.Insert`:
 
@@ -461,7 +461,7 @@ if txnCtx, ok := txn.(*StorageTransactionContext); ok && txnCtx != nil {
 
 Remove the block that calls `bufferPoolManager.GetPage`, `appendDMLPageRow`, `SetContent`, and `MarkDirty`.
 
-- [ ] **Step 4: Update tests to assert B+Tree payload writes**
+- [x] **Step 4: Update tests to assert B+Tree payload writes**
 
 Replace old page collection tests with tests that verify `EncodeClusteredRecord` payloads are passed to B+Tree insert. Use a fake B+Tree manager in `storage_integrated_dml_helper_p0_test.go`:
 
@@ -480,7 +480,7 @@ func (m *recordingBTreeManager) Insert(ctx context.Context, key interface{}, val
 
 Implement only methods required by the local test. The test should decode `insertedValue` with `DecodeClusteredRecord` and assert table columns.
 
-- [ ] **Step 5: Run targeted engine tests**
+- [x] **Step 5: Run targeted engine tests**
 
 Run:
 
@@ -490,7 +490,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add server/innodb/engine/storage_integrated_dml_helper.go server/innodb/engine/storage_integrated_dml_helper_p0_test.go server/innodb/engine/storage_integrated_dml_executor.go
@@ -505,7 +505,7 @@ git commit -m "refactor: remove custom dml page row format"
 - Modify: `server/innodb/manager/enhanced_btree_adapter.go`
 - Modify: `server/innodb/engine/select_executor.go`
 
-- [ ] **Step 1: Write failing scanner test**
+- [x] **Step 1: Write failing scanner test**
 
 Create `server/innodb/engine/clustered_index_scanner_test.go`:
 
@@ -572,7 +572,7 @@ Add the missing import:
 import "github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 ```
 
-- [ ] **Step 2: Run test and verify failure**
+- [x] **Step 2: Run test and verify failure**
 
 Run:
 
@@ -582,7 +582,7 @@ Run:
 
 Expected: FAIL with `undefined: NewClusteredIndexScanner`.
 
-- [ ] **Step 3: Implement scanner**
+- [x] **Step 3: Implement scanner**
 
 Create `server/innodb/engine/clustered_index_scanner.go`:
 
@@ -639,7 +639,7 @@ func (s *ClusteredIndexScanner) ScanAll(ctx context.Context) ([]*InsertRowData, 
 }
 ```
 
-- [ ] **Step 4: Add adapter iterator access**
+- [x] **Step 4: Add adapter iterator access**
 
 Modify `server/innodb/manager/enhanced_btree_adapter.go`:
 
@@ -661,7 +661,7 @@ type clusteredIteratorProvider interface {
 }
 ```
 
-- [ ] **Step 5: Replace SELECT memory scan**
+- [x] **Step 5: Replace SELECT memory scan**
 
 Modify `scanDMLPageRows` in `server/innodb/engine/select_executor.go`:
 
@@ -713,7 +713,7 @@ func (se *SelectExecutor) scanDMLPageRows(ctx context.Context, tableMeta *metada
 
 Remove the `memorySelectRows` branch and the `decodeDMLPageRows` fallback.
 
-- [ ] **Step 6: Run SELECT regression tests**
+- [x] **Step 6: Run SELECT regression tests**
 
 Run:
 
@@ -723,7 +723,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add server/innodb/engine/clustered_index_scanner.go server/innodb/engine/clustered_index_scanner_test.go server/innodb/manager/enhanced_btree_adapter.go server/innodb/engine/select_executor.go
@@ -738,7 +738,7 @@ git commit -m "feat: scan clustered records through btree"
 - Modify: `server/innodb/engine/dml_memory_store.go` by deleting it
 - Modify: `server/innodb/engine/storage_integrated_dml_executor_p0_test.go`
 
-- [ ] **Step 1: Write failing test that memory store is gone**
+- [x] **Step 1: Write failing test that memory store is gone**
 
 Add to `server/innodb/engine/storage_integrated_dml_executor_p0_test.go`:
 
@@ -751,7 +751,7 @@ func TestDMLExecutorDoesNotUseMemoryStoreSymbols(t *testing.T) {
 
 This should fail to compile after the memory store is deleted. Remove this guard test in the same commit after grep-based verification in Step 5. Its purpose is to force the task to remove the memory path.
 
-- [ ] **Step 2: Remove memory-store calls from DML executor**
+- [x] **Step 2: Remove memory-store calls from DML executor**
 
 Delete these calls from `server/innodb/engine/storage_integrated_dml_executor.go`:
 
@@ -768,7 +768,7 @@ Delete the file:
 rm server/innodb/engine/dml_memory_store.go
 ```
 
-- [ ] **Step 3: Update UPDATE to scan clustered records**
+- [x] **Step 3: Update UPDATE to scan clustered records**
 
 In `ExecuteUpdate`, after parsing WHERE and update expressions, call the clustered scanner:
 
@@ -786,7 +786,7 @@ Implement `findRowsToUpdateInStorage` so it:
 2. Otherwise iterates clustered records through B+Tree scanner.
 3. Builds `RowUpdateInfo{RowId, PageNum, SlotIndex, OldValues}` from `manager.IndexRecord.PageNo` and `SlotNo`.
 
-- [ ] **Step 4: Update DELETE to use delete marks**
+- [x] **Step 4: Update DELETE to use delete marks**
 
 In `deleteRowFromStorage`, replace custom page-row delete marking with B+Tree delete:
 
@@ -802,7 +802,7 @@ if err := btreeManager.Delete(ctx, primaryKeyBytes); err != nil {
 
 If `basic.BPlusTreeManager.Delete` expects `interface{}` instead of bytes, pass `rowInfo.RowId` for primary key tables and add an adapter overload only if required by compile errors.
 
-- [ ] **Step 5: Verify no memory store or XDMLROWS references remain**
+- [x] **Step 5: Verify no memory store or XDMLROWS references remain**
 
 Run:
 
@@ -812,7 +812,7 @@ rg -n "memoryDMLStore|memorySelectRows|memoryInsertRows|memoryUpdateRows|memoryD
 
 Expected: no output.
 
-- [ ] **Step 6: Run DML tests**
+- [x] **Step 6: Run DML tests**
 
 Run:
 
@@ -822,7 +822,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add server/innodb/engine
@@ -838,7 +838,7 @@ git commit -m "feat: persist update and delete through clustered btree"
 - Modify: `server/innodb/engine/storage_integrated_dml_helper.go`
 - Modify: `server/innodb/engine/executor.go`
 
-- [ ] **Step 1: Write failing auto increment state tests**
+- [x] **Step 1: Write failing auto increment state tests**
 
 Create `server/innodb/engine/auto_increment_state_test.go`:
 
@@ -882,7 +882,7 @@ func TestAutoIncrementStateAdvancesPastExplicitValue(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Run:
 
@@ -892,7 +892,7 @@ Run:
 
 Expected: FAIL with `undefined: NewAutoIncrementStateStore`.
 
-- [ ] **Step 3: Implement auto increment state store**
+- [x] **Step 3: Implement auto increment state store**
 
 Create `server/innodb/engine/auto_increment_state.go`:
 
@@ -1000,7 +1000,7 @@ func (s *AutoIncrementStateStore) path(schemaName, tableName string) string {
 }
 ```
 
-- [ ] **Step 4: Use state store in primary key generation**
+- [x] **Step 4: Use state store in primary key generation**
 
 Modify `StorageIntegratedDMLExecutor` to carry an optional auto increment store:
 
@@ -1050,7 +1050,7 @@ if col.IsAutoIncrement && dml.autoIncrementStore != nil {
 }
 ```
 
-- [ ] **Step 5: Clear auto increment state on TRUNCATE and DROP**
+- [x] **Step 5: Clear auto increment state on TRUNCATE and DROP**
 
 Modify `truncateTableImpl` and `dropTableImpl` in `server/innodb/engine/executor.go`:
 
@@ -1060,7 +1060,7 @@ _ = NewAutoIncrementStateStore(e.getDataDir()).RemoveTable(databaseName, tableNa
 
 Use `dbName` in `dropTableImpl`.
 
-- [ ] **Step 6: Run auto increment tests**
+- [x] **Step 6: Run auto increment tests**
 
 Run:
 
@@ -1070,7 +1070,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add server/innodb/engine/auto_increment_state.go server/innodb/engine/auto_increment_state_test.go server/innodb/engine/storage_integrated_dml_helper.go server/innodb/engine/storage_integrated_dml_executor.go server/innodb/engine/executor.go
@@ -1086,7 +1086,7 @@ git commit -m "feat: persist table auto increment state"
 - Modify: `server/innodb/engine/executor.go`
 - Modify: `server/innodb/engine/select_executor.go`
 
-- [ ] **Step 1: Write failing secondary key encoding tests**
+- [x] **Step 1: Write failing secondary key encoding tests**
 
 Create `server/innodb/manager/secondary_index_mapping_test.go`:
 
@@ -1114,7 +1114,7 @@ func TestEncodeSecondaryIndexKeyOmitsPrimaryKeyForUnique(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Implement secondary key encoding**
+- [x] **Step 2: Implement secondary key encoding**
 
 Create `server/innodb/manager/secondary_index_mapping.go`:
 
@@ -1157,7 +1157,7 @@ func writeIndexKeyPart(buf *bytes.Buffer, value interface{}) error {
 }
 ```
 
-- [ ] **Step 3: Build secondary index metadata from `.frm`**
+- [x] **Step 3: Build secondary index metadata from `.frm`**
 
 Modify the `.frm` load/write path so `frmTableInfo` includes indexes and `loadTableMetaFromFrm` can return index metadata. Use the existing `indexes` JSON written by `createTableStructureFile`.
 
@@ -1171,7 +1171,7 @@ type frmTableInfo struct {
 }
 ```
 
-- [ ] **Step 4: Enforce UNIQUE using durable secondary indexes**
+- [x] **Step 4: Enforce UNIQUE using durable secondary indexes**
 
 In `validateUniqueConstraints`, replace memory-based checks with index lookup:
 
@@ -1188,7 +1188,7 @@ if err == nil && record != nil && !record.DeleteMark {
 
 Use an index manager helper that resolves unique index B+Tree by `schema.table.index`.
 
-- [ ] **Step 5: Maintain secondary indexes on INSERT/UPDATE/DELETE**
+- [x] **Step 5: Maintain secondary indexes on INSERT/UPDATE/DELETE**
 
 For INSERT, after clustered insert succeeds:
 
@@ -1210,7 +1210,7 @@ For DELETE:
 1. Delete secondary keys for the old row.
 2. Delete mark clustered row.
 
-- [ ] **Step 6: Run unique constraint tests**
+- [x] **Step 6: Run unique constraint tests**
 
 Run:
 
@@ -1221,7 +1221,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add server/innodb/manager/secondary_index_mapping.go server/innodb/manager/secondary_index_mapping_test.go server/innodb/engine/storage_integrated_dml_executor.go server/innodb/engine/executor.go server/innodb/engine/select_executor.go
@@ -1235,7 +1235,7 @@ git commit -m "feat: enforce unique constraints with secondary indexes"
 - Modify: `server/innodb/engine/storage_integrated_dml_executor.go`
 - Modify: `server/innodb/manager/table_storage_mapping.go`
 
-- [ ] **Step 1: Write failing restart test**
+- [x] **Step 1: Write failing restart test**
 
 Create `server/innodb/engine/jdbc_persistence_integration_test.go`:
 
@@ -1309,7 +1309,7 @@ func runEngineSelect(t *testing.T, executor *XMySQLExecutor, sql string, db stri
 
 If constructor names differ, adjust only to existing engine constructors; keep the assertion identical.
 
-- [ ] **Step 2: Run test and verify failure**
+- [x] **Step 2: Run test and verify failure**
 
 Run:
 
@@ -1319,7 +1319,7 @@ Run:
 
 Expected before implementation is complete: FAIL because table storage mapping or B+Tree metadata is not reloaded enough to find rows.
 
-- [ ] **Step 3: Persist table storage mapping**
+- [x] **Step 3: Persist table storage mapping**
 
 Modify `server/innodb/manager/table_storage_mapping.go`:
 
@@ -1341,11 +1341,11 @@ type persistedTableStorageInfo struct {
 }
 ```
 
-- [ ] **Step 4: Reload B+Tree metadata using persisted root page**
+- [x] **Step 4: Reload B+Tree metadata using persisted root page**
 
 In `CreateBTreeManagerForTable`, ensure `Init(ctx, info.SpaceID, info.RootPageNo)` does not allocate a new root page when `info.RootPageNo` already points to an existing initialized root. If `Init` returns a different root page, write it back only when the old root page is zero.
 
-- [ ] **Step 5: Run restart test**
+- [x] **Step 5: Run restart test**
 
 Run:
 
@@ -1355,7 +1355,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add server/innodb/engine/jdbc_persistence_integration_test.go server/innodb/manager/table_storage_mapping.go
@@ -1368,7 +1368,7 @@ git commit -m "feat: reload table storage mapping after restart"
 - Modify: `jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java` only if adding extra restart-specific tests is needed
 - Modify: engine files from earlier tasks only for fixes found by this task
 
-- [ ] **Step 1: Verify no runtime memory view exists**
+- [x] **Step 1: Verify no runtime memory view exists**
 
 Run:
 
@@ -1378,7 +1378,7 @@ rg -n "memoryDMLStore|memorySelectRows|memoryInsertRows|memoryUpdateRows|memoryD
 
 Expected: no output.
 
-- [ ] **Step 2: Start local server**
+- [x] **Step 2: Start local server**
 
 Run:
 
@@ -1388,7 +1388,7 @@ Run:
 
 Expected: server listens on `127.0.0.1:3309`.
 
-- [ ] **Step 3: Run JDBC connectivity**
+- [x] **Step 3: Run JDBC connectivity**
 
 In another shell:
 
@@ -1404,7 +1404,7 @@ Tests run: 22, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
-- [ ] **Step 4: Run JDBC DML**
+- [x] **Step 4: Run JDBC DML**
 
 ```bash
 cd jdbc_client
@@ -1418,7 +1418,7 @@ Tests run: 13, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
-- [ ] **Step 5: Run restart smoke**
+- [x] **Step 5: Run restart smoke**
 
 Manual JDBC smoke:
 
@@ -1435,7 +1435,7 @@ Then stop server, start server again, and run an engine-level restart test:
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit final fixes**
+- [x] **Step 6: Commit final fixes**
 
 ```bash
 git add server jdbc_client
@@ -1495,3 +1495,24 @@ Type consistency:
 - Row payload uses `InsertRowData` and `metadata.TableMeta`.
 - Scanner uses `manager.IndexIterator` and `manager.IndexRecord`.
 - DML continues to return `DMLResult.AffectedRows` for JDBC OK packets.
+
+## Completion Evidence
+
+- Task 1: `17c7e86 feat: add clustered record codec`
+- Task 2: `4a3bd34 refactor: remove legacy dml page row format`
+- Task 3: `a688ce1 feat: scan clustered records for select`
+- Task 4: `0aeb6dc refactor: remove runtime dml memory store`
+- Task 5: `942131c feat: persist auto increment state`
+- Task 6: `35826ed feat: add durable secondary index key mapping`
+- Task 7: `b520afd feat: restore clustered records after restart`
+- Task 8 and final sidecar cleanup: `7791d10 refactor: remove btree sidecar fallback`
+
+Latest verified regression commands:
+
+```bash
+/Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/manager -run 'TestEncodeSecondaryIndexKey|SecondaryIndex' -count=1
+/Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/engine -run 'TestAutoIncrementState|TestStorageIntegratedDMLGeneratePrimaryKey|TestStorageEngineRestartReadsClusteredRows|Persistence|Clustered' -count=1
+/Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/engine ./server/innodb/manager -count=1
+rg -n "memorySelectRows|XDMLROWS1|decodeDMLPageRows|appendDMLPageRow|loadAllIndexRecordsSidecars|saveIndexRecordsSidecar|loadIndexRecordsSidecar" server/innodb -g'*.go'
+git diff --check
+```
