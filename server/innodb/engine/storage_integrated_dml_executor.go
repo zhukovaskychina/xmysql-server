@@ -219,10 +219,7 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 		return nil, fmt.Errorf("创建表B+树管理器失败: %v", err)
 	}
 
-	if err := dml.validateUniqueConstraints(ctx, insertRows, tableMeta, tableStorageInfo); err != nil {
-		return nil, err
-	}
-	if err := memoryValidateUnique(resolvedSchema, dml.tableName, insertRows, tableMeta); err != nil {
+	if err := dml.validateUniqueConstraints(ctx, insertRows, tableMeta, tableStorageInfo, tableBtreeManager); err != nil {
 		return nil, err
 	}
 
@@ -265,7 +262,6 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 	// 9. 更新统计信息
 	executionTime := time.Since(startTime)
 	dml.updateInsertStats(affectedRows, executionTime)
-	memoryInsertRows(resolvedSchema, dml.tableName, insertRows)
 
 	logger.Infof(" 存储引擎集成INSERT执行成功，影响行数: %d, LastInsertID: %d, 耗时: %v",
 		affectedRows, lastInsertId, executionTime)
@@ -318,21 +314,6 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 	updateExprs, err := dml.parseUpdateExpressions(stmt.Exprs, tableMeta)
 	if err != nil {
 		return nil, fmt.Errorf("解析UPDATE表达式失败: %v", err)
-	}
-	if affectedRows, exists, err := memoryUpdateRows(resolvedSchema, dml.tableName, whereConditions, updateExprs); exists {
-		if err != nil {
-			return nil, err
-		}
-		executionTime := time.Since(startTime)
-		dml.updateUpdateStats(affectedRows, executionTime)
-		logger.Infof(" 存储引擎集成UPDATE执行成功，影响行数: %d, 耗时: %v", affectedRows, executionTime)
-		return &DMLResult{
-			AffectedRows: affectedRows,
-			LastInsertId: 0,
-			ResultType:   "UPDATE",
-			Message:      fmt.Sprintf("存储引擎集成UPDATE执行成功，影响行数: %d", affectedRows),
-			TxnID:        0,
-		}, nil
 	}
 
 	// 5. 获取表专用的B+树管理器
@@ -431,21 +412,6 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt
 
 	// 4. 解析WHERE条件
 	whereConditions := dml.parseWhereConditions(stmt.Where)
-	if affectedRows, exists, err := memoryDeleteRows(resolvedSchema, dml.tableName, whereConditions); exists {
-		if err != nil {
-			return nil, err
-		}
-		executionTime := time.Since(startTime)
-		dml.updateDeleteStats(affectedRows, executionTime)
-		logger.Infof(" 存储引擎集成DELETE执行成功，影响行数: %d, 耗时: %v", affectedRows, executionTime)
-		return &DMLResult{
-			AffectedRows: affectedRows,
-			LastInsertId: 0,
-			ResultType:   "DELETE",
-			Message:      fmt.Sprintf("存储引擎集成DELETE执行成功，影响行数: %d", affectedRows),
-			TxnID:        0,
-		}, nil
-	}
 
 	// 5. 获取表专用的B+树管理器
 	tableBtreeManager, err := dml.tableStorageManager.CreateBTreeManagerForTable(ctx, resolvedSchema, dml.tableName)

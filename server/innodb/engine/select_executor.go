@@ -374,21 +374,6 @@ func (se *SelectExecutor) executeQuery(ctx context.Context) error {
 }
 
 func (se *SelectExecutor) scanStorageRows(ctx context.Context, tableMeta *metadata.TableMeta) error {
-	if rows, exists := memorySelectRows(se.schemaName, se.tableName); exists {
-		records := make([]Record, 0, len(rows))
-		for _, row := range rows {
-			matches, err := rowMatchesWhereConditions(row, se.whereConditions)
-			if err != nil {
-				return err
-			}
-			if matches {
-				records = append(records, recordFromRowMap(row, tableMeta))
-			}
-		}
-		se.resultSet = records
-		return nil
-	}
-
 	if se.storageManager == nil || se.storageManager.GetTableStorageManager() == nil || se.bufferPoolManager == nil {
 		se.resultSet = []Record{}
 		return nil

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
@@ -47,6 +48,37 @@ func TestClusteredIndexScannerAppliesWhereConditions(t *testing.T) {
 	}
 	if got[0].ColumnValues["id"] != int64(2) {
 		t.Fatalf("Scan() matched id = %#v, want int64(2)", got[0].ColumnValues["id"])
+	}
+}
+
+func TestStorageIntegratedDMLExecutorFindRowsToUpdateScansClusteredIndex(t *testing.T) {
+	tableMeta := clusteredScannerTestTableMeta()
+	rows := []*InsertRowData{
+		{ColumnValues: map[string]interface{}{"id": int64(1), "name": "alice", "age": int64(30)}},
+		{ColumnValues: map[string]interface{}{"id": int64(2), "name": "bob", "age": int64(40)}},
+	}
+	btree := &fakeClusteredScannerBTree{rows: encodeClusteredScannerRows(t, tableMeta, rows)}
+	dml := NewStorageIntegratedDMLExecutor(nil, nil, nil, nil, nil, nil, nil, nil)
+
+	got, err := dml.findRowsToUpdateInStorage(
+		context.Background(),
+		nil,
+		[]string{"name = 'bob'"},
+		tableMeta,
+		&manager.TableStorageInfo{},
+		btree,
+	)
+	if err != nil {
+		t.Fatalf("findRowsToUpdateInStorage() error = %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("findRowsToUpdateInStorage() row count = %d, want 1", len(got))
+	}
+	if got[0].RowId != 2 {
+		t.Fatalf("matched RowId = %d, want 2", got[0].RowId)
+	}
+	if got[0].OldValues["name"] != "bob" {
+		t.Fatalf("matched OldValues = %#v", got[0].OldValues)
 	}
 }
 

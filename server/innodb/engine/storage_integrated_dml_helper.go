@@ -425,39 +425,11 @@ func (dml *StorageIntegratedDMLExecutor) findRowsToUpdateInStorage(
 		return nil, fmt.Errorf("UPDATE without WHERE is not supported by storage integrated DML helper")
 	}
 
-	// 解析WHERE条件中的主键值
-	for _, condition := range whereConditions {
-		if primaryKey := dml.extractPrimaryKeyFromCondition(condition); primaryKey != nil {
-			pageNo, slot, err := btreeManager.Search(ctx, primaryKey)
-			if err != nil {
-				logger.Debugf("  查找主键 %v 失败: %v", primaryKey, err)
-				continue
-			}
-
-			// 读取现有数据作为OldValues
-			existingData, err := dml.readRowFromStorage(ctx, pageNo, slot, tableStorageInfo, tableMeta)
-			if err != nil {
-				logger.Debugf("  读取现有数据失败: %v", err)
-				continue
-			}
-
-			rowInfo := &RowUpdateInfo{
-				RowId:     dml.convertPrimaryKeyToUint64(primaryKey),
-				PageNum:   pageNo,
-				SlotIndex: slot,
-				OldValues: existingData.ColumnValues,
-			}
-
-			rowsToUpdate = append(rowsToUpdate, rowInfo)
-			logger.Debugf(" 找到待更新行: RowID=%d, PageNo=%d, Slot=%d", rowInfo.RowId, pageNo, slot)
-		}
+	rowsToUpdate, err := dml.scanRowsForConditions(ctx, whereConditions, tableMeta, tableStorageInfo, btreeManager)
+	if err != nil {
+		return nil, err
 	}
-
-	if len(rowsToUpdate) > 0 {
-		return rowsToUpdate, nil
-	}
-
-	return dml.scanRowsForConditions(ctx, whereConditions, tableMeta, tableStorageInfo)
+	return rowsToUpdate, nil
 }
 
 func (dml *StorageIntegratedDMLExecutor) scanRowsForConditions(
@@ -465,8 +437,30 @@ func (dml *StorageIntegratedDMLExecutor) scanRowsForConditions(
 	whereConditions []string,
 	tableMeta *metadata.TableMeta,
 	tableStorageInfo *manager.TableStorageInfo,
+	btreeManager basic.BPlusTreeManager,
 ) ([]*RowUpdateInfo, error) {
-	return nil, fmt.Errorf("B+Tree row scanner is not wired for storage-integrated DML yet")
+	if btreeManager == nil {
+		return nil, fmt.Errorf("B+树管理器未初始化")
+	}
+
+	scanner := NewClusteredIndexScanner(btreeManager, tableMeta)
+	rows, err := scanner.Scan(ctx, whereConditions)
+	if err != nil {
+		return nil, err
+	}
+
+	matched := make([]*RowUpdateInfo, 0, len(rows))
+	for slot, rowData := range rows {
+		rowID := dml.rowIDFromRowData(rowData, tableMeta)
+		matched = append(matched, &RowUpdateInfo{
+			RowId:     rowID,
+			PageNum:   tableStorageInfo.RootPageNo,
+			SlotIndex: slot,
+			OldValues: rowData.ColumnValues,
+		})
+	}
+
+	return matched, nil
 }
 
 // findRowsToDeleteInStorage 在存储引擎中查找待删除的行
@@ -483,42 +477,14 @@ func (dml *StorageIntegratedDMLExecutor) findRowsToDeleteInStorage(
 	var rowsToDelete []*RowUpdateInfo
 
 	if !hasEffectiveWhereConditions(whereConditions) {
-		return dml.scanRowsForConditions(ctx, nil, tableMeta, tableStorageInfo)
+		return dml.scanRowsForConditions(ctx, nil, tableMeta, tableStorageInfo, btreeManager)
 	}
 
-	// 解析WHERE条件中的主键值
-	for _, condition := range whereConditions {
-		if primaryKey := dml.extractPrimaryKeyFromCondition(condition); primaryKey != nil {
-			pageNo, slot, err := btreeManager.Search(ctx, primaryKey)
-			if err != nil {
-				logger.Debugf("  查找主键 %v 失败: %v", primaryKey, err)
-				continue
-			}
-
-			// 读取现有数据作为OldValues
-			existingData, err := dml.readRowFromStorage(ctx, pageNo, slot, tableStorageInfo, tableMeta)
-			if err != nil {
-				logger.Debugf("  读取现有数据失败: %v", err)
-				continue
-			}
-
-			rowInfo := &RowUpdateInfo{
-				RowId:     dml.convertPrimaryKeyToUint64(primaryKey),
-				PageNum:   pageNo,
-				SlotIndex: slot,
-				OldValues: existingData.ColumnValues,
-			}
-
-			rowsToDelete = append(rowsToDelete, rowInfo)
-			logger.Debugf(" 找到待删除行: RowID=%d, PageNo=%d, Slot=%d", rowInfo.RowId, pageNo, slot)
-		}
+	rowsToDelete, err := dml.scanRowsForConditions(ctx, whereConditions, tableMeta, tableStorageInfo, btreeManager)
+	if err != nil {
+		return nil, err
 	}
-
-	if len(rowsToDelete) > 0 {
-		return rowsToDelete, nil
-	}
-
-	return dml.scanRowsForConditions(ctx, whereConditions, tableMeta, tableStorageInfo)
+	return rowsToDelete, nil
 }
 
 func hasEffectiveWhereConditions(whereConditions []string) bool {
@@ -916,6 +882,7 @@ func (dml *StorageIntegratedDMLExecutor) validateUniqueConstraints(
 	insertRows []*InsertRowData,
 	tableMeta *metadata.TableMeta,
 	tableStorageInfo *manager.TableStorageInfo,
+	btreeManager basic.BPlusTreeManager,
 ) error {
 	uniqueColumns := make([]string, 0)
 	for _, col := range tableMeta.Columns {
@@ -942,7 +909,7 @@ func (dml *StorageIntegratedDMLExecutor) validateUniqueConstraints(
 		}
 	}
 
-	existingRows, err := dml.scanRowsForConditions(ctx, nil, tableMeta, tableStorageInfo)
+	existingRows, err := dml.scanRowsForConditions(ctx, nil, tableMeta, tableStorageInfo, btreeManager)
 	if err != nil {
 		return err
 	}
