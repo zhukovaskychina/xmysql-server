@@ -61,6 +61,21 @@ func TestCreateTableRejectsDeferredAdvancedConstraints(t *testing.T) {
 			contains: "foreign key",
 		},
 		{
+			name:     "inline references",
+			sql:      "create table child (id int primary key, parent_id int references parent(id))",
+			contains: "foreign key",
+		},
+		{
+			name:     "inline references on delete cascade",
+			sql:      "create table child (id int primary key, parent_id int references parent(id) on delete cascade)",
+			contains: "cascade",
+		},
+		{
+			name:     "inline references on update cascade",
+			sql:      "create table child (id int primary key, parent_id int references parent(id) on update cascade)",
+			contains: "cascade",
+		},
+		{
 			name:     "check",
 			sql:      "create table checked_values (id int primary key, age int check (age >= 0))",
 			contains: "check",
@@ -78,6 +93,78 @@ func TestCreateTableRejectsDeferredAdvancedConstraints(t *testing.T) {
 			err := execSQLExpectError(t, executor, "app", tc.sql)
 			require.Error(t, err)
 			require.Contains(t, strings.ToLower(err.Error()), tc.contains)
+		})
+	}
+}
+
+func TestUpdateRejectsNullForNotNullColumn(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table users (id int primary key, username varchar(50) not null)")
+	mustExecSQL(t, executor, "app", "insert into users (id, username) values (1, 'alice')")
+
+	err := execSQLExpectError(t, executor, "app", "update users set username = null where id = 1")
+	require.Error(t, err)
+	require.Contains(t, strings.ToLower(err.Error()), "not null")
+}
+
+func TestUpdateRejectsPrimaryAndUniqueKeyConflicts(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		sql      string
+		contains string
+	}{
+		{
+			name:     "primary key conflict",
+			sql:      "update users set id = 2 where id = 1",
+			contains: "primary",
+		},
+		{
+			name:     "unique key conflict",
+			sql:      "update users set email = 'bob@example.com' where id = 1",
+			contains: "email",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+			mustExecSQL(t, executor, "", "create database app")
+			mustExecSQL(t, executor, "app", "create table users (id int primary key, email varchar(100) unique)")
+			mustExecSQL(t, executor, "app", "insert into users (id, email) values (1, 'alice@example.com')")
+			mustExecSQL(t, executor, "app", "insert into users (id, email) values (2, 'bob@example.com')")
+
+			err := execSQLExpectError(t, executor, "app", tc.sql)
+			require.Error(t, err)
+			require.Contains(t, strings.ToLower(err.Error()), tc.contains)
+			require.Contains(t, strings.ToLower(err.Error()), "duplicate")
+		})
+	}
+}
+
+func TestCompositePrimaryKeyUpdateDeleteUnsupportedInsteadOfRowIdWrite(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		sql  string
+	}{
+		{
+			name: "update",
+			sql:  "update memberships set group_id = 30 where user_id = 1 and group_id = 10",
+		},
+		{
+			name: "delete",
+			sql:  "delete from memberships where user_id = 1 and group_id = 10",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+			mustExecSQL(t, executor, "", "create database app")
+			mustExecSQL(t, executor, "app", "create table memberships (user_id int, group_id int, primary key (user_id, group_id))")
+			mustExecSQL(t, executor, "app", "insert into memberships (user_id, group_id) values (1, 10)")
+			mustExecSQL(t, executor, "app", "insert into memberships (user_id, group_id) values (1, 20)")
+
+			err := execSQLExpectError(t, executor, "app", tc.sql)
+			require.Error(t, err)
+			require.Contains(t, strings.ToLower(err.Error()), "unsupported")
+			require.Contains(t, strings.ToLower(err.Error()), "composite")
 		})
 	}
 }

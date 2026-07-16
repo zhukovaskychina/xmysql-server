@@ -1040,6 +1040,182 @@ func (dml *StorageIntegratedDMLExecutor) validateUniqueConstraints(
 	return nil
 }
 
+func (dml *StorageIntegratedDMLExecutor) validateUpdateConstraints(
+	ctx context.Context,
+	rowsToUpdate []*RowUpdateInfo,
+	updateExprs []*UpdateExpression,
+	tableMeta *metadata.TableMeta,
+	tableStorageInfo *manager.TableStorageInfo,
+	btreeManager basic.BPlusTreeManager,
+) error {
+	if len(rowsToUpdate) == 0 {
+		return nil
+	}
+
+	updatedRows := make([]*InsertRowData, 0, len(rowsToUpdate))
+	oldRows := make([]map[string]interface{}, 0, len(rowsToUpdate))
+	for _, rowInfo := range rowsToUpdate {
+		if rowInfo == nil {
+			return fmt.Errorf("待更新行信息不能为空")
+		}
+		if len(rowInfo.OldValues) == 0 {
+			return fmt.Errorf("B+Tree record reader is not wired for UPDATE old values")
+		}
+		existingRowData := &InsertRowData{
+			ColumnValues: make(map[string]interface{}, len(rowInfo.OldValues)),
+			ColumnTypes:  make(map[string]metadata.DataType, len(rowInfo.OldValues)),
+		}
+		for columnName, value := range rowInfo.OldValues {
+			existingRowData.ColumnValues[columnName] = value
+		}
+		updatedRow, err := dml.applyUpdateExpressions(existingRowData, updateExprs, tableMeta)
+		if err != nil {
+			return fmt.Errorf("应用更新表达式失败: %v", err)
+		}
+		updatedRows = append(updatedRows, updatedRow)
+		oldRows = append(oldRows, rowInfo.OldValues)
+	}
+
+	if err := dml.validateInsertData(updatedRows, tableMeta); err != nil {
+		return err
+	}
+	if err := validateUpdatedRowsUniqueWithinBatch(updatedRows, tableMeta); err != nil {
+		return err
+	}
+
+	existingRows, err := dml.scanRowsForConditions(ctx, nil, tableMeta, tableStorageInfo, btreeManager)
+	if err != nil {
+		return err
+	}
+	uniqueColumns := uniqueConstraintColumns(tableMeta)
+	for _, existing := range existingRows {
+		if existing == nil {
+			continue
+		}
+		for i, updated := range updatedRows {
+			if samePrimaryKey(existing.OldValues, oldRows[i], tableMeta) {
+				continue
+			}
+			if len(tableMeta.PrimaryKey) > 0 {
+				existingKey, ok, err := buildPrimaryKeyIfAvailable(existing.OldValues, tableMeta)
+				if err != nil {
+					return err
+				}
+				if ok {
+					incomingKey, ok, err := buildPrimaryKeyIfAvailable(updated.ColumnValues, tableMeta)
+					if err != nil {
+						return err
+					}
+					if ok && string(existingKey) == string(incomingKey) {
+						return fmt.Errorf("Duplicate entry '%s' for key 'PRIMARY'", formatCompositeKeyValues(updated.ColumnValues, tableMeta.PrimaryKey))
+					}
+				}
+			}
+			for _, colName := range uniqueColumns {
+				existingValue, exists := existing.OldValues[colName]
+				if !exists || existingValue == nil {
+					continue
+				}
+				incomingValue, exists := updated.ColumnValues[colName]
+				if !exists || incomingValue == nil {
+					continue
+				}
+				if compareScalarValues(existingValue, incomingValue) == 0 {
+					return fmt.Errorf("Duplicate entry '%v' for key '%s'", incomingValue, colName)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func validateUpdatedRowsUniqueWithinBatch(rows []*InsertRowData, tableMeta *metadata.TableMeta) error {
+	if len(tableMeta.PrimaryKey) > 0 {
+		seenPrimaryKeys := make(map[string]struct{})
+		for _, row := range rows {
+			keyBytes, ok, err := buildPrimaryKeyIfAvailable(row.ColumnValues, tableMeta)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				continue
+			}
+			key := string(keyBytes)
+			if _, exists := seenPrimaryKeys[key]; exists {
+				return fmt.Errorf("Duplicate entry '%s' for key 'PRIMARY'", formatCompositeKeyValues(row.ColumnValues, tableMeta.PrimaryKey))
+			}
+			seenPrimaryKeys[key] = struct{}{}
+		}
+	}
+
+	for _, colName := range uniqueConstraintColumns(tableMeta) {
+		seen := make(map[string]interface{})
+		for _, row := range rows {
+			value, exists := row.ColumnValues[colName]
+			if !exists || value == nil {
+				continue
+			}
+			key := fmt.Sprintf("%v", value)
+			if previous, exists := seen[key]; exists && compareScalarValues(previous, value) == 0 {
+				return fmt.Errorf("Duplicate entry '%v' for key '%s'", value, colName)
+			}
+			seen[key] = value
+		}
+	}
+
+	return nil
+}
+
+func uniqueConstraintColumns(tableMeta *metadata.TableMeta) []string {
+	if tableMeta == nil {
+		return nil
+	}
+	uniqueColumns := make([]string, 0)
+	for _, col := range tableMeta.Columns {
+		if col != nil && col.IsUnique && !isCompositePrimaryKeyColumn(col.Name, tableMeta.PrimaryKey) {
+			uniqueColumns = append(uniqueColumns, col.Name)
+		}
+	}
+	return uniqueColumns
+}
+
+func samePrimaryKey(left, right map[string]interface{}, tableMeta *metadata.TableMeta) bool {
+	if tableMeta == nil || len(tableMeta.PrimaryKey) == 0 {
+		return false
+	}
+	leftKey, leftOK, err := buildPrimaryKeyIfAvailable(left, tableMeta)
+	if err != nil || !leftOK {
+		return false
+	}
+	rightKey, rightOK, err := buildPrimaryKeyIfAvailable(right, tableMeta)
+	if err != nil || !rightOK {
+		return false
+	}
+	return string(leftKey) == string(rightKey)
+}
+
+func hasCompositePrimaryKey(tableMeta *metadata.TableMeta) bool {
+	return tableMeta != nil && len(tableMeta.PrimaryKey) > 1
+}
+
+func updateTouchesPrimaryKey(updateExprs []*UpdateExpression, tableMeta *metadata.TableMeta) bool {
+	if tableMeta == nil || len(tableMeta.PrimaryKey) == 0 {
+		return false
+	}
+	for _, expr := range updateExprs {
+		if expr == nil {
+			continue
+		}
+		for _, pkColumn := range tableMeta.PrimaryKey {
+			if strings.EqualFold(expr.ColumnName, pkColumn) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func buildPrimaryKeyIfAvailable(row map[string]interface{}, tableMeta *metadata.TableMeta) ([]byte, bool, error) {
 	if tableMeta == nil || len(tableMeta.PrimaryKey) == 0 {
 		return nil, false, nil

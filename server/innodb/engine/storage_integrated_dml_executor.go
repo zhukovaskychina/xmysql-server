@@ -319,6 +319,9 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 	if err != nil {
 		return nil, fmt.Errorf("解析UPDATE表达式失败: %v", err)
 	}
+	if hasCompositePrimaryKey(tableMeta) {
+		return nil, fmt.Errorf("unsupported composite primary key UPDATE")
+	}
 
 	// 5. 获取表专用的B+树管理器
 	tableBtreeManager, err := dml.tableStorageManager.CreateBTreeManagerForTable(ctx, resolvedSchema, dml.tableName)
@@ -338,6 +341,14 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 	if err != nil {
 		dml.rollbackStorageTransaction(ctx, txn)
 		return nil, fmt.Errorf("查找待更新行失败: %v", err)
+	}
+	if err := dml.validateUpdateConstraints(ctx, rowsToUpdate, updateExprs, tableMeta, tableStorageInfo, tableBtreeManager); err != nil {
+		dml.rollbackStorageTransaction(ctx, txn)
+		return nil, err
+	}
+	if updateTouchesPrimaryKey(updateExprs, tableMeta) {
+		dml.rollbackStorageTransaction(ctx, txn)
+		return nil, fmt.Errorf("unsupported primary key UPDATE")
 	}
 
 	affectedRows := 0
@@ -412,6 +423,9 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt
 	tableMeta, err := dml.getTableMetadata()
 	if err != nil {
 		return nil, fmt.Errorf("获取表元数据失败: %v", err)
+	}
+	if hasCompositePrimaryKey(tableMeta) {
+		return nil, fmt.Errorf("unsupported composite primary key DELETE")
 	}
 
 	// 4. 解析WHERE条件

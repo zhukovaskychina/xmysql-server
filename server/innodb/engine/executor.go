@@ -2720,8 +2720,12 @@ func rejectUnsupportedCreateTableConstraintsSQL(query string) error {
 		return nil
 	}
 	switch {
+	case strings.Contains(ddl, " cascade"):
+		return fmt.Errorf("unsupported constraint: cascade")
 	case strings.Contains(ddl, "foreign key"):
 		return fmt.Errorf("unsupported constraint: foreign key")
+	case strings.Contains(ddl, " references "):
+		return fmt.Errorf("unsupported constraint: foreign key references")
 	case strings.Contains(ddl, " check ") || strings.Contains(ddl, " check("):
 		return fmt.Errorf("unsupported constraint: check")
 	case strings.Contains(ddl, "fulltext"):
