@@ -1212,6 +1212,21 @@ func hasCompositePrimaryKey(tableMeta *metadata.TableMeta) bool {
 	return tableMeta != nil && len(tableMeta.PrimaryKey) > 1
 }
 
+func hasAnyIndexMetadata(tableMeta *metadata.TableMeta) bool {
+	if tableMeta == nil {
+		return false
+	}
+	if len(tableMeta.Indices) > 0 {
+		return true
+	}
+	for _, col := range tableMeta.Columns {
+		if col != nil && col.IsUnique {
+			return true
+		}
+	}
+	return false
+}
+
 func updateTouchesPrimaryKey(updateExprs []*UpdateExpression, tableMeta *metadata.TableMeta) bool {
 	if tableMeta == nil || len(tableMeta.PrimaryKey) == 0 {
 		return false
@@ -1253,10 +1268,6 @@ func buildPrimaryKeyIfAvailable(row map[string]interface{}, tableMeta *metadata.
 		return nil, false, nil
 	}
 	if len(tableMeta.PrimaryKey) == 0 {
-		if value, exists := row["id"]; exists && value != nil {
-			key, err := buildCompositeKey(row, []string{"id"})
-			return key, err == nil, err
-		}
 		return nil, false, nil
 	}
 	for _, columnName := range tableMeta.PrimaryKey {

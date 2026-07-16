@@ -207,6 +207,9 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 	if err != nil {
 		return nil, fmt.Errorf("解析INSERT数据失败: %v", err)
 	}
+	if len(tableMeta.PrimaryKey) == 0 && hasAnyIndexMetadata(tableMeta) {
+		return nil, fmt.Errorf("unsupported indexed table without primary key")
+	}
 
 	// 4. 验证数据完整性
 	if err := dml.validateInsertData(insertRows, tableMeta); err != nil {
@@ -682,6 +685,9 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForInsert(
 	tableStorageInfo *manager.TableStorageInfo,
 ) error {
 	logger.Debugf("🔄 更新INSERT相关索引，表: %s", tableMeta.Name)
+	if tableMeta == nil || len(tableMeta.PrimaryKey) == 0 {
+		return nil
+	}
 
 	// ===== 新增：使用IndexManager的标准二级索引同步方法 =====
 	// 将InsertRowData转换为map[string]interface{}格式

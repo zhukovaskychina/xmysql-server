@@ -143,10 +143,40 @@ func TestUpdateRejectsPrimaryAndUniqueKeyConflicts(t *testing.T) {
 func TestUpdateWithoutPrimaryKeyUnsupportedInsteadOfRowIdWrite(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	mustExecSQL(t, executor, "", "create database app")
-	mustExecSQL(t, executor, "app", "create table users (email varchar(100) unique, name varchar(50))")
+	mustExecSQL(t, executor, "app", "create table users (email varchar(100), name varchar(50))")
 	mustExecSQL(t, executor, "app", "insert into users (email, name) values ('alice@example.com', 'Alice')")
 
 	err := execSQLExpectError(t, executor, "app", "update users set name = 'Alice2' where email = 'alice@example.com'")
+	require.Error(t, err)
+	require.Contains(t, strings.ToLower(err.Error()), "unsupported")
+	require.Contains(t, strings.ToLower(err.Error()), "primary key")
+}
+
+func TestInsertPlainTableWithoutPrimaryKeyStillWorks(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table users (email varchar(100), name varchar(50))")
+
+	mustExecSQL(t, executor, "app", "insert into users (email, name) values ('alice@example.com', 'Alice')")
+}
+
+func TestInsertIndexedTableWithoutPrimaryKeyUnsupportedInsteadOfOverwritingID(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table users (id int, email varchar(100) unique)")
+
+	err := execSQLExpectError(t, executor, "app", "insert into users (id, email) values (1, 'alice@example.com')")
+	require.Error(t, err)
+	require.Contains(t, strings.ToLower(err.Error()), "unsupported")
+	require.Contains(t, strings.ToLower(err.Error()), "primary key")
+}
+
+func TestInsertSecondaryIndexedTableWithoutPrimaryKeyUnsupported(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table users (email varchar(100), index idx_email (email))")
+
+	err := execSQLExpectError(t, executor, "app", "insert into users (email) values ('alice@example.com')")
 	require.Error(t, err)
 	require.Contains(t, strings.ToLower(err.Error()), "unsupported")
 	require.Contains(t, strings.ToLower(err.Error()), "primary key")
