@@ -301,7 +301,7 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 			results <- result
 		}
 	case *sqlparser.DDL:
-		e.executeDDL(stmt, mysqlSession, databaseName, results)
+		e.executeDDL(stmt, mysqlSession, databaseName, results, query)
 	case *sqlparser.DBDDL:
 		e.normalizeDBDDLOptions(stmt)
 		e.executeDBDDL(stmt, results)
@@ -341,7 +341,11 @@ func (e *XMySQLExecutor) normalizeDBDDLOptions(stmt *sqlparser.DBDDL) {
 }
 
 // executeDDL 处理 DDL 类型语句，如 CREATE TABLE, DROP TABLE
-func (e *XMySQLExecutor) executeDDL(stmt *sqlparser.DDL, mysqlSession server.MySQLServerSession, databaseName string, results chan *Result) {
+func (e *XMySQLExecutor) executeDDL(stmt *sqlparser.DDL, mysqlSession server.MySQLServerSession, databaseName string, results chan *Result, rawQuery ...string) {
+	query := ""
+	if len(rawQuery) > 0 {
+		query = rawQuery[0]
+	}
 	// 创建执行上下文
 	ctx := &ExecutionContext{
 		Context:     context.Background(),
@@ -349,6 +353,7 @@ func (e *XMySQLExecutor) executeDDL(stmt *sqlparser.DDL, mysqlSession server.MyS
 		QueryId:     0,
 		Results:     results,
 		Cfg:         e.conf,
+		RawQuery:    query,
 	}
 
 	// 从会话中获取当前数据库
@@ -1871,7 +1876,11 @@ func (e *XMySQLExecutor) executeCreateTableStatement(ctx *ExecutionContext, data
 	}
 
 	// 5. 创建表实现
-	if err := e.createTableImpl(currentDB, tableName, stmt); err != nil {
+	rawQuery := ""
+	if ctx != nil {
+		rawQuery = ctx.RawQuery
+	}
+	if err := e.createTableImpl(currentDB, tableName, stmt, rawQuery); err != nil {
 		ctx.Results <- &Result{
 			Err:        err,
 			ResultType: common.RESULT_TYPE_DDL,
@@ -1972,7 +1981,20 @@ func (e *XMySQLExecutor) createTableStorageMapping(dbName, tableName string) err
 	// 注册表存储信息（若已注册则视为成功，兼容 IF NOT EXISTS / 重试）
 	if err := tableStorageManager.RegisterTable(context.Background(), info); err != nil {
 		if isTableStorageAlreadyRegisteredError(err) {
-			logger.Infof("Table storage already registered: %s.%s", dbName, tableName)
+			logger.Infof("Table storage already registered: %s.%s, refreshing mapping to current tablespace", dbName, tableName)
+			if replaceErr := tableStorageManager.ReplaceTableStorage(context.Background(), info); replaceErr != nil {
+				return NewExecutionErrorWithCause(
+					"engine",
+					"create-table-storage-mapping",
+					ExecutionErrorCodeStorageWriteFailure,
+					dbName,
+					tableName,
+					"",
+					0,
+					replaceErr,
+					"failed to refresh table storage mapping",
+				)
+			}
 			allTables := tableStorageManager.ListAllTables()
 			if _, ok := allTables[fmt.Sprintf("%s.%s", dbName, tableName)]; ok {
 				logger.Infof(" Existing mapping confirmed for key=%s.%s", dbName, tableName)
@@ -2413,7 +2435,7 @@ func (e *XMySQLExecutor) checkTableExists(dbName, tableName string) (bool, error
 }
 
 // createTableImpl 实际的表创建实现
-func (e *XMySQLExecutor) createTableImpl(dbName, tableName string, stmt *sqlparser.DDL) error {
+func (e *XMySQLExecutor) createTableImpl(dbName, tableName string, stmt *sqlparser.DDL, rawQuery ...string) error {
 	logger.Debugf(" Creating table %s.%s", dbName, tableName)
 	if err := rejectUnsupportedCreateTableConstraints(stmt); err != nil {
 		return err
@@ -2425,7 +2447,11 @@ func (e *XMySQLExecutor) createTableImpl(dbName, tableName string, stmt *sqlpars
 	dbPath := filepath.Join(dataDir, dbName)
 
 	// 1. 创建表结构文件 (.frm)
-	if err := e.createTableStructureFile(dbPath, tableName, stmt); err != nil {
+	query := ""
+	if len(rawQuery) > 0 {
+		query = rawQuery[0]
+	}
+	if err := e.createTableStructureFile(dbPath, tableName, stmt, query); err != nil {
 		return fmt.Errorf("failed to create table structure file: %v", err)
 	}
 
@@ -2490,9 +2516,15 @@ func (e *XMySQLExecutor) dropTableImpl(dbName, tableName string) error {
 }
 
 // createTableStructureFile 创建表结构文件 (.frm)
-func (e *XMySQLExecutor) createTableStructureFile(dbPath, tableName string, stmt *sqlparser.DDL) error {
+func (e *XMySQLExecutor) createTableStructureFile(dbPath, tableName string, stmt *sqlparser.DDL, rawQuery ...string) error {
 	frmPath := filepath.Join(dbPath, tableName+".frm")
 	columns := e.parseTableColumns(stmt.TableSpec)
+	if len(columns) == 0 && len(rawQuery) > 0 {
+		columns = parseCreateTableColumnsFallback(rawQuery[0])
+	}
+	if len(columns) == 0 {
+		return fmt.Errorf("no column definitions parsed for table %s", tableName)
+	}
 	indexes := e.parseTableIndexes(stmt.TableSpec)
 	applyIndexMetadataToColumns(columns, indexes)
 	indexes = synthesizePrimaryIndexMetadata(columns, indexes)
@@ -2616,6 +2648,164 @@ func (e *XMySQLExecutor) parseTableColumns(spec *sqlparser.TableSpec) []map[stri
 	}
 
 	return columns
+}
+
+func parseCreateTableColumnsFallback(query string) []map[string]interface{} {
+	body := extractCreateTableBody(query)
+	if body == "" {
+		return nil
+	}
+
+	definitions := splitTopLevelComma(body)
+	columns := make([]map[string]interface{}, 0, len(definitions))
+	for _, definition := range definitions {
+		column := parseCreateTableColumnDefinitionFallback(definition)
+		if column != nil {
+			columns = append(columns, column)
+		}
+	}
+	return columns
+}
+
+func extractCreateTableBody(query string) string {
+	start := strings.Index(query, "(")
+	if start < 0 {
+		return ""
+	}
+	depth := 0
+	for i := start; i < len(query); i++ {
+		switch query[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return query[start+1 : i]
+			}
+		}
+	}
+	return ""
+}
+
+func splitTopLevelComma(input string) []string {
+	var parts []string
+	start := 0
+	depth := 0
+	quote := byte(0)
+	for i := 0; i < len(input); i++ {
+		ch := input[i]
+		if quote != 0 {
+			if ch == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch ch {
+		case '\'', '"', '`':
+			quote = ch
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 0 {
+				if part := strings.TrimSpace(input[start:i]); part != "" {
+					parts = append(parts, part)
+				}
+				start = i + 1
+			}
+		}
+	}
+	if part := strings.TrimSpace(input[start:]); part != "" {
+		parts = append(parts, part)
+	}
+	return parts
+}
+
+func parseCreateTableColumnDefinitionFallback(definition string) map[string]interface{} {
+	tokens := strings.Fields(definition)
+	if len(tokens) < 2 {
+		return nil
+	}
+
+	first := strings.ToLower(strings.Trim(tokens[0], "`"))
+	switch first {
+	case "primary", "unique", "key", "index", "constraint", "foreign", "check", "fulltext":
+		return nil
+	}
+
+	columnName := strings.Trim(tokens[0], "`")
+	typeToken := strings.ToUpper(tokens[1])
+	typeName := typeToken
+	length := 0
+	scale := 0
+	if open := strings.Index(typeToken, "("); open >= 0 {
+		typeName = typeToken[:open]
+		if close := strings.LastIndex(typeToken, ")"); close > open {
+			dimensions := strings.Split(typeToken[open+1:close], ",")
+			if parsed, err := strconv.Atoi(strings.TrimSpace(dimensions[0])); err == nil {
+				length = parsed
+			}
+			if len(dimensions) > 1 {
+				if parsed, err := strconv.Atoi(strings.TrimSpace(dimensions[1])); err == nil {
+					scale = parsed
+				}
+			}
+		}
+	}
+
+	lowerDefinition := strings.ToLower(definition)
+	column := map[string]interface{}{
+		"name":     columnName,
+		"type":     normalizeFallbackColumnType(typeName),
+		"length":   length,
+		"scale":    scale,
+		"unsigned": strings.Contains(lowerDefinition, " unsigned"),
+		"zerofill": strings.Contains(lowerDefinition, " zerofill"),
+		"nullable": !strings.Contains(lowerDefinition, "not null"),
+		"charset":  "",
+		"collate":  "",
+	}
+	if strings.Contains(lowerDefinition, "auto_increment") {
+		column["auto_increment"] = true
+	}
+	if strings.Contains(lowerDefinition, "primary key") {
+		column["primary"] = true
+		column["unique"] = true
+		column["nullable"] = false
+	}
+	if strings.Contains(lowerDefinition, " unique") {
+		column["unique"] = true
+	}
+	if defaultValue := extractFallbackDefaultValue(definition); defaultValue != "" {
+		column["default"] = defaultValue
+	}
+	return column
+}
+
+func normalizeFallbackColumnType(typeName string) string {
+	switch strings.ToUpper(strings.TrimSpace(typeName)) {
+	case "INTEGER":
+		return string(metadata.TypeInt)
+	case "BOOL":
+		return string(metadata.TypeBool)
+	case "BOOLEAN":
+		return string(metadata.TypeBoolean)
+	default:
+		return strings.ToUpper(strings.TrimSpace(typeName))
+	}
+}
+
+func extractFallbackDefaultValue(definition string) string {
+	tokens := strings.Fields(definition)
+	for i := 0; i < len(tokens)-1; i++ {
+		if strings.EqualFold(tokens[i], "default") {
+			return strings.Trim(tokens[i+1], "'\"")
+		}
+	}
+	return ""
 }
 
 func applyIndexMetadataToColumns(columns []map[string]interface{}, indexes []map[string]interface{}) {

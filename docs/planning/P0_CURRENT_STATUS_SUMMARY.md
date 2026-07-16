@@ -16,6 +16,27 @@ Current interpretation:
 - Older evidence-suite PASS records prove that the evidence tooling can run; they do not close the new P0 capability backlog.
 - The highest-priority blockers are now storage page/B+Tree closure, durable secondary indexes, transaction/MVCC/recovery correctness, SQL/JDBC compatibility, and live production-readiness evidence.
 
+## 2026-07-17 JDBC compatibility closure update
+
+Verified green:
+
+- `mvn test -Dtest=DMLOperationsTest`
+- `mvn test -Dtest=PreparedStatementTest`
+- `/Users/zhukovasky/sdk/go1.24.3/bin/go test ./server/innodb/engine ./server/innodb/manager ./server/dispatcher ./server/net ./server/auth -count=1`
+
+Code changes made in this closure:
+
+- `CREATE TABLE` no longer writes empty `.frm` metadata when the SQL parser returns partial DDL for MySQL types such as `BOOLEAN`.
+- stale table-storage mappings are refreshed when a same-name table is recreated after database/table cleanup.
+- clustered record boolean encoding accepts JDBC numeric boolean values.
+- storage-integrated WHERE filtering now supports basic `IN (...)` and `LIKE` predicates.
+
+Still not green:
+
+- `DDLOperationsTest`: `SHOW DATABASES LIKE ...` still returns a JDBC result set that Connector/J treats as not navigable; `DatabaseMetaData.getTables()` table visibility is still incomplete; foreign key DDL is still unsupported.
+- `TransactionTest`: command acceptance is fixed, but rollback/savepoint undo is not implemented, so row state remains changed after rollback.
+- `IndexAndConstraintTest`: basic PK/UNIQUE/NOT NULL/INDEX cases pass; FK/CHECK/FULLTEXT/cascade remain explicitly unsupported.
+
 ## Purpose
 
 This document summarizes the current P0 production-readiness state for XMySQL.

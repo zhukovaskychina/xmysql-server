@@ -1,7 +1,10 @@
 package engine
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -75,4 +78,70 @@ func TestCreateTableStorageMappingIsIdempotent(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "mysql", info.SchemaName)
 	assert.Equal(t, "t1", info.TableName)
+}
+
+func TestCreateTableStorageMappingRefreshesStaleRegisteredMapping(t *testing.T) {
+	cfg := &conf.Cfg{
+		DataDir:              t.TempDir(),
+		InnodbDataDir:        t.TempDir(),
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+		InnodbPageSize:       16384,
+	}
+
+	storageManager := manager.NewStorageManager(cfg)
+	require.NotNil(t, storageManager)
+	tableStorageManager := manager.NewTableStorageManager(storageManager)
+
+	oldHandle, err := storageManager.CreateTablespace("old/users")
+	require.NoError(t, err)
+	require.NoError(t, tableStorageManager.RegisterTable(t.Context(), &manager.TableStorageInfo{
+		SchemaName:    "app",
+		TableName:     "users",
+		SpaceID:       oldHandle.SpaceID,
+		RootPageNo:    3,
+		IndexPageNo:   3,
+		DataSegmentID: oldHandle.DataSegmentID,
+		Type:          manager.TableTypeUser,
+	}))
+
+	exec := &XMySQLExecutor{conf: cfg}
+	exec.SetAdditionalManagers(nil, storageManager, tableStorageManager)
+
+	require.NoError(t, exec.createTableStorageMapping("app", "users"))
+
+	newHandle, err := storageManager.GetTablespace("app/users")
+	require.NoError(t, err)
+	require.NotEqual(t, oldHandle.SpaceID, newHandle.SpaceID)
+
+	info, err := tableStorageManager.GetTableStorageInfo("app", "users")
+	require.NoError(t, err)
+	assert.Equal(t, newHandle.SpaceID, info.SpaceID)
+	assert.Equal(t, newHandle.DataSegmentID, info.DataSegmentID)
+}
+
+func TestCreateTableStructureFileFallsBackToRawSQLWhenDDLSpecIsPartial(t *testing.T) {
+	tmp := t.TempDir()
+	stmt, err := sqlparser.Parse("create table users")
+	require.NoError(t, err)
+
+	rawQuery := "CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, username VARCHAR(50) NOT NULL, salary DECIMAL(10,2), is_active BOOLEAN, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+	exec := &XMySQLExecutor{}
+	require.NoError(t, exec.createTableStructureFile(tmp, "users", stmt.(*sqlparser.DDL), rawQuery))
+
+	data, err := os.ReadFile(filepath.Join(tmp, "users.frm"))
+	require.NoError(t, err)
+	var got struct {
+		Columns []map[string]interface{} `json:"columns"`
+	}
+	require.NoError(t, json.Unmarshal(data, &got))
+	require.Len(t, got.Columns, 5)
+	assert.Equal(t, "id", got.Columns[0]["name"])
+	assert.Equal(t, "INT", got.Columns[0]["type"])
+	assert.Equal(t, true, got.Columns[0]["primary"])
+	assert.Equal(t, true, got.Columns[0]["auto_increment"])
+	assert.Equal(t, "DECIMAL", got.Columns[2]["type"])
+	assert.Equal(t, float64(10), got.Columns[2]["length"])
+	assert.Equal(t, float64(2), got.Columns[2]["scale"])
+	assert.Equal(t, "BOOLEAN", got.Columns[3]["type"])
+	assert.Equal(t, "TIMESTAMP", got.Columns[4]["type"])
 }

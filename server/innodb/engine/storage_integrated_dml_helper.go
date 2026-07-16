@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -1377,6 +1378,27 @@ func evalPredicate(expr sqlparser.Expr, values map[string]interface{}) (bool, er
 		if err != nil {
 			return false, err
 		}
+		switch v.Operator {
+		case sqlparser.InStr, sqlparser.NotInStr:
+			matched, err := evalInPredicate(left, v.Right, values)
+			if err != nil {
+				return false, err
+			}
+			if v.Operator == sqlparser.NotInStr {
+				return !matched, nil
+			}
+			return matched, nil
+		case sqlparser.LikeStr, sqlparser.NotLikeStr:
+			right, err := evaluateExpressionWithRow(v.Right, values)
+			if err != nil {
+				return false, err
+			}
+			matched := sqlLikePatternMatch(fmt.Sprintf("%v", left), fmt.Sprintf("%v", right))
+			if v.Operator == sqlparser.NotLikeStr {
+				return !matched, nil
+			}
+			return matched, nil
+		}
 		right, err := evaluateExpressionWithRow(v.Right, values)
 		if err != nil {
 			return false, err
@@ -1401,6 +1423,48 @@ func evalPredicate(expr sqlparser.Expr, values map[string]interface{}) (bool, er
 	default:
 		return false, fmt.Errorf("不支持的WHERE表达式类型: %T", expr)
 	}
+}
+
+func evalInPredicate(left interface{}, right sqlparser.Expr, values map[string]interface{}) (bool, error) {
+	tuple, ok := right.(sqlparser.ValTuple)
+	if !ok {
+		value, err := evaluateExpressionWithRow(right, values)
+		if err != nil {
+			return false, err
+		}
+		return compareScalarValues(left, value) == 0, nil
+	}
+	for _, expr := range tuple {
+		value, err := evaluateExpressionWithRow(expr, values)
+		if err != nil {
+			return false, err
+		}
+		if compareScalarValues(left, value) == 0 {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func sqlLikePatternMatch(value, pattern string) bool {
+	var b strings.Builder
+	b.WriteString("(?i)^")
+	for _, r := range pattern {
+		switch r {
+		case '%':
+			b.WriteString(".*")
+		case '_':
+			b.WriteString(".")
+		default:
+			b.WriteString(regexp.QuoteMeta(string(r)))
+		}
+	}
+	b.WriteString("$")
+	re, err := regexp.Compile(b.String())
+	if err != nil {
+		return false
+	}
+	return re.MatchString(value)
 }
 
 func evaluateExpressionWithRow(expr sqlparser.Expr, values map[string]interface{}) (interface{}, error) {

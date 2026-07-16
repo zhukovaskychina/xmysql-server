@@ -21,6 +21,8 @@ P1 items are important for broad MySQL compatibility, query quality, performance
 | P1-SQL-001 | SQL | Subquery breadth | Partial | Scalar, IN, EXISTS, and correlated subqueries pass a defined compatibility matrix |
 | P1-SQL-002 | SQL | HAVING, DISTINCT, UNION variants | Partial | Common aggregate and set-operation queries match MySQL semantics |
 | P1-SQL-003 | SQL | Wider ALTER TABLE support | Partial | Add/drop/modify column and index operations preserve dictionary, data, and indexes |
+| P1-SQL-004 | SQL | Foreign key and CHECK constraints | Explicitly unsupported in the current JDBC closure run | FK metadata, FK enforcement, CHECK evaluation, and clear error behavior pass JDBC tests |
+| P1-SQL-005 | SQL | Cascade update/delete actions | Explicitly unsupported in the current JDBC closure run | `ON DELETE` and `ON UPDATE` actions are enforced consistently with transaction semantics |
 | P1-IDX-001 | Index | Index merge | Partial | OR and multi-index predicates can combine index scans safely |
 | P1-IDX-002 | Index | SHOW INDEX and index statistics | Partial | Metadata reflects current durable index definitions and cardinality estimates |
 | P1-TXN-001 | Transaction | Deadlock and lock-wait diagnostics | Detection exists in parts; reporting is incomplete | Reports include wait graph, victim, wait time, and related transaction identifiers |
@@ -35,4 +37,3 @@ P1 items are important for broad MySQL compatibility, query quality, performance
 2. SQL compatibility breadth before optional storage features.
 3. Security hardening before broader deployment.
 4. Benchmarks after P0 correctness is stable, otherwise numbers are misleading.
-
