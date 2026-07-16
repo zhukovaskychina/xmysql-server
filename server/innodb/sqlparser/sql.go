@@ -3954,13 +3954,13 @@ yydefault:
 		yyDollar = yyS[yypt-4 : yypt+1]
 //line ./sql.y:1304
 		{
-			yyVAL.statement = &DBDDL{Action: DropStr, DBName: string(yyDollar[4].bytes)}
+			yyVAL.statement = &DBDDL{Action: DropStr, DBName: string(yyDollar[4].bytes), IfExists: yyDollar[3].byt != 0}
 		}
 	case 225:
 		yyDollar = yyS[yypt-4 : yypt+1]
 //line ./sql.y:1308
 		{
-			yyVAL.statement = &DBDDL{Action: DropStr, DBName: string(yyDollar[4].bytes)}
+			yyVAL.statement = &DBDDL{Action: DropStr, DBName: string(yyDollar[4].bytes), IfExists: yyDollar[3].byt != 0}
 		}
 	case 226:
 		yyDollar = yyS[yypt-3 : yypt+1]

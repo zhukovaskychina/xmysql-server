@@ -2132,16 +2132,28 @@ func (e *XMySQLExecutor) executeDropDatabaseStatement(ctx *ExecutionContext, stm
 
 // dropDatabaseImpl 实际的数据库删除实现
 func (e *XMySQLExecutor) dropDatabaseImpl(dbName string, ifExists bool) error {
-	if err := clearAutoIncrementDatabase(e.getDataDir(), dbName); err != nil {
-		return fmt.Errorf("clear auto increment state failed: %v", err)
-	}
 	// 1. 检查是否为系统数据库
 	if isSystemDatabase(dbName) {
 		return fmt.Errorf("cannot drop system database '%s'", dbName)
 	}
 
-	// 2. 获取数据目录
+	// 2. 获取数据目录并检查数据库是否存在。
 	dataDir := e.getDataDir()
+	dbPath := filepath.Join(dataDir, dbName)
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		if ifExists {
+			logger.Debugf("Database '%s' does not exist, skipping drop due to IF EXISTS", dbName)
+			return nil
+		}
+		return fmt.Errorf("database '%s' does not exist", dbName)
+	} else if err != nil {
+		return fmt.Errorf("failed to inspect database directory '%s': %w", dbPath, err)
+	}
+
+	if err := clearAutoIncrementDatabase(dataDir, dbName); err != nil {
+		return fmt.Errorf("clear auto increment state failed: %v", err)
+	}
+
 	if e.tableStorageManager != nil {
 		for _, info := range e.tableStorageManager.ListAllTables() {
 			if strings.EqualFold(info.SchemaName, dbName) {
@@ -2155,19 +2167,7 @@ func (e *XMySQLExecutor) dropDatabaseImpl(dbName string, ifExists bool) error {
 		}
 	}
 
-	// 3. 构建数据库路径
-	dbPath := filepath.Join(dataDir, dbName)
-
-	// 4. 检查数据库是否存在
-	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		if ifExists {
-			logger.Debugf("Database '%s' does not exist, skipping drop due to IF EXISTS", dbName)
-			return nil
-		}
-		return fmt.Errorf("database '%s' does not exist", dbName)
-	}
-
-	// 5. 删除数据库目录
+	// 3. 删除数据库目录
 	if err := os.RemoveAll(dbPath); err != nil {
 		return fmt.Errorf("failed to remove database directory '%s': %v", dbPath, err)
 	}
@@ -2602,9 +2602,6 @@ func (e *XMySQLExecutor) executeShowDatabases(ctx *ExecutionContext) {
 // executeShowDatabasesWithQuery 执行 SHOW DATABASES，支持LIKE和WHERE
 func (e *XMySQLExecutor) executeShowDatabasesWithQuery(ctx *ExecutionContext, stmt *sqlparser.Show, rawQuery string) {
 	logger.Debugf(" [executeShowDatabases] 执行SHOW DATABASES")
-	if e.tryExecuteShowExecutor(ctx, "DATABASES", "", "", stmt, rawQuery) {
-		return
-	}
 
 	// 获取数据目录
 	dataDir := e.getDataDir()
@@ -2646,7 +2643,7 @@ func (e *XMySQLExecutor) executeShowDatabasesWithQuery(ctx *ExecutionContext, st
 	}
 
 	ctx.Results <- &Result{
-		ResultType: "QUERY",
+		ResultType: innodbcommon.RESULT_TYPE_SELECT,
 		Data:       resultData,
 		Message:    fmt.Sprintf("Found %d databases", len(rows)),
 	}

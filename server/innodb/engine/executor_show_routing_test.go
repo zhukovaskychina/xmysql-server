@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	innodbcommon "github.com/zhukovaskychina/xmysql-server/server/innodb/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
@@ -325,13 +326,32 @@ func TestXMySQLExecutor_ExecuteQuery_ShowDatabasesReturnsQueryData(t *testing.T)
 	assert.True(t, ok)
 	assert.NotNil(t, result)
 	assert.NoError(t, result.Err)
-	assert.Equal(t, "QUERY", result.ResultType)
+	assert.Equal(t, innodbcommon.RESULT_TYPE_SELECT, result.ResultType)
 	data, ok := result.Data.(map[string]interface{})
 	require.True(t, ok)
 	assert.Equal(t, []string{"Database"}, data["columns"])
 	rows, ok := data["rows"].([][]interface{})
 	require.True(t, ok)
 	assert.Equal(t, "Found "+strconv.Itoa(len(rows))+" databases", result.Message)
+}
+
+func TestShowDatabasesLikeReturnsNavigableResult(t *testing.T) {
+	tmp := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "app_db"), 0o755))
+
+	executor := &XMySQLExecutor{conf: &conf.Cfg{InnodbDataDir: tmp}}
+	results := make(chan *Result, 1)
+	ctx := &ExecutionContext{Context: context.Background(), Results: results}
+
+	executor.executeShowDatabasesWithQuery(ctx, &sqlparser.Show{Type: "databases"}, "show databases like 'app_%'")
+
+	got := <-results
+	require.NoError(t, got.Err)
+	require.Equal(t, innodbcommon.RESULT_TYPE_SELECT, got.ResultType)
+	data, ok := got.Data.(map[string]interface{})
+	require.True(t, ok)
+	require.Equal(t, []string{"Database"}, data["columns"])
+	require.Equal(t, [][]interface{}{{"app_db"}}, data["rows"])
 }
 
 func TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowDatabasesLikeFiltersRows(t *testing.T) {
@@ -355,7 +375,7 @@ func TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowDatabasesLikeFiltersRo
 
 	result := <-results
 	assert.NoError(t, result.Err)
-	assert.Equal(t, "QUERY", result.ResultType)
+	assert.Equal(t, innodbcommon.RESULT_TYPE_SELECT, result.ResultType)
 	assert.Equal(t, "Found 1 databases", result.Message)
 	data, ok := result.Data.(map[string]interface{})
 	require.True(t, ok)
@@ -387,7 +407,7 @@ func TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowDatabasesUsesStmtFilte
 
 	result := <-results
 	assert.NoError(t, result.Err)
-	assert.Equal(t, "QUERY", result.ResultType)
+	assert.Equal(t, innodbcommon.RESULT_TYPE_SELECT, result.ResultType)
 	assert.Equal(t, "Found 1 databases", result.Message)
 	data, ok := result.Data.(map[string]interface{})
 	require.True(t, ok)
@@ -546,7 +566,7 @@ func TestXMySQLExecutor_ExecuteQuery_ShowDatabasesWhereFiltersRows(t *testing.T)
 	result, ok := <-results
 	assert.True(t, ok)
 	assert.NoError(t, result.Err)
-	assert.Equal(t, "QUERY", result.ResultType)
+	assert.Equal(t, innodbcommon.RESULT_TYPE_SELECT, result.ResultType)
 	data, ok := result.Data.(map[string]interface{})
 	require.True(t, ok)
 	rows, ok := data["rows"].([][]interface{})

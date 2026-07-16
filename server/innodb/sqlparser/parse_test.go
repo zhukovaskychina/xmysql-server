@@ -2089,6 +2089,39 @@ func TestErrors(t *testing.T) {
 	}
 }
 
+func TestParseDropDatabaseIfExists(t *testing.T) {
+	testCases := []struct {
+		query  string
+		dbName string
+	}{
+		{query: "DROP DATABASE IF EXISTS missing_db", dbName: "missing_db"},
+		{query: "DROP SCHEMA IF EXISTS missing_schema", dbName: "missing_schema"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.query, func(t *testing.T) {
+			stmt, err := Parse(testCase.query)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			dbDDL, ok := stmt.(*DBDDL)
+			if !ok {
+				t.Fatalf("Parse(%q) returned %T, want *DBDDL", testCase.query, stmt)
+			}
+			if dbDDL.Action != DropStr {
+				t.Errorf("Action = %q, want %q", dbDDL.Action, DropStr)
+			}
+			if dbDDL.DBName != testCase.dbName {
+				t.Errorf("DBName = %q, want %q", dbDDL.DBName, testCase.dbName)
+			}
+			if !dbDDL.IfExists {
+				t.Error("IfExists = false, want true")
+			}
+		})
+	}
+}
+
 // Benchmark run on 6/23/17, prior to improvements:
 // BenchmarkParse1-4         100000             16334 ns/op
 // BenchmarkParse2-4          30000             44121 ns/op

@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -304,6 +307,11 @@ func (e *SystemVariableEngine) ExecuteQuery(session server.MySQLServerSession, q
 			return
 		}
 
+		if result := e.executeInformationSchemaTablesQuery(query); result != nil {
+			resultChan <- result
+			return
+		}
+
 		// 4. 尝试解析为系统变量查询
 		varQuery, err := e.sysVarAnalyzer.AnalyzeSystemVariableQuery(query)
 		if err != nil {
@@ -367,6 +375,70 @@ func (e *SystemVariableEngine) ExecuteQuery(session server.MySQLServerSession, q
 	}()
 
 	return resultChan
+}
+
+var informationSchemaTableFilterPattern = regexp.MustCompile(`(?i)\\b(table_schema|table_name)\\b\\s*(?:=|like)\\s*'([^']*)'`)
+
+func (e *SystemVariableEngine) executeInformationSchemaTablesQuery(query string) *SQLResult {
+	if !strings.Contains(strings.ToLower(query), "information_schema.tables") {
+		return nil
+	}
+
+	filters := map[string]string{}
+	for _, match := range informationSchemaTableFilterPattern.FindAllStringSubmatch(query, -1) {
+		filters[strings.ToLower(match[1])] = match[2]
+	}
+
+	dataDir := filepath.Join("server", "net", "data")
+	schemaPattern := filters["table_schema"]
+	tablePattern := filters["table_name"]
+	rows := make([][]interface{}, 0)
+	entries, err := os.ReadDir(dataDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &SQLResult{ResultType: "select", Columns: informationSchemaTablesColumns(), Rows: rows}
+		}
+		return &SQLResult{ResultType: "error", Err: fmt.Errorf("read metadata directory: %w", err)}
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() || !matchesMetadataPattern(entry.Name(), schemaPattern) {
+			continue
+		}
+		tables, err := os.ReadDir(filepath.Join(dataDir, entry.Name()))
+		if err != nil {
+			return &SQLResult{ResultType: "error", Err: fmt.Errorf("read schema metadata: %w", err)}
+		}
+		for _, table := range tables {
+			if table.IsDir() || filepath.Ext(table.Name()) != ".frm" {
+				continue
+			}
+			tableName := strings.TrimSuffix(table.Name(), ".frm")
+			if matchesMetadataPattern(tableName, tablePattern) {
+				rows = append(rows, []interface{}{nil, entry.Name(), tableName, "TABLE", ""})
+			}
+		}
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		return fmt.Sprint(rows[i][1], ".", rows[i][2]) < fmt.Sprint(rows[j][1], ".", rows[j][2])
+	})
+	return &SQLResult{ResultType: "select", Columns: informationSchemaTablesColumns(), Rows: rows}
+}
+
+func informationSchemaTablesColumns() []string {
+	return []string{"TABLE_CAT", "TABLE_SCHEM", "TABLE_NAME", "TABLE_TYPE", "REMARKS"}
+}
+
+func matchesMetadataPattern(value, pattern string) bool {
+	if pattern == "" {
+		return true
+	}
+	pattern = regexp.QuoteMeta(pattern)
+	pattern = strings.ReplaceAll(pattern, "%", ".*")
+	pattern = strings.ReplaceAll(pattern, "_", ".")
+	matched, err := regexp.MatchString("(?i)^"+pattern+"$", value)
+	return err == nil && matched
 }
 
 // syncSessionVariables 确保握手阶段写入 session attribute 的关键变量能够在系统变量管理器中生效

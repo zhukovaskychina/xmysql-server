@@ -1302,11 +1302,11 @@ drop_statement:
   }
 | DROP DATABASE exists_opt ID
   {
-    $$ = &DBDDL{Action: DropStr, DBName: string($4)}
+    $$ = &DBDDL{Action: DropStr, DBName: string($4), IfExists: $3 != 0}
   }
 | DROP SCHEMA exists_opt ID
   {
-    $$ = &DBDDL{Action: DropStr, DBName: string($4)}
+    $$ = &DBDDL{Action: DropStr, DBName: string($4), IfExists: $3 != 0}
   }
 
 truncate_statement:
