@@ -1093,7 +1093,7 @@ func (dml *StorageIntegratedDMLExecutor) validateUpdateConstraints(
 			continue
 		}
 		for i, updated := range updatedRows {
-			if samePrimaryKey(existing.OldValues, oldRows[i], tableMeta) {
+			if sameRowIdentity(existing, rowsToUpdate[i], oldRows[i], tableMeta) {
 				continue
 			}
 			if len(tableMeta.PrimaryKey) > 0 {
@@ -1195,6 +1195,19 @@ func samePrimaryKey(left, right map[string]interface{}, tableMeta *metadata.Tabl
 	return string(leftKey) == string(rightKey)
 }
 
+func sameRowIdentity(existing, updating *RowUpdateInfo, updatingOldValues map[string]interface{}, tableMeta *metadata.TableMeta) bool {
+	if existing == nil || updating == nil {
+		return false
+	}
+	if samePrimaryKey(existing.OldValues, updatingOldValues, tableMeta) {
+		return true
+	}
+	if tableMeta != nil && len(tableMeta.PrimaryKey) > 0 {
+		return false
+	}
+	return existing.PageNum == updating.PageNum && existing.SlotIndex == updating.SlotIndex
+}
+
 func hasCompositePrimaryKey(tableMeta *metadata.TableMeta) bool {
 	return tableMeta != nil && len(tableMeta.PrimaryKey) > 1
 }
@@ -1216,8 +1229,34 @@ func updateTouchesPrimaryKey(updateExprs []*UpdateExpression, tableMeta *metadat
 	return false
 }
 
+func updateTouchesAnyIndex(updateExprs []*UpdateExpression, tableMeta *metadata.TableMeta) bool {
+	if tableMeta == nil || len(tableMeta.Indices) == 0 {
+		return false
+	}
+	for _, expr := range updateExprs {
+		if expr == nil {
+			continue
+		}
+		for _, idx := range tableMeta.Indices {
+			for _, col := range idx.Columns {
+				if strings.EqualFold(expr.ColumnName, col) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func buildPrimaryKeyIfAvailable(row map[string]interface{}, tableMeta *metadata.TableMeta) ([]byte, bool, error) {
-	if tableMeta == nil || len(tableMeta.PrimaryKey) == 0 {
+	if tableMeta == nil {
+		return nil, false, nil
+	}
+	if len(tableMeta.PrimaryKey) == 0 {
+		if value, exists := row["id"]; exists && value != nil {
+			key, err := buildCompositeKey(row, []string{"id"})
+			return key, err == nil, err
+		}
 		return nil, false, nil
 	}
 	for _, columnName := range tableMeta.PrimaryKey {

@@ -322,6 +322,9 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 	if hasCompositePrimaryKey(tableMeta) {
 		return nil, fmt.Errorf("unsupported composite primary key UPDATE")
 	}
+	if len(tableMeta.PrimaryKey) == 0 {
+		return nil, fmt.Errorf("unsupported UPDATE without primary key")
+	}
 
 	// 5. 获取表专用的B+树管理器
 	tableBtreeManager, err := dml.tableStorageManager.CreateBTreeManagerForTable(ctx, resolvedSchema, dml.tableName)
@@ -350,6 +353,11 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 		dml.rollbackStorageTransaction(ctx, txn)
 		return nil, fmt.Errorf("unsupported primary key UPDATE")
 	}
+	shouldUpdateIndexes := updateTouchesAnyIndex(updateExprs, tableMeta)
+	if len(tableMeta.PrimaryKey) == 0 && shouldUpdateIndexes {
+		dml.rollbackStorageTransaction(ctx, txn)
+		return nil, fmt.Errorf("unsupported indexed column UPDATE without primary key")
+	}
 
 	affectedRows := 0
 
@@ -361,11 +369,13 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 			return nil, fmt.Errorf("更新行失败: %v", err)
 		}
 
-		// 更新相关索引
-		err = dml.updateIndexesForUpdate(ctx, txn, []*RowUpdateInfo{rowInfo}, updateExprs, tableMeta, tableStorageInfo)
-		if err != nil {
-			dml.rollbackStorageTransaction(ctx, txn)
-			return nil, fmt.Errorf("更新索引失败: %v", err)
+		if shouldUpdateIndexes {
+			// 更新相关索引
+			err = dml.updateIndexesForUpdate(ctx, txn, []*RowUpdateInfo{rowInfo}, updateExprs, tableMeta, tableStorageInfo)
+			if err != nil {
+				dml.rollbackStorageTransaction(ctx, txn)
+				return nil, fmt.Errorf("更新索引失败: %v", err)
+			}
 		}
 
 		affectedRows++

@@ -140,6 +140,18 @@ func TestUpdateRejectsPrimaryAndUniqueKeyConflicts(t *testing.T) {
 	}
 }
 
+func TestUpdateWithoutPrimaryKeyUnsupportedInsteadOfRowIdWrite(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table users (email varchar(100) unique, name varchar(50))")
+	mustExecSQL(t, executor, "app", "insert into users (email, name) values ('alice@example.com', 'Alice')")
+
+	err := execSQLExpectError(t, executor, "app", "update users set name = 'Alice2' where email = 'alice@example.com'")
+	require.Error(t, err)
+	require.Contains(t, strings.ToLower(err.Error()), "unsupported")
+	require.Contains(t, strings.ToLower(err.Error()), "primary key")
+}
+
 func TestCompositePrimaryKeyUpdateDeleteUnsupportedInsteadOfRowIdWrite(t *testing.T) {
 	for _, tc := range []struct {
 		name string
