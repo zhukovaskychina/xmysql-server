@@ -1,6 +1,8 @@
 package dispatcher
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -11,6 +13,62 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
+
+func TestSystemVariableEngine_InformationSchemaTablesFiltersEqualityPredicates(t *testing.T) {
+	useInformationSchemaTablesFixture(t, map[string][]string{
+		"app_schema":   {"orders", "archive"},
+		"other_schema": {"orders"},
+	})
+
+	result := (&SystemVariableEngine{}).executeInformationSchemaTablesQuery(
+		"SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema = 'app_schema' AND table_name = 'orders'",
+	)
+
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	assert.Equal(t, informationSchemaTablesColumns(), result.Columns)
+	assert.Equal(t, [][]interface{}{{nil, "app_schema", "orders", "TABLE", ""}}, result.Rows)
+}
+
+func TestSystemVariableEngine_InformationSchemaTablesFiltersLikePredicates(t *testing.T) {
+	useInformationSchemaTablesFixture(t, map[string][]string{
+		"app_schema":   {"orders", "archive"},
+		"other_schema": {"orders"},
+	})
+
+	result := (&SystemVariableEngine{}).executeInformationSchemaTablesQuery(
+		"SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema LIKE 'app_%' AND table_name LIKE 'ord%'",
+	)
+
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	assert.Equal(t, [][]interface{}{{nil, "app_schema", "orders", "TABLE", ""}}, result.Rows)
+}
+
+func TestSystemVariableEngine_InformationSchemaTablesIgnoresNonSelectStatements(t *testing.T) {
+	result := (&SystemVariableEngine{}).executeInformationSchemaTablesQuery("DELETE FROM information_schema.tables")
+
+	assert.Nil(t, result)
+}
+
+func useInformationSchemaTablesFixture(t *testing.T, schemas map[string][]string) {
+	t.Helper()
+	previousDir, err := os.Getwd()
+	require.NoError(t, err)
+	tempDir := t.TempDir()
+	require.NoError(t, os.Chdir(tempDir))
+	t.Cleanup(func() {
+		require.NoError(t, os.Chdir(previousDir))
+	})
+
+	for schema, tables := range schemas {
+		for _, table := range tables {
+			frmPath := filepath.Join("server", "net", "data", schema, table+".frm")
+			require.NoError(t, os.MkdirAll(filepath.Dir(frmPath), 0o755))
+			require.NoError(t, os.WriteFile(frmPath, nil, 0o644))
+		}
+	}
+}
 
 type testDispatcherSession struct {
 	params map[string]interface{}

@@ -2643,7 +2643,7 @@ func (e *XMySQLExecutor) executeShowDatabasesWithQuery(ctx *ExecutionContext, st
 	}
 
 	ctx.Results <- &Result{
-		ResultType: innodbcommon.RESULT_TYPE_SELECT,
+		ResultType: common.RESULT_TYPE_QUERY,
 		Data:       resultData,
 		Message:    fmt.Sprintf("Found %d databases", len(rows)),
 	}

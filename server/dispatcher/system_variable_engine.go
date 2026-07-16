@@ -377,10 +377,11 @@ func (e *SystemVariableEngine) ExecuteQuery(session server.MySQLServerSession, q
 	return resultChan
 }
 
-var informationSchemaTableFilterPattern = regexp.MustCompile(`(?i)\\b(table_schema|table_name)\\b\\s*(?:=|like)\\s*'([^']*)'`)
+var informationSchemaTablesQueryPattern = regexp.MustCompile("(?is)^\\s*select\\b.*\\bfrom\\s+(?:`?information_schema`?\\s*\\.\\s*`?tables`?)(?:\\s|$)")
+var informationSchemaTableFilterPattern = regexp.MustCompile(`(?i)\b(table_schema|table_name)\b\s*(?:=|like)\s*'([^']*)'`)
 
 func (e *SystemVariableEngine) executeInformationSchemaTablesQuery(query string) *SQLResult {
-	if !strings.Contains(strings.ToLower(query), "information_schema.tables") {
+	if !informationSchemaTablesQueryPattern.MatchString(query) {
 		return nil
 	}
 
