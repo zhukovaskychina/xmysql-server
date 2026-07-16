@@ -113,6 +113,61 @@ func TestAlterTableAddColumnRefreshesDMLMetadata(t *testing.T) {
 	require.Equal(t, "nickname", tableMeta.Columns[1].Name)
 }
 
+func TestTruncateKeepsTableMetadataResolvable(t *testing.T) {
+	tmp := t.TempDir()
+	executor := newTestStorageIntegratedExecutor(t, tmp)
+
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table users (id int primary key auto_increment, username varchar(50) not null)")
+	mustExecSQL(t, executor, "app", "insert into users (username) values ('before')")
+	mustExecSQL(t, executor, "app", "truncate table users")
+	mustExecSQL(t, executor, "app", "insert into users (username) values ('after')")
+
+	rows := mustQuerySQL(t, executor, "app", "select username from users")
+	require.Equal(t, [][]interface{}{{"after"}}, rows)
+}
+
+func newTestStorageIntegratedExecutor(t *testing.T, dataDir string) *XMySQLEngine {
+	t.Helper()
+	executor := NewXMySQLEngine(&conf.Cfg{
+		DataDir:              dataDir,
+		InnodbDataDir:        dataDir,
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+		InnodbPageSize:       16384,
+	})
+	t.Cleanup(func() { require.NoError(t, executor.Close()) })
+	return executor
+}
+
+func mustExecSQL(t *testing.T, executor *XMySQLEngine, databaseName, sql string) {
+	t.Helper()
+	got := <-executor.ExecuteQuery(nil, sql, databaseName)
+	require.NoError(t, got.Err)
+}
+
+func mustQuerySQL(t *testing.T, executor *XMySQLEngine, databaseName, sql string) [][]interface{} {
+	t.Helper()
+	got := <-executor.ExecuteQuery(nil, sql, databaseName)
+	require.NoError(t, got.Err)
+
+	result, ok := got.Data.(*SelectResult)
+	require.True(t, ok, "expected SelectResult, got %T", got.Data)
+	rows := make([][]interface{}, len(result.Records))
+	for i, record := range result.Records {
+		values := record.GetValues()
+		rows[i] = make([]interface{}, len(values))
+		for j, value := range values {
+			raw := value.Raw()
+			if bytes, ok := raw.([]byte); ok {
+				rows[i][j] = string(bytes)
+				continue
+			}
+			rows[i][j] = raw
+		}
+	}
+	return rows
+}
+
 func readFrmColumns(t *testing.T, frmPath string) map[string]map[string]interface{} {
 	t.Helper()
 	raw, err := os.ReadFile(frmPath)

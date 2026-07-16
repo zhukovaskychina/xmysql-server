@@ -1967,14 +1967,19 @@ func (e *XMySQLExecutor) truncateTableImpl(databaseName, tableName string) error
 		return fmt.Errorf("clear B+Tree sidecar records failed: %v", err)
 	}
 
-	if err := e.tableStorageManager.UnregisterTable(databaseName, tableName); err != nil {
-		return err
-	}
-
 	spaceName := fmt.Sprintf("%s/%s_truncate_%d", databaseName, tableName, time.Now().UnixNano())
 	handle, err := e.storageManager.CreateTablespace(spaceName)
 	if err != nil {
 		return fmt.Errorf("create new tablespace failed: %v", err)
+	}
+
+	ibdPath := filepath.Join(e.getDataDir(), databaseName, tableName+".ibd")
+	if _, err := os.Stat(ibdPath); os.IsNotExist(err) {
+		if err := e.createTableDataFile(filepath.Dir(ibdPath), tableName); err != nil {
+			return fmt.Errorf("recreate table data file failed: %v", err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("check table data file failed: %v", err)
 	}
 
 	info := &manager.TableStorageInfo{
@@ -1986,8 +1991,8 @@ func (e *XMySQLExecutor) truncateTableImpl(databaseName, tableName string) error
 		DataSegmentID: handle.DataSegmentID,
 		Type:          oldInfo.Type,
 	}
-	if err := e.tableStorageManager.RegisterTable(context.Background(), info); err != nil {
-		return fmt.Errorf("register truncated table storage failed: %v", err)
+	if err := e.tableStorageManager.ReplaceTableStorage(context.Background(), info); err != nil {
+		return fmt.Errorf("replace truncated table storage failed: %v", err)
 	}
 
 	logger.Infof("TRUNCATE TABLE '%s.%s' remapped tablespace oldSpaceID=%d newSpaceID=%d", databaseName, tableName, oldInfo.SpaceID, handle.SpaceID)

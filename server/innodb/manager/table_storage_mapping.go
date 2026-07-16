@@ -146,6 +146,31 @@ func (tsm *TableStorageManager) RegisterTable(ctx context.Context, info *TableSt
 	return nil
 }
 
+// ReplaceTableStorage atomically replaces a table's storage mapping.
+func (tsm *TableStorageManager) ReplaceTableStorage(ctx context.Context, info *TableStorageInfo) error {
+	if info == nil {
+		return fmt.Errorf("table storage info cannot be nil")
+	}
+
+	tsm.mu.Lock()
+	defer tsm.mu.Unlock()
+
+	key := fmt.Sprintf("%s.%s", info.SchemaName, info.TableName)
+	if existingTable, exists := tsm.spaceToTableMap[info.SpaceID]; exists && existingTable != key {
+		return fmt.Errorf("space ID %d already used by table %s", info.SpaceID, existingTable)
+	}
+
+	if oldInfo, exists := tsm.tableStorageMap[key]; exists && oldInfo.SpaceID != info.SpaceID {
+		delete(tsm.spaceToTableMap, oldInfo.SpaceID)
+	}
+	tsm.tableStorageMap[key] = info
+	tsm.spaceToTableMap[info.SpaceID] = key
+
+	logger.Debugf("Replaced table storage: %s (Space ID: %d, Root Page: %d)\n",
+		key, info.SpaceID, info.RootPageNo)
+	return nil
+}
+
 // SyncFromInfoSchema 基于信息模式重建表存储映射，适用于服务重启后内存映射丢失场景。
 func (tsm *TableStorageManager) SyncFromInfoSchema(infoSchemaManager metadata.InfoSchemaManager) error {
 	if infoSchemaManager == nil {
