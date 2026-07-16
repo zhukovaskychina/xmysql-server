@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -52,4 +53,79 @@ func TestAlterTableAddColumnUpdatesFrm(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(raw), `"name": "name"`)
 	require.Contains(t, string(raw), `"type": "varchar"`)
+}
+
+func TestAlterTableAddColumnsWithoutDefaultsOmitDefaultMetadata(t *testing.T) {
+	tmp := t.TempDir()
+	dbPath := filepath.Join(tmp, "app")
+	require.NoError(t, os.MkdirAll(dbPath, 0755))
+
+	executor := NewXMySQLExecutor(nil, &conf.Cfg{InnodbDataDir: tmp})
+	createStmt, err := sqlparser.Parse("create table users (id int primary key)")
+	require.NoError(t, err)
+	require.NoError(t, executor.createTableImpl("app", "users", createStmt.(*sqlparser.DDL)))
+
+	for _, query := range []string{
+		"alter table users add column nickname varchar(100)",
+		"alter table users add column login_count int not null",
+	} {
+		alterStmt, err := sqlparser.Parse(query)
+		require.NoError(t, err)
+
+		results := make(chan *Result, 1)
+		executor.executeDDL(alterStmt.(*sqlparser.DDL), nil, "app", results)
+		require.NoError(t, (<-results).Err)
+	}
+
+	columns := readFrmColumns(t, filepath.Join(dbPath, "users.frm"))
+	for _, name := range []string{"nickname", "login_count"} {
+		column := columns[name]
+		require.NotNil(t, column)
+		_, hasDefault := column["default"]
+		require.False(t, hasDefault, "column %q without SQL DEFAULT must omit default metadata", name)
+	}
+	require.True(t, columns["nickname"]["nullable"].(bool))
+	require.False(t, columns["login_count"]["nullable"].(bool))
+}
+
+func TestAlterTableAddColumnRefreshesDMLMetadata(t *testing.T) {
+	tmp := t.TempDir()
+	dbPath := filepath.Join(tmp, "app")
+	require.NoError(t, os.MkdirAll(dbPath, 0755))
+
+	cfg := &conf.Cfg{InnodbDataDir: tmp}
+	executor := NewXMySQLExecutor(nil, cfg)
+	createStmt, err := sqlparser.Parse("create table users (id int primary key)")
+	require.NoError(t, err)
+	require.NoError(t, executor.createTableImpl("app", "users", createStmt.(*sqlparser.DDL)))
+
+	engine := &XMySQLEngine{conf: cfg, QueryExecutor: executor}
+	alterResult := <-engine.ExecuteQuery(nil, "alter table users add column nickname varchar(100)", "app")
+	require.NoError(t, alterResult.Err)
+
+	dml := NewStorageIntegratedDMLExecutor(nil, nil, nil, nil, nil, nil, nil, nil)
+	dml.SetDataDir(tmp)
+	dml.schemaName = "app"
+	dml.tableName = "users"
+	tableMeta, err := dml.getTableMetadata()
+	require.NoError(t, err)
+	require.Len(t, tableMeta.Columns, 2)
+	require.Equal(t, "nickname", tableMeta.Columns[1].Name)
+}
+
+func readFrmColumns(t *testing.T, frmPath string) map[string]map[string]interface{} {
+	t.Helper()
+	raw, err := os.ReadFile(frmPath)
+	require.NoError(t, err)
+
+	var tableInfo struct {
+		Columns []map[string]interface{} `json:"columns"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &tableInfo))
+
+	columns := make(map[string]map[string]interface{}, len(tableInfo.Columns))
+	for _, column := range tableInfo.Columns {
+		columns[column["name"].(string)] = column
+	}
+	return columns
 }

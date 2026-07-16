@@ -352,19 +352,18 @@ func (e *XMySQLExecutor) alterTableAddColumns(dbName, tableName string, cols []*
 			return fmt.Errorf("duplicate column '%s'", name)
 		}
 
-		defaultValue := ""
-		if col.Type.Default != nil {
-			defaultValue = sqlparser.String(col.Type.Default)
-		}
-		existing = append(existing, map[string]interface{}{
+		column := map[string]interface{}{
 			"name":     name,
 			"type":     col.Type.Type,
 			"length":   col.Type.Length,
 			"scale":    col.Type.Scale,
 			"unsigned": col.Type.Unsigned,
 			"nullable": !col.Type.NotNull,
-			"default":  defaultValue,
-		})
+		}
+		if col.Type.Default != nil {
+			column["default"] = sqlparser.String(col.Type.Default)
+		}
+		existing = append(existing, column)
 		seen[strings.ToLower(name)] = struct{}{}
 	}
 	tableInfo["columns"] = existing
