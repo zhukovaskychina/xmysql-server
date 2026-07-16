@@ -72,6 +72,71 @@ func newExecutorErrorf(stage string, code ExecutionErrorCode, schema, table, sql
 	return NewExecutionErrorf("engine", stage, code, schema, table, sql, 0, err, message, args...)
 }
 
+func normalizedTransactionCommand(query string) (cmd string, name string, ok bool) {
+	q := strings.TrimSpace(query)
+	q = strings.TrimSpace(strings.TrimRight(q, ";"))
+	lower := strings.ToLower(q)
+	switch {
+	case lower == "begin" || lower == "start transaction":
+		return "begin", "", true
+	case lower == "commit":
+		return "commit", "", true
+	case lower == "rollback":
+		return "rollback", "", true
+	case strings.HasPrefix(lower, "savepoint "):
+		name := strings.TrimSpace(q[len("savepoint "):])
+		return "savepoint", name, name != ""
+	case strings.HasPrefix(lower, "rollback to savepoint "):
+		name := strings.TrimSpace(q[len("rollback to savepoint "):])
+		return "rollback_to_savepoint", name, name != ""
+	case strings.HasPrefix(lower, "rollback to "):
+		name := strings.TrimSpace(q[len("rollback to "):])
+		return "rollback_to_savepoint", name, name != "" && !strings.EqualFold(name, "savepoint")
+	case strings.HasPrefix(lower, "release savepoint "):
+		name := strings.TrimSpace(q[len("release savepoint "):])
+		return "release_savepoint", name, name != ""
+	default:
+		return "", "", false
+	}
+}
+
+func IsTransactionCommand(query string) bool {
+	_, _, ok := normalizedTransactionCommand(query)
+	return ok
+}
+
+func (e *XMySQLExecutor) executeTransactionCommand(ctx *ExecutionContext, cmd string, name string, session server.MySQLServerSession) {
+	if session != nil {
+		switch cmd {
+		case "begin":
+			session.SetParamByName("in_transaction", true)
+			session.SessionContext().SetInTransaction(true)
+			session.SetParamByName("savepoints", []string{})
+		case "commit", "rollback":
+			session.SetParamByName("in_transaction", false)
+			session.SessionContext().SetInTransaction(false)
+			session.SetParamByName("savepoints", []string{})
+		case "savepoint":
+			raw := session.GetParamByName("savepoints")
+			points, _ := raw.([]string)
+			session.SetParamByName("savepoints", append(points, name))
+		case "rollback_to_savepoint":
+			// Baseline: accept command; full undo is covered by later MVCC work.
+		case "release_savepoint":
+			raw := session.GetParamByName("savepoints")
+			points, _ := raw.([]string)
+			next := make([]string, 0, len(points))
+			for _, p := range points {
+				if !strings.EqualFold(p, name) {
+					next = append(next, p)
+				}
+			}
+			session.SetParamByName("savepoints", next)
+		}
+	}
+	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Message: strings.ToUpper(cmd)}
+}
+
 func (e *XMySQLExecutor) missingStorageIntegratedDMLManagersError(
 	stage string,
 	schema string,
@@ -136,6 +201,12 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 	defer close(results)
 	if ctx != nil {
 		ctx.DatabaseName = databaseName
+		ctx.RawQuery = query
+	}
+
+	if cmd, name, ok := normalizedTransactionCommand(query); ok {
+		e.executeTransactionCommand(ctx, cmd, name, mysqlSession)
+		return
 	}
 
 	// SQL语法解析

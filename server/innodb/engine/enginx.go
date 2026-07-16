@@ -332,6 +332,22 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 		logger.Debugf(" [XMySQLEngine.ExecuteQuery] 数据库名称: %s", databaseName)
 		logger.Debugf(" [XMySQLEngine.ExecuteQuery] 会话对象: %v", session != nil)
 
+		ctx := &ExecutionContext{
+			Context:      context.Background(),
+			statementId:  0,
+			QueryId:      0,
+			Results:      results,
+			Cfg:          e.conf,
+			DatabaseName: databaseName,
+			RawQuery:     query,
+		}
+
+		if cmd, name, ok := normalizedTransactionCommand(query); ok {
+			stage = "transaction"
+			e.QueryExecutor.executeTransactionCommand(ctx, cmd, name, session)
+			return
+		}
+
 		stmt, err := sqlparser.Parse(query)
 		if err != nil {
 			logger.Errorf(" [XMySQLEngine.ExecuteQuery] SQL解析错误: %v", err)
@@ -343,14 +359,6 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 
 		logger.Debugf(" [XMySQLEngine.ExecuteQuery] SQL解析成功，语句类型: %T", stmt)
 		stage = "dispatch"
-
-		ctx := &ExecutionContext{
-			Context:     context.Background(),
-			statementId: 0,
-			QueryId:     0,
-			Results:     results,
-			Cfg:         e.conf,
-		}
 
 		switch stmt := stmt.(type) {
 		case *sqlparser.Select:

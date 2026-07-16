@@ -885,6 +885,8 @@ func (m *MySQLServerSessionImpl) GetParamByName(name string) interface{} {
 		if v := m.ctx.GetTransactionIsolation(); v != "" {
 			return v
 		}
+	case "in_transaction":
+		return m.ctx.GetInTransaction()
 	default:
 		if m.ctx != nil && m.ctx.GetExtra(name) != nil {
 			return m.ctx.GetExtra(name)
@@ -923,6 +925,10 @@ func (m *MySQLServerSessionImpl) SetParamByName(name string, value interface{}) 
 		return
 	case "transaction_isolation", "tx_isolation":
 		m.ctx.SetTransactionIsolation(attrString(value))
+		m.session.SetAttribute(name, value)
+		return
+	case "in_transaction":
+		m.ctx.SetInTransaction(attrBool(value))
 		m.session.SetAttribute(name, value)
 		return
 	default:

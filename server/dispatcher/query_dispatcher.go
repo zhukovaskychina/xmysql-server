@@ -212,6 +212,10 @@ func (e *InnoDBSQLEngine) Name() string {
 
 // CanHandle 检查是否能处理该查询
 func (e *InnoDBSQLEngine) CanHandle(query string) bool {
+	if engine.IsTransactionCommand(query) {
+		return true
+	}
+
 	query = strings.TrimSpace(strings.ToUpper(query))
 
 	supportedQueries := []string{
@@ -269,7 +273,7 @@ func (e *InnoDBSQLEngine) convertResult(xmysqlResult *engine.Result) *SQLResult 
 		result.Message = "Variable set successfully"
 	case common.RESULT_TYPE_ERROR:
 		result.ResultType = "error"
-	case common.RESULT_TYPE_QUERY:
+	case common.RESULT_TYPE_QUERY, "QUERY":
 		result.ResultType = "query"
 		//  对于QUERY类型，检查是否有Message，如果Message包含"Database changed"，说明是USE语句
 		if xmysqlResult.Message != "" && strings.Contains(xmysqlResult.Message, "Database changed") {
@@ -282,6 +286,10 @@ func (e *InnoDBSQLEngine) convertResult(xmysqlResult *engine.Result) *SQLResult 
 				result.Message = dmlResult.Message
 				result.AffectedRows = uint64(dmlResult.AffectedRows)
 				result.LastInsertID = dmlResult.LastInsertId
+				result.Columns = []string{}
+				result.Rows = [][]interface{}{}
+			} else if xmysqlResult.Data == nil && xmysqlResult.Message != "" {
+				result.Message = xmysqlResult.Message
 				result.Columns = []string{}
 				result.Rows = [][]interface{}{}
 			} else {
@@ -376,6 +384,11 @@ func NewDefaultSQLRouter() SQLRouter {
 
 // Route 路由SQL查询到合适的引擎
 func (r *DefaultSQLRouter) Route(session server.MySQLServerSession, query string) string {
+	if engine.IsTransactionCommand(query) {
+		logger.Debugf(" [DefaultSQLRouter] 识别为事务控制语句，路由到 innodb 引擎")
+		return "innodb"
+	}
+
 	query = strings.TrimSpace(strings.ToUpper(query))
 
 	logger.Debugf(" [DefaultSQLRouter] 路由查询: %s", query)

@@ -97,6 +97,11 @@ func (h *EnhancedBusinessMessageHandler) HandleQueryWithRealSession(realSession 
 		return h.createSelectOneResponse(tempMsg), nil
 	}
 
+	if engine.IsTransactionCommand(query) {
+		logger.Debugf(" 检测到事务控制语句，跳过权限解析并分发到SQLDispatcher")
+		return h.dispatchQueryResult("temp", realSession, query, database)
+	}
+
 	// 检查权限
 	ctx := context.Background()
 	if err := h.checkQueryPrivilege(ctx, user, host, database, query); err != nil {
@@ -108,8 +113,11 @@ func (h *EnhancedBusinessMessageHandler) HandleQueryWithRealSession(realSession 
 	logger.Debugf(" 权限检查通过，准备执行SQL查询")
 	logger.Debugf(" 分发SQL查询到SQLDispatcher")
 
-	// 使用真实会话分发SQL查询
-	resultChan := h.sqlDispatcher.Dispatch(realSession, query, database)
+	return h.dispatchQueryResult("temp", realSession, query, database)
+}
+
+func (h *EnhancedBusinessMessageHandler) dispatchQueryResult(sessionID string, session server.MySQLServerSession, query string, database string) (protocol.Message, error) {
+	resultChan := h.sqlDispatcher.Dispatch(session, query, database)
 
 	logger.Debugf(" 等待SQL分发器结果...")
 
@@ -123,7 +131,7 @@ func (h *EnhancedBusinessMessageHandler) HandleQueryWithRealSession(realSession 
 		// 如果有错误，记录详细信息
 		if result.Err != nil {
 			logger.Errorf(" SQL执行错误: %v", result.Err)
-			return protocol.NewErrorMessageFromGoError("temp", result.Err), nil
+			return protocol.NewErrorMessageFromGoError(sessionID, result.Err), nil
 		}
 
 		// 转换结果格式
@@ -138,7 +146,7 @@ func (h *EnhancedBusinessMessageHandler) HandleQueryWithRealSession(realSession 
 		}
 
 		responseMsg := &protocol.ResponseMessage{
-			BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_RESPONSE, "temp", queryResult),
+			BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_RESPONSE, sessionID, queryResult),
 			Result:      queryResult,
 		}
 
@@ -147,7 +155,7 @@ func (h *EnhancedBusinessMessageHandler) HandleQueryWithRealSession(realSession 
 	}
 
 	logger.Errorf(" 未收到查询结果，结果数量: %d", resultCount)
-	return protocol.NewErrorMessage("temp", common.ER_UNKNOWN_ERROR,
+	return protocol.NewErrorMessage(sessionID, common.ER_UNKNOWN_ERROR,
 		"No result received from query execution"), nil
 }
 
@@ -252,6 +260,18 @@ func (h *EnhancedBusinessMessageHandler) handleQueryMessage(ctx context.Context,
 	if isSelectOneQuery(queryMsg.SQL) {
 		logger.Debugf(" 检测到 SELECT 1 查询，返回硬编码响应")
 		return h.createSelectOneResponse(msg), nil
+	}
+
+	if engine.IsTransactionCommand(queryMsg.SQL) {
+		logger.Debugf(" 检测到事务控制语句，跳过权限解析并分发到SQLDispatcher")
+		sessionCtx := server.NewSessionContext(msg.SessionID())
+		sessionCtx.SetCurrentDB(queryMsg.Database)
+		session := &EnhancedMockMySQLServerSession{
+			sessionID: msg.SessionID(),
+			database:  queryMsg.Database,
+			ctx:       sessionCtx,
+		}
+		return h.dispatchQueryResult(msg.SessionID(), session, queryMsg.SQL, queryMsg.Database)
 	}
 
 	// 检查权限
@@ -483,6 +503,8 @@ func (s *EnhancedMockMySQLServerSession) SetParamByName(name string, value inter
 			s.ctx.SetUsername(toString(value))
 		case "autocommit":
 			s.ctx.SetAutocommit(toBool(value))
+		case "in_transaction":
+			s.ctx.SetInTransaction(toBool(value))
 		}
 	}
 }
@@ -495,6 +517,8 @@ func (s *EnhancedMockMySQLServerSession) GetParamByName(name string) interface{}
 				return s.ctx.GetCurrentDB()
 			case "user":
 				return s.ctx.GetUsername()
+			case "in_transaction":
+				return s.ctx.GetInTransaction()
 			}
 		}
 		return nil

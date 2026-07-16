@@ -40,6 +40,11 @@ func (s *testMySQLSession) GetParamByName(name string) interface{} {
 }
 func (s *testMySQLSession) SetParamByName(name string, value interface{}) {
 	s.params[name] = value
+	if name == "in_transaction" {
+		if b, ok := value.(bool); ok {
+			s.ctx.SetInTransaction(b)
+		}
+	}
 }
 
 func TestXMySQLExecutor_ExecuteQuery_ShowRoutesToExecuteShowStatement(t *testing.T) {
