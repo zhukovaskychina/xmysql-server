@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"strings"
@@ -122,6 +124,26 @@ func buildCompositeIndexKey(values map[string]interface{}, index *manager.Index)
 		key = append(key, value)
 	}
 	return key, nil
+}
+
+func buildCompositeKey(row map[string]interface{}, columns []string) ([]byte, error) {
+	if len(columns) == 0 {
+		return nil, fmt.Errorf("composite key columns are empty")
+	}
+
+	parts := make([][]byte, 0, len(columns))
+	for _, col := range columns {
+		val, ok := row[col]
+		if !ok {
+			return nil, fmt.Errorf("missing primary key column '%s'", col)
+		}
+		part := []byte(fmt.Sprintf("%v", val))
+		prefixed := make([]byte, 4, 4+len(part))
+		binary.BigEndian.PutUint32(prefixed, uint32(len(part)))
+		prefixed = append(prefixed, part...)
+		parts = append(parts, prefixed)
+	}
+	return bytes.Join(parts, nil), nil
 }
 
 // buildMultiColumnIndexKey 构建多列索引键

@@ -209,6 +209,15 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		return
 	}
 
+	if err := rejectUnsupportedCreateTableConstraintsSQL(query); err != nil {
+		results <- &Result{
+			Err:        err,
+			ResultType: common.RESULT_TYPE_QUERY,
+			Message:    err.Error(),
+		}
+		return
+	}
+
 	// SQL语法解析
 	stmt, err := sqlparser.Parse(query)
 	if err != nil {
@@ -2406,6 +2415,9 @@ func (e *XMySQLExecutor) checkTableExists(dbName, tableName string) (bool, error
 // createTableImpl 实际的表创建实现
 func (e *XMySQLExecutor) createTableImpl(dbName, tableName string, stmt *sqlparser.DDL) error {
 	logger.Debugf(" Creating table %s.%s", dbName, tableName)
+	if err := rejectUnsupportedCreateTableConstraints(stmt); err != nil {
+		return err
+	}
 
 	// 获取数据目录
 	dataDir := e.getDataDir()
@@ -2483,6 +2495,7 @@ func (e *XMySQLExecutor) createTableStructureFile(dbPath, tableName string, stmt
 	columns := e.parseTableColumns(stmt.TableSpec)
 	indexes := e.parseTableIndexes(stmt.TableSpec)
 	applyIndexMetadataToColumns(columns, indexes)
+	indexes = synthesizePrimaryIndexMetadata(columns, indexes)
 
 	// 构建表结构信息
 	tableInfo := map[string]interface{}{
@@ -2559,6 +2572,7 @@ func (e *XMySQLExecutor) parseTableColumns(spec *sqlparser.TableSpec) []map[stri
 		if strings.Contains(typeText, "primary key") {
 			column["primary"] = true
 			column["unique"] = true
+			column["nullable"] = false
 		}
 		if strings.Contains(typeText, "unique") {
 			column["unique"] = true
@@ -2622,13 +2636,48 @@ func applyIndexMetadataToColumns(columns []map[string]interface{}, indexes []map
 			if col, ok := byName[name]; ok {
 				if isPrimary {
 					col["primary"] = true
-					col["unique"] = true
+					col["nullable"] = false
+					if len(rawColumns) == 1 {
+						col["unique"] = true
+					}
 				} else if isUnique {
 					col["unique"] = true
 				}
 			}
 		}
 	}
+}
+
+func synthesizePrimaryIndexMetadata(columns []map[string]interface{}, indexes []map[string]interface{}) []map[string]interface{} {
+	for _, idx := range indexes {
+		if isPrimary, _ := idx["primary"].(bool); isPrimary {
+			return indexes
+		}
+	}
+
+	primaryColumns := make([]string, 0)
+	for _, col := range columns {
+		isPrimary, _ := col["primary"].(bool)
+		if !isPrimary {
+			continue
+		}
+		name, _ := col["name"].(string)
+		if name != "" {
+			primaryColumns = append(primaryColumns, name)
+		}
+	}
+	if len(primaryColumns) == 0 {
+		return indexes
+	}
+
+	primaryIndex := map[string]interface{}{
+		"name":    "PRIMARY",
+		"type":    "PRIMARY KEY",
+		"unique":  true,
+		"primary": true,
+		"columns": primaryColumns,
+	}
+	return append([]map[string]interface{}{primaryIndex}, indexes...)
 }
 
 // parseTableIndexes 解析表索引定义
@@ -2656,6 +2705,29 @@ func (e *XMySQLExecutor) parseTableIndexes(spec *sqlparser.TableSpec) []map[stri
 	}
 
 	return indexes
+}
+
+func rejectUnsupportedCreateTableConstraints(stmt *sqlparser.DDL) error {
+	if stmt == nil || stmt.Action != "create" {
+		return nil
+	}
+	return rejectUnsupportedCreateTableConstraintsSQL(sqlparser.String(stmt))
+}
+
+func rejectUnsupportedCreateTableConstraintsSQL(query string) error {
+	ddl := strings.ToLower(query)
+	if !strings.HasPrefix(strings.TrimSpace(ddl), "create table") {
+		return nil
+	}
+	switch {
+	case strings.Contains(ddl, "foreign key"):
+		return fmt.Errorf("unsupported constraint: foreign key")
+	case strings.Contains(ddl, " check ") || strings.Contains(ddl, " check("):
+		return fmt.Errorf("unsupported constraint: check")
+	case strings.Contains(ddl, "fulltext"):
+		return fmt.Errorf("unsupported constraint: fulltext")
+	}
+	return nil
 }
 
 // parseTableOptions 解析表选项

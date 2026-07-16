@@ -817,30 +817,12 @@ func (dml *StorageIntegratedDMLExecutor) generatePrimaryKeyBytes(
 	row *InsertRowData,
 	tableMeta *metadata.TableMeta,
 ) ([]byte, error) {
-	// 查找主键列
-	var primaryKeyValue interface{}
-	primaryKeyFound := false
-
-	// 从表元数据中找到主键列名
-	for _, col := range tableMeta.Columns {
-		if col.IsPrimary {
-			// 在行数据中查找主键值
-			if val, exists := row.ColumnValues[col.Name]; exists {
-				primaryKeyValue = val
-				primaryKeyFound = true
-				break
-			}
-		}
-	}
-
-	if !primaryKeyFound {
-		return nil, fmt.Errorf("未找到主键列或主键值")
-	}
-
-	// 将主键值转换为字节
-	primaryKeyBytes, err := dml.convertValueToBytes(primaryKeyValue)
+	primaryKeyBytes, ok, err := buildPrimaryKeyIfAvailable(row.ColumnValues, tableMeta)
 	if err != nil {
-		return nil, fmt.Errorf("转换主键为字节失败: %v", err)
+		return nil, err
+	}
+	if !ok {
+		return nil, fmt.Errorf("未找到主键列或主键值")
 	}
 
 	return primaryKeyBytes, nil
@@ -851,30 +833,12 @@ func (dml *StorageIntegratedDMLExecutor) generatePrimaryKeyBytesFromRowData(
 	rowData map[string]interface{},
 	tableMeta *metadata.TableMeta,
 ) ([]byte, error) {
-	// 查找主键列
-	var primaryKeyValue interface{}
-	primaryKeyFound := false
-
-	// 从表元数据中找到主键列名
-	for _, col := range tableMeta.Columns {
-		if col.IsPrimary {
-			// 在行数据中查找主键值
-			if val, exists := rowData[col.Name]; exists {
-				primaryKeyValue = val
-				primaryKeyFound = true
-				break
-			}
-		}
-	}
-
-	if !primaryKeyFound {
-		return nil, fmt.Errorf("未找到主键列或主键值")
-	}
-
-	// 将主键值转换为字节
-	primaryKeyBytes, err := dml.convertValueToBytes(primaryKeyValue)
+	primaryKeyBytes, ok, err := buildPrimaryKeyIfAvailable(rowData, tableMeta)
 	if err != nil {
-		return nil, fmt.Errorf("转换主键为字节失败: %v", err)
+		return nil, err
+	}
+	if !ok {
+		return nil, fmt.Errorf("未找到主键列或主键值")
 	}
 
 	return primaryKeyBytes, nil

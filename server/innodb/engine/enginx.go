@@ -348,6 +348,13 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			return
 		}
 
+		if err := rejectUnsupportedCreateTableConstraintsSQL(query); err != nil {
+			execErr = err
+			status = "failed"
+			results <- &Result{Err: err, ResultType: common.RESULT_TYPE_ERROR, Message: err.Error()}
+			return
+		}
+
 		stmt, err := sqlparser.Parse(query)
 		if err != nil {
 			logger.Errorf(" [XMySQLEngine.ExecuteQuery] SQL解析错误: %v", err)

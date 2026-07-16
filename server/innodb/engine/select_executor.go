@@ -842,6 +842,7 @@ func (se *SelectExecutor) getTableMetadata() (*metadata.TableMeta, error) {
 type frmTableInfo struct {
 	TableName string                   `json:"table_name"`
 	Columns   []map[string]interface{} `json:"columns"`
+	Indexes   []map[string]interface{} `json:"indexes"`
 }
 
 // loadTableMetaFromFrm 从 dataDir/schema/table.frm（JSON）加载表定义，与 executor 写入格式一致。
@@ -901,6 +902,29 @@ func (se *SelectExecutor) loadTableMetaFromFrm(dataDir, schemaName, tableName st
 		if isPrimary {
 			meta.PrimaryKey = append(meta.PrimaryKey, name)
 		}
+	}
+	for _, idx := range info.Indexes {
+		name, _ := idx["name"].(string)
+		if name == "" {
+			continue
+		}
+		rawColumns, _ := idx["columns"].([]interface{})
+		columns := make([]string, 0, len(rawColumns))
+		for _, rawColumn := range rawColumns {
+			columnName, _ := rawColumn.(string)
+			if columnName != "" {
+				columns = append(columns, columnName)
+			}
+		}
+		if len(columns) == 0 {
+			continue
+		}
+		unique, _ := idx["unique"].(bool)
+		meta.Indices = append(meta.Indices, metadata.IndexMeta{
+			Name:    name,
+			Columns: columns,
+			Unique:  unique,
+		})
 	}
 	logger.Debugf(" [SelectExecutor] 从 .frm 加载表定义: %s.%s, 列数=%d", schemaName, tableName, len(meta.Columns))
 	return meta, nil

@@ -32,6 +32,10 @@ func (dml *StorageIntegratedDMLExecutor) generatePrimaryKey(row *InsertRowData, 
 		return value, nil
 	}
 
+	if len(tableMeta.PrimaryKey) > 1 {
+		return buildCompositeKey(row.ColumnValues, tableMeta.PrimaryKey)
+	}
+
 	for _, col := range tableMeta.Columns {
 		if col == nil || !col.IsPrimary {
 			continue
@@ -898,6 +902,9 @@ func (dml *StorageIntegratedDMLExecutor) validateInsertData(rows []*InsertRowDat
 				continue
 			}
 			if _, exists := row.ColumnValues[col.Name]; exists {
+				if row.ColumnValues[col.Name] == nil && !col.IsNullable && !col.IsAutoIncrement {
+					return fmt.Errorf("Column '%s' cannot be null: not null constraint failed", col.Name)
+				}
 				continue
 			}
 			if col.IsAutoIncrement {
@@ -909,7 +916,7 @@ func (dml *StorageIntegratedDMLExecutor) validateInsertData(rows []*InsertRowDat
 				continue
 			}
 			if !col.IsNullable {
-				return fmt.Errorf("列 %s 不允许为 NULL", col.Name)
+				return fmt.Errorf("Column '%s' cannot be null: not null constraint failed", col.Name)
 			}
 		}
 	}
@@ -944,13 +951,31 @@ func (dml *StorageIntegratedDMLExecutor) validateUniqueConstraints(
 	tableStorageInfo *manager.TableStorageInfo,
 	btreeManager basic.BPlusTreeManager,
 ) error {
+	if len(tableMeta.PrimaryKey) > 0 {
+		seenPrimaryKeys := make(map[string]struct{})
+		for _, row := range insertRows {
+			keyBytes, ok, err := buildPrimaryKeyIfAvailable(row.ColumnValues, tableMeta)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				continue
+			}
+			key := string(keyBytes)
+			if _, exists := seenPrimaryKeys[key]; exists {
+				return fmt.Errorf("Duplicate entry '%s' for key 'PRIMARY'", formatCompositeKeyValues(row.ColumnValues, tableMeta.PrimaryKey))
+			}
+			seenPrimaryKeys[key] = struct{}{}
+		}
+	}
+
 	uniqueColumns := make([]string, 0)
 	for _, col := range tableMeta.Columns {
-		if col != nil && col.IsUnique {
+		if col != nil && col.IsUnique && !isCompositePrimaryKeyColumn(col.Name, tableMeta.PrimaryKey) {
 			uniqueColumns = append(uniqueColumns, col.Name)
 		}
 	}
-	if len(uniqueColumns) == 0 {
+	if len(uniqueColumns) == 0 && len(tableMeta.PrimaryKey) == 0 {
 		return nil
 	}
 
@@ -974,6 +999,27 @@ func (dml *StorageIntegratedDMLExecutor) validateUniqueConstraints(
 		return err
 	}
 	for _, rowInfo := range existingRows {
+		if len(tableMeta.PrimaryKey) > 0 {
+			existingKey, ok, err := buildPrimaryKeyIfAvailable(rowInfo.OldValues, tableMeta)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				continue
+			}
+			for _, row := range insertRows {
+				incomingKey, ok, err := buildPrimaryKeyIfAvailable(row.ColumnValues, tableMeta)
+				if err != nil {
+					return err
+				}
+				if !ok {
+					continue
+				}
+				if string(existingKey) == string(incomingKey) {
+					return fmt.Errorf("Duplicate entry '%s' for key 'PRIMARY'", formatCompositeKeyValues(row.ColumnValues, tableMeta.PrimaryKey))
+				}
+			}
+		}
 		for _, colName := range uniqueColumns {
 			existing, exists := rowInfo.OldValues[colName]
 			if !exists || existing == nil {
@@ -992,6 +1038,56 @@ func (dml *StorageIntegratedDMLExecutor) validateUniqueConstraints(
 	}
 
 	return nil
+}
+
+func buildPrimaryKeyIfAvailable(row map[string]interface{}, tableMeta *metadata.TableMeta) ([]byte, bool, error) {
+	if tableMeta == nil || len(tableMeta.PrimaryKey) == 0 {
+		return nil, false, nil
+	}
+	for _, columnName := range tableMeta.PrimaryKey {
+		value, exists := row[columnName]
+		if exists && value != nil {
+			continue
+		}
+		if col := findColumnMeta(tableMeta, columnName); col != nil && col.IsAutoIncrement {
+			return nil, false, nil
+		}
+		return nil, false, fmt.Errorf("missing primary key column '%s'", columnName)
+	}
+	key, err := buildCompositeKey(row, tableMeta.PrimaryKey)
+	return key, true, err
+}
+
+func findColumnMeta(tableMeta *metadata.TableMeta, columnName string) *metadata.ColumnMeta {
+	if tableMeta == nil {
+		return nil
+	}
+	for _, col := range tableMeta.Columns {
+		if col != nil && strings.EqualFold(col.Name, columnName) {
+			return col
+		}
+	}
+	return nil
+}
+
+func isCompositePrimaryKeyColumn(columnName string, primaryKey []string) bool {
+	if len(primaryKey) <= 1 {
+		return false
+	}
+	for _, pkCol := range primaryKey {
+		if strings.EqualFold(pkCol, columnName) {
+			return true
+		}
+	}
+	return false
+}
+
+func formatCompositeKeyValues(row map[string]interface{}, columns []string) string {
+	values := make([]string, 0, len(columns))
+	for _, col := range columns {
+		values = append(values, fmt.Sprintf("%v", row[col]))
+	}
+	return strings.Join(values, "-")
 }
 
 func (dml *StorageIntegratedDMLExecutor) rowIDFromRowData(row *InsertRowData, tableMeta *metadata.TableMeta) uint64 {
