@@ -405,6 +405,18 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 				}
 				logger.Debugf("TRUNCATE TABLE使用数据库: %s", currentDB)
 				e.QueryExecutor.executeTruncateTableStatement(ctx, currentDB, stmt)
+			case "alter":
+				stage = "ddl-alter-table"
+				currentDB := databaseName
+				if currentDB == "" && session != nil {
+					if dbParam := session.GetParamByName("database"); dbParam != nil {
+						if db, ok := dbParam.(string); ok {
+							currentDB = db
+						}
+					}
+				}
+				logger.Debugf("ALTER TABLE使用数据库: %s", currentDB)
+				e.QueryExecutor.executeAlterTableStatement(ctx, currentDB, stmt)
 			default:
 				execErr = fmt.Errorf("unsupported DDL action: %s", stmt.Action)
 				status = "failed"

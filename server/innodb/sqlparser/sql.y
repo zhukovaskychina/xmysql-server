@@ -1183,6 +1183,17 @@ alter_statement:
   {
     $$ = &DDL{Action: AlterStr, Table: $4, NewName: $4}
   }
+| ALTER ignore_opt TABLE table_name ADD COLUMN column_definition force_eof
+  {
+    $$ = &DDL{
+      Action: AlterStr,
+      Table: $4,
+      NewName: $4,
+      TableSpec: &TableSpec{
+        Columns: []*ColumnDefinition{$7},
+      },
+    }
+  }
 | ALTER ignore_opt TABLE table_name ADD alter_object_type force_eof
   {
     $$ = &DDL{Action: AlterStr, Table: $4, NewName: $4}

@@ -291,6 +291,9 @@ func (e *XMySQLExecutor) executeDDL(stmt *sqlparser.DDL, mysqlSession server.MyS
 	case "truncate":
 		logger.Debugf("TRUNCATE TABLE使用数据库: %s", currentDB)
 		e.executeTruncateTableStatement(ctx, currentDB, stmt)
+	case "alter":
+		logger.Debugf("ALTER TABLE使用数据库: %s", currentDB)
+		e.executeAlterTableStatement(ctx, currentDB, stmt)
 	default:
 		results <- &Result{
 			Err:        newExecutorErrorf("ddl-action", ExecutionErrorCodeValidation, currentDB, "", "", fmt.Errorf("unsupported DDL action: %s", stmt.Action), "unsupported DDL action"),
@@ -298,6 +301,82 @@ func (e *XMySQLExecutor) executeDDL(stmt *sqlparser.DDL, mysqlSession server.MyS
 			Message:    fmt.Sprintf("Unsupported DDL action: %s", stmt.Action),
 		}
 	}
+}
+
+func (e *XMySQLExecutor) executeAlterTableStatement(ctx *ExecutionContext, currentDB string, stmt *sqlparser.DDL) {
+	tableName := stmt.Table.Name.String()
+	databaseName := stmt.Table.Qualifier.String()
+	if databaseName == "" {
+		databaseName = currentDB
+	}
+	if databaseName == "" || tableName == "" {
+		ctx.Results <- &Result{Err: fmt.Errorf("ALTER TABLE requires database and table"), ResultType: common.RESULT_TYPE_DDL}
+		return
+	}
+	if stmt.TableSpec == nil || len(stmt.TableSpec.Columns) == 0 {
+		ctx.Results <- &Result{Err: fmt.Errorf("unsupported ALTER TABLE action"), ResultType: common.RESULT_TYPE_DDL}
+		return
+	}
+	if err := e.alterTableAddColumns(databaseName, tableName, stmt.TableSpec.Columns); err != nil {
+		ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_DDL, Message: fmt.Sprintf("ALTER TABLE failed: %v", err)}
+		return
+	}
+	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_DDL, Message: fmt.Sprintf("Table '%s' altered successfully", tableName)}
+}
+
+func (e *XMySQLExecutor) alterTableAddColumns(dbName, tableName string, cols []*sqlparser.ColumnDefinition) error {
+	frmPath := filepath.Join(e.getDataDir(), dbName, tableName+".frm")
+	raw, err := os.ReadFile(frmPath)
+	if err != nil {
+		return fmt.Errorf("read table metadata failed: %v", err)
+	}
+
+	var tableInfo map[string]interface{}
+	if err := json.Unmarshal(raw, &tableInfo); err != nil {
+		return fmt.Errorf("parse table metadata failed: %v", err)
+	}
+
+	existing, _ := tableInfo["columns"].([]interface{})
+	seen := map[string]struct{}{}
+	for _, col := range existing {
+		if m, ok := col.(map[string]interface{}); ok {
+			if name, _ := m["name"].(string); name != "" {
+				seen[strings.ToLower(name)] = struct{}{}
+			}
+		}
+	}
+
+	for _, col := range cols {
+		name := col.Name.String()
+		if _, ok := seen[strings.ToLower(name)]; ok {
+			return fmt.Errorf("duplicate column '%s'", name)
+		}
+
+		defaultValue := ""
+		if col.Type.Default != nil {
+			defaultValue = sqlparser.String(col.Type.Default)
+		}
+		existing = append(existing, map[string]interface{}{
+			"name":     name,
+			"type":     col.Type.Type,
+			"length":   col.Type.Length,
+			"scale":    col.Type.Scale,
+			"unsigned": col.Type.Unsigned,
+			"nullable": !col.Type.NotNull,
+			"default":  defaultValue,
+		})
+		seen[strings.ToLower(name)] = struct{}{}
+	}
+	tableInfo["columns"] = existing
+
+	out, err := json.MarshalIndent(tableInfo, "", "  ")
+	if err != nil {
+		return fmt.Errorf("serialize table metadata failed: %v", err)
+	}
+	if err := os.WriteFile(frmPath, out, 0644); err != nil {
+		return fmt.Errorf("write table metadata failed: %v", err)
+	}
+	return nil
 }
 
 // executeTruncateTableStatement 执行 TRUNCATE TABLE，保留表元数据并重建表空间。

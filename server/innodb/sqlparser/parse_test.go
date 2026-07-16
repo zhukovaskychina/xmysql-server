@@ -2122,6 +2122,47 @@ func TestParseDropDatabaseIfExists(t *testing.T) {
 	}
 }
 
+func TestParseAlterTableAddColumnPreservesColumnDefinition(t *testing.T) {
+	stmt, err := Parse("alter table app.users add column name varchar(100) not null default 'guest'")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ddl, ok := stmt.(*DDL)
+	if !ok {
+		t.Fatalf("Parse() returned %T, want *DDL", stmt)
+	}
+	if ddl.Action != AlterStr {
+		t.Errorf("Action = %q, want %q", ddl.Action, AlterStr)
+	}
+	if got, want := ddl.Table.Qualifier.String(), "app"; got != want {
+		t.Errorf("Table.Qualifier = %q, want %q", got, want)
+	}
+	if got, want := ddl.Table.Name.String(), "users"; got != want {
+		t.Errorf("Table.Name = %q, want %q", got, want)
+	}
+	if ddl.TableSpec == nil {
+		t.Fatal("TableSpec = nil, want added column definition")
+	}
+	if got, want := len(ddl.TableSpec.Columns), 1; got != want {
+		t.Fatalf("len(TableSpec.Columns) = %d, want %d", got, want)
+	}
+
+	column := ddl.TableSpec.Columns[0]
+	if got, want := column.Name.String(), "name"; got != want {
+		t.Errorf("column name = %q, want %q", got, want)
+	}
+	if got, want := column.Type.Type, "varchar"; got != want {
+		t.Errorf("column type = %q, want %q", got, want)
+	}
+	if !column.Type.NotNull {
+		t.Error("column NotNull = false, want true")
+	}
+	if got, want := String(column.Type.Default), "'guest'"; got != want {
+		t.Errorf("column default = %q, want %q", got, want)
+	}
+}
+
 // Benchmark run on 6/23/17, prior to improvements:
 // BenchmarkParse1-4         100000             16334 ns/op
 // BenchmarkParse2-4          30000             44121 ns/op

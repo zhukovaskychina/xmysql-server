@@ -1,9 +1,13 @@
 package engine
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
@@ -41,4 +45,24 @@ func TestXMySQLEngine_extractTableExprSchema(t *testing.T) {
 
 	got := engine.extractTableExprSchema(updateStmt.TableExprs)
 	assert.Equal(t, "p0e_db", got)
+}
+
+func TestXMySQLEngineExecuteQueryAlterTableAddColumn(t *testing.T) {
+	tmp := t.TempDir()
+	dbPath := filepath.Join(tmp, "app")
+	require.NoError(t, os.MkdirAll(dbPath, 0755))
+
+	cfg := &conf.Cfg{InnodbDataDir: tmp}
+	executor := NewXMySQLExecutor(nil, cfg)
+	createStmt, err := sqlparser.Parse("create table users (id int primary key)")
+	require.NoError(t, err)
+	require.NoError(t, executor.createTableImpl("app", "users", createStmt.(*sqlparser.DDL)))
+
+	engine := &XMySQLEngine{conf: cfg, QueryExecutor: executor}
+	got := <-engine.ExecuteQuery(nil, "alter table users add column name varchar(100)", "app")
+	require.NoError(t, got.Err)
+
+	raw, err := os.ReadFile(filepath.Join(dbPath, "users.frm"))
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"name": "name"`)
 }
