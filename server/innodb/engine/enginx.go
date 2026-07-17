@@ -407,7 +407,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 					}
 				}
 				logger.Debugf("🗑️ DROP TABLE使用数据库: %s", currentDB)
-				e.QueryExecutor.executeDropTableStatement(ctx, stmt)
+				e.QueryExecutor.executeDropTableStatement(ctx, currentDB, stmt)
 			case "truncate":
 				stage = "ddl-truncate-table"
 				currentDB := databaseName
@@ -495,6 +495,12 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			// 处理INSERT语句
 			stage = "insert"
 			logger.Debugf(" 处理INSERT语句")
+			if err := e.QueryExecutor.prepareTransactionalDML(session); err != nil {
+				execErr = err
+				status = "failed"
+				results <- &Result{Err: err, ResultType: common.RESULT_TYPE_ERROR, Message: err.Error()}
+				return
+			}
 			explicitSchema := strings.TrimSpace(stmt.Table.Qualifier.String())
 			result, err := e.QueryExecutor.executeInsertStatement(ctx, stmt, e.resolveDmlDatabaseName(session, databaseName, explicitSchema))
 			if err != nil {
@@ -515,6 +521,12 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			// 处理UPDATE语句
 			stage = "update"
 			logger.Debugf("✏️ 处理UPDATE语句")
+			if err := e.QueryExecutor.prepareTransactionalDML(session); err != nil {
+				execErr = err
+				status = "failed"
+				results <- &Result{Err: err, ResultType: common.RESULT_TYPE_ERROR, Message: err.Error()}
+				return
+			}
 			explicitSchema := e.extractTableExprSchema(stmt.TableExprs)
 			result, err := e.QueryExecutor.executeUpdateStatement(ctx, stmt, e.resolveDmlDatabaseName(session, databaseName, explicitSchema))
 			if err != nil {
@@ -535,6 +547,12 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			// 处理DELETE语句
 			stage = "delete"
 			logger.Debugf("🗑️ 处理DELETE语句")
+			if err := e.QueryExecutor.prepareTransactionalDML(session); err != nil {
+				execErr = err
+				status = "failed"
+				results <- &Result{Err: err, ResultType: common.RESULT_TYPE_ERROR, Message: err.Error()}
+				return
+			}
 			explicitSchema := e.extractTableExprSchema(stmt.TableExprs)
 			result, err := e.QueryExecutor.executeDeleteStatement(ctx, stmt, e.resolveDmlDatabaseName(session, databaseName, explicitSchema))
 			if err != nil {

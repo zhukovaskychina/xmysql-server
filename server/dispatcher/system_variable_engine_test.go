@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zhukovaskychina/xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
@@ -27,7 +28,7 @@ func TestSystemVariableEngine_InformationSchemaTablesFiltersEqualityPredicates(t
 	require.NotNil(t, result)
 	require.NoError(t, result.Err)
 	assert.Equal(t, informationSchemaTablesColumns(), result.Columns)
-	assert.Equal(t, [][]interface{}{{nil, "app_schema", "orders", "TABLE", ""}}, result.Rows)
+	assert.Equal(t, [][]interface{}{informationSchemaTableRow("app_schema", "orders")}, result.Rows)
 }
 
 func TestSystemVariableEngine_InformationSchemaTablesFiltersLikePredicates(t *testing.T) {
@@ -42,13 +43,38 @@ func TestSystemVariableEngine_InformationSchemaTablesFiltersLikePredicates(t *te
 
 	require.NotNil(t, result)
 	require.NoError(t, result.Err)
-	assert.Equal(t, [][]interface{}{{nil, "app_schema", "orders", "TABLE", ""}}, result.Rows)
+	assert.Equal(t, [][]interface{}{informationSchemaTableRow("app_schema", "orders")}, result.Rows)
 }
 
 func TestSystemVariableEngine_InformationSchemaTablesIgnoresNonSelectStatements(t *testing.T) {
 	result := (&SystemVariableEngine{}).executeInformationSchemaTablesQuery("DELETE FROM information_schema.tables")
 
 	assert.Nil(t, result)
+}
+
+func TestSystemVariableEngine_InformationSchemaTablesUsesConfiguredDataDir(t *testing.T) {
+	dataDir := t.TempDir()
+	frmPath := filepath.Join(dataDir, "app_schema", "orders.frm")
+	require.NoError(t, os.MkdirAll(filepath.Dir(frmPath), 0o755))
+	require.NoError(t, os.WriteFile(frmPath, nil, 0o644))
+
+	storageManager := manager.NewStorageManager(&conf.Cfg{
+		DataDir:              dataDir,
+		InnodbDataDir:        dataDir,
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+		InnodbPageSize:       16384,
+	})
+	result := (&SystemVariableEngine{storageManager: storageManager}).executeInformationSchemaTablesQuery(
+		"SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema = 'app_schema' AND table_name = 'orders'",
+	)
+
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	assert.Equal(t, [][]interface{}{informationSchemaTableRow("app_schema", "orders")}, result.Rows)
+}
+
+func informationSchemaTableRow(schemaName, tableName string) []interface{} {
+	return []interface{}{schemaName, nil, tableName, "TABLE", "", nil, nil, nil, nil, nil}
 }
 
 func useInformationSchemaTablesFixture(t *testing.T, schemas map[string][]string) {
@@ -117,6 +143,23 @@ func TestSystemVariableEngine_ExecuteShowStatement_GlobalVariablesUsesGlobalScop
 	require.Len(t, result.Rows, 1)
 	assert.Equal(t, "autocommit", result.Rows[0][0])
 	assert.Equal(t, "OFF", result.Rows[0][1])
+}
+
+func TestSystemVariableEngine_SetAutocommitSyncsSessionState(t *testing.T) {
+	sysVarMgr := manager.NewSystemVariablesManager()
+	engine := &SystemVariableEngine{
+		name:          "system_variable",
+		sysVarManager: sysVarMgr,
+	}
+	session := newTestDispatcherSession()
+	session.SetParamByName("session_id", "sess-set-autocommit")
+	session.SetParamByName("autocommit", "1")
+
+	result := engine.executeSetStatement(session, "set autocommit=0", "testdb")
+
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	assert.Equal(t, "0", session.GetParamByName("autocommit"))
 }
 
 func TestSystemVariableEngine_ExecuteShowStatement_SessionVariablesUsesSessionScope(t *testing.T) {

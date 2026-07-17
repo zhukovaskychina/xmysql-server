@@ -395,6 +395,16 @@ func (sm *StorageManager) Sync(spaceID uint32) error {
 	return sm.Flush()
 }
 
+func (sm *StorageManager) DataDir() string {
+	if sm == nil || sm.config == nil {
+		return ""
+	}
+	if sm.config.InnodbDataDir != "" {
+		return sm.config.InnodbDataDir
+	}
+	return sm.config.DataDir
+}
+
 // NewStorageManager creates a new storage manager instance
 func NewStorageManager(cfg *conf.Cfg) *StorageManager {
 	if cfg == nil {

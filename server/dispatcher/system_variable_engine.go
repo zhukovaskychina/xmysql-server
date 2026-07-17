@@ -391,6 +391,11 @@ func (e *SystemVariableEngine) executeInformationSchemaTablesQuery(query string)
 	}
 
 	dataDir := filepath.Join("server", "net", "data")
+	if e.storageManager != nil {
+		if configuredDataDir := e.storageManager.DataDir(); configuredDataDir != "" {
+			dataDir = configuredDataDir
+		}
+	}
 	schemaPattern := filters["table_schema"]
 	tablePattern := filters["table_name"]
 	rows := make([][]interface{}, 0)
@@ -416,7 +421,7 @@ func (e *SystemVariableEngine) executeInformationSchemaTablesQuery(query string)
 			}
 			tableName := strings.TrimSuffix(table.Name(), ".frm")
 			if matchesMetadataPattern(tableName, tablePattern) {
-				rows = append(rows, []interface{}{nil, entry.Name(), tableName, "TABLE", ""})
+				rows = append(rows, []interface{}{entry.Name(), nil, tableName, "TABLE", "", nil, nil, nil, nil, nil})
 			}
 		}
 	}
@@ -428,7 +433,18 @@ func (e *SystemVariableEngine) executeInformationSchemaTablesQuery(query string)
 }
 
 func informationSchemaTablesColumns() []string {
-	return []string{"TABLE_CAT", "TABLE_SCHEM", "TABLE_NAME", "TABLE_TYPE", "REMARKS"}
+	return []string{
+		"TABLE_CAT",
+		"TABLE_SCHEM",
+		"TABLE_NAME",
+		"TABLE_TYPE",
+		"REMARKS",
+		"TYPE_CAT",
+		"TYPE_SCHEM",
+		"TYPE_NAME",
+		"SELF_REFERENCING_COL_NAME",
+		"REF_GENERATION",
+	}
 }
 
 func matchesMetadataPattern(value, pattern string) bool {
@@ -811,7 +827,7 @@ func (e *SystemVariableEngine) executeSetStatement(session server.MySQLServerSes
 
 	// 处理每个SET表达式
 	for _, expr := range setStmt.Exprs {
-		if err := e.processSetExpression(sessionID, expr); err != nil {
+		if err := e.processSetExpression(session, sessionID, expr); err != nil {
 			logger.Errorf(" [executeSetStatement] 处理SET表达式失败: %v", err)
 			return &SQLResult{
 				ResultType: "error",
@@ -833,7 +849,7 @@ func (e *SystemVariableEngine) executeSetStatement(session server.MySQLServerSes
 }
 
 // processSetExpression 处理单个SET表达式
-func (e *SystemVariableEngine) processSetExpression(sessionID string, expr *sqlparser.SetExpr) error {
+func (e *SystemVariableEngine) processSetExpression(session server.MySQLServerSession, sessionID string, expr *sqlparser.SetExpr) error {
 	// 获取变量名
 	varName := expr.Name.String()
 	logger.Debugf(" [processSetExpression] 处理变量: %s", varName)
@@ -856,9 +872,67 @@ func (e *SystemVariableEngine) processSetExpression(sessionID string, expr *sqlp
 		// 对于未知的系统变量，我们记录警告但不返回错误，保持MySQL兼容性
 		return nil
 	}
+	e.syncSetVariableToSession(session, scope, cleanVarName, value)
 
 	logger.Debugf(" [processSetExpression] 变量 %s 设置成功", cleanVarName)
 	return nil
+}
+
+func (e *SystemVariableEngine) syncSetVariableToSession(session server.MySQLServerSession, scope manager.SystemVariableScope, name string, value interface{}) {
+	if session == nil || scope == manager.GlobalScope {
+		return
+	}
+	cleanName := strings.ToLower(strings.TrimSpace(name))
+	cleanName = strings.Trim(cleanName, "`")
+	switch cleanName {
+	case "autocommit":
+		session.SetParamByName(cleanName, formatAutocommitValue(value))
+	case "names":
+		charset := fmt.Sprintf("%v", value)
+		if charset == "" || charset == "<nil>" {
+			charset = "utf8mb4"
+		}
+		session.SetParamByName("character_set_client", charset)
+		session.SetParamByName("character_set_connection", charset)
+		session.SetParamByName("character_set_results", charset)
+	case "character_set_client", "character_set_connection", "character_set_results",
+		"character_set_database", "character_set_server", "sql_mode", "time_zone",
+		"transaction_isolation", "tx_isolation", "net_write_timeout", "net_read_timeout",
+		"max_allowed_packet":
+		session.SetParamByName(cleanName, fmt.Sprintf("%v", value))
+	default:
+		session.SetParamByName(cleanName, fmt.Sprintf("%v", value))
+	}
+}
+
+func formatAutocommitValue(value interface{}) string {
+	switch v := value.(type) {
+	case bool:
+		if v {
+			return "1"
+		}
+		return "0"
+	case string:
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "0", "off", "false", "no":
+			return "0"
+		default:
+			return "1"
+		}
+	case int:
+		if v == 0 {
+			return "0"
+		}
+	case int64:
+		if v == 0 {
+			return "0"
+		}
+	case uint64:
+		if v == 0 {
+			return "0"
+		}
+	}
+	return "1"
 }
 
 // parseSetVariableName 解析SET变量名，提取作用域和变量名

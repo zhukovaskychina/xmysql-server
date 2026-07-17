@@ -3,7 +3,11 @@ package manager
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1071,7 +1075,10 @@ func (idx *EnhancedBTreeIndex) parsePageContent(bufferPage interface{}) (*BTreeP
 		LastAccess:  time.Now(),
 		PinCount:    1,
 	}
-	if records, err := parsePersistentIndexRecords(data, pageNo); err == nil && len(records) > 0 {
+	if records, err := idx.readIndexRecordsSidecar(pageNo); err == nil && len(records) > 0 {
+		page.Records = records
+		page.RecordCount = uint16(len(records))
+	} else if records, err := parsePersistentIndexRecords(data, pageNo); err == nil && len(records) > 0 {
 		page.Records = records
 		page.RecordCount = uint16(len(records))
 	}
@@ -1109,7 +1116,10 @@ func (idx *EnhancedBTreeIndex) persistIndexRecords(bufferPage *buffer_pool.Buffe
 	}
 
 	if enhancedBTreeRecordBlockOffset+len(block) > len(content) {
-		return fmt.Errorf("index record block too large: %d bytes", len(block))
+		if err := idx.writeIndexRecordsSidecar(page.PageNo, page.Records); err != nil {
+			return fmt.Errorf("index record block too large: %d bytes; sidecar write failed: %v", len(block), err)
+		}
+		return nil
 	}
 	next := append([]byte(nil), content...)
 	copy(next[enhancedBTreeRecordBlockOffset:], block)
@@ -1168,6 +1178,49 @@ func parsePersistentIndexRecords(content []byte, pageNo uint32) ([]IndexRecord, 
 			SlotNo:     uint16(i),
 			DeleteMark: deleted,
 		})
+	}
+	return records, nil
+}
+
+func (idx *EnhancedBTreeIndex) indexRecordsSidecarPath(pageNo uint32) (string, error) {
+	if idx == nil || idx.storageManager == nil || strings.TrimSpace(idx.storageManager.DataDir()) == "" {
+		return "", fmt.Errorf("storage data dir unavailable")
+	}
+	dir := filepath.Join(idx.storageManager.DataDir(), "innodb", "_xmysql_btree_records")
+	return filepath.Join(dir, fmt.Sprintf("space_%d_page_%d.json", idx.metadata.SpaceID, pageNo)), nil
+}
+
+func (idx *EnhancedBTreeIndex) writeIndexRecordsSidecar(pageNo uint32, records []IndexRecord) error {
+	path, err := idx.indexRecordsSidecarPath(pageNo)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	data, err := json.Marshal(records)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
+func (idx *EnhancedBTreeIndex) readIndexRecordsSidecar(pageNo uint32) ([]IndexRecord, error) {
+	path, err := idx.indexRecordsSidecarPath(pageNo)
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var records []IndexRecord
+	if err := json.Unmarshal(data, &records); err != nil {
+		return nil, err
+	}
+	for i := range records {
+		records[i].PageNo = pageNo
+		records[i].SlotNo = uint16(i)
 	}
 	return records, nil
 }

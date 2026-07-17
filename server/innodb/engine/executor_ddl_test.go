@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
@@ -127,6 +128,70 @@ func TestTruncateKeepsTableMetadataResolvable(t *testing.T) {
 	require.Equal(t, [][]interface{}{{"after"}}, rows)
 }
 
+func TestDropTableUsesCurrentDatabaseContext(t *testing.T) {
+	tmp := t.TempDir()
+	executor := newTestStorageIntegratedExecutor(t, tmp)
+
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table users (id int primary key)")
+	mustExecSQL(t, executor, "app", "drop table users")
+
+	_, err := os.Stat(filepath.Join(tmp, "app", "users.frm"))
+	require.True(t, os.IsNotExist(err))
+}
+
+func TestTransactionRollbackRestoresDMLChanges(t *testing.T) {
+	tmp := t.TempDir()
+	executor := newTestStorageIntegratedExecutor(t, tmp)
+	session := newTestMySQLSession()
+
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table accounts (id int primary key auto_increment, account_name varchar(50) not null)")
+
+	mustExecSessionSQL(t, executor, session, "app", "begin")
+	mustExecSessionSQL(t, executor, session, "app", "insert into accounts (account_name) values ('Alice')")
+	mustExecSessionSQL(t, executor, session, "app", "rollback")
+
+	rows := mustQuerySessionSQL(t, executor, session, "app", "select account_name from accounts")
+	require.Empty(t, rows)
+}
+
+func TestTransactionRollbackToSavepointRestoresPartialDMLChanges(t *testing.T) {
+	tmp := t.TempDir()
+	executor := newTestStorageIntegratedExecutor(t, tmp)
+	session := newTestMySQLSession()
+
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table accounts (id int primary key auto_increment, account_name varchar(50) not null)")
+
+	mustExecSessionSQL(t, executor, session, "app", "begin")
+	mustExecSessionSQL(t, executor, session, "app", "insert into accounts (account_name) values ('Alice')")
+	mustExecSessionSQL(t, executor, session, "app", "savepoint sp1")
+	mustExecSessionSQL(t, executor, session, "app", "insert into accounts (account_name) values ('Bob')")
+	mustExecSessionSQL(t, executor, session, "app", "rollback to savepoint sp1")
+	mustExecSessionSQL(t, executor, session, "app", "insert into accounts (account_name) values ('Charlie')")
+	mustExecSessionSQL(t, executor, session, "app", "commit")
+
+	rows := mustQuerySessionSQL(t, executor, session, "app", "select account_name from accounts order by account_name")
+	require.Equal(t, [][]interface{}{{"Alice"}, {"Charlie"}}, rows)
+}
+
+func TestTransactionRollbackAfterSetAutocommitOffRestoresDMLChanges(t *testing.T) {
+	tmp := t.TempDir()
+	executor := newTestStorageIntegratedExecutor(t, tmp)
+	session := newTestMySQLSession()
+
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table accounts (id int primary key auto_increment, account_name varchar(50) not null)")
+
+	mustExecSessionSQL(t, executor, session, "app", "set autocommit=0")
+	mustExecSessionSQL(t, executor, session, "app", "insert into accounts (account_name) values ('Alice')")
+	mustExecSessionSQL(t, executor, session, "app", "rollback")
+
+	rows := mustQuerySessionSQL(t, executor, session, "app", "select account_name from accounts")
+	require.Empty(t, rows)
+}
+
 func newTestStorageIntegratedExecutor(t *testing.T, dataDir string) *XMySQLEngine {
 	t.Helper()
 	executor := NewXMySQLEngine(&conf.Cfg{
@@ -141,13 +206,23 @@ func newTestStorageIntegratedExecutor(t *testing.T, dataDir string) *XMySQLEngin
 
 func mustExecSQL(t *testing.T, executor *XMySQLEngine, databaseName, sql string) {
 	t.Helper()
-	got := <-executor.ExecuteQuery(nil, sql, databaseName)
+	mustExecSessionSQL(t, executor, nil, databaseName, sql)
+}
+
+func mustExecSessionSQL(t *testing.T, executor *XMySQLEngine, session server.MySQLServerSession, databaseName, sql string) {
+	t.Helper()
+	got := <-executor.ExecuteQuery(session, sql, databaseName)
 	require.NoError(t, got.Err)
 }
 
 func mustQuerySQL(t *testing.T, executor *XMySQLEngine, databaseName, sql string) [][]interface{} {
 	t.Helper()
-	got := <-executor.ExecuteQuery(nil, sql, databaseName)
+	return mustQuerySessionSQL(t, executor, nil, databaseName, sql)
+}
+
+func mustQuerySessionSQL(t *testing.T, executor *XMySQLEngine, session server.MySQLServerSession, databaseName, sql string) [][]interface{} {
+	t.Helper()
+	got := <-executor.ExecuteQuery(session, sql, databaseName)
 	require.NoError(t, got.Err)
 
 	result, ok := got.Data.(*SelectResult)

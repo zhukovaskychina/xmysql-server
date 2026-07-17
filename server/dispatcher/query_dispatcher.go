@@ -41,6 +41,7 @@ type SQLResult struct {
 	ResultType   string
 	Message      string
 	Columns      []string
+	ColumnTypes  []string
 	Rows         [][]interface{}
 	AffectedRows uint64
 	LastInsertID uint64
@@ -309,6 +310,7 @@ func (e *InnoDBSQLEngine) convertResult(xmysqlResult *engine.Result) *SQLResult 
 func (e *InnoDBSQLEngine) convertSelectResult(xmysqlResult *engine.Result, result *SQLResult) *SQLResult {
 	if selectResult, ok := xmysqlResult.Data.(*engine.SelectResult); ok {
 		result.Columns = selectResult.Columns
+		result.ColumnTypes = selectResult.ColumnTypes
 		result.Rows = make([][]interface{}, 0, len(selectResult.Records))
 		for _, record := range selectResult.Records {
 			if record == nil {
@@ -323,7 +325,7 @@ func (e *InnoDBSQLEngine) convertSelectResult(xmysqlResult *engine.Result, resul
 					row = append(row, basicValueToInterface(value))
 				}
 			}
-			result.Rows = append(result.Rows, row)
+			result.Rows = append(result.Rows, normalizeRowValuesByColumnTypes(row, result.ColumnTypes))
 		}
 		result.Message = selectResult.Message
 		return result
@@ -363,7 +365,13 @@ func basicValueToInterface(value basic.Value) interface{} {
 	}
 
 	switch value.Type() {
-	case basic.ValueTypeTinyInt, basic.ValueTypeSmallInt, basic.ValueTypeMediumInt, basic.ValueTypeInt, basic.ValueTypeBigInt:
+	case basic.ValueTypeTinyInt:
+		return int8(value.Int())
+	case basic.ValueTypeSmallInt:
+		return int16(value.Int())
+	case basic.ValueTypeMediumInt, basic.ValueTypeInt:
+		return int32(value.Int())
+	case basic.ValueTypeBigInt:
 		return value.Int()
 	case basic.ValueTypeFloat, basic.ValueTypeDouble, basic.ValueTypeDecimal:
 		return value.Float64()
@@ -372,6 +380,40 @@ func basicValueToInterface(value basic.Value) interface{} {
 	default:
 		return value.ToString()
 	}
+}
+
+func normalizeRowValuesByColumnTypes(row []interface{}, columnTypes []string) []interface{} {
+	if len(columnTypes) == 0 {
+		return row
+	}
+	normalized := make([]interface{}, len(row))
+	copy(normalized, row)
+	for i := range normalized {
+		if i >= len(columnTypes) {
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(columnTypes[i])) {
+		case "bool", "boolean", "tinyint", "smallint", "mediumint", "int", "integer", "bigint":
+			switch v := normalized[i].(type) {
+			case string:
+				switch strings.ToLower(strings.TrimSpace(v)) {
+				case "true", "1", "yes", "on":
+					normalized[i] = int64(1)
+				case "false", "0", "no", "off":
+					normalized[i] = int64(0)
+				}
+			case int64:
+				if strings.EqualFold(strings.TrimSpace(columnTypes[i]), "bool") || strings.EqualFold(strings.TrimSpace(columnTypes[i]), "boolean") {
+					normalized[i] = v != 0
+				}
+			case int:
+				if strings.EqualFold(strings.TrimSpace(columnTypes[i]), "bool") || strings.EqualFold(strings.TrimSpace(columnTypes[i]), "boolean") {
+					normalized[i] = v != 0
+				}
+			}
+		}
+	}
+	return normalized
 }
 
 // DefaultSQLRouter 默认SQL路由器

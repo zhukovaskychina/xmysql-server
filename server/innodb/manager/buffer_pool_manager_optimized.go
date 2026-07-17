@@ -207,6 +207,20 @@ func (bpm *OptimizedBufferPoolManager) FreePage(spaceID, pageNo uint32) error {
 	return nil
 }
 
+// ClearCache drops all cached pages without flushing them.
+// Callers must only use this after restoring storage from an older snapshot,
+// where flushing dirty pages would re-apply rolled-back data.
+func (bpm *OptimizedBufferPoolManager) ClearCache() {
+	if bpm == nil {
+		return
+	}
+	bpm.lruCache.Purge()
+	bpm.dirtyMutex.Lock()
+	bpm.dirtyPageList = make(map[uint64]*buffer_pool.BufferPage)
+	bpm.dirtyMutex.Unlock()
+	atomic.StoreUint64(&bpm.stats.dirtyPages, 0)
+}
+
 // GetDirtyPage 获取页面并标记为脏页
 func (bpm *OptimizedBufferPoolManager) GetDirtyPage(spaceID, pageNo uint32) (*buffer_pool.BufferPage, error) {
 	page, err := bpm.GetPage(spaceID, pageNo)

@@ -187,6 +187,23 @@ func (adapter *EnhancedBTreeAdapter) FullScan(ctx context.Context) ([]basic.Row,
 	rows := make([]basic.Row, 0)
 	currentPageNo := firstLeafPageNo
 	for currentPageNo != 0 {
+		if sidecarRecords, err := enhancedIndex.readIndexRecordsSidecar(currentPageNo); err == nil && len(sidecarRecords) > 0 {
+			for idx := range sidecarRecords {
+				record := sidecarRecords[idx]
+				if record.DeleteMark {
+					continue
+				}
+				recordCopy := record
+				row := &IndexRecordRowAdapter{record: &recordCopy}
+				rows = append(rows, row)
+			}
+			page, err := enhancedIndex.GetPage(ctx, currentPageNo)
+			if err != nil {
+				return nil, err
+			}
+			currentPageNo = page.NextPage
+			continue
+		}
 		page, err := enhancedIndex.GetPage(ctx, currentPageNo)
 		if err != nil {
 			return nil, err

@@ -504,8 +504,45 @@ func (dml *StorageIntegratedDMLExecutor) scanRowsForConditions(
 	tableStorageInfo *manager.TableStorageInfo,
 	btreeManager basic.BPlusTreeManager,
 ) ([]*RowUpdateInfo, error) {
+	return dml.scanRowsForTableConditions(ctx, dml.schemaName, dml.tableName, whereConditions, tableMeta, tableStorageInfo, btreeManager)
+}
+
+func (dml *StorageIntegratedDMLExecutor) scanRowsForTableConditions(
+	ctx context.Context,
+	schemaName string,
+	tableName string,
+	whereConditions []string,
+	tableMeta *metadata.TableMeta,
+	tableStorageInfo *manager.TableStorageInfo,
+	btreeManager basic.BPlusTreeManager,
+) ([]*RowUpdateInfo, error) {
 	if btreeManager == nil {
 		return nil, fmt.Errorf("B+树管理器未初始化")
+	}
+
+	if sidecarRows, err := decodeTableRowsSidecar(dml.dataDir, schemaName, tableName, tableMeta); err != nil {
+		return nil, err
+	} else if len(sidecarRows) > 0 {
+		matched := make([]*RowUpdateInfo, 0, len(sidecarRows))
+		for slot, rowData := range sidecarRows {
+			rowMatched, err := rowMatchesWhereConditions(rowData.ColumnValues, whereConditions)
+			if err != nil {
+				return nil, err
+			}
+			if !rowMatched {
+				continue
+			}
+			rowID := dml.rowIDFromRowData(rowData, tableMeta)
+			matched = append(matched, &RowUpdateInfo{
+				RowId:      rowID,
+				PageNum:    tableStorageInfo.RootPageNo,
+				SlotIndex:  slot,
+				SchemaName: schemaName,
+				TableName:  tableName,
+				OldValues:  rowData.ColumnValues,
+			})
+		}
+		return matched, nil
 	}
 
 	scanner := NewClusteredIndexScanner(btreeManager, tableMeta)
@@ -518,10 +555,12 @@ func (dml *StorageIntegratedDMLExecutor) scanRowsForConditions(
 	for slot, rowData := range rows {
 		rowID := dml.rowIDFromRowData(rowData, tableMeta)
 		matched = append(matched, &RowUpdateInfo{
-			RowId:     rowID,
-			PageNum:   tableStorageInfo.RootPageNo,
-			SlotIndex: slot,
-			OldValues: rowData.ColumnValues,
+			RowId:      rowID,
+			PageNum:    tableStorageInfo.RootPageNo,
+			SlotIndex:  slot,
+			SchemaName: schemaName,
+			TableName:  tableName,
+			OldValues:  rowData.ColumnValues,
 		})
 	}
 
@@ -931,6 +970,9 @@ func normalizeDefaultValue(raw interface{}, dataType metadata.DataType) interfac
 		if (s[0] == '\'' && s[len(s)-1] == '\'') || (s[0] == '"' && s[len(s)-1] == '"') {
 			s = s[1 : len(s)-1]
 		}
+	}
+	if strings.EqualFold(s, "current_timestamp") || strings.EqualFold(s, "current_timestamp()") {
+		return time.Now().Format("2006-01-02 15:04:05")
 	}
 	switch strings.ToUpper(string(dataType)) {
 	case "INT", "INTEGER", "BIGINT", "SMALLINT", "TINYINT":
@@ -1373,6 +1415,24 @@ func evalPredicate(expr sqlparser.Expr, values map[string]interface{}) (bool, er
 		return evalPredicate(v.Right, values)
 	case *sqlparser.ParenExpr:
 		return evalPredicate(v.Expr, values)
+	case *sqlparser.RangeCond:
+		left, err := evaluateExpressionWithRow(v.Left, values)
+		if err != nil {
+			return false, err
+		}
+		from, err := evaluateExpressionWithRow(v.From, values)
+		if err != nil {
+			return false, err
+		}
+		to, err := evaluateExpressionWithRow(v.To, values)
+		if err != nil {
+			return false, err
+		}
+		matched := compareScalarValues(left, from) >= 0 && compareScalarValues(left, to) <= 0
+		if v.Operator == sqlparser.NotBetweenStr {
+			return !matched, nil
+		}
+		return matched, nil
 	case *sqlparser.ComparisonExpr:
 		left, err := evaluateExpressionWithRow(v.Left, values)
 		if err != nil {
@@ -1480,7 +1540,19 @@ func evaluateExpressionWithRow(expr sqlparser.Expr, values map[string]interface{
 		if value, exists := values[name]; exists {
 			return value, nil
 		}
+		if value, exists := values[strings.ToLower(name)]; exists {
+			return value, nil
+		}
 		return nil, fmt.Errorf("列 %s 不存在", name)
+	case *sqlparser.FuncExpr:
+		name := sqlparser.String(v)
+		if value, exists := values[name]; exists {
+			return value, nil
+		}
+		if value, exists := values[strings.ToLower(name)]; exists {
+			return value, nil
+		}
+		return nil, fmt.Errorf("表达式 %s 不存在", name)
 	case *sqlparser.ParenExpr:
 		return evaluateExpressionWithRow(v.Expr, values)
 	case *sqlparser.UnaryExpr:
@@ -1564,9 +1636,21 @@ func toFloat64(value interface{}) (float64, bool) {
 	switch v := value.(type) {
 	case int:
 		return float64(v), true
+	case int8:
+		return float64(v), true
+	case int16:
+		return float64(v), true
 	case int32:
 		return float64(v), true
 	case int64:
+		return float64(v), true
+	case uint:
+		return float64(v), true
+	case uint8:
+		return float64(v), true
+	case uint16:
+		return float64(v), true
+	case uint32:
 		return float64(v), true
 	case uint64:
 		return float64(v), true
@@ -1576,6 +1660,9 @@ func toFloat64(value interface{}) (float64, bool) {
 		return v, true
 	case string:
 		n, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		return n, err == nil
+	case []byte:
+		n, err := strconv.ParseFloat(strings.TrimSpace(string(v)), 64)
 		return n, err == nil
 	default:
 		return 0, false

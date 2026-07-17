@@ -284,6 +284,34 @@ func TestXMySQLExecutor_ExecuteQuery_ShowTablesReturnsRows(t *testing.T) {
 	assert.Equal(t, "users", rows[0][0])
 }
 
+func TestXMySQLExecutor_ExecuteQuery_ShowTablesFallsBackToFilesWhenInfoSchemaEmpty(t *testing.T) {
+	tempDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "testdb"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "testdb", "users.frm"), []byte("{}"), 0o644))
+
+	executor := &XMySQLExecutor{
+		conf:               &conf.Cfg{DataDir: tempDir},
+		infosSchemaManager: &fakeShowInfoSchema{schemas: []string{"testdb"}},
+	}
+	results := make(chan *Result, 4)
+	ctx := &ExecutionContext{
+		Context: context.Background(),
+		Results: results,
+	}
+	session := newTestMySQLSession()
+	session.SetParamByName("database", "testdb")
+
+	executor.executeQuery(ctx, session, "show tables", "testdb", results)
+
+	result := <-results
+	require.NoError(t, result.Err)
+	data, ok := result.Data.(map[string]interface{})
+	require.True(t, ok)
+	rows, ok := data["rows"].([][]interface{})
+	require.True(t, ok)
+	require.Equal(t, [][]interface{}{{"users"}}, rows)
+}
+
 func TestXMySQLExecutor_ExecuteQuery_ShowTablesLikeFiltersRows(t *testing.T) {
 	tempDir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "testdb"), 0o755))

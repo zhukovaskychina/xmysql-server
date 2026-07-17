@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -49,6 +51,16 @@ type XMySQLExecutor struct {
 	storageManager      *manager.StorageManager      // 存储管理器
 	tableStorageManager *manager.TableStorageManager // 表存储映射管理器
 	txManager           *manager.TransactionManager  // 事务管理器
+}
+
+type transactionSnapshotState struct {
+	BaseSnapshotDir string
+	Savepoints      []transactionSavepoint
+}
+
+type transactionSavepoint struct {
+	Name        string
+	SnapshotDir string
 }
 
 // NewXMySQLExecutor 构造 SQL 执行器实例
@@ -109,32 +121,331 @@ func (e *XMySQLExecutor) executeTransactionCommand(ctx *ExecutionContext, cmd st
 	if session != nil {
 		switch cmd {
 		case "begin":
+			e.clearTransactionSnapshots(session)
 			session.SetParamByName("in_transaction", true)
 			session.SessionContext().SetInTransaction(true)
-			session.SetParamByName("savepoints", []string{})
 		case "commit", "rollback":
-			session.SetParamByName("in_transaction", false)
-			session.SessionContext().SetInTransaction(false)
-			session.SetParamByName("savepoints", []string{})
-		case "savepoint":
-			raw := session.GetParamByName("savepoints")
-			points, _ := raw.([]string)
-			session.SetParamByName("savepoints", append(points, name))
-		case "rollback_to_savepoint":
-			// Baseline: accept command; full undo is covered by later MVCC work.
-		case "release_savepoint":
-			raw := session.GetParamByName("savepoints")
-			points, _ := raw.([]string)
-			next := make([]string, 0, len(points))
-			for _, p := range points {
-				if !strings.EqualFold(p, name) {
-					next = append(next, p)
+			if cmd == "rollback" {
+				if err := e.restoreTransactionBaseSnapshot(session); err != nil {
+					ctx.Results <- &Result{Err: err, ResultType: innodbcommon.RESULT_TYPE_ERROR, Message: err.Error()}
+					return
 				}
 			}
-			session.SetParamByName("savepoints", next)
+			e.clearTransactionSnapshots(session)
+			session.SetParamByName("in_transaction", false)
+			session.SessionContext().SetInTransaction(false)
+		case "savepoint":
+			if err := e.captureTransactionSavepoint(session, name); err != nil {
+				ctx.Results <- &Result{Err: err, ResultType: innodbcommon.RESULT_TYPE_ERROR, Message: err.Error()}
+				return
+			}
+		case "rollback_to_savepoint":
+			if err := e.restoreTransactionSavepoint(session, name); err != nil {
+				ctx.Results <- &Result{Err: err, ResultType: innodbcommon.RESULT_TYPE_ERROR, Message: err.Error()}
+				return
+			}
+		case "release_savepoint":
+			if err := e.releaseTransactionSavepoint(session, name); err != nil {
+				ctx.Results <- &Result{Err: err, ResultType: innodbcommon.RESULT_TYPE_ERROR, Message: err.Error()}
+				return
+			}
 		}
 	}
 	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Message: strings.ToUpper(cmd)}
+}
+
+func (e *XMySQLExecutor) prepareTransactionalDML(session server.MySQLServerSession) error {
+	if session == nil || !sessionTransactionActive(session) {
+		return nil
+	}
+	state := e.transactionSnapshotState(session)
+	if state.BaseSnapshotDir != "" {
+		return nil
+	}
+	snapshotDir, err := e.captureDataDirSnapshot()
+	if err != nil {
+		return err
+	}
+	state.BaseSnapshotDir = snapshotDir
+	session.SetParamByName("transaction_snapshot_state", state)
+	return nil
+}
+
+func (e *XMySQLExecutor) transactionSnapshotState(session server.MySQLServerSession) *transactionSnapshotState {
+	if session == nil {
+		return nil
+	}
+	if raw := session.GetParamByName("transaction_snapshot_state"); raw != nil {
+		if state, ok := raw.(*transactionSnapshotState); ok {
+			return state
+		}
+	}
+	state := &transactionSnapshotState{}
+	session.SetParamByName("transaction_snapshot_state", state)
+	return state
+}
+
+func sessionTransactionActive(session server.MySQLServerSession) bool {
+	if session == nil {
+		return false
+	}
+	if inTxn, ok := session.GetParamByName("in_transaction").(bool); ok && inTxn {
+		return true
+	}
+	switch v := session.GetParamByName("autocommit").(type) {
+	case string:
+		return boolishToInt(v) == 0
+	case int64:
+		return v == 0
+	case int:
+		return v == 0
+	case bool:
+		return !v
+	default:
+		return false
+	}
+}
+
+func (e *XMySQLExecutor) restoreTransactionBaseSnapshot(session server.MySQLServerSession) error {
+	state := e.transactionSnapshotState(session)
+	if state == nil || state.BaseSnapshotDir == "" {
+		return nil
+	}
+	return e.restoreDataDirSnapshot(state.BaseSnapshotDir)
+}
+
+func (e *XMySQLExecutor) captureTransactionSavepoint(session server.MySQLServerSession, name string) error {
+	if session == nil {
+		return nil
+	}
+	state := e.transactionSnapshotState(session)
+	snapshotDir, err := e.captureDataDirSnapshot()
+	if err != nil {
+		return err
+	}
+	points := state.Savepoints[:0]
+	for _, point := range state.Savepoints {
+		if strings.EqualFold(point.Name, name) {
+			_ = os.RemoveAll(point.SnapshotDir)
+			continue
+		}
+		points = append(points, point)
+	}
+	state.Savepoints = append(points, transactionSavepoint{Name: name, SnapshotDir: snapshotDir})
+	session.SetParamByName("transaction_snapshot_state", state)
+	session.SetParamByName("savepoints", transactionSavepointNames(state.Savepoints))
+	return nil
+}
+
+func (e *XMySQLExecutor) restoreTransactionSavepoint(session server.MySQLServerSession, name string) error {
+	state := e.transactionSnapshotState(session)
+	if state == nil {
+		return fmt.Errorf("savepoint %s does not exist", name)
+	}
+	for i := len(state.Savepoints) - 1; i >= 0; i-- {
+		point := state.Savepoints[i]
+		if !strings.EqualFold(point.Name, name) {
+			continue
+		}
+		if err := e.restoreDataDirSnapshot(point.SnapshotDir); err != nil {
+			return err
+		}
+		for _, stale := range state.Savepoints[i+1:] {
+			_ = os.RemoveAll(stale.SnapshotDir)
+		}
+		state.Savepoints = state.Savepoints[:i+1]
+		session.SetParamByName("transaction_snapshot_state", state)
+		session.SetParamByName("savepoints", transactionSavepointNames(state.Savepoints))
+		return nil
+	}
+	return fmt.Errorf("savepoint %s does not exist", name)
+}
+
+func (e *XMySQLExecutor) releaseTransactionSavepoint(session server.MySQLServerSession, name string) error {
+	state := e.transactionSnapshotState(session)
+	if state == nil {
+		return nil
+	}
+	next := state.Savepoints[:0]
+	for _, point := range state.Savepoints {
+		if strings.EqualFold(point.Name, name) {
+			_ = os.RemoveAll(point.SnapshotDir)
+			continue
+		}
+		next = append(next, point)
+	}
+	state.Savepoints = next
+	session.SetParamByName("transaction_snapshot_state", state)
+	session.SetParamByName("savepoints", transactionSavepointNames(state.Savepoints))
+	return nil
+}
+
+func (e *XMySQLExecutor) clearTransactionSnapshots(session server.MySQLServerSession) {
+	state := e.transactionSnapshotState(session)
+	if state == nil {
+		return
+	}
+	if state.BaseSnapshotDir != "" {
+		_ = os.RemoveAll(state.BaseSnapshotDir)
+	}
+	for _, point := range state.Savepoints {
+		_ = os.RemoveAll(point.SnapshotDir)
+	}
+	state.BaseSnapshotDir = ""
+	state.Savepoints = nil
+	session.SetParamByName("transaction_snapshot_state", state)
+	session.SetParamByName("savepoints", []string{})
+}
+
+func transactionSavepointNames(points []transactionSavepoint) []string {
+	names := make([]string, 0, len(points))
+	for _, point := range points {
+		names = append(names, point.Name)
+	}
+	return names
+}
+
+func (e *XMySQLExecutor) captureDataDirSnapshot() (string, error) {
+	dataDir := e.getDataDir()
+	if strings.TrimSpace(dataDir) == "" {
+		return "", fmt.Errorf("data dir is empty")
+	}
+	snapshotDir, err := os.MkdirTemp("", "xmysql-txn-snapshot-*")
+	if err != nil {
+		return "", err
+	}
+	if err := copyDirContents(dataDir, snapshotDir); err != nil {
+		_ = os.RemoveAll(snapshotDir)
+		return "", err
+	}
+	return snapshotDir, nil
+}
+
+func (e *XMySQLExecutor) restoreDataDirSnapshot(snapshotDir string) error {
+	dataDir := e.getDataDir()
+	if strings.TrimSpace(dataDir) == "" {
+		return fmt.Errorf("data dir is empty")
+	}
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		return err
+	}
+	if err := removeEntriesNotInSnapshot(dataDir, snapshotDir); err != nil {
+		return err
+	}
+	if err := copyDirContents(snapshotDir, dataDir); err != nil {
+		return err
+	}
+	e.clearRestoredStorageCaches()
+	return nil
+}
+
+func (e *XMySQLExecutor) clearRestoredStorageCaches() {
+	if e == nil {
+		return
+	}
+	if e.storageManager != nil {
+		if bpm := e.storageManager.GetBufferPoolManager(); bpm != nil {
+			bpm.ClearCache()
+		}
+	}
+	if clearer, ok := e.btreeManager.(interface{ ClearCache() }); ok {
+		clearer.ClearCache()
+	}
+}
+
+func copyDirContents(src, dst string) error {
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	if err := os.MkdirAll(dst, 0755); err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+		if entry.IsDir() {
+			info, err := entry.Info()
+			if err != nil {
+				return err
+			}
+			if err := os.MkdirAll(dstPath, info.Mode().Perm()); err != nil {
+				return err
+			}
+			if err := copyDirContents(srcPath, dstPath); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := copyFile(srcPath, dstPath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func removeEntriesNotInSnapshot(dst, snapshot string) error {
+	dstEntries, err := os.ReadDir(dst)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	for _, dstEntry := range dstEntries {
+		dstPath := filepath.Join(dst, dstEntry.Name())
+		snapshotPath := filepath.Join(snapshot, dstEntry.Name())
+		snapshotInfo, err := os.Stat(snapshotPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				if err := os.RemoveAll(dstPath); err != nil {
+					return err
+				}
+				continue
+			}
+			return err
+		}
+		if dstEntry.IsDir() != snapshotInfo.IsDir() {
+			if err := os.RemoveAll(dstPath); err != nil {
+				return err
+			}
+			continue
+		}
+		if dstEntry.IsDir() {
+			if err := removeEntriesNotInSnapshot(dstPath, snapshotPath); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func copyFile(src, dst string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode().Perm())
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Sync()
 }
 
 func (e *XMySQLExecutor) missingStorageIntegratedDMLManagersError(
@@ -251,6 +562,14 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		}
 	case *sqlparser.Insert:
 		// 执行INSERT语句
+		if err := e.prepareTransactionalDML(mysqlSession); err != nil {
+			results <- &Result{
+				Err:        err,
+				ResultType: innodbcommon.RESULT_TYPE_ERROR,
+				Message:    err.Error(),
+			}
+			return
+		}
 		dmlResult, err := e.executeInsertStatement(ctx, stmt, databaseName)
 		if err != nil {
 			results <- &Result{
@@ -268,6 +587,14 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		}
 	case *sqlparser.Update:
 		// 执行UPDATE语句
+		if err := e.prepareTransactionalDML(mysqlSession); err != nil {
+			results <- &Result{
+				Err:        err,
+				ResultType: innodbcommon.RESULT_TYPE_ERROR,
+				Message:    err.Error(),
+			}
+			return
+		}
 		dmlResult, err := e.executeUpdateStatement(ctx, stmt, databaseName)
 		if err != nil {
 			results <- &Result{
@@ -285,6 +612,14 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		}
 	case *sqlparser.Delete:
 		// 执行DELETE语句
+		if err := e.prepareTransactionalDML(mysqlSession); err != nil {
+			results <- &Result{
+				Err:        err,
+				ResultType: innodbcommon.RESULT_TYPE_ERROR,
+				Message:    err.Error(),
+			}
+			return
+		}
 		dmlResult, err := e.executeDeleteStatement(ctx, stmt, databaseName)
 		if err != nil {
 			results <- &Result{
@@ -372,7 +707,7 @@ func (e *XMySQLExecutor) executeDDL(stmt *sqlparser.DDL, mysqlSession server.MyS
 		e.executeCreateTableStatement(ctx, currentDB, stmt)
 	case "drop":
 		logger.Debugf("🗑️ DROP TABLE使用数据库: %s", currentDB)
-		e.executeDropTableStatement(ctx, stmt)
+		e.executeDropTableStatement(ctx, currentDB, stmt)
 	case "truncate":
 		logger.Debugf("TRUNCATE TABLE使用数据库: %s", currentDB)
 		e.executeTruncateTableStatement(ctx, currentDB, stmt)
@@ -1084,8 +1419,10 @@ func (e *XMySQLExecutor) convertToSelectResult(records []Record, schema *metadat
 
 	// 构建列名和类型
 	columnNames := make([]string, 0, len(schema.Columns))
+	columnTypes := make([]string, 0, len(schema.Columns))
 	for _, col := range schema.Columns {
 		columnNames = append(columnNames, col.Name)
+		columnTypes = append(columnTypes, strings.ToLower(string(col.DataType)))
 	}
 
 	// 转换记录为行数据
@@ -1100,9 +1437,10 @@ func (e *XMySQLExecutor) convertToSelectResult(records []Record, schema *metadat
 	}
 
 	return &SelectResult{
-		Records:  records,
-		RowCount: len(rows),
-		Columns:  columnNames,
+		Records:     records,
+		RowCount:    len(rows),
+		Columns:     columnNames,
+		ColumnTypes: columnTypes,
 	}, nil
 }
 
@@ -2068,6 +2406,9 @@ func (e *XMySQLExecutor) truncateTableImpl(databaseName, tableName string) error
 	if err := clearBTreeSidecarForSpace(e.getDataDir(), oldInfo.SpaceID); err != nil {
 		return fmt.Errorf("clear B+Tree sidecar records failed: %v", err)
 	}
+	if err := os.Remove(tableRowsSidecarPath(e.getDataDir(), databaseName, tableName)); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("clear table rows sidecar failed: %v", err)
+	}
 
 	spaceName := fmt.Sprintf("%s/%s_truncate_%d", databaseName, tableName, time.Now().UnixNano())
 	handle, err := e.storageManager.CreateTablespace(spaceName)
@@ -2102,12 +2443,15 @@ func (e *XMySQLExecutor) truncateTableImpl(databaseName, tableName string) error
 }
 
 // executeDropTableStatement 执行 DROP TABLE
-func (e *XMySQLExecutor) executeDropTableStatement(ctx *ExecutionContext, stmt *sqlparser.DDL) {
+func (e *XMySQLExecutor) executeDropTableStatement(ctx *ExecutionContext, currentDB string, stmt *sqlparser.DDL) {
 	logger.Debugf("🗑️ Executing DROP TABLE: %s", stmt.Table.Name.String())
 
 	// 1. 解析表名和数据库名
 	tableName := stmt.Table.Name.String()
 	databaseName := stmt.Table.Qualifier.String()
+	if databaseName == "" {
+		databaseName = currentDB
+	}
 
 	if tableName == "" {
 		ctx.Results <- &Result{
@@ -2490,10 +2834,11 @@ func (e *XMySQLExecutor) dropTableImpl(dbName, tableName string) error {
 
 	// 删除表相关文件
 	filesToDelete := []string{
-		filepath.Join(dbPath, tableName+".frm"), // 表结构文件
-		filepath.Join(dbPath, tableName+".ibd"), // 表数据文件
-		filepath.Join(dbPath, tableName+".MYD"), // MyISAM数据文件
-		filepath.Join(dbPath, tableName+".MYI"), // MyISAM索引文件
+		filepath.Join(dbPath, tableName+".frm"),          // 表结构文件
+		filepath.Join(dbPath, tableName+".ibd"),          // 表数据文件
+		filepath.Join(dbPath, tableName+".MYD"),          // MyISAM数据文件
+		filepath.Join(dbPath, tableName+".MYI"),          // MyISAM索引文件
+		tableRowsSidecarPath(dataDir, dbName, tableName), // 行扫描sidecar
 	}
 
 	var errors []string
@@ -2528,14 +2873,19 @@ func (e *XMySQLExecutor) createTableStructureFile(dbPath, tableName string, stmt
 	indexes := e.parseTableIndexes(stmt.TableSpec)
 	applyIndexMetadataToColumns(columns, indexes)
 	indexes = synthesizePrimaryIndexMetadata(columns, indexes)
+	foreignKeys := []map[string]interface{}{}
+	if len(rawQuery) > 0 {
+		foreignKeys = parseCreateTableForeignKeysFallback(rawQuery[0])
+	}
 
 	// 构建表结构信息
 	tableInfo := map[string]interface{}{
-		"table_name": tableName,
-		"columns":    columns,
-		"indexes":    indexes,
-		"options":    e.parseTableOptions(stmt.TableSpec),
-		"created_at": time.Now().Format(time.RFC3339),
+		"table_name":   tableName,
+		"columns":      columns,
+		"indexes":      indexes,
+		"foreign_keys": foreignKeys,
+		"options":      e.parseTableOptions(stmt.TableSpec),
+		"created_at":   time.Now().Format(time.RFC3339),
 	}
 
 	// 序列化为JSON
@@ -2665,6 +3015,51 @@ func parseCreateTableColumnsFallback(query string) []map[string]interface{} {
 		}
 	}
 	return columns
+}
+
+func parseCreateTableForeignKeysFallback(query string) []map[string]interface{} {
+	body := extractCreateTableBody(query)
+	if body == "" {
+		return nil
+	}
+	definitions := splitTopLevelComma(body)
+	foreignKeys := make([]map[string]interface{}, 0)
+	re := regexp.MustCompile("(?i)foreign\\s+key\\s*\\(([^)]+)\\)\\s+references\\s+`?([a-zA-Z0-9_]+)`?\\s*\\(([^)]+)\\)(.*)$")
+	for _, definition := range definitions {
+		matches := re.FindStringSubmatch(strings.TrimSpace(definition))
+		if len(matches) == 0 {
+			continue
+		}
+		tail := strings.ToLower(matches[4])
+		foreignKeys = append(foreignKeys, map[string]interface{}{
+			"columns":        parseIdentifierList(matches[1]),
+			"ref_table":      strings.Trim(matches[2], "` "),
+			"ref_columns":    parseIdentifierList(matches[3]),
+			"on_delete":      cascadeActionFromTail(tail, "delete"),
+			"on_update":      cascadeActionFromTail(tail, "update"),
+			"raw_definition": strings.TrimSpace(definition),
+		})
+	}
+	return foreignKeys
+}
+
+func parseIdentifierList(input string) []string {
+	parts := strings.Split(input, ",")
+	identifiers := make([]string, 0, len(parts))
+	for _, part := range parts {
+		identifier := strings.Trim(strings.TrimSpace(part), "`")
+		if identifier != "" {
+			identifiers = append(identifiers, identifier)
+		}
+	}
+	return identifiers
+}
+
+func cascadeActionFromTail(tail, action string) string {
+	if strings.Contains(tail, "on "+action+" cascade") {
+		return "cascade"
+	}
+	return ""
 }
 
 func extractCreateTableBody(query string) string {
@@ -2908,18 +3303,6 @@ func rejectUnsupportedCreateTableConstraintsSQL(query string) error {
 	ddl := strings.ToLower(query)
 	if !strings.HasPrefix(strings.TrimSpace(ddl), "create table") {
 		return nil
-	}
-	switch {
-	case strings.Contains(ddl, " cascade"):
-		return fmt.Errorf("unsupported constraint: cascade")
-	case strings.Contains(ddl, "foreign key"):
-		return fmt.Errorf("unsupported constraint: foreign key")
-	case strings.Contains(ddl, " references "):
-		return fmt.Errorf("unsupported constraint: foreign key references")
-	case strings.Contains(ddl, " check ") || strings.Contains(ddl, " check("):
-		return fmt.Errorf("unsupported constraint: check")
-	case strings.Contains(ddl, "fulltext"):
-		return fmt.Errorf("unsupported constraint: fulltext")
 	}
 	return nil
 }
@@ -3285,6 +3668,9 @@ func (e *XMySQLExecutor) tryExecuteShowExecutor(ctx *ExecutionContext, showType,
 	rows = filterShowRowsByLike(rows, likePattern)
 	whereExpr := ResolveShowWhereExpr(normalizedType, stmt, rawQuery)
 	rows = filterShowRowsByWhere(rows, columns, whereExpr)
+	if normalizedType == "tables" && len(rows) == 0 {
+		return false
+	}
 
 	ctx.Results <- &Result{
 		ResultType: "QUERY",

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -50,6 +51,10 @@ type SelectExecutor struct {
 	schemaName      string
 	whereConditions []string
 	selectExprs     []string
+	selectAliases   []string
+	distinct        bool
+	groupByColumns  []string
+	havingCondition string
 	orderByColumns  []string
 	limit           int
 	offset          int
@@ -88,6 +93,11 @@ func NewSelectExecutor(
 func (se *SelectExecutor) ExecuteSelect(ctx context.Context, stmt *sqlparser.Select, schemaName string) (*SelectResult, error) {
 	// 重置执行态，避免复用实例时污染上一次查询状态
 	se.resetExecutionState()
+	se.schemaName = schemaName
+
+	if selectHasJoin(stmt) {
+		return se.executeJoinSelect(ctx, stmt, schemaName)
+	}
 
 	// 1. 解析SELECT语句
 	if err := se.parseSelectStatement(stmt, schemaName); err != nil {
@@ -125,6 +135,10 @@ func (se *SelectExecutor) resetExecutionState() {
 
 	se.whereConditions = nil
 	se.selectExprs = nil
+	se.selectAliases = nil
+	se.distinct = false
+	se.groupByColumns = nil
+	se.havingCondition = ""
 	se.orderByColumns = nil
 	se.limit = -1
 	se.offset = 0
@@ -138,6 +152,7 @@ func (se *SelectExecutor) resetExecutionState() {
 func (se *SelectExecutor) parseSelectStatement(stmt *sqlparser.Select, schemaName string) error {
 	se.resetExecutionState()
 	se.schemaName = schemaName
+	se.distinct = strings.EqualFold(strings.TrimSpace(stmt.Distinct), strings.TrimSpace(sqlparser.DistinctStr))
 
 	// 解析FROM子句
 	if len(stmt.From) == 0 {
@@ -169,6 +184,13 @@ func (se *SelectExecutor) parseSelectStatement(stmt *sqlparser.Select, schemaNam
 		se.whereConditions = se.parseWhereConditions(stmt.Where.Expr)
 	}
 
+	for _, expr := range stmt.GroupBy {
+		se.groupByColumns = append(se.groupByColumns, sqlparser.String(expr))
+	}
+	if stmt.Having != nil {
+		se.havingCondition = sqlparser.String(stmt.Having.Expr)
+	}
+
 	// 解析ORDER BY
 	if err := se.parseOrderBy(stmt.OrderBy); err != nil {
 		return err
@@ -189,9 +211,15 @@ func (se *SelectExecutor) parseSelectExprs(selectExprs sqlparser.SelectExprs) er
 		case *sqlparser.StarExpr:
 			// SELECT *
 			se.selectExprs = append(se.selectExprs, "*")
+			se.selectAliases = append(se.selectAliases, "")
 		case *sqlparser.AliasedExpr:
 			// SELECT column_name [AS alias]
 			se.selectExprs = append(se.selectExprs, sqlparser.String(v.Expr))
+			if !v.As.IsEmpty() {
+				se.selectAliases = append(se.selectAliases, v.As.String())
+			} else {
+				se.selectAliases = append(se.selectAliases, "")
+			}
 		default:
 			return fmt.Errorf("unsupported SELECT expression type: %T", v)
 		}
@@ -376,6 +404,24 @@ func (se *SelectExecutor) executeQuery(ctx context.Context) error {
 func (se *SelectExecutor) scanStorageRows(ctx context.Context, tableMeta *metadata.TableMeta) error {
 	if se.storageManager == nil || se.storageManager.GetTableStorageManager() == nil || se.bufferPoolManager == nil {
 		se.resultSet = []Record{}
+		return nil
+	}
+
+	if sidecarRows, err := decodeTableRowsSidecar(se.dataDir, se.schemaName, se.tableName, tableMeta); err != nil {
+		return fmt.Errorf("scan table rows sidecar failed: %v", err)
+	} else if len(sidecarRows) > 0 {
+		records := make([]Record, 0, len(sidecarRows))
+		for _, row := range sidecarRows {
+			matched, err := rowMatchesWhereConditions(row.ColumnValues, se.whereConditions)
+			if err != nil {
+				return fmt.Errorf("evaluate sidecar row conditions failed: %v", err)
+			}
+			if !matched {
+				continue
+			}
+			records = append(records, recordFromInsertRowData(row, tableMeta))
+		}
+		se.resultSet = records
 		return nil
 	}
 
@@ -1282,6 +1328,10 @@ func recordValueForPredicate(value basic.Value, dataType metadata.DataType) inte
 
 // buildSelectResult 构建SELECT结果
 func (se *SelectExecutor) buildSelectResult() *SelectResult {
+	if se.hasAggregateQuery() || len(se.groupByColumns) > 0 {
+		return se.buildAggregateSelectResult()
+	}
+
 	// 应用投影
 	projectedRecords := se.applyProjection(se.resultSet)
 
@@ -1297,19 +1347,23 @@ func (se *SelectExecutor) buildSelectResult() *SelectResult {
 			},
 		})
 		return &SelectResult{
-			Records:    []Record{record},
-			RowCount:   1,
-			Columns:    columns,
-			ResultType: common.RESULT_TYPE_QUERY,
-			Message:    "Query OK, 1 row in set",
+			Records:     []Record{record},
+			RowCount:    1,
+			Columns:     columns,
+			ColumnTypes: []string{string(metadata.TypeBigInt)},
+			ResultType:  common.RESULT_TYPE_QUERY,
+			Message:     "Query OK, 1 row in set",
 		}
 	}
 
 	// 应用排序
 	sortedRecords := se.applyOrderBy(projectedRecords)
 
+	// 应用DISTINCT
+	distinctRecords := se.applyDistinct(sortedRecords)
+
 	// 应用LIMIT和OFFSET
-	limitedRecords := se.applyLimitOffset(sortedRecords)
+	limitedRecords := se.applyLimitOffset(distinctRecords)
 
 	// 获取列信息
 	columns := se.getColumnNames()
@@ -1334,11 +1388,12 @@ func (se *SelectExecutor) buildSelectResult() *SelectResult {
 	}
 
 	result := &SelectResult{
-		Records:    limitedRecords,
-		RowCount:   len(limitedRecords),
-		Columns:    columns,
-		ResultType: common.RESULT_TYPE_QUERY,
-		Message:    fmt.Sprintf("Query OK, %d rows in set", len(limitedRecords)),
+		Records:     limitedRecords,
+		RowCount:    len(limitedRecords),
+		Columns:     columns,
+		ColumnTypes: se.getColumnTypes(columns),
+		ResultType:  common.RESULT_TYPE_QUERY,
+		Message:     fmt.Sprintf("Query OK, %d rows in set", len(limitedRecords)),
 	}
 
 	logger.Debugf(" [buildSelectResult] 构建完成: %d行, %d列", result.RowCount, len(result.Columns))
@@ -1384,9 +1439,13 @@ func (se *SelectExecutor) projectRecord(record Record, selectExprs []string) (Re
 	projectedValues := make([]basic.Value, 0, len(selectExprs))
 	projectedColumns := make([]*metadata.ColumnMeta, 0, len(selectExprs))
 
-	for _, expr := range selectExprs {
+	for exprIdx, expr := range selectExprs {
 		// 清理表达式（移除空格、别名等）
 		columnName := se.cleanColumnExpression(expr)
+		outputName := columnName
+		if exprIdx < len(se.selectAliases) && strings.TrimSpace(se.selectAliases[exprIdx]) != "" {
+			outputName = strings.TrimSpace(se.selectAliases[exprIdx])
+		}
 
 		// 大小写不敏感查找列索引
 		columnIndex, exists := se.findColumnIndex(columnName, columnIndexMap)
@@ -1394,7 +1453,7 @@ func (se *SelectExecutor) projectRecord(record Record, selectExprs []string) (Re
 			// 如果列不存在，创建一个 NULL 值
 			projectedValues = append(projectedValues, basic.NewNull())
 			projectedColumns = append(projectedColumns, &metadata.ColumnMeta{
-				Name: columnName,
+				Name: outputName,
 				Type: "UNKNOWN",
 			})
 			continue
@@ -1406,10 +1465,12 @@ func (se *SelectExecutor) projectRecord(record Record, selectExprs []string) (Re
 
 		// 添加列元数据
 		if columnIndex < len(tableMeta.Columns) {
-			projectedColumns = append(projectedColumns, tableMeta.Columns[columnIndex])
+			colMeta := *tableMeta.Columns[columnIndex]
+			colMeta.Name = outputName
+			projectedColumns = append(projectedColumns, &colMeta)
 		} else {
 			projectedColumns = append(projectedColumns, &metadata.ColumnMeta{
-				Name: columnName,
+				Name: outputName,
 				Type: "UNKNOWN",
 			})
 		}
@@ -1513,8 +1574,344 @@ func (se *SelectExecutor) applyOrderBy(records []Record) []Record {
 		return records
 	}
 
-	// 简化实现：不进行实际排序
-	return records
+	sortedRecords := append([]Record(nil), records...)
+	sort.SliceStable(sortedRecords, func(i, j int) bool {
+		for _, orderSpec := range se.orderByColumns {
+			columnName, desc := parseOrderBySpec(orderSpec)
+			left, leftOK := se.recordValueByColumnName(sortedRecords[i], columnName)
+			right, rightOK := se.recordValueByColumnName(sortedRecords[j], columnName)
+			if !leftOK || !rightOK {
+				continue
+			}
+			cmp := compareScalarValues(left, right)
+			if cmp == 0 {
+				continue
+			}
+			if desc {
+				return cmp > 0
+			}
+			return cmp < 0
+		}
+		return false
+	})
+	return sortedRecords
+}
+
+func parseOrderBySpec(orderSpec string) (string, bool) {
+	trimmed := strings.TrimSpace(orderSpec)
+	upper := strings.ToUpper(trimmed)
+	switch {
+	case strings.HasSuffix(upper, " DESC"):
+		return strings.TrimSpace(trimmed[:len(trimmed)-5]), true
+	case strings.HasSuffix(upper, " ASC"):
+		return strings.TrimSpace(trimmed[:len(trimmed)-4]), false
+	default:
+		return trimmed, false
+	}
+}
+
+func (se *SelectExecutor) recordValueByColumnName(record Record, columnName string) (interface{}, bool) {
+	if record == nil {
+		return nil, false
+	}
+	cleanName := strings.ToLower(se.cleanColumnExpression(columnName))
+	tableMeta, err := se.getRecordTableMeta(record)
+	if err != nil || tableMeta == nil {
+		return nil, false
+	}
+	for idx, col := range tableMeta.Columns {
+		if col == nil {
+			continue
+		}
+		if strings.ToLower(col.Name) != cleanName {
+			continue
+		}
+		return recordValueForPredicate(record.GetValueByIndex(idx), col.Type), true
+	}
+	return nil, false
+}
+
+func (se *SelectExecutor) applyDistinct(records []Record) []Record {
+	if !se.distinct {
+		return records
+	}
+	seen := make(map[string]struct{}, len(records))
+	distinctRecords := make([]Record, 0, len(records))
+	for _, record := range records {
+		key := recordDistinctKey(record)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		distinctRecords = append(distinctRecords, record)
+	}
+	return distinctRecords
+}
+
+func recordDistinctKey(record Record) string {
+	if record == nil {
+		return "<nil>"
+	}
+	values := record.GetValues()
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == nil || value.IsNull() {
+			parts = append(parts, "<null>")
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s:%v", value.Type().String(), value.Raw()))
+	}
+	return strings.Join(parts, "\x00")
+}
+
+func (se *SelectExecutor) hasAggregateQuery() bool {
+	for _, expr := range se.selectExprs {
+		if parseAggregateExpression(expr).funcName != "" {
+			return true
+		}
+	}
+	return false
+}
+
+type aggregateExpression struct {
+	funcName string
+	column   string
+}
+
+func parseAggregateExpression(expr string) aggregateExpression {
+	trimmed := strings.TrimSpace(expr)
+	open := strings.Index(trimmed, "(")
+	closeIdx := strings.LastIndex(trimmed, ")")
+	if open <= 0 || closeIdx <= open {
+		return aggregateExpression{}
+	}
+	fn := strings.ToUpper(strings.TrimSpace(trimmed[:open]))
+	switch fn {
+	case "COUNT", "SUM", "AVG", "MIN", "MAX":
+	default:
+		return aggregateExpression{}
+	}
+	column := strings.TrimSpace(trimmed[open+1 : closeIdx])
+	if strings.HasPrefix(strings.ToLower(column), "distinct ") {
+		column = strings.TrimSpace(column[len("distinct "):])
+	}
+	return aggregateExpression{funcName: fn, column: strings.Trim(column, "` ")}
+}
+
+type aggregateAccumulator struct {
+	fn      string
+	count   int64
+	sum     float64
+	min     interface{}
+	max     interface{}
+	hasData bool
+}
+
+func (a *aggregateAccumulator) add(value interface{}) {
+	if strings.EqualFold(a.fn, "COUNT") {
+		a.count++
+		return
+	}
+	if value == nil {
+		return
+	}
+	switch a.fn {
+	case "SUM", "AVG":
+		if num, ok := toFloat64(value); ok {
+			a.sum += num
+			a.count++
+			a.hasData = true
+		}
+	case "MIN":
+		if !a.hasData || compareScalarValues(value, a.min) < 0 {
+			a.min = value
+			a.hasData = true
+		}
+	case "MAX":
+		if !a.hasData || compareScalarValues(value, a.max) > 0 {
+			a.max = value
+			a.hasData = true
+		}
+	}
+}
+
+func (a *aggregateAccumulator) value() interface{} {
+	switch a.fn {
+	case "COUNT":
+		return a.count
+	case "SUM":
+		if !a.hasData {
+			return nil
+		}
+		return normalizeNumericResult(a.sum)
+	case "AVG":
+		if a.count == 0 {
+			return nil
+		}
+		return a.sum / float64(a.count)
+	case "MIN":
+		return a.min
+	case "MAX":
+		return a.max
+	default:
+		return nil
+	}
+}
+
+type aggregateGroupState struct {
+	groupValues []interface{}
+	accs        []aggregateAccumulator
+}
+
+func (se *SelectExecutor) buildAggregateSelectResult() *SelectResult {
+	groupColumns := se.cleanColumnNames(se.groupByColumns)
+	aggregateExprs := make([]aggregateExpression, len(se.selectExprs))
+	for i, expr := range se.selectExprs {
+		aggregateExprs[i] = parseAggregateExpression(expr)
+	}
+
+	groups := make(map[string]*aggregateGroupState)
+	groupOrder := make([]string, 0)
+	for _, record := range se.resultSet {
+		groupValues := make([]interface{}, 0, len(groupColumns))
+		for _, groupColumn := range groupColumns {
+			value, _ := se.recordValueByColumnName(record, groupColumn)
+			groupValues = append(groupValues, value)
+		}
+		groupKey := aggregateGroupKey(groupValues)
+		if len(groupColumns) == 0 {
+			groupKey = "__all__"
+		}
+		state := groups[groupKey]
+		if state == nil {
+			state = &aggregateGroupState{
+				groupValues: groupValues,
+				accs:        make([]aggregateAccumulator, len(se.selectExprs)),
+			}
+			for i, agg := range aggregateExprs {
+				if agg.funcName != "" {
+					state.accs[i] = aggregateAccumulator{fn: agg.funcName}
+				}
+			}
+			groups[groupKey] = state
+			groupOrder = append(groupOrder, groupKey)
+		}
+
+		for i, agg := range aggregateExprs {
+			if agg.funcName == "" {
+				continue
+			}
+			var value interface{}
+			if agg.column != "*" {
+				value, _ = se.recordValueByColumnName(record, agg.column)
+			}
+			state.accs[i].add(value)
+		}
+	}
+
+	columns := se.getColumnNames()
+	columnTypes := make([]string, len(columns))
+	records := make([]Record, 0, len(groupOrder))
+	for _, key := range groupOrder {
+		state := groups[key]
+		if state == nil {
+			continue
+		}
+		rowValues := make([]interface{}, 0, len(se.selectExprs))
+		projectedColumns := make([]*metadata.ColumnMeta, 0, len(se.selectExprs))
+		for i, expr := range se.selectExprs {
+			agg := aggregateExprs[i]
+			if agg.funcName != "" {
+				value := state.accs[i].value()
+				rowValues = append(rowValues, value)
+				colType := metadata.TypeDecimal
+				if agg.funcName == "COUNT" {
+					colType = metadata.TypeBigInt
+				}
+				columnTypes[i] = strings.ToLower(string(colType))
+				projectedColumns = append(projectedColumns, &metadata.ColumnMeta{Name: columns[i], Type: colType})
+				continue
+			}
+			value := se.groupValueForExpression(expr, groupColumns, state.groupValues)
+			rowValues = append(rowValues, value)
+			colType := se.columnTypeForExpression(expr)
+			columnTypes[i] = strings.ToLower(string(colType))
+			projectedColumns = append(projectedColumns, &metadata.ColumnMeta{Name: columns[i], Type: colType})
+		}
+
+		rowMap := make(map[string]interface{}, len(columns)*2)
+		for i, col := range columns {
+			rowMap[col] = rowValues[i]
+			rowMap[strings.ToLower(col)] = rowValues[i]
+		}
+		for i, expr := range se.selectExprs {
+			rowMap[expr] = rowValues[i]
+			rowMap[strings.ToLower(expr)] = rowValues[i]
+		}
+		if se.havingCondition != "" {
+			matches, err := rowMatchesWhereConditions(rowMap, []string{se.havingCondition})
+			if err != nil || !matches {
+				continue
+			}
+		}
+
+		records = append(records, NewExecutorRecordFromInterface(rowValues, &metadata.TableMeta{
+			Name:    se.tableName + "_aggregate",
+			Columns: projectedColumns,
+		}))
+	}
+
+	sortedRecords := se.applyOrderBy(records)
+	distinctRecords := se.applyDistinct(sortedRecords)
+	limitedRecords := se.applyLimitOffset(distinctRecords)
+	return &SelectResult{
+		Records:     limitedRecords,
+		RowCount:    len(limitedRecords),
+		Columns:     columns,
+		ColumnTypes: columnTypes,
+		ResultType:  common.RESULT_TYPE_QUERY,
+		Message:     fmt.Sprintf("Query OK, %d rows in set", len(limitedRecords)),
+	}
+}
+
+func aggregateGroupKey(values []interface{}) string {
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		parts = append(parts, fmt.Sprintf("%T:%v", value, value))
+	}
+	return strings.Join(parts, "\x00")
+}
+
+func (se *SelectExecutor) cleanColumnNames(columns []string) []string {
+	cleaned := make([]string, 0, len(columns))
+	for _, column := range columns {
+		cleaned = append(cleaned, se.cleanColumnExpression(column))
+	}
+	return cleaned
+}
+
+func (se *SelectExecutor) groupValueForExpression(expr string, groupColumns []string, groupValues []interface{}) interface{} {
+	cleanExpr := strings.ToLower(se.cleanColumnExpression(expr))
+	for i, column := range groupColumns {
+		if strings.ToLower(column) == cleanExpr && i < len(groupValues) {
+			return groupValues[i]
+		}
+	}
+	return nil
+}
+
+func (se *SelectExecutor) columnTypeForExpression(expr string) metadata.DataType {
+	tableMeta, err := se.getTableMetadata()
+	if err != nil || tableMeta == nil {
+		return metadata.TypeVarchar
+	}
+	cleanExpr := strings.ToLower(se.cleanColumnExpression(expr))
+	for _, col := range tableMeta.Columns {
+		if col != nil && strings.ToLower(col.Name) == cleanExpr {
+			return col.Type
+		}
+	}
+	return metadata.TypeVarchar
 }
 
 // applyLimitOffset 应用LIMIT和OFFSET
@@ -1535,6 +1932,9 @@ func (se *SelectExecutor) applyLimitOffset(records []Record) []Record {
 // getColumnNames 获取列名。SELECT * 时从 getTableMetadata 取列（含从 .frm 加载）；否则用解析出的 select 表达式。
 func (se *SelectExecutor) getColumnNames() []string {
 	if se.isCountStarQuery() {
+		if len(se.selectAliases) > 0 && strings.TrimSpace(se.selectAliases[0]) != "" {
+			return []string{strings.TrimSpace(se.selectAliases[0])}
+		}
 		return []string{se.selectExprs[0]}
 	}
 	if len(se.selectExprs) == 1 && se.selectExprs[0] == "*" {
@@ -1548,7 +1948,40 @@ func (se *SelectExecutor) getColumnNames() []string {
 		}
 		return names
 	}
-	return se.selectExprs
+	names := make([]string, len(se.selectExprs))
+	for i, expr := range se.selectExprs {
+		if i < len(se.selectAliases) && strings.TrimSpace(se.selectAliases[i]) != "" {
+			names[i] = strings.TrimSpace(se.selectAliases[i])
+		} else {
+			names[i] = se.cleanColumnExpression(expr)
+		}
+	}
+	return names
+}
+
+func (se *SelectExecutor) getColumnTypes(columns []string) []string {
+	if len(columns) == 0 {
+		return nil
+	}
+	tableMeta, err := se.getTableMetadata()
+	if err != nil || tableMeta == nil {
+		return nil
+	}
+	columnTypeByName := make(map[string]string, len(tableMeta.Columns))
+	for _, col := range tableMeta.Columns {
+		if col == nil {
+			continue
+		}
+		columnTypeByName[strings.ToLower(col.Name)] = strings.ToLower(string(col.Type))
+	}
+	types := make([]string, len(columns))
+	for i, column := range columns {
+		cleanName := strings.ToLower(se.cleanColumnExpression(column))
+		if typ := columnTypeByName[cleanName]; typ != "" {
+			types[i] = typ
+		}
+	}
+	return types
 }
 
 func (se *SelectExecutor) isCountStarQuery() bool {
@@ -1561,11 +1994,12 @@ func (se *SelectExecutor) isCountStarQuery() bool {
 
 // SelectResult SELECT查询结果
 type SelectResult struct {
-	Records    []Record
-	RowCount   int
-	Columns    []string
-	ResultType string
-	Message    string
+	Records     []Record
+	RowCount    int
+	Columns     []string
+	ColumnTypes []string
+	ResultType  string
+	Message     string
 }
 
 // InfoSchemaAdapter 信息模式适配器实现

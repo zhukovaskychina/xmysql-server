@@ -313,10 +313,12 @@ type InsertRowData struct {
 
 // RowUpdateInfo 行更新信息
 type RowUpdateInfo struct {
-	RowId     uint64
-	PageNum   uint32
-	SlotIndex int
-	OldValues map[string]interface{}
+	RowId      uint64
+	PageNum    uint32
+	SlotIndex  int
+	SchemaName string
+	TableName  string
+	OldValues  map[string]interface{}
 }
 
 // UpdateExpression 更新表达式

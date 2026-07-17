@@ -381,9 +381,9 @@ func (e *MySQLResultSetEncoder) InferMySQLType(value interface{}) byte {
 	case bool:
 		return MYSQL_TYPE_TINY
 	case int8:
-		return MYSQL_TYPE_TINY
+		return MYSQL_TYPE_SHORT
 	case uint8:
-		return MYSQL_TYPE_TINY
+		return MYSQL_TYPE_SHORT
 	case int16:
 		return MYSQL_TYPE_SHORT
 	case uint16:

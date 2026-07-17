@@ -137,6 +137,7 @@ func (h *EnhancedBusinessMessageHandler) dispatchQueryResult(sessionID string, s
 		// 转换结果格式
 		queryResult := &protocol.MessageQueryResult{
 			Columns:      result.Columns,
+			ColumnTypes:  result.ColumnTypes,
 			Rows:         result.Rows,
 			Error:        result.Err,
 			Message:      result.Message,

@@ -263,6 +263,53 @@ func (h *DecoupledMySQLMessageHandler) sendMySQLOKPacket(session Session, affect
 	return session.WriteBytes(okData)
 }
 
+func (h *DecoupledMySQLMessageHandler) sendMySQLOKPacketWithStatus(session Session, affectedRows, lastInsertId uint64, seqId byte, statusFlags uint16) error {
+	logger.Debugf("发送OK包")
+
+	okData := protocol.EncodeOKPacketWithSeq(affectedRows, lastInsertId, statusFlags, 0, seqId)
+	return session.WriteBytes(okData)
+}
+
+func mysqlSessionStatusFlags(mysqlSession server.MySQLServerSession) uint16 {
+	if mysqlSession == nil {
+		return protocol.SERVER_STATUS_AUTOCOMMIT
+	}
+	var flags uint16
+	if sessionAutocommitEnabled(mysqlSession.GetParamByName("autocommit")) {
+		flags |= protocol.SERVER_STATUS_AUTOCOMMIT
+	}
+	if inTxn, ok := mysqlSession.GetParamByName("in_transaction").(bool); ok && inTxn {
+		flags |= protocol.SERVER_STATUS_IN_TRANS
+	}
+	return flags
+}
+
+func sessionAutocommitEnabled(value interface{}) bool {
+	switch v := value.(type) {
+	case nil:
+		return true
+	case bool:
+		return v
+	case string:
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "0", "off", "false", "disabled", "no":
+			return false
+		default:
+			return true
+		}
+	case int:
+		return v != 0
+	case int64:
+		return v != 0
+	case uint:
+		return v != 0
+	case uint64:
+		return v != 0
+	default:
+		return true
+	}
+}
+
 // OnClose 连接关闭事件
 func (h *DecoupledMySQLMessageHandler) OnClose(session Session) {
 	logger.Debugf("[OnClose] 连接关闭: SessionID=%s, RemoteAddr=%s", session.Stat(), session.RemoteAddr())
@@ -572,7 +619,7 @@ func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session,
 	logger.Debugf("[handleQueryMessageDirect] 当前 session database: %q", database)
 
 	if h.businessHandler == nil {
-		return h.sendMySQLOKPacket(session, 0, 0, 1)
+		return h.sendMySQLOKPacketWithStatus(session, 0, 0, 1, mysqlSessionStatusFlags(*currentMysqlSession))
 	}
 
 	var response protocol.Message
@@ -588,23 +635,23 @@ func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session,
 	}
 
 	if response == nil {
-		return h.sendMySQLOKPacket(session, 0, 0, 1)
+		return h.sendMySQLOKPacketWithStatus(session, 0, 0, 1, mysqlSessionStatusFlags(*currentMysqlSession))
 	}
 
 	switch resp := response.(type) {
 	case *protocol.ResponseMessage:
 		if resp.Result != nil {
 			typeStr := strings.ToLower(resp.Result.Type)
-			if typeStr == "set" || typeStr == "ddl" || typeStr == "query" || (len(resp.Result.Columns) == 0 && len(resp.Result.Rows) == 0) {
-				return h.sendMySQLOKPacket(session, resp.Result.AffectedRows, resp.Result.LastInsertID, 1)
+			if typeStr == "set" || typeStr == "ddl" || len(resp.Result.Columns) == 0 && len(resp.Result.Rows) == 0 {
+				return h.sendMySQLOKPacketWithStatus(session, resp.Result.AffectedRows, resp.Result.LastInsertID, 1, mysqlSessionStatusFlags(*currentMysqlSession))
 			}
 			return h.sendQueryResultSet(session, resp.Result, 1)
 		}
-		return h.sendMySQLOKPacket(session, 0, 0, 1)
+		return h.sendMySQLOKPacketWithStatus(session, 0, 0, 1, mysqlSessionStatusFlags(*currentMysqlSession))
 	case *protocol.ErrorMessage:
 		return h.sendErrorResponse(session, resp.Code, resp.State, resp.Message)
 	default:
-		return h.sendMySQLOKPacket(session, 0, 0, 1)
+		return h.sendMySQLOKPacketWithStatus(session, 0, 0, 1, mysqlSessionStatusFlags(*currentMysqlSession))
 	}
 }
 
@@ -1024,10 +1071,14 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	for colIdx, colName := range result.Columns {
 		var colDef *protocol.ColumnDefinition
 
+		if colIdx < len(result.ColumnTypes) && strings.TrimSpace(result.ColumnTypes[colIdx]) != "" {
+			colDef = createColumnDefinitionForType(encoder, colName, result.ColumnTypes[colIdx])
+		}
 		// 从第一行数据推断列类型
-		if len(result.Rows) > 0 && colIdx < len(result.Rows[0]) {
+		if colDef == nil && len(result.Rows) > 0 && colIdx < len(result.Rows[0]) {
 			colDef = encoder.CreateColumnDefinitionFromValue(colName, result.Rows[0][colIdx])
-		} else {
+		}
+		if colDef == nil {
 			// 没有数据行，默认为 VARCHAR
 			colDef = encoder.CreateColumnDefinition(colName, protocol.MYSQL_TYPE_VAR_STRING, 0)
 		}
@@ -1143,6 +1194,43 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	session.SetAttribute("__result_sent__", true)
 
 	return nil
+}
+
+func createColumnDefinitionForType(encoder *protocol.MySQLResultSetEncoder, name string, columnType string) *protocol.ColumnDefinition {
+	switch strings.ToLower(strings.TrimSpace(columnType)) {
+	case "tinyint":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_SHORT, 0)
+	case "smallint":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_SHORT, 0)
+	case "mediumint":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_INT24, 0)
+	case "int", "integer":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_LONG, 0)
+	case "bigint":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_LONGLONG, 0)
+	case "float":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_FLOAT, 0)
+	case "double":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_DOUBLE, 0)
+	case "decimal":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_NEWDECIMAL, 0)
+	case "date":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_DATE, 0)
+	case "time":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_TIME, 0)
+	case "datetime":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_DATETIME, 0)
+	case "timestamp":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_TIMESTAMP, 0)
+	case "year":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_YEAR, 0)
+	case "bool", "boolean":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_TINY, 0)
+	case "binary", "varbinary", "blob", "tinyblob", "mediumblob", "longblob":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_BLOB, 0)
+	default:
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_VAR_STRING, 0)
+	}
 }
 
 // getCommandName 获取命令名称

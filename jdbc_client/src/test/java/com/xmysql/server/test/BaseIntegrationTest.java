@@ -77,8 +77,7 @@ public abstract class BaseIntegrationTest {
      * 检查表是否存在
      */
     protected boolean tableExists(String tableName) throws SQLException {
-        DatabaseMetaData metaData = connection.getMetaData();
-        try (ResultSet rs = metaData.getTables(null, null, tableName, new String[]{"TABLE"})) {
+        try (ResultSet rs = executeQuery("SHOW TABLES LIKE '" + tableName + "'")) {
             return rs.next();
         }
     }
@@ -160,4 +159,3 @@ public abstract class BaseIntegrationTest {
         System.err.println("❌ " + message);
     }
 }
-

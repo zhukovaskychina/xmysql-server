@@ -215,6 +215,9 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 	if err := dml.validateInsertData(insertRows, tableMeta); err != nil {
 		return nil, fmt.Errorf("数据验证失败: %v", err)
 	}
+	if err := dml.validateForeignKeyConstraints(ctx, insertRows, resolvedSchema, tableMeta); err != nil {
+		return nil, err
+	}
 
 	// 5. 获取或创建表专用的B+树管理器
 	tableBtreeManager, err := dml.tableStorageManager.CreateBTreeManagerForTable(ctx, resolvedSchema, dml.tableName)
@@ -352,7 +355,12 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 		dml.rollbackStorageTransaction(ctx, txn)
 		return nil, err
 	}
-	if updateTouchesPrimaryKey(updateExprs, tableMeta) {
+	updatedRowsForCascade, err := dml.buildUpdatedRowsForCascade(rowsToUpdate, updateExprs, tableMeta)
+	if err != nil {
+		dml.rollbackStorageTransaction(ctx, txn)
+		return nil, err
+	}
+	if updateTouchesPrimaryKey(updateExprs, tableMeta) && !dml.hasOnUpdateCascade(resolvedSchema, tableName) {
 		dml.rollbackStorageTransaction(ctx, txn)
 		return nil, fmt.Errorf("unsupported primary key UPDATE")
 	}
@@ -382,6 +390,10 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 		}
 
 		affectedRows++
+	}
+	if err := dml.applyOnUpdateCascade(ctx, txn, resolvedSchema, tableName, rowsToUpdate, updatedRowsForCascade); err != nil {
+		dml.rollbackStorageTransaction(ctx, txn)
+		return nil, err
 	}
 
 	// 9. 提交事务
@@ -462,6 +474,10 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt
 	if err != nil {
 		dml.rollbackStorageTransaction(ctx, txn)
 		return nil, fmt.Errorf("查找待删除行失败: %v", err)
+	}
+	if err := dml.applyOnDeleteCascade(ctx, txn, resolvedSchema, tableName, rowsToDelete); err != nil {
+		dml.rollbackStorageTransaction(ctx, txn)
+		return nil, err
 	}
 
 	affectedRows := 0
@@ -570,6 +586,9 @@ func (dml *StorageIntegratedDMLExecutor) insertRowToStorage(
 	if err != nil {
 		return 0, fmt.Errorf("插入到B+树失败: %v", err)
 	}
+	if err := appendTableRowSidecar(dml.dataDir, dml.schemaName, dml.tableName, primaryKey, serializedRow); err != nil {
+		return 0, fmt.Errorf("写入表行sidecar失败: %v", err)
+	}
 
 	logger.Debugf(" 行成功插入到B+树，主键: %v", primaryKey)
 	return dml.convertPrimaryKeyToUint64(primaryKey), nil
@@ -597,6 +616,7 @@ func (dml *StorageIntegratedDMLExecutor) updateRowInStorage(
 	if btreeManager == nil {
 		return fmt.Errorf("B+树管理器未初始化")
 	}
+	sidecarSchema, sidecarTable := dml.sidecarTargetForRow(rowInfo)
 
 	logger.Debugf(" 在存储引擎中更新行: RowID=%d, 更新列数=%d", rowInfo.RowId, len(updateExprs))
 
@@ -634,6 +654,9 @@ func (dml *StorageIntegratedDMLExecutor) updateRowInStorage(
 	if err != nil {
 		return fmt.Errorf("更新B+树记录失败: %v", err)
 	}
+	if err := appendTableRowSidecar(dml.dataDir, sidecarSchema, sidecarTable, primaryKey, serializedRow); err != nil {
+		return fmt.Errorf("更新表行sidecar失败: %v", err)
+	}
 
 	logger.Debugf(" 行成功在B+树中更新")
 	return nil
@@ -660,6 +683,7 @@ func (dml *StorageIntegratedDMLExecutor) deleteRowFromStorage(
 	if btreeManager == nil {
 		return fmt.Errorf("B+树管理器未初始化")
 	}
+	sidecarSchema, sidecarTable := dml.sidecarTargetForRow(rowInfo)
 
 	logger.Debugf("🗑️ 从存储引擎删除行: RowID=%d", rowInfo.RowId)
 
@@ -669,9 +693,26 @@ func (dml *StorageIntegratedDMLExecutor) deleteRowFromStorage(
 	if err != nil {
 		return fmt.Errorf("删除B+树记录失败: %v", err)
 	}
+	if err := deleteTableRowSidecar(dml.dataDir, sidecarSchema, sidecarTable, primaryKey); err != nil {
+		return fmt.Errorf("删除表行sidecar失败: %v", err)
+	}
 
 	logger.Debugf(" 行成功从B+树删除")
 	return nil
+}
+
+func (dml *StorageIntegratedDMLExecutor) sidecarTargetForRow(rowInfo *RowUpdateInfo) (string, string) {
+	schemaName := dml.schemaName
+	tableName := dml.tableName
+	if rowInfo != nil {
+		if strings.TrimSpace(rowInfo.SchemaName) != "" {
+			schemaName = rowInfo.SchemaName
+		}
+		if strings.TrimSpace(rowInfo.TableName) != "" {
+			tableName = rowInfo.TableName
+		}
+	}
+	return schemaName, tableName
 }
 
 // ===== 索引管理方法 =====

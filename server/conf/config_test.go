@@ -93,3 +93,13 @@ long_query_time_ms = abc
 	assert.Equal(t, 1000, cfg.LongQueryTimeMs)
 	assert.Equal(t, "/tmp/xmysql-slow-fallback.log", cfg.SlowQueryLogFile)
 }
+
+func TestJdbcLocalConfigUsesWorkspaceRelativePaths(t *testing.T) {
+	cfg := NewCfg()
+	cfg.Load(&CommandLineArgs{ConfigPath: filepath.Join("..", "..", "conf", "jdbc_local.ini")})
+
+	assert.Equal(t, "server/net/data", cfg.DataDir)
+	assert.Equal(t, "server/net/data", cfg.InnodbDataDir)
+	assert.Equal(t, "tmp/jdbc_logs/error.log", cfg.LogError)
+	assert.Equal(t, "tmp/jdbc_logs/mysql.log", cfg.LogInfos)
+}

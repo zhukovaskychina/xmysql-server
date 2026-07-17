@@ -94,6 +94,27 @@ func (s *MockSession) RemoveAttribute(interface{})                           {}
 func (s *MockSession) WritePkg(pkg interface{}, timeout time.Duration) error { return nil }
 func (s *MockSession) WriteBytesArray(...[]byte) error                       { return nil }
 
+func TestMySQLSessionStatusFlagsReflectAutocommitOff(t *testing.T) {
+	session := NewMockSession("status_flags_autocommit_off")
+	mysqlSession := NewMySQLServerSession(session)
+	mysqlSession.SetParamByName("autocommit", "0")
+
+	flags := mysqlSessionStatusFlags(mysqlSession)
+	if flags&protocol.SERVER_STATUS_AUTOCOMMIT != 0 {
+		t.Fatalf("expected autocommit flag to be cleared, got 0x%04x", flags)
+	}
+}
+
+type fixedQueryBusinessHandler struct {
+	response protocol.Message
+}
+
+func (h fixedQueryBusinessHandler) HandleMessage(protocol.Message) (protocol.Message, error) {
+	return h.response, nil
+}
+
+func (h fixedQueryBusinessHandler) CanHandle(protocol.MessageType) bool { return true }
+
 func TestResolveAuthHost(t *testing.T) {
 	config := conf.NewCfg()
 	handler := NewDecoupledMySQLMessageHandler(config)
@@ -391,6 +412,47 @@ func TestSendQueryResultSet_ClientDeprecateEOFStillUsesEOF(t *testing.T) {
 	}
 	if rowTermPkt[4] != 0xFE {
 		t.Fatalf("expected EOF packet (0xFE) as row terminator, got 0x%02X", rowTermPkt[4])
+	}
+}
+
+func TestHandleQueryResponse_QueryTypeWithColumnsSendsResultSet(t *testing.T) {
+	config := conf.NewCfg()
+	handler := NewDecoupledMySQLMessageHandler(config)
+	session := NewMockSession("test_query_type_with_columns")
+
+	result := &protocol.MessageQueryResult{
+		Columns: []string{"Database"},
+		Rows:    [][]interface{}{{"app_db"}},
+		Type:    "query",
+	}
+	response := &protocol.ResponseMessage{
+		BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_RESPONSE, "test", result),
+		Result:      result,
+	}
+	handler.businessHandler = fixedQueryBusinessHandler{response: response}
+	mysqlSession := NewMySQLServerSession(session)
+	query := &protocol.QueryMessage{
+		BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_REQUEST, "test", "show databases like 'app_%'"),
+		SQL:         "show databases like 'app_%'",
+	}
+
+	err := handler.handleQueryMessageDirect(session, &mysqlSession, query)
+
+	if err != nil {
+		t.Fatalf("handleQueryMessageDirect failed: %v", err)
+	}
+	if len(session.written) == 0 {
+		t.Fatal("expected packets to be written")
+	}
+	first := session.written[0]
+	if len(first) < 5 {
+		t.Fatalf("first packet too short: %d", len(first))
+	}
+	if first[4] != 0x01 {
+		t.Fatalf("expected column-count packet for one-column ResultSet, got first payload byte 0x%02X", first[4])
+	}
+	if len(session.written) <= 1 {
+		t.Fatalf("expected ResultSet packet sequence, got %d packet(s)", len(session.written))
 	}
 }
 

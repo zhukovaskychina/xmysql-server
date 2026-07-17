@@ -17,6 +17,16 @@ func TestInsertRejectsNullForNotNullColumn(t *testing.T) {
 	require.Contains(t, strings.ToLower(err.Error()), "not null")
 }
 
+func TestRowMatchesWhereConditionsWithValueColumnRange(t *testing.T) {
+	matches, err := rowMatchesWhereConditions(map[string]interface{}{"value": int64(5500)}, []string{"value > 5000 and value < 6000"})
+	require.NoError(t, err)
+	require.True(t, matches)
+
+	matches, err = rowMatchesWhereConditions(map[string]interface{}{"value": int64(6000)}, []string{"value > 5000 and value < 6000"})
+	require.NoError(t, err)
+	require.False(t, matches)
+}
+
 func TestCompositePrimaryKeyUsesAllColumns(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	mustExecSQL(t, executor, "", "create database app")
@@ -49,50 +59,39 @@ func TestCreateTablePreservesSecondaryIndexMetadata(t *testing.T) {
 	require.False(t, tableMeta.Indices[1].Unique)
 }
 
-func TestCreateTableRejectsDeferredAdvancedConstraints(t *testing.T) {
+func TestCreateTableAllowsForeignKeyMetadataSyntax(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table users (id int primary key, name varchar(100) not null)")
+	mustExecSQL(t, executor, "app", "create table orders (id int primary key, user_id int, foreign key (user_id) references users(id))")
+}
+
+func TestCreateTableAcceptsAdvancedConstraintSyntax(t *testing.T) {
 	for _, tc := range []struct {
-		name     string
-		sql      string
-		contains string
+		name string
+		sql  string
 	}{
 		{
-			name:     "foreign key",
-			sql:      "create table child (id int primary key, parent_id int, foreign key (parent_id) references parent(id))",
-			contains: "foreign key",
+			name: "inline references on delete cascade",
+			sql:  "create table child (id int primary key, parent_id int references parent(id) on delete cascade)",
 		},
 		{
-			name:     "inline references",
-			sql:      "create table child (id int primary key, parent_id int references parent(id))",
-			contains: "foreign key",
+			name: "inline references on update cascade",
+			sql:  "create table child (id int primary key, parent_id int references parent(id) on update cascade)",
 		},
 		{
-			name:     "inline references on delete cascade",
-			sql:      "create table child (id int primary key, parent_id int references parent(id) on delete cascade)",
-			contains: "cascade",
+			name: "check",
+			sql:  "create table checked_values (id int primary key, age int check (age >= 0))",
 		},
 		{
-			name:     "inline references on update cascade",
-			sql:      "create table child (id int primary key, parent_id int references parent(id) on update cascade)",
-			contains: "cascade",
-		},
-		{
-			name:     "check",
-			sql:      "create table checked_values (id int primary key, age int check (age >= 0))",
-			contains: "check",
-		},
-		{
-			name:     "fulltext",
-			sql:      "create table docs (id int primary key, content text, fulltext index idx_content (content))",
-			contains: "fulltext",
+			name: "fulltext",
+			sql:  "create table docs (id int primary key, content text, fulltext index idx_content (content))",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 			mustExecSQL(t, executor, "", "create database app")
-
-			err := execSQLExpectError(t, executor, "app", tc.sql)
-			require.Error(t, err)
-			require.Contains(t, strings.ToLower(err.Error()), tc.contains)
+			mustExecSQL(t, executor, "app", tc.sql)
 		})
 	}
 }
