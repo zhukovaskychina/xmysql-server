@@ -407,24 +407,6 @@ func (se *SelectExecutor) scanStorageRows(ctx context.Context, tableMeta *metada
 		return nil
 	}
 
-	if sidecarRows, err := decodeTableRowsSidecar(se.dataDir, se.schemaName, se.tableName, tableMeta); err != nil {
-		return fmt.Errorf("scan table rows sidecar failed: %v", err)
-	} else if len(sidecarRows) > 0 {
-		records := make([]Record, 0, len(sidecarRows))
-		for _, row := range sidecarRows {
-			matched, err := rowMatchesWhereConditions(row.ColumnValues, se.whereConditions)
-			if err != nil {
-				return fmt.Errorf("evaluate sidecar row conditions failed: %v", err)
-			}
-			if !matched {
-				continue
-			}
-			records = append(records, recordFromInsertRowData(row, tableMeta))
-		}
-		se.resultSet = records
-		return nil
-	}
-
 	btreeManager := se.btreeManager
 	if storageTableManager := se.storageManager.GetTableStorageManager(); storageTableManager != nil {
 		tableBTreeManager, err := storageTableManager.CreateBTreeManagerForTable(ctx, se.schemaName, se.tableName)

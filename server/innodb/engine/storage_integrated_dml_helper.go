@@ -520,31 +520,6 @@ func (dml *StorageIntegratedDMLExecutor) scanRowsForTableConditions(
 		return nil, fmt.Errorf("B+树管理器未初始化")
 	}
 
-	if sidecarRows, err := decodeTableRowsSidecar(dml.dataDir, schemaName, tableName, tableMeta); err != nil {
-		return nil, err
-	} else if len(sidecarRows) > 0 {
-		matched := make([]*RowUpdateInfo, 0, len(sidecarRows))
-		for slot, rowData := range sidecarRows {
-			rowMatched, err := rowMatchesWhereConditions(rowData.ColumnValues, whereConditions)
-			if err != nil {
-				return nil, err
-			}
-			if !rowMatched {
-				continue
-			}
-			rowID := dml.rowIDFromRowData(rowData, tableMeta)
-			matched = append(matched, &RowUpdateInfo{
-				RowId:      rowID,
-				PageNum:    tableStorageInfo.RootPageNo,
-				SlotIndex:  slot,
-				SchemaName: schemaName,
-				TableName:  tableName,
-				OldValues:  rowData.ColumnValues,
-			})
-		}
-		return matched, nil
-	}
-
 	scanner := NewClusteredIndexScanner(btreeManager, tableMeta)
 	rows, err := scanner.Scan(ctx, whereConditions)
 	if err != nil {

@@ -586,9 +586,6 @@ func (dml *StorageIntegratedDMLExecutor) insertRowToStorage(
 	if err != nil {
 		return 0, fmt.Errorf("插入到B+树失败: %v", err)
 	}
-	if err := appendTableRowSidecar(dml.dataDir, dml.schemaName, dml.tableName, primaryKey, serializedRow); err != nil {
-		return 0, fmt.Errorf("写入表行sidecar失败: %v", err)
-	}
 
 	logger.Debugf(" 行成功插入到B+树，主键: %v", primaryKey)
 	return dml.convertPrimaryKeyToUint64(primaryKey), nil
@@ -616,7 +613,6 @@ func (dml *StorageIntegratedDMLExecutor) updateRowInStorage(
 	if btreeManager == nil {
 		return fmt.Errorf("B+树管理器未初始化")
 	}
-	sidecarSchema, sidecarTable := dml.sidecarTargetForRow(rowInfo)
 
 	logger.Debugf(" 在存储引擎中更新行: RowID=%d, 更新列数=%d", rowInfo.RowId, len(updateExprs))
 
@@ -654,9 +650,6 @@ func (dml *StorageIntegratedDMLExecutor) updateRowInStorage(
 	if err != nil {
 		return fmt.Errorf("更新B+树记录失败: %v", err)
 	}
-	if err := appendTableRowSidecar(dml.dataDir, sidecarSchema, sidecarTable, primaryKey, serializedRow); err != nil {
-		return fmt.Errorf("更新表行sidecar失败: %v", err)
-	}
 
 	logger.Debugf(" 行成功在B+树中更新")
 	return nil
@@ -683,7 +676,6 @@ func (dml *StorageIntegratedDMLExecutor) deleteRowFromStorage(
 	if btreeManager == nil {
 		return fmt.Errorf("B+树管理器未初始化")
 	}
-	sidecarSchema, sidecarTable := dml.sidecarTargetForRow(rowInfo)
 
 	logger.Debugf("🗑️ 从存储引擎删除行: RowID=%d", rowInfo.RowId)
 
@@ -693,26 +685,9 @@ func (dml *StorageIntegratedDMLExecutor) deleteRowFromStorage(
 	if err != nil {
 		return fmt.Errorf("删除B+树记录失败: %v", err)
 	}
-	if err := deleteTableRowSidecar(dml.dataDir, sidecarSchema, sidecarTable, primaryKey); err != nil {
-		return fmt.Errorf("删除表行sidecar失败: %v", err)
-	}
 
 	logger.Debugf(" 行成功从B+树删除")
 	return nil
-}
-
-func (dml *StorageIntegratedDMLExecutor) sidecarTargetForRow(rowInfo *RowUpdateInfo) (string, string) {
-	schemaName := dml.schemaName
-	tableName := dml.tableName
-	if rowInfo != nil {
-		if strings.TrimSpace(rowInfo.SchemaName) != "" {
-			schemaName = rowInfo.SchemaName
-		}
-		if strings.TrimSpace(rowInfo.TableName) != "" {
-			tableName = rowInfo.TableName
-		}
-	}
-	return schemaName, tableName
 }
 
 // ===== 索引管理方法 =====
