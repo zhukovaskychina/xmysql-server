@@ -203,7 +203,7 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 	}
 
 	// 3. 解析INSERT数据
-	insertRows, err := dml.parseInsertData(stmt, tableMeta)
+	insertRows, err := dml.parseInsertData(ctx, stmt, tableMeta, resolvedSchema)
 	if err != nil {
 		return nil, fmt.Errorf("解析INSERT数据失败: %v", err)
 	}
@@ -223,6 +223,22 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 	tableBtreeManager, err := dml.tableStorageManager.CreateBTreeManagerForTable(ctx, resolvedSchema, dml.tableName)
 	if err != nil {
 		return nil, fmt.Errorf("创建表B+树管理器失败: %v", err)
+	}
+
+	duplicateRowsByInsert, err := dml.findDuplicateRowsByInsert(ctx, insertRows, tableMeta, tableStorageInfo, tableBtreeManager)
+	if err != nil {
+		return nil, err
+	}
+	duplicateRows := flattenDuplicateRowsByInsert(duplicateRowsByInsert, tableMeta)
+	if len(duplicateRows) > 0 && strings.EqualFold(stmt.Action, sqlparser.ReplaceStr) {
+		return dml.executeReplaceRows(ctx, insertRows, duplicateRows, tableMeta, tableStorageInfo, tableBtreeManager, startTime)
+	}
+	if len(duplicateRows) > 0 && len(stmt.OnDup) > 0 {
+		updateExprs, err := dml.parseUpdateExpressions(sqlparser.UpdateExprs(stmt.OnDup), tableMeta)
+		if err != nil {
+			return nil, err
+		}
+		return dml.executeOnDuplicateKeyUpdate(ctx, insertRows, duplicateRowsByInsert, updateExprs, tableMeta, tableStorageInfo, tableBtreeManager, startTime)
 	}
 
 	if err := dml.validateUniqueConstraints(ctx, insertRows, tableMeta, tableStorageInfo, tableBtreeManager); err != nil {
@@ -273,6 +289,147 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 		affectedRows, lastInsertId, executionTime)
 
 	return buildInsertDMLResult(affectedRows, lastInsertId, txnID), nil
+}
+
+func (dml *StorageIntegratedDMLExecutor) executeReplaceRows(
+	ctx context.Context,
+	insertRows []*InsertRowData,
+	duplicateRows []*RowUpdateInfo,
+	tableMeta *metadata.TableMeta,
+	tableStorageInfo *manager.TableStorageInfo,
+	tableBtreeManager basic.BPlusTreeManager,
+	startTime time.Time,
+) (*DMLResult, error) {
+	txn, err := dml.beginStorageTransaction(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("开始存储事务失败: %v", err)
+	}
+	txnID := extractTransactionIDFromStorageCtx(txn)
+
+	for _, rowInfo := range duplicateRows {
+		if err := dml.deleteRowFromStorage(ctx, txn, rowInfo, tableMeta, tableStorageInfo, tableBtreeManager); err != nil {
+			dml.rollbackStorageTransaction(ctx, txn)
+			return nil, fmt.Errorf("REPLACE删除重复行失败: %v", err)
+		}
+		if err := dml.updateIndexesForDelete(ctx, txn, []*RowUpdateInfo{rowInfo}, tableMeta, tableStorageInfo); err != nil {
+			dml.rollbackStorageTransaction(ctx, txn)
+			return nil, fmt.Errorf("REPLACE更新删除索引失败: %v", err)
+		}
+	}
+
+	affectedRows := 0
+	var lastInsertId uint64
+	for _, row := range insertRows {
+		insertId, err := dml.insertRowToStorage(ctx, txn, row, tableMeta, tableStorageInfo, tableBtreeManager)
+		if err != nil {
+			dml.rollbackStorageTransaction(ctx, txn)
+			return nil, fmt.Errorf("REPLACE插入行失败: %v", err)
+		}
+		affectedRows++
+		if insertId > 0 {
+			lastInsertId = insertId
+		}
+		if err := dml.updateIndexesForInsert(ctx, txn, row, tableMeta, tableStorageInfo); err != nil {
+			dml.rollbackStorageTransaction(ctx, txn)
+			return nil, fmt.Errorf("REPLACE更新插入索引失败: %v", err)
+		}
+	}
+
+	if err := dml.commitStorageTransaction(ctx, txn); err != nil {
+		return nil, fmt.Errorf("提交存储事务失败: %v", err)
+	}
+	dml.updateInsertStats(affectedRows, time.Since(startTime))
+	return buildInsertDMLResult(affectedRows, lastInsertId, txnID), nil
+}
+
+func (dml *StorageIntegratedDMLExecutor) executeOnDuplicateKeyUpdate(
+	ctx context.Context,
+	insertRows []*InsertRowData,
+	duplicateRowsByInsert map[int][]*RowUpdateInfo,
+	updateExprs []*UpdateExpression,
+	tableMeta *metadata.TableMeta,
+	tableStorageInfo *manager.TableStorageInfo,
+	tableBtreeManager basic.BPlusTreeManager,
+	startTime time.Time,
+) (*DMLResult, error) {
+	insertOnlyRows := make([]*InsertRowData, 0)
+	for idx, row := range insertRows {
+		if len(duplicateRowsByInsert[idx]) == 0 {
+			insertOnlyRows = append(insertOnlyRows, row)
+		}
+	}
+	if len(insertOnlyRows) > 0 {
+		if err := dml.validateUniqueConstraints(ctx, insertOnlyRows, tableMeta, tableStorageInfo, tableBtreeManager); err != nil {
+			return nil, err
+		}
+	}
+
+	txn, err := dml.beginStorageTransaction(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("开始存储事务失败: %v", err)
+	}
+	txnID := extractTransactionIDFromStorageCtx(txn)
+
+	duplicateRows := flattenDuplicateRowsByInsert(duplicateRowsByInsert, tableMeta)
+	if err := dml.validateUpdateConstraints(ctx, duplicateRows, updateExprs, tableMeta, tableStorageInfo, tableBtreeManager); err != nil {
+		dml.rollbackStorageTransaction(ctx, txn)
+		return nil, err
+	}
+
+	affectedRows := 0
+	var lastInsertId uint64
+	for idx, row := range insertRows {
+		rowDuplicates := duplicateRowsByInsert[idx]
+		if len(rowDuplicates) == 0 {
+			insertId, err := dml.insertRowToStorage(ctx, txn, row, tableMeta, tableStorageInfo, tableBtreeManager)
+			if err != nil {
+				dml.rollbackStorageTransaction(ctx, txn)
+				return nil, fmt.Errorf("ON DUPLICATE KEY UPDATE插入非冲突行失败: %v", err)
+			}
+			affectedRows++
+			if insertId > 0 {
+				lastInsertId = insertId
+			}
+			if err := dml.updateIndexesForInsert(ctx, txn, row, tableMeta, tableStorageInfo); err != nil {
+				dml.rollbackStorageTransaction(ctx, txn)
+				return nil, fmt.Errorf("ON DUPLICATE KEY UPDATE更新插入索引失败: %v", err)
+			}
+			continue
+		}
+		for _, rowInfo := range rowDuplicates {
+			if err := dml.updateRowInStorage(ctx, txn, rowInfo, updateExprs, tableMeta, tableStorageInfo, tableBtreeManager); err != nil {
+				dml.rollbackStorageTransaction(ctx, txn)
+				return nil, fmt.Errorf("ON DUPLICATE KEY UPDATE更新行失败: %v", err)
+			}
+			if err := dml.updateIndexesForUpdate(ctx, txn, []*RowUpdateInfo{rowInfo}, updateExprs, tableMeta, tableStorageInfo); err != nil {
+				dml.rollbackStorageTransaction(ctx, txn)
+				return nil, fmt.Errorf("ON DUPLICATE KEY UPDATE更新索引失败: %v", err)
+			}
+			affectedRows++
+		}
+	}
+
+	if err := dml.commitStorageTransaction(ctx, txn); err != nil {
+		return nil, fmt.Errorf("提交存储事务失败: %v", err)
+	}
+	dml.updateUpdateStats(affectedRows, time.Since(startTime))
+	return buildInsertDMLResult(affectedRows, lastInsertId, txnID), nil
+}
+
+func flattenDuplicateRowsByInsert(duplicateRowsByInsert map[int][]*RowUpdateInfo, tableMeta *metadata.TableMeta) []*RowUpdateInfo {
+	duplicates := make([]*RowUpdateInfo, 0)
+	seen := make(map[string]struct{})
+	for _, rows := range duplicateRowsByInsert {
+		for _, rowInfo := range rows {
+			key := duplicateRowIdentity(rowInfo, tableMeta)
+			if _, exists := seen[key]; exists {
+				continue
+			}
+			duplicates = append(duplicates, rowInfo)
+			seen[key] = struct{}{}
+		}
+	}
+	return duplicates
 }
 
 func buildInsertDMLResult(affectedRows int, lastInsertID uint64, txnID uint64) *DMLResult {

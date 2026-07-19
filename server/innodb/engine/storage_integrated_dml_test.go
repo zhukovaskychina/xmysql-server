@@ -67,7 +67,7 @@ func TestStorageIntegratedDMLExecutor_InsertWithSerialization(t *testing.T) {
 		Columns: []*metadata.ColumnMeta{},
 	}
 
-	insertRows, err := executor.parseInsertData(insertStmt, tableMeta)
+	insertRows, err := executor.parseInsertData(context.Background(), insertStmt, tableMeta, "")
 	if err != nil {
 		t.Errorf("Failed to parse insert data: %v", err)
 	} else if len(insertRows) == 0 {

@@ -757,7 +757,7 @@ func (dml *StorageIntegratedDMLExecutor) GetStats() *DMLExecutorStats {
 // ===== 继承和复用原有方法 =====
 
 // parseInsertData 解析INSERT数据 - 复用原有实现
-func (dml *StorageIntegratedDMLExecutor) parseInsertData(stmt *sqlparser.Insert, tableMeta *metadata.TableMeta) ([]*InsertRowData, error) {
+func (dml *StorageIntegratedDMLExecutor) parseInsertData(ctx context.Context, stmt *sqlparser.Insert, tableMeta *metadata.TableMeta, schemaName string) ([]*InsertRowData, error) {
 	var insertRows []*InsertRowData
 
 	// 解析列名列表
@@ -799,11 +799,128 @@ func (dml *StorageIntegratedDMLExecutor) parseInsertData(stmt *sqlparser.Insert,
 
 			insertRows = append(insertRows, rowData)
 		}
+	case *sqlparser.Select:
+		return dml.parseInsertSelectData(ctx, valuesClause, tableMeta, schemaName, columnNames)
 	default:
 		return nil, fmt.Errorf("不支持的INSERT语法: %T", stmt.Rows)
 	}
 
 	return insertRows, nil
+}
+
+func (dml *StorageIntegratedDMLExecutor) parseInsertSelectData(
+	ctx context.Context,
+	selectStmt *sqlparser.Select,
+	targetMeta *metadata.TableMeta,
+	targetSchema string,
+	targetColumnNames []string,
+) ([]*InsertRowData, error) {
+	if selectStmt == nil {
+		return nil, fmt.Errorf("INSERT SELECT语句为空")
+	}
+	if len(selectStmt.From) != 1 {
+		return nil, fmt.Errorf("INSERT SELECT仅支持单表来源")
+	}
+
+	sourceTableName, err := dml.parseTableName(selectStmt.From[0])
+	if err != nil {
+		return nil, err
+	}
+	sourceSchemaName, err := dml.parseTableSchema(selectStmt.From[0])
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(sourceSchemaName) == "" {
+		sourceSchemaName = targetSchema
+	}
+
+	sourceMeta, err := dml.getTableMetadataFor(sourceSchemaName, sourceTableName)
+	if err != nil {
+		return nil, err
+	}
+	sourceStorageInfo, err := dml.tableStorageManager.GetTableStorageInfo(sourceSchemaName, sourceTableName)
+	if err != nil {
+		return nil, fmt.Errorf("获取INSERT SELECT来源表存储信息失败: %v", err)
+	}
+	sourceBtreeManager, err := dml.tableStorageManager.CreateBTreeManagerForTable(ctx, sourceSchemaName, sourceTableName)
+	if err != nil {
+		return nil, fmt.Errorf("创建INSERT SELECT来源表B+树管理器失败: %v", err)
+	}
+
+	whereConditions := dml.parseWhereConditions(selectStmt.Where)
+	sourceRows, err := dml.scanRowsForTableConditions(ctx, sourceSchemaName, sourceTableName, whereConditions, sourceMeta, sourceStorageInfo, sourceBtreeManager)
+	if err != nil {
+		return nil, err
+	}
+
+	sourceColumnNames, err := dml.selectProjectionColumnNames(selectStmt, sourceMeta)
+	if err != nil {
+		return nil, err
+	}
+	if len(sourceColumnNames) != len(targetColumnNames) {
+		return nil, fmt.Errorf("列数量不匹配: 期望 %d，实际 %d", len(targetColumnNames), len(sourceColumnNames))
+	}
+
+	insertRows := make([]*InsertRowData, 0, len(sourceRows))
+	for _, sourceRow := range sourceRows {
+		rowData := &InsertRowData{
+			ColumnValues: make(map[string]interface{}),
+			ColumnTypes:  make(map[string]metadata.DataType),
+		}
+		for i, sourceColumnName := range sourceColumnNames {
+			targetColumnName := targetColumnNames[i]
+			value, exists := sourceRow.OldValues[sourceColumnName]
+			if !exists {
+				return nil, fmt.Errorf("INSERT SELECT来源列不存在: %s", sourceColumnName)
+			}
+			rowData.ColumnValues[targetColumnName] = value
+			if col := findColumnMeta(targetMeta, targetColumnName); col != nil {
+				rowData.ColumnTypes[targetColumnName] = col.Type
+			} else {
+				rowData.ColumnTypes[targetColumnName] = metadata.TypeVarchar
+			}
+		}
+		insertRows = append(insertRows, rowData)
+	}
+
+	return insertRows, nil
+}
+
+func (dml *StorageIntegratedDMLExecutor) selectProjectionColumnNames(selectStmt *sqlparser.Select, sourceMeta *metadata.TableMeta) ([]string, error) {
+	if len(selectStmt.SelectExprs) == 1 {
+		if _, ok := selectStmt.SelectExprs[0].(*sqlparser.StarExpr); ok {
+			names := make([]string, 0, len(sourceMeta.Columns))
+			for _, col := range sourceMeta.Columns {
+				if col != nil {
+					names = append(names, col.Name)
+				}
+			}
+			return names, nil
+		}
+	}
+
+	columnNames := make([]string, 0, len(selectStmt.SelectExprs))
+	for _, expr := range selectStmt.SelectExprs {
+		aliasedExpr, ok := expr.(*sqlparser.AliasedExpr)
+		if !ok {
+			return nil, fmt.Errorf("INSERT SELECT仅支持列投影")
+		}
+		colName, ok := aliasedExpr.Expr.(*sqlparser.ColName)
+		if !ok {
+			return nil, fmt.Errorf("INSERT SELECT仅支持列投影")
+		}
+		columnNames = append(columnNames, colName.Name.String())
+	}
+	return columnNames, nil
+}
+
+func (dml *StorageIntegratedDMLExecutor) getTableMetadataFor(schemaName string, tableName string) (*metadata.TableMeta, error) {
+	originalSchema, originalTable := dml.schemaName, dml.tableName
+	dml.schemaName, dml.tableName = schemaName, tableName
+	defer func() {
+		dml.schemaName, dml.tableName = originalSchema, originalTable
+	}()
+	return dml.getTableMetadata()
 }
 
 // evaluateExpression 计算表达式值 - 复用原有实现
@@ -1056,6 +1173,116 @@ func (dml *StorageIntegratedDMLExecutor) validateUniqueConstraints(
 	}
 
 	return nil
+}
+
+func (dml *StorageIntegratedDMLExecutor) findDuplicateRowsForInsert(
+	ctx context.Context,
+	insertRows []*InsertRowData,
+	tableMeta *metadata.TableMeta,
+	tableStorageInfo *manager.TableStorageInfo,
+	btreeManager basic.BPlusTreeManager,
+) ([]*RowUpdateInfo, error) {
+	duplicateRowsByInsert, err := dml.findDuplicateRowsByInsert(ctx, insertRows, tableMeta, tableStorageInfo, btreeManager)
+	if err != nil {
+		return nil, err
+	}
+	return flattenDuplicateRowsByInsert(duplicateRowsByInsert, tableMeta), nil
+}
+
+func (dml *StorageIntegratedDMLExecutor) findDuplicateRowsByInsert(
+	ctx context.Context,
+	insertRows []*InsertRowData,
+	tableMeta *metadata.TableMeta,
+	tableStorageInfo *manager.TableStorageInfo,
+	btreeManager basic.BPlusTreeManager,
+) (map[int][]*RowUpdateInfo, error) {
+	duplicateRowsByInsert := make(map[int][]*RowUpdateInfo)
+	if tableMeta == nil || len(insertRows) == 0 {
+		return duplicateRowsByInsert, nil
+	}
+	if len(tableMeta.PrimaryKey) == 0 && len(uniqueConstraintColumns(tableMeta)) == 0 {
+		return duplicateRowsByInsert, nil
+	}
+
+	existingRows, err := dml.scanRowsForConditions(ctx, nil, tableMeta, tableStorageInfo, btreeManager)
+	if err != nil {
+		return nil, err
+	}
+
+	uniqueColumns := uniqueConstraintColumns(tableMeta)
+	for _, existing := range existingRows {
+		if existing == nil {
+			continue
+		}
+		for incomingIndex, incoming := range insertRows {
+			if incoming == nil {
+				continue
+			}
+			matched, err := rowConflictsWithInsert(existing.OldValues, incoming.ColumnValues, tableMeta, uniqueColumns)
+			if err != nil {
+				return nil, err
+			}
+			if !matched {
+				continue
+			}
+			if !rowInfoListContains(duplicateRowsByInsert[incomingIndex], existing, tableMeta) {
+				duplicateRowsByInsert[incomingIndex] = append(duplicateRowsByInsert[incomingIndex], existing)
+			}
+		}
+	}
+	return duplicateRowsByInsert, nil
+}
+
+func rowConflictsWithInsert(
+	existingValues map[string]interface{},
+	incomingValues map[string]interface{},
+	tableMeta *metadata.TableMeta,
+	uniqueColumns []string,
+) (bool, error) {
+	if len(tableMeta.PrimaryKey) > 0 {
+		existingKey, existingOK, err := buildPrimaryKeyIfAvailable(existingValues, tableMeta)
+		if err != nil {
+			return false, err
+		}
+		incomingKey, incomingOK, err := buildPrimaryKeyIfAvailable(incomingValues, tableMeta)
+		if err != nil {
+			return false, err
+		}
+		if existingOK && incomingOK && string(existingKey) == string(incomingKey) {
+			return true, nil
+		}
+	}
+	for _, colName := range uniqueColumns {
+		existing, existingOK := existingValues[colName]
+		incoming, incomingOK := incomingValues[colName]
+		if !existingOK || !incomingOK || existing == nil || incoming == nil {
+			continue
+		}
+		if compareScalarValues(existing, incoming) == 0 {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func rowInfoListContains(rows []*RowUpdateInfo, candidate *RowUpdateInfo, tableMeta *metadata.TableMeta) bool {
+	candidateKey := duplicateRowIdentity(candidate, tableMeta)
+	for _, row := range rows {
+		if duplicateRowIdentity(row, tableMeta) == candidateKey {
+			return true
+		}
+	}
+	return false
+}
+
+func duplicateRowIdentity(rowInfo *RowUpdateInfo, tableMeta *metadata.TableMeta) string {
+	if rowInfo == nil {
+		return ""
+	}
+	if key, ok, err := buildPrimaryKeyIfAvailable(rowInfo.OldValues, tableMeta); err == nil && ok {
+		return string(key)
+	}
+	return fmt.Sprintf("%d:%d", rowInfo.PageNum, rowInfo.SlotIndex)
 }
 
 func (dml *StorageIntegratedDMLExecutor) validateUpdateConstraints(
