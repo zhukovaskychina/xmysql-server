@@ -2406,10 +2406,6 @@ func (e *XMySQLExecutor) truncateTableImpl(databaseName, tableName string) error
 	if err := clearBTreeSidecarForSpace(e.getDataDir(), oldInfo.SpaceID); err != nil {
 		return fmt.Errorf("clear B+Tree sidecar records failed: %v", err)
 	}
-	if err := os.Remove(tableRowsSidecarPath(e.getDataDir(), databaseName, tableName)); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("clear table rows sidecar failed: %v", err)
-	}
-
 	spaceName := fmt.Sprintf("%s/%s_truncate_%d", databaseName, tableName, time.Now().UnixNano())
 	handle, err := e.storageManager.CreateTablespace(spaceName)
 	if err != nil {
@@ -2834,11 +2830,10 @@ func (e *XMySQLExecutor) dropTableImpl(dbName, tableName string) error {
 
 	// 删除表相关文件
 	filesToDelete := []string{
-		filepath.Join(dbPath, tableName+".frm"),          // 表结构文件
-		filepath.Join(dbPath, tableName+".ibd"),          // 表数据文件
-		filepath.Join(dbPath, tableName+".MYD"),          // MyISAM数据文件
-		filepath.Join(dbPath, tableName+".MYI"),          // MyISAM索引文件
-		tableRowsSidecarPath(dataDir, dbName, tableName), // 行扫描sidecar
+		filepath.Join(dbPath, tableName+".frm"), // 表结构文件
+		filepath.Join(dbPath, tableName+".ibd"), // 表数据文件
+		filepath.Join(dbPath, tableName+".MYD"), // MyISAM数据文件
+		filepath.Join(dbPath, tableName+".MYI"), // MyISAM索引文件
 	}
 
 	var errors []string
