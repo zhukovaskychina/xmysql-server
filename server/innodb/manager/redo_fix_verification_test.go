@@ -1,7 +1,6 @@
 package manager
 
 import (
-	"encoding/binary"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -68,14 +67,14 @@ func TestRedoReplayWithStorage(t *testing.T) {
 
 	// 准备初始页面数据
 	initialData := make([]byte, 16384)
-	binary.BigEndian.PutUint64(initialData[0:8], 0) // 初始LSN为0
-	copy(initialData[8:], []byte("initial data"))
+	setRecoveryPageLSN(initialData, 0) // 初始LSN为0
+	copy(initialData[64:], []byte("initial data"))
 	mockStorage.WritePage(10, initialData)
 
 	// 创建更新日志
 	updatedData := make([]byte, 16384)
-	binary.BigEndian.PutUint64(updatedData[0:8], 200) // 新LSN
-	copy(updatedData[8:], []byte("updated data"))
+	setRecoveryPageLSN(updatedData, 200) // 新LSN
+	copy(updatedData[64:], []byte("updated data"))
 
 	entry := &RedoLogEntry{
 		LSN:    200,
@@ -92,7 +91,7 @@ func TestRedoReplayWithStorage(t *testing.T) {
 	// 验证页面已更新
 	pageData, err := mockStorage.ReadPage(10)
 	assert.NoError(t, err)
-	pageLSN := binary.BigEndian.Uint64(pageData[0:8])
+	pageLSN := recoveryPageLSN(pageData)
 	assert.Equal(t, uint64(200), pageLSN)
 
 	t.Log("✓ 使用存储管理器的Redo重放测试通过")

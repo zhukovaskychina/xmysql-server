@@ -2,6 +2,8 @@ package manager
 
 import (
 	"testing"
+
+	formatmvcc "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/format/mvcc"
 )
 
 // TestUndoSegment_AllocateAddPurge LOG-007: Undo 段分配、添加日志、释放
@@ -79,4 +81,43 @@ func TestUndoSegmentManager_AllocateRelease(t *testing.T) {
 		t.Errorf("expected at least 2 segments, got %d", stats.TotalSegments)
 	}
 	t.Logf("Undo segment manager: allocate/release ok, total segments=%d", stats.TotalSegments)
+}
+
+func TestUndoPurgerDoesNotPurgeSegmentNeededByActiveSnapshot(t *testing.T) {
+	segmentManager := NewUndoSegmentManager(1, 4096, 10)
+	purger := NewUndoPurger(segmentManager)
+	purger.SetRetentionTime(0)
+
+	segment := NewUndoSegment(1, 1, 100, 4096)
+	if err := segment.Allocate(101); err != nil {
+		t.Fatalf("Allocate: %v", err)
+	}
+	if err := segment.AddUndoLog(&UndoLogEntry{TrxID: 101, LSN: 10, Type: LOG_TYPE_UPDATE, TableID: 1, RecordID: 1, Data: []byte("before")}); err != nil {
+		t.Fatalf("AddUndoLog: %v", err)
+	}
+	if err := segment.Prepare(); err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+
+	readView := formatmvcc.NewReadView([]uint64{150}, 200, 201)
+	token := purger.RegisterActiveReadView(readView)
+	purger.SchedulePurge(segment)
+	purger.purgeOldSegments()
+
+	if segment.purged {
+		t.Fatalf("segment was purged while an active read view could still need it")
+	}
+	if segment.state != SEGMENT_PREPARED {
+		t.Fatalf("segment state = %d, want SEGMENT_PREPARED while snapshot is active", segment.state)
+	}
+
+	purger.UnregisterActiveReadView(token)
+	purger.purgeOldSegments()
+
+	if !segment.purged {
+		t.Fatalf("segment was not purged after active read view closed")
+	}
+	if segment.state != SEGMENT_CACHED {
+		t.Fatalf("segment state = %d, want SEGMENT_CACHED after purge", segment.state)
+	}
 }

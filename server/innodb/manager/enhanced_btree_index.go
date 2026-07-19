@@ -18,8 +18,10 @@ import (
 )
 
 var enhancedBTreeRecordBlockMagic = []byte("XBTREC1")
+var enhancedBTreeFreeListMagic = []byte("XBTFRE1")
 
 const enhancedBTreeRecordBlockOffset = 256
+const enhancedBTreeFreeListOffset = 128
 
 // ctxKey is the type used for context keys in this package.
 type ctxKey string
@@ -38,6 +40,7 @@ type EnhancedBTreeIndex struct {
 	mu            sync.RWMutex          // 读写锁
 	pageCache     map[uint32]*BTreePage // 页面缓存
 	pageLoadOrder []uint32              // 页面访问顺序（LRU）
+	freePages     []uint32              // 可复用的空叶页
 
 	// 统计信息
 	statistics *EnhancedIndexStatistics // 索引统计
@@ -58,6 +61,7 @@ func NewEnhancedBTreeIndex(metadata *IndexMetadata, storageManager *StorageManag
 		config:         config,
 		pageCache:      make(map[uint32]*BTreePage),
 		pageLoadOrder:  make([]uint32, 0),
+		freePages:      make([]uint32, 0),
 		statistics: &EnhancedIndexStatistics{
 			Cardinality:  0,
 			NullCount:    0,
@@ -540,6 +544,9 @@ func (idx *EnhancedBTreeIndex) LoadFromStorage(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to load root page: %v", err)
 	}
+	if err := idx.loadFreePageList(ctx); err != nil {
+		return fmt.Errorf("failed to load free page list: %v", err)
+	}
 
 	atomic.StoreUint32(&idx.isLoaded, 1)
 	return nil
@@ -572,7 +579,7 @@ func (idx *EnhancedBTreeIndex) allocateLinkedLeafPage(ctx context.Context, prev 
 	if prev == nil {
 		return nil, fmt.Errorf("previous page is nil")
 	}
-	pageNo, err := idx.AllocatePage(ctx)
+	pageNo, err := idx.allocateLeafPageNo(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -604,6 +611,48 @@ func (idx *EnhancedBTreeIndex) allocateLinkedLeafPage(ctx context.Context, prev 
 	idx.mu.Unlock()
 	idx.metadata.PageCount++
 	return next, nil
+}
+
+func (idx *EnhancedBTreeIndex) allocateLeafPageNo(ctx context.Context) (uint32, error) {
+	idx.mu.Lock()
+	if len(idx.freePages) > 0 {
+		last := len(idx.freePages) - 1
+		pageNo := idx.freePages[last]
+		idx.freePages = idx.freePages[:last]
+		idx.mu.Unlock()
+		if err := idx.persistFreePageList(ctx); err != nil {
+			return 0, err
+		}
+		if err := idx.resetReusableLeafPage(ctx, pageNo); err != nil {
+			return 0, err
+		}
+		return pageNo, nil
+	}
+	idx.mu.Unlock()
+	return idx.AllocatePage(ctx)
+}
+
+func (idx *EnhancedBTreeIndex) resetReusableLeafPage(ctx context.Context, pageNo uint32) error {
+	bufferPage, err := idx.storageManager.GetBufferPoolManager().GetPage(idx.metadata.SpaceID, pageNo)
+	if err != nil {
+		return err
+	}
+	data := idx.initializeEmptyPageForPage(pageNo)
+	bufferPage.SetContent(data)
+	bufferPage.MarkDirty()
+	if err := idx.storageManager.GetBufferPoolManager().FlushPage(idx.metadata.SpaceID, pageNo); err != nil {
+		return err
+	}
+	idx.mu.Lock()
+	delete(idx.pageCache, pageNo)
+	for i, cachedPageNo := range idx.pageLoadOrder {
+		if cachedPageNo == pageNo {
+			idx.pageLoadOrder = append(idx.pageLoadOrder[:i], idx.pageLoadOrder[i+1:]...)
+			break
+		}
+	}
+	idx.mu.Unlock()
+	return nil
 }
 
 func (idx *EnhancedBTreeIndex) canPersistRecordBlockWith(page *BTreePage, key []byte, value []byte) bool {
@@ -1044,23 +1093,95 @@ func (r *SimpleRow) ToString() string                                      { ret
 func (idx *EnhancedBTreeIndex) deleteFromPage(ctx context.Context, page *BTreePage, key []byte) error {
 	// 查找要删除的记录
 	for i, record := range page.Records {
-		if idx.compareKeys(record.Key, key) == 0 {
-			// 标记删除（简化实现）
+		if !record.DeleteMark && idx.compareKeys(record.Key, key) == 0 {
 			page.Records[i].DeleteMark = true
 			page.IsDirty = true
 			page.LastAccess = time.Now()
-			bufferPage, err := idx.storageManager.GetBufferPoolManager().GetPage(idx.metadata.SpaceID, page.PageNo)
-			if err != nil {
-				return err
-			}
-			if err := idx.persistIndexRecords(bufferPage, page); err != nil {
-				return err
-			}
-			return nil
+			return idx.rebalanceLeafAfterDelete(ctx, page)
 		}
 	}
 
 	return fmt.Errorf("record not found in page")
+}
+
+func (idx *EnhancedBTreeIndex) rebalanceLeafAfterDelete(ctx context.Context, page *BTreePage) error {
+	activeRecords := compactActiveIndexRecords(page.Records, page.PageNo)
+	if len(activeRecords) == 0 && page.PageNo != idx.metadata.RootPageNo {
+		return idx.unlinkEmptyLeafPage(ctx, page)
+	}
+
+	page.Records = activeRecords
+	page.RecordCount = uint16(len(activeRecords))
+	bufferPage, err := idx.storageManager.GetBufferPoolManager().GetPage(idx.metadata.SpaceID, page.PageNo)
+	if err != nil {
+		return err
+	}
+	return idx.persistIndexRecords(bufferPage, page)
+}
+
+func compactActiveIndexRecords(records []IndexRecord, pageNo uint32) []IndexRecord {
+	active := make([]IndexRecord, 0, len(records))
+	for _, record := range records {
+		if record.DeleteMark {
+			continue
+		}
+		record.PageNo = pageNo
+		record.SlotNo = uint16(len(active))
+		active = append(active, record)
+	}
+	return active
+}
+
+func (idx *EnhancedBTreeIndex) unlinkEmptyLeafPage(ctx context.Context, page *BTreePage) error {
+	prevPageNo := page.PrevPage
+	nextPageNo := page.NextPage
+
+	if prevPageNo != 0 {
+		prev, err := idx.GetPage(ctx, prevPageNo)
+		if err != nil {
+			return err
+		}
+		prev.NextPage = nextPageNo
+		prev.IsDirty = true
+		if err := idx.flushPage(ctx, prev); err != nil {
+			return err
+		}
+	}
+	if nextPageNo != 0 {
+		next, err := idx.GetPage(ctx, nextPageNo)
+		if err != nil {
+			return err
+		}
+		next.PrevPage = prevPageNo
+		next.IsDirty = true
+		if err := idx.flushPage(ctx, next); err != nil {
+			return err
+		}
+	}
+
+	page.PrevPage = 0
+	page.NextPage = 0
+	page.Records = nil
+	page.RecordCount = 0
+	page.IsDirty = true
+	if err := idx.flushPage(ctx, page); err != nil {
+		return err
+	}
+
+	idx.mu.Lock()
+	if !uint32SliceContains(idx.freePages, page.PageNo) {
+		idx.freePages = append(idx.freePages, page.PageNo)
+	}
+	delete(idx.pageCache, page.PageNo)
+	for i, pageNo := range idx.pageLoadOrder {
+		if pageNo == page.PageNo {
+			idx.pageLoadOrder = append(idx.pageLoadOrder[:i], idx.pageLoadOrder[i+1:]...)
+			break
+		}
+	}
+	idx.mu.Unlock()
+
+	return idx.persistFreePageList(ctx)
 }
 
 // searchInPage 在页面中搜索
@@ -1225,6 +1346,106 @@ func (idx *EnhancedBTreeIndex) persistIndexRecords(bufferPage *buffer_pool.Buffe
 		return fmt.Errorf("update cached index record block for page %d failed: %v", bufferPage.GetPageNo(), err)
 	}
 	return nil
+}
+
+func (idx *EnhancedBTreeIndex) loadFreePageList(ctx context.Context) error {
+	bufferPage, err := idx.storageManager.GetBufferPoolManager().GetPage(idx.metadata.SpaceID, idx.metadata.RootPageNo)
+	if err != nil {
+		return err
+	}
+	freePages := parsePersistentFreePageList(bufferPage.GetContent())
+	idx.mu.Lock()
+	idx.freePages = freePages
+	idx.mu.Unlock()
+	return nil
+}
+
+func (idx *EnhancedBTreeIndex) persistFreePageList(ctx context.Context) error {
+	idx.mu.RLock()
+	freePages := append([]uint32(nil), idx.freePages...)
+	idx.mu.RUnlock()
+
+	bufferPage, err := idx.storageManager.GetBufferPoolManager().GetPage(idx.metadata.SpaceID, idx.metadata.RootPageNo)
+	if err != nil {
+		return err
+	}
+	content := bufferPage.GetContent()
+	if len(content) == 0 {
+		content = idx.initializeEmptyPageForPage(idx.metadata.RootPageNo)
+	}
+	if len(content) < PAGE_SIZE {
+		padded := make([]byte, PAGE_SIZE)
+		copy(padded, content)
+		content = padded
+	}
+
+	blockLen := len(enhancedBTreeFreeListMagic) + 2 + len(freePages)*4
+	if enhancedBTreeFreeListOffset+blockLen > enhancedBTreeRecordBlockOffset {
+		return fmt.Errorf("enhanced btree free list too large: pages=%d capacity=%d", len(freePages), enhancedBTreeRecordBlockOffset-enhancedBTreeFreeListOffset)
+	}
+
+	next := append([]byte(nil), content...)
+	for i := enhancedBTreeFreeListOffset; i < enhancedBTreeRecordBlockOffset; i++ {
+		next[i] = 0
+	}
+	offset := enhancedBTreeFreeListOffset
+	copy(next[offset:], enhancedBTreeFreeListMagic)
+	offset += len(enhancedBTreeFreeListMagic)
+	binary.BigEndian.PutUint16(next[offset:offset+2], uint16(len(freePages)))
+	offset += 2
+	for _, pageNo := range freePages {
+		binary.BigEndian.PutUint32(next[offset:offset+4], pageNo)
+		offset += 4
+	}
+
+	bufferPage.SetContent(next)
+	bufferPage.MarkDirty()
+	if bpm := idx.storageManager.GetBufferPoolManager(); bpm != nil && bpm.storage != nil {
+		if err := bpm.storage.WritePage(idx.metadata.SpaceID, idx.metadata.RootPageNo, next); err != nil {
+			return err
+		}
+		bufferPage.SetDirty(false)
+		cachedPage := buffer_pool.NewBufferPage(idx.metadata.SpaceID, idx.metadata.RootPageNo)
+		cachedPage.SetContent(next)
+		if err := bpm.lruCache.Set(idx.metadata.SpaceID, idx.metadata.RootPageNo, buffer_pool.NewBufferBlock(cachedPage)); err != nil {
+			return fmt.Errorf("update cached free page list for root page %d failed: %v", idx.metadata.RootPageNo, err)
+		}
+	}
+	return nil
+}
+
+func parsePersistentFreePageList(content []byte) []uint32 {
+	if len(content) < enhancedBTreeFreeListOffset+len(enhancedBTreeFreeListMagic)+2 {
+		return nil
+	}
+	offset := enhancedBTreeFreeListOffset
+	if string(content[offset:offset+len(enhancedBTreeFreeListMagic)]) != string(enhancedBTreeFreeListMagic) {
+		return nil
+	}
+	offset += len(enhancedBTreeFreeListMagic)
+	count := int(binary.BigEndian.Uint16(content[offset : offset+2]))
+	offset += 2
+	freePages := make([]uint32, 0, count)
+	for i := 0; i < count; i++ {
+		if offset+4 > len(content) || offset+4 > enhancedBTreeRecordBlockOffset {
+			return freePages
+		}
+		pageNo := binary.BigEndian.Uint32(content[offset : offset+4])
+		offset += 4
+		if pageNo != 0 && !uint32SliceContains(freePages, pageNo) {
+			freePages = append(freePages, pageNo)
+		}
+	}
+	return freePages
+}
+
+func uint32SliceContains(values []uint32, needle uint32) bool {
+	for _, value := range values {
+		if value == needle {
+			return true
+		}
+	}
+	return false
 }
 
 func parsePersistentIndexRecords(content []byte, pageNo uint32) ([]IndexRecord, error) {

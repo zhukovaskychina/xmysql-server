@@ -31,6 +31,15 @@ type UndoPurger struct {
 
 	// 统计信息
 	stats *UndoPurgerStats
+
+	// 活跃快照。只要快照仍可能访问某事务版本，就不能 purge 对应 Undo。
+	nextReadViewToken uint64
+	activeReadViews   map[uint64]purgeReadView
+}
+
+type purgeReadView interface {
+	GetLowWaterMark() uint64
+	GetHighWaterMark() uint64
 }
 
 // UndoPurgerStats Undo清理器统计
@@ -48,15 +57,16 @@ type UndoPurgerStats struct {
 // NewUndoPurger 创建Undo清理器
 func NewUndoPurger(segmentManager *UndoSegmentManager) *UndoPurger {
 	return &UndoPurger{
-		segmentManager: segmentManager,
-		purgeQueue:     make([]*UndoSegment, 0, 1000),
-		purgeHistory:   make([]*HistoryNode, 0, 1000),
-		purgeInterval:  1 * time.Second,
-		batchSize:      100,
-		retentionTime:  5 * time.Second,
-		maxPurgeTime:   100 * time.Millisecond,
-		stopChan:       make(chan struct{}),
-		stats:          &UndoPurgerStats{},
+		segmentManager:  segmentManager,
+		purgeQueue:      make([]*UndoSegment, 0, 1000),
+		purgeHistory:    make([]*HistoryNode, 0, 1000),
+		purgeInterval:   1 * time.Second,
+		batchSize:       100,
+		retentionTime:   5 * time.Second,
+		maxPurgeTime:    100 * time.Millisecond,
+		stopChan:        make(chan struct{}),
+		stats:           &UndoPurgerStats{},
+		activeReadViews: make(map[uint64]purgeReadView),
 	}
 }
 
@@ -94,6 +104,25 @@ func (up *UndoPurger) SchedulePurge(segment *UndoSegment) {
 	up.purgeQueue = append(up.purgeQueue, segment)
 }
 
+func (up *UndoPurger) RegisterActiveReadView(readView purgeReadView) uint64 {
+	up.mu.Lock()
+	defer up.mu.Unlock()
+
+	if readView == nil {
+		return 0
+	}
+	up.nextReadViewToken++
+	token := up.nextReadViewToken
+	up.activeReadViews[token] = readView
+	return token
+}
+
+func (up *UndoPurger) UnregisterActiveReadView(token uint64) {
+	up.mu.Lock()
+	defer up.mu.Unlock()
+	delete(up.activeReadViews, token)
+}
+
 // purgeWorker 清理工作协程
 func (up *UndoPurger) purgeWorker() {
 	ticker := time.NewTicker(up.purgeInterval)
@@ -123,12 +152,15 @@ func (up *UndoPurger) purgeOldSegments() {
 	purgedCount := 0
 	bytesFreed := uint64(0)
 
+	remaining := up.purgeQueue[:0]
+
 	// 批量清理
 	for i := 0; i < len(up.purgeQueue) && i < up.batchSize; i++ {
 		segment := up.purgeQueue[i]
 
 		// 检查是否可以清理
 		if !up.canPurge(segment) {
+			remaining = append(remaining, segment)
 			continue
 		}
 
@@ -139,18 +171,20 @@ func (up *UndoPurger) purgeOldSegments() {
 		bytesFreed += segment.usedSize
 		if err := segment.Purge(); err == nil {
 			purgedCount++
+		} else {
+			remaining = append(remaining, segment)
 		}
 
 		// 检查时间限制
 		if time.Since(startTime) > up.maxPurgeTime {
+			remaining = append(remaining, up.purgeQueue[i+1:]...)
 			break
 		}
 	}
-
-	// 从队列中移除已清理的段
-	if purgedCount > 0 {
-		up.purgeQueue = up.purgeQueue[purgedCount:]
+	if len(up.purgeQueue) > up.batchSize {
+		remaining = append(remaining, up.purgeQueue[up.batchSize:]...)
 	}
+	up.purgeQueue = remaining
 
 	// 更新统计
 	if purgedCount > 0 {
@@ -176,9 +210,27 @@ func (up *UndoPurger) canPurge(segment *UndoSegment) bool {
 		return false
 	}
 
-	// TODO: 检查是否还有活跃的快照需要这个版本
+	if up.segmentNeededByActiveSnapshot(segment) {
+		return false
+	}
 
 	return true
+}
+
+func (up *UndoPurger) segmentNeededByActiveSnapshot(segment *UndoSegment) bool {
+	if segment == nil || segment.txID <= 0 {
+		return false
+	}
+	txID := uint64(segment.txID)
+	for _, readView := range up.activeReadViews {
+		if readView == nil {
+			continue
+		}
+		if txID < readView.GetHighWaterMark() {
+			return true
+		}
+	}
+	return false
 }
 
 // GetStats 获取统计信息
