@@ -318,13 +318,51 @@ func (usr *UndoSpaceReclaimer) reclaimSpace() {
 	usr.mu.Lock()
 	defer usr.mu.Unlock()
 
-	// TODO: 实现空间回收逻辑
-	// 1. 扫描所有缓存段
-	// 2. 找出利用率低的段
-	// 3. 压缩或合并段
-	// 4. 释放空闲段
+	if usr.segmentManager == nil {
+		usr.stats.TotalReclaims++
+		return
+	}
+
+	usr.segmentManager.mu.Lock()
+	defer usr.segmentManager.mu.Unlock()
+
+	var reclaimed uint64
+	var compacted uint64
+
+	for _, segment := range usr.segmentManager.cachedSegments {
+		if segment == nil {
+			continue
+		}
+
+		segment.mu.RLock()
+		state := segment.state
+		usedSize := segment.usedSize
+		segment.mu.RUnlock()
+
+		if state != SEGMENT_PREPARED {
+			continue
+		}
+
+		if usr.purger != nil {
+			usr.purger.mu.RLock()
+			canPurge := usr.purger.canPurge(segment)
+			usr.purger.mu.RUnlock()
+			if !canPurge {
+				continue
+			}
+		}
+
+		segment.MarkForPurge()
+		if err := segment.Purge(); err != nil {
+			continue
+		}
+		reclaimed += usedSize
+		compacted++
+	}
 
 	usr.stats.TotalReclaims++
+	usr.stats.SpaceReclaimed += reclaimed
+	usr.stats.SegmentsCompact += compacted
 }
 
 // GetStats 获取统计信息

@@ -17,11 +17,15 @@ Basic single-node CRUD through the JDBC path is currently working for the tested
 - basic JDBC connection and DML tests
 - common JDBC prepared statements, including generated keys, `IN`, `LIKE`, `DECIMAL`, `BOOLEAN`, and `NULL`
 - restart read-back for the focused durable clustered-record path
+- page-level redo/checksum and B+Tree delete/reuse focused Go coverage
+- undo purge now protects active read views and reclaims prepared cached undo segments into reusable cached segments
+- index validation/compaction now has a concrete metadata and leaf-chain verification path instead of a no-op
+- CBO row count collection now parses InnoDB index page `PAGE_N_RECS` for exact page-level counts instead of always using a fixed row estimate
 
 This does not mean the project is production-ready. The current boundary is:
 
 - usable for focused local integration tests;
-- not yet complete for JDBC DDL metadata, transaction undo/savepoint semantics, or advanced constraints;
+- not yet complete for full JDBC transaction matrix evidence, durable secondary-index SELECT selection, composite/no-PK DML breadth, or advanced constraints;
 - not yet complete as a MySQL/InnoDB-compatible production database;
 - not approved for production gray release without the P0 items below.
 
@@ -46,16 +50,16 @@ This does not mean the project is production-ready. The current boundary is:
 
 | Area | Current State | P0 Completion Boundary |
 |---|---|---|
-| Storage page and B+Tree format | CRUD persistence is working through the current clustered-record path, but page/record format still has project-specific transition layers | A single canonical on-disk record/page format, restart scan, range scan, split/merge, delete cleanup, and recovery all work from disk pages |
-| Secondary indexes and constraints | Durable key mapping exists, but query and constraint enforcement are not fully index-backed | DML, SELECT, UNIQUE checks, rebuild, validation, and optimizer selection are all backed by durable secondary indexes |
-| Transactions, MVCC, and recovery | Transaction commands are accepted and some commit paths pass, but rollback/savepoint undo still leaves row changes visible | COMMIT/ROLLBACK, isolation, undo purge, crash replay, half-commit handling, and row/page/WAL state evidence pass |
+| Storage page and B+Tree format | CRUD persistence, focused restart read-back, delete cleanup, page reuse, and page checksum coverage exist; full InnoDB-compatible page lifecycle breadth still needs stress evidence | A single canonical on-disk record/page format, restart scan, range scan, split/merge, delete cleanup, and recovery all work from disk pages |
+| Secondary indexes and constraints | Durable key mapping exists; validate/compact now checks metadata and leaf-chain shape, but SELECT and all constraints are not yet fully index-backed | DML, SELECT, UNIQUE checks, rebuild, validation, and optimizer selection are all backed by durable secondary indexes |
+| Transactions, MVCC, and recovery | Transaction commands and focused rollback/savepoint Go paths exist; undo purge protects active snapshots and reclaims reusable segments, but JDBC multi-connection/isolation evidence is still incomplete | COMMIT/ROLLBACK, isolation, undo purge, crash replay, half-commit handling, and row/page/WAL state evidence pass |
 | SQL and JDBC compatibility | JDBC DML and PreparedStatement suites are green; DDL metadata result sets, full transaction semantics, and advanced constraints remain incomplete | Core MySQL/JDBC compatibility matrix passes, including prepared statements, metadata, transaction commands, and common DML extensions |
 | Production validation | Evidence tooling exists, but focused local evidence is not the same as production readiness | Full candidate run, concurrent SQL workload, live metrics evidence, rollback drill, risk sign-off, and owner approval are complete |
 
 ## Immediate Execution Order
 
-1. Close storage format and B+Tree scan/split/merge persistence.
-2. Close durable secondary index query and constraint enforcement.
-3. Close JDBC DDL metadata result sets and `DatabaseMetaData.getTables()` visibility.
-4. Close transaction/MVCC/recovery correctness under JDBC multi-connection workloads.
+1. Close JDBC transaction/MVCC/recovery correctness under multi-connection workloads.
+2. Close durable secondary-index query selection and constraint enforcement evidence.
+3. Close no-primary-key indexed table and composite-primary-key update/delete DML breadth.
+4. Close JDBC metadata/DDL edge cases that still fail MySQL client expectations.
 5. Run production-readiness evidence and governance gates against the completed runtime behavior.

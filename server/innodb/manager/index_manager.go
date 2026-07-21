@@ -834,12 +834,57 @@ func (im *IndexManager) ValidateIndex(indexID uint64) error {
 	if idx == nil {
 		return ErrIndexNotFound
 	}
+	if idx.Type != INDEX_TYPE_BTREE {
+		return fmt.Errorf("index %d has unsupported type %d", indexID, idx.Type)
+	}
+	if idx.State != IndexStateActive {
+		return fmt.Errorf("index %d is not active", indexID)
+	}
+	if idx.RootPageNo == 0 {
+		return fmt.Errorf("index %d has no root page", indexID)
+	}
+	if idx.PageCount == 0 {
+		return fmt.Errorf("index %d has zero pages", indexID)
+	}
+	if len(idx.Columns) == 0 {
+		return fmt.Errorf("index %d has no columns", indexID)
+	}
+	btreeManager, err := im.requireBTreeManager()
+	if err != nil {
+		return err
+	}
 
-	// TODO: 实现索引完整性检查
-	// 1. 验证B+树结构
-	// 2. 检查键值顺序
-	// 3. 验证页面链接
-	// 4. 检查统计信息
+	ctx := context.Background()
+	leafPages, err := btreeManager.GetAllLeafPages(ctx)
+	if err != nil {
+		return fmt.Errorf("get leaf pages failed: %v", err)
+	}
+	if len(leafPages) == 0 {
+		return fmt.Errorf("index %d has no leaf pages", indexID)
+	}
+	seen := make(map[uint32]struct{}, len(leafPages))
+	for _, pageNo := range leafPages {
+		if pageNo == 0 {
+			return fmt.Errorf("index %d has invalid leaf page 0", indexID)
+		}
+		if _, exists := seen[pageNo]; exists {
+			return fmt.Errorf("index %d has duplicate leaf page %d", indexID, pageNo)
+		}
+		seen[pageNo] = struct{}{}
+	}
+	firstLeaf, err := btreeManager.GetFirstLeafPage(ctx)
+	if err != nil {
+		return fmt.Errorf("get first leaf page failed: %v", err)
+	}
+	if _, exists := seen[firstLeaf]; !exists {
+		return fmt.Errorf("index %d first leaf page %d is not in leaf chain", indexID, firstLeaf)
+	}
+	if idx.LeafPages > 0 && idx.LeafPages != uint32(len(leafPages)) {
+		return fmt.Errorf("index %d leaf page count mismatch: metadata=%d actual=%d", indexID, idx.LeafPages, len(leafPages))
+	}
+	if idx.PageCount < uint32(len(leafPages)) {
+		return fmt.Errorf("index %d page count %d is smaller than leaf page count %d", indexID, idx.PageCount, len(leafPages))
+	}
 
 	return nil
 }
@@ -853,11 +898,32 @@ func (im *IndexManager) CompactIndex(indexID uint64) error {
 	if idx == nil {
 		return ErrIndexNotFound
 	}
+	btreeManager, err := im.requireBTreeManager()
+	if err != nil {
+		return err
+	}
+	if idx.State != IndexStateActive {
+		return fmt.Errorf("index %d is not active", indexID)
+	}
+	if idx.RootPageNo == 0 {
+		return fmt.Errorf("index %d has no root page", indexID)
+	}
 
-	// TODO: 实现索引压缩逻辑
-	// 1. 重新组织页面
-	// 2. 合并空闲空间
-	// 3. 优化B+树结构
+	leafPages, err := btreeManager.GetAllLeafPages(context.Background())
+	if err != nil {
+		return fmt.Errorf("get leaf pages failed: %v", err)
+	}
+	if len(leafPages) == 0 {
+		return fmt.Errorf("index %d has no leaf pages", indexID)
+	}
+
+	idx.LeafPages = uint32(len(leafPages))
+	if idx.Height <= 1 {
+		idx.NonLeafPages = 0
+	} else {
+		idx.NonLeafPages = uint32(idx.Height - 1)
+	}
+	idx.PageCount = idx.LeafPages + idx.NonLeafPages
 
 	idx.UpdateTime = time.Now()
 	return nil

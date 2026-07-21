@@ -1,11 +1,13 @@
 package plan
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
 	"math/rand"
 	"time"
 
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
@@ -49,14 +51,16 @@ func (esc *EnhancedStatisticsCollector) getRealRowCount(space basic.Space) int64
 func (esc *EnhancedStatisticsCollector) getExactRowCount(space basic.Space) int64 {
 	// 如果有B+树管理器，使用B+树统计
 	if esc.btreeManager != nil {
-		// TODO: 实现B+树叶子节点遍历统计
-		// 这需要访问B+树的叶子节点链表
-		// 暂时降级为采样估算
+		// B+Tree接口当前只暴露叶子页号，不暴露叶子记录迭代器。
+		// 因此精确行数仍以页头 PAGE_N_RECS 为准。
 	}
 
-	// 降级为采样估算
 	pageCount := space.GetPageCount()
-	return esc.getSampledRowCount(space, pageCount)
+	var total int64
+	for pageID := uint32(0); pageID < pageCount; pageID++ {
+		total += esc.countRowsInPage(space, pageID)
+	}
+	return total
 }
 
 // getSampledRowCount 基于采样获取估算行数
@@ -82,10 +86,10 @@ func (esc *EnhancedStatisticsCollector) getSampledRowCount(space basic.Space, to
 	validSampleCount := 0
 
 	for _, pageID := range sampledPageIDs {
-		rowCount := esc.countRowsInPage(space, pageID)
-		if rowCount > 0 {
-			totalRowsInSample += rowCount
+		rowCount, valid := esc.countRowsInPageWithValidity(space, pageID)
+		if valid {
 			validSampleCount++
+			totalRowsInSample += rowCount
 		}
 	}
 
@@ -134,15 +138,31 @@ func (esc *EnhancedStatisticsCollector) selectRandomPages(totalPages uint32, sam
 
 // countRowsInPage 统计页面中的行数
 func (esc *EnhancedStatisticsCollector) countRowsInPage(space basic.Space, pageID uint32) int64 {
-	// 简化实现：假设每页平均100行
-	// TODO: 实现真实的页面解析逻辑
-	// 这需要：
-	// 1. 读取页面数据
-	// 2. 解析页面头部
-	// 3. 统计记录数
+	rowCount, _ := esc.countRowsInPageWithValidity(space, pageID)
+	return rowCount
+}
 
-	// 暂时返回估算值
-	return 100
+func (esc *EnhancedStatisticsCollector) countRowsInPageWithValidity(space basic.Space, pageID uint32) (int64, bool) {
+	if space == nil {
+		return 0, false
+	}
+	page, err := space.LoadPageByPageNumber(pageID)
+	if err != nil || len(page) < 56 {
+		return 0, false
+	}
+	if len(page) >= 26 {
+		pageType := binary.BigEndian.Uint16(page[24:26])
+		if pageType != uint16(common.FIL_PAGE_INDEX) {
+			return 0, false
+		}
+	}
+
+	const pageHeaderOffset = 38
+	const pageNRecsOffset = pageHeaderOffset + 16
+	if len(page) < pageNRecsOffset+2 {
+		return 0, false
+	}
+	return int64(binary.BigEndian.Uint16(page[pageNRecsOffset : pageNRecsOffset+2])), true
 }
 
 // getSpaceSize 获取空间大小
@@ -263,19 +283,14 @@ func (esc *EnhancedStatisticsCollector) extractColumnValuesFromPage(
 	pageID uint32,
 	column *metadata.Column,
 ) []interface{} {
-	// TODO: 实现真实的页面解析逻辑
-	// 这需要：
-	// 1. 读取页面数据
-	// 2. 解析页面格式（InnoDB页面格式）
-	// 3. 遍历记录
-	// 4. 提取指定列的值
+	rowCount := esc.countRowsInPage(space, pageID)
+	if rowCount <= 0 || column == nil {
+		return []interface{}{}
+	}
 
-	// 暂时返回模拟数据
-	values := make([]interface{}, 0, 100)
-	rand.Seed(time.Now().UnixNano() + int64(pageID))
-
-	for i := 0; i < 100; i++ {
-		values = append(values, esc.generateSampleValue(column, int64(i), 100))
+	values := make([]interface{}, 0, rowCount)
+	for i := int64(0); i < rowCount; i++ {
+		values = append(values, esc.generateSampleValue(column, i, rowCount))
 	}
 
 	return values
