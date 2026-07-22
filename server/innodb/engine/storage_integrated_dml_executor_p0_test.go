@@ -162,21 +162,21 @@ func TestXMySQLExecutorDMLRejectsMissingStorageIntegratedManagers(t *testing.T) 
 			name: "insert",
 			sql:  "insert into users(id, name) values (1, 'alice')",
 			run: func(ctx *ExecutionContext, parsed interface{}) (*DMLResult, error) {
-				return executor.executeInsertStatement(ctx, parsed.(*sqlparser.Insert), "testdb")
+				return executor.executeInsertStatement(ctx, parsed.(*sqlparser.Insert), "testdb", nil)
 			},
 		},
 		{
 			name: "update",
 			sql:  "update users set name = 'bob' where id = 1",
 			run: func(ctx *ExecutionContext, parsed interface{}) (*DMLResult, error) {
-				return executor.executeUpdateStatement(ctx, parsed.(*sqlparser.Update), "testdb")
+				return executor.executeUpdateStatement(ctx, parsed.(*sqlparser.Update), "testdb", nil)
 			},
 		},
 		{
 			name: "delete",
 			sql:  "delete from users where id = 1",
 			run: func(ctx *ExecutionContext, parsed interface{}) (*DMLResult, error) {
-				return executor.executeDeleteStatement(ctx, parsed.(*sqlparser.Delete), "testdb")
+				return executor.executeDeleteStatement(ctx, parsed.(*sqlparser.Delete), "testdb", nil)
 			},
 		},
 	}

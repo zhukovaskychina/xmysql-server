@@ -502,7 +502,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 				return
 			}
 			explicitSchema := strings.TrimSpace(stmt.Table.Qualifier.String())
-			result, err := e.QueryExecutor.executeInsertStatement(ctx, stmt, e.resolveDmlDatabaseName(session, databaseName, explicitSchema))
+			result, err := e.QueryExecutor.executeInsertStatement(ctx, stmt, e.resolveDmlDatabaseName(session, databaseName, explicitSchema), session)
 			if err != nil {
 				execErr = err
 				status = "failed"
@@ -528,7 +528,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 				return
 			}
 			explicitSchema := e.extractTableExprSchema(stmt.TableExprs)
-			result, err := e.QueryExecutor.executeUpdateStatement(ctx, stmt, e.resolveDmlDatabaseName(session, databaseName, explicitSchema))
+			result, err := e.QueryExecutor.executeUpdateStatement(ctx, stmt, e.resolveDmlDatabaseName(session, databaseName, explicitSchema), session)
 			if err != nil {
 				execErr = err
 				status = "failed"
@@ -554,7 +554,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 				return
 			}
 			explicitSchema := e.extractTableExprSchema(stmt.TableExprs)
-			result, err := e.QueryExecutor.executeDeleteStatement(ctx, stmt, e.resolveDmlDatabaseName(session, databaseName, explicitSchema))
+			result, err := e.QueryExecutor.executeDeleteStatement(ctx, stmt, e.resolveDmlDatabaseName(session, databaseName, explicitSchema), session)
 			if err != nil {
 				execErr = err
 				status = "failed"

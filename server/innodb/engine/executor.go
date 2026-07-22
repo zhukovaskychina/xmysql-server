@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -53,14 +52,14 @@ type XMySQLExecutor struct {
 	txManager           *manager.TransactionManager  // 事务管理器
 }
 
-type transactionSnapshotState struct {
-	BaseSnapshotDir string
-	Savepoints      []transactionSavepoint
+type sessionTransactionState struct {
+	Changes    []transactionDMLChange
+	Savepoints []sessionSavepoint
 }
 
-type transactionSavepoint struct {
-	Name        string
-	SnapshotDir string
+type sessionSavepoint struct {
+	name   string
+	offset int
 }
 
 // NewXMySQLExecutor 构造 SQL 执行器实例
@@ -121,17 +120,17 @@ func (e *XMySQLExecutor) executeTransactionCommand(ctx *ExecutionContext, cmd st
 	if session != nil {
 		switch cmd {
 		case "begin":
-			e.clearTransactionSnapshots(session)
+			e.clearSessionTransactionState(session)
 			session.SetParamByName("in_transaction", true)
 			session.SessionContext().SetInTransaction(true)
 		case "commit", "rollback":
 			if cmd == "rollback" {
-				if err := e.restoreTransactionBaseSnapshot(session); err != nil {
+				if err := e.rollbackSessionTransaction(session, 0); err != nil {
 					ctx.Results <- &Result{Err: err, ResultType: innodbcommon.RESULT_TYPE_ERROR, Message: err.Error()}
 					return
 				}
 			}
-			e.clearTransactionSnapshots(session)
+			e.clearSessionTransactionState(session)
 			session.SetParamByName("in_transaction", false)
 			session.SessionContext().SetInTransaction(false)
 		case "savepoint":
@@ -155,33 +154,20 @@ func (e *XMySQLExecutor) executeTransactionCommand(ctx *ExecutionContext, cmd st
 }
 
 func (e *XMySQLExecutor) prepareTransactionalDML(session server.MySQLServerSession) error {
-	if session == nil || !sessionTransactionActive(session) {
-		return nil
-	}
-	state := e.transactionSnapshotState(session)
-	if state.BaseSnapshotDir != "" {
-		return nil
-	}
-	snapshotDir, err := e.captureDataDirSnapshot()
-	if err != nil {
-		return err
-	}
-	state.BaseSnapshotDir = snapshotDir
-	session.SetParamByName("transaction_snapshot_state", state)
 	return nil
 }
 
-func (e *XMySQLExecutor) transactionSnapshotState(session server.MySQLServerSession) *transactionSnapshotState {
+func (e *XMySQLExecutor) sessionTransactionState(session server.MySQLServerSession) *sessionTransactionState {
 	if session == nil {
 		return nil
 	}
-	if raw := session.GetParamByName("transaction_snapshot_state"); raw != nil {
-		if state, ok := raw.(*transactionSnapshotState); ok {
+	if raw := session.GetParamByName("transaction_dml_state"); raw != nil {
+		if state, ok := raw.(*sessionTransactionState); ok {
 			return state
 		}
 	}
-	state := &transactionSnapshotState{}
-	session.SetParamByName("transaction_snapshot_state", state)
+	state := &sessionTransactionState{}
+	session.SetParamByName("transaction_dml_state", state)
 	return state
 }
 
@@ -206,55 +192,39 @@ func sessionTransactionActive(session server.MySQLServerSession) bool {
 	}
 }
 
-func (e *XMySQLExecutor) restoreTransactionBaseSnapshot(session server.MySQLServerSession) error {
-	state := e.transactionSnapshotState(session)
-	if state == nil || state.BaseSnapshotDir == "" {
-		return nil
-	}
-	return e.restoreDataDirSnapshot(state.BaseSnapshotDir)
-}
-
 func (e *XMySQLExecutor) captureTransactionSavepoint(session server.MySQLServerSession, name string) error {
 	if session == nil {
 		return nil
 	}
-	state := e.transactionSnapshotState(session)
-	snapshotDir, err := e.captureDataDirSnapshot()
-	if err != nil {
-		return err
-	}
+	state := e.sessionTransactionState(session)
 	points := state.Savepoints[:0]
 	for _, point := range state.Savepoints {
-		if strings.EqualFold(point.Name, name) {
-			_ = os.RemoveAll(point.SnapshotDir)
+		if strings.EqualFold(point.name, name) {
 			continue
 		}
 		points = append(points, point)
 	}
-	state.Savepoints = append(points, transactionSavepoint{Name: name, SnapshotDir: snapshotDir})
-	session.SetParamByName("transaction_snapshot_state", state)
+	state.Savepoints = append(points, sessionSavepoint{name: name, offset: len(state.Changes)})
+	session.SetParamByName("transaction_dml_state", state)
 	session.SetParamByName("savepoints", transactionSavepointNames(state.Savepoints))
 	return nil
 }
 
 func (e *XMySQLExecutor) restoreTransactionSavepoint(session server.MySQLServerSession, name string) error {
-	state := e.transactionSnapshotState(session)
+	state := e.sessionTransactionState(session)
 	if state == nil {
 		return fmt.Errorf("savepoint %s does not exist", name)
 	}
 	for i := len(state.Savepoints) - 1; i >= 0; i-- {
 		point := state.Savepoints[i]
-		if !strings.EqualFold(point.Name, name) {
+		if !strings.EqualFold(point.name, name) {
 			continue
 		}
-		if err := e.restoreDataDirSnapshot(point.SnapshotDir); err != nil {
+		if err := e.rollbackSessionTransaction(session, point.offset); err != nil {
 			return err
 		}
-		for _, stale := range state.Savepoints[i+1:] {
-			_ = os.RemoveAll(stale.SnapshotDir)
-		}
 		state.Savepoints = state.Savepoints[:i+1]
-		session.SetParamByName("transaction_snapshot_state", state)
+		session.SetParamByName("transaction_dml_state", state)
 		session.SetParamByName("savepoints", transactionSavepointNames(state.Savepoints))
 		return nil
 	}
@@ -262,190 +232,106 @@ func (e *XMySQLExecutor) restoreTransactionSavepoint(session server.MySQLServerS
 }
 
 func (e *XMySQLExecutor) releaseTransactionSavepoint(session server.MySQLServerSession, name string) error {
-	state := e.transactionSnapshotState(session)
+	state := e.sessionTransactionState(session)
 	if state == nil {
 		return nil
 	}
 	next := state.Savepoints[:0]
 	for _, point := range state.Savepoints {
-		if strings.EqualFold(point.Name, name) {
-			_ = os.RemoveAll(point.SnapshotDir)
+		if strings.EqualFold(point.name, name) {
 			continue
 		}
 		next = append(next, point)
 	}
 	state.Savepoints = next
-	session.SetParamByName("transaction_snapshot_state", state)
+	session.SetParamByName("transaction_dml_state", state)
 	session.SetParamByName("savepoints", transactionSavepointNames(state.Savepoints))
 	return nil
 }
 
-func (e *XMySQLExecutor) clearTransactionSnapshots(session server.MySQLServerSession) {
-	state := e.transactionSnapshotState(session)
+func (e *XMySQLExecutor) clearSessionTransactionState(session server.MySQLServerSession) {
+	state := e.sessionTransactionState(session)
 	if state == nil {
 		return
 	}
-	if state.BaseSnapshotDir != "" {
-		_ = os.RemoveAll(state.BaseSnapshotDir)
-	}
-	for _, point := range state.Savepoints {
-		_ = os.RemoveAll(point.SnapshotDir)
-	}
-	state.BaseSnapshotDir = ""
+	state.Changes = nil
 	state.Savepoints = nil
-	session.SetParamByName("transaction_snapshot_state", state)
+	session.SetParamByName("transaction_dml_state", state)
 	session.SetParamByName("savepoints", []string{})
 }
 
-func transactionSavepointNames(points []transactionSavepoint) []string {
+func transactionSavepointNames(points []sessionSavepoint) []string {
 	names := make([]string, 0, len(points))
 	for _, point := range points {
-		names = append(names, point.Name)
+		names = append(names, point.name)
 	}
 	return names
 }
 
-func (e *XMySQLExecutor) captureDataDirSnapshot() (string, error) {
-	dataDir := e.getDataDir()
-	if strings.TrimSpace(dataDir) == "" {
-		return "", fmt.Errorf("data dir is empty")
-	}
-	snapshotDir, err := os.MkdirTemp("", "xmysql-txn-snapshot-*")
-	if err != nil {
-		return "", err
-	}
-	if err := copyDirContents(dataDir, snapshotDir); err != nil {
-		_ = os.RemoveAll(snapshotDir)
-		return "", err
-	}
-	return snapshotDir, nil
-}
-
-func (e *XMySQLExecutor) restoreDataDirSnapshot(snapshotDir string) error {
-	dataDir := e.getDataDir()
-	if strings.TrimSpace(dataDir) == "" {
-		return fmt.Errorf("data dir is empty")
-	}
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		return err
-	}
-	if err := removeEntriesNotInSnapshot(dataDir, snapshotDir); err != nil {
-		return err
-	}
-	if err := copyDirContents(snapshotDir, dataDir); err != nil {
-		return err
-	}
-	e.clearRestoredStorageCaches()
-	return nil
-}
-
-func (e *XMySQLExecutor) clearRestoredStorageCaches() {
-	if e == nil {
+func (e *XMySQLExecutor) recordTransactionDMLChanges(session server.MySQLServerSession, changes []transactionDMLChange) {
+	if !sessionTransactionActive(session) || len(changes) == 0 {
 		return
 	}
-	if e.storageManager != nil {
-		if bpm := e.storageManager.GetBufferPoolManager(); bpm != nil {
-			bpm.ClearCache()
-		}
-	}
-	if clearer, ok := e.btreeManager.(interface{ ClearCache() }); ok {
-		clearer.ClearCache()
-	}
+	state := e.sessionTransactionState(session)
+	state.Changes = append(state.Changes, changes...)
+	session.SetParamByName("transaction_dml_state", state)
 }
 
-func copyDirContents(src, dst string) error {
-	entries, err := os.ReadDir(src)
+func (e *XMySQLExecutor) rollbackSessionTransaction(session server.MySQLServerSession, offset int) error {
+	state := e.sessionTransactionState(session)
+	if state == nil || offset < 0 || offset > len(state.Changes) {
+		return fmt.Errorf("invalid transaction rollback offset %d", offset)
+	}
+	if len(state.Changes) == offset {
+		return nil
+	}
+	dml, err := e.newStorageIntegratedDMLExecutor()
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
 		return err
 	}
-	if err := os.MkdirAll(dst, 0755); err != nil {
-		return err
-	}
-	for _, entry := range entries {
-		srcPath := filepath.Join(src, entry.Name())
-		dstPath := filepath.Join(dst, entry.Name())
-		if entry.IsDir() {
-			info, err := entry.Info()
-			if err != nil {
-				return err
-			}
-			if err := os.MkdirAll(dstPath, info.Mode().Perm()); err != nil {
-				return err
-			}
-			if err := copyDirContents(srcPath, dstPath); err != nil {
-				return err
-			}
-			continue
-		}
-		if err := copyFile(srcPath, dstPath); err != nil {
+	for i := len(state.Changes) - 1; i >= offset; i-- {
+		if err := rollbackDMLChange(dml, state.Changes[i]); err != nil {
 			return err
 		}
 	}
+	state.Changes = state.Changes[:offset]
+	session.SetParamByName("transaction_dml_state", state)
 	return nil
 }
 
-func removeEntriesNotInSnapshot(dst, snapshot string) error {
-	dstEntries, err := os.ReadDir(dst)
+func (e *XMySQLExecutor) newStorageIntegratedDMLExecutor() (*StorageIntegratedDMLExecutor, error) {
+	txManager, err := e.getTransactionManager()
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
+		return nil, err
 	}
-
-	for _, dstEntry := range dstEntries {
-		dstPath := filepath.Join(dst, dstEntry.Name())
-		snapshotPath := filepath.Join(snapshot, dstEntry.Name())
-		snapshotInfo, err := os.Stat(snapshotPath)
-		if err != nil {
-			if os.IsNotExist(err) {
-				if err := os.RemoveAll(dstPath); err != nil {
-					return err
-				}
-				continue
-			}
-			return err
-		}
-		if dstEntry.IsDir() != snapshotInfo.IsDir() {
-			if err := os.RemoveAll(dstPath); err != nil {
-				return err
-			}
-			continue
-		}
-		if dstEntry.IsDir() {
-			if err := removeEntriesNotInSnapshot(dstPath, snapshotPath); err != nil {
-				return err
-			}
-		}
+	var optimizerManager *manager.OptimizerManager
+	var bufferPoolManager *manager.OptimizedBufferPoolManager
+	var btreeManager basic.BPlusTreeManager
+	var tableManager *manager.TableManager
+	if managerValue, ok := e.optimizerManager.(*manager.OptimizerManager); ok {
+		optimizerManager = managerValue
 	}
-	return nil
-}
-
-func copyFile(src, dst string) error {
-	info, err := os.Stat(src)
-	if err != nil {
-		return err
+	if managerValue, ok := e.bufferPoolManager.(*manager.OptimizedBufferPoolManager); ok {
+		bufferPoolManager = managerValue
 	}
-	in, err := os.Open(src)
-	if err != nil {
-		return err
+	if managerValue, ok := e.btreeManager.(basic.BPlusTreeManager); ok {
+		btreeManager = managerValue
 	}
-	defer in.Close()
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return err
+	if managerValue, ok := e.tableManager.(*manager.TableManager); ok {
+		tableManager = managerValue
 	}
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode().Perm())
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	if _, err := io.Copy(out, in); err != nil {
-		return err
-	}
-	return out.Sync()
+	dml := NewStorageIntegratedDMLExecutor(
+		optimizerManager,
+		bufferPoolManager,
+		btreeManager,
+		tableManager,
+		txManager,
+		e.indexManager,
+		e.storageManager,
+		e.tableStorageManager,
+	)
+	dml.SetDataDir(e.getDataDir())
+	return dml, nil
 }
 
 func (e *XMySQLExecutor) missingStorageIntegratedDMLManagersError(
@@ -570,7 +456,7 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 			}
 			return
 		}
-		dmlResult, err := e.executeInsertStatement(ctx, stmt, databaseName)
+		dmlResult, err := e.executeInsertStatement(ctx, stmt, databaseName, mysqlSession)
 		if err != nil {
 			results <- &Result{
 				Err:        newExecutorErrorf("execute-insert", ExecutionErrorCodeUnknown, databaseName, "", query, err, "execute INSERT failed"),
@@ -595,7 +481,7 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 			}
 			return
 		}
-		dmlResult, err := e.executeUpdateStatement(ctx, stmt, databaseName)
+		dmlResult, err := e.executeUpdateStatement(ctx, stmt, databaseName, mysqlSession)
 		if err != nil {
 			results <- &Result{
 				Err:        newExecutorErrorf("execute-update", ExecutionErrorCodeUnknown, databaseName, "", query, err, "execute UPDATE failed"),
@@ -620,7 +506,7 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 			}
 			return
 		}
-		dmlResult, err := e.executeDeleteStatement(ctx, stmt, databaseName)
+		dmlResult, err := e.executeDeleteStatement(ctx, stmt, databaseName, mysqlSession)
 		if err != nil {
 			results <- &Result{
 				Err:        newExecutorErrorf("execute-delete", ExecutionErrorCodeUnknown, databaseName, "", query, err, "execute DELETE failed"),
@@ -1468,7 +1354,7 @@ func (e *XMySQLExecutor) convertValueToInterface(value basic.Value) interface{} 
 }
 
 // executeInsertStatement 执行 INSERT 语句
-func (e *XMySQLExecutor) executeInsertStatement(ctx *ExecutionContext, stmt *sqlparser.Insert, databaseName string) (*DMLResult, error) {
+func (e *XMySQLExecutor) executeInsertStatement(ctx *ExecutionContext, stmt *sqlparser.Insert, databaseName string, session server.MySQLServerSession) (*DMLResult, error) {
 	// 类型断言获取具体的管理器类型
 	var optimizerManager *manager.OptimizerManager
 	var bufferPoolManager *manager.OptimizedBufferPoolManager
@@ -1533,6 +1419,9 @@ func (e *XMySQLExecutor) executeInsertStatement(ctx *ExecutionContext, stmt *sql
 		tableStorageManager,
 	)
 	storageIntegratedExecutor.SetDataDir(e.getDataDir())
+	storageIntegratedExecutor.SetTransactionChangeRecorder(func(changes []transactionDMLChange) {
+		e.recordTransactionDMLChanges(session, changes)
+	})
 
 	result, err := storageIntegratedExecutor.ExecuteInsert(ctx.Context, stmt, targetSchema)
 	if err != nil {
@@ -1551,7 +1440,7 @@ func (e *XMySQLExecutor) executeInsertStatement(ctx *ExecutionContext, stmt *sql
 }
 
 // executeUpdateStatement 执行 UPDATE 语句
-func (e *XMySQLExecutor) executeUpdateStatement(ctx *ExecutionContext, stmt *sqlparser.Update, databaseName string) (*DMLResult, error) {
+func (e *XMySQLExecutor) executeUpdateStatement(ctx *ExecutionContext, stmt *sqlparser.Update, databaseName string, session server.MySQLServerSession) (*DMLResult, error) {
 	// 类型断言获取具体的管理器类型
 	var optimizerManager *manager.OptimizerManager
 	var bufferPoolManager *manager.OptimizedBufferPoolManager
@@ -1616,6 +1505,9 @@ func (e *XMySQLExecutor) executeUpdateStatement(ctx *ExecutionContext, stmt *sql
 		tableStorageManager,
 	)
 	storageIntegratedExecutor.SetDataDir(e.getDataDir())
+	storageIntegratedExecutor.SetTransactionChangeRecorder(func(changes []transactionDMLChange) {
+		e.recordTransactionDMLChanges(session, changes)
+	})
 
 	result, err := storageIntegratedExecutor.ExecuteUpdate(ctx.Context, stmt, targetSchema)
 	if err != nil {
@@ -1634,7 +1526,7 @@ func (e *XMySQLExecutor) executeUpdateStatement(ctx *ExecutionContext, stmt *sql
 }
 
 // executeDeleteStatement 执行 DELETE 语句
-func (e *XMySQLExecutor) executeDeleteStatement(ctx *ExecutionContext, stmt *sqlparser.Delete, databaseName string) (*DMLResult, error) {
+func (e *XMySQLExecutor) executeDeleteStatement(ctx *ExecutionContext, stmt *sqlparser.Delete, databaseName string, session server.MySQLServerSession) (*DMLResult, error) {
 	// 类型断言获取具体的管理器类型
 	var optimizerManager *manager.OptimizerManager
 	var bufferPoolManager *manager.OptimizedBufferPoolManager
@@ -1699,6 +1591,9 @@ func (e *XMySQLExecutor) executeDeleteStatement(ctx *ExecutionContext, stmt *sql
 		tableStorageManager,
 	)
 	storageIntegratedExecutor.SetDataDir(e.getDataDir())
+	storageIntegratedExecutor.SetTransactionChangeRecorder(func(changes []transactionDMLChange) {
+		e.recordTransactionDMLChanges(session, changes)
+	})
 
 	result, err := storageIntegratedExecutor.ExecuteDelete(ctx.Context, stmt, targetSchema)
 	if err != nil {
