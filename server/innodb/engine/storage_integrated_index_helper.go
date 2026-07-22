@@ -146,6 +146,20 @@ func buildCompositeKey(row map[string]interface{}, columns []string) ([]byte, er
 	return bytes.Join(parts, nil), nil
 }
 
+func BuildSecondaryIndexEntries(tableMeta *metadata.TableMeta, rows []*InsertRowData, index *manager.Index) ([]manager.SecondaryIndexEntry, error) {
+	if index == nil {
+		return nil, fmt.Errorf("index is nil")
+	}
+	rowMaps := make([]map[string]interface{}, 0, len(rows))
+	for rowIndex, row := range rows {
+		if row == nil {
+			return nil, fmt.Errorf("row %d is nil", rowIndex)
+		}
+		rowMaps = append(rowMaps, row.ColumnValues)
+	}
+	return manager.BuildSecondaryIndexEntries(index.TableID, tableMeta, rowMaps, index)
+}
+
 // buildMultiColumnIndexKey 构建多列索引键
 func (dml *StorageIntegratedDMLExecutor) buildMultiColumnIndexKey(
 	values map[string]interface{},

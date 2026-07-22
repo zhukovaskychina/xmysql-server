@@ -1,8 +1,11 @@
 package manager
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -71,6 +74,13 @@ type Column struct {
 	Nullable  bool   // 是否可空
 	Ascending bool   // 是否升序
 	Position  uint8  // 在索引中的位置
+}
+
+// SecondaryIndexEntry is one durable secondary-index key/value pair rebuilt
+// from a clustered row.
+type SecondaryIndexEntry struct {
+	Key   []byte
+	Value []byte
 }
 
 // IndexState 表示索引状态
@@ -212,6 +222,10 @@ func (im *IndexManager) EnsureSecondaryIndexes(tableInfo *TableStorageInfo, tabl
 			State:      IndexStateActive,
 			CreateTime: time.Now(),
 			UpdateTime: time.Now(),
+			RootPageNo: tableInfo.RootPageNo,
+			Height:     1,
+			PageCount:  1,
+			LeafPages:  1,
 		}
 	}
 	return nil
@@ -595,6 +609,9 @@ func (im *IndexManager) RebuildIndex(indexID uint64) error {
 	if idx == nil {
 		return ErrIndexNotFound
 	}
+	if im.canRebuildDurableSecondaryIndex(idx) {
+		return im.rebuildDurableSecondaryIndexLocked(context.Background(), idx)
+	}
 	btreeManager, err := im.requireBTreeManager()
 	if err != nil {
 		return err
@@ -637,6 +654,16 @@ func (im *IndexManager) RebuildIndex(indexID uint64) error {
 	idx.State = IndexStateActive
 	idx.UpdateTime = time.Now()
 
+	return nil
+}
+
+func (im *IndexManager) RepairIndex(indexID uint64) error {
+	if err := im.RebuildIndex(indexID); err != nil {
+		return fmt.Errorf("rebuild index %d failed during repair: %w", indexID, err)
+	}
+	if err := im.ValidateIndex(indexID); err != nil {
+		return fmt.Errorf("validate index %d failed after repair: %w", indexID, err)
+	}
 	return nil
 }
 
@@ -949,7 +976,7 @@ func (im *IndexManager) ValidateIndex(indexID uint64) error {
 	if len(idx.Columns) == 0 {
 		return fmt.Errorf("index %d has no columns", indexID)
 	}
-	btreeManager, err := im.requireBTreeManager()
+	btreeManager, err := im.btreeManagerForIndexValidation(idx)
 	if err != nil {
 		return err
 	}
@@ -985,8 +1012,386 @@ func (im *IndexManager) ValidateIndex(indexID uint64) error {
 	if idx.PageCount < uint32(len(leafPages)) {
 		return fmt.Errorf("index %d page count %d is smaller than leaf page count %d", indexID, idx.PageCount, len(leafPages))
 	}
+	if im.canRebuildDurableSecondaryIndex(idx) {
+		if err := im.validateDurableSecondaryIndexLocked(ctx, idx, btreeManager); err != nil {
+			return err
+		}
+	}
 
 	return nil
+}
+
+func (im *IndexManager) btreeManagerForIndexValidation(index *Index) (basic.BPlusTreeManager, error) {
+	if im.canRebuildDurableSecondaryIndex(index) {
+		return im.secondaryIndexManager(index)
+	}
+	return im.requireBTreeManager()
+}
+
+func (im *IndexManager) canRebuildDurableSecondaryIndex(index *Index) bool {
+	return im != nil &&
+		index != nil &&
+		!index.IsPrimary &&
+		im.storageManager != nil &&
+		im.storageManager.GetTableStorageManager() != nil &&
+		im.storageManager.GetTableManager() != nil
+}
+
+func (im *IndexManager) rebuildDurableSecondaryIndexLocked(ctx context.Context, index *Index) error {
+	btreeManager, expectedEntries, actualEntries, tableInfo, err := im.secondaryIndexRepairSnapshot(ctx, index)
+	if err != nil {
+		return err
+	}
+
+	index.State = IndexStateBuilding
+	index.UpdateTime = time.Now()
+
+	for _, entry := range actualEntries {
+		if err := btreeManager.Delete(ctx, entry.Key); err != nil {
+			return fmt.Errorf("delete stale secondary index key failed: %v", err)
+		}
+	}
+	for _, entry := range expectedEntries {
+		if err := btreeManager.Insert(ctx, entry.Key, entry.Value); err != nil {
+			return fmt.Errorf("insert rebuilt secondary index key failed: %v", err)
+		}
+	}
+
+	leafPages, err := btreeManager.GetAllLeafPages(ctx)
+	if err != nil {
+		return fmt.Errorf("get rebuilt leaf pages failed: %v", err)
+	}
+	if len(leafPages) == 0 {
+		return fmt.Errorf("rebuilt index %d has no leaf pages", index.IndexID)
+	}
+
+	index.RootPageNo = tableInfo.RootPageNo
+	index.Height = 1
+	index.KeyCount = uint64(len(expectedEntries))
+	index.LeafPages = uint32(len(leafPages))
+	index.NonLeafPages = 0
+	index.PageCount = index.LeafPages
+	index.State = IndexStateActive
+	index.UpdateTime = time.Now()
+	return nil
+}
+
+func (im *IndexManager) validateDurableSecondaryIndexLocked(ctx context.Context, index *Index, btreeManager basic.BPlusTreeManager) error {
+	expectedEntries, err := im.expectedSecondaryIndexEntries(ctx, index)
+	if err != nil {
+		return err
+	}
+	actualEntries, err := im.actualSecondaryIndexEntries(ctx, index, btreeManager)
+	if err != nil {
+		return err
+	}
+
+	expected := secondaryIndexEntryMap(expectedEntries)
+	actual := secondaryIndexEntryMap(actualEntries)
+
+	for key, expectedEntry := range expected {
+		actualEntry, exists := actual[key]
+		if !exists {
+			return fmt.Errorf("index %d missing secondary entry for key %x", index.IndexID, expectedEntry.Key)
+		}
+		if !bytes.Equal(actualEntry.Value, expectedEntry.Value) {
+			return fmt.Errorf("index %d secondary entry value mismatch for key %x", index.IndexID, expectedEntry.Key)
+		}
+		if _, err := DecodeSecondaryIndexValue(actualEntry.Value); err != nil {
+			return fmt.Errorf("index %d has invalid secondary value for key %x: %v", index.IndexID, actualEntry.Key, err)
+		}
+	}
+	for key, actualEntry := range actual {
+		if _, exists := expected[key]; !exists {
+			return fmt.Errorf("index %d has stale secondary entry for key %x", index.IndexID, actualEntry.Key)
+		}
+		if _, err := DecodeSecondaryIndexValue(actualEntry.Value); err != nil {
+			return fmt.Errorf("index %d has invalid stale secondary value for key %x: %v", index.IndexID, actualEntry.Key, err)
+		}
+	}
+	if index.KeyCount != uint64(len(expectedEntries)) {
+		return fmt.Errorf("index %d key count mismatch: metadata=%d actual=%d", index.IndexID, index.KeyCount, len(expectedEntries))
+	}
+	return nil
+}
+
+func (im *IndexManager) secondaryIndexRepairSnapshot(ctx context.Context, index *Index) (basic.BPlusTreeManager, []SecondaryIndexEntry, []SecondaryIndexEntry, *TableStorageInfo, error) {
+	tableInfo, tableMeta, btreeManager, err := im.secondaryIndexTableContext(ctx, index)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	rows, err := scanClusteredRowsForSecondaryIndexRepair(ctx, btreeManager, tableMeta)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	expectedEntries, err := BuildSecondaryIndexEntries(index.TableID, tableMeta, rows, index)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	actualEntries, err := im.actualSecondaryIndexEntries(ctx, index, btreeManager)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	return btreeManager, expectedEntries, actualEntries, tableInfo, nil
+}
+
+func (im *IndexManager) expectedSecondaryIndexEntries(ctx context.Context, index *Index) ([]SecondaryIndexEntry, error) {
+	_, tableMeta, btreeManager, err := im.secondaryIndexTableContext(ctx, index)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := scanClusteredRowsForSecondaryIndexRepair(ctx, btreeManager, tableMeta)
+	if err != nil {
+		return nil, err
+	}
+	return BuildSecondaryIndexEntries(index.TableID, tableMeta, rows, index)
+}
+
+func (im *IndexManager) secondaryIndexTableContext(ctx context.Context, index *Index) (*TableStorageInfo, *metadata.TableMeta, basic.BPlusTreeManager, error) {
+	if !im.canRebuildDurableSecondaryIndex(index) {
+		return nil, nil, nil, fmt.Errorf("index %d does not have durable secondary index storage context", index.IndexID)
+	}
+
+	tableStorageManager := im.storageManager.GetTableStorageManager()
+	tableInfo, err := tableStorageManager.GetTableBySpaceID(index.SpaceID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	tableMeta, err := im.storageManager.GetTableManager().GetTableMetadata(ctx, tableInfo.SchemaName, tableInfo.TableName)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	btreeManager, err := tableStorageManager.CreateBTreeManagerForTable(ctx, tableInfo.SchemaName, tableInfo.TableName)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return tableInfo, tableMeta, btreeManager, nil
+}
+
+func (im *IndexManager) actualSecondaryIndexEntries(ctx context.Context, index *Index, btreeManager basic.BPlusTreeManager) ([]SecondaryIndexEntry, error) {
+	startKey, endKey, err := SecondaryIndexFullRange(index.TableID, metadata.IndexMeta{
+		Name:    index.Name,
+		Columns: indexColumnNames(index),
+		Unique:  index.IsUnique,
+	})
+	if err != nil {
+		return nil, err
+	}
+	rows, err := btreeManager.RangeSearch(ctx, startKey, endKey)
+	if err != nil {
+		return nil, fmt.Errorf("scan secondary index range failed: %v", err)
+	}
+
+	entries := make([]SecondaryIndexEntry, 0, len(rows))
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		key, err := secondaryIndexKeyFromRow(row)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, SecondaryIndexEntry{
+			Key:   key,
+			Value: append([]byte(nil), row.ToByte()...),
+		})
+	}
+	return entries, nil
+}
+
+func secondaryIndexKeyFromRow(row basic.Row) ([]byte, error) {
+	primaryKey := row.GetPrimaryKey()
+	if primaryKey == nil || primaryKey.IsNull() {
+		return nil, fmt.Errorf("secondary index row has no key")
+	}
+	switch raw := primaryKey.Raw().(type) {
+	case []byte:
+		return append([]byte(nil), raw...), nil
+	case string:
+		return []byte(raw), nil
+	default:
+		return []byte(fmt.Sprintf("%v", raw)), nil
+	}
+}
+
+func secondaryIndexEntryMap(entries []SecondaryIndexEntry) map[string]SecondaryIndexEntry {
+	result := make(map[string]SecondaryIndexEntry, len(entries))
+	for _, entry := range entries {
+		result[string(entry.Key)] = entry
+	}
+	return result
+}
+
+func BuildSecondaryIndexEntries(tableID uint64, tableMeta *metadata.TableMeta, rows []map[string]interface{}, index *Index) ([]SecondaryIndexEntry, error) {
+	if tableMeta == nil {
+		return nil, fmt.Errorf("table metadata is nil")
+	}
+	if index == nil {
+		return nil, fmt.Errorf("index is nil")
+	}
+	indexMeta := metadata.IndexMeta{
+		Name:    index.Name,
+		Columns: indexColumnNames(index),
+		Unique:  index.IsUnique,
+	}
+	entries := make([]SecondaryIndexEntry, 0, len(rows))
+	for rowIndex, row := range rows {
+		primaryKey, err := buildSecondaryPrimaryKey(row, tableMeta)
+		if err != nil {
+			return nil, fmt.Errorf("build primary key for row %d failed: %v", rowIndex, err)
+		}
+		key, err := EncodeSecondaryIndexKey(tableID, indexMeta, row, primaryKey)
+		if err != nil {
+			return nil, fmt.Errorf("encode secondary key for row %d failed: %v", rowIndex, err)
+		}
+		entries = append(entries, SecondaryIndexEntry{
+			Key:   key,
+			Value: EncodeSecondaryIndexValue(primaryKey),
+		})
+	}
+	return entries, nil
+}
+
+func buildSecondaryPrimaryKey(row map[string]interface{}, tableMeta *metadata.TableMeta) ([]byte, error) {
+	if tableMeta == nil {
+		return nil, fmt.Errorf("table metadata is nil")
+	}
+	if len(tableMeta.PrimaryKey) == 0 {
+		return nil, fmt.Errorf("table %s has no primary key for secondary index rebuild", tableMeta.Name)
+	}
+	parts := make([][]byte, 0, len(tableMeta.PrimaryKey))
+	for _, columnName := range tableMeta.PrimaryKey {
+		value, exists := row[columnName]
+		if !exists || value == nil {
+			return nil, fmt.Errorf("missing primary key column '%s'", columnName)
+		}
+		part := []byte(fmt.Sprintf("%v", value))
+		prefixed := make([]byte, 4, 4+len(part))
+		binary.BigEndian.PutUint32(prefixed, uint32(len(part)))
+		prefixed = append(prefixed, part...)
+		parts = append(parts, prefixed)
+	}
+	return bytes.Join(parts, nil), nil
+}
+
+type indexRepairFullScanner interface {
+	FullScan(ctx context.Context) ([]basic.Row, error)
+}
+
+func scanClusteredRowsForSecondaryIndexRepair(ctx context.Context, btreeManager basic.BPlusTreeManager, tableMeta *metadata.TableMeta) ([]map[string]interface{}, error) {
+	fullScanner, ok := btreeManager.(indexRepairFullScanner)
+	if !ok {
+		return nil, fmt.Errorf("B+Tree manager does not support clustered full scan for secondary index rebuild")
+	}
+	storedRows, err := fullScanner.FullScan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("scan clustered index failed: %v", err)
+	}
+	rows := make([]map[string]interface{}, 0, len(storedRows))
+	for _, storedRow := range storedRows {
+		if storedRow == nil {
+			continue
+		}
+		rowData, ok, err := decodeClusteredRecordForIndexRepair(storedRow.ToByte(), tableMeta)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			rows = append(rows, rowData)
+		}
+	}
+	return rows, nil
+}
+
+func decodeClusteredRecordForIndexRepair(data []byte, tableMeta *metadata.TableMeta) (map[string]interface{}, bool, error) {
+	const magic = "XIR1"
+	if tableMeta == nil {
+		return nil, false, fmt.Errorf("table metadata is nil")
+	}
+	if !strings.HasPrefix(string(data), magic) {
+		return nil, false, nil
+	}
+	if len(data) < len(magic)+1+2 {
+		return nil, false, fmt.Errorf("clustered record payload too short")
+	}
+
+	offset := len(magic)
+	if data[offset] != 1 {
+		return nil, false, fmt.Errorf("unsupported clustered record version: %d", data[offset])
+	}
+	offset++
+	columnCount := binary.BigEndian.Uint16(data[offset : offset+2])
+	offset += 2
+	if int(columnCount) != len(tableMeta.Columns) {
+		return nil, false, fmt.Errorf("clustered record column count %d does not match metadata column count %d", columnCount, len(tableMeta.Columns))
+	}
+
+	row := make(map[string]interface{}, len(tableMeta.Columns))
+	for idx, col := range tableMeta.Columns {
+		if col == nil {
+			return nil, false, fmt.Errorf("column %d metadata is nil", idx)
+		}
+		if offset+1+4 > len(data) {
+			return nil, false, fmt.Errorf("column %s header truncated", col.Name)
+		}
+		valueType := data[offset]
+		offset++
+		valueLen := binary.BigEndian.Uint32(data[offset : offset+4])
+		offset += 4
+		if valueLen > uint32(len(data)-offset) {
+			return nil, false, fmt.Errorf("column %s value truncated", col.Name)
+		}
+		value, err := decodeClusteredRepairValue(valueType, data[offset:offset+int(valueLen)])
+		if err != nil {
+			return nil, false, fmt.Errorf("decode column %s: %v", col.Name, err)
+		}
+		row[col.Name] = value
+		offset += int(valueLen)
+	}
+	if offset != len(data) {
+		return nil, false, fmt.Errorf("clustered record has %d trailing bytes", len(data)-offset)
+	}
+	return row, true, nil
+}
+
+func decodeClusteredRepairValue(valueType byte, data []byte) (interface{}, error) {
+	switch valueType {
+	case 0:
+		return nil, nil
+	case 1:
+		if len(data) != 8 {
+			return nil, fmt.Errorf("integer payload length = %d", len(data))
+		}
+		return int64(binary.BigEndian.Uint64(data)), nil
+	case 2:
+		if len(data) != 8 {
+			return nil, fmt.Errorf("unsigned integer payload length = %d", len(data))
+		}
+		return binary.BigEndian.Uint64(data), nil
+	case 3:
+		if len(data) != 8 {
+			return nil, fmt.Errorf("float payload length = %d", len(data))
+		}
+		return math.Float64frombits(binary.BigEndian.Uint64(data)), nil
+	case 4:
+		if len(data) != 1 {
+			return nil, fmt.Errorf("boolean payload length = %d", len(data))
+		}
+		switch data[0] {
+		case 0:
+			return false, nil
+		case 1:
+			return true, nil
+		default:
+			return nil, fmt.Errorf("invalid boolean value: %d", data[0])
+		}
+	case 5:
+		return string(data), nil
+	case 6:
+		return append([]byte(nil), data...), nil
+	default:
+		return nil, fmt.Errorf("unknown clustered value type %d", valueType)
+	}
 }
 
 // CompactIndex 压缩索引，减少碎片
