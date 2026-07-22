@@ -4,7 +4,10 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -99,9 +102,63 @@ public class DDLOperationsTest extends BaseIntegrationTest {
         
         printSuccess("DROP IF EXISTS 测试通过");
     }
-    
+
     @Test
     @Order(6)
+    @DisplayName("SHOW DATABASES LIKE returns navigable result set")
+    public void testShowDatabasesLikeNavigable() throws SQLException {
+        String dbName = TEST_DB_PREFIX + "like_nav";
+
+        try {
+            createTestDatabase(dbName);
+
+            try (Statement stmt = connection.createStatement();
+                 ResultSet rs = stmt.executeQuery("SHOW DATABASES LIKE '" + TEST_DB_PREFIX + "%'")) {
+                assertThat(rs.next()).isTrue();
+                assertThat(rs.getString(1)).startsWith(TEST_DB_PREFIX);
+            }
+        } finally {
+            dropDatabaseIfExists(dbName);
+        }
+    }
+
+    @Test
+    @Order(7)
+    @DisplayName("DROP DATABASE IF EXISTS missing database succeeds")
+    public void testDropDatabaseIfExistsMissing() {
+        assertThatCode(() -> executeUpdate("DROP DATABASE IF EXISTS missing_p0_db"))
+            .doesNotThrowAnyException();
+    }
+
+    @Test
+    @Order(8)
+    @DisplayName("DatabaseMetaData getTables sees created table")
+    public void testDatabaseMetaDataGetTables() throws SQLException {
+        String dbName = "p0_meta_db";
+
+        try {
+            try (Statement stmt = connection.createStatement()) {
+                stmt.executeUpdate("CREATE DATABASE IF NOT EXISTS " + dbName);
+                stmt.executeUpdate("USE " + dbName);
+                stmt.executeUpdate("CREATE TABLE IF NOT EXISTS meta_users (id INT PRIMARY KEY, name VARCHAR(50))");
+            }
+
+            DatabaseMetaData meta = connection.getMetaData();
+            try (ResultSet rs = meta.getTables(dbName, null, "meta_users", new String[]{"TABLE"})) {
+                assertThat(rs.next()).isTrue();
+                assertThat(rs.getString("TABLE_CAT")).isEqualTo(dbName);
+                assertThat(rs.getString("TABLE_SCHEM")).isNull();
+                assertThat(rs.getString("TABLE_NAME")).isEqualTo("meta_users");
+                assertThat(rs.getString("TABLE_TYPE")).isEqualTo("TABLE");
+                assertThat(rs.getString("REMARKS")).isEqualTo("");
+            }
+        } finally {
+            dropDatabaseIfExists(dbName);
+        }
+    }
+    
+    @Test
+    @Order(9)
     @DisplayName("测试创建表 - 基本类型")
     public void testCreateTableBasicTypes() throws SQLException {
         String dbName = TEST_DB_PREFIX + "table_test";
@@ -130,7 +187,7 @@ public class DDLOperationsTest extends BaseIntegrationTest {
     }
     
     @Test
-    @Order(7)
+    @Order(10)
     @DisplayName("测试创建表 - 带索引")
     public void testCreateTableWithIndex() throws SQLException {
         String dbName = TEST_DB_PREFIX + "index_test";
@@ -157,7 +214,7 @@ public class DDLOperationsTest extends BaseIntegrationTest {
     }
     
     @Test
-    @Order(8)
+    @Order(11)
     @DisplayName("测试创建表 - 外键约束")
     public void testCreateTableWithForeignKey() throws SQLException {
         String dbName = TEST_DB_PREFIX + "fk_test";
@@ -192,7 +249,7 @@ public class DDLOperationsTest extends BaseIntegrationTest {
     }
     
     @Test
-    @Order(9)
+    @Order(12)
     @DisplayName("测试删除表")
     public void testDropTable() throws SQLException {
         String dbName = TEST_DB_PREFIX + "drop_test";
@@ -229,7 +286,7 @@ public class DDLOperationsTest extends BaseIntegrationTest {
     }
     
     @Test
-    @Order(10)
+    @Order(13)
     @DisplayName("测试ALTER TABLE - 添加列")
     public void testAlterTableAddColumn() throws SQLException {
         String dbName = TEST_DB_PREFIX + "alter_test";
@@ -240,10 +297,17 @@ public class DDLOperationsTest extends BaseIntegrationTest {
         
         // 创建表
         executeUpdate("CREATE TABLE " + tableName + " (id INT PRIMARY KEY)");
+        executeUpdate("INSERT INTO " + tableName + " (id) VALUES (1)");
         
         // 添加列
         executeUpdate("ALTER TABLE " + tableName + " ADD COLUMN name VARCHAR(100)");
         executeUpdate("ALTER TABLE " + tableName + " ADD COLUMN age INT DEFAULT 0");
+
+        try (ResultSet rs = executeQuery("SELECT name, age FROM " + tableName + " WHERE id = 1")) {
+            assertThat(rs.next()).isTrue();
+            assertThat(rs.getString("name")).isNull();
+            assertThat(rs.getInt("age")).isEqualTo(0);
+        }
         
         printSuccess("ALTER TABLE ADD COLUMN 测试通过");
         
@@ -251,7 +315,7 @@ public class DDLOperationsTest extends BaseIntegrationTest {
     }
     
     @Test
-    @Order(11)
+    @Order(14)
     @DisplayName("测试TRUNCATE TABLE")
     public void testTruncateTable() throws SQLException {
         String dbName = TEST_DB_PREFIX + "truncate_test";
@@ -269,10 +333,15 @@ public class DDLOperationsTest extends BaseIntegrationTest {
         // 清空表
         executeUpdate("TRUNCATE TABLE " + tableName);
         assertThat(getTableRowCount(tableName)).isEqualTo(0);
+
+        executeUpdate("INSERT INTO " + tableName + " VALUES (3, 'after_truncate')");
+        try (ResultSet rs = executeQuery("SELECT name FROM " + tableName + " WHERE id = 3")) {
+            assertThat(rs.next()).isTrue();
+            assertThat(rs.getString(1)).isEqualTo("after_truncate");
+        }
         
         printSuccess("TRUNCATE TABLE 测试通过");
         
         dropDatabaseIfExists(dbName);
     }
 }
-

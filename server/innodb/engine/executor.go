@@ -415,6 +415,11 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		return
 	}
 
+	if isShowFullTablesQuery(query) {
+		e.executeShowFullTablesRaw(ctx, mysqlSession, query, databaseName)
+		return
+	}
+
 	// SQL语法解析
 	stmt, err := sqlparser.Parse(query)
 	if err != nil {
@@ -824,6 +829,12 @@ func (e *XMySQLExecutor) buildExecutorTree(ctx context.Context, physicalPlan pla
 
 // executeSelectStatement 执行 SELECT 查询
 func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sqlparser.Select, databaseName string) (*SelectResult, error) {
+	if ctx != nil {
+		if result, handled, err := e.executeInformationSchemaMetadataSelect(ctx.RawQuery); handled {
+			return result, err
+		}
+	}
+
 	// 类型断言获取具体的管理器类型
 	var optimizerManager *manager.OptimizerManager
 	var bufferPoolManager *manager.OptimizedBufferPoolManager
@@ -879,6 +890,274 @@ func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sql
 	}
 
 	return result, nil
+}
+
+var informationSchemaMetadataFilterPattern = regexp.MustCompile("(?i)`?\\b(table_schema|table_name|schema_name|column_name)\\b`?\\s*(?:=|like)\\s*(?:'([^']*)'|\"([^\"]*)\")")
+
+func (e *XMySQLExecutor) executeInformationSchemaMetadataSelect(query string) (*SelectResult, bool, error) {
+	if !isInformationSchemaMetadataQuery(query) {
+		return nil, false, nil
+	}
+
+	lower := strings.ToLower(query)
+	switch {
+	case strings.Contains(lower, "information_schema.tables"):
+		return e.executeInformationSchemaTablesSelect(query), true, nil
+	case strings.Contains(lower, "information_schema.schemata"):
+		return e.executeInformationSchemaSchemataSelect(query), true, nil
+	case strings.Contains(lower, "information_schema.columns"):
+		return e.executeInformationSchemaColumnsSelect(query), true, nil
+	default:
+		return nil, false, nil
+	}
+}
+
+func isInformationSchemaMetadataQuery(query string) bool {
+	lower := strings.ToLower(strings.TrimSpace(query))
+	lower = strings.ReplaceAll(lower, "`", "")
+	lower = regexp.MustCompile(`\s*\.\s*`).ReplaceAllString(lower, ".")
+	return strings.Contains(lower, "information_schema.tables") ||
+		strings.Contains(lower, "information_schema.columns") ||
+		strings.Contains(lower, "information_schema.schemata")
+}
+
+func (e *XMySQLExecutor) executeInformationSchemaTablesSelect(query string) *SelectResult {
+	filters := informationSchemaMetadataFilters(query)
+	schemaPattern := filters["table_schema"]
+	tablePattern := filters["table_name"]
+
+	rows := make([][]interface{}, 0)
+	for _, table := range e.scanFrmTables() {
+		if !metadataPatternMatches(table.schemaName, schemaPattern) || !metadataPatternMatches(table.tableName, tablePattern) {
+			continue
+		}
+		rows = append(rows, []interface{}{table.schemaName, nil, table.tableName, "TABLE", ""})
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		left := fmt.Sprintf("%s.%s", rows[i][0], rows[i][2])
+		right := fmt.Sprintf("%s.%s", rows[j][0], rows[j][2])
+		return left < right
+	})
+
+	return newInformationSchemaSelectResult("information_schema_tables", manager.JDBCTablesMetadataColumns(), rows)
+}
+
+func (e *XMySQLExecutor) executeInformationSchemaSchemataSelect(query string) *SelectResult {
+	filters := informationSchemaMetadataFilters(query)
+	schemaPattern := filters["schema_name"]
+
+	schemaSet := map[string]struct{}{
+		"information_schema": {},
+		"mysql":              {},
+		"performance_schema": {},
+		"sys":                {},
+	}
+	for _, table := range e.scanFrmTables() {
+		schemaSet[table.schemaName] = struct{}{}
+	}
+
+	schemas := make([]string, 0, len(schemaSet))
+	for schemaName := range schemaSet {
+		if metadataPatternMatches(schemaName, schemaPattern) {
+			schemas = append(schemas, schemaName)
+		}
+	}
+	sort.Strings(schemas)
+
+	rows := make([][]interface{}, 0, len(schemas))
+	for _, schemaName := range schemas {
+		rows = append(rows, []interface{}{"def", schemaName, "utf8mb4", "utf8mb4_general_ci", nil})
+	}
+	return newInformationSchemaSelectResult(
+		"information_schema_schemata",
+		[]string{"CATALOG_NAME", "SCHEMA_NAME", "DEFAULT_CHARACTER_SET_NAME", "DEFAULT_COLLATION_NAME", "SQL_PATH"},
+		rows,
+	)
+}
+
+func (e *XMySQLExecutor) executeInformationSchemaColumnsSelect(query string) *SelectResult {
+	filters := informationSchemaMetadataFilters(query)
+	schemaPattern := filters["table_schema"]
+	tablePattern := filters["table_name"]
+	columnPattern := filters["column_name"]
+
+	columns := []string{
+		"TABLE_CAT",
+		"TABLE_SCHEM",
+		"TABLE_NAME",
+		"COLUMN_NAME",
+		"DATA_TYPE",
+		"TYPE_NAME",
+		"COLUMN_SIZE",
+		"NULLABLE",
+		"REMARKS",
+		"ORDINAL_POSITION",
+	}
+	rows := make([][]interface{}, 0)
+	for _, table := range e.scanFrmTables() {
+		if !metadataPatternMatches(table.schemaName, schemaPattern) || !metadataPatternMatches(table.tableName, tablePattern) {
+			continue
+		}
+		for ordinal, column := range table.columns {
+			if !metadataPatternMatches(column.name, columnPattern) {
+				continue
+			}
+			nullable := int64(1)
+			if !column.nullable {
+				nullable = 0
+			}
+			rows = append(rows, []interface{}{
+				table.schemaName,
+				nil,
+				table.tableName,
+				column.name,
+				int64(12),
+				strings.ToUpper(column.typeName),
+				int64(column.length),
+				nullable,
+				"",
+				int64(ordinal + 1),
+			})
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		left := fmt.Sprintf("%s.%s.%03d", rows[i][0], rows[i][2], rows[i][9])
+		right := fmt.Sprintf("%s.%s.%03d", rows[j][0], rows[j][2], rows[j][9])
+		return left < right
+	})
+
+	return newInformationSchemaSelectResult("information_schema_columns", columns, rows)
+}
+
+type frmMetadataTable struct {
+	schemaName string
+	tableName  string
+	columns    []frmMetadataColumn
+}
+
+type frmMetadataColumn struct {
+	name     string
+	typeName string
+	length   int
+	nullable bool
+}
+
+func (e *XMySQLExecutor) scanFrmTables() []frmMetadataTable {
+	dataDir := e.getDataDir()
+	entries, err := os.ReadDir(dataDir)
+	if err != nil {
+		return nil
+	}
+
+	tables := make([]frmMetadataTable, 0)
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		schemaName := entry.Name()
+		tableEntries, err := os.ReadDir(filepath.Join(dataDir, schemaName))
+		if err != nil {
+			continue
+		}
+		for _, tableEntry := range tableEntries {
+			if tableEntry.IsDir() || filepath.Ext(tableEntry.Name()) != ".frm" {
+				continue
+			}
+			tableName := strings.TrimSuffix(tableEntry.Name(), ".frm")
+			tables = append(tables, frmMetadataTable{
+				schemaName: schemaName,
+				tableName:  tableName,
+				columns:    readFrmMetadataColumns(filepath.Join(dataDir, schemaName, tableEntry.Name())),
+			})
+		}
+	}
+	return tables
+}
+
+func readFrmMetadataColumns(path string) []frmMetadataColumn {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var tableInfo struct {
+		Columns []map[string]interface{} `json:"columns"`
+	}
+	if err := json.Unmarshal(raw, &tableInfo); err != nil {
+		return nil
+	}
+	columns := make([]frmMetadataColumn, 0, len(tableInfo.Columns))
+	for _, column := range tableInfo.Columns {
+		name, _ := column["name"].(string)
+		if name == "" {
+			continue
+		}
+		typeName, _ := column["type"].(string)
+		if typeName == "" {
+			typeName = "varchar"
+		}
+		length := 0
+		switch value := column["length"].(type) {
+		case float64:
+			length = int(value)
+		case int:
+			length = value
+		}
+		nullable := true
+		if value, ok := column["nullable"].(bool); ok {
+			nullable = value
+		}
+		columns = append(columns, frmMetadataColumn{
+			name:     name,
+			typeName: typeName,
+			length:   length,
+			nullable: nullable,
+		})
+	}
+	return columns
+}
+
+func informationSchemaMetadataFilters(query string) map[string]string {
+	filters := make(map[string]string)
+	for _, match := range informationSchemaMetadataFilterPattern.FindAllStringSubmatch(query, -1) {
+		value := match[2]
+		if value == "" {
+			value = match[3]
+		}
+		filters[strings.ToLower(match[1])] = value
+	}
+	return filters
+}
+
+func metadataPatternMatches(value, pattern string) bool {
+	if strings.TrimSpace(pattern) == "" {
+		return true
+	}
+	quoted := regexp.QuoteMeta(pattern)
+	quoted = strings.ReplaceAll(quoted, "%", ".*")
+	quoted = strings.ReplaceAll(quoted, "_", ".")
+	matched, err := regexp.MatchString("(?i)^"+quoted+"$", value)
+	return err == nil && matched
+}
+
+func newInformationSchemaSelectResult(name string, columns []string, rows [][]interface{}) *SelectResult {
+	tableMeta := &metadata.TableMeta{Name: name, Columns: make([]*metadata.ColumnMeta, 0, len(columns))}
+	columnTypes := make([]string, 0, len(columns))
+	for _, column := range columns {
+		tableMeta.Columns = append(tableMeta.Columns, &metadata.ColumnMeta{Name: column, Type: metadata.TypeVarchar})
+		columnTypes = append(columnTypes, "varchar")
+	}
+	records := make([]Record, 0, len(rows))
+	for _, row := range rows {
+		records = append(records, NewExecutorRecordFromInterface(row, tableMeta))
+	}
+	return &SelectResult{
+		Records:     records,
+		RowCount:    len(records),
+		Columns:     columns,
+		ColumnTypes: columnTypes,
+		ResultType:  common.RESULT_TYPE_QUERY,
+		Message:     fmt.Sprintf("SELECT query executed successfully, %d rows returned", len(records)),
+	}
 }
 
 // generateLogicalPlan 从SQL生成逻辑计划
@@ -2294,42 +2573,39 @@ func (e *XMySQLExecutor) truncateTableImpl(databaseName, tableName string) error
 		return fmt.Errorf("table storage manager not available")
 	}
 
-	oldInfo, err := e.tableStorageManager.GetTableStorageInfo(databaseName, tableName)
+	info, err := e.tableStorageManager.GetTableStorageInfo(databaseName, tableName)
 	if err != nil {
 		return err
 	}
-	if err := clearBTreeSidecarForSpace(e.getDataDir(), oldInfo.SpaceID); err != nil {
+	if err := clearBTreeSidecarForSpace(e.getDataDir(), info.SpaceID); err != nil {
 		return fmt.Errorf("clear B+Tree sidecar records failed: %v", err)
 	}
-	spaceName := fmt.Sprintf("%s/%s_truncate_%d", databaseName, tableName, time.Now().UnixNano())
-	handle, err := e.storageManager.CreateTablespace(spaceName)
+
+	btreeManager, err := e.tableStorageManager.CreateBTreeManagerForTable(context.Background(), databaseName, tableName)
 	if err != nil {
-		return fmt.Errorf("create new tablespace failed: %v", err)
+		return fmt.Errorf("create table btree manager failed: %v", err)
 	}
-
-	ibdPath := filepath.Join(e.getDataDir(), databaseName, tableName+".ibd")
-	if _, err := os.Stat(ibdPath); os.IsNotExist(err) {
-		if err := e.createTableDataFile(filepath.Dir(ibdPath), tableName); err != nil {
-			return fmt.Errorf("recreate table data file failed: %v", err)
+	if scanner, ok := btreeManager.(interface {
+		FullScan(context.Context) ([]basic.Row, error)
+	}); ok {
+		rows, err := scanner.FullScan(context.Background())
+		if err != nil {
+			return fmt.Errorf("scan table rows for truncate failed: %v", err)
 		}
-	} else if err != nil {
-		return fmt.Errorf("check table data file failed: %v", err)
+		for _, row := range rows {
+			if row == nil || row.GetPrimaryKey() == nil || row.GetPrimaryKey().IsNull() {
+				continue
+			}
+			if err := btreeManager.Delete(context.Background(), row.GetPrimaryKey().Raw()); err != nil {
+				return fmt.Errorf("delete row during truncate failed: %v", err)
+			}
+		}
+	}
+	if bufferPool, ok := e.bufferPoolManager.(*manager.OptimizedBufferPoolManager); ok && bufferPool != nil {
+		bufferPool.ClearCache()
 	}
 
-	info := &manager.TableStorageInfo{
-		SchemaName:    databaseName,
-		TableName:     tableName,
-		SpaceID:       handle.SpaceID,
-		RootPageNo:    3,
-		IndexPageNo:   3,
-		DataSegmentID: handle.DataSegmentID,
-		Type:          oldInfo.Type,
-	}
-	if err := e.tableStorageManager.ReplaceTableStorage(context.Background(), info); err != nil {
-		return fmt.Errorf("replace truncated table storage failed: %v", err)
-	}
-
-	logger.Infof("TRUNCATE TABLE '%s.%s' remapped tablespace oldSpaceID=%d newSpaceID=%d", databaseName, tableName, oldInfo.SpaceID, handle.SpaceID)
+	logger.Infof("TRUNCATE TABLE '%s.%s' cleared tablespace spaceID=%d", databaseName, tableName, info.SpaceID)
 	return nil
 }
 
@@ -3440,6 +3716,95 @@ func (e *XMySQLExecutor) executeShowTables(ctx *ExecutionContext, stmt *sqlparse
 	}
 
 	logger.Debugf(" [executeShowTables] 返回 %d 个表", len(tables))
+}
+
+var showFullTablesPattern = regexp.MustCompile("(?is)^\\s*show\\s+full\\s+tables(?:\\s+(?:from|in)\\s+`?([A-Za-z0-9_$]+)`?)?(?:\\s+like\\s+'([^']*)')?\\s*;?\\s*$")
+
+func isShowFullTablesQuery(query string) bool {
+	return showFullTablesPattern.MatchString(query)
+}
+
+func (e *XMySQLExecutor) executeShowFullTablesRaw(ctx *ExecutionContext, session server.MySQLServerSession, rawQuery string, databaseName string) {
+	matches := showFullTablesPattern.FindStringSubmatch(rawQuery)
+	currentDB := ""
+	likePattern := ""
+	if len(matches) > 1 {
+		currentDB = strings.TrimSpace(matches[1])
+	}
+	if len(matches) > 2 {
+		likePattern = strings.TrimSpace(matches[2])
+	}
+	if currentDB == "" {
+		currentDB = databaseName
+	}
+	if currentDB == "" && session != nil {
+		if dbParam := session.GetParamByName("database"); dbParam != nil {
+			if dbName, ok := dbParam.(string); ok {
+				currentDB = dbName
+			}
+		}
+	}
+	if currentDB == "" {
+		ctx.Results <- &Result{
+			Err:        fmt.Errorf("no database selected"),
+			ResultType: "ERROR",
+		}
+		return
+	}
+
+	tables, err := e.showTableNames(currentDB)
+	if err != nil {
+		ctx.Results <- &Result{Err: err, ResultType: "ERROR"}
+		return
+	}
+
+	rows := make([][]interface{}, 0, len(tables))
+	for _, table := range tables {
+		if !metadataPatternMatches(table, likePattern) {
+			continue
+		}
+		rows = append(rows, []interface{}{table, "BASE TABLE"})
+	}
+
+	ctx.Results <- &Result{
+		ResultType: common.RESULT_TYPE_QUERY,
+		Data: map[string]interface{}{
+			"columns": []string{fmt.Sprintf("Tables_in_%s", currentDB), "Table_type"},
+			"rows":    rows,
+		},
+		Message: fmt.Sprintf("Found %d tables", len(rows)),
+	}
+}
+
+func (e *XMySQLExecutor) showTableNames(currentDB string) ([]string, error) {
+	dataDir := e.getDataDir()
+	dbPath := filepath.Join(dataDir, currentDB)
+	entries, err := os.ReadDir(dbPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("database '%s' does not exist", currentDB)
+		}
+		return nil, fmt.Errorf("failed to read database '%s': %v", currentDB, err)
+	}
+	tableSet := make(map[string]struct{})
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		switch {
+		case strings.HasSuffix(name, ".frm"):
+			tableSet[strings.TrimSuffix(name, ".frm")] = struct{}{}
+		case strings.HasSuffix(name, ".ibd"):
+			tableSet[strings.TrimSuffix(name, ".ibd")] = struct{}{}
+		}
+	}
+	tables := make([]string, 0, len(tableSet))
+	for table := range tableSet {
+		tables = append(tables, table)
+	}
+	sort.Strings(tables)
+	return tables, nil
 }
 
 // executeShowColumns 执行 SHOW COLUMNS

@@ -431,6 +431,11 @@ func (r *DefaultSQLRouter) Route(session server.MySQLServerSession, query string
 		return "innodb"
 	}
 
+	if isInformationSchemaMetadataQuery(query) {
+		logger.Debugf(" [DefaultSQLRouter] information_schema metadata query routes to innodb")
+		return "innodb"
+	}
+
 	query = strings.TrimSpace(strings.ToUpper(query))
 
 	logger.Debugf(" [DefaultSQLRouter] 路由查询: %s", query)
@@ -490,6 +495,10 @@ func (r *DefaultSQLRouter) Route(session server.MySQLServerSession, query string
 
 // isSystemVariableQuery 检查是否为系统变量查询
 func (r *DefaultSQLRouter) isSystemVariableQuery(query string) bool {
+	if isInformationSchemaMetadataQuery(query) {
+		return false
+	}
+
 	// 检查是否包含@@
 	if strings.Contains(query, "@@") {
 		return true

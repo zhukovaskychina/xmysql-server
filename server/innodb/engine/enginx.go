@@ -355,6 +355,12 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			return
 		}
 
+		if isShowFullTablesQuery(query) {
+			stage = "show"
+			e.QueryExecutor.executeShowFullTablesRaw(ctx, session, query, databaseName)
+			return
+		}
+
 		stmt, err := sqlparser.Parse(query)
 		if err != nil {
 			logger.Errorf(" [XMySQLEngine.ExecuteQuery] SQL解析错误: %v", err)

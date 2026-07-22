@@ -73,6 +73,13 @@ func TestSystemVariableEngine_InformationSchemaTablesUsesConfiguredDataDir(t *te
 	assert.Equal(t, [][]interface{}{informationSchemaTableRow("app_schema", "orders")}, result.Rows)
 }
 
+func TestSystemVariableEngine_DoesNotRouteInformationSchemaMetadataQueries(t *testing.T) {
+	query := "SELECT TABLE_CAT, TABLE_SCHEM, TABLE_NAME, TABLE_TYPE, REMARKS FROM information_schema.tables WHERE table_schema = 'app_schema'"
+
+	assert.Equal(t, "innodb", NewDefaultSQLRouter().Route(nil, query))
+	assert.False(t, (&SystemVariableEngine{}).CanHandle(query))
+}
+
 func informationSchemaTableRow(schemaName, tableName string) []interface{} {
 	return []interface{}{schemaName, nil, tableName, "TABLE", "", nil, nil, nil, nil, nil}
 }

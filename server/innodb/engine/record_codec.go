@@ -85,8 +85,8 @@ func DecodeClusteredRecord(data []byte, tableMeta *metadata.TableMeta) (*InsertR
 
 	columnCount := binary.BigEndian.Uint16(data[offset : offset+2])
 	offset += 2
-	if int(columnCount) != len(tableMeta.Columns) {
-		return nil, fmt.Errorf("clustered record column count %d does not match metadata column count %d", columnCount, len(tableMeta.Columns))
+	if int(columnCount) > len(tableMeta.Columns) {
+		return nil, fmt.Errorf("clustered record column count %d exceeds metadata column count %d", columnCount, len(tableMeta.Columns))
 	}
 
 	row := &InsertRowData{
@@ -97,6 +97,15 @@ func DecodeClusteredRecord(data []byte, tableMeta *metadata.TableMeta) (*InsertR
 	for idx, col := range tableMeta.Columns {
 		if col == nil {
 			return nil, fmt.Errorf("column %d metadata is nil", idx)
+		}
+		if idx >= int(columnCount) {
+			if col.DefaultValue != nil {
+				row.ColumnValues[col.Name] = normalizeDefaultValue(col.DefaultValue, col.Type)
+			} else {
+				row.ColumnValues[col.Name] = nil
+			}
+			row.ColumnTypes[col.Name] = col.Type
+			continue
 		}
 		if offset+1+4 > len(data) {
 			return nil, fmt.Errorf("column %s header truncated", col.Name)

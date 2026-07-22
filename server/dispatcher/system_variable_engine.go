@@ -49,6 +49,11 @@ func (e *SystemVariableEngine) CanHandle(query string) bool {
 	logger.Debugf(" [SystemVariableEngine.CanHandle] sysVarManager是否为nil: %v", e.sysVarManager == nil)
 	logger.Debugf(" [SystemVariableEngine.CanHandle] storageManager是否为nil: %v", e.storageManager == nil)
 
+	if isInformationSchemaMetadataQuery(query) {
+		logger.Debugf(" [SystemVariableEngine.CanHandle] information_schema metadata query uses innodb engine")
+		return false
+	}
+
 	if e.sysVarAnalyzer == nil {
 		logger.Errorf(" [SystemVariableEngine.CanHandle] sysVarAnalyzer为nil，无法处理查询")
 		return false
@@ -226,6 +231,10 @@ func (e *SystemVariableEngine) isSystemTable(tableExpr sqlparser.TableExpr) bool
 
 			// 检查INFORMATION_SCHEMA表
 			if qualifierStr == "INFORMATION_SCHEMA" {
+				fullName := qualifierStr + "." + tableNameStr
+				if isInformationSchemaMetadataQuery(fullName) {
+					return false
+				}
 				logger.Debugf(" [SystemVariableEngine.isSystemTable] INFORMATION_SCHEMA表: %s.%s", qualifierStr, tableNameStr)
 				return true
 			}
@@ -433,18 +442,22 @@ func (e *SystemVariableEngine) executeInformationSchemaTablesQuery(query string)
 }
 
 func informationSchemaTablesColumns() []string {
-	return []string{
-		"TABLE_CAT",
-		"TABLE_SCHEM",
-		"TABLE_NAME",
-		"TABLE_TYPE",
-		"REMARKS",
+	return append(manager.JDBCTablesMetadataColumns(), []string{
 		"TYPE_CAT",
 		"TYPE_SCHEM",
 		"TYPE_NAME",
 		"SELF_REFERENCING_COL_NAME",
 		"REF_GENERATION",
-	}
+	}...)
+}
+
+func isInformationSchemaMetadataQuery(query string) bool {
+	lower := strings.ToLower(strings.TrimSpace(query))
+	lower = strings.ReplaceAll(lower, "`", "")
+	lower = regexp.MustCompile(`\s*\.\s*`).ReplaceAllString(lower, ".")
+	return strings.Contains(lower, "information_schema.tables") ||
+		strings.Contains(lower, "information_schema.columns") ||
+		strings.Contains(lower, "information_schema.schemata")
 }
 
 func matchesMetadataPattern(value, pattern string) bool {

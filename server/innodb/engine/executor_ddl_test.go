@@ -114,6 +114,27 @@ func TestAlterTableAddColumnRefreshesDMLMetadata(t *testing.T) {
 	require.Equal(t, "nickname", tableMeta.Columns[1].Name)
 }
 
+func TestAlterTableAddColumnExistingRowsReadNullAndDefault(t *testing.T) {
+	tmp := t.TempDir()
+	executor := newTestStorageIntegratedExecutor(t, tmp)
+
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table users (id int primary key)")
+	mustExecSQL(t, executor, "app", "insert into users (id) values (1)")
+	mustExecSQL(t, executor, "app", "alter table users add column nickname varchar(100)")
+	mustExecSQL(t, executor, "app", "alter table users add column score int default 7")
+
+	got := <-executor.ExecuteQuery(nil, "select nickname, score from users where id = 1", "app")
+	require.NoError(t, got.Err)
+	result, ok := got.Data.(*SelectResult)
+	require.True(t, ok, "expected SelectResult, got %T", got.Data)
+	require.Len(t, result.Records, 1)
+	values := result.Records[0].GetValues()
+	require.Len(t, values, 2)
+	require.True(t, values[0].IsNull())
+	require.Equal(t, int64(7), values[1].Int())
+}
+
 func TestTruncateKeepsTableMetadataResolvable(t *testing.T) {
 	tmp := t.TempDir()
 	executor := newTestStorageIntegratedExecutor(t, tmp)
@@ -126,6 +147,50 @@ func TestTruncateKeepsTableMetadataResolvable(t *testing.T) {
 
 	rows := mustQuerySQL(t, executor, "app", "select username from users")
 	require.Equal(t, [][]interface{}{{"after"}}, rows)
+}
+
+func TestInformationSchemaTablesSelectReturnsJDBCMetadataColumns(t *testing.T) {
+	tmp := t.TempDir()
+	executor := newTestStorageIntegratedExecutor(t, tmp)
+
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table users (id int primary key)")
+
+	got := <-executor.ExecuteQuery(nil,
+		"select TABLE_CAT, TABLE_SCHEM, TABLE_NAME, TABLE_TYPE, REMARKS from information_schema.tables where table_schema = 'app' and table_name = 'users'",
+		"app",
+	)
+	require.NoError(t, got.Err)
+
+	result, ok := got.Data.(*SelectResult)
+	require.True(t, ok, "expected SelectResult, got %T", got.Data)
+	require.Equal(t, []string{"TABLE_CAT", "TABLE_SCHEM", "TABLE_NAME", "TABLE_TYPE", "REMARKS"}, result.Columns)
+	require.Len(t, result.Records, 1)
+
+	values := result.Records[0].GetValues()
+	require.Len(t, values, 5)
+	require.Equal(t, "app", values[0].ToString())
+	require.Nil(t, values[1].Raw())
+	require.Equal(t, "users", values[2].ToString())
+	require.Equal(t, "TABLE", values[3].ToString())
+	require.Equal(t, "", values[4].ToString())
+}
+
+func TestShowFullTablesReturnsTableTypeColumn(t *testing.T) {
+	tmp := t.TempDir()
+	executor := newTestStorageIntegratedExecutor(t, tmp)
+	session := newTestMySQLSession()
+
+	mustExecSessionSQL(t, executor, session, "", "create database app")
+	mustExecSessionSQL(t, executor, session, "app", "use app")
+	mustExecSessionSQL(t, executor, session, "app", "create table users (id int primary key)")
+
+	got := <-executor.ExecuteQuery(session, "show full tables from app like 'users'", "app")
+	require.NoError(t, got.Err)
+	data, ok := got.Data.(map[string]interface{})
+	require.True(t, ok)
+	require.Equal(t, []string{"Tables_in_app", "Table_type"}, data["columns"])
+	require.Equal(t, [][]interface{}{{"users", "BASE TABLE"}}, data["rows"])
 }
 
 func TestDropTableUsesCurrentDatabaseContext(t *testing.T) {
