@@ -52,10 +52,11 @@ func (m *MockIndexSyncer) SyncSecondaryIndexesOnUpdate(tableID uint64, oldData, 
 	return nil
 }
 
-func (m *MockIndexSyncer) SyncSecondaryIndexesOnDelete(tableID uint64, rowData map[string]interface{}) error {
+func (m *MockIndexSyncer) SyncSecondaryIndexesOnDelete(tableID uint64, rowData map[string]interface{}, pkValue []byte) error {
 	m.deleteCalls = append(m.deleteCalls, IndexSyncCall{
 		TableID: tableID,
 		RowData: rowData,
+		PKValue: pkValue,
 	})
 	return nil
 }

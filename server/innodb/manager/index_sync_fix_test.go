@@ -267,7 +267,7 @@ func TestSecondaryIndexSyncOnDelete(t *testing.T) {
 			"age":  25,
 		}
 
-		err := im.SyncSecondaryIndexesOnDelete(tableID, rowData)
+		err := im.SyncSecondaryIndexesOnDelete(tableID, rowData, []byte("pk_1"))
 		assert.NoError(t, err)
 
 		t.Log("✓ DELETE二级索引同步测试通过")

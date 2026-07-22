@@ -1169,7 +1169,7 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForUpdate(
 		logger.Debugf("  📝 调用IndexManager.SyncSecondaryIndexesOnUpdate，tableID=%d, rowID=%d",
 			tableStorageInfo.SpaceID, rowInfo.RowId)
 		if err := dml.indexManager.SyncSecondaryIndexesOnUpdate(
-			uint64(tableStorageInfo.SpaceID),
+			manager.SecondaryIndexTableID(dml.schemaName, dml.tableName),
 			oldRowData,
 			newRowData,
 			primaryKeyBytes,
@@ -1201,13 +1201,18 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForDelete(
 	for _, rowInfo := range rowsToDelete {
 		// 转换行数据
 		rowData := dml.convertUpdateRowInfoToMap(rowInfo)
+		primaryKeyBytes, err := dml.generatePrimaryKeyBytesFromRowData(rowData, tableMeta)
+		if err != nil {
+			return fmt.Errorf("生成主键字节失败: %v", err)
+		}
 
 		// 调用IndexManager的标准方法同步所有二级索引
 		logger.Debugf("  📝 调用IndexManager.SyncSecondaryIndexesOnDelete，tableID=%d, rowID=%d",
 			tableStorageInfo.SpaceID, rowInfo.RowId)
 		if err := dml.indexManager.SyncSecondaryIndexesOnDelete(
-			uint64(tableStorageInfo.SpaceID),
+			manager.SecondaryIndexTableID(dml.schemaName, dml.tableName),
 			rowData,
+			primaryKeyBytes,
 		); err != nil {
 			return fmt.Errorf("同步二级索引失败: %v", err)
 		}

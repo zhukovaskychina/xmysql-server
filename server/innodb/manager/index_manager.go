@@ -506,6 +506,31 @@ func (im *IndexManager) RangeSearch(indexID uint64, startKey, endKey interface{}
 	return rows, nil
 }
 
+// InitializeSecondaryIndex loads the durable leaf-page chain before its first
+// query after metadata reconstruction. This avoids treating a not-yet-loaded
+// reopened B+Tree as an empty secondary index.
+func (im *IndexManager) InitializeSecondaryIndex(indexID uint64) error {
+	im.mu.RLock()
+	idx := im.indexes[indexID]
+	if idx == nil {
+		im.mu.RUnlock()
+		return ErrIndexNotFound
+	}
+	if idx.State != IndexStateActive {
+		im.mu.RUnlock()
+		return fmt.Errorf("index %d is not active", indexID)
+	}
+	btreeManager, err := im.secondaryIndexManager(idx)
+	im.mu.RUnlock()
+	if err != nil {
+		return err
+	}
+	if _, err := btreeManager.GetAllLeafPages(context.Background()); err != nil {
+		return fmt.Errorf("load secondary index pages: %w", err)
+	}
+	return nil
+}
+
 // DropIndex 删除索引
 func (im *IndexManager) DropIndex(indexID uint64) error {
 	im.mu.Lock()
@@ -708,20 +733,23 @@ func (im *IndexManager) SyncSecondaryIndexesOnUpdate(tableID uint64, oldRowData,
 			continue // 索引列未变化，跳过
 		}
 
-		// 提取旧索引键值
-		oldIndexKey, err := im.extractIndexKey(idx, oldRowData)
+		indexMeta := metadata.IndexMeta{
+			Name:    idx.Name,
+			Columns: indexColumnNames(idx),
+			Unique:  idx.IsUnique,
+		}
+		oldIndexKey, err := EncodeSecondaryIndexKey(tableID, indexMeta, oldRowData, primaryKeyValue)
 		if err != nil {
-			return fmt.Errorf("extract old index key for index %d failed: %v", idx.IndexID, err)
+			return fmt.Errorf("encode old index key for index %d failed: %v", idx.IndexID, err)
 		}
 
-		// 提取新索引键值
-		newIndexKey, err := im.extractIndexKey(idx, newRowData)
+		newIndexKey, err := EncodeSecondaryIndexKey(tableID, indexMeta, newRowData, primaryKeyValue)
 		if err != nil {
-			return fmt.Errorf("extract new index key for index %d failed: %v", idx.IndexID, err)
+			return fmt.Errorf("encode new index key for index %d failed: %v", idx.IndexID, err)
 		}
 
 		// 更新二级索引
-		if err := im.UpdateKey(idx.IndexID, oldIndexKey, newIndexKey, primaryKeyValue); err != nil {
+		if err := im.UpdateKey(idx.IndexID, oldIndexKey, newIndexKey, EncodeSecondaryIndexValue(primaryKeyValue)); err != nil {
 			return fmt.Errorf("update secondary index %d failed: %v", idx.IndexID, err)
 		}
 	}
@@ -730,7 +758,7 @@ func (im *IndexManager) SyncSecondaryIndexesOnUpdate(tableID uint64, oldRowData,
 }
 
 // SyncSecondaryIndexesOnDelete 在DELETE时同步所有二级索引
-func (im *IndexManager) SyncSecondaryIndexesOnDelete(tableID uint64, rowData map[string]interface{}) error {
+func (im *IndexManager) SyncSecondaryIndexesOnDelete(tableID uint64, rowData map[string]interface{}, primaryKeyValue []byte) error {
 	// 先获取二级索引列表（需要读锁）
 	im.mu.RLock()
 	secondaryIndexes := im.getSecondaryIndexesByTable(tableID)
@@ -742,10 +770,13 @@ func (im *IndexManager) SyncSecondaryIndexesOnDelete(tableID uint64, rowData map
 
 	// 为每个二级索引删除条目（DeleteKey内部会加写锁）
 	for _, idx := range secondaryIndexes {
-		// 提取索引键值
-		indexKey, err := im.extractIndexKey(idx, rowData)
+		indexKey, err := EncodeSecondaryIndexKey(tableID, metadata.IndexMeta{
+			Name:    idx.Name,
+			Columns: indexColumnNames(idx),
+			Unique:  idx.IsUnique,
+		}, rowData, primaryKeyValue)
 		if err != nil {
-			return fmt.Errorf("extract index key for index %d failed: %v", idx.IndexID, err)
+			return fmt.Errorf("encode index key for index %d failed: %v", idx.IndexID, err)
 		}
 
 		// 从二级索引删除

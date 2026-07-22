@@ -43,3 +43,18 @@ func TestEncodeSecondaryIndexKeyRejectsMissingColumn(t *testing.T) {
 		t.Fatalf("EncodeSecondaryIndexKey() expected missing column error")
 	}
 }
+
+func TestSecondaryIndexFullRangeContainsCompositeIndexKey(t *testing.T) {
+	index := metadata.IndexMeta{Name: "idx_city_name", Columns: []string{"city", "name"}}
+	key, err := EncodeSecondaryIndexKey(7, index, map[string]interface{}{"city": "hz", "name": "alice"}, []byte("pk-1"))
+	if err != nil {
+		t.Fatalf("EncodeSecondaryIndexKey() error = %v", err)
+	}
+	start, end, err := SecondaryIndexFullRange(7, index)
+	if err != nil {
+		t.Fatalf("SecondaryIndexFullRange() error = %v", err)
+	}
+	if bytes.Compare(key, start) < 0 || bytes.Compare(key, end) > 0 {
+		t.Fatalf("composite key is outside full index range")
+	}
+}

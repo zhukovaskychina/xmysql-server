@@ -20,7 +20,7 @@ import (
 type SecondaryIndexSyncer interface {
 	SyncSecondaryIndexesOnInsert(tableID uint64, rowData map[string]interface{}, primaryKeyValue []byte) error
 	SyncSecondaryIndexesOnUpdate(tableID uint64, oldRowData, newRowData map[string]interface{}, primaryKeyValue []byte) error
-	SyncSecondaryIndexesOnDelete(tableID uint64, rowData map[string]interface{}) error
+	SyncSecondaryIndexesOnDelete(tableID uint64, rowData map[string]interface{}, primaryKeyValue []byte) error
 }
 
 // DMLExecutor DML操作执行器
@@ -754,11 +754,18 @@ func (dml *DMLExecutor) updateRow(ctx context.Context, txn interface{}, rowInfo 
 			return fmt.Errorf("二级索引同步不可执行: %v", err)
 		}
 
+		primaryKey, ok, err := buildPrimaryKeyIfAvailable(rowInfo.OldValues, tableMeta)
+		if err != nil {
+			return fmt.Errorf("生成主键字节失败: %v", err)
+		}
+		if !ok {
+			return fmt.Errorf("未找到主键列或主键值")
+		}
 		if err := dml.indexSyncer.SyncSecondaryIndexesOnUpdate(
 			tableID,
 			rowInfo.OldValues, // 旧数据
 			newData,           // 新数据
-			bytes,             // 主键值（序列化后的行数据）
+			primaryKey,
 		); err != nil {
 			logger.Errorf("❌ 二级索引更新失败: %v", err)
 			return fmt.Errorf("同步二级索引失败: %v", err)
@@ -813,9 +820,17 @@ func (dml *DMLExecutor) deleteRow(ctx context.Context, txn interface{}, rowInfo 
 			return fmt.Errorf("二级索引同步不可执行: %v", err)
 		}
 
+		primaryKey, ok, err := buildPrimaryKeyIfAvailable(rowInfo.OldValues, tableMeta)
+		if err != nil {
+			return fmt.Errorf("生成主键字节失败: %v", err)
+		}
+		if !ok {
+			return fmt.Errorf("未找到主键列或主键值")
+		}
 		if err := dml.indexSyncer.SyncSecondaryIndexesOnDelete(
 			tableID,
 			rowInfo.OldValues, // 行数据
+			primaryKey,
 		); err != nil {
 			logger.Errorf("❌ 二级索引删除失败: %v", err)
 			return fmt.Errorf("同步二级索引删除失败: %v", err)

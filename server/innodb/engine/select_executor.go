@@ -454,7 +454,7 @@ func (se *SelectExecutor) scanStorageRows(ctx context.Context, tableMeta *metada
 }
 
 func (se *SelectExecutor) scanSecondaryIndexRows(ctx context.Context, tableMeta *metadata.TableMeta) (bool, error) {
-	column, value, ok := secondaryIndexEqualityPredicate(se.whereConditions)
+	column, operator, value, ok := secondaryIndexPredicate(se.whereConditions)
 	if !ok {
 		se.lastAccessPath = "table_scan"
 		return false, nil
@@ -483,8 +483,16 @@ func (se *SelectExecutor) scanSecondaryIndexRows(ctx context.Context, tableMeta 
 		se.lastAccessPath = "table_scan"
 		return false, nil
 	}
+	if err := indexManager.InitializeSecondaryIndex(selected.IndexID); err != nil {
+		return false, fmt.Errorf("initialize secondary index %d: %w", selected.IndexID, err)
+	}
 	indexMeta := metadata.IndexMeta{Name: selected.Name, Columns: indexColumnNames(selected), Unique: selected.IsUnique}
-	startKey, endKey, err := manager.SecondaryIndexEqualityRange(tableID, indexMeta, map[string]interface{}{selected.Columns[0].Name: value})
+	var startKey, endKey []byte
+	if operator == "=" {
+		startKey, endKey, err = manager.SecondaryIndexEqualityRange(tableID, indexMeta, map[string]interface{}{selected.Columns[0].Name: value})
+	} else {
+		startKey, endKey, err = manager.SecondaryIndexFullRange(tableID, indexMeta)
+	}
 	if err != nil {
 		return false, err
 	}
@@ -492,19 +500,13 @@ func (se *SelectExecutor) scanSecondaryIndexRows(ctx context.Context, tableMeta 
 	if err != nil {
 		return false, fmt.Errorf("secondary index range search failed: %w", err)
 	}
-	if len(indexRows) == 0 {
-		indexRows, err = indexManager.RangeSearch(selected.IndexID, startKey, endKey)
-		if err != nil {
-			return false, fmt.Errorf("secondary index range search retry failed: %w", err)
-		}
-	}
 	storageAdapter := NewStorageAdapter(se.tableManager, se.bufferPoolManager, se.storageManager, tableStorageManager)
 	tableSchema := tableFromMetadata(tableMeta)
 	records := make([]Record, 0, len(indexRows))
 	for _, indexRow := range indexRows {
 		primaryKey, err := manager.DecodeSecondaryIndexValue(indexRow.ToByte())
 		if err != nil {
-			continue
+			return false, fmt.Errorf("decode secondary index value for index %d: %w", selected.IndexID, err)
 		}
 		record, err := storageAdapter.GetRecordByPrimaryKey(ctx, tableInfo.SpaceID, primaryKey, tableSchema)
 		if err != nil {
@@ -512,7 +514,7 @@ func (se *SelectExecutor) scanSecondaryIndexRows(ctx context.Context, tableMeta 
 		}
 		records = append(records, record)
 	}
-	se.resultSet = records
+	se.resultSet = se.applyWhereFilter(records)
 	se.lastAccessPath = "secondary_index:" + selected.Name
 	return true, nil
 }
@@ -541,20 +543,37 @@ func tableFromMetadata(tableMeta *metadata.TableMeta) *metadata.Table {
 	return table
 }
 
-func secondaryIndexEqualityPredicate(conditions []string) (string, string, bool) {
+func secondaryIndexPredicate(conditions []string) (column, operator, value string, ok bool) {
 	if len(conditions) != 1 {
-		return "", "", false
+		return "", "", "", false
 	}
-	parts := strings.SplitN(conditions[0], "=", 2)
-	if len(parts) != 2 || strings.ContainsAny(parts[0], "<>") {
-		return "", "", false
+	condition := strings.TrimSpace(conditions[0])
+	lowerCondition := strings.ToLower(condition)
+	if betweenAt := strings.Index(lowerCondition, " between "); betweenAt > 0 {
+		rangeValues := lowerCondition[betweenAt+len(" between "):]
+		if strings.Count(rangeValues, " and ") == 1 {
+			column = strings.Trim(strings.TrimSpace(condition[:betweenAt]), "`")
+			if column != "" {
+				return column, "between", "", true
+			}
+		}
+		return "", "", "", false
 	}
-	column := strings.Trim(strings.TrimSpace(parts[0]), "`")
-	value := strings.Trim(strings.TrimSpace(parts[1]), "'\"")
-	if column == "" || value == "" {
-		return "", "", false
+	if strings.Contains(lowerCondition, " and ") {
+		return "", "", "", false
 	}
-	return column, value, true
+	for _, candidate := range []string{">=", "<=", "="} {
+		parts := strings.SplitN(condition, candidate, 2)
+		if len(parts) != 2 || strings.ContainsAny(parts[0], "<>") {
+			continue
+		}
+		column = strings.Trim(strings.TrimSpace(parts[0]), "`")
+		value = strings.Trim(strings.TrimSpace(parts[1]), "'\"")
+		if column != "" && value != "" {
+			return column, candidate, value, true
+		}
+	}
+	return "", "", "", false
 }
 
 func indexColumnNames(index *manager.Index) []string {

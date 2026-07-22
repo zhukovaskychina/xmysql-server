@@ -61,7 +61,6 @@ func EncodeSecondaryIndexKeyPrefix(tableID uint64, index metadata.IndexMeta, row
 		key = append(key, 0)
 	}
 	key = binary.BigEndian.AppendUint16(key, uint16(len(index.Columns)))
-
 	for _, columnName := range index.Columns {
 		value, exists := row[columnName]
 		if !exists {
@@ -84,6 +83,35 @@ func SecondaryIndexEqualityRange(tableID uint64, index metadata.IndexMeta, row m
 	}
 	end := append(append([]byte(nil), start...), 0xFF)
 	return start, end, nil
+}
+
+// SecondaryIndexFullRange returns the durable key range containing every entry
+// for one secondary index. Predicate filtering happens after clustered lookup
+// because secondary values are not encoded in sortable type order.
+func SecondaryIndexFullRange(tableID uint64, index metadata.IndexMeta) ([]byte, []byte, error) {
+	prefix, err := secondaryIndexKeyHeader(tableID, index)
+	if err != nil {
+		return nil, nil, err
+	}
+	return prefix, append(prefix, 0xFF), nil
+}
+
+func secondaryIndexKeyHeader(tableID uint64, index metadata.IndexMeta) ([]byte, error) {
+	if len(index.Columns) == 0 {
+		return nil, fmt.Errorf("secondary index %s has no columns", index.Name)
+	}
+
+	key := make([]byte, 0)
+	key = append(key, secondaryIndexKeyMagic...)
+	key = binary.BigEndian.AppendUint64(key, tableID)
+	key = appendLengthPrefixedBytes(key, []byte(index.Name))
+	if index.Unique {
+		key = append(key, 1)
+	} else {
+		key = append(key, 0)
+	}
+	key = binary.BigEndian.AppendUint16(key, uint16(len(index.Columns)))
+	return key, nil
 }
 
 func EncodeSecondaryIndexValue(primaryKey []byte) []byte {
