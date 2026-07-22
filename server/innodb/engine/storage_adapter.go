@@ -96,7 +96,7 @@ func (sa *StorageAdapter) InsertRecord(ctx context.Context, schemaName, tableNam
 	if err != nil {
 		return err
 	}
-	key, err := primaryKeyValueFromRow(normalized, schema)
+	key, err := storageAdapterClusteredKeyFromRow(schemaName, tableName, normalized, schema)
 	if err != nil {
 		return err
 	}
@@ -175,10 +175,14 @@ func (sa *StorageAdapter) UpdateRecord(ctx context.Context, schemaName, tableNam
 	}
 	oldRow := recordToStorageRow(oldRecord, schema)
 	newRow := recordToStorageRow(newRecord, schema)
-	oldKey, oldKeyErr := primaryKeyValueFromRow(oldRow, schema)
-	newKey, err := primaryKeyValueFromRow(newRow, schema)
+	oldKey, oldKeyErr := storageAdapterClusteredKeyFromRow(schemaName, tableName, oldRow, schema)
+	newKey, err := storageAdapterClusteredKeyFromRow(schemaName, tableName, newRow, schema)
 	if err != nil {
 		return err
+	}
+	if !storageAdapterSchemaHasPrimaryKey(schema) {
+		newRow[hiddenRowIDColumnName] = fmt.Sprintf("%v", oldKey)
+		newKey = oldKey
 	}
 	if oldKeyErr == nil && fmt.Sprintf("%v", oldKey) != fmt.Sprintf("%v", newKey) {
 		deleter, ok := btreeManager.(interface {
@@ -219,7 +223,7 @@ func (sa *StorageAdapter) DeleteRecord(ctx context.Context, schemaName, tableNam
 	if !ok {
 		return fmt.Errorf("B+树管理器不支持删除")
 	}
-	key, err := primaryKeyValueFromRow(recordToStorageRow(record, schema), schema)
+	key, err := storageAdapterClusteredKeyFromRow(schemaName, tableName, recordToStorageRow(record, schema), schema)
 	if err != nil {
 		return err
 	}
@@ -243,6 +247,10 @@ func normalizeStorageRow(row map[string]interface{}, schema *metadata.Table) (ma
 	normalized := make(map[string]interface{}, len(schema.Columns))
 	seen := make(map[string]bool, len(row))
 	for rawName, value := range row {
+		if rawName == hiddenRowIDColumnName {
+			normalized[hiddenRowIDColumnName] = value
+			continue
+		}
 		col, ok := schema.GetColumn(rawName)
 		if !ok {
 			return nil, fmt.Errorf("column %s not found in table %s", rawName, schema.Name)
@@ -354,7 +362,54 @@ func primaryKeyValueFromRow(row map[string]interface{}, schema *metadata.Table) 
 	if len(parts) == 1 {
 		return row[columns[0]], nil
 	}
-	return strings.Join(parts, "\x1f"), nil
+	return buildLengthPrefixedStorageKey(row, columns)
+}
+
+func storageAdapterClusteredKeyFromRow(schemaName, tableName string, row map[string]interface{}, schema *metadata.Table) (interface{}, error) {
+	key, err := primaryKeyValueFromRow(row, schema)
+	if err == nil {
+		return key, nil
+	}
+	if !errors.Is(err, errStorageAdapterNoPrimaryKey) {
+		return nil, err
+	}
+	if hiddenID, ok := hiddenRowIDBytesFromValue(row[hiddenRowIDColumnName]); ok {
+		return string(hiddenID), nil
+	}
+	hiddenID := generateHiddenRowID(schemaName, tableName, row)
+	row[hiddenRowIDColumnName] = string(hiddenID)
+	return string(hiddenID), nil
+}
+
+func storageAdapterSchemaHasPrimaryKey(schema *metadata.Table) bool {
+	if schema == nil {
+		return false
+	}
+	if schema.PrimaryKey != nil && len(schema.PrimaryKey.Columns) > 0 {
+		return true
+	}
+	for _, idx := range schema.Indices {
+		if idx != nil && idx.IsPrimary && len(idx.Columns) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func buildLengthPrefixedStorageKey(row map[string]interface{}, columns []string) ([]byte, error) {
+	parts := make([][]byte, 0, len(columns))
+	for _, col := range columns {
+		value, ok := row[col]
+		if !ok {
+			return nil, fmt.Errorf("primary key column %s not found in row", col)
+		}
+		part := []byte(fmt.Sprintf("%v", value))
+		prefixed := make([]byte, 4, 4+len(part))
+		binary.BigEndian.PutUint32(prefixed, uint32(len(part)))
+		prefixed = append(prefixed, part...)
+		parts = append(parts, prefixed)
+	}
+	return bytes.Join(parts, nil), nil
 }
 
 func recordToStorageRow(record Record, schema *metadata.Table) map[string]interface{} {
@@ -707,6 +762,12 @@ func (sa *StorageAdapter) GetRecordByPrimaryKey(ctx context.Context, spaceID uin
 						"failed to decode clustered record: %v",
 						decodeErr,
 					)
+				}
+				if !storageAdapterSchemaHasPrimaryKey(schema) {
+					if rowKeyBytes, ok := storageKeyToBytes(row.GetPrimaryKey().Raw()); ok && bytes.Equal(rowKeyBytes, primaryKey) {
+						return recordFromInsertRowData(decoded, tableMeta), nil
+					}
+					continue
 				}
 				decodedKey, found, keyErr := buildPrimaryKeyIfAvailable(decoded.ColumnValues, tableMeta)
 				if keyErr != nil || !found || !bytes.Equal(decodedKey, primaryKey) {

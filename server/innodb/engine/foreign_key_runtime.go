@@ -175,10 +175,11 @@ func (dml *StorageIntegratedDMLExecutor) applyOnDeleteCascade(
 					return nil, err
 				}
 				changes = append(changes, transactionDMLChange{
-					tableName: schemaName + "." + ref.TableName,
-					kind:      "delete",
-					rowID:     childRow.RowId,
-					before:    cloneTransactionRow(childRow.OldValues),
+					tableName:  schemaName + "." + ref.TableName,
+					kind:       "delete",
+					rowID:      childRow.RowId,
+					storageKey: childRow.StorageKey,
+					before:     cloneTransactionRow(childRow.OldValues),
 				})
 			}
 		}
@@ -244,11 +245,12 @@ func (dml *StorageIntegratedDMLExecutor) applyOnUpdateCascade(
 					return nil, err
 				}
 				changes = append(changes, transactionDMLChange{
-					tableName: schemaName + "." + ref.TableName,
-					kind:      "update",
-					rowID:     childRow.RowId,
-					before:    cloneTransactionRow(childRow.OldValues),
-					after:     cloneTransactionRow(updatedChildRow.ColumnValues),
+					tableName:  schemaName + "." + ref.TableName,
+					kind:       "update",
+					rowID:      childRow.RowId,
+					storageKey: childRow.StorageKey,
+					before:     cloneTransactionRow(childRow.OldValues),
+					after:      cloneTransactionRow(updatedChildRow.ColumnValues),
 				})
 			}
 		}

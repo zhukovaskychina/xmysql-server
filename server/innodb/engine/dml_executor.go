@@ -314,6 +314,7 @@ type InsertRowData struct {
 // RowUpdateInfo 行更新信息
 type RowUpdateInfo struct {
 	RowId      uint64
+	StorageKey interface{}
 	PageNum    uint32
 	SlotIndex  int
 	SchemaName string

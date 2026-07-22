@@ -19,11 +19,30 @@ type ClusteredIndexScanner struct {
 	tableMeta *metadata.TableMeta
 }
 
+type clusteredScannedRow struct {
+	data       *InsertRowData
+	storageKey interface{}
+	pageNumber uint32
+}
+
 func NewClusteredIndexScanner(btree basic.BPlusTreeManager, tableMeta *metadata.TableMeta) *ClusteredIndexScanner {
 	return &ClusteredIndexScanner{btree: btree, tableMeta: tableMeta}
 }
 
 func (s *ClusteredIndexScanner) Scan(ctx context.Context, whereConditions []string) ([]*InsertRowData, error) {
+	scannedRows, err := s.ScanWithStorageKeys(ctx, whereConditions)
+	if err != nil {
+		return nil, err
+	}
+
+	rows := make([]*InsertRowData, 0, len(scannedRows))
+	for _, scannedRow := range scannedRows {
+		rows = append(rows, scannedRow.data)
+	}
+	return rows, nil
+}
+
+func (s *ClusteredIndexScanner) ScanWithStorageKeys(ctx context.Context, whereConditions []string) ([]clusteredScannedRow, error) {
 	if s == nil || s.btree == nil {
 		return nil, fmt.Errorf("clustered index scanner requires a B+Tree manager")
 	}
@@ -36,7 +55,7 @@ func (s *ClusteredIndexScanner) Scan(ctx context.Context, whereConditions []stri
 		return nil, err
 	}
 
-	rows := make([]*InsertRowData, 0, len(storedRows))
+	rows := make([]clusteredScannedRow, 0, len(storedRows))
 	for _, storedRow := range storedRows {
 		if storedRow == nil {
 			continue
@@ -54,11 +73,25 @@ func (s *ClusteredIndexScanner) Scan(ctx context.Context, whereConditions []stri
 			return nil, err
 		}
 		if matches {
-			rows = append(rows, rowData)
+			rows = append(rows, clusteredScannedRow{
+				data:       rowData,
+				storageKey: scannedRowStorageKey(storedRow),
+				pageNumber: storedRow.GetPageNumber(),
+			})
 		}
 	}
 
 	return rows, nil
+}
+
+func scannedRowStorageKey(row basic.Row) interface{} {
+	if row == nil || row.GetPrimaryKey() == nil {
+		return nil
+	}
+	if keyBytes, ok := storageKeyToBytes(row.GetPrimaryKey().Raw()); ok {
+		return string(keyBytes)
+	}
+	return nil
 }
 
 func (s *ClusteredIndexScanner) scanRawRows(ctx context.Context) ([]basic.Row, error) {

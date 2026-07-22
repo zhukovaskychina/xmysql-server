@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash/fnv"
+	"sort"
 	"strings"
 	"time"
 
@@ -13,6 +15,8 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
+
+const hiddenRowIDColumnName = "__xmysql_hidden_row_id"
 
 // ===== 索引键构建方法 =====
 
@@ -144,6 +148,75 @@ func buildCompositeKey(row map[string]interface{}, columns []string) ([]byte, er
 		parts = append(parts, prefixed)
 	}
 	return bytes.Join(parts, nil), nil
+}
+
+func generateHiddenRowID(schemaName, tableName string, rowData map[string]interface{}) []byte {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(schemaName))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(tableName))
+	_, _ = h.Write([]byte{0})
+	keys := make([]string, 0, len(rowData))
+	for key := range rowData {
+		if key == hiddenRowIDColumnName {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		_, _ = h.Write([]byte(key))
+		_, _ = h.Write([]byte("="))
+		_, _ = h.Write([]byte(fmt.Sprint(rowData[key])))
+		_, _ = h.Write([]byte{0})
+	}
+	return []byte(fmt.Sprintf("__xmysql_hidden_pk_%016x", h.Sum64()))
+}
+
+func hiddenRowIDBytesFromValue(value interface{}) ([]byte, bool) {
+	switch v := value.(type) {
+	case nil:
+		return nil, false
+	case []byte:
+		if len(v) == 0 {
+			return nil, false
+		}
+		return append([]byte(nil), v...), true
+	case string:
+		if v == "" {
+			return nil, false
+		}
+		return []byte(v), true
+	default:
+		text := fmt.Sprintf("%v", v)
+		if text == "" {
+			return nil, false
+		}
+		return []byte(text), true
+	}
+}
+
+func storageKeyToBytes(key interface{}) ([]byte, bool) {
+	switch v := key.(type) {
+	case nil:
+		return nil, false
+	case []byte:
+		if len(v) == 0 {
+			return nil, false
+		}
+		return append([]byte(nil), v...), true
+	case string:
+		if v == "" {
+			return nil, false
+		}
+		return []byte(v), true
+	default:
+		text := fmt.Sprintf("%v", v)
+		if text == "" {
+			return nil, false
+		}
+		return []byte(text), true
+	}
 }
 
 func BuildSecondaryIndexEntries(tableMeta *metadata.TableMeta, rows []*InsertRowData, index *manager.Index) ([]manager.SecondaryIndexEntry, error) {

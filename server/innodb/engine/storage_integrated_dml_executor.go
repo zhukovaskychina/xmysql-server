@@ -49,11 +49,12 @@ type StorageIntegratedDMLExecutor struct {
 }
 
 type transactionDMLChange struct {
-	tableName string
-	kind      string
-	rowID     uint64
-	before    map[string]interface{}
-	after     map[string]interface{}
+	tableName  string
+	kind       string
+	rowID      uint64
+	storageKey interface{}
+	before     map[string]interface{}
+	after      map[string]interface{}
 }
 
 // DMLExecutorStats DML执行器统计信息
@@ -244,9 +245,6 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 	insertRows, err := dml.parseInsertData(ctx, stmt, tableMeta, resolvedSchema)
 	if err != nil {
 		return nil, fmt.Errorf("解析INSERT数据失败: %v", err)
-	}
-	if len(tableMeta.PrimaryKey) == 0 && hasAnyIndexMetadata(tableMeta) {
-		return nil, fmt.Errorf("unsupported indexed table without primary key")
 	}
 
 	// 4. 验证数据完整性
@@ -527,12 +525,6 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 	if err != nil {
 		return nil, fmt.Errorf("解析UPDATE表达式失败: %v", err)
 	}
-	if hasCompositePrimaryKey(tableMeta) {
-		return nil, fmt.Errorf("unsupported composite primary key UPDATE")
-	}
-	if len(tableMeta.PrimaryKey) == 0 {
-		return nil, fmt.Errorf("unsupported UPDATE without primary key")
-	}
 
 	// 5. 获取表专用的B+树管理器
 	tableBtreeManager, err := dml.tableStorageManager.CreateBTreeManagerForTable(ctx, resolvedSchema, dml.tableName)
@@ -567,10 +559,6 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 		return nil, fmt.Errorf("unsupported primary key UPDATE")
 	}
 	shouldUpdateIndexes := updateTouchesAnyIndex(updateExprs, tableMeta)
-	if len(tableMeta.PrimaryKey) == 0 && shouldUpdateIndexes {
-		dml.rollbackStorageTransaction(ctx, txn)
-		return nil, fmt.Errorf("unsupported indexed column UPDATE without primary key")
-	}
 
 	affectedRows := 0
 	changes := make([]transactionDMLChange, 0, len(rowsToUpdate))
@@ -600,11 +588,12 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 			}
 		}
 		changes = append(changes, transactionDMLChange{
-			tableName: dml.transactionTableName(),
-			kind:      "update",
-			rowID:     rowInfo.RowId,
-			before:    cloneTransactionRow(rowInfo.OldValues),
-			after:     cloneTransactionRow(updatedRow.ColumnValues),
+			tableName:  dml.transactionTableName(),
+			kind:       "update",
+			rowID:      rowInfo.RowId,
+			storageKey: rowInfo.StorageKey,
+			before:     cloneTransactionRow(rowInfo.OldValues),
+			after:      cloneTransactionRow(updatedRow.ColumnValues),
 		})
 
 		affectedRows++
@@ -670,9 +659,6 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt
 	if err != nil {
 		return nil, fmt.Errorf("获取表元数据失败: %v", err)
 	}
-	if hasCompositePrimaryKey(tableMeta) {
-		return nil, fmt.Errorf("unsupported composite primary key DELETE")
-	}
 
 	// 4. 解析WHERE条件
 	whereConditions := dml.parseWhereConditions(stmt.Where)
@@ -721,10 +707,11 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt
 			return nil, fmt.Errorf("更新索引失败: %v", err)
 		}
 		changes = append(changes, transactionDMLChange{
-			tableName: dml.transactionTableName(),
-			kind:      "delete",
-			rowID:     rowInfo.RowId,
-			before:    cloneTransactionRow(rowInfo.OldValues),
+			tableName:  dml.transactionTableName(),
+			kind:       "delete",
+			rowID:      rowInfo.RowId,
+			storageKey: rowInfo.StorageKey,
+			before:     cloneTransactionRow(rowInfo.OldValues),
 		})
 
 		affectedRows++
@@ -767,11 +754,11 @@ func extractTransactionIDFromStorageCtx(txn interface{}) uint64 {
 func rollbackDMLChange(dml *StorageIntegratedDMLExecutor, change transactionDMLChange) error {
 	switch change.kind {
 	case "insert":
-		return dml.deleteRowByValues(change.tableName, change.after)
+		return dml.deleteRowByValues(change.tableName, change.after, change.storageKey)
 	case "update":
-		return dml.updateRowByValues(change.tableName, change.after, change.before, change.rowID)
+		return dml.updateRowByValues(change.tableName, change.after, change.before, change.rowID, change.storageKey)
 	case "delete":
-		return dml.insertRowByValues(change.tableName, change.before)
+		return dml.insertRowByValues(change.tableName, change.before, change.storageKey)
 	default:
 		return fmt.Errorf("unknown transaction DML change kind %s", change.kind)
 	}
@@ -819,7 +806,7 @@ func rowDataFromTransactionValues(values map[string]interface{}, tableMeta *meta
 	return row
 }
 
-func (dml *StorageIntegratedDMLExecutor) insertRowByValues(tableName string, values map[string]interface{}) error {
+func (dml *StorageIntegratedDMLExecutor) insertRowByValues(tableName string, values map[string]interface{}, storageKey interface{}) error {
 	ctx := context.Background()
 	tableMeta, tableStorageInfo, btreeManager, err := dml.transactionTableResources(ctx, tableName)
 	if err != nil {
@@ -830,6 +817,11 @@ func (dml *StorageIntegratedDMLExecutor) insertRowByValues(tableName string, val
 		return err
 	}
 	row := rowDataFromTransactionValues(values, tableMeta)
+	if len(effectivePrimaryKeyColumns(tableMeta)) == 0 {
+		if hiddenID, ok := storageKeyToBytes(storageKey); ok {
+			row.ColumnValues[hiddenRowIDColumnName] = string(hiddenID)
+		}
+	}
 	if _, err := dml.insertRowToStorage(ctx, txn, row, tableMeta, tableStorageInfo, btreeManager); err != nil {
 		_ = dml.rollbackStorageTransaction(ctx, txn)
 		return err
@@ -841,7 +833,7 @@ func (dml *StorageIntegratedDMLExecutor) insertRowByValues(tableName string, val
 	return dml.commitStorageTransaction(ctx, txn)
 }
 
-func (dml *StorageIntegratedDMLExecutor) updateRowByValues(tableName string, current, replacement map[string]interface{}, rowID uint64) error {
+func (dml *StorageIntegratedDMLExecutor) updateRowByValues(tableName string, current, replacement map[string]interface{}, rowID uint64, storageKey interface{}) error {
 	ctx := context.Background()
 	tableMeta, tableStorageInfo, btreeManager, err := dml.transactionTableResources(ctx, tableName)
 	if err != nil {
@@ -850,6 +842,7 @@ func (dml *StorageIntegratedDMLExecutor) updateRowByValues(tableName string, cur
 	currentRow := rowDataFromTransactionValues(current, tableMeta)
 	rowInfo := &RowUpdateInfo{
 		RowId:      rowID,
+		StorageKey: storageKey,
 		SchemaName: dml.schemaName,
 		TableName:  dml.tableName,
 		OldValues:  cloneTransactionRow(current),
@@ -880,7 +873,7 @@ func (dml *StorageIntegratedDMLExecutor) updateRowByValues(tableName string, cur
 	return dml.commitStorageTransaction(ctx, txn)
 }
 
-func (dml *StorageIntegratedDMLExecutor) deleteRowByValues(tableName string, values map[string]interface{}) error {
+func (dml *StorageIntegratedDMLExecutor) deleteRowByValues(tableName string, values map[string]interface{}, storageKey interface{}) error {
 	ctx := context.Background()
 	tableMeta, tableStorageInfo, btreeManager, err := dml.transactionTableResources(ctx, tableName)
 	if err != nil {
@@ -889,6 +882,7 @@ func (dml *StorageIntegratedDMLExecutor) deleteRowByValues(tableName string, val
 	row := rowDataFromTransactionValues(values, tableMeta)
 	rowInfo := &RowUpdateInfo{
 		RowId:      dml.rowIDFromRowData(row, tableMeta),
+		StorageKey: storageKey,
 		SchemaName: dml.schemaName,
 		TableName:  dml.tableName,
 		OldValues:  cloneTransactionRow(values),
@@ -996,7 +990,10 @@ func (dml *StorageIntegratedDMLExecutor) updateRowInStorage(
 	}
 
 	// 1. 使用查找阶段记录的旧值构造现有行数据
-	primaryKey := rowInfo.RowId
+	primaryKey, err := dml.clusteredKeyFromRowData(rowInfo.OldValues, tableMeta, rowInfo.StorageKey)
+	if err != nil {
+		return fmt.Errorf("生成旧记录聚簇键失败: %v", err)
+	}
 	existingRowData := &InsertRowData{
 		ColumnValues: make(map[string]interface{}, len(rowInfo.OldValues)),
 		ColumnTypes:  make(map[string]metadata.DataType, len(rowInfo.OldValues)),
@@ -1019,7 +1016,15 @@ func (dml *StorageIntegratedDMLExecutor) updateRowInStorage(
 
 	// 4. 在B+树中用同一主键替换记录
 	if err := btreeManager.Delete(ctx, primaryKey); err != nil {
-		return fmt.Errorf("删除旧B+树记录失败: %v", err)
+		if fallbackKey, ok := dml.singlePrimaryKeyRowIDFallback(rowInfo, tableMeta); ok {
+			if fallbackErr := btreeManager.Delete(ctx, fallbackKey); fallbackErr == nil {
+				primaryKey = fallbackKey
+			} else {
+				return fmt.Errorf("删除旧B+树记录失败: %v", err)
+			}
+		} else {
+			return fmt.Errorf("删除旧B+树记录失败: %v", err)
+		}
 	}
 	err = btreeManager.Insert(ctx, primaryKey, serializedRow)
 	if err != nil {
@@ -1055,14 +1060,29 @@ func (dml *StorageIntegratedDMLExecutor) deleteRowFromStorage(
 	logger.Debugf("🗑️ 从存储引擎删除行: RowID=%d", rowInfo.RowId)
 
 	// 1. 从B+树删除记录
-	primaryKey := rowInfo.RowId
-	err := btreeManager.Delete(ctx, primaryKey)
+	primaryKey, err := dml.clusteredKeyFromRowData(rowInfo.OldValues, tableMeta, rowInfo.StorageKey)
 	if err != nil {
+		return fmt.Errorf("生成待删除记录聚簇键失败: %v", err)
+	}
+	err = btreeManager.Delete(ctx, primaryKey)
+	if err != nil {
+		if fallbackKey, ok := dml.singlePrimaryKeyRowIDFallback(rowInfo, tableMeta); ok {
+			if fallbackErr := btreeManager.Delete(ctx, fallbackKey); fallbackErr == nil {
+				return nil
+			}
+		}
 		return fmt.Errorf("删除B+树记录失败: %v", err)
 	}
 
 	logger.Debugf(" 行成功从B+树删除")
 	return nil
+}
+
+func (dml *StorageIntegratedDMLExecutor) singlePrimaryKeyRowIDFallback(rowInfo *RowUpdateInfo, tableMeta *metadata.TableMeta) (interface{}, bool) {
+	if rowInfo == nil || rowInfo.RowId == 0 || len(effectivePrimaryKeyColumns(tableMeta)) != 1 {
+		return nil, false
+	}
+	return rowInfo.RowId, true
 }
 
 // ===== 索引管理方法 =====
@@ -1075,12 +1095,15 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForInsert(
 	tableMeta *metadata.TableMeta,
 	tableStorageInfo *manager.TableStorageInfo,
 ) error {
-	logger.Debugf("🔄 更新INSERT相关索引，表: %s", tableMeta.Name)
-	if tableMeta == nil || len(tableMeta.PrimaryKey) == 0 {
+	if tableMeta == nil {
 		return nil
 	}
+	logger.Debugf("🔄 更新INSERT相关索引，表: %s", tableMeta.Name)
 	if err := dml.persistTableRootPage(tableStorageInfo); err != nil {
 		return err
+	}
+	if !hasAnyIndexMetadata(tableMeta) {
+		return nil
 	}
 	if err := dml.indexManager.EnsureSecondaryIndexes(tableStorageInfo, tableMeta); err != nil {
 		return fmt.Errorf("prepare secondary indexes: %v", err)
@@ -1160,7 +1183,7 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForUpdate(
 		newRowData := dml.applyUpdateExpressionsToRowData(oldRowData, updateExprs)
 
 		// 生成主键值
-		primaryKeyBytes, err := dml.generatePrimaryKeyBytesFromRowData(oldRowData, tableMeta)
+		primaryKeyBytes, err := dml.generatePrimaryKeyBytesFromRowDataWithStorageKey(oldRowData, tableMeta, rowInfo.StorageKey)
 		if err != nil {
 			return fmt.Errorf("生成主键字节失败: %v", err)
 		}
@@ -1201,7 +1224,7 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForDelete(
 	for _, rowInfo := range rowsToDelete {
 		// 转换行数据
 		rowData := dml.convertUpdateRowInfoToMap(rowInfo)
-		primaryKeyBytes, err := dml.generatePrimaryKeyBytesFromRowData(rowData, tableMeta)
+		primaryKeyBytes, err := dml.generatePrimaryKeyBytesFromRowDataWithStorageKey(rowData, tableMeta, rowInfo.StorageKey)
 		if err != nil {
 			return fmt.Errorf("生成主键字节失败: %v", err)
 		}
@@ -1274,15 +1297,10 @@ func (dml *StorageIntegratedDMLExecutor) generatePrimaryKeyBytes(
 	row *InsertRowData,
 	tableMeta *metadata.TableMeta,
 ) ([]byte, error) {
-	primaryKeyBytes, ok, err := buildPrimaryKeyIfAvailable(row.ColumnValues, tableMeta)
-	if err != nil {
-		return nil, err
+	if row == nil {
+		return nil, fmt.Errorf("行数据不能为空")
 	}
-	if !ok {
-		return nil, fmt.Errorf("未找到主键列或主键值")
-	}
-
-	return primaryKeyBytes, nil
+	return dml.generatePrimaryKeyBytesFromRowDataWithStorageKey(row.ColumnValues, tableMeta, nil)
 }
 
 // generatePrimaryKeyBytesFromRowData 从map格式的行数据生成主键的字节表示
@@ -1290,15 +1308,65 @@ func (dml *StorageIntegratedDMLExecutor) generatePrimaryKeyBytesFromRowData(
 	rowData map[string]interface{},
 	tableMeta *metadata.TableMeta,
 ) ([]byte, error) {
+	return dml.generatePrimaryKeyBytesFromRowDataWithStorageKey(rowData, tableMeta, nil)
+}
+
+func (dml *StorageIntegratedDMLExecutor) generatePrimaryKeyBytesFromRowDataWithStorageKey(
+	rowData map[string]interface{},
+	tableMeta *metadata.TableMeta,
+	storageKey interface{},
+) ([]byte, error) {
 	primaryKeyBytes, ok, err := buildPrimaryKeyIfAvailable(rowData, tableMeta)
 	if err != nil {
 		return nil, err
 	}
-	if !ok {
-		return nil, fmt.Errorf("未找到主键列或主键值")
+	if ok {
+		return primaryKeyBytes, nil
 	}
 
-	return primaryKeyBytes, nil
+	if hiddenID, ok := hiddenRowIDBytesFromValue(rowData[hiddenRowIDColumnName]); ok {
+		return hiddenID, nil
+	}
+	if storageKeyBytes, ok := storageKeyToBytes(storageKey); ok {
+		return storageKeyBytes, nil
+	}
+	return dml.ensureHiddenRowID(rowData)
+}
+
+func (dml *StorageIntegratedDMLExecutor) clusteredKeyFromRowData(
+	rowData map[string]interface{},
+	tableMeta *metadata.TableMeta,
+	storageKey interface{},
+) (interface{}, error) {
+	if tableMeta == nil {
+		if value, exists := rowData["id"]; exists {
+			return value, nil
+		}
+		return nil, fmt.Errorf("表元数据为空")
+	}
+	primaryKeyColumns := effectivePrimaryKeyColumns(tableMeta)
+	if len(primaryKeyColumns) > 1 {
+		return buildCompositeKey(rowData, primaryKeyColumns)
+	}
+	if len(primaryKeyColumns) == 1 {
+		columnName := primaryKeyColumns[0]
+		value, exists := rowData[columnName]
+		if !exists || value == nil {
+			return nil, fmt.Errorf("missing primary key column '%s'", columnName)
+		}
+		return value, nil
+	}
+	if hiddenID, ok := hiddenRowIDBytesFromValue(rowData[hiddenRowIDColumnName]); ok {
+		return string(hiddenID), nil
+	}
+	if storageKeyBytes, ok := storageKeyToBytes(storageKey); ok {
+		return string(storageKeyBytes), nil
+	}
+	hiddenID, err := dml.ensureHiddenRowID(rowData)
+	if err != nil {
+		return nil, err
+	}
+	return string(hiddenID), nil
 }
 
 // convertValueToBytes 将任意值转换为字节数组

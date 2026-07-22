@@ -83,6 +83,11 @@ type SecondaryIndexEntry struct {
 	Value []byte
 }
 
+type secondaryIndexRepairRow struct {
+	Values     map[string]interface{}
+	PrimaryKey []byte
+}
+
 // IndexState 表示索引状态
 type IndexState uint8
 
@@ -1124,7 +1129,7 @@ func (im *IndexManager) secondaryIndexRepairSnapshot(ctx context.Context, index 
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	expectedEntries, err := BuildSecondaryIndexEntries(index.TableID, tableMeta, rows, index)
+	expectedEntries, err := buildSecondaryIndexEntriesFromRepairRows(index.TableID, tableMeta, rows, index)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -1144,7 +1149,7 @@ func (im *IndexManager) expectedSecondaryIndexEntries(ctx context.Context, index
 	if err != nil {
 		return nil, err
 	}
-	return BuildSecondaryIndexEntries(index.TableID, tableMeta, rows, index)
+	return buildSecondaryIndexEntriesFromRepairRows(index.TableID, tableMeta, rows, index)
 }
 
 func (im *IndexManager) secondaryIndexTableContext(ctx context.Context, index *Index) (*TableStorageInfo, *metadata.TableMeta, basic.BPlusTreeManager, error) {
@@ -1223,6 +1228,14 @@ func secondaryIndexEntryMap(entries []SecondaryIndexEntry) map[string]SecondaryI
 }
 
 func BuildSecondaryIndexEntries(tableID uint64, tableMeta *metadata.TableMeta, rows []map[string]interface{}, index *Index) ([]SecondaryIndexEntry, error) {
+	repairRows := make([]secondaryIndexRepairRow, 0, len(rows))
+	for _, row := range rows {
+		repairRows = append(repairRows, secondaryIndexRepairRow{Values: row})
+	}
+	return buildSecondaryIndexEntriesFromRepairRows(tableID, tableMeta, repairRows, index)
+}
+
+func buildSecondaryIndexEntriesFromRepairRows(tableID uint64, tableMeta *metadata.TableMeta, rows []secondaryIndexRepairRow, index *Index) ([]SecondaryIndexEntry, error) {
 	if tableMeta == nil {
 		return nil, fmt.Errorf("table metadata is nil")
 	}
@@ -1236,11 +1249,14 @@ func BuildSecondaryIndexEntries(tableID uint64, tableMeta *metadata.TableMeta, r
 	}
 	entries := make([]SecondaryIndexEntry, 0, len(rows))
 	for rowIndex, row := range rows {
-		primaryKey, err := buildSecondaryPrimaryKey(row, tableMeta)
+		primaryKey, err := buildSecondaryPrimaryKey(row.Values, tableMeta)
 		if err != nil {
-			return nil, fmt.Errorf("build primary key for row %d failed: %v", rowIndex, err)
+			if len(row.PrimaryKey) == 0 {
+				return nil, fmt.Errorf("build primary key for row %d failed: %v", rowIndex, err)
+			}
+			primaryKey = append([]byte(nil), row.PrimaryKey...)
 		}
-		key, err := EncodeSecondaryIndexKey(tableID, indexMeta, row, primaryKey)
+		key, err := EncodeSecondaryIndexKey(tableID, indexMeta, row.Values, primaryKey)
 		if err != nil {
 			return nil, fmt.Errorf("encode secondary key for row %d failed: %v", rowIndex, err)
 		}
@@ -1278,7 +1294,7 @@ type indexRepairFullScanner interface {
 	FullScan(ctx context.Context) ([]basic.Row, error)
 }
 
-func scanClusteredRowsForSecondaryIndexRepair(ctx context.Context, btreeManager basic.BPlusTreeManager, tableMeta *metadata.TableMeta) ([]map[string]interface{}, error) {
+func scanClusteredRowsForSecondaryIndexRepair(ctx context.Context, btreeManager basic.BPlusTreeManager, tableMeta *metadata.TableMeta) ([]secondaryIndexRepairRow, error) {
 	fullScanner, ok := btreeManager.(indexRepairFullScanner)
 	if !ok {
 		return nil, fmt.Errorf("B+Tree manager does not support clustered full scan for secondary index rebuild")
@@ -1287,7 +1303,7 @@ func scanClusteredRowsForSecondaryIndexRepair(ctx context.Context, btreeManager 
 	if err != nil {
 		return nil, fmt.Errorf("scan clustered index failed: %v", err)
 	}
-	rows := make([]map[string]interface{}, 0, len(storedRows))
+	rows := make([]secondaryIndexRepairRow, 0, len(storedRows))
 	for _, storedRow := range storedRows {
 		if storedRow == nil {
 			continue
@@ -1297,10 +1313,38 @@ func scanClusteredRowsForSecondaryIndexRepair(ctx context.Context, btreeManager 
 			return nil, err
 		}
 		if ok {
-			rows = append(rows, rowData)
+			repairRow := secondaryIndexRepairRow{Values: rowData}
+			if keyBytes, ok := secondaryRepairStorageKey(storedRow); ok {
+				repairRow.PrimaryKey = keyBytes
+			}
+			rows = append(rows, repairRow)
 		}
 	}
 	return rows, nil
+}
+
+func secondaryRepairStorageKey(row basic.Row) ([]byte, bool) {
+	if row == nil || row.GetPrimaryKey() == nil || row.GetPrimaryKey().IsNull() {
+		return nil, false
+	}
+	switch raw := row.GetPrimaryKey().Raw().(type) {
+	case []byte:
+		if len(raw) == 0 {
+			return nil, false
+		}
+		return append([]byte(nil), raw...), true
+	case string:
+		if raw == "" {
+			return nil, false
+		}
+		return []byte(raw), true
+	default:
+		text := fmt.Sprintf("%v", raw)
+		if text == "" {
+			return nil, false
+		}
+		return []byte(text), true
+	}
 }
 
 func decodeClusteredRecordForIndexRepair(data []byte, tableMeta *metadata.TableMeta) (map[string]interface{}, bool, error) {

@@ -539,6 +539,11 @@ func tableFromMetadata(tableMeta *metadata.TableMeta) *metadata.Table {
 	}
 	if len(tableMeta.PrimaryKey) > 0 {
 		table.PrimaryKey = &metadata.Index{Name: "PRIMARY", Columns: append([]string(nil), tableMeta.PrimaryKey...), IsPrimary: true}
+	} else {
+		primaryColumns := effectivePrimaryKeyColumns(tableMeta)
+		if len(primaryColumns) > 0 {
+			table.PrimaryKey = &metadata.Index{Name: "PRIMARY", Columns: append([]string(nil), primaryColumns...), IsPrimary: true}
+		}
 	}
 	return table
 }

@@ -33,8 +33,17 @@ func (dml *StorageIntegratedDMLExecutor) generatePrimaryKey(row *InsertRowData, 
 		return value, nil
 	}
 
-	if len(tableMeta.PrimaryKey) > 1 {
-		return buildCompositeKey(row.ColumnValues, tableMeta.PrimaryKey)
+	primaryKeyColumns := effectivePrimaryKeyColumns(tableMeta)
+	if len(primaryKeyColumns) > 1 {
+		return buildCompositeKey(row.ColumnValues, primaryKeyColumns)
+	}
+
+	if len(primaryKeyColumns) == 0 {
+		hiddenID, err := dml.ensureHiddenRowID(row.ColumnValues)
+		if err != nil {
+			return nil, err
+		}
+		return string(hiddenID), nil
 	}
 
 	for _, col := range tableMeta.Columns {
@@ -67,6 +76,22 @@ func (dml *StorageIntegratedDMLExecutor) generatePrimaryKey(row *InsertRowData, 
 	row.ColumnValues["id"] = value
 	row.ColumnTypes["id"] = metadata.TypeInt
 	return value, nil
+}
+
+func (dml *StorageIntegratedDMLExecutor) ensureHiddenRowID(rowData map[string]interface{}) ([]byte, error) {
+	if rowData == nil {
+		return nil, fmt.Errorf("row data is nil")
+	}
+	if hiddenID, ok := hiddenRowIDBytesFromValue(rowData[hiddenRowIDColumnName]); ok {
+		return hiddenID, nil
+	}
+	next, err := allocateAutoIncrementValue(dml.dataDir, dml.schemaName, dml.tableName, hiddenRowIDColumnName)
+	if err != nil {
+		return nil, err
+	}
+	hiddenID := []byte(fmt.Sprintf("__xmysql_hidden_pk_%020d", next))
+	rowData[hiddenRowIDColumnName] = string(hiddenID)
+	return hiddenID, nil
 }
 
 func autoIncrementValueAsUint64(value interface{}) (uint64, bool) {
@@ -521,17 +546,23 @@ func (dml *StorageIntegratedDMLExecutor) scanRowsForTableConditions(
 	}
 
 	scanner := NewClusteredIndexScanner(btreeManager, tableMeta)
-	rows, err := scanner.Scan(ctx, whereConditions)
+	rows, err := scanner.ScanWithStorageKeys(ctx, whereConditions)
 	if err != nil {
 		return nil, err
 	}
 
 	matched := make([]*RowUpdateInfo, 0, len(rows))
-	for slot, rowData := range rows {
+	for slot, scannedRow := range rows {
+		rowData := scannedRow.data
 		rowID := dml.rowIDFromRowData(rowData, tableMeta)
+		pageNum := tableStorageInfo.RootPageNo
+		if scannedRow.pageNumber != 0 {
+			pageNum = scannedRow.pageNumber
+		}
 		matched = append(matched, &RowUpdateInfo{
 			RowId:      rowID,
-			PageNum:    tableStorageInfo.RootPageNo,
+			StorageKey: scannedRow.storageKey,
+			PageNum:    pageNum,
 			SlotIndex:  slot,
 			SchemaName: schemaName,
 			TableName:  tableName,
@@ -1454,7 +1485,7 @@ func sameRowIdentity(existing, updating *RowUpdateInfo, updatingOldValues map[st
 }
 
 func hasCompositePrimaryKey(tableMeta *metadata.TableMeta) bool {
-	return tableMeta != nil && len(tableMeta.PrimaryKey) > 1
+	return len(effectivePrimaryKeyColumns(tableMeta)) > 1
 }
 
 func hasAnyIndexMetadata(tableMeta *metadata.TableMeta) bool {
@@ -1473,14 +1504,15 @@ func hasAnyIndexMetadata(tableMeta *metadata.TableMeta) bool {
 }
 
 func updateTouchesPrimaryKey(updateExprs []*UpdateExpression, tableMeta *metadata.TableMeta) bool {
-	if tableMeta == nil || len(tableMeta.PrimaryKey) == 0 {
+	primaryKeyColumns := effectivePrimaryKeyColumns(tableMeta)
+	if len(primaryKeyColumns) == 0 {
 		return false
 	}
 	for _, expr := range updateExprs {
 		if expr == nil {
 			continue
 		}
-		for _, pkColumn := range tableMeta.PrimaryKey {
+		for _, pkColumn := range primaryKeyColumns {
 			if strings.EqualFold(expr.ColumnName, pkColumn) {
 				return true
 			}
@@ -1512,10 +1544,11 @@ func buildPrimaryKeyIfAvailable(row map[string]interface{}, tableMeta *metadata.
 	if tableMeta == nil {
 		return nil, false, nil
 	}
-	if len(tableMeta.PrimaryKey) == 0 {
+	primaryKeyColumns := effectivePrimaryKeyColumns(tableMeta)
+	if len(primaryKeyColumns) == 0 {
 		return nil, false, nil
 	}
-	for _, columnName := range tableMeta.PrimaryKey {
+	for _, columnName := range primaryKeyColumns {
 		value, exists := row[columnName]
 		if exists && value != nil {
 			continue
@@ -1525,8 +1558,24 @@ func buildPrimaryKeyIfAvailable(row map[string]interface{}, tableMeta *metadata.
 		}
 		return nil, false, fmt.Errorf("missing primary key column '%s'", columnName)
 	}
-	key, err := buildCompositeKey(row, tableMeta.PrimaryKey)
+	key, err := buildCompositeKey(row, primaryKeyColumns)
 	return key, true, err
+}
+
+func effectivePrimaryKeyColumns(tableMeta *metadata.TableMeta) []string {
+	if tableMeta == nil {
+		return nil
+	}
+	if len(tableMeta.PrimaryKey) > 0 {
+		return tableMeta.PrimaryKey
+	}
+	columns := make([]string, 0)
+	for _, col := range tableMeta.Columns {
+		if col != nil && col.IsPrimary {
+			columns = append(columns, col.Name)
+		}
+	}
+	return columns
 }
 
 func findColumnMeta(tableMeta *metadata.TableMeta, columnName string) *metadata.ColumnMeta {
