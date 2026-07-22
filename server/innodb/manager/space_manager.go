@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"os"
@@ -497,6 +498,8 @@ func (sm *SpaceManagerImpl) scanDirectory(dirPath, relativePath string) error {
 			var spaceID uint32
 			if tableName == "ibdata1" {
 				spaceID = 0 // 系统表空间固定为Space ID 0
+			} else if persistedID, ok := persistedTablespaceID(strings.TrimSuffix(fullPath, ".ibd") + ".frm"); ok {
+				spaceID = persistedID
 			} else {
 				spaceID = sm.getNextAvailableSpaceID()
 			}
@@ -531,6 +534,20 @@ func (sm *SpaceManagerImpl) scanDirectory(dirPath, relativePath string) error {
 	}
 
 	return nil
+}
+
+func persistedTablespaceID(frmPath string) (uint32, bool) {
+	raw, err := os.ReadFile(frmPath)
+	if err != nil {
+		return 0, false
+	}
+	var definition struct {
+		StorageSpaceID uint32 `json:"storage_space_id"`
+	}
+	if err := json.Unmarshal(raw, &definition); err != nil || definition.StorageSpaceID == 0 {
+		return 0, false
+	}
+	return definition.StorageSpaceID, true
 }
 
 // getNextAvailableSpaceID 获取下一个可用的Space ID

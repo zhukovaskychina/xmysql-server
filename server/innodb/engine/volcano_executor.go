@@ -349,10 +349,21 @@ func (i *IndexScanOperator) fetchPrimaryKeys(ctx context.Context) error {
 		endKeyBytes = []byte{0xFF, 0xFF, 0xFF, 0xFF} // 最大值
 	}
 
-	// 调用索引适配器进行范围扫描
-	primaryKeys, err := i.indexAdapter.RangeScan(ctx, i.indexMetadata.IndexID, startKeyBytes, endKeyBytes)
+	if i.indexAdapter == nil || i.indexAdapter.indexManager == nil {
+		return fmt.Errorf("secondary index manager is unavailable")
+	}
+
+	rows, err := i.indexAdapter.indexManager.RangeSearch(i.indexMetadata.IndexID, startKeyBytes, endKeyBytes)
 	if err != nil {
-		return fmt.Errorf("index range scan failed: %w", err)
+		return fmt.Errorf("secondary index range search failed: %w", err)
+	}
+	primaryKeys := make([][]byte, 0, len(rows))
+	for _, row := range rows {
+		primaryKey, err := manager.DecodeSecondaryIndexValue(row.ToByte())
+		if err != nil {
+			return fmt.Errorf("decode secondary index primary key: %w", err)
+		}
+		primaryKeys = append(primaryKeys, primaryKey)
 	}
 
 	i.primaryKeys = primaryKeys

@@ -63,6 +63,7 @@ type SelectExecutor struct {
 	currentRowIndex int
 	resultSet       []Record
 	isInitialized   bool
+	lastAccessPath  string
 }
 
 // NewSelectExecutor 创建SELECT执行器。dataDir 可选，非空时在无 tableManager 时从 dataDir/schema/table.frm 加载表定义。
@@ -146,6 +147,7 @@ func (se *SelectExecutor) resetExecutionState() {
 	se.currentRowIndex = 0
 	se.resultSet = nil
 	se.isInitialized = false
+	se.lastAccessPath = ""
 }
 
 // parseSelectStatement 解析SELECT语句
@@ -330,6 +332,8 @@ func (se *SelectExecutor) generatePhysicalPlan(ctx context.Context) error {
 
 // chooseAccessMethod 选择访问方法
 func (se *SelectExecutor) chooseAccessMethod(ctx context.Context) error {
+	se.lastAccessPath = "table_scan"
+
 	// 获取表的索引信息
 	indices, err := se.tableManager.GetTableIndices(ctx, se.schemaName, se.tableName)
 	if err != nil {
@@ -342,6 +346,7 @@ func (se *SelectExecutor) chooseAccessMethod(ctx context.Context) error {
 	if len(indices) > 0 && len(se.whereConditions) > 0 {
 		se.physicalPlan.PlanType = manager.PLAN_TYPE_INDEX_SCAN
 		se.physicalPlan.IndexName = indices[0].Name
+		se.lastAccessPath = "secondary_index:" + indices[0].Name
 	} else {
 		se.physicalPlan.PlanType = manager.PLAN_TYPE_SEQUENTIAL_SCAN
 	}
@@ -366,6 +371,9 @@ func (se *SelectExecutor) executeQuery(ctx context.Context) error {
 	if se.tableManager != nil {
 		meta, err := se.tableManager.GetTableMetadata(ctx, se.schemaName, se.tableName)
 		if err == nil && meta != nil && len(meta.Columns) > 0 {
+			if frmMeta, frmErr := se.loadTableMetaFromFrm(se.dataDir, se.schemaName, se.tableName); frmErr == nil && frmMeta != nil {
+				meta = frmMeta
+			}
 			logger.Debugf(" [SelectExecutor] 使用表管理器元数据: %s.%s, 列数=%d", se.schemaName, se.tableName, len(meta.Columns))
 			if err := se.scanStorageRows(ctx, meta); err != nil {
 				return err
@@ -406,6 +414,12 @@ func (se *SelectExecutor) scanStorageRows(ctx context.Context, tableMeta *metada
 		se.resultSet = []Record{}
 		return nil
 	}
+	if err := se.ensureTableStorageMapping(ctx); err != nil {
+		return err
+	}
+	if used, err := se.scanSecondaryIndexRows(ctx, tableMeta); err != nil || used {
+		return err
+	}
 
 	btreeManager := se.btreeManager
 	if storageTableManager := se.storageManager.GetTableStorageManager(); storageTableManager != nil {
@@ -437,6 +451,168 @@ func (se *SelectExecutor) scanStorageRows(ctx context.Context, tableMeta *metada
 	}
 	se.resultSet = records
 	return nil
+}
+
+func (se *SelectExecutor) scanSecondaryIndexRows(ctx context.Context, tableMeta *metadata.TableMeta) (bool, error) {
+	column, value, ok := secondaryIndexEqualityPredicate(se.whereConditions)
+	if !ok {
+		se.lastAccessPath = "table_scan"
+		return false, nil
+	}
+	tableStorageManager := se.storageManager.GetTableStorageManager()
+	tableInfo, err := tableStorageManager.GetTableStorageInfo(se.schemaName, se.tableName)
+	if err != nil {
+		return false, err
+	}
+	indexManager := se.storageManager.GetIndexManager()
+	if indexManager == nil {
+		return false, nil
+	}
+	if err := indexManager.EnsureSecondaryIndexes(tableInfo, tableMeta); err != nil {
+		return false, err
+	}
+	var selected *manager.Index
+	tableID := manager.SecondaryIndexTableID(se.schemaName, se.tableName)
+	for _, index := range indexManager.ListIndexes(tableID) {
+		if index != nil && index.State == manager.IndexStateActive && len(index.Columns) > 0 && strings.EqualFold(index.Columns[0].Name, column) {
+			selected = index
+			break
+		}
+	}
+	if selected == nil {
+		se.lastAccessPath = "table_scan"
+		return false, nil
+	}
+	indexMeta := metadata.IndexMeta{Name: selected.Name, Columns: indexColumnNames(selected), Unique: selected.IsUnique}
+	startKey, endKey, err := manager.SecondaryIndexEqualityRange(tableID, indexMeta, map[string]interface{}{selected.Columns[0].Name: value})
+	if err != nil {
+		return false, err
+	}
+	indexRows, err := indexManager.RangeSearch(selected.IndexID, startKey, endKey)
+	if err != nil {
+		return false, fmt.Errorf("secondary index range search failed: %w", err)
+	}
+	if len(indexRows) == 0 {
+		indexRows, err = indexManager.RangeSearch(selected.IndexID, startKey, endKey)
+		if err != nil {
+			return false, fmt.Errorf("secondary index range search retry failed: %w", err)
+		}
+	}
+	storageAdapter := NewStorageAdapter(se.tableManager, se.bufferPoolManager, se.storageManager, tableStorageManager)
+	tableSchema := tableFromMetadata(tableMeta)
+	records := make([]Record, 0, len(indexRows))
+	for _, indexRow := range indexRows {
+		primaryKey, err := manager.DecodeSecondaryIndexValue(indexRow.ToByte())
+		if err != nil {
+			continue
+		}
+		record, err := storageAdapter.GetRecordByPrimaryKey(ctx, tableInfo.SpaceID, primaryKey, tableSchema)
+		if err != nil {
+			return false, err
+		}
+		records = append(records, record)
+	}
+	se.resultSet = records
+	se.lastAccessPath = "secondary_index:" + selected.Name
+	return true, nil
+}
+
+func tableFromMetadata(tableMeta *metadata.TableMeta) *metadata.Table {
+	table := metadata.NewTable(tableMeta.Name)
+	for _, columnMeta := range tableMeta.Columns {
+		if columnMeta == nil {
+			continue
+		}
+		table.AddColumn(&metadata.Column{
+			Name:            columnMeta.Name,
+			DataType:        columnMeta.Type,
+			CharMaxLength:   columnMeta.Length,
+			IsNullable:      columnMeta.IsNullable,
+			DefaultValue:    columnMeta.DefaultValue,
+			IsAutoIncrement: columnMeta.IsAutoIncrement,
+			Charset:         columnMeta.Charset,
+			Collation:       columnMeta.Collation,
+			Comment:         columnMeta.Comment,
+		})
+	}
+	if len(tableMeta.PrimaryKey) > 0 {
+		table.PrimaryKey = &metadata.Index{Name: "PRIMARY", Columns: append([]string(nil), tableMeta.PrimaryKey...), IsPrimary: true}
+	}
+	return table
+}
+
+func secondaryIndexEqualityPredicate(conditions []string) (string, string, bool) {
+	if len(conditions) != 1 {
+		return "", "", false
+	}
+	parts := strings.SplitN(conditions[0], "=", 2)
+	if len(parts) != 2 || strings.ContainsAny(parts[0], "<>") {
+		return "", "", false
+	}
+	column := strings.Trim(strings.TrimSpace(parts[0]), "`")
+	value := strings.Trim(strings.TrimSpace(parts[1]), "'\"")
+	if column == "" || value == "" {
+		return "", "", false
+	}
+	return column, value, true
+}
+
+func indexColumnNames(index *manager.Index) []string {
+	columns := make([]string, len(index.Columns))
+	for i, column := range index.Columns {
+		columns[i] = column.Name
+	}
+	return columns
+}
+
+func (se *SelectExecutor) ensureTableStorageMapping(ctx context.Context) error {
+	tableStorageManager := se.storageManager.GetTableStorageManager()
+	rootPageNo, err := se.loadPersistedTableRootPage()
+	if err != nil {
+		return err
+	}
+	if existing, err := tableStorageManager.GetTableStorageInfo(se.schemaName, se.tableName); err == nil && existing.RootPageNo == rootPageNo {
+		return nil
+	}
+	spaceName := fmt.Sprintf("%s/%s", se.schemaName, se.tableName)
+	handle, err := se.storageManager.CreateTablespace(spaceName)
+	if err != nil {
+		handle, err = se.storageManager.GetTablespace(spaceName)
+		if err != nil {
+			return fmt.Errorf("recover table storage mapping for %s: %w", spaceName, err)
+		}
+	}
+	info := &manager.TableStorageInfo{
+		SchemaName:    se.schemaName,
+		TableName:     se.tableName,
+		SpaceID:       handle.SpaceID,
+		RootPageNo:    rootPageNo,
+		IndexPageNo:   rootPageNo,
+		DataSegmentID: handle.DataSegmentID,
+		Type:          manager.TableTypeUser,
+	}
+	if _, err := tableStorageManager.GetTableStorageInfo(se.schemaName, se.tableName); err == nil {
+		return tableStorageManager.ReplaceTableStorage(ctx, info)
+	}
+	return tableStorageManager.RegisterTable(ctx, info)
+}
+
+func (se *SelectExecutor) loadPersistedTableRootPage() (uint32, error) {
+	path := filepath.Join(se.dataDir, se.schemaName, se.tableName+".frm")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return 0, fmt.Errorf("read table metadata for storage recovery: %w", err)
+	}
+	var definition struct {
+		StorageRootPage uint32 `json:"storage_root_page"`
+	}
+	if err := json.Unmarshal(raw, &definition); err != nil {
+		return 0, fmt.Errorf("decode table metadata for storage recovery: %w", err)
+	}
+	if definition.StorageRootPage == 0 {
+		return 0, fmt.Errorf("table storage root page is missing for %s.%s", se.schemaName, se.tableName)
+	}
+	return definition.StorageRootPage, nil
 }
 
 func recordFromInsertRowData(row *InsertRowData, tableMeta *metadata.TableMeta) Record {

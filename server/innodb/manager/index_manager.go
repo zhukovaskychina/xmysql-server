@@ -3,12 +3,14 @@ package manager
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
 // IndexManager 管理表的索引
@@ -26,6 +28,7 @@ type IndexManager struct {
 
 	// 缓冲池管理器
 	bufferPoolManager *OptimizedBufferPoolManager
+	storageManager    *StorageManager
 
 	// 索引统计信息
 	stats *IndexManagerStats
@@ -147,6 +150,7 @@ func NewIndexManagerWithStorage(segmentManager *SegmentManager, bufferPoolManage
 		indexes:           make(map[uint64]*Index),
 		segmentManager:    segmentManager,
 		bufferPoolManager: bufferPoolManager,
+		storageManager:    storageManager,
 		config:            config,
 		stats:             &IndexManagerStats{},
 	}
@@ -172,6 +176,60 @@ func NewIndexManagerWithStorage(segmentManager *SegmentManager, bufferPoolManage
 	im.btreeManager = NewEnhancedBTreeAdapter(storageManager, btreeConfig)
 
 	return im
+}
+
+// EnsureSecondaryIndexes makes durable secondary-index metadata available for a table.
+// The index entries themselves are stored in the table's durable B+Tree, so the metadata
+// can be reconstructed from the persisted table definition after restart.
+func (im *IndexManager) EnsureSecondaryIndexes(tableInfo *TableStorageInfo, tableMeta *metadata.TableMeta) error {
+	if tableInfo == nil || tableMeta == nil {
+		return fmt.Errorf("table storage info and metadata are required")
+	}
+
+	im.mu.Lock()
+	defer im.mu.Unlock()
+	tableID := SecondaryIndexTableID(tableInfo.SchemaName, tableInfo.TableName)
+	for _, indexMeta := range tableMeta.Indices {
+		if strings.EqualFold(indexMeta.Name, "PRIMARY") || len(indexMeta.Columns) == 0 {
+			continue
+		}
+		indexID := SecondaryIndexID(tableID, indexMeta.Name)
+		if existing := im.indexes[indexID]; existing != nil {
+			continue
+		}
+		columns := make([]Column, len(indexMeta.Columns))
+		for columnIndex, columnName := range indexMeta.Columns {
+			columns[columnIndex] = Column{Name: columnName, Position: uint8(columnIndex)}
+		}
+		im.indexes[indexID] = &Index{
+			IndexID:    indexID,
+			TableID:    tableID,
+			SpaceID:    tableInfo.SpaceID,
+			Name:       indexMeta.Name,
+			Type:       INDEX_TYPE_BTREE,
+			Columns:    columns,
+			IsUnique:   indexMeta.Unique,
+			State:      IndexStateActive,
+			CreateTime: time.Now(),
+			UpdateTime: time.Now(),
+		}
+	}
+	return nil
+}
+
+func (im *IndexManager) secondaryIndexManager(index *Index) (basic.BPlusTreeManager, error) {
+	if index == nil {
+		return nil, ErrIndexNotFound
+	}
+	if im.storageManager == nil || im.storageManager.GetTableStorageManager() == nil {
+		return im.requireBTreeManager()
+	}
+	tableStorageManager := im.storageManager.GetTableStorageManager()
+	tableInfo, err := tableStorageManager.GetTableBySpaceID(index.SpaceID)
+	if err != nil {
+		return nil, err
+	}
+	return tableStorageManager.CreateBTreeManagerForTable(context.Background(), tableInfo.SchemaName, tableInfo.TableName)
 }
 
 // CreateIndex 创建新索引
@@ -297,7 +355,7 @@ func (im *IndexManager) InsertKey(indexID uint64, key interface{}, value []byte)
 	if idx.State != IndexStateActive {
 		return fmt.Errorf("index %d is not active", indexID)
 	}
-	btreeManager, err := im.requireBTreeManager()
+	btreeManager, err := im.secondaryIndexManager(idx)
 	if err != nil {
 		return err
 	}
@@ -353,7 +411,7 @@ func (im *IndexManager) DeleteKey(indexID uint64, key interface{}) error {
 	if idx.State != IndexStateActive {
 		return fmt.Errorf("index %d is not active", indexID)
 	}
-	btreeManager, err := im.requireBTreeManager()
+	btreeManager, err := im.secondaryIndexManager(idx)
 	if err != nil {
 		return err
 	}
@@ -399,7 +457,7 @@ func (im *IndexManager) SearchKey(indexID uint64, key interface{}) (pageNo uint3
 	if idx.State != IndexStateActive {
 		return 0, 0, fmt.Errorf("index %d is not active", indexID)
 	}
-	btreeManager, err := im.requireBTreeManager()
+	btreeManager, err := im.secondaryIndexManager(idx)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -430,7 +488,7 @@ func (im *IndexManager) RangeSearch(indexID uint64, startKey, endKey interface{}
 	if idx.State != IndexStateActive {
 		return nil, fmt.Errorf("index %d is not active", indexID)
 	}
-	btreeManager, err := im.requireBTreeManager()
+	btreeManager, err := im.secondaryIndexManager(idx)
 	if err != nil {
 		return nil, err
 	}
@@ -606,19 +664,30 @@ func (im *IndexManager) SyncSecondaryIndexesOnInsert(tableID uint64, rowData map
 
 	// 为每个二级索引插入条目（InsertKey内部会加写锁）
 	for _, idx := range secondaryIndexes {
-		// 提取索引键值
-		indexKey, err := im.extractIndexKey(idx, rowData)
+		indexKey, err := EncodeSecondaryIndexKey(tableID, metadata.IndexMeta{
+			Name:    idx.Name,
+			Columns: indexColumnNames(idx),
+			Unique:  idx.IsUnique,
+		}, rowData, primaryKeyValue)
 		if err != nil {
-			return fmt.Errorf("extract index key for index %d failed: %v", idx.IndexID, err)
+			return fmt.Errorf("encode index key for index %d failed: %v", idx.IndexID, err)
 		}
 
 		// 插入到二级索引（值为主键）
-		if err := im.InsertKey(idx.IndexID, indexKey, primaryKeyValue); err != nil {
+		if err := im.InsertKey(idx.IndexID, indexKey, EncodeSecondaryIndexValue(primaryKeyValue)); err != nil {
 			return fmt.Errorf("insert to secondary index %d failed: %v", idx.IndexID, err)
 		}
 	}
 
 	return nil
+}
+
+func indexColumnNames(index *Index) []string {
+	columns := make([]string, len(index.Columns))
+	for i, column := range index.Columns {
+		columns[i] = column.Name
+	}
+	return columns
 }
 
 // SyncSecondaryIndexesOnUpdate 在UPDATE时同步所有二级索引

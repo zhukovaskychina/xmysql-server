@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -668,14 +669,7 @@ func (sa *StorageAdapter) GetRecordByPrimaryKey(ctx context.Context, spaceID uin
 	}
 
 	// 3. 在B+树中查找主键
-	// 将primaryKey字节数组转换为interface{}类型
-	var keyInterface interface{}
-	if len(primaryKey) > 0 {
-		// 尝试将字节数组转换为字符串（简化实现）
-		keyInterface = string(primaryKey)
-	} else {
-		keyInterface = ""
-	}
+	keyInterface := primaryKeyLookupValue(primaryKey, schema)
 
 	pageNo, slot, err := btreeManager.Search(ctx, keyInterface)
 	if err != nil {
@@ -691,6 +685,37 @@ func (sa *StorageAdapter) GetRecordByPrimaryKey(ctx context.Context, spaceID uin
 	}
 
 	logger.Debugf("Found record at page %d, slot %d", pageNo, slot)
+	tableMeta := tableMetaFromSchema(schema)
+	if fullScanner, ok := btreeManager.(interface {
+		FullScan(context.Context) ([]basic.Row, error)
+	}); ok {
+		rows, scanErr := fullScanner.FullScan(ctx)
+		if scanErr == nil {
+			for _, row := range rows {
+				payload := row.ToByte()
+				if !strings.HasPrefix(string(payload), clusteredRecordMagic) {
+					continue
+				}
+				decoded, decodeErr := DecodeClusteredRecord(payload, tableMeta)
+				if decodeErr != nil {
+					return nil, newStorageAdapterError(
+						"primary-key-lookup",
+						ExecutionErrorCodeStorageReadFailure,
+						getTableSchemaName(schema),
+						schema.Name,
+						decodeErr,
+						"failed to decode clustered record: %v",
+						decodeErr,
+					)
+				}
+				decodedKey, found, keyErr := buildPrimaryKeyIfAvailable(decoded.ColumnValues, tableMeta)
+				if keyErr != nil || !found || !bytes.Equal(decodedKey, primaryKey) {
+					continue
+				}
+				return recordFromInsertRowData(decoded, tableMeta), nil
+			}
+		}
+	}
 
 	// 4. 从页面读取记录
 	page, err := sa.ReadPage(ctx, spaceID, pageNo)
@@ -738,6 +763,52 @@ func (sa *StorageAdapter) GetRecordByPrimaryKey(ctx context.Context, spaceID uin
 		pageNo,
 		len(records),
 	)
+}
+
+func primaryKeyLookupValue(primaryKey []byte, schema *metadata.Table) interface{} {
+	value := string(primaryKey)
+	if schema == nil || schema.PrimaryKey == nil || len(schema.PrimaryKey.Columns) != 1 {
+		return value
+	}
+	if len(primaryKey) >= 4 {
+		length := int(binary.BigEndian.Uint32(primaryKey[:4]))
+		if length == len(primaryKey)-4 {
+			value = string(primaryKey[4:])
+		}
+	}
+	column, exists := schema.GetColumn(schema.PrimaryKey.Columns[0])
+	if !exists || column == nil || !column.IsNumeric() {
+		return value
+	}
+	number, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return value
+	}
+	return number
+}
+
+func tableMetaFromSchema(schema *metadata.Table) *metadata.TableMeta {
+	tableMeta := &metadata.TableMeta{Name: schema.Name, Columns: make([]*metadata.ColumnMeta, 0, len(schema.Columns))}
+	for _, column := range schema.Columns {
+		if column == nil {
+			continue
+		}
+		tableMeta.Columns = append(tableMeta.Columns, &metadata.ColumnMeta{
+			Name:            column.Name,
+			Type:            column.DataType,
+			Length:          column.CharMaxLength,
+			IsNullable:      column.IsNullable,
+			IsAutoIncrement: column.IsAutoIncrement,
+			DefaultValue:    column.DefaultValue,
+			Charset:         column.Charset,
+			Collation:       column.Collation,
+			Comment:         column.Comment,
+		})
+	}
+	if schema.PrimaryKey != nil {
+		tableMeta.PrimaryKey = append([]string(nil), schema.PrimaryKey.Columns...)
+	}
+	return tableMeta
 }
 
 // TableScanMetadata 表扫描元数据

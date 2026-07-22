@@ -2,7 +2,10 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -1076,6 +1079,12 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForInsert(
 	if tableMeta == nil || len(tableMeta.PrimaryKey) == 0 {
 		return nil
 	}
+	if err := dml.persistTableRootPage(tableStorageInfo); err != nil {
+		return err
+	}
+	if err := dml.indexManager.EnsureSecondaryIndexes(tableStorageInfo, tableMeta); err != nil {
+		return fmt.Errorf("prepare secondary indexes: %v", err)
+	}
 
 	// ===== 新增：使用IndexManager的标准二级索引同步方法 =====
 	// 将InsertRowData转换为map[string]interface{}格式
@@ -1090,7 +1099,7 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForInsert(
 	// 调用IndexManager的标准方法同步所有二级索引
 	logger.Debugf("  📝 调用IndexManager.SyncSecondaryIndexesOnInsert，tableID=%d", tableStorageInfo.SpaceID)
 	if err := dml.indexManager.SyncSecondaryIndexesOnInsert(
-		uint64(tableStorageInfo.SpaceID),
+		manager.SecondaryIndexTableID(dml.schemaName, dml.tableName),
 		rowData,
 		primaryKeyBytes,
 	); err != nil {
@@ -1102,6 +1111,31 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForInsert(
 	// 更新统计信息
 	dml.stats.IndexUpdates++
 
+	return nil
+}
+
+func (dml *StorageIntegratedDMLExecutor) persistTableRootPage(tableInfo *manager.TableStorageInfo) error {
+	if dml.dataDir == "" || tableInfo == nil || tableInfo.RootPageNo == 0 {
+		return nil
+	}
+	path := filepath.Join(dml.dataDir, dml.schemaName, dml.tableName+".frm")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read table metadata: %w", err)
+	}
+	var definition map[string]interface{}
+	if err := json.Unmarshal(raw, &definition); err != nil {
+		return fmt.Errorf("decode table metadata: %w", err)
+	}
+	definition["storage_root_page"] = tableInfo.RootPageNo
+	definition["storage_space_id"] = tableInfo.SpaceID
+	encoded, err := json.MarshalIndent(definition, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode table metadata: %w", err)
+	}
+	if err := os.WriteFile(path, encoded, 0644); err != nil {
+		return fmt.Errorf("persist table metadata: %w", err)
+	}
 	return nil
 }
 

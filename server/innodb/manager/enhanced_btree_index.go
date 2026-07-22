@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -1550,22 +1551,7 @@ func (idx *EnhancedBTreeIndex) enforcePageCacheLimits() error {
 
 // compareKeys 比较键值
 func (idx *EnhancedBTreeIndex) compareKeys(a, b []byte) int {
-	// 简化实现：字节比较
-	if len(a) < len(b) {
-		return -1
-	} else if len(a) > len(b) {
-		return 1
-	}
-
-	for i := 0; i < len(a); i++ {
-		if a[i] < b[i] {
-			return -1
-		} else if a[i] > b[i] {
-			return 1
-		}
-	}
-
-	return 0
+	return bytes.Compare(a, b)
 }
 
 // getFirstChildPageNo 获取第一个子页面号
