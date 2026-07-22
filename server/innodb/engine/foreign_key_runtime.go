@@ -146,34 +146,44 @@ func (dml *StorageIntegratedDMLExecutor) applyOnDeleteCascade(
 	schemaName string,
 	parentTable string,
 	parentRows []*RowUpdateInfo,
-) error {
+) ([]transactionDMLChange, error) {
 	refs, err := dml.loadReferencingForeignKeys(schemaName, parentTable)
 	if err != nil || len(refs) == 0 {
-		return err
+		return nil, err
 	}
+	changes := make([]transactionDMLChange, 0)
 	for _, ref := range refs {
 		if !strings.EqualFold(ref.FK.OnDelete, "cascade") || len(ref.FK.Columns) != 1 || len(ref.FK.RefColumns) != 1 {
 			continue
 		}
 		childMeta, childStorage, childBTree, err := dml.tableAccess(ctx, schemaName, ref.TableName)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		for _, parentRow := range parentRows {
 			value := parentRow.OldValues[ref.FK.RefColumns[0]]
 			where := fmt.Sprintf("%s = %s", ref.FK.Columns[0], sqlLiteral(value))
 			childRows, err := dml.scanRowsForTableConditions(ctx, schemaName, ref.TableName, []string{where}, childMeta, childStorage, childBTree)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			for _, childRow := range childRows {
 				if err := dml.deleteRowFromStorage(ctx, txn, childRow, childMeta, childStorage, childBTree); err != nil {
-					return err
+					return nil, err
 				}
+				if err := dml.updateIndexesForDelete(ctx, txn, []*RowUpdateInfo{childRow}, childMeta, childStorage); err != nil {
+					return nil, err
+				}
+				changes = append(changes, transactionDMLChange{
+					tableName: schemaName + "." + ref.TableName,
+					kind:      "delete",
+					rowID:     childRow.RowId,
+					before:    cloneTransactionRow(childRow.OldValues),
+				})
 			}
 		}
 	}
-	return nil
+	return changes, nil
 }
 
 func (dml *StorageIntegratedDMLExecutor) applyOnUpdateCascade(
@@ -183,18 +193,19 @@ func (dml *StorageIntegratedDMLExecutor) applyOnUpdateCascade(
 	parentTable string,
 	parentRows []*RowUpdateInfo,
 	updatedRows []*InsertRowData,
-) error {
+) ([]transactionDMLChange, error) {
 	refs, err := dml.loadReferencingForeignKeys(schemaName, parentTable)
 	if err != nil || len(refs) == 0 {
-		return err
+		return nil, err
 	}
+	changes := make([]transactionDMLChange, 0)
 	for _, ref := range refs {
 		if !strings.EqualFold(ref.FK.OnUpdate, "cascade") || len(ref.FK.Columns) != 1 || len(ref.FK.RefColumns) != 1 {
 			continue
 		}
 		childMeta, childStorage, childBTree, err := dml.tableAccess(ctx, schemaName, ref.TableName)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		childColumn := ref.FK.Columns[0]
 		parentColumn := ref.FK.RefColumns[0]
@@ -210,7 +221,7 @@ func (dml *StorageIntegratedDMLExecutor) applyOnUpdateCascade(
 			where := fmt.Sprintf("%s = %s", childColumn, sqlLiteral(oldValue))
 			childRows, err := dml.scanRowsForTableConditions(ctx, schemaName, ref.TableName, []string{where}, childMeta, childStorage, childBTree)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			updateExprs := []*UpdateExpression{{
 				ColumnName: childColumn,
@@ -219,13 +230,30 @@ func (dml *StorageIntegratedDMLExecutor) applyOnUpdateCascade(
 				Expr:       nil,
 			}}
 			for _, childRow := range childRows {
-				if err := dml.updateRowInStorage(ctx, txn, childRow, updateExprs, childMeta, childStorage, childBTree); err != nil {
-					return err
+				updatedChildRow, err := dml.applyUpdateExpressions(&InsertRowData{
+					ColumnValues: cloneTransactionRow(childRow.OldValues),
+					ColumnTypes:  make(map[string]metadata.DataType),
+				}, updateExprs, childMeta)
+				if err != nil {
+					return nil, err
 				}
+				if err := dml.updateRowInStorage(ctx, txn, childRow, updateExprs, childMeta, childStorage, childBTree); err != nil {
+					return nil, err
+				}
+				if err := dml.updateIndexesForUpdate(ctx, txn, []*RowUpdateInfo{childRow}, updateExprs, childMeta, childStorage); err != nil {
+					return nil, err
+				}
+				changes = append(changes, transactionDMLChange{
+					tableName: schemaName + "." + ref.TableName,
+					kind:      "update",
+					rowID:     childRow.RowId,
+					before:    cloneTransactionRow(childRow.OldValues),
+					after:     cloneTransactionRow(updatedChildRow.ColumnValues),
+				})
 			}
 		}
 	}
-	return nil
+	return changes, nil
 }
 
 func foreignKeyColumnType(tableMeta *metadata.TableMeta, columnName string) metadata.DataType {

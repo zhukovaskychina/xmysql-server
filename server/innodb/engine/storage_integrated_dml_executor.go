@@ -48,6 +48,7 @@ type StorageIntegratedDMLExecutor struct {
 type transactionDMLChange struct {
 	tableName string
 	kind      string
+	rowID     uint64
 	before    map[string]interface{}
 	after     map[string]interface{}
 }
@@ -317,10 +318,10 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 	}
 
 	// 8. 提交事务
-	dml.recordTransactionDMLChanges(changes)
 	if err := dml.commitStorageTransaction(ctx, txn); err != nil {
 		return nil, fmt.Errorf("提交存储事务失败: %v", err)
 	}
+	dml.recordTransactionDMLChanges(changes)
 
 	// 9. 更新统计信息
 	executionTime := time.Since(startTime)
@@ -598,22 +599,25 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 		changes = append(changes, transactionDMLChange{
 			tableName: dml.transactionTableName(),
 			kind:      "update",
+			rowID:     rowInfo.RowId,
 			before:    cloneTransactionRow(rowInfo.OldValues),
 			after:     cloneTransactionRow(updatedRow.ColumnValues),
 		})
 
 		affectedRows++
 	}
-	if err := dml.applyOnUpdateCascade(ctx, txn, resolvedSchema, tableName, rowsToUpdate, updatedRowsForCascade); err != nil {
+	cascadeChanges, err := dml.applyOnUpdateCascade(ctx, txn, resolvedSchema, tableName, rowsToUpdate, updatedRowsForCascade)
+	if err != nil {
 		dml.rollbackStorageTransaction(ctx, txn)
 		return nil, err
 	}
+	changes = append(changes, cascadeChanges...)
 
 	// 9. 提交事务
-	dml.recordTransactionDMLChanges(changes)
 	if err := dml.commitStorageTransaction(ctx, txn); err != nil {
 		return nil, fmt.Errorf("提交存储事务失败: %v", err)
 	}
+	dml.recordTransactionDMLChanges(changes)
 
 	// 10. 更新统计信息
 	executionTime := time.Since(startTime)
@@ -689,13 +693,15 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt
 		dml.rollbackStorageTransaction(ctx, txn)
 		return nil, fmt.Errorf("查找待删除行失败: %v", err)
 	}
-	if err := dml.applyOnDeleteCascade(ctx, txn, resolvedSchema, tableName, rowsToDelete); err != nil {
+	changes := make([]transactionDMLChange, 0, len(rowsToDelete))
+	cascadeChanges, err := dml.applyOnDeleteCascade(ctx, txn, resolvedSchema, tableName, rowsToDelete)
+	if err != nil {
 		dml.rollbackStorageTransaction(ctx, txn)
 		return nil, err
 	}
+	changes = append(changes, cascadeChanges...)
 
 	affectedRows := 0
-	changes := make([]transactionDMLChange, 0, len(rowsToDelete))
 
 	// 8. 逐行删除数据
 	for _, rowInfo := range rowsToDelete {
@@ -714,6 +720,7 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt
 		changes = append(changes, transactionDMLChange{
 			tableName: dml.transactionTableName(),
 			kind:      "delete",
+			rowID:     rowInfo.RowId,
 			before:    cloneTransactionRow(rowInfo.OldValues),
 		})
 
@@ -721,10 +728,10 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt
 	}
 
 	// 9. 提交事务
-	dml.recordTransactionDMLChanges(changes)
 	if err := dml.commitStorageTransaction(ctx, txn); err != nil {
 		return nil, fmt.Errorf("提交存储事务失败: %v", err)
 	}
+	dml.recordTransactionDMLChanges(changes)
 
 	// 10. 更新统计信息
 	executionTime := time.Since(startTime)
@@ -759,7 +766,7 @@ func rollbackDMLChange(dml *StorageIntegratedDMLExecutor, change transactionDMLC
 	case "insert":
 		return dml.deleteRowByValues(change.tableName, change.after)
 	case "update":
-		return dml.updateRowByValues(change.tableName, change.after, change.before)
+		return dml.updateRowByValues(change.tableName, change.after, change.before, change.rowID)
 	case "delete":
 		return dml.insertRowByValues(change.tableName, change.before)
 	default:
@@ -831,7 +838,7 @@ func (dml *StorageIntegratedDMLExecutor) insertRowByValues(tableName string, val
 	return dml.commitStorageTransaction(ctx, txn)
 }
 
-func (dml *StorageIntegratedDMLExecutor) updateRowByValues(tableName string, current, replacement map[string]interface{}) error {
+func (dml *StorageIntegratedDMLExecutor) updateRowByValues(tableName string, current, replacement map[string]interface{}, rowID uint64) error {
 	ctx := context.Background()
 	tableMeta, tableStorageInfo, btreeManager, err := dml.transactionTableResources(ctx, tableName)
 	if err != nil {
@@ -839,10 +846,13 @@ func (dml *StorageIntegratedDMLExecutor) updateRowByValues(tableName string, cur
 	}
 	currentRow := rowDataFromTransactionValues(current, tableMeta)
 	rowInfo := &RowUpdateInfo{
-		RowId:      dml.rowIDFromRowData(currentRow, tableMeta),
+		RowId:      rowID,
 		SchemaName: dml.schemaName,
 		TableName:  dml.tableName,
 		OldValues:  cloneTransactionRow(current),
+	}
+	if rowInfo.RowId == 0 {
+		rowInfo.RowId = dml.rowIDFromRowData(currentRow, tableMeta)
 	}
 	updateExprs := make([]*UpdateExpression, 0, len(replacement))
 	for columnName, value := range replacement {
