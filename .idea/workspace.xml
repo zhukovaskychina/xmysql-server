@@ -4,43 +4,11 @@
     <option name="autoReloadType" value="ALL" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="cebb430f-c076-4984-8043-b00b7330fdf5" name="Changes" comment="### 🧩 提交摘要&#10;feat(mysql): implement MySQL session context for enhanced state management&#10;&#10;### 📄 详细修改内容&#10;- 修改文件或模块：decoupled_handler.go, engine_access.go, enhanced_message_handler.go, message_handler.go, session.go, session_context.go&#10;- 主要改动：引入 SessionContext 结构体，优化 MySQL 会话状态管理，确保在处理 COM_INIT_DB 和 COM_QUERY 时使用同一会话实例。&#10;&#10;### 💡 修改原因&#10;此次修改旨在提升 MySQL 协议处理的准确性和一致性，通过引入 SessionContext 来集中管理会话状态，避免因使用不同会话实例导致的状态不一致问题。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MySQL 协议处理、会话管理&#10;- 受影响接口或服务：所有涉及会话状态的操作，如数据库切换、查询执行等&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证 SessionContext 的正确性&#10;- 更新相关文档以反映新的会话管理逻辑">
-      <change beforePath="$PROJECT_DIR$/.cursor/skills/xmysql-server-dev/SKILL.md" beforeDir="false" afterPath="$PROJECT_DIR$/.cursor/skills/xmysql-server-dev/SKILL.md" afterDir="false" />
+    <list default="true" id="cebb430f-c076-4984-8043-b00b7330fdf5" name="Changes" comment="clean some files">
+      <change afterPath="$PROJECT_DIR$/docs/superpowers/plans/2026-07-19-p0-capability-closure.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/CODE_REVIEW_CHECKLIST.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/CODE_REVIEW_CHECKLIST.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/CODING_STANDARDS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/CODING_STANDARDS.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/DOCUMENTATION_INDEX.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/DOCUMENTATION_INDEX.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/MYSQL_PROTOCOL_SET_ISSUE_ANALYSIS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/MYSQL_PROTOCOL_SET_ISSUE_ANALYSIS.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/OUTER_JOIN_USAGE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/OUTER_JOIN_USAGE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/PROTOCOL_FIX_GUIDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/PROTOCOL_FIX_GUIDE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/QUICK_REFERENCE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/QUICK_REFERENCE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/REORGANIZATION_SUMMARY.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/REORGANIZATION_SUMMARY.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/analysis/MISSING_FEATURES_LIST.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/analysis/MISSING_FEATURES_LIST.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/analysis/REMAINING_ISSUES_ANALYSIS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/analysis/REMAINING_ISSUES_ANALYSIS.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/btree-reports/BTREE_006_CACHE_LIMIT_FIX_REPORT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/btree-reports/BTREE_006_CACHE_LIMIT_FIX_REPORT.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/btree-reports/BTREE_IMPLEMENTATION_SUMMARY.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/btree-reports/BTREE_IMPLEMENTATION_SUMMARY.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/client/CLIENT_README.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/client/CLIENT_README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/development/HASH_OPERATORS_USAGE_GUIDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/development/HASH_OPERATORS_USAGE_GUIDE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/development/开发计划.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/development/开发计划.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/executor-reports/EXECUTOR_DOCUMENTATION_INDEX.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/executor-reports/EXECUTOR_DOCUMENTATION_INDEX.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/executor-reports/EXECUTOR_REFACTOR_COMPLETION_REPORT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/executor-reports/EXECUTOR_REFACTOR_COMPLETION_REPORT.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/executor-reports/EXECUTOR_REFACTOR_SUMMARY.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/executor-reports/EXECUTOR_REFACTOR_SUMMARY.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/implementation/OLD_INTERFACE_REMOVAL_SUMMARY.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/implementation/OLD_INTERFACE_REMOVAL_SUMMARY.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/innodb/IBD_README.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/innodb/IBD_README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/planning/DEVELOPMENT_ROADMAP.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/planning/DEVELOPMENT_ROADMAP.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/planning/P0_PRODUCTION_TASKS.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/planning/P0_PRODUCTION_TASKS.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/transaction-reports/TXN_002_ROLLBACK_FIX_REPORT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/transaction-reports/TXN_002_ROLLBACK_FIX_REPORT.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/未实现功能梳理.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/未实现功能梳理.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/fix_atomic.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/DDLTestDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/DDLTestDemo.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/InsertDataTestDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/InsertDataTestDemo.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/InsertTestDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/InsertTestDemo.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/MySQLDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/MySQLDemo.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/SQLParserTestDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/SQLParserTestDemo.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/SystemVariableTestDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/SystemVariableTestDemo.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/crash_recovery_drill.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/crash_recovery_drill.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/innodb/manager/mvcc_readview_fix_test.go.bak" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/innodb/storage/format/mvcc/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/storage/format/mvcc/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/superpowers/plans/image/2026-04-17-kernel-correctness-p0-implementation-plan/1776392777948.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/testdata/innodb/mysql/user.ibd" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/testdata/innodb/mysql/user.ibd" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -89,6 +57,12 @@
     &quot;accountId&quot;: &quot;002448ed-9f28-4727-8558-6e54404cefb2&quot;
   }
 }</component>
+  <component name="HttpClientEndpointsTabState">
+    <option name="cachedRequestData" value="&lt;CachedHttpClientTabRequests&gt;&#10;  &lt;entry key=&quot;d30d7b5ff815c7bd189fd7b7f2ad355df3de226c&quot; value=&quot;###&amp;#10;GET http://localhost:8080/metrics&quot; /&gt;&#10;&lt;/CachedHttpClientTabRequests&gt;" />
+  </component>
+  <component name="HttpClientOnboardingState"><![CDATA[{
+  "isOnboardingCommentShown": true
+}]]></component>
   <component name="KubernetesApiPersistence">{}</component>
   <component name="KubernetesApiProvider">{
   &quot;isMigrated&quot;: true
@@ -153,6 +127,7 @@
         <entry key="GoApplicationRunConfiguration">
           <value>
             <map>
+              <entry key="go build github.com/zhukovaskychina/xmysql-server" value="STOPPED" />
               <entry key="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_executor" value="FAILED" />
               <entry key="go build github.com/zhukovaskychina/xmysql-server/cmd/query_optimizer_demo" value="STOPPED" />
             </map>
@@ -215,6 +190,11 @@
       <filePath value="$PROJECT_DIR$/cmd/query_optimizer_demo/main.go" />
       <method v="2" />
     </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Go Build.go build github.com/zhukovaskychina/xmysql-server" />
+      </list>
+    </recent_temporary>
   </component>
   <component name="SharedIndexes">
     <attachedChunks>
@@ -237,6 +217,7 @@
       <workItem from="1772346262138" duration="768000" />
       <workItem from="1772363335339" duration="1060000" />
       <workItem from="1776930312926" duration="480000" />
+      <workItem from="1784555523641" duration="8000" />
     </task>
     <servers />
   </component>
@@ -334,7 +315,8 @@
     <MESSAGE value="feat(logger): add logger import to main.go" />
     <MESSAGE value="###  提交摘要&#10;feat(mysql): implement MySQL package handler for protocol data processing&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：mysql_pkg_handler.go, mysql_pkg_handler_test.go&#10;- 主要改动：新增 MySQLPkgHandler 结构体，支持 MySQL 协议数据包的编解码，包含 Read 和 Write 方法。&#10;&#10;###  修改原因&#10;此次修改旨在实现对 MySQL 协议数据包的处理，提供灵活的读取和写入功能，以支持后续的数据库操作。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MySQL 数据包处理&#10;- 受影响接口或服务：所有使用 MySQLPkgHandler 的地方&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证 MySQLPkgHandler 的正确性&#10;- 更新相关文档以反映新的数据包处理逻辑" />
     <MESSAGE value="###  提交摘要&#10;feat(mysql): implement MySQL session context for enhanced state management&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：decoupled_handler.go, engine_access.go, enhanced_message_handler.go, message_handler.go, session.go, session_context.go&#10;- 主要改动：引入 SessionContext 结构体，优化 MySQL 会话状态管理，确保在处理 COM_INIT_DB 和 COM_QUERY 时使用同一会话实例。&#10;&#10;###  修改原因&#10;此次修改旨在提升 MySQL 协议处理的准确性和一致性，通过引入 SessionContext 来集中管理会话状态，避免因使用不同会话实例导致的状态不一致问题。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MySQL 协议处理、会话管理&#10;- 受影响接口或服务：所有涉及会话状态的操作，如数据库切换、查询执行等&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证 SessionContext 的正确性&#10;- 更新相关文档以反映新的会话管理逻辑" />
-    <option name="LAST_COMMIT_MESSAGE" value="###  提交摘要&#10;feat(mysql): implement MySQL session context for enhanced state management&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：decoupled_handler.go, engine_access.go, enhanced_message_handler.go, message_handler.go, session.go, session_context.go&#10;- 主要改动：引入 SessionContext 结构体，优化 MySQL 会话状态管理，确保在处理 COM_INIT_DB 和 COM_QUERY 时使用同一会话实例。&#10;&#10;###  修改原因&#10;此次修改旨在提升 MySQL 协议处理的准确性和一致性，通过引入 SessionContext 来集中管理会话状态，避免因使用不同会话实例导致的状态不一致问题。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MySQL 协议处理、会话管理&#10;- 受影响接口或服务：所有涉及会话状态的操作，如数据库切换、查询执行等&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证 SessionContext 的正确性&#10;- 更新相关文档以反映新的会话管理逻辑" />
+    <MESSAGE value="clean some files" />
+    <option name="LAST_COMMIT_MESSAGE" value="clean some files" />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>
