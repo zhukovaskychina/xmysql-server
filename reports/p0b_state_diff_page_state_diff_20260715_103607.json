@@ -1,9 +1,0 @@
-{
-  "generated_at": "2026-07-15T02:36:18.107837+00:00",
-  "evidence_type": "p0b_state_diff_artifact",
-  "scope": "page_state_diff",
-  "status": "PASS",
-  "expected_snapshot": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/p0b_state_snapshot_20260715_103607/expected_pages.json",
-  "actual_snapshot": "/Users/zhukovasky/GolandProjects/xmysql-server/reports/p0b_state_snapshot_20260715_103607/actual_pages.json",
-  "mismatch_count": 0
-}

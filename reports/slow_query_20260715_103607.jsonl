@@ -1,1 +1,0 @@
-{"timestamp":"2026-07-15T02:36:22.236811Z","trace_id":"trace-p0d-runtime-slow-001","connection_id":101,"transaction_id":9001,"database":"test","sql_digest":"select_user_by_status","duration_ms":1520,"rows_examined":120000,"rows_returned":50,"error_code":"","status":"slow"}

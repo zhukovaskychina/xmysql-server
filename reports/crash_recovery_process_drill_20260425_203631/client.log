@@ -1,2 +1,0 @@
-mode=setup_redo ok
-redo verify failed: db dir missing: /Users/zhukovasky/GolandProjects/xmysql-server/reports/crash_recovery_process_drill_20260425_203631/workdir/data/drill_recovery_db

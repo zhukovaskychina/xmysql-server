@@ -1,3 +1,0 @@
-mode=setup_redo ok
-mode=verify_redo failed: Error 1105: invalid system variable query
-exit status 1

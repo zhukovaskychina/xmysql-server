@@ -1,6 +1,0 @@
-mode=setup_redo failed: Error 1045: Access denied for user 'root'@'127.0.0.1' (using password: NO)
-exit status 1
-mode=verify_redo failed: redo verify failed: database drill_recovery_db_20260516_232225 not accessible: Error 1045: Access denied for user 'root'@'127.0.0.1' (using password: NO)
-exit status 1
-mode=verify_show_tables_where failed: Error 1045: Access denied for user 'root'@'127.0.0.1' (using password: NO)
-exit status 1

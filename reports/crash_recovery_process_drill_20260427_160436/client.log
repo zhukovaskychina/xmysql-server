@@ -1,3 +1,0 @@
-mode=setup_redo ok
-mode=verify_redo ok
-mode=verify_show_tables_where ok

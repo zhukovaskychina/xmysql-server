@@ -1,3 +1,0 @@
-[OK] CREATE DATABASE IF NOT EXISTS p0e_db
-[OK] CREATE TABLE IF NOT EXISTS p0e_db.t1 (id INT PRIMARY KEY, c VARCHAR(20))
-[FAIL] INSERT INTO p0e_db.t1 VALUES (1, 'a'), (2, 'b') -> Error 1105: execute storage-integrated INSERT failed: 获取表存储信息失败: table mysql.t1 not found in storage mapping

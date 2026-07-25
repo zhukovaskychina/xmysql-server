@@ -1,7 +1,0 @@
-{
-  "generated_at": "2026-07-15T02:36:22.303788+00:00",
-  "status": "PASS",
-  "evidence_type": "structured_logging",
-  "slow_query_runtime_sample": true,
-  "error_runtime_sample": true
-}

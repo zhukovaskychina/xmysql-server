@@ -1,8 +1,0 @@
-{
-  "snapshot_tag": "canary_dryrun",
-  "timestamp": "20260517_063321",
-  "git_commit": "59de051",
-  "root_dir": "/Users/zhukovasky/GolandProjects/xmysql-server",
-  "data_dir": "./data",
-  "backup_file": "./reports/p0_e_backups/xmysql-backup-canary_dryrun-20260517_063321.tar.gz"
-}
