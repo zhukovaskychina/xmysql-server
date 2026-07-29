@@ -420,6 +420,23 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		return
 	}
 
+	if selectResult, handled, err := e.executeInformationSchemaMetadataSelect(query); handled {
+		if err != nil {
+			results <- &Result{
+				Err:        newExecutorErrorf("execute-metadata-select", ExecutionErrorCodeUnknown, databaseName, "", query, err, "execute metadata SELECT failed"),
+				ResultType: common.RESULT_TYPE_QUERY,
+				Message:    "metadata SELECT query failed",
+			}
+			return
+		}
+		results <- &Result{
+			ResultType: common.RESULT_TYPE_QUERY,
+			Data:       selectResult,
+			Message:    fmt.Sprintf("SELECT query executed successfully, %d rows returned", selectResult.RowCount),
+		}
+		return
+	}
+
 	// SQL语法解析
 	stmt, err := sqlparser.Parse(query)
 	if err != nil {
@@ -450,6 +467,28 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 				Message:    fmt.Sprintf("SELECT query executed successfully, %d rows returned", selectResult.RowCount),
 			}
 			results <- result
+		}
+	case *sqlparser.Union:
+		if selectResult, handled, err := e.executeInformationSchemaMetadataSelect(query); handled {
+			if err != nil {
+				results <- &Result{
+					Err:        newExecutorErrorf("execute-metadata-union", ExecutionErrorCodeUnknown, databaseName, "", query, err, "execute metadata UNION failed"),
+					ResultType: common.RESULT_TYPE_QUERY,
+					Message:    "metadata UNION query failed",
+				}
+				return
+			}
+			results <- &Result{
+				ResultType: common.RESULT_TYPE_QUERY,
+				Data:       selectResult,
+				Message:    fmt.Sprintf("SELECT query executed successfully, %d rows returned", selectResult.RowCount),
+			}
+			return
+		}
+		results <- &Result{
+			Err:        newExecutorErrorf("statement-dispatch", ExecutionErrorCodeValidation, databaseName, "", query, fmt.Errorf("unsupported statement type: %T", stmt), "unsupported statement type"),
+			ResultType: common.RESULT_TYPE_QUERY,
+			Message:    "Unsupported statement type",
 		}
 	case *sqlparser.Insert:
 		// 执行INSERT语句
@@ -895,18 +934,58 @@ func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sql
 var informationSchemaMetadataFilterPattern = regexp.MustCompile("(?i)`?\\b(table_schema|table_name|schema_name|column_name)\\b`?\\s*(?:=|like)\\s*(?:'([^']*)'|\"([^\"]*)\")")
 
 func (e *XMySQLExecutor) executeInformationSchemaMetadataSelect(query string) (*SelectResult, bool, error) {
-	if !isInformationSchemaMetadataQuery(query) {
+	if !isInformationSchemaMetadataQuery(query) && !isMySQLMetadataQuery(query) {
 		return nil, false, nil
 	}
 
 	lower := strings.ToLower(query)
 	switch {
+	case strings.Contains(lower, "information_schema.column_privileges") &&
+		strings.Contains(lower, "information_schema.table_privileges") &&
+		strings.Contains(lower, " union all "):
+		return newInformationSchemaSelectResult(
+			"information_schema_privileges_union",
+			[]string{"GRANTEE", "TABLE_NAME", "COLUMN_NAME", "PRIVILEGE_TYPE", "IS_GRANTABLE"},
+			nil,
+		), true, nil
 	case strings.Contains(lower, "information_schema.tables"):
 		return e.executeInformationSchemaTablesSelect(query), true, nil
 	case strings.Contains(lower, "information_schema.schemata"):
 		return e.executeInformationSchemaSchemataSelect(query), true, nil
 	case strings.Contains(lower, "information_schema.columns"):
 		return e.executeInformationSchemaColumnsSelect(query), true, nil
+	case strings.Contains(lower, "information_schema.routines"):
+		return newInformationSchemaSelectResult("information_schema_routines", jdbcRoutinesMetadataColumns(query), nil), true, nil
+	case strings.Contains(lower, "information_schema.parameters"):
+		return newInformationSchemaSelectResult("information_schema_parameters", jdbcParametersMetadataColumns(), nil), true, nil
+	case strings.Contains(lower, "information_schema.statistics"):
+		return newInformationSchemaSelectResult("information_schema_statistics", jdbcStatisticsMetadataColumns(query), nil), true, nil
+	case strings.Contains(lower, "information_schema.key_column_usage"):
+		return newInformationSchemaSelectResult("information_schema_key_column_usage", jdbcKeyColumnUsageMetadataColumns(), nil), true, nil
+	case strings.Contains(lower, "information_schema.table_constraints"):
+		return newInformationSchemaSelectResult("information_schema_table_constraints", jdbcTableConstraintsMetadataColumns(), nil), true, nil
+	case strings.Contains(lower, "information_schema.referential_constraints"):
+		return newInformationSchemaSelectResult("information_schema_referential_constraints", jdbcReferentialConstraintsMetadataColumns(), nil), true, nil
+	case strings.Contains(lower, "information_schema.column_privileges"):
+		return newInformationSchemaSelectResult("information_schema_column_privileges", jdbcColumnPrivilegesMetadataColumns(), nil), true, nil
+	case strings.Contains(lower, "information_schema.table_privileges"):
+		return newInformationSchemaSelectResult("information_schema_table_privileges", jdbcTablePrivilegesMetadataColumns(), nil), true, nil
+	case strings.Contains(lower, "information_schema.views"):
+		return newInformationSchemaSelectResult("information_schema_views", jdbcViewsMetadataColumns(), nil), true, nil
+	case strings.Contains(lower, "information_schema.partitions"):
+		return newInformationSchemaSelectResult("information_schema_partitions", jdbcPartitionsMetadataColumns(), nil), true, nil
+	case strings.Contains(lower, "information_schema.triggers"):
+		return newInformationSchemaSelectResult("information_schema_triggers", jdbcTriggersMetadataColumns(), nil), true, nil
+	case strings.Contains(lower, "information_schema.events"):
+		return newInformationSchemaSelectResult("information_schema_events", jdbcEventsMetadataColumns(), nil), true, nil
+	case strings.Contains(lower, "information_schema.collations"):
+		return newInformationSchemaSelectResult("information_schema_collations", jdbcCollationsMetadataColumns(), nil), true, nil
+	case strings.Contains(lower, "information_schema.user_privileges"):
+		return newInformationSchemaSelectResult("information_schema_user_privileges", jdbcUserPrivilegesMetadataColumns(), nil), true, nil
+	case strings.Contains(lower, "information_schema.schema_privileges"):
+		return newInformationSchemaSelectResult("information_schema_schema_privileges", jdbcSchemaPrivilegesMetadataColumns(), nil), true, nil
+	case strings.Contains(lower, "mysql.procs_priv"):
+		return newInformationSchemaSelectResult("mysql_procs_priv", jdbcMySQLProcsPrivMetadataColumns(), nil), true, nil
 	default:
 		return nil, false, nil
 	}
@@ -916,15 +995,52 @@ func isInformationSchemaMetadataQuery(query string) bool {
 	lower := strings.ToLower(strings.TrimSpace(query))
 	lower = strings.ReplaceAll(lower, "`", "")
 	lower = regexp.MustCompile(`\s*\.\s*`).ReplaceAllString(lower, ".")
-	return strings.Contains(lower, "information_schema.tables") ||
-		strings.Contains(lower, "information_schema.columns") ||
-		strings.Contains(lower, "information_schema.schemata")
+	for _, tableName := range informationSchemaMetadataTableNames() {
+		if strings.Contains(lower, "information_schema."+tableName) {
+			return true
+		}
+	}
+	return false
+}
+
+func isMySQLMetadataQuery(query string) bool {
+	lower := strings.ToLower(strings.TrimSpace(query))
+	lower = strings.ReplaceAll(lower, "`", "")
+	lower = regexp.MustCompile(`\s*\.\s*`).ReplaceAllString(lower, ".")
+	return strings.Contains(lower, "mysql.procs_priv")
+}
+
+func informationSchemaMetadataTableNames() []string {
+	return []string{
+		"tables",
+		"columns",
+		"schemata",
+		"routines",
+		"parameters",
+		"statistics",
+		"key_column_usage",
+		"table_constraints",
+		"referential_constraints",
+		"column_privileges",
+		"table_privileges",
+		"views",
+		"partitions",
+		"triggers",
+		"events",
+		"collations",
+		"user_privileges",
+		"schema_privileges",
+	}
 }
 
 func (e *XMySQLExecutor) executeInformationSchemaTablesSelect(query string) *SelectResult {
 	filters := informationSchemaMetadataFilters(query)
 	schemaPattern := filters["table_schema"]
 	tablePattern := filters["table_name"]
+	columns := informationSchemaTablesRequestedColumns(query)
+	if len(columns) == 2 && columns[1] == "AUTO_INCREMENT" {
+		return newInformationSchemaSelectResult("information_schema_tables", columns, nil)
+	}
 
 	rows := make([][]interface{}, 0)
 	for _, table := range e.scanFrmTables() {
@@ -939,7 +1055,15 @@ func (e *XMySQLExecutor) executeInformationSchemaTablesSelect(query string) *Sel
 		return left < right
 	})
 
-	return newInformationSchemaSelectResult("information_schema_tables", manager.JDBCTablesMetadataColumns(), rows)
+	return newInformationSchemaSelectResult("information_schema_tables", columns, rows)
+}
+
+func informationSchemaTablesRequestedColumns(query string) []string {
+	lower := strings.ToLower(query)
+	if strings.Contains(lower, "table_name") && strings.Contains(lower, "auto_increment") {
+		return []string{"TABLE_NAME", "AUTO_INCREMENT"}
+	}
+	return manager.JDBCTablesMetadataColumns()
 }
 
 func (e *XMySQLExecutor) executeInformationSchemaSchemataSelect(query string) *SelectResult {
@@ -1137,6 +1261,152 @@ func metadataPatternMatches(value, pattern string) bool {
 	quoted = strings.ReplaceAll(quoted, "_", ".")
 	matched, err := regexp.MatchString("(?i)^"+quoted+"$", value)
 	return err == nil && matched
+}
+
+func jdbcRoutinesMetadataColumns(query string) []string {
+	lower := strings.ToLower(query)
+	if strings.Contains(lower, " as function_type") || strings.Contains(lower, "function_name") {
+		return []string{"FUNCTION_CAT", "FUNCTION_SCHEM", "FUNCTION_NAME", "REMARKS", "FUNCTION_TYPE", "SPECIFIC_NAME"}
+	}
+	return []string{"PROCEDURE_CAT", "PROCEDURE_SCHEM", "PROCEDURE_NAME", "RESERVED_1", "RESERVED_2", "RESERVED_3", "REMARKS", "PROCEDURE_TYPE", "SPECIFIC_NAME"}
+}
+
+func jdbcParametersMetadataColumns() []string {
+	return []string{
+		"PROCEDURE_CAT",
+		"PROCEDURE_SCHEM",
+		"PROCEDURE_NAME",
+		"COLUMN_NAME",
+		"COLUMN_TYPE",
+		"DATA_TYPE",
+		"TYPE_NAME",
+		"PRECISION",
+		"LENGTH",
+		"SCALE",
+		"RADIX",
+		"NULLABLE",
+		"REMARKS",
+		"COLUMN_DEF",
+		"SQL_DATA_TYPE",
+		"SQL_DATETIME_SUB",
+		"CHAR_OCTET_LENGTH",
+		"ORDINAL_POSITION",
+		"IS_NULLABLE",
+		"SPECIFIC_NAME",
+	}
+}
+
+func jdbcStatisticsMetadataColumns(query string) []string {
+	lower := strings.ToLower(query)
+	if strings.Contains(lower, " as pk_name") {
+		return []string{"TABLE_CAT", "TABLE_SCHEM", "TABLE_NAME", "COLUMN_NAME", "KEY_SEQ", "PK_NAME"}
+	}
+	return []string{
+		"TABLE_CAT",
+		"TABLE_SCHEM",
+		"TABLE_NAME",
+		"NON_UNIQUE",
+		"INDEX_QUALIFIER",
+		"INDEX_NAME",
+		"TYPE",
+		"ORDINAL_POSITION",
+		"COLUMN_NAME",
+		"ASC_OR_DESC",
+		"CARDINALITY",
+		"PAGES",
+		"FILTER_CONDITION",
+	}
+}
+
+func jdbcKeyColumnUsageMetadataColumns() []string {
+	return []string{
+		"PKTABLE_CAT",
+		"PKTABLE_SCHEM",
+		"PKTABLE_NAME",
+		"PKCOLUMN_NAME",
+		"FKTABLE_CAT",
+		"FKTABLE_SCHEM",
+		"FKTABLE_NAME",
+		"FKCOLUMN_NAME",
+		"KEY_SEQ",
+		"UPDATE_RULE",
+		"DELETE_RULE",
+		"FK_NAME",
+		"PK_NAME",
+		"DEFERRABILITY",
+	}
+}
+
+func jdbcTableConstraintsMetadataColumns() []string {
+	return []string{"CONSTRAINT_CATALOG", "CONSTRAINT_SCHEMA", "CONSTRAINT_NAME", "TABLE_SCHEMA", "TABLE_NAME", "CONSTRAINT_TYPE"}
+}
+
+func jdbcReferentialConstraintsMetadataColumns() []string {
+	return []string{"CONSTRAINT_SCHEMA", "CONSTRAINT_NAME", "TABLE_NAME", "REFERENCED_TABLE_NAME", "UPDATE_RULE", "DELETE_RULE"}
+}
+
+func jdbcColumnPrivilegesMetadataColumns() []string {
+	return []string{"TABLE_CAT", "TABLE_SCHEM", "TABLE_NAME", "COLUMN_NAME", "GRANTOR", "GRANTEE", "PRIVILEGE", "IS_GRANTABLE"}
+}
+
+func jdbcTablePrivilegesMetadataColumns() []string {
+	return []string{"TABLE_CAT", "TABLE_SCHEM", "TABLE_NAME", "GRANTOR", "GRANTEE", "PRIVILEGE", "IS_GRANTABLE"}
+}
+
+func jdbcViewsMetadataColumns() []string {
+	return []string{"TABLE_NAME", "VIEW_DEFINITION", "DEFINER"}
+}
+
+func jdbcPartitionsMetadataColumns() []string {
+	return []string{
+		"TABLE_NAME",
+		"PARTITION_NAME",
+		"SUBPARTITION_NAME",
+		"PARTITION_ORDINAL_POSITION",
+		"SUBPARTITION_ORDINAL_POSITION",
+		"PARTITION_METHOD",
+		"SUBPARTITION_METHOD",
+		"PARTITION_EXPRESSION",
+		"SUBPARTITION_EXPRESSION",
+		"PARTITION_DESCRIPTION",
+		"TABLE_ROWS",
+		"AVG_ROW_LENGTH",
+		"DATA_LENGTH",
+		"MAX_DATA_LENGTH",
+		"INDEX_LENGTH",
+		"DATA_FREE",
+		"CREATE_TIME",
+		"UPDATE_TIME",
+		"CHECK_TIME",
+		"CHECKSUM",
+		"PARTITION_COMMENT",
+		"NODEGROUP",
+		"TABLESPACE_NAME",
+	}
+}
+
+func jdbcTriggersMetadataColumns() []string {
+	return []string{"TRIGGER_NAME", "EVENT_MANIPULATION", "EVENT_OBJECT_TABLE", "ACTION_STATEMENT", "ACTION_TIMING", "DEFINER"}
+}
+
+func jdbcEventsMetadataColumns() []string {
+	return []string{"EVENT_NAME", "EVENT_DEFINITION", "EVENT_TYPE", "EXECUTE_AT", "INTERVAL_VALUE", "INTERVAL_FIELD", "STATUS", "DEFINER"}
+}
+
+func jdbcCollationsMetadataColumns() []string {
+	return []string{"COLLATION_NAME", "CHARACTER_SET_NAME", "IS_DEFAULT"}
+}
+
+func jdbcUserPrivilegesMetadataColumns() []string {
+	return []string{"GRANTEE", "PRIVILEGE_TYPE", "IS_GRANTABLE"}
+}
+
+func jdbcSchemaPrivilegesMetadataColumns() []string {
+	return []string{"GRANTEE", "TABLE_SCHEMA", "PRIVILEGE_TYPE", "IS_GRANTABLE"}
+}
+
+func jdbcMySQLProcsPrivMetadataColumns() []string {
+	return []string{"HOST", "USER", "ROUTINE_NAME", "PROC_PRIV", "IS_PROC"}
 }
 
 func newInformationSchemaSelectResult(name string, columns []string, rows [][]interface{}) *SelectResult {

@@ -5,10 +5,53 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="cebb430f-c076-4984-8043-b00b7330fdf5" name="Changes" comment="clean some files">
-      <change afterPath="$PROJECT_DIR$/docs/superpowers/plans/2026-07-19-p0-capability-closure.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/superpowers/plans/image/2026-04-17-kernel-correctness-p0-implementation-plan/1776392777948.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/innodb/engine/testdata/innodb/mysql/user.ibd" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/testdata/innodb/mysql/user.ibd" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/src/test/java/com/xmysql/server/test/JdbcConnectionTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/src/test/java/com/xmysql/server/test/JdbcConnectionTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/surefire-reports/TEST-com.xmysql.server.test.JdbcConnectionTest.xml" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/surefire-reports/TEST-com.xmysql.server.test.JdbcConnectionTest.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/surefire-reports/com.xmysql.server.test.JdbcConnectionTest.txt" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/surefire-reports/com.xmysql.server.test.JdbcConnectionTest.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/AllTestsSuite.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/AllTestsSuite.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/BaseIntegrationTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/BaseIntegrationTest.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/DDLOperationsTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/DDLOperationsTest.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/DMLOperationsTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/DMLOperationsTest.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/DataTypeTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/DataTypeTest.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/IndexAndConstraintTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/IndexAndConstraintTest.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/JdbcConnectionTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/JdbcConnectionTest.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/JoinQueryTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/JoinQueryTest.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/PerformanceTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/PerformanceTest.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/PreparedStatementTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/PreparedStatementTest.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/SelectQueryTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/SelectQueryTest.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/SystemVariableTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/SystemVariableTest.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/TransactionTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/TransactionTest.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/dispatcher/system_variable_engine.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/dispatcher/system_variable_engine.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/dispatcher/system_variable_engine_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/dispatcher/system_variable_engine_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/data/_xmysql_auto_increment.json" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/data/_xmysql_auto_increment.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/enginx.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/enginx.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/executor.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/executor.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/executor_ddl_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/executor_ddl_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/mysql/user.ibd" beforeDir="false" afterPath="$PROJECT_DIR$/server/net/data/mysql/user.ibd" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/p0e_db/db.opt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/p0e_db/t1.frm" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/p0e_db/t1.ibd" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_alter_test/db.opt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_alter_test/test_table_alter.frm" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_alter_test/test_table_alter.ibd" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_drop_test/db.opt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_drop_test/test_table_drop.frm" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_drop_test/test_table_drop.ibd" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_fk_test/db.opt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_fk_test/orders.frm" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_fk_test/orders.ibd" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_fk_test/users.frm" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_fk_test/users.ibd" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_index_test/db.opt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_index_test/test_table_indexed.frm" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_index_test/test_table_indexed.ibd" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_table_test/db.opt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_table_test/test_table_basic.frm" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_table_test/test_table_basic.ibd" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_truncate_test/db.opt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_truncate_test/test_table_truncate.frm" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_truncate_test/test_table_truncate.ibd" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -58,7 +101,7 @@
   }
 }</component>
   <component name="HttpClientEndpointsTabState">
-    <option name="cachedRequestData" value="&lt;CachedHttpClientTabRequests&gt;&#10;  &lt;entry key=&quot;d30d7b5ff815c7bd189fd7b7f2ad355df3de226c&quot; value=&quot;###&amp;#10;GET http://localhost:8080/metrics&quot; /&gt;&#10;&lt;/CachedHttpClientTabRequests&gt;" />
+    <option name="cachedRequestData" value="&lt;CachedHttpClientTabRequests /&gt;" />
   </component>
   <component name="HttpClientOnboardingState"><![CDATA[{
   "isOnboardingCommentShown": true

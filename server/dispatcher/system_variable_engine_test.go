@@ -80,6 +80,52 @@ func TestSystemVariableEngine_DoesNotRouteInformationSchemaMetadataQueries(t *te
 	assert.False(t, (&SystemVariableEngine{}).CanHandle(query))
 }
 
+func TestSystemVariableEngine_DoesNotRouteJDBCInformationSchemaProbes(t *testing.T) {
+	queries := []string{
+		"SELECT ROUTINE_SCHEMA AS PROCEDURE_CAT FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_NAME LIKE '%'",
+		"SELECT SPECIFIC_SCHEMA AS PROCEDURE_CAT FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_NAME LIKE '%'",
+		"SELECT TABLE_SCHEMA AS TABLE_CAT FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 'users'",
+		"SELECT A.TABLE_SCHEMA AS FKTABLE_CAT FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE A JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS B USING (TABLE_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)",
+		"SELECT R.CONSTRAINT_NAME FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS R",
+		"select table_name, view_definition, definer from information_schema.views where table_schema = 'app'",
+		"select table_name, partition_name from information_schema.partitions where table_schema = 'app'",
+		"select trigger_name, event_manipulation from information_schema.triggers where trigger_schema = 'app'",
+		"select event_name, event_definition from information_schema.events where event_schema = 'app'",
+		"select collation_name, character_set_name, is_default from information_schema.collations",
+		"select grantee, privilege_type, is_grantable from information_schema.user_privileges",
+		"select grantee, table_schema, privilege_type, is_grantable from information_schema.schema_privileges",
+		"select Host, User, Routine_name, Proc_priv, Routine_type = 'PROCEDURE' as is_proc from mysql.procs_priv where Db = 'app'",
+	}
+
+	for _, query := range queries {
+		assert.Equal(t, "innodb", NewDefaultSQLRouter().Route(nil, query), query)
+		assert.False(t, (&SystemVariableEngine{}).CanHandle(query), query)
+	}
+}
+
+func TestSystemVariableEngine_DataGripSessionInfoQueryDoesNotFail(t *testing.T) {
+	engine := &SystemVariableEngine{
+		name:          "system_variable",
+		sysVarManager: manager.NewSystemVariablesManager(),
+	}
+	session := newTestDispatcherSession()
+	session.SetParamByName("session_id", "sess-datagrip-info")
+	session.SetParamByName("database", "app")
+	session.SetParamByName("user", "root")
+
+	result := engine.executeSystemFunctionQuery(
+		session,
+		"select database(), schema(), left(user(), instr(concat(user(),'@'),'@')-1)",
+		"app",
+	)
+
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	require.Equal(t, "select", result.ResultType)
+	require.Equal(t, []string{"database()", "schema()", "user"}, result.Columns)
+	require.Equal(t, [][]interface{}{{"app", "app", "root"}}, result.Rows)
+}
+
 func informationSchemaTableRow(schemaName, tableName string) []interface{} {
 	return []interface{}{schemaName, nil, tableName, "TABLE", "", nil, nil, nil, nil, nil}
 }

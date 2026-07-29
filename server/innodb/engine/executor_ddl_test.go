@@ -176,6 +176,120 @@ func TestInformationSchemaTablesSelectReturnsJDBCMetadataColumns(t *testing.T) {
 	require.Equal(t, "", values[4].ToString())
 }
 
+func TestInformationSchemaJDBCProbeTablesReturnEmptyMetadataResults(t *testing.T) {
+	tmp := t.TempDir()
+	executor := newTestStorageIntegratedExecutor(t, tmp)
+
+	cases := []struct {
+		name    string
+		query   string
+		columns []string
+	}{
+		{
+			name:    "procedures",
+			query:   "SELECT ROUTINE_SCHEMA AS PROCEDURE_CAT, NULL AS PROCEDURE_SCHEM, ROUTINE_NAME AS PROCEDURE_NAME, NULL AS RESERVED_1, NULL AS RESERVED_2, NULL AS RESERVED_3, ROUTINE_COMMENT AS REMARKS, CASE WHEN ROUTINE_TYPE = 'PROCEDURE' THEN 1 ELSE 0 END AS PROCEDURE_TYPE, ROUTINE_NAME AS SPECIFIC_NAME FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_NAME LIKE '%'",
+			columns: []string{"PROCEDURE_CAT", "PROCEDURE_SCHEM", "PROCEDURE_NAME", "RESERVED_1", "RESERVED_2", "RESERVED_3", "REMARKS", "PROCEDURE_TYPE", "SPECIFIC_NAME"},
+		},
+		{
+			name:    "functions",
+			query:   "SELECT ROUTINE_SCHEMA AS FUNCTION_CAT, NULL AS FUNCTION_SCHEM, ROUTINE_NAME AS FUNCTION_NAME, ROUTINE_COMMENT AS REMARKS, CASE WHEN ROUTINE_TYPE = 'FUNCTION' THEN 1 ELSE 0 END AS FUNCTION_TYPE, ROUTINE_NAME AS SPECIFIC_NAME FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_NAME LIKE '%'",
+			columns: []string{"FUNCTION_CAT", "FUNCTION_SCHEM", "FUNCTION_NAME", "REMARKS", "FUNCTION_TYPE", "SPECIFIC_NAME"},
+		},
+		{
+			name:    "primary keys",
+			query:   "SELECT TABLE_SCHEMA AS TABLE_CAT, NULL AS TABLE_SCHEM, TABLE_NAME, COLUMN_NAME, SEQ_IN_INDEX AS KEY_SEQ, 'PRIMARY' AS PK_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 'missing' AND INDEX_NAME='PRIMARY'",
+			columns: []string{"TABLE_CAT", "TABLE_SCHEM", "TABLE_NAME", "COLUMN_NAME", "KEY_SEQ", "PK_NAME"},
+		},
+		{
+			name:    "indexes",
+			query:   "SELECT TABLE_SCHEMA AS TABLE_CAT, NULL AS TABLE_SCHEM, TABLE_NAME, NON_UNIQUE, NULL AS INDEX_QUALIFIER, INDEX_NAME, 3 AS TYPE, SEQ_IN_INDEX AS ORDINAL_POSITION, COLUMN_NAME, COLLATION AS ASC_OR_DESC, CARDINALITY, 0 AS PAGES, NULL AS FILTER_CONDITION FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 'missing'",
+			columns: []string{"TABLE_CAT", "TABLE_SCHEM", "TABLE_NAME", "NON_UNIQUE", "INDEX_QUALIFIER", "INDEX_NAME", "TYPE", "ORDINAL_POSITION", "COLUMN_NAME", "ASC_OR_DESC", "CARDINALITY", "PAGES", "FILTER_CONDITION"},
+		},
+		{
+			name:    "views",
+			query:   "select table_name, view_definition, definer from information_schema.views where table_schema = 'performance_schema'",
+			columns: []string{"TABLE_NAME", "VIEW_DEFINITION", "DEFINER"},
+		},
+		{
+			name:    "partitions",
+			query:   "select table_name, partition_name, subpartition_name, partition_ordinal_position, subpartition_ordinal_position, partition_method, subpartition_method, partition_expression, subpartition_expression, partition_description, table_rows, avg_row_length, data_length, max_data_length, index_length, data_free, create_time, update_time, check_time, checksum, partition_comment, nodegroup, tablespace_name from information_schema.partitions where table_schema = 'performance_schema'",
+			columns: []string{"TABLE_NAME", "PARTITION_NAME", "SUBPARTITION_NAME", "PARTITION_ORDINAL_POSITION", "SUBPARTITION_ORDINAL_POSITION", "PARTITION_METHOD", "SUBPARTITION_METHOD", "PARTITION_EXPRESSION", "SUBPARTITION_EXPRESSION", "PARTITION_DESCRIPTION", "TABLE_ROWS", "AVG_ROW_LENGTH", "DATA_LENGTH", "MAX_DATA_LENGTH", "INDEX_LENGTH", "DATA_FREE", "CREATE_TIME", "UPDATE_TIME", "CHECK_TIME", "CHECKSUM", "PARTITION_COMMENT", "NODEGROUP", "TABLESPACE_NAME"},
+		},
+		{
+			name:    "triggers",
+			query:   "select trigger_name, event_manipulation, event_object_table, action_statement, action_timing, definer from information_schema.triggers where trigger_schema = 'performance_schema'",
+			columns: []string{"TRIGGER_NAME", "EVENT_MANIPULATION", "EVENT_OBJECT_TABLE", "ACTION_STATEMENT", "ACTION_TIMING", "DEFINER"},
+		},
+		{
+			name:    "events",
+			query:   "select event_name, event_definition, event_type, execute_at, interval_value, interval_field, status, definer from information_schema.events where event_schema = 'performance_schema'",
+			columns: []string{"EVENT_NAME", "EVENT_DEFINITION", "EVENT_TYPE", "EXECUTE_AT", "INTERVAL_VALUE", "INTERVAL_FIELD", "STATUS", "DEFINER"},
+		},
+		{
+			name:    "collations",
+			query:   "select collation_name, character_set_name, is_default from information_schema.collations",
+			columns: []string{"COLLATION_NAME", "CHARACTER_SET_NAME", "IS_DEFAULT"},
+		},
+		{
+			name:    "user privileges",
+			query:   "select grantee, privilege_type, is_grantable from information_schema.user_privileges",
+			columns: []string{"GRANTEE", "PRIVILEGE_TYPE", "IS_GRANTABLE"},
+		},
+		{
+			name:    "schema privileges",
+			query:   "select grantee, table_schema, privilege_type, is_grantable from information_schema.schema_privileges",
+			columns: []string{"GRANTEE", "TABLE_SCHEMA", "PRIVILEGE_TYPE", "IS_GRANTABLE"},
+		},
+		{
+			name:    "mysql procs priv",
+			query:   "select Host, User, Routine_name, Proc_priv, Routine_type = 'PROCEDURE' as is_proc from mysql.procs_priv where Db = 'performance_schema'",
+			columns: []string{"HOST", "USER", "ROUTINE_NAME", "PROC_PRIV", "IS_PROC"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := <-executor.ExecuteQuery(nil, tc.query, "")
+			require.NoError(t, got.Err)
+
+			result, ok := got.Data.(*SelectResult)
+			require.True(t, ok, "expected SelectResult, got %T", got.Data)
+			require.Equal(t, tc.columns, result.Columns)
+			require.Empty(t, result.Records)
+		})
+	}
+}
+
+func TestInformationSchemaPrivilegesUnionAllReturnsEmptyResult(t *testing.T) {
+	tmp := t.TempDir()
+	executor := newTestStorageIntegratedExecutor(t, tmp)
+
+	query := "select grantee, table_name, column_name, privilege_type, is_grantable from information_schema.column_privileges where table_schema = 'performance_schema' union all select grantee, table_name, null as column_name, privilege_type, is_grantable from information_schema.table_privileges where table_schema = 'performance_schema'"
+	got := <-executor.ExecuteQuery(nil, query, "")
+	require.NoError(t, got.Err)
+
+	result, ok := got.Data.(*SelectResult)
+	require.True(t, ok, "expected SelectResult, got %T", got.Data)
+	require.Equal(t, []string{"GRANTEE", "TABLE_NAME", "COLUMN_NAME", "PRIVILEGE_TYPE", "IS_GRANTABLE"}, result.Columns)
+	require.Empty(t, result.Records)
+}
+
+func TestInformationSchemaTablesAutoIncrementProjectionReturnsRequestedColumns(t *testing.T) {
+	tmp := t.TempDir()
+	executor := newTestStorageIntegratedExecutor(t, tmp)
+
+	got := <-executor.ExecuteQuery(nil,
+		"select table_name, auto_increment from information_schema.tables where table_schema = 'performance_schema' and auto_increment is not null",
+		"performance_schema",
+	)
+	require.NoError(t, got.Err)
+
+	result, ok := got.Data.(*SelectResult)
+	require.True(t, ok, "expected SelectResult, got %T", got.Data)
+	require.Equal(t, []string{"TABLE_NAME", "AUTO_INCREMENT"}, result.Columns)
+	require.Empty(t, result.Records)
+}
+
 func TestShowFullTablesReturnsTableTypeColumn(t *testing.T) {
 	tmp := t.TempDir()
 	executor := newTestStorageIntegratedExecutor(t, tmp)

@@ -361,6 +361,19 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			return
 		}
 
+		if result, handled, err2 := e.QueryExecutor.executeInformationSchemaMetadataSelect(query); handled {
+			stage = "metadata-select"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("SELECT failed: %v", err2)}
+				return
+			}
+			rowsAffected = result.RowCount
+			results <- &Result{Data: result, ResultType: common.RESULT_TYPE_SELECT}
+			return
+		}
+
 		stmt, err := sqlparser.Parse(query)
 		if err != nil {
 			logger.Errorf(" [XMySQLEngine.ExecuteQuery] SQL解析错误: %v", err)
@@ -385,6 +398,24 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 				rowsAffected = result.RowCount
 				results <- &Result{Data: result, ResultType: common.RESULT_TYPE_SELECT}
 			}
+
+		case *sqlparser.Union:
+			stage = "metadata-union"
+			result, handled, err2 := e.QueryExecutor.executeInformationSchemaMetadataSelect(query)
+			if !handled {
+				execErr = fmt.Errorf("unsupported statement type")
+				status = "failed"
+				results <- &Result{Err: execErr, ResultType: common.RESULT_TYPE_ERROR}
+				return
+			}
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("SELECT failed: %v", err2)}
+				return
+			}
+			rowsAffected = result.RowCount
+			results <- &Result{Data: result, ResultType: common.RESULT_TYPE_SELECT}
 
 		case *sqlparser.DDL:
 			switch stmt.Action {

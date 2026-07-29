@@ -49,8 +49,8 @@ func (e *SystemVariableEngine) CanHandle(query string) bool {
 	logger.Debugf(" [SystemVariableEngine.CanHandle] sysVarManager是否为nil: %v", e.sysVarManager == nil)
 	logger.Debugf(" [SystemVariableEngine.CanHandle] storageManager是否为nil: %v", e.storageManager == nil)
 
-	if isInformationSchemaMetadataQuery(query) {
-		logger.Debugf(" [SystemVariableEngine.CanHandle] information_schema metadata query uses innodb engine")
+	if isInformationSchemaMetadataQuery(query) || isMySQLMetadataQuery(query) {
+		logger.Debugf(" [SystemVariableEngine.CanHandle] metadata query uses innodb engine")
 		return false
 	}
 
@@ -241,6 +241,9 @@ func (e *SystemVariableEngine) isSystemTable(tableExpr sqlparser.TableExpr) bool
 
 			// 检查mysql系统库表
 			if qualifierStr == "MYSQL" {
+				if tableNameStr == "PROCS_PRIV" {
+					return false
+				}
 				systemTables := map[string]bool{
 					"USER": true, "DB": true, "TABLES_PRIV": true, "COLUMNS_PRIV": true,
 					"PROCS_PRIV": true, "PROXIES_PRIV": true, "ROLE_EDGES": true,
@@ -455,9 +458,42 @@ func isInformationSchemaMetadataQuery(query string) bool {
 	lower := strings.ToLower(strings.TrimSpace(query))
 	lower = strings.ReplaceAll(lower, "`", "")
 	lower = regexp.MustCompile(`\s*\.\s*`).ReplaceAllString(lower, ".")
-	return strings.Contains(lower, "information_schema.tables") ||
-		strings.Contains(lower, "information_schema.columns") ||
-		strings.Contains(lower, "information_schema.schemata")
+	for _, tableName := range informationSchemaMetadataTableNames() {
+		if strings.Contains(lower, "information_schema."+tableName) {
+			return true
+		}
+	}
+	return false
+}
+
+func isMySQLMetadataQuery(query string) bool {
+	lower := strings.ToLower(strings.TrimSpace(query))
+	lower = strings.ReplaceAll(lower, "`", "")
+	lower = regexp.MustCompile(`\s*\.\s*`).ReplaceAllString(lower, ".")
+	return strings.Contains(lower, "mysql.procs_priv")
+}
+
+func informationSchemaMetadataTableNames() []string {
+	return []string{
+		"tables",
+		"columns",
+		"schemata",
+		"routines",
+		"parameters",
+		"statistics",
+		"key_column_usage",
+		"table_constraints",
+		"referential_constraints",
+		"column_privileges",
+		"table_privileges",
+		"views",
+		"partitions",
+		"triggers",
+		"events",
+		"collations",
+		"user_privileges",
+		"schema_privileges",
+	}
 }
 
 func matchesMetadataPattern(value, pattern string) bool {
@@ -503,6 +539,10 @@ func (e *SystemVariableEngine) syncSessionVariables(session server.MySQLServerSe
 // executeSystemFunctionQuery 执行系统函数查询
 func (e *SystemVariableEngine) executeSystemFunctionQuery(session server.MySQLServerSession, query string, databaseName string) *SQLResult {
 	logger.Debugf(" [executeSystemFunctionQuery] 检查系统函数查询: %s", query)
+
+	if result := e.executeDataGripSessionInfoQuery(session, query); result != nil {
+		return result
+	}
 
 	// 解析SQL语句
 	stmt, err := sqlparser.Parse(query)
@@ -555,6 +595,31 @@ func (e *SystemVariableEngine) executeSystemFunctionQuery(session server.MySQLSe
 		Message:    "System function query executed successfully",
 		Columns:    columns,
 		Rows:       [][]interface{}{row},
+	}
+}
+
+func (e *SystemVariableEngine) executeDataGripSessionInfoQuery(session server.MySQLServerSession, query string) *SQLResult {
+	lower := strings.ToLower(query)
+	if !strings.Contains(lower, "database()") ||
+		!strings.Contains(lower, "schema()") ||
+		!strings.Contains(lower, "left(user()") ||
+		!strings.Contains(lower, "concat(user()") {
+		return nil
+	}
+
+	sessionID := e.getSessionID(session)
+	databaseName := e.evaluateSystemFunction("DATABASE", session, sessionID)
+	user := e.evaluateSystemFunction("USER", session, sessionID)
+	userName := fmt.Sprintf("%v", user)
+	if at := strings.Index(userName, "@"); at >= 0 {
+		userName = userName[:at]
+	}
+
+	return &SQLResult{
+		ResultType: "select",
+		Message:    "DataGrip session info query executed successfully",
+		Columns:    []string{"database()", "schema()", "user"},
+		Rows:       [][]interface{}{{databaseName, databaseName, userName}},
 	}
 }
 
