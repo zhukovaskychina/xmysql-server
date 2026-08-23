@@ -30,6 +30,44 @@ XMySQL Server 是一个使用 Go 实现的、面向单机场景的 MySQL 兼容�
 
 ---
 
+## 系统架构图
+
+以下架构图按模块展示请求、数据、执行结果和持久化数据的来源与去向。完整图片索引见 [`docs/architecture-diagrams/README.md`](docs/architecture-diagrams/README.md)。
+
+### 网络接入模块
+
+![网络接入模块](docs/architecture-diagrams/01-network-access.png)
+
+### MySQL 协议模块
+
+![MySQL 协议模块](docs/architecture-diagrams/02-mysql-protocol.png)
+
+### SQL 分发与会话模块
+
+![SQL 分发与会话模块](docs/architecture-diagrams/03-sql-dispatch-session.png)
+
+### SQL 执行引擎模块
+
+![SQL 执行引擎模块](docs/architecture-diagrams/04-sql-execution-engine.png)
+
+### SQL 解析与优化器模块
+
+![SQL 解析与优化器模块](docs/architecture-diagrams/05-sql-parser-optimizer.png)
+
+### InnoDB 存储模块
+
+![InnoDB 存储模块](docs/architecture-diagrams/06-innodb-storage.png)
+
+### 事务、MVCC 与崩溃恢复模块
+
+![事务、MVCC 与崩溃恢复模块](docs/architecture-diagrams/07-transactions-mvcc-recovery.png)
+
+### 复制、备份与可观测性模块
+
+![复制、备份与可观测性模块](docs/architecture-diagrams/08-replication-backup-observability.png)
+
+---
+
 ## 项目实施
 
 ### 当前权威口径（2026-07-15）
