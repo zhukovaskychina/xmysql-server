@@ -8,7 +8,11 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	storepages "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
 )
+
+const recoveryPageLSNOffset = 16
 
 // CrashRecovery 崩溃恢复管理器
 // 实现ARIES算法的三阶段恢复：分析（Analysis）、重做（Redo）、撤销（Undo）
@@ -466,7 +470,7 @@ func (cr *CrashRecovery) redoInsert(entry *RedoLogEntry) error {
 
 	// 应用修改：将日志数据写入页面
 	if len(entry.Data) > 0 {
-		page.SetData(entry.Data)
+		page.SetData(replacePageData(page.GetData(), entry.Data))
 	}
 
 	// 更新页面LSN
@@ -474,6 +478,36 @@ func (cr *CrashRecovery) redoInsert(entry *RedoLogEntry) error {
 	page.SetDirty(true)
 
 	return nil
+}
+
+func replacePageData(existing []byte, redoData []byte) []byte {
+	targetLen := len(existing)
+	if len(redoData) > targetLen {
+		targetLen = len(redoData)
+	}
+
+	out := make([]byte, targetLen)
+	copy(out, existing)
+	copy(out, redoData)
+	return out
+}
+
+func recoveryPageLSN(pageData []byte) uint64 {
+	if len(pageData) < recoveryPageLSNOffset+8 {
+		return 0
+	}
+	return binary.BigEndian.Uint64(pageData[recoveryPageLSNOffset : recoveryPageLSNOffset+8])
+}
+
+func setRecoveryPageLSN(pageData []byte, lsn uint64) {
+	if len(pageData) < recoveryPageLSNOffset+8 {
+		return
+	}
+	binary.BigEndian.PutUint64(pageData[recoveryPageLSNOffset:recoveryPageLSNOffset+8], lsn)
+}
+
+func repairRecoveryPageChecksum(pageData []byte) error {
+	return storepages.NewPageIntegrityChecker(storepages.ChecksumCRC32).RepairPage(pageData)
 }
 
 // redoUpdate 重做UPDATE操作
@@ -543,23 +577,19 @@ func (cr *CrashRecovery) redoWithStorage(entry *RedoLogEntry) error {
 		return fmt.Errorf("读取页面%d失败: %v", entry.PageID, err)
 	}
 
-	// 检查页面LSN（假设LSN存储在页面头部的前8字节）
-	if len(pageData) >= 8 {
-		pageLSN := binary.BigEndian.Uint64(pageData[0:8])
-		if pageLSN >= entry.LSN {
-			// 页面已经包含此修改，跳过
-			return nil
-		}
+	// 检查页面LSN（与checksum字段分离，避免覆盖页头校验和）
+	if recoveryPageLSN(pageData) >= entry.LSN {
+		return nil
 	}
 
 	// 应用修改
 	if len(entry.Data) > 0 {
 		// 更新页面数据
-		copy(pageData, entry.Data)
+		pageData = replacePageData(pageData, entry.Data)
 
-		// 更新页面LSN（写入前8字节）
-		if len(pageData) >= 8 {
-			binary.BigEndian.PutUint64(pageData[0:8], entry.LSN)
+		setRecoveryPageLSN(pageData, entry.LSN)
+		if err := repairRecoveryPageChecksum(pageData); err != nil {
+			return fmt.Errorf("修复页面%d校验和失败: %v", entry.PageID, err)
 		}
 
 		// 写回页面

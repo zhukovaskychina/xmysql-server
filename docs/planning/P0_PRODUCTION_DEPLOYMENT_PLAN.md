@@ -70,10 +70,10 @@
 - 状态：`部分实现`
 - 现状：
   - 部分错误分类和 DML 冲突判断已开始改造
-  - 但关键路径仍有 TODO、旧/新实现并存和 sleep 驱动测试
+  - 关键路径仍有 TODO、旧/新实现并存；部分测试已转向条件等待
 - 缺口：
-  - `go test ./server/innodb/engine` 未通过
-  - flaky 测试未完成稳定性验证
+  - `go test ./server/innodb/engine` 已在基线脚本通过，`go test ./server/dispatcher` 需补充验证
+  - T-A2-01 的 10 轮稳定性验证已完成（`reports/p0_a2_01_stability_20260517_012720/summary.log`）
   - 包装器关键解析路径未补齐
 
 ## 4. 工作流 B：崩溃恢复验证
@@ -102,9 +102,11 @@
 - 现状：
   - 崩溃恢复核心代码和若干测试已存在
 - 缺口：
-  - 缺自动化恢复脚本
-  - 缺 redo/undo/半提交事务正式演练报告
-  - 缺一致性校验输出和重复回放证据
+  - 已有 `scripts/crash_recovery_process_drill.sh`
+- 缺标准化脚本参数化与重复演练流程
+- 缺 redo/undo/半提交事务 P0 级演练报告
+- 缺一致性校验输出和重复回放证据
+- 建议新增 `scripts/p0_b_recovery_audit.sh` 形成固定审计清单输出
 
 ## 5. 工作流 C：并发正确性验证
 
@@ -193,14 +195,13 @@
 
 ### 7.4 当前状态
 
-- 状态：`未实现`
+- 状态：`进行中`
 - 现状：
-  - 目前仅有目标计划，未见对应手册和演练证据
+  - 已有 `docs/planning/P0_E_ROLLBACK_AND_CANARY_RUNBOOK.md` 与 `scripts/p0_e_backup_snapshot.sh`
+  - 已完成 `backup/list/restore` 冒烟验证，证据见 `reports/p0_e_backups/p0_e_backup_restore_dryrun_20260517_063321.md`
+  - 已执行一次 E-03 失败闭环演练：`reports/p0_e_backups/p0_e_canary_rehearsal_20260517_063552.md`
 - 缺口：
-  - 缺灰度发布手册
-  - 缺快速回退手册
-  - 缺数据回滚手册
-  - 缺全链路演练记录与复盘
+  - 编译启动失败阻断，尚未完成真实灰度放量、告警、回退计时复盘（T-E-03）
 
 ## 8. 执行顺序与依赖
 

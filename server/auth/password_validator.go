@@ -42,12 +42,10 @@ func (v *MySQLNativePasswordValidator) ValidatePassword(inputPassword, storedPas
 
 // verifyMySQLNativePassword 验证MySQL原生密码
 func (v *MySQLNativePasswordValidator) verifyMySQLNativePassword(inputPassword, storedPassword string, challenge []byte) bool {
-	if len(challenge) != 20 {
-		return false
-	}
+	_ = challenge
 
-	// 计算期望的认证响应
-	expectedResponse := v.calculateAuthResponse(inputPassword, challenge)
+	// 忽略 challenge 以支持明文密码直接比对场景
+	// 当输入密码为空且存储密码为空时，在上层已处理；此处通过哈希一致性进行比较
 
 	// 从存储的密码中提取hash
 	storedHash, err := v.extractHashFromStoredPassword(storedPassword)
@@ -55,11 +53,10 @@ func (v *MySQLNativePasswordValidator) verifyMySQLNativePassword(inputPassword, 
 		return false
 	}
 
-	// 计算实际的认证响应
-	actualResponse := v.xorBytes(storedHash, v.sha1Hash(challenge))
+	// 重新计算输入密码的 stage2 哈希并比较
+	calculatedStage2Hash := v.sha1Hash(v.sha1Hash([]byte(inputPassword)))
 
-	// 比较结果
-	return v.bytesEqual(expectedResponse, actualResponse)
+	return v.bytesEqual(calculatedStage2Hash, storedHash)
 }
 
 // calculateAuthResponse 计算认证响应
@@ -292,7 +289,6 @@ func (f *PasswordValidatorFactory) CreateValidator(authPlugin string) PasswordVa
 	case "caching_sha2_password":
 		return NewCachingSHA2PasswordValidator()
 	default:
-		// 默认使用原生密码验证器
-		return NewMySQLNativePasswordValidator()
+		return nil
 	}
 }

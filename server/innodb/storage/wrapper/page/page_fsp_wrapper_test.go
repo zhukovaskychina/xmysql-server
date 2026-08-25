@@ -1,18 +1,7 @@
 package page
 
-// TODO: This test_simple_protocol file has been temporarily disabled due to missing dependencies
-// Original test_simple_protocol referenced non-existent packages
-
-/*
-import (
-	"testing"
-	"1/zhukovaskychina/xmysql-server/server/conf"
-	"1/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
-	"1/zhukovaskychina/xmysql-server/server/innodb/storage/store"
-)
+import "testing"
 
 func TestFspPageWrapper_AllocatePage(t *testing.T) {
-	// Test implementation was disabled due to missing dependencies
+	t.Skip("需要完整Fsp与buffer_pool测试环境，当前保持占位以免误报")
 }
-
-*/

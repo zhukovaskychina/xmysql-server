@@ -152,8 +152,19 @@ type CompositeFlushStrategy struct {
 
 // NewCompositeFlushStrategy 创建组合刷新策略
 func NewCompositeFlushStrategy(strategies []FlushStrategy, weights []float64) *CompositeFlushStrategy {
+	if len(strategies) == 0 || len(weights) == 0 {
+		return &CompositeFlushStrategy{
+			strategies: []FlushStrategy{NewSizeBasedFlushStrategy()},
+			weights:    []float64{1.0},
+		}
+	}
+
 	if len(strategies) != len(weights) {
-		panic("strategies and weights length mismatch")
+		if len(strategies) < len(weights) {
+			weights = weights[:len(strategies)]
+		} else {
+			strategies = strategies[:len(weights)]
+		}
 	}
 
 	return &CompositeFlushStrategy{

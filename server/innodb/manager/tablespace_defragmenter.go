@@ -245,6 +245,23 @@ func (tdf *TablespaceDefragmenter) AnalyzeFragmentation(ctx context.Context, spa
 		}
 	}
 
+	if tdf.extentManager != nil {
+		extentStats := tdf.extentManager.GetStats()
+		if extentStats != nil && extentStats.TotalExtents > report.TotalExtents {
+			report.TotalExtents = extentStats.TotalExtents
+			report.FreeExtents = extentStats.FreeExtents
+			report.FullExtents = extentStats.FullExtents
+			if report.TotalExtents >= report.FreeExtents+report.FullExtents {
+				report.PartialExtents = report.TotalExtents - report.FreeExtents - report.FullExtents
+			} else {
+				report.PartialExtents = 0
+			}
+			report.ExtentsByState["free"] = report.FreeExtents
+			report.ExtentsByState["partial"] = report.PartialExtents
+			report.ExtentsByState["full"] = report.FullExtents
+		}
+	}
+
 	// 分析页面使用情况
 	if err := tdf.analyzePages(ctx, spaceID, report); err != nil {
 		logger.Warnf("⚠️ Failed to analyze pages: %v", err)

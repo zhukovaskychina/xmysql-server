@@ -548,7 +548,15 @@ func (tkn *Tokenizer) Scan() (int, []byte) {
 			switch tkn.lastChar {
 			case '-':
 				tkn.next()
-				return tkn.scanCommentType1("--")
+				if isCommentBoundary(tkn.lastChar) {
+					return tkn.scanCommentType1("--")
+				}
+				if tkn.lastChar != eofChar && tkn.bufPos > 0 {
+					tkn.bufPos--
+					tkn.Position--
+				}
+				tkn.lastChar = '-'
+				return int(ch), nil
 			case '>':
 				tkn.next()
 				if tkn.lastChar == '>' {
@@ -632,6 +640,11 @@ func (tkn *Tokenizer) scanIdentifier(firstByte byte, isDbSystemVariable bool) (i
 	lowered := bytes.ToLower(buffer.Bytes())
 	loweredStr := string(lowered)
 	if keywordID, found := keywords[loweredStr]; found {
+		if keywordID == TABLES && loweredStr == "schemas" {
+			// Keep schemas as the original token text so SHOW ... tables-like branches can
+			// distinguish it from literal "tables" when formatting.
+			return keywordID, lowered
+		}
 		return keywordID, lowered
 	}
 	// dual must always be case-insensitive
@@ -810,6 +823,12 @@ func (tkn *Tokenizer) scanString(delim uint16, typ int) (int, []byte) {
 				// String terminates mid escape character.
 				return LEX_ERROR, buffer.Bytes()
 			}
+			if tkn.lastChar == '\\' {
+				// Two backslashes in sequence are treated as an escaped backslash and are
+				// consumed together, leaving no content in the output.
+				tkn.next()
+				continue
+			}
 			if decodedChar := sqltypes.SQLDecodeMap[byte(tkn.lastChar)]; decodedChar == sqltypes.DontEscape {
 				ch = tkn.lastChar
 			} else {
@@ -834,6 +853,10 @@ func (tkn *Tokenizer) scanCommentType1(prefix string) (int, []byte) {
 	for tkn.lastChar != eofChar {
 		if tkn.lastChar == '\n' {
 			tkn.consumeNext(buffer)
+			break
+		}
+		if tkn.lastChar == ';' {
+			// Keep the statement delimiter in the stream for multi-statement parsing.
 			break
 		}
 		tkn.consumeNext(buffer)
@@ -886,8 +909,8 @@ func (tkn *Tokenizer) scanMySQLSpecificComment() (int, []byte) {
 
 func (tkn *Tokenizer) consumeNext(buffer *bytes2.Buffer) {
 	if tkn.lastChar == eofChar {
-		// This should never happen.
-		panic("unexpected EOF")
+		// Defensive path for malformed/incomplete input.
+		return
 	}
 	buffer.WriteByte(byte(tkn.lastChar))
 	tkn.next()
@@ -947,4 +970,8 @@ func digitVal(ch uint16) int {
 
 func isDigit(ch uint16) bool {
 	return '0' <= ch && ch <= '9'
+}
+
+func isCommentBoundary(ch uint16) bool {
+	return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '\f' || ch == eofChar
 }

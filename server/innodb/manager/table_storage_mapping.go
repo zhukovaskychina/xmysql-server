@@ -2,12 +2,15 @@ package manager
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/zhukovaskychina/xmysql-server/logger"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
 // TableStorageInfo 表的存储信息
@@ -143,6 +146,93 @@ func (tsm *TableStorageManager) RegisterTable(ctx context.Context, info *TableSt
 	return nil
 }
 
+// ReplaceTableStorage atomically replaces a table's storage mapping.
+func (tsm *TableStorageManager) ReplaceTableStorage(ctx context.Context, info *TableStorageInfo) error {
+	if info == nil {
+		return fmt.Errorf("table storage info cannot be nil")
+	}
+
+	tsm.mu.Lock()
+	defer tsm.mu.Unlock()
+
+	key := fmt.Sprintf("%s.%s", info.SchemaName, info.TableName)
+	if existingTable, exists := tsm.spaceToTableMap[info.SpaceID]; exists && existingTable != key {
+		return fmt.Errorf("space ID %d already used by table %s", info.SpaceID, existingTable)
+	}
+
+	if oldInfo, exists := tsm.tableStorageMap[key]; exists && oldInfo.SpaceID != info.SpaceID {
+		delete(tsm.spaceToTableMap, oldInfo.SpaceID)
+	}
+	tsm.tableStorageMap[key] = info
+	tsm.spaceToTableMap[info.SpaceID] = key
+
+	logger.Debugf("Replaced table storage: %s (Space ID: %d, Root Page: %d)\n",
+		key, info.SpaceID, info.RootPageNo)
+	return nil
+}
+
+// SyncFromInfoSchema 基于信息模式重建表存储映射，适用于服务重启后内存映射丢失场景。
+func (tsm *TableStorageManager) SyncFromInfoSchema(infoSchemaManager metadata.InfoSchemaManager) error {
+	if infoSchemaManager == nil {
+		return fmt.Errorf("info schema manager is nil")
+	}
+
+	schemaNames, err := infoSchemaManager.GetAllSchemaNames(context.Background())
+	if err != nil {
+		return fmt.Errorf("load schema names failed: %v", err)
+	}
+
+	for _, schemaName := range schemaNames {
+		if strings.EqualFold(schemaName, "INFORMATION_SCHEMA") {
+			continue
+		}
+
+		tables, err := infoSchemaManager.GetAllTables(context.Background(), schemaName)
+		if err != nil {
+			logger.Warnf("Sync table storage mapping skip schema=%q: %v", schemaName, err)
+			continue
+		}
+
+		for _, table := range tables {
+			if table == nil || table.Name == "" {
+				continue
+			}
+
+			if _, err := tsm.GetTableStorageInfo(schemaName, table.Name); err == nil {
+				logger.Debugf("Table storage mapping already exists, skip recovery: %s.%s", schemaName, table.Name)
+				continue
+			}
+
+			spaceName := fmt.Sprintf("%s/%s", schemaName, table.Name)
+			handle, err := tsm.storageManager.CreateTablespace(spaceName)
+			if err != nil {
+				logger.Warnf("Sync table storage mapping failed create tablespace schema=%q table=%q space=%q: %v", schemaName, table.Name, spaceName, err)
+				continue
+			}
+
+			info := &TableStorageInfo{
+				SchemaName:    schemaName,
+				TableName:     table.Name,
+				SpaceID:       handle.SpaceID,
+				RootPageNo:    3,
+				IndexPageNo:   3,
+				DataSegmentID: handle.DataSegmentID,
+				Type:          TableTypeUser,
+			}
+
+			if err := tsm.RegisterTable(context.Background(), info); err != nil {
+				if !errors.Is(err, ErrTableStorageAlreadyRegistered) {
+					return fmt.Errorf("register table storage mapping failed schema=%q table=%q: %v", schemaName, table.Name, err)
+				}
+			}
+
+			logger.Debugf("Recovered table storage mapping schema=%q table=%q spaceID=%d", schemaName, table.Name, handle.SpaceID)
+		}
+	}
+
+	return nil
+}
+
 // GetTableStorageInfo 获取表的存储信息
 func (tsm *TableStorageManager) GetTableStorageInfo(schemaName, tableName string) (*TableStorageInfo, error) {
 	tsm.mu.RLock()
@@ -207,6 +297,12 @@ func (tsm *TableStorageManager) CreateBTreeManagerForTable(ctx context.Context, 
 	err = btreeManager.Init(ctx, info.SpaceID, info.RootPageNo)
 	if err != nil {
 		return nil, fmt.Errorf("init btree manager failed: %v", err)
+	}
+	if btreeManager.rootPageNo != 0 && btreeManager.rootPageNo != info.RootPageNo {
+		tsm.mu.Lock()
+		info.RootPageNo = btreeManager.rootPageNo
+		info.IndexPageNo = btreeManager.rootPageNo
+		tsm.mu.Unlock()
 	}
 
 	logger.Debugf("Created Enhanced BTreeManager for table %s.%s (Space: %d, Root: %d)\n",

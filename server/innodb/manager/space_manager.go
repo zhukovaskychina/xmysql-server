@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"os"
@@ -13,6 +14,8 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/ibd"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/space"
 )
+
+const firstUserSpaceID uint32 = 1000
 
 // SpaceManagerImpl implements the SpaceManager interface
 type SpaceManagerImpl struct {
@@ -65,7 +68,7 @@ func NewSpaceManager(dataDir string) basic.SpaceManager {
 		spaces:   make(map[uint32]*space.IBDSpace),
 		ibdFiles: make(map[uint32]*ibd.IBD_File),
 		nameToID: make(map[string]uint32),
-		nextID:   1,
+		nextID:   firstUserSpaceID,
 		dataDir:  dataDir,
 		txID:     1,
 	}
@@ -209,7 +212,8 @@ func (sm *SpaceManagerImpl) CreateNewTablespace(name string) uint32 {
 
 	_, err := sm.CreateSpace(spaceID, name, false)
 	if err != nil {
-		panic(err)
+		logger.Warnf("failed to create tablespace %s (spaceID=%d): %v", name, spaceID, err)
+		return 0
 	}
 
 	return spaceID
@@ -253,6 +257,12 @@ func (sm *SpaceManagerImpl) CreateTableSpace(name string) (uint32, error) {
 
 	// 设置为活动状态
 	ibdSpace.SetActive(true)
+	if fileExists {
+		if err := ibdSpace.RecoverAllocationsFromFileSize(); err != nil {
+			ibdFile.Close()
+			return 0, fmt.Errorf("failed to recover page allocations for %s: %v", name, err)
+		}
+	}
 
 	// 如果是新创建的文件，分配第一个extent用于系统页面
 	if !fileExists {
@@ -473,6 +483,11 @@ func (sm *SpaceManagerImpl) scanDirectory(dirPath, relativePath string) error {
 		} else if strings.HasSuffix(entry.Name(), ".ibd") {
 			// 找到IBD文件，尝试加载
 			tableName := strings.TrimSuffix(currentRelativePath, ".ibd")
+			if tableName != "ibdata1" && (strings.HasPrefix(tableName, "mysql/") ||
+				strings.HasPrefix(tableName, "information_schema/") ||
+				strings.HasPrefix(tableName, "performance_schema/")) {
+				continue
+			}
 
 			// 跳过已经加载的表空间
 			if _, exists := sm.nameToID[tableName]; exists {
@@ -483,6 +498,8 @@ func (sm *SpaceManagerImpl) scanDirectory(dirPath, relativePath string) error {
 			var spaceID uint32
 			if tableName == "ibdata1" {
 				spaceID = 0 // 系统表空间固定为Space ID 0
+			} else if persistedID, ok := persistedTablespaceID(strings.TrimSuffix(fullPath, ".ibd") + ".frm"); ok {
+				spaceID = persistedID
 			} else {
 				spaceID = sm.getNextAvailableSpaceID()
 			}
@@ -517,6 +534,20 @@ func (sm *SpaceManagerImpl) scanDirectory(dirPath, relativePath string) error {
 	}
 
 	return nil
+}
+
+func persistedTablespaceID(frmPath string) (uint32, bool) {
+	raw, err := os.ReadFile(frmPath)
+	if err != nil {
+		return 0, false
+	}
+	var definition struct {
+		StorageSpaceID uint32 `json:"storage_space_id"`
+	}
+	if err := json.Unmarshal(raw, &definition); err != nil || definition.StorageSpaceID == 0 {
+		return 0, false
+	}
+	return definition.StorageSpaceID, true
 }
 
 // getNextAvailableSpaceID 获取下一个可用的Space ID

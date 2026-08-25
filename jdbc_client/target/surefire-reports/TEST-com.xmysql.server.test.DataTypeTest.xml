@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report-3.0.xsd" version="3.0" name="com.xmysql.server.test.DataTypeTest" time="0.171" tests="11" errors="11" skipped="0" failures="0">
+  <properties>
+    <property name="socksProxyHost" value="127.0.0.1"/>
+    <property name="http.proxyHost" value="127.0.0.1"/>
+    <property name="java.specification.version" value="17"/>
+    <property name="sun.jnu.encoding" value="UTF-8"/>
+    <property name="java.class.path" value="/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/target/test-classes:/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/target/classes:/Users/zhukovasky/.m2/repository/com/mysql/mysql-connector-j/8.0.33/mysql-connector-j-8.0.33.jar:/Users/zhukovasky/.m2/repository/com/google/protobuf/protobuf-java/3.21.9/protobuf-java-3.21.9.jar:/Users/zhukovasky/.m2/repository/org/junit/jupiter/junit-jupiter-api/5.10.1/junit-jupiter-api-5.10.1.jar:/Users/zhukovasky/.m2/repository/org/opentest4j/opentest4j/1.3.0/opentest4j-1.3.0.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-commons/1.10.1/junit-platform-commons-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/apiguardian/apiguardian-api/1.1.2/apiguardian-api-1.1.2.jar:/Users/zhukovasky/.m2/repository/org/junit/jupiter/junit-jupiter-engine/5.10.1/junit-jupiter-engine-5.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-engine/1.10.1/junit-platform-engine-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/jupiter/junit-jupiter-params/5.10.1/junit-jupiter-params-5.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-suite-api/1.10.1/junit-platform-suite-api-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-suite-engine/1.10.1/junit-platform-suite-engine-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-suite-commons/1.10.1/junit-platform-suite-commons-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-launcher/1.10.1/junit-platform-launcher-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/assertj/assertj-core/3.24.2/assertj-core-3.24.2.jar:/Users/zhukovasky/.m2/repository/net/bytebuddy/byte-buddy/1.12.21/byte-buddy-1.12.21.jar:/Users/zhukovasky/.m2/repository/org/mockito/mockito-core/5.8.0/mockito-core-5.8.0.jar:/Users/zhukovasky/.m2/repository/net/bytebuddy/byte-buddy-agent/1.14.10/byte-buddy-agent-1.14.10.jar:/Users/zhukovasky/.m2/repository/org/objenesis/objenesis/3.3/objenesis-3.3.jar:/Users/zhukovasky/.m2/repository/org/mockito/mockito-junit-jupiter/5.8.0/mockito-junit-jupiter-5.8.0.jar:"/>
+    <property name="https.proxyPort" value="7890"/>
+    <property name="java.vm.vendor" value="Oracle Corporation"/>
+    <property name="sun.arch.data.model" value="64"/>
+    <property name="java.vendor.url" value="https://java.oracle.com/"/>
+    <property name="user.timezone" value="Asia/Shanghai"/>
+    <property name="os.name" value="Mac OS X"/>
+    <property name="java.vm.specification.version" value="17"/>
+    <property name="sun.java.launcher" value="SUN_STANDARD"/>
+    <property name="user.country" value="CN"/>
+    <property name="sun.boot.library.path" value="/Library/Java/JavaVirtualMachines/jdk-17.0.1.jdk/Contents/Home/lib"/>
+    <property name="sun.java.command" value="/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/target/surefire/surefirebooter-20260419141507473_3.jar /Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/target/surefire 2026-04-19T14-15-07_187-jvmRun1 surefire-20260419141507473_1tmp surefire_0-20260419141507473_2tmp"/>
+    <property name="http.nonProxyHosts" value="192.168.0.0/16|*.192.168.0.0/16|10.0.0.0/8|*.10.0.0.0/8|172.16.0.0/12|*.172.16.0.0/12|127.0.0.1|localhost|*.localhost|local|*.local|crashlytics.com|*.crashlytics.com|www.proxifier.com|*.www.proxifier.com|proxifier.com|*.proxifier.com"/>
+    <property name="jdk.debug" value="release"/>
+    <property name="surefire.test.class.path" value="/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/target/test-classes:/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/target/classes:/Users/zhukovasky/.m2/repository/com/mysql/mysql-connector-j/8.0.33/mysql-connector-j-8.0.33.jar:/Users/zhukovasky/.m2/repository/com/google/protobuf/protobuf-java/3.21.9/protobuf-java-3.21.9.jar:/Users/zhukovasky/.m2/repository/org/junit/jupiter/junit-jupiter-api/5.10.1/junit-jupiter-api-5.10.1.jar:/Users/zhukovasky/.m2/repository/org/opentest4j/opentest4j/1.3.0/opentest4j-1.3.0.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-commons/1.10.1/junit-platform-commons-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/apiguardian/apiguardian-api/1.1.2/apiguardian-api-1.1.2.jar:/Users/zhukovasky/.m2/repository/org/junit/jupiter/junit-jupiter-engine/5.10.1/junit-jupiter-engine-5.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-engine/1.10.1/junit-platform-engine-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/jupiter/junit-jupiter-params/5.10.1/junit-jupiter-params-5.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-suite-api/1.10.1/junit-platform-suite-api-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-suite-engine/1.10.1/junit-platform-suite-engine-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-suite-commons/1.10.1/junit-platform-suite-commons-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-launcher/1.10.1/junit-platform-launcher-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/assertj/assertj-core/3.24.2/assertj-core-3.24.2.jar:/Users/zhukovasky/.m2/repository/net/bytebuddy/byte-buddy/1.12.21/byte-buddy-1.12.21.jar:/Users/zhukovasky/.m2/repository/org/mockito/mockito-core/5.8.0/mockito-core-5.8.0.jar:/Users/zhukovasky/.m2/repository/net/bytebuddy/byte-buddy-agent/1.14.10/byte-buddy-agent-1.14.10.jar:/Users/zhukovasky/.m2/repository/org/objenesis/objenesis/3.3/objenesis-3.3.jar:/Users/zhukovasky/.m2/repository/org/mockito/mockito-junit-jupiter/5.8.0/mockito-junit-jupiter-5.8.0.jar:"/>
+    <property name="sun.cpu.endian" value="little"/>
+    <property name="user.home" value="/Users/zhukovasky"/>
+    <property name="user.language" value="zh"/>
+    <property name="java.specification.vendor" value="Oracle Corporation"/>
+    <property name="java.version.date" value="2021-10-19"/>
+    <property name="java.home" value="/Library/Java/JavaVirtualMachines/jdk-17.0.1.jdk/Contents/Home"/>
+    <property name="file.separator" value="/"/>
+    <property name="https.proxyHost" value="127.0.0.1"/>
+    <property name="basedir" value="/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client"/>
+    <property name="java.vm.compressedOopsMode" value="Zero based"/>
+    <property name="line.separator" value="&#10;"/>
+    <property name="java.vm.specification.vendor" value="Oracle Corporation"/>
+    <property name="java.specification.name" value="Java Platform API Specification"/>
+    <property name="surefire.real.class.path" value="/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/target/surefire/surefirebooter-20260419141507473_3.jar"/>
+    <property name="user.script" value="Hans"/>
+    <property name="sun.management.compiler" value="HotSpot 64-Bit Tiered Compilers"/>
+    <property name="ftp.nonProxyHosts" value="192.168.0.0/16|*.192.168.0.0/16|10.0.0.0/8|*.10.0.0.0/8|172.16.0.0/12|*.172.16.0.0/12|127.0.0.1|localhost|*.localhost|local|*.local|crashlytics.com|*.crashlytics.com|www.proxifier.com|*.www.proxifier.com|proxifier.com|*.proxifier.com"/>
+    <property name="java.runtime.version" value="17.0.1+12-LTS-39"/>
+    <property name="user.name" value="zhukovasky"/>
+    <property name="path.separator" value=":"/>
+    <property name="os.version" value="26.4"/>
+    <property name="java.runtime.name" value="Java(TM) SE Runtime Environment"/>
+    <property name="file.encoding" value="UTF-8"/>
+    <property name="java.vm.name" value="Java HotSpot(TM) 64-Bit Server VM"/>
+    <property name="localRepository" value="/Users/zhukovasky/.m2/repository"/>
+    <property name="java.vendor.url.bug" value="https://bugreport.java.com/bugreport/"/>
+    <property name="java.io.tmpdir" value="/var/folders/49/8wx73cl55l33j49pmbkm2jg80000gn/T/"/>
+    <property name="java.version" value="17.0.1"/>
+    <property name="user.dir" value="/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client"/>
+    <property name="os.arch" value="x86_64"/>
+    <property name="socksProxyPort" value="7890"/>
+    <property name="java.vm.specification.name" value="Java Virtual Machine Specification"/>
+    <property name="native.encoding" value="UTF-8"/>
+    <property name="java.library.path" value="/Users/zhukovasky/Library/Java/Extensions:/Library/Java/Extensions:/Network/Library/Java/Extensions:/System/Library/Java/Extensions:/usr/lib/java:."/>
+    <property name="java.vm.info" value="mixed mode, sharing"/>
+    <property name="java.vendor" value="Oracle Corporation"/>
+    <property name="java.vm.version" value="17.0.1+12-LTS-39"/>
+    <property name="sun.io.unicode.encoding" value="UnicodeBig"/>
+    <property name="socksNonProxyHosts" value="192.168.0.0/16|*.192.168.0.0/16|10.0.0.0/8|*.10.0.0.0/8|172.16.0.0/12|*.172.16.0.0/12|127.0.0.1|localhost|*.localhost|local|*.local|crashlytics.com|*.crashlytics.com|www.proxifier.com|*.www.proxifier.com|proxifier.com|*.proxifier.com"/>
+    <property name="java.class.version" value="61.0"/>
+    <property name="http.proxyPort" value="7890"/>
+  </properties>
+  <testcase name="testIntegerTypes" classname="com.xmysql.server.test.DataTypeTest" time="0.012">
+    <error message="execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值" type="java.sql.SQLException"><![CDATA[java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testIntegerTypes(DataTypeTest.java:48)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+]]></error>
+    <system-out><![CDATA[✅ 数据库连接已建立
+]]></system-out>
+  </testcase>
+  <testcase name="testFloatingPointTypes" classname="com.xmysql.server.test.DataTypeTest" time="0.012">
+    <error message="execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值" type="java.sql.SQLException"><![CDATA[java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testFloatingPointTypes(DataTypeTest.java:78)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+]]></error>
+  </testcase>
+  <testcase name="testStringTypes" classname="com.xmysql.server.test.DataTypeTest" time="0.012">
+    <error message="execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值" type="java.sql.SQLException"><![CDATA[java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testStringTypes(DataTypeTest.java:111)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+]]></error>
+  </testcase>
+  <testcase name="testDateTimeTypes" classname="com.xmysql.server.test.DataTypeTest" time="0.011">
+    <error message="execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值" type="java.sql.SQLException"><![CDATA[java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testDateTimeTypes(DataTypeTest.java:142)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+]]></error>
+  </testcase>
+  <testcase name="testBooleanType" classname="com.xmysql.server.test.DataTypeTest" time="0.01">
+    <error message="execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值" type="java.sql.SQLException"><![CDATA[java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testBooleanType(DataTypeTest.java:179)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+]]></error>
+  </testcase>
+  <testcase name="testEnumType" classname="com.xmysql.server.test.DataTypeTest" time="0.009">
+    <error message="execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值" type="java.sql.SQLException"><![CDATA[java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testEnumType(DataTypeTest.java:207)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+]]></error>
+  </testcase>
+  <testcase name="testSetType" classname="com.xmysql.server.test.DataTypeTest" time="0.011">
+    <error message="execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值" type="java.sql.SQLException"><![CDATA[java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testSetType(DataTypeTest.java:234)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+]]></error>
+  </testcase>
+  <testcase name="testNullValues" classname="com.xmysql.server.test.DataTypeTest" time="0.01">
+    <error message="execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值" type="java.sql.SQLException"><![CDATA[java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testNullValues(DataTypeTest.java:266)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+]]></error>
+  </testcase>
+  <testcase name="testBinaryTypes" classname="com.xmysql.server.test.DataTypeTest" time="0.008">
+    <error message="execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值" type="java.sql.SQLException"><![CDATA[java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testBinaryTypes(DataTypeTest.java:298)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+]]></error>
+  </testcase>
+  <testcase name="testAutoIncrement" classname="com.xmysql.server.test.DataTypeTest" time="0.009">
+    <error message="execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值" type="java.sql.SQLException"><![CDATA[java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testAutoIncrement(DataTypeTest.java:319)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+]]></error>
+  </testcase>
+  <testcase name="testDefaultValues" classname="com.xmysql.server.test.DataTypeTest" time="0.008">
+    <error message="execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值" type="java.sql.SQLException"><![CDATA[java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testDefaultValues(DataTypeTest.java:351)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+]]></error>
+  </testcase>
+</testsuite>

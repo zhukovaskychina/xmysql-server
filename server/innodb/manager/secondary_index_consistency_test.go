@@ -195,7 +195,7 @@ func TestSecondaryIndexConsistency(t *testing.T) {
 		t.Log("✓ Step 2: UPDATE完成")
 
 		// Step 3: DELETE
-		err = im.SyncSecondaryIndexesOnDelete(tableID, newRowData)
+		err = im.SyncSecondaryIndexesOnDelete(tableID, newRowData, primaryKeyValue)
 		assert.NoError(t, err)
 		t.Log("✓ Step 3: DELETE完成")
 
@@ -342,7 +342,7 @@ func TestSecondaryIndexConsistency(t *testing.T) {
 				"age":  20 + i,
 				"city": "Beijing",
 			}
-			err := im.SyncSecondaryIndexesOnDelete(tableID, rowData)
+			err := im.SyncSecondaryIndexesOnDelete(tableID, rowData, []byte(fmt.Sprintf("pk_%d", i)))
 			assert.NoError(t, err)
 		}
 

@@ -12,6 +12,14 @@ var (
 	ErrUndoSlotNotFound    = errors.New("Undo slot未找到")
 )
 
+const (
+	rollbackPageMaxSizeFieldSize       = 4
+	rollbackPageHistorySizeFieldSize   = 4
+	rollbackPageHistoryOffsetFieldSize = 20
+	rollbackPageFsegHeaderFieldSize    = 10
+	rollbackPageUndoSlotsFieldSize     = 4096
+)
+
 // RollbackPageWrapper 回滚页面包装器
 type RollbackPageWrapper struct {
 	*BasePageWrapper
@@ -35,21 +43,57 @@ func NewRollbackPageWrapper(id, spaceID uint32) *RollbackPageWrapper {
 
 // ParseFromBytes 从字节数据解析回滚页面
 func (rpw *RollbackPageWrapper) ParseFromBytes(data []byte) error {
+	if err := rpw.BasePageWrapper.ParseFromBytes(data); err != nil {
+		return ErrInvalidRollbackData
+	}
+
 	rpw.Lock()
 	defer rpw.Unlock()
 
-	if err := rpw.BasePageWrapper.ParseFromBytes(data); err != nil {
-		return err
-	}
-
-	// 解析回滚页面特有的数据
-	// 由于store/pages中的RollBackPage实现较简单，这里做基本的数据解析
 	if len(data) < common.PageSize {
 		return ErrInvalidRollbackData
 	}
 
-	// TODO: 根据实际的rollback page结构进行解析
-	// 这里需要完善具体的解析逻辑
+	if rpw.rollbackPage == nil {
+		rpw.rollbackPage = &pages.RollBackPage{}
+	}
+
+	offset := pages.FileHeaderSize
+	bodyEnd := common.PageSize - pages.FileTrailerSize
+	requiredLen := pages.FileHeaderSize +
+		rollbackPageMaxSizeFieldSize +
+		rollbackPageHistorySizeFieldSize +
+		rollbackPageHistoryOffsetFieldSize +
+		rollbackPageFsegHeaderFieldSize +
+		rollbackPageUndoSlotsFieldSize +
+		pages.FileTrailerSize
+	if len(data) < requiredLen {
+		return ErrInvalidRollbackData
+	}
+
+	rpw.rollbackPage.TrxRsegMaxSize = make([]byte, rollbackPageMaxSizeFieldSize)
+	copy(rpw.rollbackPage.TrxRsegMaxSize, data[offset:offset+rollbackPageMaxSizeFieldSize])
+	offset += rollbackPageMaxSizeFieldSize
+
+	rpw.rollbackPage.TrxRsegHistorySize = make([]byte, rollbackPageHistorySizeFieldSize)
+	copy(rpw.rollbackPage.TrxRsegHistorySize, data[offset:offset+rollbackPageHistorySizeFieldSize])
+	offset += rollbackPageHistorySizeFieldSize
+
+	rpw.rollbackPage.TrxRsegHistory = make([]byte, rollbackPageHistoryOffsetFieldSize)
+	copy(rpw.rollbackPage.TrxRsegHistory, data[offset:offset+rollbackPageHistoryOffsetFieldSize])
+	offset += rollbackPageHistoryOffsetFieldSize
+
+	rpw.rollbackPage.TrxRsegFsegHeader = make([]byte, rollbackPageFsegHeaderFieldSize)
+	copy(rpw.rollbackPage.TrxRsegFsegHeader, data[offset:offset+rollbackPageFsegHeaderFieldSize])
+	offset += rollbackPageFsegHeaderFieldSize
+
+	rpw.rollbackPage.TrxRsegUndoSlots = make([]byte, rollbackPageUndoSlotsFieldSize)
+	copy(rpw.rollbackPage.TrxRsegUndoSlots, data[offset:offset+rollbackPageUndoSlotsFieldSize])
+	offset += rollbackPageUndoSlotsFieldSize
+
+	emptySpaceSize := int(bodyEnd - offset)
+	rpw.rollbackPage.EmptySpace = make([]byte, emptySpaceSize)
+	copy(rpw.rollbackPage.EmptySpace, data[offset:bodyEnd])
 
 	return nil
 }

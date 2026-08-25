@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/logger"
-	"log"
 	"os"
 	"strings"
 	"time"
@@ -19,7 +18,8 @@ func main() {
 	tempDir := "/tmp/xmysql_test_" + fmt.Sprintf("%d", time.Now().Unix())
 	err := os.MkdirAll(tempDir, 0755)
 	if err != nil {
-		log.Fatalf("Failed to create temp directory: %v", err)
+		logger.Debugf("Failed to create temp directory: %v\n", err)
+		return
 	}
 	defer func() {
 		os.RemoveAll(tempDir)

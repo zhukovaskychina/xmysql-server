@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -45,6 +48,11 @@ func (e *SystemVariableEngine) CanHandle(query string) bool {
 	logger.Debugf(" [SystemVariableEngine.CanHandle] sysVarAnalyzer是否为nil: %v", e.sysVarAnalyzer == nil)
 	logger.Debugf(" [SystemVariableEngine.CanHandle] sysVarManager是否为nil: %v", e.sysVarManager == nil)
 	logger.Debugf(" [SystemVariableEngine.CanHandle] storageManager是否为nil: %v", e.storageManager == nil)
+
+	if isInformationSchemaMetadataQuery(query) || isMySQLMetadataQuery(query) {
+		logger.Debugf(" [SystemVariableEngine.CanHandle] metadata query uses innodb engine")
+		return false
+	}
 
 	if e.sysVarAnalyzer == nil {
 		logger.Errorf(" [SystemVariableEngine.CanHandle] sysVarAnalyzer为nil，无法处理查询")
@@ -223,12 +231,19 @@ func (e *SystemVariableEngine) isSystemTable(tableExpr sqlparser.TableExpr) bool
 
 			// 检查INFORMATION_SCHEMA表
 			if qualifierStr == "INFORMATION_SCHEMA" {
+				fullName := qualifierStr + "." + tableNameStr
+				if isInformationSchemaMetadataQuery(fullName) {
+					return false
+				}
 				logger.Debugf(" [SystemVariableEngine.isSystemTable] INFORMATION_SCHEMA表: %s.%s", qualifierStr, tableNameStr)
 				return true
 			}
 
 			// 检查mysql系统库表
 			if qualifierStr == "MYSQL" {
+				if tableNameStr == "PROCS_PRIV" {
+					return false
+				}
 				systemTables := map[string]bool{
 					"USER": true, "DB": true, "TABLES_PRIV": true, "COLUMNS_PRIV": true,
 					"PROCS_PRIV": true, "PROXIES_PRIV": true, "ROLE_EDGES": true,
@@ -304,6 +319,11 @@ func (e *SystemVariableEngine) ExecuteQuery(session server.MySQLServerSession, q
 			return
 		}
 
+		if result := e.executeInformationSchemaTablesQuery(query); result != nil {
+			resultChan <- result
+			return
+		}
+
 		// 4. 尝试解析为系统变量查询
 		varQuery, err := e.sysVarAnalyzer.AnalyzeSystemVariableQuery(query)
 		if err != nil {
@@ -369,6 +389,124 @@ func (e *SystemVariableEngine) ExecuteQuery(session server.MySQLServerSession, q
 	return resultChan
 }
 
+var informationSchemaTablesQueryPattern = regexp.MustCompile("(?is)^\\s*select\\b.*\\bfrom\\s+(?:`?information_schema`?\\s*\\.\\s*`?tables`?)(?:\\s|$)")
+var informationSchemaTableFilterPattern = regexp.MustCompile(`(?i)\b(table_schema|table_name)\b\s*(?:=|like)\s*'([^']*)'`)
+
+func (e *SystemVariableEngine) executeInformationSchemaTablesQuery(query string) *SQLResult {
+	if !informationSchemaTablesQueryPattern.MatchString(query) {
+		return nil
+	}
+
+	filters := map[string]string{}
+	for _, match := range informationSchemaTableFilterPattern.FindAllStringSubmatch(query, -1) {
+		filters[strings.ToLower(match[1])] = match[2]
+	}
+
+	dataDir := filepath.Join("server", "net", "data")
+	if e.storageManager != nil {
+		if configuredDataDir := e.storageManager.DataDir(); configuredDataDir != "" {
+			dataDir = configuredDataDir
+		}
+	}
+	schemaPattern := filters["table_schema"]
+	tablePattern := filters["table_name"]
+	rows := make([][]interface{}, 0)
+	entries, err := os.ReadDir(dataDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &SQLResult{ResultType: "select", Columns: informationSchemaTablesColumns(), Rows: rows}
+		}
+		return &SQLResult{ResultType: "error", Err: fmt.Errorf("read metadata directory: %w", err)}
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() || !matchesMetadataPattern(entry.Name(), schemaPattern) {
+			continue
+		}
+		tables, err := os.ReadDir(filepath.Join(dataDir, entry.Name()))
+		if err != nil {
+			return &SQLResult{ResultType: "error", Err: fmt.Errorf("read schema metadata: %w", err)}
+		}
+		for _, table := range tables {
+			if table.IsDir() || filepath.Ext(table.Name()) != ".frm" {
+				continue
+			}
+			tableName := strings.TrimSuffix(table.Name(), ".frm")
+			if matchesMetadataPattern(tableName, tablePattern) {
+				rows = append(rows, []interface{}{entry.Name(), nil, tableName, "TABLE", "", nil, nil, nil, nil, nil})
+			}
+		}
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		return fmt.Sprint(rows[i][1], ".", rows[i][2]) < fmt.Sprint(rows[j][1], ".", rows[j][2])
+	})
+	return &SQLResult{ResultType: "select", Columns: informationSchemaTablesColumns(), Rows: rows}
+}
+
+func informationSchemaTablesColumns() []string {
+	return append(manager.JDBCTablesMetadataColumns(), []string{
+		"TYPE_CAT",
+		"TYPE_SCHEM",
+		"TYPE_NAME",
+		"SELF_REFERENCING_COL_NAME",
+		"REF_GENERATION",
+	}...)
+}
+
+func isInformationSchemaMetadataQuery(query string) bool {
+	lower := strings.ToLower(strings.TrimSpace(query))
+	lower = strings.ReplaceAll(lower, "`", "")
+	lower = regexp.MustCompile(`\s*\.\s*`).ReplaceAllString(lower, ".")
+	for _, tableName := range informationSchemaMetadataTableNames() {
+		if strings.Contains(lower, "information_schema."+tableName) {
+			return true
+		}
+	}
+	return false
+}
+
+func isMySQLMetadataQuery(query string) bool {
+	lower := strings.ToLower(strings.TrimSpace(query))
+	lower = strings.ReplaceAll(lower, "`", "")
+	lower = regexp.MustCompile(`\s*\.\s*`).ReplaceAllString(lower, ".")
+	return strings.Contains(lower, "mysql.procs_priv")
+}
+
+func informationSchemaMetadataTableNames() []string {
+	return []string{
+		"tables",
+		"columns",
+		"schemata",
+		"routines",
+		"parameters",
+		"statistics",
+		"key_column_usage",
+		"table_constraints",
+		"referential_constraints",
+		"column_privileges",
+		"table_privileges",
+		"views",
+		"partitions",
+		"triggers",
+		"events",
+		"collations",
+		"user_privileges",
+		"schema_privileges",
+	}
+}
+
+func matchesMetadataPattern(value, pattern string) bool {
+	if pattern == "" {
+		return true
+	}
+	pattern = regexp.QuoteMeta(pattern)
+	pattern = strings.ReplaceAll(pattern, "%", ".*")
+	pattern = strings.ReplaceAll(pattern, "_", ".")
+	matched, err := regexp.MatchString("(?i)^"+pattern+"$", value)
+	return err == nil && matched
+}
+
 // syncSessionVariables 确保握手阶段写入 session attribute 的关键变量能够在系统变量管理器中生效
 func (e *SystemVariableEngine) syncSessionVariables(session server.MySQLServerSession) {
 	if session == nil || e.sysVarManager == nil {
@@ -401,6 +539,10 @@ func (e *SystemVariableEngine) syncSessionVariables(session server.MySQLServerSe
 // executeSystemFunctionQuery 执行系统函数查询
 func (e *SystemVariableEngine) executeSystemFunctionQuery(session server.MySQLServerSession, query string, databaseName string) *SQLResult {
 	logger.Debugf(" [executeSystemFunctionQuery] 检查系统函数查询: %s", query)
+
+	if result := e.executeDataGripSessionInfoQuery(session, query); result != nil {
+		return result
+	}
 
 	// 解析SQL语句
 	stmt, err := sqlparser.Parse(query)
@@ -453,6 +595,31 @@ func (e *SystemVariableEngine) executeSystemFunctionQuery(session server.MySQLSe
 		Message:    "System function query executed successfully",
 		Columns:    columns,
 		Rows:       [][]interface{}{row},
+	}
+}
+
+func (e *SystemVariableEngine) executeDataGripSessionInfoQuery(session server.MySQLServerSession, query string) *SQLResult {
+	lower := strings.ToLower(query)
+	if !strings.Contains(lower, "database()") ||
+		!strings.Contains(lower, "schema()") ||
+		!strings.Contains(lower, "left(user()") ||
+		!strings.Contains(lower, "concat(user()") {
+		return nil
+	}
+
+	sessionID := e.getSessionID(session)
+	databaseName := e.evaluateSystemFunction("DATABASE", session, sessionID)
+	user := e.evaluateSystemFunction("USER", session, sessionID)
+	userName := fmt.Sprintf("%v", user)
+	if at := strings.Index(userName, "@"); at >= 0 {
+		userName = userName[:at]
+	}
+
+	return &SQLResult{
+		ResultType: "select",
+		Message:    "DataGrip session info query executed successfully",
+		Columns:    []string{"database()", "schema()", "user"},
+		Rows:       [][]interface{}{{databaseName, databaseName, userName}},
 	}
 }
 
@@ -738,7 +905,7 @@ func (e *SystemVariableEngine) executeSetStatement(session server.MySQLServerSes
 
 	// 处理每个SET表达式
 	for _, expr := range setStmt.Exprs {
-		if err := e.processSetExpression(sessionID, expr); err != nil {
+		if err := e.processSetExpression(session, sessionID, expr); err != nil {
 			logger.Errorf(" [executeSetStatement] 处理SET表达式失败: %v", err)
 			return &SQLResult{
 				ResultType: "error",
@@ -760,7 +927,7 @@ func (e *SystemVariableEngine) executeSetStatement(session server.MySQLServerSes
 }
 
 // processSetExpression 处理单个SET表达式
-func (e *SystemVariableEngine) processSetExpression(sessionID string, expr *sqlparser.SetExpr) error {
+func (e *SystemVariableEngine) processSetExpression(session server.MySQLServerSession, sessionID string, expr *sqlparser.SetExpr) error {
 	// 获取变量名
 	varName := expr.Name.String()
 	logger.Debugf(" [processSetExpression] 处理变量: %s", varName)
@@ -783,9 +950,67 @@ func (e *SystemVariableEngine) processSetExpression(sessionID string, expr *sqlp
 		// 对于未知的系统变量，我们记录警告但不返回错误，保持MySQL兼容性
 		return nil
 	}
+	e.syncSetVariableToSession(session, scope, cleanVarName, value)
 
 	logger.Debugf(" [processSetExpression] 变量 %s 设置成功", cleanVarName)
 	return nil
+}
+
+func (e *SystemVariableEngine) syncSetVariableToSession(session server.MySQLServerSession, scope manager.SystemVariableScope, name string, value interface{}) {
+	if session == nil || scope == manager.GlobalScope {
+		return
+	}
+	cleanName := strings.ToLower(strings.TrimSpace(name))
+	cleanName = strings.Trim(cleanName, "`")
+	switch cleanName {
+	case "autocommit":
+		session.SetParamByName(cleanName, formatAutocommitValue(value))
+	case "names":
+		charset := fmt.Sprintf("%v", value)
+		if charset == "" || charset == "<nil>" {
+			charset = "utf8mb4"
+		}
+		session.SetParamByName("character_set_client", charset)
+		session.SetParamByName("character_set_connection", charset)
+		session.SetParamByName("character_set_results", charset)
+	case "character_set_client", "character_set_connection", "character_set_results",
+		"character_set_database", "character_set_server", "sql_mode", "time_zone",
+		"transaction_isolation", "tx_isolation", "net_write_timeout", "net_read_timeout",
+		"max_allowed_packet":
+		session.SetParamByName(cleanName, fmt.Sprintf("%v", value))
+	default:
+		session.SetParamByName(cleanName, fmt.Sprintf("%v", value))
+	}
+}
+
+func formatAutocommitValue(value interface{}) string {
+	switch v := value.(type) {
+	case bool:
+		if v {
+			return "1"
+		}
+		return "0"
+	case string:
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "0", "off", "false", "no":
+			return "0"
+		default:
+			return "1"
+		}
+	case int:
+		if v == 0 {
+			return "0"
+		}
+	case int64:
+		if v == 0 {
+			return "0"
+		}
+	case uint64:
+		if v == 0 {
+			return "0"
+		}
+	}
+	return "1"
 }
 
 // parseSetVariableName 解析SET变量名，提取作用域和变量名

@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
@@ -270,16 +271,51 @@ func (ew *EncryptedPageWrapper) Write() error {
 
 // 内部方法：从磁盘读取
 func (ew *EncryptedPageWrapper) readFromDisk() ([]byte, error) {
-	// TODO: 实现从磁盘读取页面的逻辑
-	// 这里需要根据实际的磁盘访问层来实现
-	return make([]byte, common.PageSize), nil
+	if ew.bufferPool == nil {
+		return nil, errors.New("buffer pool not configured for encrypted page")
+	}
+
+	page, err := ew.bufferPool.GetPage(ew.GetSpaceID(), ew.GetPageID())
+	if err != nil {
+		return nil, err
+	}
+	if page == nil {
+		return nil, fmt.Errorf("buffer page not found for space=%d page=%d", ew.GetSpaceID(), ew.GetPageID())
+	}
+
+	content := page.GetContent()
+	if len(content) < common.PageSize {
+		return nil, errors.New("invalid page size loaded from buffer pool")
+	}
+
+	result := make([]byte, common.PageSize)
+	copy(result, content[:common.PageSize])
+	return result, nil
 }
 
 // 内部方法：写入磁盘
 func (ew *EncryptedPageWrapper) writeToDisk(content []byte) error {
-	// TODO: 实现写入磁盘的逻辑
-	// 这里需要根据实际的磁盘访问层来实现
-	return nil
+	if ew.bufferPool == nil {
+		return nil
+	}
+
+	pageContent := make([]byte, common.PageSize)
+	copy(pageContent, content)
+
+	var bufferPage *buffer_pool.BufferPage
+	if page, err := ew.bufferPool.GetPage(ew.GetSpaceID(), ew.GetPageID()); err == nil && page != nil {
+		bufferPage = page
+	} else {
+		bufferPage = buffer_pool.NewBufferPage(ew.GetSpaceID(), ew.GetPageID())
+		if err := ew.bufferPool.PutPage(bufferPage); err != nil {
+			return err
+		}
+	}
+
+	bufferPage.SetContent(pageContent)
+	bufferPage.MarkDirty()
+
+	return ew.bufferPool.FlushPage(bufferPage)
 }
 
 // 内部方法：手动加密数据

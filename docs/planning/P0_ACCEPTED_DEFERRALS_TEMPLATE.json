@@ -1,0 +1,13 @@
+﻿{
+  "evidence_type": "accepted_delivery_deferrals",
+  "generated_at": "2026-06-21T00:00:00Z",
+  "deferrals": [
+    {
+      "check": "p0c_concurrency_acceptance_complete",
+      "owner": "OWNER_OR_TEAM",
+      "decision": "ACCEPTED",
+      "expires_at": "2026-07-01T00:00:00Z",
+      "rationale": "Temporary delivery acceptance for an explicitly reviewed residual P0 gap. Replace this text with the concrete risk, compensating controls, and follow-up ticket."
+    }
+  ]
+}

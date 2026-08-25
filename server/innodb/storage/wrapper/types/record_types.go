@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/binary"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
@@ -47,7 +48,8 @@ type RecordHeader struct {
 	Version  uint64 // 版本号
 	TxID     uint64 // 事务ID
 	LockMode uint8  // 锁模式
-
+	nullMap  []byte
+	varLens  map[byte]uint16
 }
 
 // GetDeleteFlag implements basic.FieldDataHeader
@@ -119,33 +121,64 @@ func (h RecordHeader) SetNextRecord(nextRecord uint16) {
 }
 
 // SetValueNull implements basic.FieldDataHeader
-func (h RecordHeader) SetValueNull(nullValue byte, index byte) {
-	// Not implemented - records don't support null values directly
+func (h *RecordHeader) SetValueNull(nullValue byte, index byte) {
+	if h == nil {
+		return
+	}
+	byteIndex := index >> 3
+	bitIndex := index & 7
+	for uint(len(h.nullMap)) <= uint(byteIndex) {
+		h.nullMap = append(h.nullMap, 0)
+	}
+	mask := byte(1 << bitIndex)
+	if nullValue != 0 {
+		h.nullMap[byteIndex] |= mask
+	} else {
+		h.nullMap[byteIndex] &^= mask
+	}
 }
 
 // GetRowHeaderLength implements basic.FieldDataHeader
 func (h RecordHeader) GetRowHeaderLength() uint16 {
-	return uint16(h.Length & 0xFFFF)
+	return uint16(len(h.ToByte()))
 }
 
 // ToByte implements basic.FieldDataHeader
 func (h RecordHeader) ToByte() []byte {
 	buf := make([]byte, 24)
-	// Implement serialization
+	binary.LittleEndian.PutUint64(buf[0:8], h.ID)
+	buf[8] = h.Type
+	buf[9] = h.Flags
+	binary.LittleEndian.PutUint32(buf[10:14], h.Length)
+	binary.LittleEndian.PutUint64(buf[14:22], h.Version)
+	buf[22] = byte(h.TxID & 0xFF) // Keep low byte for compatibility with fixed header size
+	buf[23] = h.LockMode
 	return buf
 }
 
 // SetValueLengthByIndex implements basic.FieldDataHeader
 func (h *RecordHeader) SetValueLengthByIndex(realLength int, index byte) {
-	// 现在支持可变长度字段
-
+	if h == nil {
+		return
+	}
+	if realLength < 0 {
+		return
+	}
+	if h.varLens == nil {
+		h.varLens = make(map[byte]uint16, 4)
+	}
+	if realLength > 0xFFFF {
+		realLength = 0xFFFF
+	}
+	h.varLens[index] = uint16(realLength)
 }
 
 // GetVarValueLengthByIndex implements basic.FieldDataHeader
 func (h *RecordHeader) GetVarValueLengthByIndex(index byte) int {
-	// 现在支持获取可变长度字段的长度
-
-	return 0
+	if h == nil || h.varLens == nil {
+		return 0
+	}
+	return int(h.varLens[index])
 }
 
 // GetRecordBytesRealLength implements basic.FieldDataHeader
@@ -155,14 +188,21 @@ func (h RecordHeader) GetRecordBytesRealLength() int {
 
 // IsValueNullByIdx implements basic.FieldDataHeader
 func (h RecordHeader) IsValueNullByIdx(index byte) bool {
-	// Not implemented - records don't support null values directly
-	return false
+	byteIndex := index >> 3
+	bitIndex := index & 7
+	if int(byteIndex) >= len(h.nullMap) {
+		return false
+	}
+	mask := byte(1 << bitIndex)
+	return h.nullMap[byteIndex]&mask != 0
 }
 
 // GetVarRealLength implements basic.FieldDataHeader
 func (h *RecordHeader) GetVarRealLength(currentIndex byte) uint16 {
-
-	return 0
+	if h == nil || h.varLens == nil {
+		return 0
+	}
+	return h.varLens[currentIndex]
 }
 
 // IRecordPage 记录页面接口

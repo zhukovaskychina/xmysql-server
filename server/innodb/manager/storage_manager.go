@@ -150,6 +150,8 @@ type StorageManager struct {
 	indexManager        *IndexManager
 	transactionManager  *TransactionManager
 	btreeManager        basic.BPlusTreeManager
+
+	mysqlUserBTreeManager *EnhancedBTreeManager
 }
 
 func (sm *StorageManager) Init() {
@@ -159,7 +161,13 @@ func (sm *StorageManager) Init() {
 
 	// 确保所有组件都已初始化
 	if sm.spaceMgr == nil || sm.bufferPool == nil || sm.pageMgr == nil || sm.segmentMgr == nil {
-		panic("storage manager components not properly initialized")
+		logger.Warnf("storage manager components not properly initialized: spaceMgr=%v bufferPool=%v pageMgr=%v segmentMgr=%v",
+			sm.spaceMgr != nil,
+			sm.bufferPool != nil,
+			sm.pageMgr != nil,
+			sm.segmentMgr != nil,
+		)
+		return
 	}
 }
 
@@ -385,6 +393,16 @@ func (sm *StorageManager) Sync(spaceID uint32) error {
 	// 同步指定空间的所有数据到磁盘
 	// 使用Flush方法来刷新所有数据
 	return sm.Flush()
+}
+
+func (sm *StorageManager) DataDir() string {
+	if sm == nil || sm.config == nil {
+		return ""
+	}
+	if sm.config.InnodbDataDir != "" {
+		return sm.config.InnodbDataDir
+	}
+	return sm.config.DataDir
 }
 
 // NewStorageManager creates a new storage manager instance
@@ -912,6 +930,10 @@ func (sm *StorageManager) createPerformanceSchemaTablespaces() error {
 
 // CreateSegment creates a new segment
 func (sm *StorageManager) CreateSegment(spaceID uint32, purpose basic.SegmentPurpose) (basic.Segment, error) {
+	if sm == nil || sm.segmentMgr == nil {
+		return nil, fmt.Errorf("segment manager is not initialized")
+	}
+
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -920,6 +942,10 @@ func (sm *StorageManager) CreateSegment(spaceID uint32, purpose basic.SegmentPur
 
 // createSegmentInternal creates a new segment without locking (internal use)
 func (sm *StorageManager) createSegmentInternal(spaceID uint32, purpose basic.SegmentPurpose) (basic.Segment, error) {
+	if sm == nil || sm.segmentMgr == nil {
+		return nil, fmt.Errorf("segment manager is not initialized")
+	}
+
 	// 根据purpose选择合适的segment类型
 	segType := SEGMENT_TYPE_DATA
 	if purpose == basic.SegmentPurposeNonLeaf {
@@ -931,6 +957,10 @@ func (sm *StorageManager) createSegmentInternal(spaceID uint32, purpose basic.Se
 
 // GetSegment retrieves an existing segment
 func (sm *StorageManager) GetSegment(segmentID uint64) (basic.Segment, error) {
+	if sm == nil || sm.segmentMgr == nil {
+		return nil, fmt.Errorf("segment manager is not initialized")
+	}
+
 	segment := sm.segmentMgr.GetSegment(uint32(segmentID))
 	if segment == nil {
 		return nil, fmt.Errorf("segment %d not found", segmentID)
@@ -940,53 +970,45 @@ func (sm *StorageManager) GetSegment(segmentID uint64) (basic.Segment, error) {
 
 // FreeSegment frees a segment
 func (sm *StorageManager) FreeSegment(segmentID uint64) error {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-
-	// 1. 获取segment
-	segment := sm.segmentMgr.GetSegment(uint32(segmentID))
-	if segment == nil {
-		return fmt.Errorf("segment %d not found", segmentID)
+	if sm == nil || sm.segmentMgr == nil {
+		return fmt.Errorf("segment manager is not initialized")
 	}
 
-	// 2. 释放segment的所有extent
-	if err := sm.freeSegmentExtents(segment); err != nil {
-		logger.Warnf("Failed to free extents for segment %d: %v", segmentID, err)
-	}
-
-	// 3. 从segment管理器中删除
-	delete(sm.segmentMgr.segments, uint32(segmentID))
-
-	logger.Infof("Freed segment %d", segmentID)
-	return nil
-}
-
-// freeSegmentExtents 释放segment的所有extent
-func (sm *StorageManager) freeSegmentExtents(segment basic.Segment) error {
-	// 获取segment的所有extent
-	// 注意：这里需要根据实际的Segment接口来实现
-	// 暂时使用简化的实现
-	return nil
+	return sm.segmentMgr.DropSegment(uint32(segmentID))
 }
 
 // AllocateExtent allocates a new extent
 func (sm *StorageManager) AllocateExtent(spaceID uint32, purpose basic.ExtentPurpose) (basic.Extent, error) {
+	if sm == nil || sm.spaceMgr == nil {
+		return nil, fmt.Errorf("space manager is not initialized")
+	}
 	return sm.spaceMgr.AllocateExtent(spaceID, purpose)
 }
 
 // FreeExtent frees an extent
 func (sm *StorageManager) FreeExtent(spaceID, extentID uint32) error {
+	if sm == nil || sm.spaceMgr == nil {
+		return fmt.Errorf("space manager is not initialized")
+	}
 	return sm.spaceMgr.FreeExtent(spaceID, extentID)
 }
 
 // GetPage retrieves a page using DefaultPageManager
 func (sm *StorageManager) GetPage(spaceID, pageNo uint32) (basic.IPage, error) {
+	if sm == nil || sm.pageMgr == nil {
+		return nil, fmt.Errorf("page manager is not initialized")
+	}
+
 	// 直接使用DefaultPageManager获取页面
 	return sm.pageMgr.GetPage(spaceID, pageNo)
 }
 
 // AllocPage allocates a new page using DefaultPageManager
 func (sm *StorageManager) AllocPage(spaceID uint32, pageType basic.PageType) (basic.IPage, error) {
+	if sm == nil || sm.pageMgr == nil {
+		return nil, fmt.Errorf("page manager is not initialized")
+	}
+
 	// Convert basic.PageType to common.PageType
 	commonPageType := common.PageType(pageType)
 
@@ -1001,12 +1023,19 @@ func (sm *StorageManager) AllocPage(spaceID uint32, pageType basic.PageType) (ba
 
 // FreePage frees a page
 func (sm *StorageManager) FreePage(spaceID, pageNo uint32) error {
+	if sm == nil || sm.pageMgr == nil {
+		return fmt.Errorf("page manager is not initialized")
+	}
+
 	// Use page manager to flush the page before freeing
 	return sm.pageMgr.FlushPage(spaceID, pageNo)
 }
 
 // Begin starts a new transaction
 func (sm *StorageManager) Begin() (basic.Transaction, error) {
+	if sm == nil {
+		return nil, fmt.Errorf("storage manager is not initialized")
+	}
 	txID := atomic.AddUint64(&sm.nextTxID, 1)
 	return newTransaction(txID, sm), nil
 }
@@ -1023,12 +1052,31 @@ func (sm *StorageManager) Rollback(tx basic.Transaction) error {
 
 // Flush flushes all changes to disk
 func (sm *StorageManager) Flush() error {
+	if sm == nil || sm.pageMgr == nil {
+		return fmt.Errorf("page manager is not initialized")
+	}
+
 	// Use page manager to flush all pages
 	return sm.pageMgr.FlushAll()
 }
 
 // Close releases all resources
 func (sm *StorageManager) Close() error {
+	if sm == nil {
+		return fmt.Errorf("storage manager is not initialized")
+	}
+
+	sm.mu.Lock()
+	mysqlUserBTreeManager := sm.mysqlUserBTreeManager
+	sm.mysqlUserBTreeManager = nil
+	sm.mu.Unlock()
+
+	if mysqlUserBTreeManager != nil {
+		if err := mysqlUserBTreeManager.Close(); err != nil {
+			return fmt.Errorf("failed to close mysql.user btree manager: %v", err)
+		}
+	}
+
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 

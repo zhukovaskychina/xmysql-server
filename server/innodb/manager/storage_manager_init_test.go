@@ -202,16 +202,20 @@ func TestStorageManagerErrorHandling(t *testing.T) {
 	t.Run("InvalidDataFilePath", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r != nil {
-				t.Logf("✓ Correctly panicked on invalid data file path: %v", r)
-			} else {
-				t.Error("Expected panic on invalid data file path")
+				t.Errorf("did not expect panic on invalid data file path: %v", r)
 			}
 		}()
 
 		cfg := &conf.Cfg{
 			InnodbDataFilePath: "invalid_format", // 缺少冒号分隔符
 		}
-		NewStorageManager(cfg)
+		sm := NewStorageManager(cfg)
+		if sm == nil {
+			t.Fatal("Expected StorageManager to be created for invalid data file path")
+		}
+		if err := sm.Close(); err != nil {
+			t.Errorf("Failed to close StorageManager from invalid data file path config: %v", err)
+		}
 	})
 
 	// 测试只读目录

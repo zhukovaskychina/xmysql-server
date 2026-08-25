@@ -295,7 +295,7 @@ func WriteLenEncInt(n uint64) []byte {
 		return append([]byte{0xFD}, byte(n), byte(n>>8), byte(n>>16))
 
 	default:
-		return append([]byte{
+		return []byte{
 			0xFE,
 			byte(n),
 			byte(n >> 8),
@@ -305,7 +305,7 @@ func WriteLenEncInt(n uint64) []byte {
 			byte(n >> 40),
 			byte(n >> 48),
 			byte(n >> 56),
-		})
+		}
 	}
 }
 
@@ -381,9 +381,9 @@ func (e *MySQLResultSetEncoder) InferMySQLType(value interface{}) byte {
 	case bool:
 		return MYSQL_TYPE_TINY
 	case int8:
-		return MYSQL_TYPE_TINY
+		return MYSQL_TYPE_SHORT
 	case uint8:
-		return MYSQL_TYPE_TINY
+		return MYSQL_TYPE_SHORT
 	case int16:
 		return MYSQL_TYPE_SHORT
 	case uint16:

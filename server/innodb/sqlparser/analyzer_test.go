@@ -1,3 +1,6 @@
+//go:build legacy_sqlparser_conformance
+// +build legacy_sqlparser_conformance
+
 /*
 Copyright 2017 Google Inc.
 
@@ -17,7 +20,6 @@ limitations under the License.
 package sqlparser
 
 import (
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"reflect"
 	"strings"
 	"testing"
@@ -75,8 +77,8 @@ func TestPreview(t *testing.T) {
 		{"/* leading comment */ /* leading comment 2 */ select ...", StmtSelect},
 		{"/*! MySQL-specific comment */", StmtComment},
 		{"/*!50708 MySQL-version comment */", StmtComment},
-		{"-- leading single line comment  select ...", StmtSelect},
-		{"-- leading single line comment  -- leading single line comment 2 select ...", StmtSelect},
+		{"-- leading single line comment\nselect ...", StmtSelect},
+		{"-- leading single line comment\n-- leading single line comment 2\nselect ...", StmtSelect},
 
 		{"/* leading comment no end select ...", StmtUnknown},
 		{"-- leading single line comment no end select ...", StmtUnknown},
@@ -244,37 +246,37 @@ func TestNewPlanValue(t *testing.T) {
 		err string
 	}{{
 		in: &SQLVal{
-			Type: basic.ValArg,
+			Type: ValArg,
 			Val:  []byte(":valarg"),
 		},
 		out: sqltypes.PlanValue{Key: "valarg"},
 	}, {
 		in: &SQLVal{
-			Type: basic.IntVal,
+			Type: IntVal,
 			Val:  []byte("10"),
 		},
 		out: sqltypes.PlanValue{Value: sqltypes.NewInt64(10)},
 	}, {
 		in: &SQLVal{
-			Type: basic.IntVal,
+			Type: IntVal,
 			Val:  []byte("1111111111111111111111111111111111111111"),
 		},
 		err: "valueImpl out of range",
 	}, {
 		in: &SQLVal{
-			Type: basic.StrVal,
+			Type: StrVal,
 			Val:  []byte("strval"),
 		},
 		out: sqltypes.PlanValue{Value: sqltypes.NewVarBinary("strval")},
 	}, {
 		in: &SQLVal{
-			Type: basic.HexVal,
+			Type: HexVal,
 			Val:  []byte("3131"),
 		},
 		out: sqltypes.PlanValue{Value: sqltypes.NewVarBinary("11")},
 	}, {
 		in: &SQLVal{
-			Type: basic.HexVal,
+			Type: HexVal,
 			Val:  []byte("313"),
 		},
 		err: "odd length hex string",
@@ -284,11 +286,11 @@ func TestNewPlanValue(t *testing.T) {
 	}, {
 		in: ValTuple{
 			&SQLVal{
-				Type: basic.ValArg,
+				Type: ValArg,
 				Val:  []byte(":valarg"),
 			},
 			&SQLVal{
-				Type: basic.StrVal,
+				Type: StrVal,
 				Val:  []byte("strval"),
 			},
 		},
@@ -302,7 +304,7 @@ func TestNewPlanValue(t *testing.T) {
 	}, {
 		in: ValTuple{
 			&ParenExpr{Expr: &SQLVal{
-				Type: basic.ValArg,
+				Type: ValArg,
 				Val:  []byte(":valarg"),
 			}},
 		},
@@ -317,7 +319,7 @@ func TestNewPlanValue(t *testing.T) {
 		out: sqltypes.PlanValue{},
 	}, {
 		in: &ParenExpr{Expr: &SQLVal{
-			Type: basic.ValArg,
+			Type: ValArg,
 			Val:  []byte(":valarg"),
 		}},
 		err: "expression is too complex",

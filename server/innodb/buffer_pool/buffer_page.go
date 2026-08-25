@@ -3,6 +3,7 @@ package buffer_pool
 import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -31,6 +32,7 @@ type BufferPage struct {
 
 	// 状态标记
 	dirty           bool
+	pinCount        int32
 	mu              sync.RWMutex
 	isInYoungRegion bool
 }
@@ -106,6 +108,7 @@ func (bp *BufferPage) Reset() {
 	bp.oldestModification = 0
 	bp.accessTime = 0
 	bp.dirty = false
+	atomic.StoreInt32(&bp.pinCount, 0)
 	bp.content = make([]byte, common.UNIV_PAGE_SIZE)
 }
 
@@ -130,6 +133,7 @@ func (bp *BufferPage) Init(spaceID uint32, pageNo uint32, content []byte) {
 	bp.oldestModification = 0
 	bp.accessTime = uint64(time.Now().UnixNano())
 	bp.dirty = false
+	atomic.StoreInt32(&bp.pinCount, 0)
 
 	// Copy content
 	if len(content) > 0 {
@@ -168,8 +172,22 @@ func (bp *BufferPage) SetInYoungRegion(young bool) {
 	bp.isInYoungRegion = young
 }
 
-func (bp *BufferPage) Unpin() {
+func (bp *BufferPage) Pin() {
+	atomic.AddInt32(&bp.pinCount, 1)
+}
 
+func (bp *BufferPage) Unpin() {
+	if atomic.AddInt32(&bp.pinCount, -1) < 0 {
+		atomic.StoreInt32(&bp.pinCount, 0)
+	}
+}
+
+func (bp *BufferPage) GetPinCount() int32 {
+	return atomic.LoadInt32(&bp.pinCount)
+}
+
+func (bp *BufferPage) IsPinned() bool {
+	return bp.GetPinCount() > 0
 }
 
 // NewBufferPage creates a new buffer page

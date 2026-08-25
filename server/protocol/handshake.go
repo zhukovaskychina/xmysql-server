@@ -28,22 +28,7 @@ type HandshakePacket struct {
 
 // NewHandshakePacket 创建符合 MySQL 8.0 协议的握手包
 func NewHandshakePacket(connectionID uint32) *HandshakePacket {
-	// 生成 20 字节随机 auth data（scramble）
-	authData := make([]byte, 20)
-	_, err := rand.Read(authData)
-	if err != nil {
-		// 极端情况下随机失败，退而求其次
-		for i := range authData {
-			authData[i] = byte(1 + i)
-		}
-	}
-
-	// 保证里面没有 0 字节（防止客户端提前截断）
-	for i := range authData {
-		if authData[i] == 0 {
-			authData[i] = 1
-		}
-	}
+	authData := generateAuthPluginData(20)
 
 	// MySQL 8.0 推荐能力组合（简化版，足够支撑 JDBC 8.x）
 	var caps uint32 = 0
@@ -57,7 +42,6 @@ func NewHandshakePacket(connectionID uint32) *HandshakePacket {
 	caps |= CLIENT_MULTI_RESULTS
 	caps |= CLIENT_PLUGIN_AUTH
 	caps |= CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA
-	caps |= CLIENT_DEPRECATE_EOF
 
 	capFlags1 := uint16(caps & 0xFFFF)
 	capFlags2 := uint16((caps >> 16) & 0xFFFF)
@@ -92,6 +76,23 @@ func NewHandshakePacket(connectionID uint32) *HandshakePacket {
 	}
 }
 
+func generateAuthPluginData(length int) []byte {
+	const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	authData := make([]byte, length)
+	randomBytes := make([]byte, length)
+	if _, err := rand.Read(randomBytes); err != nil {
+		for i := range authData {
+			authData[i] = alphabet[i%len(alphabet)]
+		}
+		return authData
+	}
+
+	for i, b := range randomBytes {
+		authData[i] = alphabet[int(b)%len(alphabet)]
+	}
+	return authData
+}
+
 // Encode 按照 MySQL 8.0 协议编码握手包
 func (h *HandshakePacket) Encode() []byte {
 	payload := make([]byte, 0, 128)
@@ -110,7 +111,14 @@ func (h *HandshakePacket) Encode() []byte {
 
 	// 4. auth-plugin-data-part-1 (8 bytes)
 	if len(h.AuthPluginDataPart1) != 8 {
-		panic(fmt.Sprintf("AuthPluginDataPart1 must be 8 bytes, got %d", len(h.AuthPluginDataPart1)))
+		if len(h.AuthPluginDataPart1) == 0 {
+			h.AuthPluginDataPart1 = make([]byte, 8)
+		} else {
+			logger.Warnf("AuthPluginDataPart1 should be 8 bytes, got %d, fallback with pad/cut", len(h.AuthPluginDataPart1))
+			part1 := make([]byte, 8)
+			copy(part1, h.AuthPluginDataPart1)
+			h.AuthPluginDataPart1 = part1
+		}
 	}
 	payload = append(payload, h.AuthPluginDataPart1...)
 
@@ -151,7 +159,10 @@ func (h *HandshakePacket) Encode() []byte {
 
 	// 12. auth-plugin-data-part-2 (len >= 12 bytes)
 	if len(h.AuthPluginDataPart2) < 12 {
-		panic(fmt.Sprintf("AuthPluginDataPart2 must be at least 12 bytes, got %d", len(h.AuthPluginDataPart2)))
+		logger.Warnf("AuthPluginDataPart2 should be at least 12 bytes, got %d, fallback to zeros", len(h.AuthPluginDataPart2))
+		part2 := make([]byte, 12)
+		copy(part2, h.AuthPluginDataPart2)
+		h.AuthPluginDataPart2 = part2
 	}
 	payload = append(payload, h.AuthPluginDataPart2...)
 

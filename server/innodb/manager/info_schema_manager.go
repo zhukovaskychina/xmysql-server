@@ -839,6 +839,16 @@ func NewInfoSchemaManager(dictManager *DictionaryManager, spaceManager basic.Spa
 	}
 }
 
+func JDBCTablesMetadataColumns() []string {
+	return []string{
+		"TABLE_CAT",
+		"TABLE_SCHEM",
+		"TABLE_NAME",
+		"TABLE_TYPE",
+		"REMARKS",
+	}
+}
+
 // InitializeTables 初始化INFORMATION_SCHEMA表
 func (im *InfoSchemaManager) InitializeTables() error {
 	im.mu.Lock()

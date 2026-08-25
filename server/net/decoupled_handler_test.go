@@ -16,6 +16,7 @@ type MockSession struct {
 	attributes map[string]interface{}
 	closed     bool
 	written    [][]byte
+	remoteAddr string
 }
 
 func NewMockSession(id string) *MockSession {
@@ -24,6 +25,7 @@ func NewMockSession(id string) *MockSession {
 		attributes: make(map[string]interface{}),
 		closed:     false,
 		written:    make([][]byte, 0),
+		remoteAddr: "127.0.0.1:12345",
 	}
 }
 
@@ -55,10 +57,15 @@ func (s *MockSession) Close() {
 }
 
 // 实现Session接口的其他必要方法（简化实现）
-func (s *MockSession) ID() uint32                                            { return 1 }
-func (s *MockSession) SetCompressType(compressType CompressType)             {}
-func (s *MockSession) LocalAddr() string                                     { return "127.0.0.1:3308" }
-func (s *MockSession) RemoteAddr() string                                    { return "127.0.0.1:12345" }
+func (s *MockSession) ID() uint32                                { return 1 }
+func (s *MockSession) SetCompressType(compressType CompressType) {}
+func (s *MockSession) LocalAddr() string                         { return "127.0.0.1:3308" }
+func (s *MockSession) RemoteAddr() string {
+	if s.remoteAddr != "" {
+		return s.remoteAddr
+	}
+	return "127.0.0.1:12345"
+}
 func (s *MockSession) incReadPkgNum()                                        {}
 func (s *MockSession) incWritePkgNum()                                       {}
 func (s *MockSession) UpdateActive()                                         {}
@@ -86,6 +93,76 @@ func (s *MockSession) SetWaitTime(timeout time.Duration)                     {}
 func (s *MockSession) RemoveAttribute(interface{})                           {}
 func (s *MockSession) WritePkg(pkg interface{}, timeout time.Duration) error { return nil }
 func (s *MockSession) WriteBytesArray(...[]byte) error                       { return nil }
+
+func TestMySQLSessionStatusFlagsReflectAutocommitOff(t *testing.T) {
+	session := NewMockSession("status_flags_autocommit_off")
+	mysqlSession := NewMySQLServerSession(session)
+	mysqlSession.SetParamByName("autocommit", "0")
+
+	flags := mysqlSessionStatusFlags(mysqlSession)
+	if flags&protocol.SERVER_STATUS_AUTOCOMMIT != 0 {
+		t.Fatalf("expected autocommit flag to be cleared, got 0x%04x", flags)
+	}
+}
+
+type fixedQueryBusinessHandler struct {
+	response protocol.Message
+}
+
+func (h fixedQueryBusinessHandler) HandleMessage(protocol.Message) (protocol.Message, error) {
+	return h.response, nil
+}
+
+func (h fixedQueryBusinessHandler) CanHandle(protocol.MessageType) bool { return true }
+
+func TestResolveAuthHost(t *testing.T) {
+	config := conf.NewCfg()
+	handler := NewDecoupledMySQLMessageHandler(config)
+
+	tests := []struct {
+		name   string
+		remote string
+		want   string
+	}{
+		{
+			name:   "ipv4 with port",
+			remote: "127.0.0.1:12345",
+			want:   "localhost",
+		},
+		{
+			name:   "ipv6 localhost with port",
+			remote: "[::1]:3306",
+			want:   "localhost",
+		},
+		{
+			name:   "dns host with port",
+			remote: "db.internal:3306",
+			want:   "db.internal",
+		},
+		{
+			name:   "ipv6 with port",
+			remote: "[2001:db8::1]:3306",
+			want:   "2001:db8::1",
+		},
+		{
+			name:   "invalid host",
+			remote: "bad_host%%",
+			want:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			session := NewMockSession("resolve-host-test")
+			session.remoteAddr = tt.remote
+
+			got := handler.resolveAuthHost(session)
+			if got != tt.want {
+				t.Fatalf("resolveAuthHost(%q) = %q, want %q", tt.remote, got, tt.want)
+			}
+		})
+	}
+}
 
 // TestDecoupledMySQLMessageHandler 测试解耦的消息处理器
 func TestDecoupledMySQLMessageHandler(t *testing.T) {
@@ -229,16 +306,16 @@ func TestProtocolEncoderIntegration(t *testing.T) {
 	}
 }
 
-// TestSendQueryResultSet_ClientDeprecateEOFUsesOK 验证在协商了 CLIENT_DEPRECATE_EOF 时
-// sendQueryResultSet 会使用 OK 包而不是 EOF 包作为列定义结束和结果集结束标记，
-// 并且整体包数量与 19 列单行结果集的预期一致。
-func TestSendQueryResultSet_ClientDeprecateEOFUsesOK(t *testing.T) {
+// TestSendQueryResultSet_ClientDeprecateEOFStillUsesEOF 验证 JDBC 初始化查询使用
+// EOF 作为列定义和结果集结束标记。Connector/J 8 在 loadServerVariables 路径
+// 会把当前 OK 终止包误读为 RowData，导致连接初始化失败。
+func TestSendQueryResultSet_ClientDeprecateEOFStillUsesEOF(t *testing.T) {
 	config := conf.NewCfg()
 	// 使用真实的处理器，但通过 MockSession 捕获输出
 	handler := NewDecoupledMySQLMessageHandler(config)
 	session := NewMockSession("test_sendQueryResultSet_deprecateEOF")
 
-	// 模拟客户端能力：开启 CLIENT_DEPRECATE_EOF
+	// 模拟客户端能力：即使客户端开启 CLIENT_DEPRECATE_EOF，服务端也保持 EOF 兼容模式。
 	session.SetAttribute("client_capabilities", common.CLIENT_DEPRECATE_EOF)
 
 	// 构造与 JDBC init 查询等价的 19 列系统变量结果集
@@ -298,7 +375,7 @@ func TestSendQueryResultSet_ClientDeprecateEOFUsesOK(t *testing.T) {
 	}
 
 	// 对于 19 列、1 行的结果集，预期包数量：
-	// 1 (ColumnCount) + 19 (ColumnDefinitions) + 1 (列结束 OK) + 1 (Row) + 1 (结果集结束 OK) = 23
+	// 1 (ColumnCount) + 19 (ColumnDefinitions) + 1 (列结束 EOF) + 1 (Row) + 1 (结果集结束 EOF) = 23
 	if len(session.written) != 23 {
 		t.Fatalf("unexpected packet count: got %d, want 23", len(session.written))
 	}
@@ -323,9 +400,9 @@ func TestSendQueryResultSet_ClientDeprecateEOFUsesOK(t *testing.T) {
 	if len(colTermPkt) < 5 {
 		t.Fatalf("column terminator packet too short: %d bytes", len(colTermPkt))
 	}
-	// payload 第一个字节应该是 OK 标记 0x00，而不是 EOF 标记 0xFE
-	if colTermPkt[4] != 0x00 {
-		t.Fatalf("expected OK packet (0x00) as column terminator, got 0x%02X", colTermPkt[4])
+	// payload 第一个字节应该是 EOF 标记 0xFE。
+	if colTermPkt[4] != 0xFE {
+		t.Fatalf("expected EOF packet (0xFE) as column terminator, got 0x%02X", colTermPkt[4])
 	}
 
 	// 结果集结束包是最后一个包
@@ -333,8 +410,126 @@ func TestSendQueryResultSet_ClientDeprecateEOFUsesOK(t *testing.T) {
 	if len(rowTermPkt) < 5 {
 		t.Fatalf("row terminator packet too short: %d bytes", len(rowTermPkt))
 	}
-	if rowTermPkt[4] != 0x00 {
-		t.Fatalf("expected OK packet (0x00) as row terminator, got 0x%02X", rowTermPkt[4])
+	if rowTermPkt[4] != 0xFE {
+		t.Fatalf("expected EOF packet (0xFE) as row terminator, got 0x%02X", rowTermPkt[4])
+	}
+}
+
+func TestHandleQueryResponse_QueryTypeWithColumnsSendsResultSet(t *testing.T) {
+	config := conf.NewCfg()
+	handler := NewDecoupledMySQLMessageHandler(config)
+	session := NewMockSession("test_query_type_with_columns")
+
+	result := &protocol.MessageQueryResult{
+		Columns: []string{"Database"},
+		Rows:    [][]interface{}{{"app_db"}},
+		Type:    "query",
+	}
+	response := &protocol.ResponseMessage{
+		BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_RESPONSE, "test", result),
+		Result:      result,
+	}
+	handler.businessHandler = fixedQueryBusinessHandler{response: response}
+	mysqlSession := NewMySQLServerSession(session)
+	query := &protocol.QueryMessage{
+		BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_REQUEST, "test", "show databases like 'app_%'"),
+		SQL:         "show databases like 'app_%'",
+	}
+
+	err := handler.handleQueryMessageDirect(session, &mysqlSession, query)
+
+	if err != nil {
+		t.Fatalf("handleQueryMessageDirect failed: %v", err)
+	}
+	if len(session.written) == 0 {
+		t.Fatal("expected packets to be written")
+	}
+	first := session.written[0]
+	if len(first) < 5 {
+		t.Fatalf("first packet too short: %d", len(first))
+	}
+	if first[4] != 0x01 {
+		t.Fatalf("expected column-count packet for one-column ResultSet, got first payload byte 0x%02X", first[4])
+	}
+	if len(session.written) <= 1 {
+		t.Fatalf("expected ResultSet packet sequence, got %d packet(s)", len(session.written))
+	}
+}
+
+func TestHandlePacketUnsupportedCommandReturnsErrorPacket(t *testing.T) {
+	config := conf.NewCfg()
+	handler := NewDecoupledMySQLMessageHandler(config)
+	session := NewMockSession("test_handlePacket_unsupported")
+
+	if err := handler.OnOpen(session); err != nil {
+		t.Fatalf("OnOpen failed: %v", err)
+	}
+	session.SetAttribute("auth_status", "success")
+
+	currentSession, ok := handler.sessionMap[session]
+	if !ok {
+		t.Fatal("session not found in handler sessionMap")
+	}
+
+	pkt := &MySQLPackage{
+		Header: MySQLPkgHeader{
+			PacketLength: []byte{0x01, 0x00, 0x00},
+			PacketId:     0,
+		},
+		Body: []byte{common.COM_STATISTICS},
+	}
+
+	if err := handler.handlePacket(session, &currentSession, pkt); err != nil {
+		t.Fatalf("handlePacket failed: %v", err)
+	}
+
+	if session.closed {
+		t.Fatalf("session should not be closed for unsupported command")
+	}
+	if len(session.written) == 0 {
+		t.Fatalf("expected error response packet to be written")
+	}
+}
+
+func TestHandlePacketComStmtSendLongDataUnsupported(t *testing.T) {
+	config := conf.NewCfg()
+	handler := NewDecoupledMySQLMessageHandler(config)
+	session := NewMockSession("test_handlePacket_stmt_send_long_data")
+
+	if err := handler.OnOpen(session); err != nil {
+		t.Fatalf("OnOpen failed: %v", err)
+	}
+	session.SetAttribute("auth_status", "success")
+
+	currentSession, ok := handler.sessionMap[session]
+	if !ok {
+		t.Fatal("session not found in handler sessionMap")
+	}
+
+	payload := []byte{
+		common.COM_STMT_SEND_LONG_DATA,
+		0x01, 0x00, 0x00, 0x00, // statement_id
+		0x00,       // param_id
+		0x00,       // data offset
+		0x00, 0x00, // data length
+	}
+	pkt := &MySQLPackage{
+		Header: MySQLPkgHeader{
+			PacketLength: []byte{byte(len(payload)), 0x00, 0x00},
+			PacketId:     0,
+		},
+		Body: payload,
+	}
+
+	if err := handler.handlePacket(session, &currentSession, pkt); err != nil {
+		t.Fatalf("handlePacket failed: %v", err)
+	}
+
+	if session.closed {
+		t.Fatalf("session should not be closed for unsupported command")
+	}
+	if len(session.written) == 0 {
+		t.Fatalf("expected error response packet to be written")
 	}
 }
 

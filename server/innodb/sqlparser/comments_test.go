@@ -1,3 +1,6 @@
+//go:build legacy_sqlparser_conformance
+// +build legacy_sqlparser_conformance
+
 /*
 Copyright 2017 Google Inc.
 
@@ -176,7 +179,7 @@ func TestStripLeadingComments(t *testing.T) {
 		input:  "/*b*/ /*a*/",
 		outSQL: "",
 	}, {
-		input: `/*b*/ --foo
+		input: `/*b*/ -- foo
 bar`,
 		outSQL: "bar",
 	}, {

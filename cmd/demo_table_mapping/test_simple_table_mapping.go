@@ -164,8 +164,7 @@ func extractTableNameFromSelect(stmt *sqlparser.Select) (tableName string, schem
 func demonstrateTableSpecificBTreeManager() {
 	fmt.Println("\n--- 演示表特定B+树管理器解决方案 ---")
 
-	fmt.Println(`
-问题: 之前的B+树管理器不知道操作哪个表的数据
+	fmt.Println(`问题: 之前的B+树管理器不知道操作哪个表的数据
 解决方案: 使用表存储映射管理器
 
 步骤:
@@ -182,6 +181,5 @@ func demonstrateTableSpecificBTreeManager() {
 1. TableStorageManager 管理表名到存储结构的映射
 2. 每个表有独立的B+树管理器实例
 3. SELECT执行器使用表特定的B+树管理器
-4. 缓冲池操作使用正确的SpaceID
-`)
+ 4. 缓冲池操作使用正确的SpaceID`)
 }

@@ -1,5 +1,7 @@
 # 查询模块待实现清单（查询优化器 + 查询执行器）
 
+> **2026-07-15 当前口径**：查询模块的 P0/P1/P* 归类需要服从 `docs/planning/CAPABILITY_PRIORITY_INDEX_20260715.md`。查询优化能力重要，但当前更高优先级的 P0 阻塞项是存储页/B+Tree、二级索引、事务/MVCC/恢复和 JDBC 核心兼容。本文继续作为查询模块专项 backlog。
+
 > 基于 `DEVELOPMENT_ROADMAP_TASKS.md`、`QUERY_ENGINE_ANALYSIS.md` 及 Phase 1～4 / CONVERGENCE 实施情况整理。  
 > **目的**：只看「查询」这块还有多少要做的，便于排期与迭代。
 
@@ -98,6 +100,8 @@
 ---
 
 ## 四、按优先级汇总（仅「查询」相关）
+
+说明：下面的 P0 是“查询模块内部 P0”，不等于全项目生产 P0。全项目 P0 以 `P0_CAPABILITY_BACKLOG_20260715.md` 为准。
 
 ### P0（阻塞生产级查询性能/正确性）
 

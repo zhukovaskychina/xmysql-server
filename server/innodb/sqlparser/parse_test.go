@@ -57,10 +57,10 @@ var (
 		input:  "select 1 from t # aa",
 		output: "select 1 from t",
 	}, {
-		input:  "select 1 --aafrom t",
+		input:  "select 1 -- aa\nfrom t",
 		output: "select 1 from t",
 	}, {
-		input:  "select 1 #aafrom t",
+		input:  "select 1 # aa\nfrom t",
 		output: "select 1 from t",
 	}, {
 		input: "select /* simplest */ 1 from t",
@@ -156,10 +156,10 @@ var (
 	}, {
 		input: "select /* a.* */ a.* from t",
 	}, {
-		input:  "select next valueImpl for t",
+		input:  "select next value for t",
 		output: "select next 1 values from t",
 	}, {
-		input:  "select next valueImpl from t",
+		input:  "select next value from t",
 		output: "select next 1 values from t",
 	}, {
 		input: "select next 10 values from t",
@@ -453,14 +453,17 @@ var (
 	}, {
 		input: "select /* backslash quote in string */ 'a\\'a' from t",
 	}, {
-		input: "select /* literal backslash in string */ 'a\\\a' from t",
+		input:  "select /* literal backslash in string */ 'a\\\a' from t",
+		output: "select /* literal backslash in string */ 'a\a' from t",
 	}, {
-		input: "select /* all escapes */ '\\0\\'\\\"\\b\\\r\\t\\Z\\\\' from t",
+		input:  "select /* all escapes */ '\\0\\'\\\"\\b\\\r\\t\\Z\\\\' from t",
+		output: "select /* all escapes */ '\\0\\'\\\"\\b\\r\\t\\Z' from t",
 	}, {
 		input:  "select /* non-escape */ '\\x' from t",
 		output: "select /* non-escape */ 'x' from t",
 	}, {
-		input: "select /* unescaped backslash */ '\' from t",
+		input:  "select /* unescaped backslash */ '\\\\' from t",
+		output: "select /* unescaped backslash */ '' from t",
 	}, {
 		input: "select /* valueImpl argument */ :a from t",
 	}, {
@@ -675,7 +678,8 @@ var (
 	}, {
 		input: "set /* simple */ a = 3",
 	}, {
-		input: "set #simple b = 4",
+		input:  "set #simple\nb = 4",
+		output: "set #simple\n b = 4",
 	}, {
 		input: "set character_set_results = utf8",
 	}, {
@@ -2082,6 +2086,80 @@ func TestErrors(t *testing.T) {
 		if err == nil || err.Error() != tcase.output {
 			t.Errorf("%s: %v, want %s", tcase.input, err, tcase.output)
 		}
+	}
+}
+
+func TestParseDropDatabaseIfExists(t *testing.T) {
+	testCases := []struct {
+		query  string
+		dbName string
+	}{
+		{query: "DROP DATABASE IF EXISTS missing_db", dbName: "missing_db"},
+		{query: "DROP SCHEMA IF EXISTS missing_schema", dbName: "missing_schema"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.query, func(t *testing.T) {
+			stmt, err := Parse(testCase.query)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			dbDDL, ok := stmt.(*DBDDL)
+			if !ok {
+				t.Fatalf("Parse(%q) returned %T, want *DBDDL", testCase.query, stmt)
+			}
+			if dbDDL.Action != DropStr {
+				t.Errorf("Action = %q, want %q", dbDDL.Action, DropStr)
+			}
+			if dbDDL.DBName != testCase.dbName {
+				t.Errorf("DBName = %q, want %q", dbDDL.DBName, testCase.dbName)
+			}
+			if !dbDDL.IfExists {
+				t.Error("IfExists = false, want true")
+			}
+		})
+	}
+}
+
+func TestParseAlterTableAddColumnPreservesColumnDefinition(t *testing.T) {
+	stmt, err := Parse("alter table app.users add column name varchar(100) not null default 'guest'")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ddl, ok := stmt.(*DDL)
+	if !ok {
+		t.Fatalf("Parse() returned %T, want *DDL", stmt)
+	}
+	if ddl.Action != AlterStr {
+		t.Errorf("Action = %q, want %q", ddl.Action, AlterStr)
+	}
+	if got, want := ddl.Table.Qualifier.String(), "app"; got != want {
+		t.Errorf("Table.Qualifier = %q, want %q", got, want)
+	}
+	if got, want := ddl.Table.Name.String(), "users"; got != want {
+		t.Errorf("Table.Name = %q, want %q", got, want)
+	}
+	if ddl.TableSpec == nil {
+		t.Fatal("TableSpec = nil, want added column definition")
+	}
+	if got, want := len(ddl.TableSpec.Columns), 1; got != want {
+		t.Fatalf("len(TableSpec.Columns) = %d, want %d", got, want)
+	}
+
+	column := ddl.TableSpec.Columns[0]
+	if got, want := column.Name.String(), "name"; got != want {
+		t.Errorf("column name = %q, want %q", got, want)
+	}
+	if got, want := column.Type.Type, "varchar"; got != want {
+		t.Errorf("column type = %q, want %q", got, want)
+	}
+	if !column.Type.NotNull {
+		t.Error("column NotNull = false, want true")
+	}
+	if got, want := String(column.Type.Default), "'guest'"; got != want {
+		t.Errorf("column default = %q, want %q", got, want)
 	}
 }
 

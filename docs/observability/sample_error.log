@@ -1,0 +1,2 @@
+{"timestamp":"2026-06-14T07:32:00Z","level":"ERROR","trace_id":"trace-p0d-error-001","component":"engine","operation":"insert","error_code":"ER_DUP_ENTRY","error_class":"duplicate_key","message":"duplicate key conflict","duration_ms":12,"connection_id":103,"transaction_id":9003}
+{"timestamp":"2026-06-14T07:33:00Z","level":"ERROR","trace_id":"trace-p0d-error-002","component":"manager","operation":"lock_wait","error_code":"ER_LOCK_WAIT_TIMEOUT","error_class":"lock_timeout","message":"lock wait timeout exceeded","duration_ms":5000,"connection_id":104,"transaction_id":9004}

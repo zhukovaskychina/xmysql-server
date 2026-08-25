@@ -1,5 +1,7 @@
 # 开发路线图（规划入口）
 
+> **当前口径（2026-07-15）**：基础 CRUD/JDBC 已通过聚焦验证，但生产级能力仍按新的 P0/P1/P* 能力 backlog 管理。若本文历史导航与新 backlog 冲突，以 `CAPABILITY_PRIORITY_INDEX_20260715.md` 为准。
+
 > **说明（2026-04）**：本文件曾为「按周拆分的 43～59 天阶段路线图」，与 [开发任务清单](../development/DEVELOPMENT_ROADMAP_TASKS.md)（114 项、模块完成度）及 [16 周开发计划](../development/开发计划.md) **内容重复且易不同步**。  
 > **现仅作导航页**：请以下列文档为权威来源；本页不再维护具体阶段百分比与任务列表。
 
@@ -9,7 +11,12 @@
 
 | 用途 | 文档 |
 |------|------|
+| 当前优先级唯一入口（2026-07-15） | [CAPABILITY_PRIORITY_INDEX_20260715.md](./CAPABILITY_PRIORITY_INDEX_20260715.md) |
+| P0 生产阻塞能力 backlog | [P0_CAPABILITY_BACKLOG_20260715.md](./P0_CAPABILITY_BACKLOG_20260715.md) |
+| P1 重要能力 backlog | [P1_CAPABILITY_BACKLOG_20260715.md](./P1_CAPABILITY_BACKLOG_20260715.md) |
+| P* 未来能力 backlog | [PX_CAPABILITY_BACKLOG_20260715.md](./PX_CAPABILITY_BACKLOG_20260715.md) |
 | 缺口与优先级总览 | [未实现功能梳理.md](../未实现功能梳理.md) |
+| 能力矩阵 + 生产缺口合并基线（2026-04） | [UNIMPLEMENTED_CAPABILITY_BASELINE_2026-04.md](./UNIMPLEMENTED_CAPABILITY_BASELINE_2026-04.md) |
 | 114 项任务明细、模块完成度 | [development/DEVELOPMENT_ROADMAP_TASKS.md](../development/DEVELOPMENT_ROADMAP_TASKS.md) |
 | 16 周阶段与人天排期 | [development/开发计划.md](../development/开发计划.md) |
 | 任务摘要（PM 速览） | [development/TASKS_SUMMARY.md](../development/TASKS_SUMMARY.md) |

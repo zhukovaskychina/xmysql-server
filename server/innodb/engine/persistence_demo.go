@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/logger"
-	"log"
 	"strings"
 	"time"
 
@@ -276,15 +275,18 @@ func (d *DemoStorageProvider) Close() error {
 }
 
 // RunPersistenceDemo 运行持久化演示的主函数
-func RunPersistenceDemo() {
+func RunPersistenceDemo() error {
 	// 创建演示
 	demo, err := NewPersistenceDemo("./demo_data")
 	if err != nil {
-		log.Fatalf("创建持久化演示失败: %v", err)
+		logger.Errorf("创建持久化演示失败: %v", err)
+		return err
 	}
 
 	// 运行演示
 	if err := demo.RunDemo(); err != nil {
-		log.Fatalf("运行持久化演示失败: %v", err)
+		logger.Errorf("运行持久化演示失败: %v", err)
+		return err
 	}
+	return nil
 }

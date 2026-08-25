@@ -13,11 +13,6 @@ type SystemClusterLeafRow struct {
 	SystemData      []byte // 系统特定数据
 }
 
-// TODO: This file needs complete implementation
-// Currently disabled due to missing dependencies
-
-// Placeholder to avoid compilation errors
-
 // NewSystemClusterLeafRow 创建系统聚簇索引叶子节点行记录
 func NewSystemClusterLeafRow(content []byte, tableTuple tuple, sysType SystemRecordType) basic.Row {
 	baseRow := NewClusterLeafRow(content, tableTuple)

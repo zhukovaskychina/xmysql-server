@@ -14,9 +14,10 @@ import (
 var (
 	ErrInvalidSystemPage = errors.New("invalid system page")
 	ErrCorruptedPage     = errors.New("corrupted system page")
+	ErrNoBackupPage      = errors.New("no system page backup")
 )
 
-// SystemPageHeader 系统页面头部
+// SystemPageHeader 绯荤粺椤甸潰澶撮儴
 type SystemPageHeader struct {
 	Version      uint32
 	Checksum     uint64
@@ -25,20 +26,23 @@ type SystemPageHeader struct {
 	LastModified int64
 }
 
-// BaseSystemPage 系统页面基类
+// BaseSystemPage 绯荤粺椤甸潰鍩虹被
 type BaseSystemPage struct {
 	*wrapper.BasePage
-	header SystemPageHeader
-	stats  SystemPageStats
+	header       SystemPageHeader
+	backupHeader SystemPageHeader
+	backupData   []byte
+	hasBackup    bool
+	stats        SystemPageStats
 }
 
-// NewBaseSystemPage 创建系统页面
+// NewBaseSystemPage 鍒涘缓绯荤粺椤甸潰
 func NewBaseSystemPage(spaceID, pageNo uint32, sysType SystemPageType) *BaseSystemPage {
 	sp := &BaseSystemPage{
 		BasePage: wrapper.NewBasePage(spaceID, pageNo, common.FIL_PAGE_TYPE_SYS),
 	}
 
-	// 初始化页面头
+	// 鍒濆鍖栭〉闈㈠ご
 	sp.header = SystemPageHeader{
 		Version:      1,
 		SystemType:   sysType,
@@ -49,17 +53,17 @@ func NewBaseSystemPage(spaceID, pageNo uint32, sysType SystemPageType) *BaseSyst
 	return sp
 }
 
-// GetSystemType 获取系统页面类型
+// GetSystemType 鑾峰彇绯荤粺椤甸潰绫诲瀷
 func (sp *BaseSystemPage) GetSystemType() SystemPageType {
 	return sp.header.SystemType
 }
 
-// GetSystemState 获取系统页面状态
+// GetSystemState 鑾峰彇绯荤粺椤甸潰鐘舵€?
 func (sp *BaseSystemPage) GetSystemState() SystemPageState {
 	return sp.header.SystemState
 }
 
-// SetSystemState 设置系统页面状态
+// SetSystemState 璁剧疆绯荤粺椤甸潰鐘舵€?
 func (sp *BaseSystemPage) SetSystemState(state SystemPageState) {
 	sp.Lock()
 	defer sp.Unlock()
@@ -69,43 +73,43 @@ func (sp *BaseSystemPage) SetSystemState(state SystemPageState) {
 	sp.MarkDirty()
 }
 
-// GetSystemStats 获取系统页面统计信息
+// GetSystemStats 鑾峰彇绯荤粺椤甸潰缁熻淇℃伅
 func (sp *BaseSystemPage) GetSystemStats() *SystemPageStats {
 	return &sp.stats
 }
 
-// Recover 恢复页面
+// Recover 鎭㈠椤甸潰
 func (sp *BaseSystemPage) Recover() error {
 	sp.Lock()
 	defer sp.Unlock()
 
-	// 验证页面
+	// 楠岃瘉椤甸潰
 	if err := sp.Validate(); err != nil {
 		return err
 	}
 
-	// 设置恢复状态
+	// 璁剧疆鎭㈠鐘舵€?
 	sp.header.SystemState = SystemPageStateRecovering
 	atomic.AddUint32(&sp.stats.Recoveries, 1)
 	sp.stats.LastRecovered = time.Now().UnixNano()
 
-	// 标记页面为脏
+	// 鏍囪椤甸潰涓鸿剰
 	sp.MarkDirty()
 
 	return nil
 }
 
-// Validate 验证页面
+// Validate 楠岃瘉椤甸潰
 func (sp *BaseSystemPage) Validate() error {
 	sp.RLock()
 	defer sp.RUnlock()
 
-	// 验证页面类型
+	// 楠岃瘉椤甸潰绫诲瀷
 	if sp.GetPageType() != common.FIL_PAGE_TYPE_SYS {
 		return ErrInvalidSystemPage
 	}
 
-	// 验证校验和
+	// 楠岃瘉鏍￠獙鍜?
 	if !sp.validateChecksum() {
 		atomic.AddUint32(&sp.stats.Corruptions, 1)
 		return ErrCorruptedPage
@@ -114,75 +118,109 @@ func (sp *BaseSystemPage) Validate() error {
 	return nil
 }
 
-// Backup 备份页面
-func (sp *BaseSystemPage) Backup() error {
-	sp.RLock()
-	defer sp.RUnlock()
+func (sp *BaseSystemPage) SetContent(content []byte) {
+	sp.normalizeSystemContent(content)
+	sp.BasePage.SetContent(content)
+}
 
-	// TODO: 实现页面备份
+// Backup 澶囦唤椤甸潰
+func (sp *BaseSystemPage) Backup() error {
+	sp.Lock()
+	defer sp.Unlock()
+
+	// 保存当前页面头部和内容的快照
+	sp.backupHeader = sp.header
+	sp.backupData = make([]byte, len(sp.GetContent()))
+	copy(sp.backupData, sp.GetContent())
+	sp.hasBackup = true
+	sp.stats.LastModified = time.Now().UnixNano()
+
 	return nil
 }
 
-// Restore 恢复页面
+// Restore 鎭㈠椤甸潰
 func (sp *BaseSystemPage) Restore() error {
 	sp.Lock()
 	defer sp.Unlock()
 
-	// TODO: 实现页面恢复
+	if !sp.hasBackup {
+		return ErrNoBackupPage
+	}
+
+	restoreData := make([]byte, len(sp.backupData))
+	copy(restoreData, sp.backupData)
+
+	sp.header = sp.backupHeader
+	sp.SetContent(restoreData)
+	sp.stats.LastModified = time.Now().UnixNano()
+	sp.MarkDirty()
+
 	return nil
 }
 
-// validateChecksum 验证校验和
-// 使用CRC32算法验证页面完整性
+// validateChecksum 楠岃瘉鏍￠獙鍜?
+// 浣跨敤CRC32绠楁硶楠岃瘉椤甸潰瀹屾暣鎬?
 func (sp *BaseSystemPage) validateChecksum() bool {
-	// 获取页面数据（使用GetContent方法）
+	// 鑾峰彇椤甸潰鏁版嵁锛堜娇鐢℅etContent鏂规硶锛?
 	content := sp.GetContent()
 	if len(content) < pages.FileHeaderSize+8 {
 		return false
 	}
 
-	// 使用PageIntegrityChecker验证校验和
+	// 浣跨敤PageIntegrityChecker楠岃瘉鏍￠獙鍜?
 	checker := pages.NewPageIntegrityChecker(pages.ChecksumCRC32)
 	err := checker.ValidateChecksum(content)
 
 	return err == nil
 }
 
-// updateChecksum 更新校验和
-// 计算并更新页面的CRC32校验和
+// updateChecksum 鏇存柊鏍￠獙鍜?
+// 璁＄畻骞舵洿鏂伴〉闈㈢殑CRC32鏍￠獙鍜?
 func (sp *BaseSystemPage) updateChecksum() {
-	// 获取页面数据（使用GetContent方法）
+	// 鑾峰彇椤甸潰鏁版嵁锛堜娇鐢℅etContent鏂规硶锛?
 	content := sp.GetContent()
 	if len(content) < pages.FileHeaderSize+8 {
 		sp.header.Checksum = 0
 		return
 	}
 
-	// 使用PageIntegrityChecker计算校验和
+	sp.normalizeSystemContent(content)
+
+	// 浣跨敤PageIntegrityChecker璁＄畻鏍￠獙鍜?
 	checker := pages.NewPageIntegrityChecker(pages.ChecksumCRC32)
 	checksum32 := checker.CalculateChecksum(content)
 
-	// 更新header中的校验和
+	// 鏇存柊header涓殑鏍￠獙鍜?
 	sp.header.Checksum = uint64(checksum32)
 
-	// 更新页面数据中的校验和字段（前4字节）
+	// 鏇存柊椤甸潰鏁版嵁涓殑鏍￠獙鍜屽瓧娈碉紙鍓?瀛楄妭锛?
 	binary.LittleEndian.PutUint32(content[0:4], checksum32)
 
-	// 更新页面数据中的trailer校验和（最后8字节的前4字节）
+	// 鏇存柊椤甸潰鏁版嵁涓殑trailer鏍￠獙鍜岋紙鏈€鍚?瀛楄妭鐨勫墠4瀛楄妭锛?
 	trailerOffset := len(content) - 8
 	binary.LittleEndian.PutUint32(content[trailerOffset:trailerOffset+4], checksum32)
 
-	// 更新回页面
+	// 鏇存柊鍥為〉闈?
 	sp.SetContent(content)
 }
 
-// Read 实现Page接口
+func (sp *BaseSystemPage) normalizeSystemContent(content []byte) {
+	if len(content) < pages.FileHeaderSize {
+		return
+	}
+
+	binary.BigEndian.PutUint32(content[4:8], sp.GetPageNo())
+	binary.BigEndian.PutUint16(content[24:26], uint16(common.FIL_PAGE_TYPE_SYS))
+	binary.BigEndian.PutUint32(content[34:38], sp.GetSpaceID())
+}
+
+// Read 瀹炵幇Page鎺ュ彛
 func (sp *BaseSystemPage) Read() error {
 	if err := sp.BasePage.Read(); err != nil {
 		return err
 	}
 
-	// 读取系统页面头
+	// 璇诲彇绯荤粺椤甸潰澶?
 	content := sp.GetContent()
 	sp.header.Version = binary.LittleEndian.Uint32(content[64:])
 	sp.header.Checksum = binary.LittleEndian.Uint64(content[68:])
@@ -190,19 +228,19 @@ func (sp *BaseSystemPage) Read() error {
 	sp.header.SystemState = SystemPageState(content[78])
 	sp.header.LastModified = int64(binary.LittleEndian.Uint64(content[79:]))
 
-	// 更新统计信息
+	// 鏇存柊缁熻淇℃伅
 	atomic.AddUint64(&sp.stats.Reads, 1)
 	sp.stats.LastModified = time.Now().UnixNano()
 
 	return nil
 }
 
-// Write 实现Page接口
+// Write 瀹炵幇Page鎺ュ彛
 func (sp *BaseSystemPage) Write() error {
-	// 更新校验和
+	// 鏇存柊鏍￠獙鍜?
 	sp.updateChecksum()
 
-	// 写入系统页面头
+	// 鍐欏叆绯荤粺椤甸潰澶?
 	content := sp.GetContent()
 	binary.LittleEndian.PutUint32(content[64:], sp.header.Version)
 	binary.LittleEndian.PutUint64(content[68:], sp.header.Checksum)
@@ -211,7 +249,7 @@ func (sp *BaseSystemPage) Write() error {
 	binary.LittleEndian.PutUint64(content[79:], uint64(sp.header.LastModified))
 	sp.SetContent(content)
 
-	// 更新统计信息
+	// 鏇存柊缁熻淇℃伅
 	atomic.AddUint64(&sp.stats.Writes, 1)
 	sp.stats.LastModified = time.Now().UnixNano()
 

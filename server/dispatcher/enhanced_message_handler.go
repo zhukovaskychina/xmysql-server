@@ -77,29 +77,29 @@ func (h *EnhancedBusinessMessageHandler) HandleQueryWithRealSession(realSession 
 			user = u
 		}
 	}
-	host = "127.0.0.1" // 简化处理
+	hostParam := realSession.GetParamByName("host")
+	if hVal, ok := hostParam.(string); ok && hVal != "" {
+		host = hVal
+	}
+	if host == "" {
+		host = "127.0.0.1" // 简化处理
+	}
 
 	logger.Debugf(" 查询用户: %s@%s", user, host)
 
-	//  特殊处理 mysql.user 查询，直接返回硬编码响应
-	if strings.Contains(strings.ToLower(query), "mysql.user") {
-		logger.Debugf(" 检测到 mysql.user 查询，返回硬编码响应")
-		// 创建临时消息用于响应生成
-		tempMsg := &protocol.QueryMessage{
-			BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_REQUEST, "temp", query),
-			SQL:         query,
-		}
-		return h.createMysqlUserResponse(tempMsg, query), nil
-	}
-
 	//  特殊处理简单查询
-	if strings.TrimSpace(strings.ToUpper(query)) == "SELECT 1" {
+	if isSelectOneQuery(query) {
 		logger.Debugf(" 检测到 SELECT 1 查询，返回硬编码响应")
 		// 创建临时消息用于响应生成
 		tempMsg := &protocol.QueryMessage{
 			BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_REQUEST, "temp", query),
 		}
 		return h.createSelectOneResponse(tempMsg), nil
+	}
+
+	if engine.IsTransactionCommand(query) {
+		logger.Debugf(" 检测到事务控制语句，跳过权限解析并分发到SQLDispatcher")
+		return h.dispatchQueryResult("temp", realSession, query, database)
 	}
 
 	// 检查权限
@@ -113,8 +113,11 @@ func (h *EnhancedBusinessMessageHandler) HandleQueryWithRealSession(realSession 
 	logger.Debugf(" 权限检查通过，准备执行SQL查询")
 	logger.Debugf(" 分发SQL查询到SQLDispatcher")
 
-	// 使用真实会话分发SQL查询
-	resultChan := h.sqlDispatcher.Dispatch(realSession, query, database)
+	return h.dispatchQueryResult("temp", realSession, query, database)
+}
+
+func (h *EnhancedBusinessMessageHandler) dispatchQueryResult(sessionID string, session server.MySQLServerSession, query string, database string) (protocol.Message, error) {
+	resultChan := h.sqlDispatcher.Dispatch(session, query, database)
 
 	logger.Debugf(" 等待SQL分发器结果...")
 
@@ -128,20 +131,23 @@ func (h *EnhancedBusinessMessageHandler) HandleQueryWithRealSession(realSession 
 		// 如果有错误，记录详细信息
 		if result.Err != nil {
 			logger.Errorf(" SQL执行错误: %v", result.Err)
-			return protocol.NewErrorMessageFromGoError("temp", result.Err), nil
+			return protocol.NewErrorMessageFromGoError(sessionID, result.Err), nil
 		}
 
 		// 转换结果格式
 		queryResult := &protocol.MessageQueryResult{
-			Columns: result.Columns,
-			Rows:    result.Rows,
-			Error:   result.Err,
-			Message: result.Message,
-			Type:    result.ResultType,
+			Columns:      result.Columns,
+			ColumnTypes:  result.ColumnTypes,
+			Rows:         result.Rows,
+			Error:        result.Err,
+			Message:      result.Message,
+			Type:         result.ResultType,
+			AffectedRows: result.AffectedRows,
+			LastInsertID: result.LastInsertID,
 		}
 
 		responseMsg := &protocol.ResponseMessage{
-			BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_RESPONSE, "temp", queryResult),
+			BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_RESPONSE, sessionID, queryResult),
 			Result:      queryResult,
 		}
 
@@ -150,7 +156,7 @@ func (h *EnhancedBusinessMessageHandler) HandleQueryWithRealSession(realSession 
 	}
 
 	logger.Errorf(" 未收到查询结果，结果数量: %d", resultCount)
-	return protocol.NewErrorMessage("temp", common.ER_UNKNOWN_ERROR,
+	return protocol.NewErrorMessage(sessionID, common.ER_UNKNOWN_ERROR,
 		"No result received from query execution"), nil
 }
 
@@ -251,16 +257,22 @@ func (h *EnhancedBusinessMessageHandler) handleQueryMessage(ctx context.Context,
 
 	logger.Debugf(" 查询用户: %s@%s", user, host)
 
-	//  特殊处理 mysql.user 查询，直接返回硬编码响应
-	if strings.Contains(strings.ToLower(queryMsg.SQL), "mysql.user") {
-		logger.Debugf(" 检测到 mysql.user 查询，返回硬编码响应")
-		return h.createMysqlUserResponse(msg, queryMsg.SQL), nil
-	}
-
 	//  特殊处理简单查询
-	if strings.TrimSpace(strings.ToUpper(queryMsg.SQL)) == "SELECT 1" {
+	if isSelectOneQuery(queryMsg.SQL) {
 		logger.Debugf(" 检测到 SELECT 1 查询，返回硬编码响应")
 		return h.createSelectOneResponse(msg), nil
+	}
+
+	if engine.IsTransactionCommand(queryMsg.SQL) {
+		logger.Debugf(" 检测到事务控制语句，跳过权限解析并分发到SQLDispatcher")
+		sessionCtx := server.NewSessionContext(msg.SessionID())
+		sessionCtx.SetCurrentDB(queryMsg.Database)
+		session := &EnhancedMockMySQLServerSession{
+			sessionID: msg.SessionID(),
+			database:  queryMsg.Database,
+			ctx:       sessionCtx,
+		}
+		return h.dispatchQueryResult(msg.SessionID(), session, queryMsg.SQL, queryMsg.Database)
 	}
 
 	// 检查权限
@@ -308,12 +320,14 @@ func (h *EnhancedBusinessMessageHandler) handleQueryMessage(ctx context.Context,
 		}
 
 		queryResult := &protocol.MessageQueryResult{
-			Columns:     result.Columns,
-			ColumnTypes: columnTypes,
-			Rows:        result.Rows,
-			Error:       result.Err,
-			Message:     result.Message,
-			Type:        result.ResultType,
+			Columns:      result.Columns,
+			ColumnTypes:  columnTypes,
+			Rows:         result.Rows,
+			Error:        result.Err,
+			Message:      result.Message,
+			Type:         result.ResultType,
+			AffectedRows: result.AffectedRows,
+			LastInsertID: result.LastInsertID,
 		}
 
 		responseMsg := &protocol.ResponseMessage{
@@ -358,18 +372,14 @@ func (h *EnhancedBusinessMessageHandler) handleUseDBMessage(ctx context.Context,
 
 	logger.Debugf(" 提取用户信息: user=%s, host=%s", user, host)
 
-	// 临时解决方案：为root用户跳过权限检查
-	if user != "root" {
-		if err := h.authService.CheckPrivilege(ctx, user, host, useDBMsg.Database, "", common.SelectPriv); err != nil {
-			logger.Errorf(" 数据库访问权限检查失败: user=%s, host=%s, database=%s, error=%v",
-				user, host, useDBMsg.Database, err)
-			return protocol.NewErrorMessage(msg.SessionID(), common.ER_SPECIFIC_ACCESS_DENIED_ERROR,
-				user, host, useDBMsg.Database), nil
-		}
-		logger.Debugf(" 数据库访问权限检查通过")
-	} else {
-		logger.Debugf("  [临时跳过] Root用户数据库访问权限检查被跳过")
+	// 检查数据库访问权限
+	if err := h.authService.CheckPrivilege(ctx, user, host, useDBMsg.Database, "", common.SelectPriv); err != nil {
+		logger.Errorf(" 数据库访问权限检查失败: user=%s, host=%s, database=%s, error=%v",
+			user, host, useDBMsg.Database, err)
+		return protocol.NewErrorMessage(msg.SessionID(), common.ER_SPECIFIC_ACCESS_DENIED_ERROR,
+			user, host, useDBMsg.Database), nil
 	}
+	logger.Debugf(" 数据库访问权限检查通过")
 
 	// 切换成功
 	logger.Debugf("Database switched to '%s' for session %s\n", useDBMsg.Database, msg.SessionID())
@@ -386,12 +396,6 @@ func (h *EnhancedBusinessMessageHandler) handlePingMessage(ctx context.Context, 
 func (h *EnhancedBusinessMessageHandler) checkQueryPrivilege(ctx context.Context, user, host, database, sql string) error {
 	logger.Debugf(" 检查查询权限: user=%s, host=%s, database=%s, sql=%s", user, host, database, sql)
 
-	// ========== 临时注释：跳过权限检查 ==========
-	// TODO: 修复权限检查逻辑后恢复
-	logger.Warnf("⚠️  临时跳过权限检查 - 仅用于调试！")
-	return nil // 直接返回成功
-
-	/* 原始权限检查代码 - 已临时注释
 	// 解析SQL类型
 	sqlType := h.parseSQLType(sql)
 	logger.Debugf(" SQL类型: %s", sqlType)
@@ -416,10 +420,9 @@ func (h *EnhancedBusinessMessageHandler) checkQueryPrivilege(ctx context.Context
 	if err != nil {
 		logger.Errorf(" 权限检查失败: %v", err)
 
-		//  如果是root用户且是查询系统表，创建临时响应
-		if user == "root" && (strings.Contains(strings.ToLower(sql), "mysql.user") ||
-			strings.Contains(strings.ToLower(sql), "select 1")) {
-			logger.Warnf("  Root用户查询系统表权限检查失败，但允许继续执行")
+		// 连接探测 SELECT 1 保持无表访问权限要求。
+		if strings.Contains(strings.ToLower(sql), "select 1") {
+			logger.Warnf("  SELECT 1 连接探测权限检查失败，但允许继续执行")
 			return nil // 允许继续执行
 		}
 
@@ -428,7 +431,6 @@ func (h *EnhancedBusinessMessageHandler) checkQueryPrivilege(ctx context.Context
 		logger.Debugf(" 权限检查通过")
 		return nil
 	}
-	*/
 }
 
 // extractHostFromSessionID 从会话ID中提取主机信息（简化实现）
@@ -502,6 +504,8 @@ func (s *EnhancedMockMySQLServerSession) SetParamByName(name string, value inter
 			s.ctx.SetUsername(toString(value))
 		case "autocommit":
 			s.ctx.SetAutocommit(toBool(value))
+		case "in_transaction":
+			s.ctx.SetInTransaction(toBool(value))
 		}
 	}
 }
@@ -514,6 +518,8 @@ func (s *EnhancedMockMySQLServerSession) GetParamByName(name string) interface{}
 				return s.ctx.GetCurrentDB()
 			case "user":
 				return s.ctx.GetUsername()
+			case "in_transaction":
+				return s.ctx.GetInTransaction()
 			}
 		}
 		return nil
@@ -796,62 +802,6 @@ func (h *EnhancedBusinessMessageHandler) inferColumnTypes(rows [][]interface{}, 
 	return types
 }
 
-// createMysqlUserResponse 创建mysql.user查询的硬编码响应
-func (h *EnhancedBusinessMessageHandler) createMysqlUserResponse(msg protocol.Message, sql string) protocol.Message {
-	logger.Debugf("  创建 mysql.user 查询硬编码响应")
-
-	// 根据SQL判断需要返回的列
-	sqlLower := strings.ToLower(sql)
-	var columns []string
-	var rows [][]interface{}
-
-	if strings.Contains(sqlLower, "select *") {
-		// SELECT * 查询，返回完整的用户表结构
-		columns = []string{
-			"Host", "User", "Select_priv", "Insert_priv", "Update_priv", "Delete_priv",
-			"Create_priv", "Drop_priv", "Reload_priv", "Shutdown_priv", "Process_priv",
-			"File_priv", "Grant_priv", "References_priv", "Index_priv", "Alter_priv",
-			"Show_db_priv", "Super_priv", "Create_tmp_table_priv", "Lock_tables_priv",
-			"Execute_priv", "Repl_slave_priv", "Repl_client_priv", "Create_view_priv",
-			"Show_view_priv", "Create_routine_priv", "Alter_routine_priv", "Create_user_priv",
-			"Event_priv", "Trigger_priv", "Create_tablespace_priv", "authentication_string",
-			"password_expired", "max_questions", "account_locked", "password_last_changed",
-			"max_updates", "max_connections", "password_require_current", "user_attributes",
-		}
-		rows = [][]interface{}{
-			{
-				"localhost", "root", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
-				"Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
-				"Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
-				"*23AE809DDACAF96AF0FD78ED04B6A265E05AA257", "N", "0", "N",
-				"2024-01-01 00:00:00", "0", "0", "Y", "{}",
-			},
-		}
-	} else {
-		// 其他查询，返回基本的用户信息
-		columns = []string{"User", "Host", "authentication_string", "account_locked", "password_expired"}
-		rows = [][]interface{}{
-			{"root", "localhost", "*23AE809DDACAF96AF0FD78ED04B6A265E05AA257", "N", "N"},
-		}
-	}
-
-	queryResult := &protocol.MessageQueryResult{
-		Columns: columns,
-		Rows:    rows,
-		Error:   nil,
-		Message: fmt.Sprintf("Query OK, %d rows in set", len(rows)),
-		Type:    "SELECT",
-	}
-
-	responseMsg := &protocol.ResponseMessage{
-		BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_RESPONSE, msg.SessionID(), queryResult),
-		Result:      queryResult,
-	}
-
-	logger.Debugf(" mysql.user 硬编码响应创建完成: %d 列, %d 行", len(columns), len(rows))
-	return responseMsg
-}
-
 // createSelectOneResponse 创建SELECT 1查询的硬编码响应
 func (h *EnhancedBusinessMessageHandler) createSelectOneResponse(msg protocol.Message) protocol.Message {
 	logger.Debugf("  创建 SELECT 1 硬编码响应")
@@ -871,4 +821,13 @@ func (h *EnhancedBusinessMessageHandler) createSelectOneResponse(msg protocol.Me
 
 	logger.Debugf(" SELECT 1 硬编码响应创建完成")
 	return responseMsg
+}
+
+func isSelectOneQuery(query string) bool {
+	normalized := strings.ToUpper(strings.TrimSpace(query))
+	normalized = strings.TrimSuffix(normalized, ";")
+	if strings.Contains(normalized, " FROM ") {
+		return false
+	}
+	return normalized == "SELECT 1" || strings.HasPrefix(normalized, "SELECT 1 AS ")
 }

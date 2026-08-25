@@ -1,8 +1,12 @@
 package engine
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash/fnv"
+	"sort"
 	"strings"
 	"time"
 
@@ -11,6 +15,8 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
+
+const hiddenRowIDColumnName = "__xmysql_hidden_row_id"
 
 // ===== 索引键构建方法 =====
 
@@ -22,12 +28,14 @@ func (dml *StorageIntegratedDMLExecutor) buildIndexKey(
 ) (interface{}, error) {
 	logger.Debugf(" 构建索引键，索引: %s", index.Name)
 
-	// 简化实现：假设索引只有一列
 	if len(index.Columns) == 0 {
 		return nil, fmt.Errorf("索引列为空")
 	}
 
-	// 获取第一列的值作为索引键
+	if len(index.Columns) > 1 {
+		return buildCompositeIndexKey(row.ColumnValues, index)
+	}
+
 	columnName := index.Columns[0].Name
 	if value, exists := row.ColumnValues[columnName]; exists {
 		return value, nil
@@ -44,12 +52,14 @@ func (dml *StorageIntegratedDMLExecutor) buildIndexKeyFromOldValues(
 ) (interface{}, error) {
 	logger.Debugf(" 从旧值构建索引键，索引: %s", index.Name)
 
-	// 简化实现：假设索引只有一列
 	if len(index.Columns) == 0 {
 		return nil, fmt.Errorf("索引列为空")
 	}
 
-	// 获取第一列的值作为索引键
+	if len(index.Columns) > 1 {
+		return buildCompositeIndexKey(oldValues, index)
+	}
+
 	columnName := index.Columns[0].Name
 	if value, exists := oldValues[columnName]; exists {
 		return value, nil
@@ -72,6 +82,19 @@ func (dml *StorageIntegratedDMLExecutor) buildIndexKeyFromUpdateExpressions(
 		return nil, fmt.Errorf("索引列为空")
 	}
 
+	if len(index.Columns) > 1 {
+		values := make(map[string]interface{}, len(oldValues)+len(updateExprs))
+		for name, value := range oldValues {
+			values[name] = value
+		}
+		for _, expr := range updateExprs {
+			if expr != nil {
+				values[expr.ColumnName] = expr.NewValue
+			}
+		}
+		return buildCompositeIndexKey(values, index)
+	}
+
 	columnName := index.Columns[0].Name
 
 	// 首先检查是否有更新表达式更新了这一列
@@ -87,6 +110,127 @@ func (dml *StorageIntegratedDMLExecutor) buildIndexKeyFromUpdateExpressions(
 	}
 
 	return nil, fmt.Errorf("索引列 %s 在数据中不存在", columnName)
+}
+
+func buildCompositeIndexKey(values map[string]interface{}, index *manager.Index) ([]interface{}, error) {
+	if index == nil {
+		return nil, fmt.Errorf("索引对象为空")
+	}
+	key := make([]interface{}, 0, len(index.Columns))
+	for _, column := range index.Columns {
+		value, exists := values[column.Name]
+		if !exists {
+			return nil, fmt.Errorf("索引列 %s 在数据中不存在", column.Name)
+		}
+		if value == nil && !column.Nullable {
+			return nil, fmt.Errorf("索引列 %s 不允许 NULL", column.Name)
+		}
+		key = append(key, value)
+	}
+	return key, nil
+}
+
+func buildCompositeKey(row map[string]interface{}, columns []string) ([]byte, error) {
+	if len(columns) == 0 {
+		return nil, fmt.Errorf("composite key columns are empty")
+	}
+
+	parts := make([][]byte, 0, len(columns))
+	for _, col := range columns {
+		val, ok := row[col]
+		if !ok {
+			return nil, fmt.Errorf("missing primary key column '%s'", col)
+		}
+		part := []byte(fmt.Sprintf("%v", val))
+		prefixed := make([]byte, 4, 4+len(part))
+		binary.BigEndian.PutUint32(prefixed, uint32(len(part)))
+		prefixed = append(prefixed, part...)
+		parts = append(parts, prefixed)
+	}
+	return bytes.Join(parts, nil), nil
+}
+
+func generateHiddenRowID(schemaName, tableName string, rowData map[string]interface{}) []byte {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(schemaName))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(tableName))
+	_, _ = h.Write([]byte{0})
+	keys := make([]string, 0, len(rowData))
+	for key := range rowData {
+		if key == hiddenRowIDColumnName {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		_, _ = h.Write([]byte(key))
+		_, _ = h.Write([]byte("="))
+		_, _ = h.Write([]byte(fmt.Sprint(rowData[key])))
+		_, _ = h.Write([]byte{0})
+	}
+	return []byte(fmt.Sprintf("__xmysql_hidden_pk_%016x", h.Sum64()))
+}
+
+func hiddenRowIDBytesFromValue(value interface{}) ([]byte, bool) {
+	switch v := value.(type) {
+	case nil:
+		return nil, false
+	case []byte:
+		if len(v) == 0 {
+			return nil, false
+		}
+		return append([]byte(nil), v...), true
+	case string:
+		if v == "" {
+			return nil, false
+		}
+		return []byte(v), true
+	default:
+		text := fmt.Sprintf("%v", v)
+		if text == "" {
+			return nil, false
+		}
+		return []byte(text), true
+	}
+}
+
+func storageKeyToBytes(key interface{}) ([]byte, bool) {
+	switch v := key.(type) {
+	case nil:
+		return nil, false
+	case []byte:
+		if len(v) == 0 {
+			return nil, false
+		}
+		return append([]byte(nil), v...), true
+	case string:
+		if v == "" {
+			return nil, false
+		}
+		return []byte(v), true
+	default:
+		text := fmt.Sprintf("%v", v)
+		if text == "" {
+			return nil, false
+		}
+		return []byte(text), true
+	}
+}
+
+func BuildSecondaryIndexEntries(tableMeta *metadata.TableMeta, rows []*InsertRowData, index *manager.Index) ([]manager.SecondaryIndexEntry, error) {
+	if index == nil {
+		return nil, fmt.Errorf("index is nil")
+	}
+	rowMaps := make([]map[string]interface{}, 0, len(rows))
+	for rowIndex, row := range rows {
+		if row == nil {
+			return nil, fmt.Errorf("row %d is nil", rowIndex)
+		}
+		rowMaps = append(rowMaps, row.ColumnValues)
+	}
+	return manager.BuildSecondaryIndexEntries(index.TableID, tableMeta, rowMaps, index)
 }
 
 // buildMultiColumnIndexKey 构建多列索引键
@@ -223,6 +367,12 @@ func (dml *StorageIntegratedDMLExecutor) validateIndexKey(
 	indexKey interface{},
 	index *manager.Index,
 ) error {
+	if index == nil {
+		return fmt.Errorf("索引对象为空")
+	}
+	if len(index.Columns) == 0 {
+		return fmt.Errorf("索引 %s 没有定义列", index.Name)
+	}
 	if indexKey == nil {
 		if index.IsUnique {
 			return fmt.Errorf("唯一索引不允许NULL值")
@@ -230,7 +380,28 @@ func (dml *StorageIntegratedDMLExecutor) validateIndexKey(
 		return nil // 非唯一索引允许NULL值
 	}
 
-	// TODO: 添加更多验证逻辑，如长度检查、类型检查等
+	// 复合索引应保持列数一致
+	if len(index.Columns) > 1 {
+		parts, ok := indexKey.([]interface{})
+		if !ok {
+			// 当前多列索引通常走 []interface{} 或序列化字节串
+			if _, isBytes := indexKey.([]byte); isBytes {
+				return nil
+			}
+			return fmt.Errorf("复合索引 %s 的索引键类型非法: %T", index.Name, indexKey)
+		}
+		if len(parts) != len(index.Columns) {
+			return fmt.Errorf("复合索引 %s 的索引键列数不匹配: want=%d, got=%d", index.Name, len(index.Columns), len(parts))
+		}
+
+		// 仅做 NULL 可空检查，类型检查交给底层索引存储实现
+		for i, part := range parts {
+			colMeta := index.Columns[i]
+			if part == nil && !colMeta.Nullable {
+				return fmt.Errorf("索引列 %s 不允许 NULL", colMeta.Name)
+			}
+		}
+	}
 
 	return nil
 }
@@ -267,7 +438,7 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexStatistics(
 	// 更新全局统计
 	dml.stats.IndexUpdates++
 
-	// TODO: 可以添加更详细的索引级别统计
+	// 记录索引更新全局计数，索引级别统计后续补充
 	logger.Debugf(" 更新索引统计: IndexID=%d, 操作=%s", indexID, operationType)
 }
 
@@ -381,10 +552,20 @@ func (dml *StorageIntegratedDMLExecutor) rebuildIndexForTable(
 
 		logger.Debugf(" 重建索引: %s", index.Name)
 
-		// TODO: 实现索引重建逻辑
-		// 1. 扫描表数据
-		// 2. 重新构建索引树
-		// 3. 更新索引元数据
+		if dml.indexManager == nil {
+			return fmt.Errorf("索引管理器未初始化")
+		}
+		if index == nil {
+			continue
+		}
+
+		if err := dml.indexManager.RebuildIndex(index.IndexID); err != nil {
+			return fmt.Errorf("重建索引 %s 失败: %v", index.Name, err)
+		}
+
+		if err := dml.checkSingleIndexConsistency(index); err != nil {
+			return fmt.Errorf("索引 %s 一致性检查失败: %v", index.Name, err)
+		}
 	}
 
 	logger.Debugf(" 表索引重建完成: TableID=%d", tableID)
@@ -397,10 +578,21 @@ func (dml *StorageIntegratedDMLExecutor) optimizeIndexes(
 ) error {
 	logger.Debugf("⚡ 优化表索引: TableID=%d", tableID)
 
-	// TODO: 实现索引优化逻辑
-	// 1. 分析索引使用统计
-	// 2. 重组索引页面
-	// 3. 更新索引统计信息
+	if dml.indexManager == nil {
+		return fmt.Errorf("索引管理器未初始化")
+	}
+
+	indexes := dml.indexManager.ListIndexes(tableID)
+	for _, index := range indexes {
+		if index == nil {
+			continue
+		}
+		logger.Debugf(" 压缩索引: %s", index.Name)
+
+		if err := dml.indexManager.CompactIndex(index.IndexID); err != nil {
+			return fmt.Errorf("优化索引 %s 失败: %v", index.Name, err)
+		}
+	}
 
 	return nil
 }
@@ -432,12 +624,22 @@ func (dml *StorageIntegratedDMLExecutor) checkIndexConsistency(
 func (dml *StorageIntegratedDMLExecutor) checkSingleIndexConsistency(
 	index *manager.Index,
 ) error {
+	if dml.indexManager == nil {
+		return fmt.Errorf("索引管理器未初始化")
+	}
+	if index == nil {
+		return fmt.Errorf("索引对象为空")
+	}
 	logger.Debugf(" 检查单个索引一致性: %s", index.Name)
-
-	// TODO: 实现索引一致性检查逻辑
-	// 1. 验证索引键的有序性
-	// 2. 验证索引键与表数据的对应关系
-	// 3. 验证索引结构的完整性
+	if index.IndexID == 0 {
+		return fmt.Errorf("索引 ID 无效")
+	}
+	if _, err := dml.indexManager.GetIndexStats(index.IndexID); err != nil {
+		return fmt.Errorf("读取索引统计失败: %v", err)
+	}
+	if err := dml.indexManager.ValidateIndex(index.IndexID); err != nil {
+		return err
+	}
 
 	return nil
 }

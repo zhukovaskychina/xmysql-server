@@ -1,16 +1,47 @@
 package page
 
-// TODO: This test_simple_protocol file has been temporarily disabled due to missing dependencies
-
-/*
 import (
-	"fmt"
 	"testing"
-	"1/zhukovaskychina/xmysql-server/server/conf"
-	"1/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
+	"time"
 )
 
-func TestNewDataDictWrapper(t *testing.T) {
-	// All test_simple_protocol implementations disabled due to missing dependencies
+func TestDataDictWrapperPlaceholder(t *testing.T) {
+	t.Skip("需要完整数据字典和buffer_pool测试环境，当前保持占位以免误报")
 }
-*/
+
+func TestDataDictionaryPageWrapperToBytesDoesNotDeadlock(t *testing.T) {
+	wrapper := NewDataDictionaryPageWrapper(1, 1, nil)
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := wrapper.ToBytes()
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("ToBytes() returned error: %v", err)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("ToBytes() deadlocked while updating checksum")
+	}
+}
+
+func TestDataDictionaryPageWrapperAddTableDefDoesNotDeadlock(t *testing.T) {
+	wrapper := NewDataDictionaryPageWrapper(1, 1, nil)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- wrapper.AddTableDef(&TableDef{ID: 1, Name: "users"})
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("AddTableDef() returned error: %v", err)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("AddTableDef() deadlocked while marking page dirty")
+	}
+}

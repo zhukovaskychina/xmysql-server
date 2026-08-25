@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 )
@@ -85,20 +86,35 @@ func main() {
 	fmt.Println("   - 管理: 页面0-7的系统页面，特别是第5页(数据字典根页面)")
 
 	if systemSpaceManager != nil {
-		// 获取系统页面信息
-		for pageNo := uint32(0); pageNo <= 7; pageNo++ {
-			pageInfo := systemSpaceManager.GetSystemPageInfo(pageNo)
-			if pageInfo != nil {
-				logger.Debugf("   - 系统页面%d: 类型=%d, 已加载=%v\n",
-					pageNo, pageInfo.PageType, pageInfo.IsLoaded)
-			}
+		// 显示系统空间关键页面信息
+		logger.Debugf("   - 系统表空间ID: %d\n", manager.SYS_SPACE_ID)
+		logger.Debugf("   - 字典根页面: page_no=%d\n", manager.SYS_DICT_ROOT_PAGE)
+		logger.Debugf("   - 系统页面映射:\n")
+		systemPages := []struct {
+			pageNo uint32
+			name   string
+		}{
+			{manager.SYS_FSP_HDR_PAGE, "FSP_HDR"},
+			{manager.SYS_IBUF_BITMAP_PAGE, "IBUF_BITMAP"},
+			{manager.SYS_INODE_PAGE, "INODE"},
+			{manager.SYS_SYS_PAGE, "SYS"},
+			{manager.SYS_INDEX_PAGE, "INDEX"},
+			{manager.SYS_DICT_ROOT_PAGE, "DICT_ROOT"},
+			{manager.SYS_TRX_SYS_PAGE, "TRX_SYS"},
+			{manager.SYS_FIRST_RSEG_PAGE, "FIRST_RSEG"},
+		}
+		for _, pageInfo := range systemPages {
+			logger.Debugf("     - page_no=%d 名称=%s\n", pageInfo.pageNo, pageInfo.name)
 		}
 
-		// 加载数据字典根页面
-		dictRootPage, err := systemSpaceManager.LoadDictRootPage()
-		if err == nil {
-			logger.Debugf("   - 数据字典根页面: MaxTableID=%d, MaxIndexID=%d\n",
-				dictRootPage.MaxTableID, dictRootPage.MaxIndexID)
+		// 检查字典根页面中的核心元信息
+		if components := systemSpaceManager.GetIBData1Components(); components != nil && components.DataDictionaryRoot != nil {
+			logger.Debugf("   - 字典根页面统计: MaxTableID=%d, MaxIndexID=%d, MaxSpaceID=%d\n",
+				components.DataDictionaryRoot.GetMaxTableId(),
+				components.DataDictionaryRoot.GetMaxIndexId(),
+				components.DataDictionaryRoot.GetMaxSpaceId())
+		} else {
+			logger.Debugf("   - 字典根页面尚未初始化\n")
 		}
 	}
 	fmt.Println()
@@ -180,9 +196,8 @@ func main() {
 
 			// 验证数据字典根页面已更新
 			if systemSpaceManager != nil {
-				dictRootPage, err := systemSpaceManager.LoadDictRootPage()
-				if err == nil {
-					logger.Debugf("   - 更新后的MaxTableID: %d\n", dictRootPage.MaxTableID)
+				if components := systemSpaceManager.GetIBData1Components(); components != nil && components.DataDictionaryRoot != nil {
+					logger.Debugf("   - 更新后的MaxTableID: %d\n", components.DataDictionaryRoot.GetMaxTableId())
 				}
 			}
 		}

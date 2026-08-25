@@ -775,14 +775,9 @@ func (i *Index) Find(rows basic.Row) (row basic.Row, found bool) {
 
 // 根据Key值查找
 // 如果没有则返回false，同时返非叶子记录的行，里面包括了，子页面的页面号
-// TODO 暂时搁置二分查找逻辑
 func (i *Index) FindByKey(targetKey basic.Value) (row basic.Row, found bool) {
-
 	fullList := i.SlotRowData.GetRowListWithoutInfiuAndSupremum()
-	if targetKey == nil {
-		return fullList[0], false
-	}
-	if len(fullList) == 0 {
+	if targetKey == nil || len(fullList) == 0 {
 		return nil, false
 	}
 
@@ -791,18 +786,25 @@ func (i *Index) FindByKey(targetKey basic.Value) (row basic.Row, found bool) {
 		if primaryKey == nil {
 			return false
 		}
-		return primaryKey.Compare(targetKey) < 0
+		return primaryKey.Compare(targetKey) >= 0
 	})
-	//
-	if index == 0 {
-		return nil, false
-	}
-	primaryKey := fullList[index-1].GetPrimaryKey()
-	if index > 0 && primaryKey != nil && primaryKey.Compare(targetKey) == 0 {
-		return fullList[index-1], true
+
+	candidateIndex := len(fullList) - 1
+	if index < len(fullList) {
+		candidate := fullList[index]
+		primaryKey := candidate.GetPrimaryKey()
+		if primaryKey != nil && primaryKey.Compare(targetKey) == 0 {
+			return candidate, true
+		}
+
+		// 当前行主键大于 targetKey，取上一个槽位作为非叶子跳转目标
+		if primaryKey == nil || index == 0 {
+			return nil, false
+		}
+		candidateIndex = index - 1
 	}
 
-	return nil, false
+	return fullList[candidateIndex], false
 }
 
 func (i *Index) FindReturnIndex(rows basic.Row) (rowIndex int, found bool) {

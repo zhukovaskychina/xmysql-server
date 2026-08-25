@@ -3,6 +3,7 @@ package page
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"sync"
@@ -379,14 +380,49 @@ func (bw *IBufBitmapPageWrapper) Validate() error {
 
 // 内部方法：从磁盘读取
 func (bw *IBufBitmapPageWrapper) readFromDisk() ([]byte, error) {
-	// TODO: 实现从磁盘读取页面的逻辑
-	// 这里需要根据实际的磁盘访问层来实现
-	return make([]byte, common.PageSize), nil
+	if bw.bufferPool == nil {
+		return nil, errors.New("buffer pool not configured for ibuf bitmap page")
+	}
+
+	page, err := bw.bufferPool.GetPage(bw.GetSpaceID(), bw.GetPageID())
+	if err != nil {
+		return nil, err
+	}
+	if page == nil {
+		return nil, fmt.Errorf("buffer page not found for space=%d page=%d", bw.GetSpaceID(), bw.GetPageID())
+	}
+
+	content := page.GetContent()
+	if len(content) < common.PageSize {
+		return nil, errors.New("invalid page size loaded from buffer pool")
+	}
+
+	result := make([]byte, common.PageSize)
+	copy(result, content[:common.PageSize])
+	return result, nil
 }
 
 // 内部方法：写入磁盘
 func (bw *IBufBitmapPageWrapper) writeToDisk(content []byte) error {
-	// TODO: 实现写入磁盘的逻辑
-	// 这里需要根据实际的磁盘访问层来实现
-	return nil
+	if bw.bufferPool == nil {
+		return nil
+	}
+
+	pageContent := make([]byte, common.PageSize)
+	copy(pageContent, content)
+
+	var bufferPage *buffer_pool.BufferPage
+	if page, err := bw.bufferPool.GetPage(bw.GetSpaceID(), bw.GetPageID()); err == nil && page != nil {
+		bufferPage = page
+	} else {
+		bufferPage = buffer_pool.NewBufferPage(bw.GetSpaceID(), bw.GetPageID())
+		if err := bw.bufferPool.PutPage(bufferPage); err != nil {
+			return err
+		}
+	}
+
+	bufferPage.SetContent(pageContent)
+	bufferPage.MarkDirty()
+
+	return bw.bufferPool.FlushPage(bufferPage)
 }

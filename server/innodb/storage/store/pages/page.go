@@ -221,6 +221,11 @@ func (fh *FileHeader) GetSerialBytes() []byte {
 //   - Buffer pool integration
 //   - Concurrency control with atomic operations
 //   - Statistics tracking
+//   - Unified entrypoint at storage/wrapper/page/page_factory.go
+//
+// 使用约束：
+// - 仅保留兼容/反序列化场景，不再作为新建页面的推荐入口。
+// - 新代码应直接使用 wrapper/types.UnifiedPage + page factory 的统一路径。
 //
 // Migration example:
 //
@@ -257,6 +262,8 @@ type IPage interface {
 //   - Complete IPageWrapper interface implementation
 //   - Integrated statistics and buffer pool support
 //   - Full serialization/deserialization support
+//
+// 兼容说明：该结构仅保留兼容历史序列化链路，不能作为新功能默认入口。
 //
 // Migration example:
 //

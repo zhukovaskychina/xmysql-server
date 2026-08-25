@@ -126,4 +126,64 @@ public class JdbcConnectionTest {
             assertThat(rs.getInt(1)).isEqualTo(1);
         }
     }
+
+    @Test
+    @Order(8)
+    @DisplayName("JDBC元数据探测应兼容DataGrip常用接口")
+    public void testDataGripMetadataProbeQueriesDoNotFail() throws Exception {
+        assumeTrue(SERVER_AVAILABLE, "XMySQL 未运行在 localhost:3309，跳过连接测试");
+        try (Connection conn = DriverManager.getConnection(BASE_URL, USER, PASSWORD)) {
+            DatabaseMetaData meta = conn.getMetaData();
+
+            assertMetadataProbeDoesNotFail(meta.getProcedures(null, null, "%"));
+            assertMetadataProbeDoesNotFail(meta.getFunctions(null, null, "%"));
+            assertMetadataProbeDoesNotFail(meta.getPrimaryKeys(null, null, "xmysql_missing_table"));
+            assertMetadataProbeDoesNotFail(meta.getIndexInfo(null, null, "xmysql_missing_table", false, false));
+        }
+    }
+
+    @Test
+    @Order(9)
+    @DisplayName("DataGrip完整元数据SQL探测不应失败")
+    public void testDataGripFullMetadataSqlProbesDoNotFail() throws Exception {
+        assumeTrue(SERVER_AVAILABLE, "XMySQL 未运行在 localhost:3309，跳过连接测试");
+        try (Connection conn = DriverManager.getConnection(BASE_URL, USER, PASSWORD);
+            Statement stmt = conn.createStatement()) {
+            String[] queries = {
+                "select database(), schema(), left(user(), instr(concat(user(),'@'),'@')-1)",
+                "select table_name, auto_increment from information_schema.tables where table_schema = 'performance_schema' and auto_increment is not null",
+                "select table_name, index_name, index_comment, index_type, non_unique, column_name, sub_part, collation, expression from information_schema.statistics where table_schema = 'performance_schema'",
+                "select c.constraint_name, c.constraint_schema, c.table_name, c.constraint_type, c.enforced = 'YES' enforced from information_schema.table_constraints c where c.table_schema = 'performance_schema'",
+                "select constraint_name, table_name, column_name, referenced_table_schema, referenced_table_name, referenced_column_name from information_schema.key_column_usage where table_schema = 'performance_schema'",
+                "select table_name, partition_name, subpartition_name, partition_ordinal_position, subpartition_ordinal_position, partition_method, subpartition_method, partition_expression, subpartition_expression, partition_description, table_rows, avg_row_length, data_length, max_data_length, index_length, data_free, create_time, update_time, check_time, checksum, partition_comment, nodegroup, tablespace_name from information_schema.partitions where table_schema = 'performance_schema'",
+                "select trigger_name, event_manipulation, event_object_table, action_statement, action_timing, definer from information_schema.triggers where trigger_schema = 'performance_schema'",
+                "select event_name, event_definition, event_type, execute_at, interval_value, interval_field, status, definer from information_schema.events where event_schema = 'performance_schema'",
+                "select routine_name, routine_type, routine_definition, routine_comment, dtd_identifier, definer from information_schema.routines where routine_schema = 'performance_schema'",
+                "select collation_name, character_set_name, is_default from information_schema.collations",
+                "select grantee, privilege_type, is_grantable from information_schema.user_privileges",
+                "select grantee, table_schema, privilege_type, is_grantable from information_schema.schema_privileges",
+                "select Host, User, Routine_name, Proc_priv, Routine_type = 'PROCEDURE' as is_proc from mysql.procs_priv where Db = 'performance_schema'",
+                "select grantee, table_name, column_name, privilege_type, is_grantable from information_schema.column_privileges where table_schema = 'performance_schema' union all select grantee, table_name, null as column_name, privilege_type, is_grantable from information_schema.table_privileges where table_schema = 'performance_schema'",
+                "select table_name, view_definition, definer from information_schema.views where table_schema = 'performance_schema'"
+            };
+
+            for (String query : queries) {
+                try (ResultSet rs = stmt.executeQuery(query)) {
+                    ResultSetMetaData meta = rs.getMetaData();
+                    assertThat(meta.getColumnCount()).as(query).isGreaterThan(0);
+                    while (rs.next()) {
+                        // Compatibility boundary: DataGrip metadata SQL must return a valid result set.
+                    }
+                }
+            }
+        }
+    }
+
+    private static void assertMetadataProbeDoesNotFail(ResultSet rs) throws SQLException {
+        try (rs) {
+            while (rs.next()) {
+                // The compatibility boundary is that metadata probes return a valid result set.
+            }
+        }
+    }
 }

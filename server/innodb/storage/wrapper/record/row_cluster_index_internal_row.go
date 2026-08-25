@@ -3,7 +3,6 @@ package record
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"strings"
@@ -227,8 +226,11 @@ func (cld *ClusterInternalRowData) WriteBytesWithNull(content []byte) {
 }
 
 func (cld *ClusterInternalRowData) GetPrimaryKey() basic.Value {
-	//return cld.ReadBytesWithNullWithPosition(0)
-	return nil
+	raw := cld.ReadBytesWithNullWithPosition(0)
+	if len(raw) == 0 {
+		return basic.NewStringValue("")
+	}
+	return basic.NewValue(raw)
 }
 
 func (cld *ClusterInternalRowData) GetRowDataLength() uint16 {
@@ -240,7 +242,15 @@ func (cld *ClusterInternalRowData) ToByte() []byte {
 }
 
 func (cld *ClusterInternalRowData) ReadBytesWithNullWithPosition(index int) []byte {
-	return cld.Content[0+5*index : 5*index+5][0:4]
+	start := 5 * index
+	end := start + 5
+	if index < 0 || start >= len(cld.Content) || end > len(cld.Content) {
+		return nil
+	}
+	if start+4 > len(cld.Content) {
+		return nil
+	}
+	return cld.Content[start : start+4]
 }
 
 // 大致为  页面号/主键
@@ -271,44 +281,58 @@ func NewClusterInternalRowWithContent(content []byte, tableTuple tuple) basic.Ro
 
 	rowHeaderLength := currentRow.header.GetRowHeaderLength()
 
-	startOffset := rowHeaderLength
-
-	for i := 0; i < tableTuple.GetColumnLength(); i++ {
-
-		if currentRow.header.IsValueNullByIdx(byte(int(i))) {
-			fieldType := tableTuple.GetColumnInfos(byte(i)).FieldType
-			switch fieldType {
-			case "VARCHAR":
-				{
+	startOffset := int(rowHeaderLength)
+	rowData := NewClusterLeafRowDataWithContents(content[rowHeaderLength:], tableTuple)
+	if parsedValues, ok := rowData.(*ClusterLeafRowData); ok {
+		for i := 0; i < tableTuple.GetColumnLength(); i++ {
+			if currentRow.header.IsValueNullByIdx(byte(i)) {
+				fieldType := tableTuple.GetColumnInfos(byte(i)).FieldType
+				fieldLen := int(tableTuple.GetColumnInfos(byte(i)).FieldLength)
+				if fieldType == "VARCHAR" {
 					realLength := currentRow.header.GetVarValueLengthByIndex(byte(i))
-					// TODO: 修复valueImpl引用
-					_ = realLength // 临时变量使用
-					// currentRow.RowValues = append(currentRow.RowValues, valueImpl.NewVarcharVal(content[startOffset:int(startOffset)+realLength]))
-					startOffset = startOffset + uint16(realLength)
-					break
+					if realLength > 0 {
+						fieldLen = realLength
+					}
 				}
-			case "BIGINT":
-				{
-					// TODO: 修复valueImpl引用
-					// currentRow.RowValues = append(currentRow.RowValues, valueImpl.NewBigIntValue(content[startOffset:startOffset+8]))
-					startOffset = startOffset + 8
-					break
+				if fieldLen <= 0 {
+					if i < len(parsedValues.RowValues) {
+						parsedValues.RowValues[i] = basic.NewStringValue("")
+					}
+					continue
 				}
-			case "INT":
-				{
-					// TODO: 修复valueImpl引用
-					// currentRow.RowValues = append(currentRow.RowValues, valueImpl.NewIntValue(content[startOffset:startOffset+4]))
-					startOffset = startOffset + 4
-					break
+
+				fieldStart := startOffset
+				fieldEnd := startOffset + fieldLen
+				if fieldEnd > len(content) {
+					fieldEnd = len(content)
+				}
+
+				if fieldStart >= len(content) || fieldStart >= fieldEnd {
+					if i < len(parsedValues.RowValues) {
+						parsedValues.RowValues[i] = basic.NewStringValue("")
+					}
+				} else {
+					rawValue := content[fieldStart:fieldEnd]
+					switch fieldType {
+					case "BIGINT":
+						parsedValues.RowValues[i] = basic.NewInt64Value(util.ReadB8Byte2Int64(rawValue))
+					case "INT":
+						parsedValues.RowValues[i] = basic.NewInt64Value(int64(util.ReadUB4Byte2UInt32(rawValue)))
+					default:
+						parsedValues.RowValues[i] = basic.NewValue(rawValue)
+					}
+				}
+				startOffset = fieldEnd
+			} else {
+				if i < len(parsedValues.RowValues) {
+					parsedValues.RowValues[i] = basic.NewStringValue("")
 				}
 			}
-
-		} else {
-			fmt.Println("------------------")
 		}
-
+		currentRow.RowValues = append(currentRow.RowValues, parsedValues.RowValues...)
 	}
-	currentRow.value = NewClusterLeafRowDataWithContents(content[rowHeaderLength:startOffset], tableTuple)
+
+	currentRow.value = rowData
 	return currentRow
 }
 
@@ -378,7 +402,17 @@ func (row *ClusterInternalRow) GetHeaderLength() uint16 {
 }
 
 func (row *ClusterInternalRow) GetPrimaryKey() basic.Value {
-	return nil
+	if data, ok := row.value.(*ClusterInternalRowData); ok {
+		if pk := data.GetPrimaryKey(); pk != nil {
+			return pk
+		}
+	}
+	if data, ok := row.value.(*ClusterLeafRowData); ok {
+		if pk := data.GetPrimaryKey(); pk != nil {
+			return basic.NewValue(pk)
+		}
+	}
+	return basic.NewStringValue("")
 }
 func (row *ClusterInternalRow) GetPageNumber() uint32 {
 	return 0

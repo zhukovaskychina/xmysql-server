@@ -151,8 +151,36 @@ func (m *MySQLMessageHandler) handleMessage(session Session, currentMysqlSession
 		return m.handleInitDB(session, currentMysqlSession, recMySQLPkg)
 	case common.COM_PING:
 		return m.handlePing(session, currentMysqlSession, recMySQLPkg)
+	case common.COM_FIELD_LIST,
+		common.COM_CREATE_DB,
+		common.COM_DROP_DB,
+		common.COM_REFRESH,
+		common.COM_SHUTDOWN,
+		common.COM_STATISTICS,
+		common.COM_PROCESS_INFO,
+		common.COM_CONNECT,
+		common.COM_PROCESS_KILL,
+		common.COM_DEBUG,
+		common.COM_TIME,
+		common.COM_DELAYED_INSERT,
+		common.COM_CHANGE_USER,
+		common.COM_BINLOG_DUMP,
+		common.COM_TABLE_DUMP,
+		common.COM_CONNECT_OUT,
+		common.COM_REGISTER_SLAVE,
+		common.COM_STMT_PREPARE,
+		common.COM_STMT_EXECUTE,
+		common.COM_STMT_SEND_LONG_DATA,
+		common.COM_STMT_CLOSE,
+		common.COM_STMT_RESET,
+		common.COM_SET_OPTION,
+		common.COM_STMT_FETCH,
+		common.COM_DAEMON,
+		common.COM_BINLOG_DUMP_GTID,
+		common.COM_RESET_CONNECTION:
+		return m.handleUnsupportedCommand(session, recMySQLPkg)
 	default:
-		return fmt.Errorf("unsupported packet type: %d", packetType)
+		return m.handleUnsupportedCommand(session, recMySQLPkg)
 	}
 }
 
@@ -279,7 +307,16 @@ func (m *MySQLMessageHandler) sendQueryResult(session Session, result *dispatche
 
 func (m *MySQLMessageHandler) handleQuit(session Session, currentMysqlSession *server.MySQLServerSession, recMySQLPkg *MySQLPackage) error {
 	log.Info("Client requested quit")
+	session.Close()
 	return nil
+}
+
+func (m *MySQLMessageHandler) handleUnsupportedCommand(session Session, recMySQLPkg *MySQLPackage) error {
+	command := common.CommandString(recMySQLPkg.Body[0])
+	if command == "UNKNOWN" {
+		command = fmt.Sprintf("UNKNOWN(0x%02X)", recMySQLPkg.Body[0])
+	}
+	return session.WriteBytes(protocol.EncodeErrorFromCode(common.ErrNotSupportedYet, command))
 }
 
 func (m *MySQLMessageHandler) handleInitDB(session Session, currentMysqlSession *server.MySQLServerSession, recMySQLPkg *MySQLPackage) error {

@@ -28,6 +28,7 @@ type RedoLogManager struct {
 	groupCommitWindow time.Duration       // 组提交窗口期
 	pendingCommits    chan *CommitRequest // 待提交请求队列
 	shutdown          chan struct{}       // 关闭信号
+	closeOnce         sync.Once           // 幂等关闭标记
 }
 
 // NewRedoLogManager 创建新的重做日志管理器
@@ -396,11 +397,17 @@ func (r *RedoLogManager) Checkpoint() error {
 
 // Close 关闭日志管理器
 func (r *RedoLogManager) Close() error {
-	// 发送关闭信号
-	close(r.shutdown)
+	// 幂等关闭，避免重复 close 导致 panic
+	r.closeOnce.Do(func() {
+		close(r.shutdown)
+	})
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	if r.logFile == nil {
+		return nil
+	}
 
 	// 刷新所有缓冲的日志
 	if err := r.flushBuffer(); err != nil {
@@ -408,7 +415,9 @@ func (r *RedoLogManager) Close() error {
 	}
 
 	// 关闭文件
-	return r.logFile.Close()
+	err := r.logFile.Close()
+	r.logFile = nil
+	return err
 }
 
 // GetLSNManager 获取LSN管理器

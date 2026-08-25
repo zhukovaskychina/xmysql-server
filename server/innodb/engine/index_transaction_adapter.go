@@ -8,10 +8,20 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 )
 
+func newTxnAdapterError(stage string, code ExecutionErrorCode, txnID uint64, err error, msg string, args ...interface{}) error {
+	if err == nil {
+		return nil
+	}
+	if len(args) > 0 {
+		return NewExecutionErrorf("engine", stage, code, "", "", "", txnID, err, msg, args...)
+	}
+	return NewExecutionErrorWithCause("engine", stage, code, "", "", "", txnID, err, fmt.Sprintf(msg, args...))
+}
+
 // IndexAdapter 索引适配器，提供索引访问接口
 type IndexAdapter struct {
 	indexManager        *manager.IndexManager
-	btreeManager        interface{} // B+树管理器（可能是DefaultBPlusTreeManager）
+	btreeManager        interface{} // B+树管理器
 	storageAdapter      *StorageAdapter
 	tableStorageManager *manager.TableStorageManager
 }
@@ -40,24 +50,21 @@ func NewIndexAdapter(
 func (ia *IndexAdapter) RangeScan(ctx context.Context, indexID uint64, startKey, endKey []byte) ([][]byte, error) {
 	logger.Debugf("Index range scan: indexID=%d, startKey=%v, endKey=%v", indexID, startKey, endKey)
 
-	// 如果没有B+树管理器，返回空列表
+	// 如果没有B+树管理器，返回错误而不是空结果
 	if ia.btreeManager == nil {
-		logger.Debugf("No btree manager available, returning empty result")
-		return [][]byte{}, nil
+		return nil, newTxnAdapterError("index-adapter-range-scan", ExecutionErrorCodeIndexOperation, 0, fmt.Errorf("no btree manager available"), "no btree manager available")
 	}
 
 	// 尝试将btreeManager转换为BTreeManager接口
 	btreeManager, ok := ia.btreeManager.(manager.BTreeManager)
 	if !ok {
-		logger.Debugf("btreeManager is not manager.BTreeManager type, returning empty result")
-		return [][]byte{}, nil
+		return nil, newTxnAdapterError("index-adapter-range-scan", ExecutionErrorCodeIndexOperation, 0, fmt.Errorf("btreeManager is not manager.BTreeManager type"), "btreeManager is not manager.BTreeManager type")
 	}
 
 	// 调用B+树管理器的RangeSearch方法
 	records, err := btreeManager.RangeSearch(ctx, indexID, startKey, endKey)
 	if err != nil {
-		logger.Debugf("RangeSearch failed: %v, returning empty result", err)
-		return [][]byte{}, nil
+		return nil, newTxnAdapterError("index-adapter-range-scan", ExecutionErrorCodeIndexOperation, 0, err, "search failed: %v", err)
 	}
 
 	// 从IndexRecord中提取主键
@@ -78,19 +85,19 @@ func (ia *IndexAdapter) PointLookup(ctx context.Context, indexID uint64, key []b
 
 	// 如果没有B+树管理器，返回错误
 	if ia.btreeManager == nil {
-		return nil, fmt.Errorf("no btree manager available")
+		return nil, newTxnAdapterError("index-adapter-point-lookup", ExecutionErrorCodeIndexOperation, 0, fmt.Errorf("no btree manager available"), "no btree manager available")
 	}
 
 	// 尝试将btreeManager转换为BTreeManager接口
 	btreeManager, ok := ia.btreeManager.(manager.BTreeManager)
 	if !ok {
-		return nil, fmt.Errorf("btreeManager is not manager.BTreeManager type")
+		return nil, newTxnAdapterError("index-adapter-point-lookup", ExecutionErrorCodeIndexOperation, 0, fmt.Errorf("btreeManager is not manager.BTreeManager type"), "btreeManager is not manager.BTreeManager type")
 	}
 
 	// 调用B+树管理器的Search方法
 	record, err := btreeManager.Search(ctx, indexID, key)
 	if err != nil {
-		return nil, fmt.Errorf("search failed: %w", err)
+		return nil, newTxnAdapterError("index-adapter-point-lookup", ExecutionErrorCodeIndexOperation, 0, err, "search failed: %v", err)
 	}
 
 	// 返回主键
@@ -103,24 +110,24 @@ func (ia *IndexAdapter) InsertEntry(ctx context.Context, indexID uint64, key, va
 
 	// 验证参数
 	if len(key) == 0 {
-		return fmt.Errorf("key cannot be empty")
+		return newTxnAdapterError("index-adapter-insert-entry", ExecutionErrorCodeValidation, 0, fmt.Errorf("key cannot be empty"), "key cannot be empty")
 	}
 
 	// 如果没有B+树管理器，返回错误
 	if ia.btreeManager == nil {
-		return fmt.Errorf("no btree manager available")
+		return newTxnAdapterError("index-adapter-insert-entry", ExecutionErrorCodeIndexOperation, 0, fmt.Errorf("no btree manager available"), "no btree manager available")
 	}
 
 	// 尝试将btreeManager转换为BTreeManager接口
 	btreeManager, ok := ia.btreeManager.(manager.BTreeManager)
 	if !ok {
-		return fmt.Errorf("btreeManager is not manager.BTreeManager type")
+		return newTxnAdapterError("index-adapter-insert-entry", ExecutionErrorCodeIndexOperation, 0, fmt.Errorf("btreeManager is not manager.BTreeManager type"), "btreeManager is not manager.BTreeManager type")
 	}
 
 	// 调用B+树管理器的Insert方法
 	err := btreeManager.Insert(ctx, indexID, key, value)
 	if err != nil {
-		return fmt.Errorf("failed to insert index entry: %w", err)
+		return newTxnAdapterError("index-adapter-insert-entry", ExecutionErrorCodeIndexOperation, 0, err, "failed to insert index entry: %v", err)
 	}
 
 	logger.Debugf("✅ Successfully inserted index entry: indexID=%d", indexID)
@@ -133,24 +140,24 @@ func (ia *IndexAdapter) DeleteEntry(ctx context.Context, indexID uint64, key []b
 
 	// 验证参数
 	if len(key) == 0 {
-		return fmt.Errorf("key cannot be empty")
+		return newTxnAdapterError("index-adapter-delete-entry", ExecutionErrorCodeValidation, 0, fmt.Errorf("key cannot be empty"), "key cannot be empty")
 	}
 
 	// 如果没有B+树管理器，返回错误
 	if ia.btreeManager == nil {
-		return fmt.Errorf("no btree manager available")
+		return newTxnAdapterError("index-adapter-delete-entry", ExecutionErrorCodeIndexOperation, 0, fmt.Errorf("no btree manager available"), "no btree manager available")
 	}
 
 	// 尝试将btreeManager转换为BTreeManager接口
 	btreeManager, ok := ia.btreeManager.(manager.BTreeManager)
 	if !ok {
-		return fmt.Errorf("btreeManager is not manager.BTreeManager type")
+		return newTxnAdapterError("index-adapter-delete-entry", ExecutionErrorCodeIndexOperation, 0, fmt.Errorf("btreeManager is not manager.BTreeManager type"), "btreeManager is not manager.BTreeManager type")
 	}
 
 	// 调用B+树管理器的Delete方法
 	err := btreeManager.Delete(ctx, indexID, key)
 	if err != nil {
-		return fmt.Errorf("failed to delete index entry: %w", err)
+		return newTxnAdapterError("index-adapter-delete-entry", ExecutionErrorCodeIndexOperation, 0, err, "failed to delete index entry: %v", err)
 	}
 
 	logger.Debugf("✅ Successfully deleted index entry: indexID=%d", indexID)
@@ -176,12 +183,12 @@ func (ia *IndexAdapter) GetIndexMetadata(ctx context.Context, schemaName, tableN
 
 	// 从表存储管理器获取表信息
 	if ia.tableStorageManager == nil {
-		return nil, fmt.Errorf("table storage manager not available")
+		return nil, newTxnAdapterError("index-adapter-get-index-metadata", ExecutionErrorCodeStorageMissing, 0, fmt.Errorf("table storage manager not available"), "table storage manager not available")
 	}
 
 	tableInfo, err := ia.tableStorageManager.GetTableStorageInfo(schemaName, tableName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get table storage info: %w", err)
+		return nil, NewExecutionErrorf("engine", "index-adapter-get-index-metadata", ExecutionErrorCodeMetadataMissing, schemaName, tableName, "", 0, err, "failed to get table storage info: %v", err)
 	}
 
 	// 从索引管理器获取表ID（使用SpaceID作为TableID）
@@ -198,7 +205,7 @@ func (ia *IndexAdapter) GetIndexMetadata(ctx context.Context, schemaName, tableN
 	}
 
 	if foundIndex == nil {
-		return nil, fmt.Errorf("index %s not found in table %s.%s", indexName, schemaName, tableName)
+		return nil, NewExecutionErrorf("engine", "index-adapter-get-index-metadata", ExecutionErrorCodeMetadataMissing, schemaName, tableName, "", 0, fmt.Errorf("index %s not found in table %s.%s", indexName, schemaName, tableName), "index %s not found in table %s.%s", indexName, schemaName, tableName)
 	}
 
 	// 提取列名
@@ -277,19 +284,19 @@ func (ia *IndexAdapter) ReadIndexRecord(ctx context.Context, indexID uint64, key
 
 	// 如果没有B+树管理器，返回错误
 	if ia.btreeManager == nil {
-		return nil, fmt.Errorf("no btree manager available")
+		return nil, newTxnAdapterError("index-adapter-read-record", ExecutionErrorCodeIndexOperation, 0, fmt.Errorf("no btree manager available"), "no btree manager available")
 	}
 
 	// 尝试将btreeManager转换为BTreeManager接口
 	btreeManager, ok := ia.btreeManager.(manager.BTreeManager)
 	if !ok {
-		return nil, fmt.Errorf("btreeManager is not manager.BTreeManager type")
+		return nil, newTxnAdapterError("index-adapter-read-record", ExecutionErrorCodeIndexOperation, 0, fmt.Errorf("btreeManager is not manager.BTreeManager type"), "btreeManager is not manager.BTreeManager type")
 	}
 
 	// 1. 在B+树索引中查找key
 	record, err := btreeManager.Search(ctx, indexID, key)
 	if err != nil {
-		return nil, fmt.Errorf("search in index failed: %w", err)
+		return nil, newTxnAdapterError("index-adapter-read-record", ExecutionErrorCodeIndexOperation, 0, err, "search in index failed: %v", err)
 	}
 
 	// 2. 读取索引记录数据
@@ -330,10 +337,14 @@ type Transaction struct {
 func (ta *TransactionAdapter) BeginTransaction(ctx context.Context, readOnly bool, isolationLevel string) (*Transaction, error) {
 	logger.Debugf("Begin transaction: readOnly=%v, isolationLevel=%s", readOnly, isolationLevel)
 
+	if ta == nil || ta.storageManager == nil {
+		return nil, NewExecutionErrorf("engine", "transaction-begin", ExecutionErrorCodeTxnContextInvalid, "", "", "", 0, fmt.Errorf("storage manager is nil"), "storage manager is nil")
+	}
+
 	// 调用存储管理器的事务管理接口
 	txnID, err := ta.storageManager.BeginTransaction()
 	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+		return nil, NewExecutionErrorf("engine", "transaction-begin", ExecutionErrorCodeTxnBeginFailed, "", "", "", 0, err, "failed to begin transaction: %v", err)
 	}
 
 	return &Transaction{
@@ -348,7 +359,7 @@ func (ta *TransactionAdapter) BeginTransaction(ctx context.Context, readOnly boo
 func (ta *TransactionAdapter) CommitTransaction(ctx context.Context, txn *Transaction) error {
 	// 验证事务对象
 	if txn == nil {
-		return fmt.Errorf("transaction is nil")
+		return NewExecutionErrorWithCause("engine", "transaction-commit", ExecutionErrorCodeTxnContextInvalid, "", "", "", 0, fmt.Errorf("transaction is nil"), "transaction is nil")
 	}
 
 	logger.Debugf("Commit transaction: txnID=%d", txn.TxnID)
@@ -358,7 +369,7 @@ func (ta *TransactionAdapter) CommitTransaction(ctx context.Context, txn *Transa
 		err := ta.storageManager.CommitTransaction(txn.TxnID)
 		if err != nil {
 			logger.Errorf("❌ Failed to commit transaction %d: %v", txn.TxnID, err)
-			return fmt.Errorf("failed to commit transaction: %w", err)
+			return NewExecutionErrorf("engine", "transaction-commit", ExecutionErrorCodeTxnCommitFailed, "", "", "", txn.TxnID, err, "failed to commit transaction: %v", err)
 		}
 	}
 
@@ -372,11 +383,15 @@ func (ta *TransactionAdapter) CommitTransaction(ctx context.Context, txn *Transa
 	return nil
 }
 
+func makeResourceID(tableID, pageID uint32, rowID uint64) string {
+	return fmt.Sprintf("%d_%d_%d", tableID, pageID, rowID)
+}
+
 // RollbackTransaction 回滚事务
 func (ta *TransactionAdapter) RollbackTransaction(ctx context.Context, txn *Transaction) error {
 	// 验证事务对象
 	if txn == nil {
-		return fmt.Errorf("transaction is nil")
+		return NewExecutionErrorWithCause("engine", "transaction-rollback", ExecutionErrorCodeTxnContextInvalid, "", "", "", 0, fmt.Errorf("transaction is nil"), "transaction is nil")
 	}
 
 	logger.Debugf("Rollback transaction: txnID=%d", txn.TxnID)
@@ -386,7 +401,7 @@ func (ta *TransactionAdapter) RollbackTransaction(ctx context.Context, txn *Tran
 		err := ta.storageManager.RollbackTransaction(txn.TxnID)
 		if err != nil {
 			logger.Errorf("❌ Failed to rollback transaction %d: %v", txn.TxnID, err)
-			return fmt.Errorf("failed to rollback transaction: %w", err)
+			return NewExecutionErrorf("engine", "transaction-rollback", ExecutionErrorCodeTxnRollbackFailed, "", "", "", txn.TxnID, err, "failed to rollback transaction: %v", err)
 		}
 	}
 
@@ -402,21 +417,20 @@ func (ta *TransactionAdapter) RollbackTransaction(ctx context.Context, txn *Tran
 
 // AcquireLock 获取锁
 func (ta *TransactionAdapter) AcquireLock(ctx context.Context, txn *Transaction, lockType string, resource string) error {
+	if txn == nil {
+		return newTxnAdapterError("transaction-lock", ExecutionErrorCodeTxnContextInvalid, 0, fmt.Errorf("transaction is nil"), "transaction is nil")
+	}
+
 	logger.Debugf("Acquire lock: txnID=%d, lockType=%s, resource=%s", txn.TxnID, lockType, resource)
 
 	// 验证参数
-	if txn == nil {
-		return fmt.Errorf("transaction is nil")
-	}
-
 	if resource == "" {
-		return fmt.Errorf("resource cannot be empty")
+		return newTxnAdapterError("transaction-lock", ExecutionErrorCodeValidation, txn.TxnID, fmt.Errorf("resource cannot be empty"), "resource cannot be empty")
 	}
 
-	// 如果没有锁管理器，直接返回成功（简化模式）
+	// 缺少锁管理器时不能静默跳过，否则上层会误判锁已获取。
 	if ta.lockManager == nil {
-		logger.Debugf("⚠️ No lock manager available, skipping lock acquisition")
-		return nil
+		return newTxnAdapterError("transaction-lock", ExecutionErrorCodeTxnContextInvalid, txn.TxnID, fmt.Errorf("lock manager is nil"), "lock manager is nil")
 	}
 
 	// 解析资源ID格式: "tableID:pageID:rowID"
@@ -428,7 +442,7 @@ func (ta *TransactionAdapter) AcquireLock(ctx context.Context, txn *Transaction,
 		// 如果解析失败，尝试简化格式 "tableID:rowID"
 		_, err = fmt.Sscanf(resource, "%d:%d", &tableID, &rowID)
 		if err != nil {
-			return fmt.Errorf("invalid resource format: %s", resource)
+			return newTxnAdapterError("transaction-lock", ExecutionErrorCodeValidation, txn.TxnID, fmt.Errorf("invalid resource format: %s", resource), "invalid resource format: %s", resource)
 		}
 		pageID = 0 // 默认页ID为0
 	}
@@ -441,7 +455,7 @@ func (ta *TransactionAdapter) AcquireLock(ctx context.Context, txn *Transaction,
 	case "X", "EXCLUSIVE", "exclusive":
 		lt = manager.LOCK_X
 	default:
-		return fmt.Errorf("unknown lock type: %s", lockType)
+		return newTxnAdapterError("transaction-lock", ExecutionErrorCodeValidation, txn.TxnID, fmt.Errorf("unknown lock type: %s", lockType), "unknown lock type: %s", lockType)
 	}
 
 	// 调用锁管理器获取锁
@@ -449,7 +463,7 @@ func (ta *TransactionAdapter) AcquireLock(ctx context.Context, txn *Transaction,
 	if err != nil {
 		logger.Debugf("❌ Failed to acquire %s lock on %s for transaction %d: %v",
 			lockType, resource, txn.TxnID, err)
-		return fmt.Errorf("failed to acquire lock: %w", err)
+		return newTxnAdapterError("transaction-lock", ExecutionErrorCodeIndexOperation, txn.TxnID, err, "failed to acquire lock: %v", err)
 	}
 
 	logger.Debugf("✅ Acquired %s lock on %s for transaction %d", lockType, resource, txn.TxnID)
@@ -460,28 +474,40 @@ func (ta *TransactionAdapter) AcquireLock(ctx context.Context, txn *Transaction,
 // 注意：当前LockManager实现只支持释放事务的所有锁（ReleaseLocks）
 // 单个锁的释放功能需要在LockManager中实现
 func (ta *TransactionAdapter) ReleaseLock(ctx context.Context, txn *Transaction, resource string) error {
+	if txn == nil {
+		return newTxnAdapterError("transaction-unlock", ExecutionErrorCodeTxnContextInvalid, 0, fmt.Errorf("transaction is nil"), "transaction is nil")
+	}
+
 	logger.Debugf("Release lock: txnID=%d, resource=%s", txn.TxnID, resource)
 
 	// 验证参数
-	if txn == nil {
-		return fmt.Errorf("transaction is nil")
-	}
-
 	if resource == "" {
-		return fmt.Errorf("resource cannot be empty")
+		return newTxnAdapterError("transaction-unlock", ExecutionErrorCodeValidation, txn.TxnID, fmt.Errorf("resource cannot be empty"), "resource cannot be empty")
 	}
 
-	// 如果没有锁管理器，直接返回成功（简化模式）
+	// 缺少锁管理器时不能静默跳过，否则上层会误判资源锁已释放。
 	if ta.lockManager == nil {
-		logger.Debugf("⚠️ No lock manager available, skipping lock release")
-		return nil
+		return newTxnAdapterError("transaction-unlock", ExecutionErrorCodeTxnContextInvalid, txn.TxnID, fmt.Errorf("lock manager is nil"), "lock manager is nil")
 	}
 
 	// 当前实现：释放事务的所有锁
-	// TODO: 在LockManager中实现单个锁的释放功能
-	logger.Debugf("⚠️ ReleaseLock currently releases all locks for transaction %d", txn.TxnID)
-	ta.lockManager.ReleaseLocks(txn.TxnID)
+	var tableID, pageID uint32
+	var rowID uint64
+	_, err := fmt.Sscanf(resource, "%d:%d:%d", &tableID, &pageID, &rowID)
+	if err != nil {
+		// 如果解析失败，尝试简化格式 "tableID:rowID"
+		_, err = fmt.Sscanf(resource, "%d:%d", &tableID, &rowID)
+		if err != nil {
+			return newTxnAdapterError("transaction-unlock", ExecutionErrorCodeValidation, txn.TxnID, fmt.Errorf("invalid resource format: %s", resource), "invalid resource format: %s", resource)
+		}
+		pageID = 0
+	}
 
-	logger.Debugf("✅ Released locks for transaction %d", txn.TxnID)
+	resourceID := makeResourceID(tableID, pageID, rowID)
+	if err := ta.lockManager.ReleaseLock(txn.TxnID, resourceID); err != nil {
+		return newTxnAdapterError("transaction-unlock", ExecutionErrorCodeIndexOperation, txn.TxnID, err, "failed to release lock: %v", err)
+	}
+
+	logger.Debugf("✅ Released lock %s for transaction %d", resourceID, txn.TxnID)
 	return nil
 }

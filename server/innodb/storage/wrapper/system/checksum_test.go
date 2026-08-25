@@ -13,7 +13,7 @@ func TestSystemPageChecksum_ValidateChecksum(t *testing.T) {
 
 	// 填充一些测试数据
 	content := sp.GetContent()
-	for i := 0; i < len(content); i++ {
+	for i := pages.FileHeaderSize; i < len(content)-8; i++ {
 		content[i] = byte(i % 256)
 	}
 	sp.SetContent(content)
@@ -41,7 +41,7 @@ func TestSystemPageChecksum_DetectCorruption(t *testing.T) {
 
 	// 填充测试数据
 	content := sp.GetContent()
-	for i := 0; i < len(content); i++ {
+	for i := pages.FileHeaderSize; i < len(content)-8; i++ {
 		content[i] = byte((i * 3) % 256)
 	}
 	sp.SetContent(content)
@@ -74,7 +74,7 @@ func TestSystemPageChecksum_UpdateInWrite(t *testing.T) {
 
 	// 填充数据
 	content := sp.GetContent()
-	for i := 0; i < len(content); i++ {
+	for i := pages.FileHeaderSize; i < len(content)-8; i++ {
 		content[i] = byte((i * 5) % 256)
 	}
 	sp.SetContent(content)
@@ -104,7 +104,7 @@ func TestSystemPageChecksum_Validate(t *testing.T) {
 
 	// 填充数据
 	content := sp.GetContent()
-	for i := 0; i < len(content); i++ {
+	for i := pages.FileHeaderSize; i < len(content)-8; i++ {
 		content[i] = byte((i * 7) % 256)
 	}
 	sp.SetContent(content)
@@ -139,7 +139,7 @@ func TestSystemPageChecksum_CRC32Consistency(t *testing.T) {
 
 	// 填充已知数据
 	content := sp.GetContent()
-	for i := 0; i < len(content); i++ {
+	for i := pages.FileHeaderSize; i < len(content)-8; i++ {
 		content[i] = 0x55
 	}
 	sp.SetContent(content)
@@ -187,7 +187,7 @@ func TestSystemPageChecksum_MultipleTypes(t *testing.T) {
 
 			// 填充数据
 			content := sp.GetContent()
-			for i := 0; i < len(content); i++ {
+			for i := pages.FileHeaderSize; i < len(content)-8; i++ {
 				content[i] = byte((i + int(tc.pageType)) % 256)
 			}
 			sp.SetContent(content)
@@ -233,7 +233,7 @@ func TestSystemPageChecksum_TrailerConsistency(t *testing.T) {
 
 	// 填充数据
 	content := sp.GetContent()
-	for i := 0; i < len(content); i++ {
+	for i := pages.FileHeaderSize; i < len(content)-8; i++ {
 		content[i] = byte((i * 13) % 256)
 	}
 	sp.SetContent(content)

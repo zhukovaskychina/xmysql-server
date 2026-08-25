@@ -1,6 +1,8 @@
 package pages
 
 import (
+	"encoding/binary"
+
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"testing"
 
@@ -85,9 +87,18 @@ func TestAllocatedPage_ValidatePageContent(t *testing.T) {
 func TestAllocatedPage_SetChecksum(t *testing.T) {
 	page := NewAllocatedPage(1, 1)
 
-	// For now, just verify that checksum can be set without error
-	// TODO: Add proper checksum verification once implemented
-	assert.NotPanics(t, func() {
-		page.SetChecksum()
-	})
+	content := make([]byte, common.PageSize)
+	for i := range content {
+		content[i] = byte(i % 251)
+	}
+	assert.NoError(t, page.LoadPageBody(content))
+	page.SetChecksum()
+
+	checker := NewPageIntegrityChecker(ChecksumCRC32)
+	expected := checker.CalculateChecksum(page.GetPageBody())
+
+	storedHeader := binary.LittleEndian.Uint32(page.GetPageBody()[:4])
+	storedTrailer := binary.LittleEndian.Uint64(page.GetPageBody()[len(page.GetPageBody())-8:])
+	assert.Equal(t, expected, storedHeader)
+	assert.Equal(t, uint64(expected), storedTrailer)
 }

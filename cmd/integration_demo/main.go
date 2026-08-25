@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
@@ -19,17 +18,20 @@ func main() {
 	fmt.Println("1. 初始化集成管理器...")
 	integrationManager := createIntegrationManager()
 	if integrationManager == nil {
-		log.Fatal("无法创建集成管理器")
+		fmt.Println("无法创建集成管理器")
+		return
 	}
 
 	// 2. 初始化和启动
 	fmt.Println("2. 启动集成服务...")
 	if err := integrationManager.Initialize(); err != nil {
-		log.Fatalf("初始化失败: %v", err)
+		fmt.Printf("初始化失败: %v\n", err)
+		return
 	}
 
 	if err := integrationManager.Start(); err != nil {
-		log.Fatalf("启动失败: %v", err)
+		fmt.Printf("启动失败: %v\n", err)
+		return
 	}
 	defer integrationManager.Stop()
 
@@ -326,7 +328,7 @@ func displayStatistics(manager *integration.IntegrationManager) {
 		fmt.Println("   执行引擎统计:")
 		logger.Debugf("   - 执行查询: %d\n", globalStats.ExecutionStats.ExecutedQueries)
 		logger.Debugf("   - 优化执行: %d\n", globalStats.ExecutionStats.OptimizedExecutions)
-		logger.Debugf("   - 并行执行: %d\n", globalStats.ExecutionStats.ParallelExecutions)
+		logger.Debugf("   - 缓存命中: %d\n", globalStats.ExecutionStats.CacheHits)
 		logger.Debugf("   - 索引扫描使用: %d\n", globalStats.ExecutionStats.IndexScansUsed)
 		logger.Debugf("   - 表扫描使用: %d\n", globalStats.ExecutionStats.TableScansUsed)
 		logger.Debugf("   - 覆盖索引使用: %d\n", globalStats.ExecutionStats.CoveringIndexUsed)

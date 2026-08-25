@@ -92,11 +92,11 @@ func TestString(t *testing.T) {
 		id:   STRING,
 		want: "hello",
 	}, {
-		in:   "'\'",
+		in:   "'\\\\'",
 		id:   STRING,
 		want: "",
 	}, {
-		in:   "'\hello\'",
+		in:   "'\\\\hello\\\\'",
 		id:   STRING,
 		want: "hello",
 	}, {

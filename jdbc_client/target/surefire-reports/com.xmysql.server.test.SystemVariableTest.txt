@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.xmysql.server.test.SystemVariableTest
+-------------------------------------------------------------------------------
+Tests run: 15, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.265 s -- in com.xmysql.server.test.SystemVariableTest

@@ -39,6 +39,11 @@ func (m *MockBTreeForIndexSync) Insert(ctx context.Context, key interface{}, val
 	return nil
 }
 
+func (m *MockBTreeForIndexSync) Delete(ctx context.Context, key interface{}) error {
+	m.deletedKeys[1] = append(m.deletedKeys[1], key)
+	return nil
+}
+
 func (m *MockBTreeForIndexSync) RangeSearch(ctx context.Context, startKey, endKey interface{}) ([]basic.Row, error) {
 	return nil, nil
 }
@@ -262,7 +267,7 @@ func TestSecondaryIndexSyncOnDelete(t *testing.T) {
 			"age":  25,
 		}
 
-		err := im.SyncSecondaryIndexesOnDelete(tableID, rowData)
+		err := im.SyncSecondaryIndexesOnDelete(tableID, rowData, []byte("pk_1"))
 		assert.NoError(t, err)
 
 		t.Log("✓ DELETE二级索引同步测试通过")

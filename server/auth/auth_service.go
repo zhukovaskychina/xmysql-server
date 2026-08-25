@@ -126,6 +126,18 @@ func (as *AuthServiceImpl) AuthenticateUser(ctx context.Context, user, password,
 	// 2. 验证密码
 	sessionKey := fmt.Sprintf("%s@%s", user, host)
 	challenge := as.challengeCache[sessionKey]
+	usedExactSessionKey := challenge != nil
+	challengeSessionKey := sessionKey
+	if len(challenge) == 0 && len(as.challengeCache) > 0 {
+		for k, c := range as.challengeCache {
+			if len(c) > 0 {
+				challenge = c
+				challengeSessionKey = k
+				usedExactSessionKey = false
+				break
+			}
+		}
+	}
 
 	if !as.passwordValidator.ValidatePassword(password, userInfo.Password, challenge) {
 		return &AuthResult{
@@ -173,7 +185,17 @@ func (as *AuthServiceImpl) AuthenticateUser(ctx context.Context, user, password,
 	}
 
 	// 5. 认证成功，清理挑战缓存
-	delete(as.challengeCache, sessionKey)
+	if len(challengeSessionKey) > 0 {
+		if usedExactSessionKey {
+			delete(as.challengeCache, challengeSessionKey)
+		} else {
+			for k := range as.challengeCache {
+				if len(as.challengeCache[k]) > 0 {
+					delete(as.challengeCache, k)
+				}
+			}
+		}
+	}
 
 	// 6. 获取用户权限
 	privileges := userInfo.GlobalPrivileges

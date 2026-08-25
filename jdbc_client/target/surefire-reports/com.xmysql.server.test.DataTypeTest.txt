@@ -1,0 +1,147 @@
+-------------------------------------------------------------------------------
+Test set: com.xmysql.server.test.DataTypeTest
+-------------------------------------------------------------------------------
+Tests run: 11, Failures: 0, Errors: 11, Skipped: 0, Time elapsed: 0.171 s <<< FAILURE! -- in com.xmysql.server.test.DataTypeTest
+com.xmysql.server.test.DataTypeTest.testIntegerTypes -- Time elapsed: 0.012 s <<< ERROR!
+java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testIntegerTypes(DataTypeTest.java:48)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+com.xmysql.server.test.DataTypeTest.testFloatingPointTypes -- Time elapsed: 0.012 s <<< ERROR!
+java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testFloatingPointTypes(DataTypeTest.java:78)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+com.xmysql.server.test.DataTypeTest.testStringTypes -- Time elapsed: 0.012 s <<< ERROR!
+java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testStringTypes(DataTypeTest.java:111)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+com.xmysql.server.test.DataTypeTest.testDateTimeTypes -- Time elapsed: 0.011 s <<< ERROR!
+java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testDateTimeTypes(DataTypeTest.java:142)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+com.xmysql.server.test.DataTypeTest.testBooleanType -- Time elapsed: 0.010 s <<< ERROR!
+java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testBooleanType(DataTypeTest.java:179)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+com.xmysql.server.test.DataTypeTest.testEnumType -- Time elapsed: 0.009 s <<< ERROR!
+java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testEnumType(DataTypeTest.java:207)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+com.xmysql.server.test.DataTypeTest.testSetType -- Time elapsed: 0.011 s <<< ERROR!
+java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testSetType(DataTypeTest.java:234)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+com.xmysql.server.test.DataTypeTest.testNullValues -- Time elapsed: 0.010 s <<< ERROR!
+java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testNullValues(DataTypeTest.java:266)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+com.xmysql.server.test.DataTypeTest.testBinaryTypes -- Time elapsed: 0.008 s <<< ERROR!
+java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testBinaryTypes(DataTypeTest.java:298)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+com.xmysql.server.test.DataTypeTest.testAutoIncrement -- Time elapsed: 0.009 s <<< ERROR!
+java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testAutoIncrement(DataTypeTest.java:319)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+com.xmysql.server.test.DataTypeTest.testDefaultValues -- Time elapsed: 0.008 s <<< ERROR!
+java.sql.SQLException: execute storage-integrated INSERT failed: 更新索引失败: 生成主键字节失败: 未找到主键列或主键值
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.DataTypeTest.testDefaultValues(DataTypeTest.java:351)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+

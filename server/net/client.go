@@ -19,7 +19,6 @@ package net
 
 import (
 	"crypto/tls"
-	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -87,7 +86,14 @@ func newClient(t EndPointType, opts ...ClientOption) *client {
 	c.init(opts...)
 
 	if c.number <= 0 || c.addr == "" {
-		panic(fmt.Sprintf("client type:%s, @connNum:%d, @serverAddr:%s", t, c.number, c.addr))
+		if c.number <= 0 {
+			log.Warn("client type:%s, connNum invalid(%d), fallback to 1", t, c.number)
+			c.number = 1
+		}
+		if c.addr == "" {
+			log.Warn("client type:%s, @serverAddr is empty, fallback to 127.0.0.1:3306", t)
+			c.addr = "127.0.0.1:3306"
+		}
 	}
 
 	c.ssMap = make(map[Session]struct{}, c.number)

@@ -52,10 +52,11 @@ func (m *MockIndexSyncer) SyncSecondaryIndexesOnUpdate(tableID uint64, oldData, 
 	return nil
 }
 
-func (m *MockIndexSyncer) SyncSecondaryIndexesOnDelete(tableID uint64, rowData map[string]interface{}) error {
+func (m *MockIndexSyncer) SyncSecondaryIndexesOnDelete(tableID uint64, rowData map[string]interface{}, pkValue []byte) error {
 	m.deleteCalls = append(m.deleteCalls, IndexSyncCall{
 		TableID: tableID,
 		RowData: rowData,
+		PKValue: pkValue,
 	})
 	return nil
 }
@@ -88,6 +89,11 @@ func (m *MockBTreeManager) Insert(ctx context.Context, key interface{}, value []
 	return nil
 }
 
+func (m *MockBTreeManager) Delete(ctx context.Context, key interface{}) error {
+	delete(m.insertedData, key)
+	return nil
+}
+
 func (m *MockBTreeManager) RangeSearch(ctx context.Context, startKey, endKey interface{}) ([]basic.Row, error) {
 	return nil, nil
 }
@@ -100,6 +106,7 @@ func (m *MockBTreeManager) GetFirstLeafPage(ctx context.Context) (uint32, error)
 func TestDMLExecutor_InsertWithSecondaryIndexSync(t *testing.T) {
 	mockIndexSyncer := NewMockIndexSyncer()
 	mockBTreeManager := NewMockBTreeManager()
+	const wantTableID uint64 = 4096
 
 	dmlExecutor := NewDMLExecutor(
 		nil, // optimizerManager
@@ -109,6 +116,10 @@ func TestDMLExecutor_InsertWithSecondaryIndexSync(t *testing.T) {
 		nil, // txManager
 		mockIndexSyncer,
 	)
+	dmlExecutor.schemaName = "test_db"
+	dmlExecutor.tableIDResolver = func(schemaName, tableName string) (uint64, error) {
+		return wantTableID, nil
+	}
 
 	// 准备测试数据
 	tableMeta := &metadata.TableMeta{
@@ -140,7 +151,7 @@ func TestDMLExecutor_InsertWithSecondaryIndexSync(t *testing.T) {
 	assert.Equal(t, 1, len(mockIndexSyncer.insertCalls))
 
 	call := mockIndexSyncer.insertCalls[0]
-	assert.Greater(t, call.TableID, uint64(0), "TableID should be non-zero")
+	assert.Equal(t, wantTableID, call.TableID)
 	assert.Equal(t, "Alice", call.RowData["name"])
 	assert.Equal(t, 25, call.RowData["age"])
 
@@ -151,6 +162,7 @@ func TestDMLExecutor_InsertWithSecondaryIndexSync(t *testing.T) {
 func TestDMLExecutor_UpdateWithSecondaryIndexSync(t *testing.T) {
 	mockIndexSyncer := NewMockIndexSyncer()
 	mockBTreeManager := NewMockBTreeManager()
+	const wantTableID uint64 = 4097
 
 	dmlExecutor := NewDMLExecutor(
 		nil,
@@ -160,10 +172,14 @@ func TestDMLExecutor_UpdateWithSecondaryIndexSync(t *testing.T) {
 		nil,
 		mockIndexSyncer,
 	)
+	dmlExecutor.schemaName = "test_db"
+	dmlExecutor.tableIDResolver = func(schemaName, tableName string) (uint64, error) {
+		return wantTableID, nil
+	}
 
 	tableMeta := &metadata.TableMeta{
 		Name:       "users",
-		Columns:    []*metadata.ColumnMeta{},
+		Columns:    []*metadata.ColumnMeta{{Name: "name", Type: metadata.TypeVarchar}},
 		PrimaryKey: []string{"id"},
 	}
 
@@ -195,7 +211,7 @@ func TestDMLExecutor_UpdateWithSecondaryIndexSync(t *testing.T) {
 	assert.Equal(t, 1, len(mockIndexSyncer.updateCalls))
 
 	call := mockIndexSyncer.updateCalls[0]
-	assert.Greater(t, call.TableID, uint64(0))
+	assert.Equal(t, wantTableID, call.TableID)
 	assert.Equal(t, "Alice", call.OldData["name"])
 	assert.Equal(t, "Bob", call.NewData["name"])
 
@@ -206,6 +222,7 @@ func TestDMLExecutor_UpdateWithSecondaryIndexSync(t *testing.T) {
 func TestDMLExecutor_DeleteWithSecondaryIndexSync(t *testing.T) {
 	mockIndexSyncer := NewMockIndexSyncer()
 	mockBTreeManager := NewMockBTreeManager()
+	const wantTableID uint64 = 4098
 
 	dmlExecutor := NewDMLExecutor(
 		nil,
@@ -215,10 +232,14 @@ func TestDMLExecutor_DeleteWithSecondaryIndexSync(t *testing.T) {
 		nil,
 		mockIndexSyncer,
 	)
+	dmlExecutor.schemaName = "test_db"
+	dmlExecutor.tableIDResolver = func(schemaName, tableName string) (uint64, error) {
+		return wantTableID, nil
+	}
 
 	tableMeta := &metadata.TableMeta{
 		Name:       "users",
-		Columns:    []*metadata.ColumnMeta{},
+		Columns:    []*metadata.ColumnMeta{{Name: "name", Type: metadata.TypeVarchar}},
 		PrimaryKey: []string{"id"},
 	}
 
@@ -242,7 +263,7 @@ func TestDMLExecutor_DeleteWithSecondaryIndexSync(t *testing.T) {
 	assert.Equal(t, 1, len(mockIndexSyncer.deleteCalls))
 
 	call := mockIndexSyncer.deleteCalls[0]
-	assert.Greater(t, call.TableID, uint64(0))
+	assert.Equal(t, wantTableID, call.TableID)
 	assert.Equal(t, "Alice", call.RowData["name"])
 	assert.Equal(t, 25, call.RowData["age"])
 

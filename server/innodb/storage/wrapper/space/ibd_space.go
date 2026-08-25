@@ -129,6 +129,40 @@ func NewIBDSpace(ibdFile *ibd.IBD_File, isSystem bool) *IBDSpace {
 	}
 }
 
+// RecoverAllocationsFromFileSize reconstructs the in-memory page allocation
+// table for an already existing tablespace file. Allocation metadata is still
+// not durable, so this conservative recovery marks every page present in the
+// file as allocated.
+func (s *IBDSpace) RecoverAllocationsFromFileSize() error {
+	s.Lock()
+	defer s.Unlock()
+
+	size, err := s.ibdFile.Size()
+	if err != nil {
+		return err
+	}
+	if size <= 0 {
+		return nil
+	}
+
+	pageCount := uint32(size / PageSize)
+	if size%PageSize != 0 {
+		pageCount++
+	}
+
+	s.pageAllocs = make(map[uint32]bool, pageCount)
+	for pageNo := uint32(0); pageNo < pageCount; pageNo++ {
+		s.pageAllocs[pageNo] = true
+	}
+	s.pageCount = pageCount
+	s.nextPage = pageCount
+	if pageCount > 0 {
+		s.extentCount = (pageCount + PagesPerExtent - 1) / PagesPerExtent
+		s.nextExtent = s.extentCount
+	}
+	return nil
+}
+
 // ID returns the space ID
 func (s *IBDSpace) ID() uint32 {
 	return s.id
@@ -149,6 +183,10 @@ func (s *IBDSpace) AllocateExtent(purpose basic.ExtentPurpose) (basic.Extent, er
 	s.Lock()
 	defer s.Unlock()
 
+	return s.allocateExtentLocked(purpose)
+}
+
+func (s *IBDSpace) allocateExtentLocked(purpose basic.ExtentPurpose) (basic.Extent, error) {
 	if !s.active {
 		return nil, fmt.Errorf("tablespace %d is not active", s.id)
 	}
@@ -315,7 +353,7 @@ func (s *IBDSpace) Initialize() error {
 	s.active = true
 
 	// Allocate first extent for system pages
-	extent, err := s.AllocateExtent(basic.ExtentPurposeSystem)
+	extent, err := s.allocateExtentLocked(basic.ExtentPurposeSystem)
 	if err != nil {
 		return fmt.Errorf("failed to allocate system extent: %v", err)
 	}

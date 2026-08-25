@@ -12,15 +12,24 @@ type ExplainPlan struct {
 }
 
 func (e *ExplainPlan) GetPlanId() int {
-	panic("implement me")
+	if e.plan == nil {
+		return 0
+	}
+	return e.plan.GetPlanId()
 }
 
 func (e *ExplainPlan) GetExtraInfo() string {
-	panic("implement me")
+	if e.plan == nil {
+		return "unsupported explain plan: missing child plan"
+	}
+	return "explain of " + e.plan.ToString()
 }
 
 func (e *ExplainPlan) GetPlanAccessType() string {
-	panic("implement me")
+	if e.plan == nil {
+		return "EXPLAIN"
+	}
+	return e.plan.GetPlanAccessType()
 }
 
 func NewExplainPlan(plan Plan) Plan {
@@ -30,18 +39,27 @@ func NewExplainPlan(plan Plan) Plan {
 }
 
 func (e *ExplainPlan) GetEstimateBlocks() int64 {
-	panic("implement me")
+	if e.plan == nil {
+		return 0
+	}
+	return e.plan.GetEstimateBlocks()
 }
 
 func (e *ExplainPlan) GetEstimateRows() int64 {
-	panic("implement me")
+	if e.plan == nil {
+		return 0
+	}
+	return e.plan.GetEstimateRows()
 }
 
 func (e *ExplainPlan) Scan(session server.MySQLServerSession) basic.Cursor {
-	panic("implement me")
+	return &noopPlanCursor{}
 	//return scan.NewExplainScan(e.Scan(), e.ToString())
 }
 
 func (e *ExplainPlan) ToString() string {
-	panic("implement me")
+	if e.plan == nil {
+		return "EXPLAIN <nil>"
+	}
+	return "EXPLAIN " + e.plan.ToString()
 }

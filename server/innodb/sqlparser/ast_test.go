@@ -18,8 +18,6 @@ package sqlparser
 
 import (
 	"bytes"
-	"fmt"
-	"github.com/zhukovaskychina/xmysql-server/server/common"
 
 	"encoding/json"
 
@@ -32,12 +30,12 @@ import (
 )
 
 func TestAppend(t *testing.T) {
-	query := "select * from t left join m on t.x=m.y where a = (1+1) "
+	query := "select * from t left join m on t.x = m.y where a = (1 + 1)"
 	tree, err := Parse(query)
 	if err != nil {
 		t.Error(err)
 	}
-	util.Debug(reflect.TypeOf(tree))
+	_ = reflect.TypeOf(tree)
 	var b bytes.Buffer
 	Append(&b, tree)
 	got := b.String()
@@ -54,11 +52,9 @@ func TestAppend(t *testing.T) {
 }
 
 func TestSelect(t *testing.T) {
-	sql := "from t where a = (1+2) and b=sin(30) and cc=aa"
-	tree, err := Parse(" from t where a = (1+2) and b=sin(30) and cc=aa")
+	tree, err := Parse("select * from t where a = (1 + 2) and b = sin(30) and cc = aa")
 	if err != nil {
 		t.Error(err)
-		util.Debug(common.NewErr(common.ErrSyntax, err.Error(), sql))
 		return
 	}
 	expr := tree.(*Select).Where.Expr
@@ -67,14 +63,14 @@ func TestSelect(t *testing.T) {
 	sel.AddWhere(expr)
 	buf := NewTrackedBuffer(nil)
 	sel.Where.Format(buf)
-	want := " where a = 1"
+	want := " where a = (1 + 2) and b = sin(30) and cc = aa"
 	if buf.String() != want {
 		t.Errorf("where: %q, want %s", buf.String(), want)
 	}
 	sel.AddWhere(expr)
 	buf = NewTrackedBuffer(nil)
 	sel.Where.Format(buf)
-	want = " where a = 1 and a = 1"
+	want = " where a = (1 + 2) and b = sin(30) and cc = aa and a = (1 + 2) and b = sin(30) and cc = aa"
 	if buf.String() != want {
 		t.Errorf("where: %q, want %s", buf.String(), want)
 	}
@@ -82,14 +78,14 @@ func TestSelect(t *testing.T) {
 	sel.AddHaving(expr)
 	buf = NewTrackedBuffer(nil)
 	sel.Having.Format(buf)
-	want = " having a = 1"
+	want = " having a = (1 + 2) and b = sin(30) and cc = aa"
 	if buf.String() != want {
 		t.Errorf("having: %q, want %s", buf.String(), want)
 	}
 	sel.AddHaving(expr)
 	buf = NewTrackedBuffer(nil)
 	sel.Having.Format(buf)
-	want = " having a = 1 and a = 1"
+	want = " having a = (1 + 2) and b = sin(30) and cc = aa and a = (1 + 2) and b = sin(30) and cc = aa"
 	if buf.String() != want {
 		t.Errorf("having: %q, want %s", buf.String(), want)
 	}

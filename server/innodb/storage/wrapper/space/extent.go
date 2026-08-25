@@ -311,7 +311,50 @@ func (e *ExtentImpl) GetStats() *basic.ExtentStats {
 }
 
 func (e *ExtentImpl) Defragment() error {
-	// TODO: 实现碎片整理逻辑
+	e.Lock()
+	defer e.Unlock()
+
+	// 1. 统计已分配页面数
+	allocated := uint32(len(e.pages))
+	e.stats.AllocatedPages = allocated
+	e.stats.FreePages = PagesPerExtent - allocated
+
+	// 2. 按页号构造已分配页列表并排序
+	pageList := make([]uint32, 0, allocated)
+	for pageNo := e.startPage; pageNo < e.startPage+PagesPerExtent; pageNo++ {
+		if e.pages[pageNo] {
+			pageList = append(pageList, pageNo)
+		}
+	}
+
+	if len(pageList) > 1 {
+		for i := 0; i < len(pageList)-1; i++ {
+			for j := 0; j < len(pageList)-i-1; j++ {
+				if pageList[j] > pageList[j+1] {
+					pageList[j], pageList[j+1] = pageList[j+1], pageList[j]
+				}
+			}
+		}
+	}
+
+	// 3. 计算碎片页数（不连续片段）
+	fragPages := uint32(0)
+	for i := 1; i < len(pageList); i++ {
+		if pageList[i] != pageList[i-1]+1 {
+			fragPages++
+		}
+	}
+	e.stats.FragmentCount = fragPages
+
+	// 4. 重新评估状态
+	if allocated == 0 {
+		e.state = basic.ExtentStateFree
+	} else if allocated == PagesPerExtent {
+		e.state = basic.ExtentStateFull
+	} else {
+		e.state = basic.ExtentStatePartial
+	}
+
 	return nil
 }
 

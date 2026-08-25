@@ -1,8 +1,10 @@
 package basic
 
 import (
-	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"math"
+	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 )
 
 // ValType specifies the type for SQLVal.
@@ -252,15 +254,22 @@ func NewValue(key []byte) Value {
 }
 
 func NewRow(value []byte) Row {
+	data := append([]byte(nil), value...)
 	// 创建一个简单的行实现
 	return &simpleRow{
-		data: value,
+		data:   data,
+		fields: [][]byte{append([]byte(nil), value...)},
 	}
 }
 
 // 简单行实现
 type simpleRow struct {
-	data []byte
+	data          []byte
+	fields        [][]byte
+	nOwned        byte
+	nextRowOffset uint16
+	heapNo        uint16
+	transactionID uint64
 }
 
 func (r *simpleRow) Less(than Row) bool {
@@ -297,11 +306,23 @@ func (r *simpleRow) GetPageNumber() uint32 {
 }
 
 func (r *simpleRow) WriteWithNull(content []byte) {
-	// TODO: 实现
+	r.data = append(r.data, content...)
+	r.data = append(r.data, 0)
+	r.fields = append(r.fields, append([]byte(nil), content...))
 }
 
 func (r *simpleRow) WriteBytesWithNullWithsPos(content []byte, index byte) {
-	// TODO: 实现
+	end := len(r.data)
+	if int(index)+1 < end {
+		end = int(index) + 1
+	}
+	updated := make([]byte, 0, len(r.data)+len(content)+1)
+	updated = append(updated, r.data[:end]...)
+	updated = append(updated, content...)
+	updated = append(updated, 0)
+	updated = append(updated, r.data[end:]...)
+	r.data = updated
+	r.fields = append(r.fields, append([]byte(nil), content...))
 }
 
 func (r *simpleRow) GetRowLength() uint16 {
@@ -309,50 +330,53 @@ func (r *simpleRow) GetRowLength() uint16 {
 }
 
 func (r *simpleRow) GetHeaderLength() uint16 {
-	return 0
+	return 5
 }
 
 func (r *simpleRow) GetPrimaryKey() Value {
-	return NewValue(r.data)
+	if len(r.fields) == 0 {
+		return NewNull()
+	}
+	return NewValue(r.fields[0])
 }
 
 func (r *simpleRow) GetFieldLength() int {
-	return 1
+	return len(r.fields)
 }
 
 func (r *simpleRow) ReadValueByIndex(index int) Value {
-	if index == 0 {
-		return NewValue(r.data)
+	if index >= 0 && index < len(r.fields) {
+		return NewValue(r.fields[index])
 	}
-	return nil
+	return NewNull()
 }
 
 func (r *simpleRow) SetNOwned(cnt byte) {
-	// TODO: 实现
+	r.nOwned = cnt
 }
 
 func (r *simpleRow) GetNOwned() byte {
-	return 0
+	return r.nOwned
 }
 
 func (r *simpleRow) GetNextRowOffset() uint16 {
-	return 0
+	return r.nextRowOffset
 }
 
 func (r *simpleRow) SetNextRowOffset(offset uint16) {
-	// TODO: 实现
+	r.nextRowOffset = offset
 }
 
 func (r *simpleRow) GetHeapNo() uint16 {
-	return 0
+	return r.heapNo
 }
 
 func (r *simpleRow) SetHeapNo(heapNo uint16) {
-	// TODO: 实现
+	r.heapNo = heapNo
 }
 
 func (r *simpleRow) SetTransactionId(trxId uint64) {
-	// TODO: 实现
+	r.transactionID = trxId
 }
 
 func (r *simpleRow) GetValueByColName(colName string) Value {
@@ -461,8 +485,24 @@ func NewString(val interface{}) Value {
 
 // NewTime creates a time value
 func NewTime(val interface{}) Value {
-	// TODO: Implement proper time value
-	return NewStringValue(val.(string))
+	switch v := val.(type) {
+	case time.Time:
+		return newTemporalValue(v.Format("2006-01-02 15:04:05"))
+	case string:
+		return newTemporalValue(v)
+	case []byte:
+		return newTemporalValue(string(v))
+	default:
+		return NewNull()
+	}
+}
+
+func newTemporalValue(val string) Value {
+	return &basicValue{
+		data:      []byte(val),
+		typ:       StrVal,
+		valueType: ValueTypeDateTime,
+	}
 }
 
 // NewBool creates a boolean value

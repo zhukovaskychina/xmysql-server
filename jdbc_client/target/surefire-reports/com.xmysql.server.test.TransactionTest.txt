@@ -1,0 +1,108 @@
+-------------------------------------------------------------------------------
+Test set: com.xmysql.server.test.TransactionTest
+-------------------------------------------------------------------------------
+Tests run: 8, Failures: 0, Errors: 8, Skipped: 0, Time elapsed: 0.088 s <<< FAILURE! -- in com.xmysql.server.test.TransactionTest
+com.xmysql.server.test.TransactionTest.testTransactionCommit -- Time elapsed: 0.006 s <<< ERROR!
+java.sql.SQLException: unsupported DDL action: truncate
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.TransactionTest.clearTable(TransactionTest.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+com.xmysql.server.test.TransactionTest.testTransactionRollback -- Time elapsed: 0.006 s <<< ERROR!
+java.sql.SQLException: unsupported DDL action: truncate
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.TransactionTest.clearTable(TransactionTest.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+com.xmysql.server.test.TransactionTest.testTransferMoneySuccess -- Time elapsed: 0.005 s <<< ERROR!
+java.sql.SQLException: unsupported DDL action: truncate
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.TransactionTest.clearTable(TransactionTest.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+com.xmysql.server.test.TransactionTest.testTransferMoneyFailureRollback -- Time elapsed: 0.006 s <<< ERROR!
+java.sql.SQLException: unsupported DDL action: truncate
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.TransactionTest.clearTable(TransactionTest.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+com.xmysql.server.test.TransactionTest.testSavepoint -- Time elapsed: 0.006 s <<< ERROR!
+java.sql.SQLException: unsupported DDL action: truncate
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.TransactionTest.clearTable(TransactionTest.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+com.xmysql.server.test.TransactionTest.testMultipleSavepoints -- Time elapsed: 0.005 s <<< ERROR!
+java.sql.SQLException: unsupported DDL action: truncate
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.TransactionTest.clearTable(TransactionTest.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+com.xmysql.server.test.TransactionTest.testTransactionIsolationReadCommitted -- Time elapsed: 0.006 s <<< ERROR!
+java.sql.SQLException: unsupported DDL action: truncate
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.TransactionTest.clearTable(TransactionTest.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+com.xmysql.server.test.TransactionTest.testBeginTransaction -- Time elapsed: 0.004 s <<< ERROR!
+java.sql.SQLException: unsupported DDL action: truncate
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdateInternal(StatementImpl.java:1334)
+	at com.mysql.cj.jdbc.StatementImpl.executeLargeUpdate(StatementImpl.java:2084)
+	at com.mysql.cj.jdbc.StatementImpl.executeUpdate(StatementImpl.java:1245)
+	at com.xmysql.server.test.BaseIntegrationTest.executeUpdate(BaseIntegrationTest.java:64)
+	at com.xmysql.server.test.TransactionTest.clearTable(TransactionTest.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+

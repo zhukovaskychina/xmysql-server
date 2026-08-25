@@ -58,11 +58,29 @@ func (adapter *EnhancedBTreeAdapter) Init(ctx context.Context, spaceId uint32, r
 		return nil
 	}
 
+	if rootPage != 0 {
+		metadata.IndexState = EnhancedIndexStateActive
+		metadata.IsLoaded = true
+		metadata.RootPageNo = rootPage
+		index := NewEnhancedBTreeIndex(metadata, adapter.enhancedManager.storageManager, adapter.enhancedManager.config)
+		if err := adapter.enhancedManager.metadataManager.RegisterIndex(metadata); err == nil {
+			if err := index.LoadFromStorage(ctx); err == nil {
+				adapter.enhancedManager.mu.Lock()
+				adapter.enhancedManager.loadedIndexes[metadata.IndexID] = index
+				adapter.enhancedManager.indexLoadOrder = append(adapter.enhancedManager.indexLoadOrder, metadata.IndexID)
+				adapter.enhancedManager.mu.Unlock()
+				return nil
+			}
+			_ = adapter.enhancedManager.metadataManager.RemoveIndex(metadata.IndexID)
+		}
+	}
+
 	// 创建新索引
 	_, err = adapter.enhancedManager.CreateIndex(ctx, metadata)
 	if err != nil {
 		return fmt.Errorf("failed to create default index: %v", err)
 	}
+	adapter.rootPageNo = metadata.RootPageNo
 
 	return nil
 }
@@ -109,6 +127,16 @@ func (adapter *EnhancedBTreeAdapter) Insert(ctx context.Context, key interface{}
 	return adapter.enhancedManager.Insert(ctx, adapter.defaultIndexID, keyBytes, value)
 }
 
+// Delete 删除一个键值对
+func (adapter *EnhancedBTreeAdapter) Delete(ctx context.Context, key interface{}) error {
+	keyBytes, err := adapter.convertKeyToBytes(key)
+	if err != nil {
+		return fmt.Errorf("failed to convert key: %v", err)
+	}
+
+	return adapter.enhancedManager.Delete(ctx, adapter.defaultIndexID, keyBytes)
+}
+
 // RangeSearch 范围查询
 func (adapter *EnhancedBTreeAdapter) RangeSearch(ctx context.Context, startKey, endKey interface{}) ([]basic.Row, error) {
 	// 将 interface{} 类型的 key 转换为 []byte
@@ -136,6 +164,44 @@ func (adapter *EnhancedBTreeAdapter) RangeSearch(ctx context.Context, startKey, 
 		rows = append(rows, row)
 	}
 
+	return rows, nil
+}
+
+// FullScan 顺序扫描默认索引的全部未删除记录。
+func (adapter *EnhancedBTreeAdapter) FullScan(ctx context.Context) ([]basic.Row, error) {
+	index, err := adapter.enhancedManager.GetIndex(adapter.defaultIndexID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get index: %v", err)
+	}
+
+	enhancedIndex, ok := index.(*EnhancedBTreeIndex)
+	if !ok {
+		return nil, fmt.Errorf("invalid index type")
+	}
+
+	firstLeafPageNo, err := enhancedIndex.GetFirstLeafPage(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rows := make([]basic.Row, 0)
+	currentPageNo := firstLeafPageNo
+	for currentPageNo != 0 {
+		page, err := enhancedIndex.GetPage(ctx, currentPageNo)
+		if err != nil {
+			return nil, err
+		}
+		for idx := range page.Records {
+			record := page.Records[idx]
+			if record.DeleteMark {
+				continue
+			}
+			recordCopy := record
+			row := &IndexRecordRowAdapter{record: &recordCopy}
+			rows = append(rows, row)
+		}
+		currentPageNo = page.NextPage
+	}
 	return rows, nil
 }
 

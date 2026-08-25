@@ -142,10 +142,17 @@ func StripLeadingComments(sql string) string {
 			}
 			sql = sql[index+2:]
 		case '-':
-			// Single line comment
-			index := strings.Index(sql, "")
-			if index == -1 {
+			// Single line comment.
+			// Per MySQL syntax, -- comments must be followed by whitespace or line end.
+			if len(sql) < 3 || (sql[2] != ' ' && sql[2] != '\t' && sql[2] != '\n' && sql[2] != '\r') {
 				return sql
+			}
+			index := strings.Index(sql, "\n")
+			if index == -1 {
+				index = strings.Index(sql, "\r")
+				if index == -1 {
+					return sql
+				}
 			}
 			sql = sql[index+1:]
 		}

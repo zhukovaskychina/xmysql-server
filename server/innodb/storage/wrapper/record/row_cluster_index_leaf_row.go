@@ -329,16 +329,6 @@ type ClusterLeafRowData struct {
 	DBRollPtr uint64 // 7字节，回滚指针，指向Undo日志
 }
 
-// TODO: Uncomment when store package is available
-/*
-func NewClusterLeafRowData(meta *store.TableTupleMeta) basic.FieldDataValue {
-	var clusterLeafRowData = new(ClusterLeafRowData)
-	clusterLeafRowData.Content = make([]byte, 0)
-	clusterLeafRowData.meta = meta.GetPrimaryClusterLeafTuple()
-	return clusterLeafRowData
-}
-*/
-
 func NewClusterLeafRowDataWithContents(content []byte, meta tuple) basic.FieldDataValue {
 	var clusterLeafRowData = new(ClusterLeafRowData)
 	clusterLeafRowData.Content = content
@@ -368,8 +358,74 @@ func (cld *ClusterLeafRowData) ReadValue(index int) basic.Value {
 }
 
 func (cld *ClusterLeafRowData) ReadBytesWithNullWithPosition(index int) []byte {
-	// TODO: Fix ToByte method call when basic.Value interface is properly defined
-	// return cld.RowValues[index].ToByte()
+	start := 5 * index
+	end := start + 5
+	if index < 0 || cld == nil || start >= len(cld.Content) || end > len(cld.Content) {
+		return nil
+	}
+	if start+4 > len(cld.Content) {
+		return nil
+	}
+
+	if len(cld.RowValues) > 0 {
+		if index >= 0 && index < len(cld.RowValues) && cld.RowValues[index] != nil {
+			return cld.RowValues[index].Bytes()
+		}
+	}
+
+	if cld == nil || cld.meta == nil {
+		return nil
+	}
+
+	columnCount := int(cld.meta.GetColumnLength())
+	if index >= columnCount {
+		return nil
+	}
+
+	header := NewClusterLeafRowHeaderWithContents(cld.meta, cld.Content)
+	if header == nil {
+		return nil
+	}
+
+	rowHeaderLen := int(header.GetRowHeaderLength())
+	if rowHeaderLen > len(cld.Content) {
+		return nil
+	}
+
+	cursor := rowHeaderLen
+	for i := 0; i <= index; i++ {
+		if cursor > len(cld.Content) {
+			return nil
+		}
+
+		if header.IsValueNullByIdx(byte(i)) {
+			if i == index {
+				return nil
+			}
+			continue
+		}
+
+		fieldInfo := cld.meta.GetColumnInfos(byte(i))
+		fieldLen := int(fieldInfo.FieldLength)
+		if fieldInfo.FieldType == "VARCHAR" {
+			variableLen := header.GetVarValueLengthByIndex(byte(i))
+			if variableLen > 0 {
+				fieldLen = int(variableLen)
+			}
+		}
+
+		if fieldLen < 0 {
+			return nil
+		}
+		end := cursor + fieldLen
+		if end > len(cld.Content) || fieldLen == 0 {
+			return nil
+		}
+		if i == index {
+			return cld.Content[cursor:end]
+		}
+		cursor = end
+	}
 	return nil
 }
 
@@ -434,8 +490,11 @@ func (row *ClusterLeafRow) ToByte() []byte {
 }
 
 func (row *ClusterLeafRow) GetPageNumber() uint32 {
-	//panic("implement me")
-	return util.ReadUB4Byte2UInt32(row.value.ReadBytesWithNullWithPosition(1))
+	raw := row.value.ReadBytesWithNullWithPosition(1)
+	if len(raw) < 2 {
+		return 0
+	}
+	return util.ReadUB4Byte2UInt32(raw)
 }
 
 func (row *ClusterLeafRow) WriteWithNull(content []byte) {
@@ -571,8 +630,11 @@ func (row *ClusterLeafRow) Less(than basic.Row) bool {
 }
 
 func (row *ClusterLeafRow) GetPrimaryKey() basic.Value {
-
-	return nil
+	raw := row.value.ReadBytesWithNullWithPosition(0)
+	if len(raw) == 0 {
+		return basic.NewStringValue("")
+	}
+	return basic.NewValue(raw)
 
 }
 
@@ -589,54 +651,3 @@ func (row *ClusterLeafRow) IsInfimumRow() bool {
 
 	return false
 }
-
-// TODO: Fix this function when ClusterSysIndexInternalRow and valueImpl are available
-/*
-func NewClusterLeafRowWithContent(content []byte, tableTuple tuple) basic.Row {
-	var currentRow = new(ClusterSysIndexInternalRow)
-
-	currentRow.FrmMeta = tableTuple
-
-	currentRow.header = NewClusterLeafRowHeaderWithContents(tableTuple, content)
-	currentRow.RowValues = make([]basic.Value, 0)
-
-	rowHeaderLength := currentRow.header.GetRowHeaderLength()
-
-	startOffset := rowHeaderLength
-
-	for i := 0; i < tableTuple.GetColumnLength(); i++ {
-
-		if currentRow.header.IsValueNullByIdx(byte(int(i))) {
-			fieldType := tableTuple.GetColumnInfos(byte(i)).FieldType
-			switch fieldType {
-			case "VARCHAR":
-				{
-					realLength := currentRow.header.GetVarValueLengthByIndex(byte(i))
-					currentRow.RowValues = append(currentRow.RowValues, valueImpl.NewVarcharVal(content[startOffset:int(startOffset)+realLength]))
-					startOffset = startOffset + uint16(realLength)
-					break
-				}
-			case "BIGINT":
-				{
-
-					currentRow.RowValues = append(currentRow.RowValues, valueImpl.NewBigIntValue(content[startOffset:startOffset+8]))
-					startOffset = startOffset + 8
-					break
-				}
-			case "INT":
-				{
-					currentRow.RowValues = append(currentRow.RowValues, valueImpl.NewIntValue(content[startOffset:startOffset+4]))
-					startOffset = startOffset + 4
-					break
-				}
-			}
-
-		} else {
-			fmt.Println("------------------")
-		}
-
-	}
-	currentRow.value = NewClusterLeafRowDataWithContents(content[rowHeaderLength:startOffset], tableTuple)
-	return currentRow
-}
-*/

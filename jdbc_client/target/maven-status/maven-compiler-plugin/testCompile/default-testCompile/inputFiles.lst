@@ -1,0 +1,13 @@
+/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/src/test/java/com/xmysql/server/test/AllTestsSuite.java
+/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/src/test/java/com/xmysql/server/test/BaseIntegrationTest.java
+/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/src/test/java/com/xmysql/server/test/DDLOperationsTest.java
+/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/src/test/java/com/xmysql/server/test/DMLOperationsTest.java
+/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/src/test/java/com/xmysql/server/test/DataTypeTest.java
+/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/src/test/java/com/xmysql/server/test/IndexAndConstraintTest.java
+/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/src/test/java/com/xmysql/server/test/JdbcConnectionTest.java
+/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/src/test/java/com/xmysql/server/test/JoinQueryTest.java
+/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/src/test/java/com/xmysql/server/test/PerformanceTest.java
+/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/src/test/java/com/xmysql/server/test/PreparedStatementTest.java
+/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/src/test/java/com/xmysql/server/test/SelectQueryTest.java
+/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/src/test/java/com/xmysql/server/test/SystemVariableTest.java
+/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/src/test/java/com/xmysql/server/test/TransactionTest.java

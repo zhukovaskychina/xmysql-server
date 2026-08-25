@@ -7,16 +7,19 @@
 ## 设计原则
 
 ### 1. 纯数据结构
+
 - ✅ 只包含数据结构定义
 - ✅ 无状态，无副作用
 - ✅ 可独立测试
 
 ### 2. 纯函数
+
 - ✅ 所有方法都是纯函数
 - ✅ 无全局状态依赖
 - ✅ 可预测的行为
 
 ### 3. 无业务逻辑
+
 - ✅ 不包含业务逻辑
 - ✅ 不依赖其他层
 - ✅ 只提供基础功能
@@ -24,11 +27,13 @@
 ## 核心数据结构
 
 ### ReadView
+
 MVCC读视图，用于实现快照隔离。
 
 **文件**: `read_view.go`
 
 **主要字段**:
+
 - `TxID`: 当前事务ID
 - `CreateTS`: 创建时间
 - `LowWaterMark`: 最小活跃事务ID
@@ -37,6 +42,7 @@ MVCC读视图，用于实现快照隔离。
 - `ActiveTxMap`: 活跃事务map（快速查找）
 
 **主要方法**:
+
 - `NewReadView()`: 创建新的ReadView
 - `IsVisible()`: 判断事务ID是否可见（使用map查找）
 - `IsVisibleFast()`: 判断事务ID是否可见（使用二分查找）
@@ -45,11 +51,13 @@ MVCC读视图，用于实现快照隔离。
 ---
 
 ### RecordVersion
+
 记录版本，用于维护记录的版本链。
 
 **文件**: `record_version.go`
 
 **主要字段**:
+
 - `Version`: 版本号
 - `TxID`: 创建该版本的事务ID
 - `RollPtr`: 回滚指针
@@ -60,6 +68,7 @@ MVCC读视图，用于实现快照隔离。
 - `Next`: 下一个版本（旧版本）
 
 **主要方法**:
+
 - `NewRecordVersion()`: 创建新的记录版本
 - `IsVisible()`: 检查对指定ReadView是否可见
 - `GetLatestVisibleVersion()`: 获取对指定ReadView可见的最新版本
@@ -69,16 +78,19 @@ MVCC读视图，用于实现快照隔离。
 ---
 
 ### VersionChain
+
 版本链管理器，管理单个记录的所有版本。
 
 **文件**: `version_chain.go`
 
 **主要字段**:
+
 - `head`: 链表头（最新版本）
 - `length`: 版本链长度
 - `minTxID`: 最小事务ID（用于GC）
 
 **主要方法**:
+
 - `NewVersionChain()`: 创建新的版本链
 - `InsertVersion()`: 插入新版本
 - `FindVisibleVersion()`: 查找对指定ReadView可见的版本
@@ -88,15 +100,18 @@ MVCC读视图，用于实现快照隔离。
 ---
 
 ### VersionChainManager
+
 版本链管理器，管理所有记录的版本链。
 
 **文件**: `version_chain.go`
 
 **主要字段**:
+
 - `chains`: key -> VersionChain映射
 - `gcChan`: GC触发通道
 
 **主要方法**:
+
 - `NewVersionChainManager()`: 创建版本链管理器
 - `GetOrCreateChain()`: 获取或创建版本链
 - `PurgeAllChains()`: 清理所有版本链中的旧版本
@@ -195,15 +210,18 @@ defer manager.StopGC()
 ## 与其他层的关系
 
 ### Format Layer（当前层）
+
 - **职责**: 定义数据结构和序列化
 - **特点**: 纯数据，纯函数，无状态
 
 ### Wrapper Layer
+
 - **职责**: 业务逻辑和高级抽象
 - **依赖**: 依赖Format Layer
 - **位置**: `server/innodb/storage/wrapper/mvcc/`
 
 ### Manager Layer
+
 - **职责**: 全局管理和协调
 - **依赖**: 依赖Wrapper Layer
 - **位置**: `server/innodb/manager/`
@@ -211,9 +229,11 @@ defer manager.StopGC()
 ## 迁移说明
 
 ### 从store/mvcc迁移
+
 原来的`server/innodb/storage/store/mvcc`包已被废弃，请使用本包。
 
 **主要变化**:
+
 - `TrxId` → `uint64`
 - `DeleteMark` → `Deleted`
 - 添加了`Version`字段
@@ -221,9 +241,11 @@ defer manager.StopGC()
 - 统一了`Value`类型为`basic.Row`
 
 ### 从wrapper/mvcc迁移
+
 原来的`server/innodb/storage/wrapper/mvcc`包中的数据结构已迁移到本包。
 
 **主要变化**:
+
 - 添加了`RollPtr`字段
 - 统一了事务ID类型为`uint64`
 - 添加了`ActiveTxMap`用于快速查找
@@ -231,6 +253,7 @@ defer manager.StopGC()
 ## 测试
 
 运行测试：
+
 ```bash
 go test ./server/innodb/storage/format/mvcc/...
 ```
@@ -238,14 +261,17 @@ go test ./server/innodb/storage/format/mvcc/...
 ## 性能优化
 
 ### ReadView可见性判断
+
 - `IsVisible()`: 使用map查找，O(1)时间复杂度
 - `IsVisibleFast()`: 使用二分查找，O(log n)时间复杂度
 
 **建议**:
+
 - 活跃事务数 < 100: 使用`IsVisible()`
 - 活跃事务数 >= 100: 使用`IsVisibleFast()`
 
 ### VersionChain垃圾回收
+
 - 定期调用`PurgeOldVersions()`清理旧版本
 - 使用`VersionChainManager.StartGC()`启动后台GC
 - 建议GC间隔：1分钟

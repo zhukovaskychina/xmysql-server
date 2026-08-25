@@ -177,7 +177,11 @@ func (c *ColumnMeta) Validate() error {
 		TypeTinyText, TypeText, TypeMediumText, TypeLongText:
 		// BLOB and TEXT types don't require length
 	case TypeEnum, TypeSet:
-		// TODO: Validate enum/set values
+		// 枚举/集合类型在当前元数据模型内只保留类型信息，不记录值列表
+		// 长度字段仅用于兼容历史接口，允许为空或正数
+		if c.Length < 0 {
+			return fmt.Errorf("column %s: length cannot be negative for type %v", c.Name, c.Type)
+		}
 	default:
 		return fmt.Errorf("column %s: unknown type %v", c.Name, c.Type)
 	}
@@ -239,10 +243,10 @@ func (c *ColumnMeta) SQLType() string {
 	case TypeLongText:
 		return "LONGTEXT"
 	case TypeEnum:
-		// TODO: Handle enum values
+		// ENUM 常量在当前实现不保留取值列表，返回标准类型名用于 DDL 语义保持
 		return "ENUM"
 	case TypeSet:
-		// TODO: Handle set values
+		// 集合类型使用值列表语义；当前未保留值列表时返回标准类型表示
 		return "SET"
 	case TypeJSON:
 		return "JSON"

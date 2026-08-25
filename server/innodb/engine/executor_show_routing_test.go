@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zhukovaskychina/xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
@@ -39,6 +40,11 @@ func (s *testMySQLSession) GetParamByName(name string) interface{} {
 }
 func (s *testMySQLSession) SetParamByName(name string, value interface{}) {
 	s.params[name] = value
+	if name == "in_transaction" {
+		if b, ok := value.(bool); ok {
+			s.ctx.SetInTransaction(b)
+		}
+	}
 }
 
 func TestXMySQLExecutor_ExecuteQuery_ShowRoutesToExecuteShowStatement(t *testing.T) {
@@ -174,7 +180,19 @@ func TestXMySQLExecutor_ExecuteQuery_ShowCreateTableWithSchemaNameParsesTable(t 
 }
 
 func TestXMySQLExecutor_ExecuteQuery_ShowColumnsReturnsStubColumns(t *testing.T) {
-	executor := &XMySQLExecutor{}
+	tempDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "testdb"), 0o755))
+	frmContent := `{
+  "table_name": "users",
+  "columns": [
+    {"name": "id", "type": "INT", "length": 11, "nullable": false}
+  ]
+}`
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "testdb", "users.frm"), []byte(frmContent), 0644))
+
+	executor := &XMySQLExecutor{
+		conf: &conf.Cfg{DataDir: tempDir},
+	}
 	results := make(chan *Result, 4)
 	ctx := &ExecutionContext{
 		Context: context.Background(),
@@ -198,7 +216,19 @@ func TestXMySQLExecutor_ExecuteQuery_ShowColumnsReturnsStubColumns(t *testing.T)
 }
 
 func TestXMySQLExecutor_ExecuteQuery_ShowFieldsReturnsStubColumns(t *testing.T) {
-	executor := &XMySQLExecutor{}
+	tempDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "testdb"), 0o755))
+	frmContent := `{
+  "table_name": "users",
+  "columns": [
+    {"name": "id", "type": "INT", "length": 11, "nullable": false}
+  ]
+}`
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "testdb", "users.frm"), []byte(frmContent), 0644))
+
+	executor := &XMySQLExecutor{
+		conf: &conf.Cfg{DataDir: tempDir},
+	}
 	results := make(chan *Result, 4)
 	ctx := &ExecutionContext{
 		Context: context.Background(),
@@ -222,7 +252,13 @@ func TestXMySQLExecutor_ExecuteQuery_ShowFieldsReturnsStubColumns(t *testing.T) 
 }
 
 func TestXMySQLExecutor_ExecuteQuery_ShowTablesReturnsRows(t *testing.T) {
-	executor := &XMySQLExecutor{}
+	tempDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "testdb"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "testdb", "users.frm"), []byte("{}"), 0644))
+
+	executor := &XMySQLExecutor{
+		conf: &conf.Cfg{DataDir: tempDir},
+	}
 	results := make(chan *Result, 4)
 	ctx := &ExecutionContext{
 		Context: context.Background(),
@@ -248,8 +284,42 @@ func TestXMySQLExecutor_ExecuteQuery_ShowTablesReturnsRows(t *testing.T) {
 	assert.Equal(t, "users", rows[0][0])
 }
 
+func TestXMySQLExecutor_ExecuteQuery_ShowTablesFallsBackToFilesWhenInfoSchemaEmpty(t *testing.T) {
+	tempDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "testdb"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "testdb", "users.frm"), []byte("{}"), 0o644))
+
+	executor := &XMySQLExecutor{
+		conf:               &conf.Cfg{DataDir: tempDir},
+		infosSchemaManager: &fakeShowInfoSchema{schemas: []string{"testdb"}},
+	}
+	results := make(chan *Result, 4)
+	ctx := &ExecutionContext{
+		Context: context.Background(),
+		Results: results,
+	}
+	session := newTestMySQLSession()
+	session.SetParamByName("database", "testdb")
+
+	executor.executeQuery(ctx, session, "show tables", "testdb", results)
+
+	result := <-results
+	require.NoError(t, result.Err)
+	data, ok := result.Data.(map[string]interface{})
+	require.True(t, ok)
+	rows, ok := data["rows"].([][]interface{})
+	require.True(t, ok)
+	require.Equal(t, [][]interface{}{{"users"}}, rows)
+}
+
 func TestXMySQLExecutor_ExecuteQuery_ShowTablesLikeFiltersRows(t *testing.T) {
-	executor := &XMySQLExecutor{}
+	tempDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "testdb"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "testdb", "users.frm"), []byte("{}"), 0644))
+
+	executor := &XMySQLExecutor{
+		conf: &conf.Cfg{DataDir: tempDir},
+	}
 	results := make(chan *Result, 4)
 	ctx := &ExecutionContext{
 		Context: context.Background(),
@@ -289,13 +359,32 @@ func TestXMySQLExecutor_ExecuteQuery_ShowDatabasesReturnsQueryData(t *testing.T)
 	assert.True(t, ok)
 	assert.NotNil(t, result)
 	assert.NoError(t, result.Err)
-	assert.Equal(t, "QUERY", result.ResultType)
+	assert.Equal(t, common.RESULT_TYPE_QUERY, result.ResultType)
 	data, ok := result.Data.(map[string]interface{})
 	require.True(t, ok)
 	assert.Equal(t, []string{"Database"}, data["columns"])
 	rows, ok := data["rows"].([][]interface{})
 	require.True(t, ok)
 	assert.Equal(t, "Found "+strconv.Itoa(len(rows))+" databases", result.Message)
+}
+
+func TestShowDatabasesLikeReturnsNavigableResult(t *testing.T) {
+	tmp := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "app_db"), 0o755))
+
+	executor := &XMySQLExecutor{conf: &conf.Cfg{InnodbDataDir: tmp}}
+	results := make(chan *Result, 1)
+	ctx := &ExecutionContext{Context: context.Background(), Results: results}
+
+	executor.executeShowDatabasesWithQuery(ctx, &sqlparser.Show{Type: "databases"}, "show databases like 'app_%'")
+
+	got := <-results
+	require.NoError(t, got.Err)
+	require.Equal(t, common.RESULT_TYPE_QUERY, got.ResultType)
+	data, ok := got.Data.(map[string]interface{})
+	require.True(t, ok)
+	require.Equal(t, []string{"Database"}, data["columns"])
+	require.Equal(t, [][]interface{}{{"app_db"}}, data["rows"])
 }
 
 func TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowDatabasesLikeFiltersRows(t *testing.T) {
@@ -319,7 +408,7 @@ func TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowDatabasesLikeFiltersRo
 
 	result := <-results
 	assert.NoError(t, result.Err)
-	assert.Equal(t, "QUERY", result.ResultType)
+	assert.Equal(t, common.RESULT_TYPE_QUERY, result.ResultType)
 	assert.Equal(t, "Found 1 databases", result.Message)
 	data, ok := result.Data.(map[string]interface{})
 	require.True(t, ok)
@@ -351,7 +440,7 @@ func TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowDatabasesUsesStmtFilte
 
 	result := <-results
 	assert.NoError(t, result.Err)
-	assert.Equal(t, "QUERY", result.ResultType)
+	assert.Equal(t, common.RESULT_TYPE_QUERY, result.ResultType)
 	assert.Equal(t, "Found 1 databases", result.Message)
 	data, ok := result.Data.(map[string]interface{})
 	require.True(t, ok)
@@ -510,7 +599,7 @@ func TestXMySQLExecutor_ExecuteQuery_ShowDatabasesWhereFiltersRows(t *testing.T)
 	result, ok := <-results
 	assert.True(t, ok)
 	assert.NoError(t, result.Err)
-	assert.Equal(t, "QUERY", result.ResultType)
+	assert.Equal(t, common.RESULT_TYPE_QUERY, result.ResultType)
 	data, ok := result.Data.(map[string]interface{})
 	require.True(t, ok)
 	rows, ok := data["rows"].([][]interface{})
@@ -520,7 +609,12 @@ func TestXMySQLExecutor_ExecuteQuery_ShowDatabasesWhereFiltersRows(t *testing.T)
 }
 
 func TestXMySQLExecutor_ExecuteQuery_ShowTablesWhereFiltersRows(t *testing.T) {
-	executor := &XMySQLExecutor{}
+	tempDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "testdb"), 0o755))
+
+	executor := &XMySQLExecutor{
+		conf: &conf.Cfg{DataDir: tempDir},
+	}
 	results := make(chan *Result, 2)
 	ctx := &ExecutionContext{
 		Context: context.Background(),

@@ -3,9 +3,12 @@ package engine
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
@@ -64,7 +67,7 @@ func TestStorageIntegratedDMLExecutor_InsertWithSerialization(t *testing.T) {
 		Columns: []*metadata.ColumnMeta{},
 	}
 
-	insertRows, err := executor.parseInsertData(insertStmt, tableMeta)
+	insertRows, err := executor.parseInsertData(context.Background(), insertStmt, tableMeta, "")
 	if err != nil {
 		t.Errorf("Failed to parse insert data: %v", err)
 	} else if len(insertRows) == 0 {
@@ -194,7 +197,22 @@ func TestStorageIntegratedDMLExecutor_DataSerialization(t *testing.T) {
 }
 
 func TestStorageIntegratedDMLExecutor_TransactionContext(t *testing.T) {
-	executor := NewStorageIntegratedDMLExecutor(nil, nil, nil, nil, nil, nil, nil, nil)
+	tmpDir := t.TempDir()
+	redoDir := filepath.Join(tmpDir, "redo")
+	undoDir := filepath.Join(tmpDir, "undo")
+	if err := os.MkdirAll(redoDir, 0755); err != nil {
+		t.Fatalf("create redo dir: %v", err)
+	}
+	if err := os.MkdirAll(undoDir, 0755); err != nil {
+		t.Fatalf("create undo dir: %v", err)
+	}
+	txManager, err := manager.NewTransactionManager(redoDir, undoDir)
+	if err != nil {
+		t.Fatalf("create transaction manager: %v", err)
+	}
+	defer txManager.Close()
+
+	executor := NewStorageIntegratedDMLExecutor(nil, nil, nil, nil, txManager, nil, nil, nil)
 
 	ctx := context.Background()
 
@@ -287,7 +305,10 @@ func TestStorageIntegratedDMLExecutor_ConditionParsing(t *testing.T) {
 		{"id = 1", int64(1)},
 		{"id = '123'", "123"},
 		{"user_id = 456", int64(456)},
+		{"`user_id` = '789'", "789"},
 		{"name = 'test'", nil}, // 非ID字段，应该返回nil
+		{"userid = 1", nil},    // 非主键风格命中，防止误判
+		{"id = 1 AND name = 'x'", int64(1)},
 	}
 
 	for _, tc := range testCases {
@@ -488,4 +509,29 @@ func BenchmarkStorageIntegratedDMLExecutor_Deserialization(b *testing.B) {
 			b.Fatalf("Deserialization failed: %v", err)
 		}
 	}
+}
+
+func TestStorageIntegratedDMLExecutor_ParseTableSchemaFromUpdateExpr(t *testing.T) {
+	executor := NewStorageIntegratedDMLExecutor(nil, nil, nil, nil, nil, nil, nil, nil)
+
+	updateSQL := "UPDATE stage1_db.users SET name = 'Jane Doe' WHERE id = 1"
+	stmt, err := sqlparser.Parse(updateSQL)
+	if err != nil {
+		t.Fatalf("Failed to parse UPDATE SQL: %v", err)
+	}
+
+	updateStmt := stmt.(*sqlparser.Update)
+	if len(updateStmt.TableExprs) == 0 {
+		t.Fatalf("Expected at least one table expr")
+	}
+
+	tableSchema, err := executor.parseTableSchema(updateStmt.TableExprs[0])
+	if err != nil {
+		t.Fatalf("Failed to parse table schema: %v", err)
+	}
+	if tableSchema != "stage1_db" {
+		t.Errorf("Expected table schema 'stage1_db', got '%s'", tableSchema)
+	}
+
+	t.Logf(" storage-integrated table schema parse test passed")
 }

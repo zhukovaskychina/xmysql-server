@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -11,10 +12,17 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/logger"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/page"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/record"
 )
+
+var enhancedBTreeRecordBlockMagic = []byte("XBTREC1")
+var enhancedBTreeFreeListMagic = []byte("XBTFRE1")
+
+const enhancedBTreeRecordBlockOffset = 256
+const enhancedBTreeFreeListOffset = 128
 
 // ctxKey is the type used for context keys in this package.
 type ctxKey string
@@ -33,6 +41,7 @@ type EnhancedBTreeIndex struct {
 	mu            sync.RWMutex          // 读写锁
 	pageCache     map[uint32]*BTreePage // 页面缓存
 	pageLoadOrder []uint32              // 页面访问顺序（LRU）
+	freePages     []uint32              // 可复用的空叶页
 
 	// 统计信息
 	statistics *EnhancedIndexStatistics // 索引统计
@@ -53,6 +62,7 @@ func NewEnhancedBTreeIndex(metadata *IndexMetadata, storageManager *StorageManag
 		config:         config,
 		pageCache:      make(map[uint32]*BTreePage),
 		pageLoadOrder:  make([]uint32, 0),
+		freePages:      make([]uint32, 0),
 		statistics: &EnhancedIndexStatistics{
 			Cardinality:  0,
 			NullCount:    0,
@@ -111,9 +121,13 @@ func (idx *EnhancedBTreeIndex) Insert(ctx context.Context, key []byte, value []b
 	if err != nil {
 		return fmt.Errorf("failed to get root page: %v", err)
 	}
+	targetPage, err := idx.findLeafPageForInsert(ctx, rootPage, key, value)
+	if err != nil {
+		return fmt.Errorf("failed to find leaf page for insert: %v", err)
+	}
 
 	// 执行插入操作
-	err = idx.insertIntoPage(ctx, rootPage, key, value)
+	err = idx.insertIntoPage(ctx, targetPage, key, value)
 	if err != nil {
 		return fmt.Errorf("failed to insert into page: %v", err)
 	}
@@ -192,8 +206,12 @@ func (idx *EnhancedBTreeIndex) Search(ctx context.Context, key []byte) (*IndexRe
 			return record, nil
 		}
 
-		// 如果是叶子页面但没找到，说明记录不存在
+		// 叶子页链可能包含 append split 后的后续页面，继续沿链查找。
 		if page.PageType == BTreePageTypeLeaf {
+			if page.NextPage != 0 {
+				currentPageNo = page.NextPage
+				continue
+			}
 			return nil, fmt.Errorf("record not found")
 		}
 
@@ -527,12 +545,141 @@ func (idx *EnhancedBTreeIndex) LoadFromStorage(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to load root page: %v", err)
 	}
+	if err := idx.loadFreePageList(ctx); err != nil {
+		return fmt.Errorf("failed to load free page list: %v", err)
+	}
 
 	atomic.StoreUint32(&idx.isLoaded, 1)
 	return nil
 }
 
 // 内部方法
+
+func (idx *EnhancedBTreeIndex) findLeafPageForInsert(ctx context.Context, startPage *BTreePage, key []byte, value []byte) (*BTreePage, error) {
+	if startPage == nil {
+		return nil, fmt.Errorf("start page is nil")
+	}
+
+	page := startPage
+	for {
+		if idx.canPersistRecordBlockWith(page, key, value) {
+			return page, nil
+		}
+		if page.NextPage == 0 {
+			return idx.allocateLinkedLeafPage(ctx, page)
+		}
+		next, err := idx.GetPage(ctx, page.NextPage)
+		if err != nil {
+			return nil, err
+		}
+		page = next
+	}
+}
+
+func (idx *EnhancedBTreeIndex) allocateLinkedLeafPage(ctx context.Context, prev *BTreePage) (*BTreePage, error) {
+	if prev == nil {
+		return nil, fmt.Errorf("previous page is nil")
+	}
+	pageNo, err := idx.allocateLeafPageNo(ctx)
+	if err != nil {
+		return nil, err
+	}
+	next := &BTreePage{
+		PageNo:      pageNo,
+		PageType:    BTreePageTypeLeaf,
+		Level:       0,
+		RecordCount: 0,
+		FreeSpace:   uint16(idx.config.PageSize - 100),
+		PrevPage:    prev.PageNo,
+		NextPage:    prev.NextPage,
+		Records:     make([]IndexRecord, 0),
+		IsLoaded:    true,
+		IsDirty:     true,
+		LastAccess:  time.Now(),
+		PinCount:    0,
+	}
+	prev.NextPage = pageNo
+	prev.IsDirty = true
+	if err := idx.flushPage(ctx, prev); err != nil {
+		return nil, fmt.Errorf("flush previous leaf page: %v", err)
+	}
+	if err := idx.flushPage(ctx, next); err != nil {
+		return nil, fmt.Errorf("flush new leaf page: %v", err)
+	}
+	idx.mu.Lock()
+	idx.pageCache[next.PageNo] = next
+	idx.pageLoadOrder = append(idx.pageLoadOrder, next.PageNo)
+	idx.mu.Unlock()
+	idx.metadata.PageCount++
+	return next, nil
+}
+
+func (idx *EnhancedBTreeIndex) allocateLeafPageNo(ctx context.Context) (uint32, error) {
+	idx.mu.Lock()
+	if len(idx.freePages) > 0 {
+		last := len(idx.freePages) - 1
+		pageNo := idx.freePages[last]
+		idx.freePages = idx.freePages[:last]
+		idx.mu.Unlock()
+		if err := idx.persistFreePageList(ctx); err != nil {
+			return 0, err
+		}
+		if err := idx.resetReusableLeafPage(ctx, pageNo); err != nil {
+			return 0, err
+		}
+		return pageNo, nil
+	}
+	idx.mu.Unlock()
+	return idx.AllocatePage(ctx)
+}
+
+func (idx *EnhancedBTreeIndex) resetReusableLeafPage(ctx context.Context, pageNo uint32) error {
+	bufferPage, err := idx.storageManager.GetBufferPoolManager().GetPage(idx.metadata.SpaceID, pageNo)
+	if err != nil {
+		return err
+	}
+	data := idx.initializeEmptyPageForPage(pageNo)
+	bufferPage.SetContent(data)
+	bufferPage.MarkDirty()
+	if err := idx.storageManager.GetBufferPoolManager().FlushPage(idx.metadata.SpaceID, pageNo); err != nil {
+		return err
+	}
+	idx.mu.Lock()
+	delete(idx.pageCache, pageNo)
+	for i, cachedPageNo := range idx.pageLoadOrder {
+		if cachedPageNo == pageNo {
+			idx.pageLoadOrder = append(idx.pageLoadOrder[:i], idx.pageLoadOrder[i+1:]...)
+			break
+		}
+	}
+	idx.mu.Unlock()
+	return nil
+}
+
+func (idx *EnhancedBTreeIndex) canPersistRecordBlockWith(page *BTreePage, key []byte, value []byte) bool {
+	if page == nil {
+		return false
+	}
+	return idx.indexRecordBlockSizeWith(page, key, value) <= idx.indexRecordBlockCapacity()
+}
+
+func (idx *EnhancedBTreeIndex) indexRecordBlockCapacity() int {
+	pageSize := PAGE_SIZE
+	if idx != nil && idx.config.PageSize > 0 {
+		pageSize = int(idx.config.PageSize)
+	}
+	return pageSize - enhancedBTreeRecordBlockOffset
+}
+
+func (idx *EnhancedBTreeIndex) indexRecordBlockSizeWith(page *BTreePage, key []byte, value []byte) int {
+	size := len(enhancedBTreeRecordBlockMagic) + 2
+	if page != nil {
+		for _, record := range page.Records {
+			size += 1 + 4 + 4 + len(record.Key) + len(record.Value)
+		}
+	}
+	return size + 1 + 4 + 4 + len(key) + len(value)
+}
 
 // insertIntoPage 向页面插入记录 (使用简化的页面初始化)
 func (idx *EnhancedBTreeIndex) insertIntoPage(ctx context.Context, page *BTreePage, key []byte, value []byte) error {
@@ -604,6 +751,12 @@ func (idx *EnhancedBTreeIndex) insertIntoPage(ctx context.Context, page *BTreePa
 	copy(indexRecord.Key, key)
 	copy(indexRecord.Value, value)
 	page.Records = append(page.Records, indexRecord)
+	if err := idx.persistIndexRecords(bufferPage, page); err != nil {
+		return fmt.Errorf("failed to persist index records: %v", err)
+	}
+	if err := idx.storageManager.GetBufferPoolManager().FlushPage(idx.metadata.SpaceID, page.PageNo); err != nil {
+		logger.Debugf("  Warning: Failed to flush persisted index records: %v\n", err)
+	}
 
 	// 8. 再次验证页面内容以确保插入成功
 	content := bufferPage.GetContent()
@@ -758,16 +911,20 @@ func (idx *EnhancedBTreeIndex) insertRecordToPage(bufferPage interface{}, record
 	return nil
 }
 
-// initializeEmptyPage 初始化空页面
 func (idx *EnhancedBTreeIndex) initializeEmptyPage() []byte {
+	return idx.initializeEmptyPageForPage(idx.metadata.RootPageNo)
+}
+
+// initializeEmptyPageForPage 初始化空页面
+func (idx *EnhancedBTreeIndex) initializeEmptyPageForPage(pageNo uint32) []byte {
 	pageSize := 16384 // 标准InnoDB页面大小
 	pageContent := make([]byte, pageSize)
 
 	// 文件头（38字节）
 	// [4字节校验和] + [4字节页号] + [4字节前一页] + [4字节后一页] + [8字节LSN] + [2字节页类型] + ...
-	binary.LittleEndian.PutUint32(pageContent[4:8], idx.metadata.RootPageNo) // 页号
-	binary.LittleEndian.PutUint16(pageContent[24:26], 17855)                 // 页面类型：INDEX页面
-	binary.LittleEndian.PutUint32(pageContent[34:38], idx.metadata.SpaceID)  // 表空间ID
+	binary.LittleEndian.PutUint32(pageContent[4:8], pageNo)                 // 页号
+	binary.LittleEndian.PutUint16(pageContent[24:26], 17855)                // 页面类型：INDEX页面
+	binary.LittleEndian.PutUint32(pageContent[34:38], idx.metadata.SpaceID) // 表空间ID
 
 	// 页面头（56字节，从偏移38开始）
 	pageHeaderOffset := 38
@@ -807,15 +964,27 @@ func (idx *EnhancedBTreeIndex) initializeEmptyPage() []byte {
 }
 
 // parseOrCreateIndexPage 解析或创建索引页面
-func (idx *EnhancedBTreeIndex) parseOrCreateIndexPage(pageContent []byte) (basic.IIndexPage, error) {
+func (idx *EnhancedBTreeIndex) parseOrCreateIndexPage(pageContent []byte) (indexPage basic.IIndexPage, err error) {
 	// 使用现有的页面包装器解析页面
 	if len(pageContent) < 100 {
 		// 页面太小，重新初始化
 		pageContent = idx.initializeEmptyPage()
 	}
+	if len(pageContent) >= enhancedBTreeRecordBlockOffset+len(enhancedBTreeRecordBlockMagic) &&
+		string(pageContent[enhancedBTreeRecordBlockOffset:enhancedBTreeRecordBlockOffset+len(enhancedBTreeRecordBlockMagic)]) == string(enhancedBTreeRecordBlockMagic) {
+		pageContent = idx.initializeEmptyPage()
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			indexPage = page.NewPageIndexByLoadBytes(idx.initializeEmptyPage())
+			if indexPage == nil {
+				err = fmt.Errorf("failed to recover index page parser panic: %v", recovered)
+			}
+		}
+	}()
 
 	// 尝试使用标准的页面包装器
-	indexPage := page.NewPageIndexByLoadBytes(pageContent)
+	indexPage = page.NewPageIndexByLoadBytes(pageContent)
 	if indexPage == nil {
 		return nil, fmt.Errorf("failed to create index page from content")
 	}
@@ -892,23 +1061,30 @@ type SimpleRow struct {
 	data []byte
 }
 
-func (r *SimpleRow) Less(than basic.Row) bool                              { return false }
-func (r *SimpleRow) ToByte() []byte                                        { return r.data }
-func (r *SimpleRow) IsInfimumRow() bool                                    { return false }
-func (r *SimpleRow) IsSupremumRow() bool                                   { return false }
-func (r *SimpleRow) GetPageNumber() uint32                                 { return 0 }
-func (r *SimpleRow) WriteWithNull(content []byte)                          {}
-func (r *SimpleRow) GetRowLength() uint16                                  { return uint16(len(r.data)) }
-func (r *SimpleRow) GetHeaderLength() uint16                               { return 5 } // 简化的头部长度
-func (r *SimpleRow) GetPrimaryKey() basic.Value                            { return basic.NewStringValue("") }
-func (r *SimpleRow) ReadValueByIndex(index int) basic.Value                { return basic.NewStringValue("") }
-func (r *SimpleRow) GetFieldLength() int                                   { return 1 }                        // 简化实现
-func (r *SimpleRow) GetHeapNo() uint16                                     { return 0 }                        // 简化实现
-func (r *SimpleRow) GetNOwned() byte                                       { return 0 }                        // 简化实现
-func (r *SimpleRow) GetNextRowOffset() uint16                              { return 0 }                        // 简化实现
-func (r *SimpleRow) SetNextRowOffset(offset uint16)                        {}                                  // 简化实现
-func (r *SimpleRow) SetHeapNo(heapNo uint16)                               {}                                  // 简化实现
-func (r *SimpleRow) SetTransactionId(trxId uint64)                         {}                                  // 简化实现
+func (r *SimpleRow) Less(than basic.Row) bool               { return false }
+func (r *SimpleRow) ToByte() []byte                         { return r.data }
+func (r *SimpleRow) IsInfimumRow() bool                     { return false }
+func (r *SimpleRow) IsSupremumRow() bool                    { return false }
+func (r *SimpleRow) GetPageNumber() uint32                  { return 0 }
+func (r *SimpleRow) WriteWithNull(content []byte)           {}
+func (r *SimpleRow) GetRowLength() uint16                   { return uint16(len(r.data)) }
+func (r *SimpleRow) GetHeaderLength() uint16                { return 5 } // 简化的头部长度
+func (r *SimpleRow) GetPrimaryKey() basic.Value             { return basic.NewStringValue("") }
+func (r *SimpleRow) ReadValueByIndex(index int) basic.Value { return basic.NewStringValue("") }
+func (r *SimpleRow) GetFieldLength() int                    { return 1 } // 简化实现
+func (r *SimpleRow) GetHeapNo() uint16                      { return 0 } // 简化实现
+func (r *SimpleRow) GetNOwned() byte                        { return 0 } // 简化实现
+func (r *SimpleRow) GetNextRowOffset() uint16               { return 0 } // 简化实现
+func (r *SimpleRow) SetNextRowOffset(offset uint16)         {}           // 简化实现
+func (r *SimpleRow) SetHeapNo(heapNo uint16)                {}           // 简化实现
+func (r *SimpleRow) SetTransactionId(trxId uint64) {
+	if len(r.data) < 13 {
+		next := make([]byte, 13)
+		copy(next, r.data)
+		r.data = next
+	}
+	binary.LittleEndian.PutUint64(r.data[5:13], trxId)
+}
 func (r *SimpleRow) GetValueByColName(colName string) basic.Value          { return basic.NewStringValue("") } // 简化实现
 func (r *SimpleRow) WriteBytesWithNullWithsPos(content []byte, index byte) {}                                  // 简化实现
 func (r *SimpleRow) SetNOwned(cnt byte)                                    {}                                  // 简化实现
@@ -918,16 +1094,95 @@ func (r *SimpleRow) ToString() string                                      { ret
 func (idx *EnhancedBTreeIndex) deleteFromPage(ctx context.Context, page *BTreePage, key []byte) error {
 	// 查找要删除的记录
 	for i, record := range page.Records {
-		if idx.compareKeys(record.Key, key) == 0 {
-			// 标记删除（简化实现）
+		if !record.DeleteMark && idx.compareKeys(record.Key, key) == 0 {
 			page.Records[i].DeleteMark = true
 			page.IsDirty = true
 			page.LastAccess = time.Now()
-			return nil
+			return idx.rebalanceLeafAfterDelete(ctx, page)
 		}
 	}
 
 	return fmt.Errorf("record not found in page")
+}
+
+func (idx *EnhancedBTreeIndex) rebalanceLeafAfterDelete(ctx context.Context, page *BTreePage) error {
+	activeRecords := compactActiveIndexRecords(page.Records, page.PageNo)
+	if len(activeRecords) == 0 && page.PageNo != idx.metadata.RootPageNo {
+		return idx.unlinkEmptyLeafPage(ctx, page)
+	}
+
+	page.Records = activeRecords
+	page.RecordCount = uint16(len(activeRecords))
+	bufferPage, err := idx.storageManager.GetBufferPoolManager().GetPage(idx.metadata.SpaceID, page.PageNo)
+	if err != nil {
+		return err
+	}
+	return idx.persistIndexRecords(bufferPage, page)
+}
+
+func compactActiveIndexRecords(records []IndexRecord, pageNo uint32) []IndexRecord {
+	active := make([]IndexRecord, 0, len(records))
+	for _, record := range records {
+		if record.DeleteMark {
+			continue
+		}
+		record.PageNo = pageNo
+		record.SlotNo = uint16(len(active))
+		active = append(active, record)
+	}
+	return active
+}
+
+func (idx *EnhancedBTreeIndex) unlinkEmptyLeafPage(ctx context.Context, page *BTreePage) error {
+	prevPageNo := page.PrevPage
+	nextPageNo := page.NextPage
+
+	if prevPageNo != 0 {
+		prev, err := idx.GetPage(ctx, prevPageNo)
+		if err != nil {
+			return err
+		}
+		prev.NextPage = nextPageNo
+		prev.IsDirty = true
+		if err := idx.flushPage(ctx, prev); err != nil {
+			return err
+		}
+	}
+	if nextPageNo != 0 {
+		next, err := idx.GetPage(ctx, nextPageNo)
+		if err != nil {
+			return err
+		}
+		next.PrevPage = prevPageNo
+		next.IsDirty = true
+		if err := idx.flushPage(ctx, next); err != nil {
+			return err
+		}
+	}
+
+	page.PrevPage = 0
+	page.NextPage = 0
+	page.Records = nil
+	page.RecordCount = 0
+	page.IsDirty = true
+	if err := idx.flushPage(ctx, page); err != nil {
+		return err
+	}
+
+	idx.mu.Lock()
+	if !uint32SliceContains(idx.freePages, page.PageNo) {
+		idx.freePages = append(idx.freePages, page.PageNo)
+	}
+	delete(idx.pageCache, page.PageNo)
+	for i, pageNo := range idx.pageLoadOrder {
+		if pageNo == page.PageNo {
+			idx.pageLoadOrder = append(idx.pageLoadOrder[:i], idx.pageLoadOrder[i+1:]...)
+			break
+		}
+	}
+	idx.mu.Unlock()
+
+	return idx.persistFreePageList(ctx)
 }
 
 // searchInPage 在页面中搜索
@@ -981,18 +1236,38 @@ func (idx *EnhancedBTreeIndex) rangeSearchInPage(page *BTreePage, startKey, endK
 
 // parsePageContent 解析页面内容
 func (idx *EnhancedBTreeIndex) parsePageContent(bufferPage interface{}) (*BTreePage, error) {
-	p, ok := bufferPage.(basic.IPage)
-	if !ok {
+	var (
+		data   []byte
+		pageNo uint32
+		dirty  bool
+		leaf   bool
+	)
+
+	switch p := bufferPage.(type) {
+	case basic.IPage:
+		data = p.GetData()
+		pageNo = p.GetPageNo()
+		dirty = p.IsDirty()
+		leaf = p.IsLeafPage()
+	case *buffer_pool.BufferPage:
+		data = p.GetData()
+		pageNo = p.GetPageNo()
+		dirty = p.IsDirty()
+		leaf = true
+		if len(data) >= 60 {
+			level := binary.LittleEndian.Uint16(data[58:60])
+			leaf = level == 0
+		}
+	default:
 		return nil, fmt.Errorf("invalid buffer page")
 	}
 
-	data := p.GetData()
 	if len(data) < 42 {
 		return nil, fmt.Errorf("invalid page data")
 	}
 
 	pageType := BTreePageTypeLeaf
-	if !p.IsLeafPage() {
+	if !leaf {
 		pageType = BTreePageTypeInternal
 	}
 
@@ -1001,7 +1276,7 @@ func (idx *EnhancedBTreeIndex) parsePageContent(bufferPage interface{}) (*BTreeP
 	next := binary.LittleEndian.Uint32(data[12:16])
 
 	page := &BTreePage{
-		PageNo:      p.GetPageNo(),
+		PageNo:      pageNo,
 		PageType:    pageType,
 		Level:       0,
 		RecordCount: recordCount,
@@ -1010,12 +1285,209 @@ func (idx *EnhancedBTreeIndex) parsePageContent(bufferPage interface{}) (*BTreeP
 		PrevPage:    prev,
 		Records:     make([]IndexRecord, 0),
 		IsLoaded:    true,
-		IsDirty:     p.IsDirty(),
+		IsDirty:     dirty,
 		LastAccess:  time.Now(),
 		PinCount:    1,
 	}
+	if records, err := parsePersistentIndexRecords(data, pageNo); err == nil && len(records) > 0 {
+		page.Records = records
+		page.RecordCount = uint16(len(records))
+	}
 
 	return page, nil
+}
+
+func (idx *EnhancedBTreeIndex) persistIndexRecords(bufferPage *buffer_pool.BufferPage, page *BTreePage) error {
+	content := bufferPage.GetContent()
+	if len(content) == 0 {
+		content = make([]byte, 16*1024)
+	}
+	if len(content) < PAGE_SIZE {
+		padded := make([]byte, PAGE_SIZE)
+		copy(padded, content)
+		content = padded
+	}
+	if len(content) < enhancedBTreeRecordBlockOffset {
+		return fmt.Errorf("page content too small for index record block: %d", len(content))
+	}
+
+	block := make([]byte, 0)
+	block = append(block, enhancedBTreeRecordBlockMagic...)
+	block = binary.BigEndian.AppendUint16(block, uint16(len(page.Records)))
+	for _, record := range page.Records {
+		if record.DeleteMark {
+			block = append(block, 1)
+		} else {
+			block = append(block, 0)
+		}
+		block = binary.BigEndian.AppendUint32(block, uint32(len(record.Key)))
+		block = binary.BigEndian.AppendUint32(block, uint32(len(record.Value)))
+		block = append(block, record.Key...)
+		block = append(block, record.Value...)
+	}
+
+	if enhancedBTreeRecordBlockOffset+len(block) > len(content) {
+		return fmt.Errorf("index record block too large for page-contained persistence: block=%d capacity=%d page=%d", len(block), len(content)-enhancedBTreeRecordBlockOffset, page.PageNo)
+	}
+	next := append([]byte(nil), content...)
+	copy(next[enhancedBTreeRecordBlockOffset:], block)
+	bufferPage.SetContent(next)
+	bufferPage.MarkDirty()
+	if idx.storageManager == nil || idx.storageManager.GetBufferPoolManager() == nil || idx.storageManager.GetBufferPoolManager().storage == nil {
+		return fmt.Errorf("storage provider unavailable for index record persistence")
+	}
+	bpm := idx.storageManager.GetBufferPoolManager()
+	if err := bpm.storage.WritePage(idx.metadata.SpaceID, bufferPage.GetPageNo(), next); err != nil {
+		return fmt.Errorf("write index record block to page %d failed: %v", bufferPage.GetPageNo(), err)
+	}
+	bufferPage.SetDirty(false)
+	cachedPage := buffer_pool.NewBufferPage(idx.metadata.SpaceID, bufferPage.GetPageNo())
+	cachedPage.SetContent(next)
+	if err := bpm.lruCache.Set(idx.metadata.SpaceID, bufferPage.GetPageNo(), buffer_pool.NewBufferBlock(cachedPage)); err != nil {
+		return fmt.Errorf("update cached index record block for page %d failed: %v", bufferPage.GetPageNo(), err)
+	}
+	return nil
+}
+
+func (idx *EnhancedBTreeIndex) loadFreePageList(ctx context.Context) error {
+	bufferPage, err := idx.storageManager.GetBufferPoolManager().GetPage(idx.metadata.SpaceID, idx.metadata.RootPageNo)
+	if err != nil {
+		return err
+	}
+	freePages := parsePersistentFreePageList(bufferPage.GetContent())
+	idx.mu.Lock()
+	idx.freePages = freePages
+	idx.mu.Unlock()
+	return nil
+}
+
+func (idx *EnhancedBTreeIndex) persistFreePageList(ctx context.Context) error {
+	idx.mu.RLock()
+	freePages := append([]uint32(nil), idx.freePages...)
+	idx.mu.RUnlock()
+
+	bufferPage, err := idx.storageManager.GetBufferPoolManager().GetPage(idx.metadata.SpaceID, idx.metadata.RootPageNo)
+	if err != nil {
+		return err
+	}
+	content := bufferPage.GetContent()
+	if len(content) == 0 {
+		content = idx.initializeEmptyPageForPage(idx.metadata.RootPageNo)
+	}
+	if len(content) < PAGE_SIZE {
+		padded := make([]byte, PAGE_SIZE)
+		copy(padded, content)
+		content = padded
+	}
+
+	blockLen := len(enhancedBTreeFreeListMagic) + 2 + len(freePages)*4
+	if enhancedBTreeFreeListOffset+blockLen > enhancedBTreeRecordBlockOffset {
+		return fmt.Errorf("enhanced btree free list too large: pages=%d capacity=%d", len(freePages), enhancedBTreeRecordBlockOffset-enhancedBTreeFreeListOffset)
+	}
+
+	next := append([]byte(nil), content...)
+	for i := enhancedBTreeFreeListOffset; i < enhancedBTreeRecordBlockOffset; i++ {
+		next[i] = 0
+	}
+	offset := enhancedBTreeFreeListOffset
+	copy(next[offset:], enhancedBTreeFreeListMagic)
+	offset += len(enhancedBTreeFreeListMagic)
+	binary.BigEndian.PutUint16(next[offset:offset+2], uint16(len(freePages)))
+	offset += 2
+	for _, pageNo := range freePages {
+		binary.BigEndian.PutUint32(next[offset:offset+4], pageNo)
+		offset += 4
+	}
+
+	bufferPage.SetContent(next)
+	bufferPage.MarkDirty()
+	if bpm := idx.storageManager.GetBufferPoolManager(); bpm != nil && bpm.storage != nil {
+		if err := bpm.storage.WritePage(idx.metadata.SpaceID, idx.metadata.RootPageNo, next); err != nil {
+			return err
+		}
+		bufferPage.SetDirty(false)
+		cachedPage := buffer_pool.NewBufferPage(idx.metadata.SpaceID, idx.metadata.RootPageNo)
+		cachedPage.SetContent(next)
+		if err := bpm.lruCache.Set(idx.metadata.SpaceID, idx.metadata.RootPageNo, buffer_pool.NewBufferBlock(cachedPage)); err != nil {
+			return fmt.Errorf("update cached free page list for root page %d failed: %v", idx.metadata.RootPageNo, err)
+		}
+	}
+	return nil
+}
+
+func parsePersistentFreePageList(content []byte) []uint32 {
+	if len(content) < enhancedBTreeFreeListOffset+len(enhancedBTreeFreeListMagic)+2 {
+		return nil
+	}
+	offset := enhancedBTreeFreeListOffset
+	if string(content[offset:offset+len(enhancedBTreeFreeListMagic)]) != string(enhancedBTreeFreeListMagic) {
+		return nil
+	}
+	offset += len(enhancedBTreeFreeListMagic)
+	count := int(binary.BigEndian.Uint16(content[offset : offset+2]))
+	offset += 2
+	freePages := make([]uint32, 0, count)
+	for i := 0; i < count; i++ {
+		if offset+4 > len(content) || offset+4 > enhancedBTreeRecordBlockOffset {
+			return freePages
+		}
+		pageNo := binary.BigEndian.Uint32(content[offset : offset+4])
+		offset += 4
+		if pageNo != 0 && !uint32SliceContains(freePages, pageNo) {
+			freePages = append(freePages, pageNo)
+		}
+	}
+	return freePages
+}
+
+func uint32SliceContains(values []uint32, needle uint32) bool {
+	for _, value := range values {
+		if value == needle {
+			return true
+		}
+	}
+	return false
+}
+
+func parsePersistentIndexRecords(content []byte, pageNo uint32) ([]IndexRecord, error) {
+	if len(content) < enhancedBTreeRecordBlockOffset+len(enhancedBTreeRecordBlockMagic)+2 {
+		return nil, fmt.Errorf("index record block not present")
+	}
+	offset := enhancedBTreeRecordBlockOffset
+	if string(content[offset:offset+len(enhancedBTreeRecordBlockMagic)]) != string(enhancedBTreeRecordBlockMagic) {
+		return nil, fmt.Errorf("index record block magic not present")
+	}
+	offset += len(enhancedBTreeRecordBlockMagic)
+
+	count := int(binary.BigEndian.Uint16(content[offset : offset+2]))
+	offset += 2
+	records := make([]IndexRecord, 0, count)
+	for i := 0; i < count; i++ {
+		if offset+9 > len(content) {
+			return nil, fmt.Errorf("index record block entry %d header truncated", i)
+		}
+		deleted := content[offset] == 1
+		offset++
+		keyLen := int(binary.BigEndian.Uint32(content[offset : offset+4]))
+		offset += 4
+		valueLen := int(binary.BigEndian.Uint32(content[offset : offset+4]))
+		offset += 4
+		if keyLen < 0 || valueLen < 0 || offset+keyLen+valueLen > len(content) {
+			return nil, fmt.Errorf("index record block entry %d value truncated", i)
+		}
+		key := append([]byte(nil), content[offset:offset+keyLen]...)
+		offset += keyLen
+		value := append([]byte(nil), content[offset:offset+valueLen]...)
+		offset += valueLen
+		records = append(records, IndexRecord{
+			Key:        key,
+			Value:      value,
+			PageNo:     pageNo,
+			SlotNo:     uint16(i),
+			DeleteMark: deleted,
+		})
+	}
+	return records, nil
 }
 
 // flushPage 刷新页面到存储
@@ -1027,11 +1499,18 @@ func (idx *EnhancedBTreeIndex) flushPage(ctx context.Context, page *BTreePage) e
 	}
 
 	data := bufferPage.GetContent()
+	if len(data) == 0 {
+		data = idx.initializeEmptyPageForPage(page.PageNo)
+		bufferPage.SetContent(data)
+	}
 	if len(data) >= 42 {
 		binary.LittleEndian.PutUint32(data[8:12], page.PrevPage)
 		binary.LittleEndian.PutUint32(data[12:16], page.NextPage)
 		binary.LittleEndian.PutUint16(data[40:42], page.RecordCount)
 		bufferPage.SetContent(data)
+	}
+	if err := idx.persistIndexRecords(bufferPage, page); err != nil {
+		return err
 	}
 
 	bufferPage.MarkDirty()
@@ -1072,22 +1551,7 @@ func (idx *EnhancedBTreeIndex) enforcePageCacheLimits() error {
 
 // compareKeys 比较键值
 func (idx *EnhancedBTreeIndex) compareKeys(a, b []byte) int {
-	// 简化实现：字节比较
-	if len(a) < len(b) {
-		return -1
-	} else if len(a) > len(b) {
-		return 1
-	}
-
-	for i := 0; i < len(a); i++ {
-		if a[i] < b[i] {
-			return -1
-		} else if a[i] > b[i] {
-			return 1
-		}
-	}
-
-	return 0
+	return bytes.Compare(a, b)
 }
 
 // getFirstChildPageNo 获取第一个子页面号

@@ -103,6 +103,7 @@ func (eei *ExecutionEngineIntegrator) initializeExecutors() {
 		eei.optimizerManager,
 		eei.bufferPoolManager,
 		eei.btreeManager,
+		eei.storageManager,
 		eei.tableManager,
 		"", // dataDir：集成层未传，依赖 tableManager
 	)

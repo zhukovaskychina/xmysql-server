@@ -3,9 +3,11 @@ package manager
 import (
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/logger"
+	"strconv"
 	"sync"
 	"time"
 
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/page"
@@ -190,12 +192,13 @@ func (dm *DictionaryManager) initialize() error {
 	// 创建数据字典页面包装器
 	var bufferPool *buffer_pool.BufferPool
 	if dm.bufferPoolManager != nil {
-		// 假设BufferPoolManager有方法获取底层BufferPool
-		// 这里需要根据实际的BufferPoolManager接口调整
 		bufferPool = dm.getBufferPool()
 	}
 
 	dm.dictPageWrapper = page.NewDataDictionaryPageWrapper(DictRootPageNo, SysSpaceID, bufferPool)
+	if dm.bufferPoolManager != nil {
+		dm.dictPageWrapper.SetStorageProvider(dm.bufferPoolManager.storage)
+	}
 
 	// 尝试加载现有的数据字典根页面
 	if err := dm.loadRootPage(); err != nil {
@@ -209,8 +212,8 @@ func (dm *DictionaryManager) initialize() error {
 
 // getBufferPool 获取底层BufferPool - 这个方法需要根据实际的BufferPoolManager接口实现
 func (dm *DictionaryManager) getBufferPool() *buffer_pool.BufferPool {
-	// TODO: 根据实际的BufferPoolManager接口实现
-	// 这里返回nil，实际使用时需要实现
+	// 当前管理器持有的是 OptimizedBufferPoolManager，未在该类型中暴露原始 BufferPool 实例。
+	// 若后续统一为统一接口，可在此返回底层 BufferPool。当前阶段返回 nil 即可降级走 storage 读写。
 	return nil
 }
 
@@ -229,6 +232,44 @@ func (dm *DictionaryManager) loadRootPage() error {
 	dm.dictPage = dm.dictPageWrapper.GetDataDictPage()
 	if dm.dictPage == nil {
 		return fmt.Errorf("failed to get dict page from wrapper")
+	}
+
+	if err := dm.rebuildCacheFromWrapper(); err != nil {
+		return fmt.Errorf("failed to rebuild dict cache: %v", err)
+	}
+
+	return nil
+}
+
+// rebuildCacheFromWrapper 根据页面包装器中的定义，重建内存表/表空间映射
+func (dm *DictionaryManager) rebuildCacheFromWrapper() error {
+	if dm.dictPageWrapper == nil {
+		return fmt.Errorf("dict page wrapper not initialized")
+	}
+
+	tableDefs, err := dm.dictPageWrapper.ListTableDefs()
+	if err != nil {
+		return err
+	}
+
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+
+	dm.tables = make(map[uint64]*TableDef)
+	dm.tableSpaces = make(map[uint32][]uint64)
+	dm.stats.TotalTables = 0
+	dm.stats.TotalIndexes = 0
+
+	for _, tableDef := range tableDefs {
+		converted := convertPageTableDefToManager(tableDef)
+		if converted == nil {
+			continue
+		}
+
+		dm.tables[converted.TableID] = converted
+		dm.tableSpaces[converted.SpaceID] = append(dm.tableSpaces[converted.SpaceID], converted.TableID)
+		dm.stats.TotalTables++
+		dm.stats.TotalIndexes += uint64(len(converted.Indexes))
 	}
 
 	return nil
@@ -455,9 +496,10 @@ func (dm *DictionaryManager) persistTableDef(table *TableDef) error {
 			columns = append(columns, &page.ColumnDef{
 				ID:       col.ColumnID,
 				Name:     col.Name,
+				Type:     basic.ValueType(col.Type),
 				Nullable: col.Nullable,
 				Comment:  col.Comment,
-				// 其他字段需要根据实际类型转换
+				MaxLen:   uint32(col.Length),
 			})
 		}
 
@@ -489,15 +531,19 @@ func (dm *DictionaryManager) persistTableDef(table *TableDef) error {
 				"row_format": fmt.Sprintf("%d", table.RowFormat),
 			},
 		}
-		return dm.dictPageWrapper.AddTable(tableDefForWrapper)
+		err := dm.dictPageWrapper.AddTableDef(&tableDefForWrapper)
+		if err == nil {
+			dm.saveRootPage()
+		}
+		return err
 	}
 	return nil
 }
 
 // GetTable 获取表定义
 func (dm *DictionaryManager) GetTable(tableID uint64) *TableDef {
-	dm.mu.RLock()
-	defer dm.mu.RUnlock()
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
 
 	if table, exists := dm.tables[tableID]; exists {
 		dm.stats.CacheHits++
@@ -505,14 +551,31 @@ func (dm *DictionaryManager) GetTable(tableID uint64) *TableDef {
 	}
 
 	dm.stats.CacheMisses++
-	// TODO: 从磁盘加载表定义
-	return nil
+	if dm.dictPageWrapper == nil {
+		return nil
+	}
+
+	tableDef, err := dm.dictPageWrapper.GetTableDef(tableID)
+	if err != nil || tableDef == nil {
+		return nil
+	}
+
+	managerTable := convertPageTableDefToManager(tableDef)
+	if managerTable == nil {
+		return nil
+	}
+
+	dm.tables[managerTable.TableID] = managerTable
+	dm.tableSpaces[managerTable.SpaceID] = append(dm.tableSpaces[managerTable.SpaceID], managerTable.TableID)
+	dm.stats.TotalTables++
+	dm.stats.TotalIndexes += uint64(len(managerTable.Indexes))
+	return managerTable
 }
 
 // GetTableByName 根据表名获取表定义
 func (dm *DictionaryManager) GetTableByName(name string) *TableDef {
-	dm.mu.RLock()
-	defer dm.mu.RUnlock()
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
 
 	for _, table := range dm.tables {
 		if table.Name == name {
@@ -522,7 +585,32 @@ func (dm *DictionaryManager) GetTableByName(name string) *TableDef {
 	}
 
 	dm.stats.CacheMisses++
-	// TODO: 从磁盘加载表定义
+	if dm.dictPageWrapper == nil {
+		return nil
+	}
+
+	tableDefs, err := dm.dictPageWrapper.ListTableDefs()
+	if err != nil {
+		return nil
+	}
+
+	for _, tableDef := range tableDefs {
+		if tableDef == nil || tableDef.Name != name {
+			continue
+		}
+
+		managerTable := convertPageTableDefToManager(tableDef)
+		if managerTable == nil {
+			return nil
+		}
+
+		dm.tables[managerTable.TableID] = managerTable
+		dm.tableSpaces[managerTable.SpaceID] = append(dm.tableSpaces[managerTable.SpaceID], managerTable.TableID)
+		dm.stats.TotalTables++
+		dm.stats.TotalIndexes += uint64(len(managerTable.Indexes))
+		return managerTable
+	}
+
 	return nil
 }
 
@@ -688,7 +776,7 @@ func (dm *DictionaryManager) persistIndexDef(index *IndexDef) error {
 			RootPage: index.RootPageNo,
 			Comment:  index.Comment,
 		}
-		return dm.dictPageWrapper.AddIndex(indexDefForWrapper)
+		return dm.dictPageWrapper.AddIndex(&indexDefForWrapper)
 	}
 	return nil
 }
@@ -726,11 +814,12 @@ func (dm *DictionaryManager) DropTable(tableID uint64) error {
 	}
 
 	// 删除表定义
+	if dm.dictPageWrapper != nil {
+		if err := dm.dictPageWrapper.RemoveTableDef(tableID); err != nil {
+			return err
+		}
+	}
 	delete(dm.tables, tableID)
-
-	// TODO: 从页面包装器中删除表定义
-	// 当前DataDictionaryPageWrapper没有RemoveTable方法
-	// 可以在后续版本中添加该方法
 
 	// 更新统计信息
 	if dm.stats.TotalTables > 0 {
@@ -743,4 +832,91 @@ func (dm *DictionaryManager) DropTable(tableID uint64) error {
 	dm.saveRootPage()
 
 	return nil
+}
+
+func convertPageTableDefToManager(tableDef *page.TableDef) *TableDef {
+	if tableDef == nil {
+		return nil
+	}
+
+	managerTable := &TableDef{
+		TableID:    tableDef.ID,
+		Name:       tableDef.Name,
+		SpaceID:    parseUint32FromProperty(tableDef.Properties, "space_id", 0),
+		SegmentID:  parseUint32FromProperty(tableDef.Properties, "segment_id", 0),
+		Charset:    tableDef.Properties["charset"],
+		Collation:  tableDef.Properties["collation"],
+		Comment:    tableDef.Properties["comment"],
+		Columns:    make([]ColumnDef, 0, len(tableDef.Columns)),
+		Indexes:    make([]IndexDef, 0, len(tableDef.Indexes)),
+		CreateTime: time.Now().Unix(),
+		UpdateTime: time.Now().Unix(),
+		RowFormat:  1,
+	}
+
+	if managerTable.Charset == "" {
+		managerTable.Charset = "utf8mb4"
+	}
+
+	if managerTable.Collation == "" {
+		managerTable.Collation = "utf8mb4_general_ci"
+	}
+
+	if rowFormat := parseUint32FromProperty(tableDef.Properties, "row_format", uint32(managerTable.RowFormat)); rowFormat != 0 {
+		managerTable.RowFormat = uint8(rowFormat)
+	}
+
+	for _, col := range tableDef.Columns {
+		if col == nil {
+			continue
+		}
+
+		colDef := ColumnDef{
+			ColumnID: col.ID,
+			Name:     col.Name,
+			Type:     uint8(col.Type),
+			Length:   uint16(col.MaxLen),
+			Nullable: col.Nullable,
+			Comment:  col.Comment,
+		}
+		managerTable.Columns = append(managerTable.Columns, colDef)
+	}
+
+	for _, idx := range tableDef.Indexes {
+		if idx == nil {
+			continue
+		}
+
+		indexDef := IndexDef{
+			IndexID:    idx.ID,
+			Name:       idx.Name,
+			TableID:    tableDef.ID,
+			Columns:    append([]string{}, idx.Columns...),
+			IsUnique:   idx.Unique,
+			IsPrimary:  idx.Primary,
+			RootPageNo: idx.RootPage,
+		}
+		managerTable.Indexes = append(managerTable.Indexes, indexDef)
+
+		if idx.Primary {
+			pk := indexDef
+			managerTable.PrimaryKey = &pk
+		}
+	}
+
+	return managerTable
+}
+
+func parseUint32FromProperty(props map[string]string, key string, defaultValue uint32) uint32 {
+	if props == nil {
+		return defaultValue
+	}
+
+	if raw, ok := props[key]; ok && raw != "" {
+		if v, err := strconv.ParseUint(raw, 10, 32); err == nil {
+			return uint32(v)
+		}
+	}
+
+	return defaultValue
 }

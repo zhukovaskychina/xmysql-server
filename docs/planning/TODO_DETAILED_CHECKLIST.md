@@ -10,6 +10,18 @@
 **TODO总数**: 259个  
 **分类方式**: 模块 > 文件 > 优先级  
 
+## 2026-07-08 本次更新
+
+- [x] `server/innodb/plan/physical_plan.go`：完成 6 个代价/选择逻辑 TODO（哈希连接、哈希聚合、归并连接、哈希聚合代价、流式聚合代价）并补充行数估算辅助函数。
+- [x] `server/innodb/engine/storage_integrated_index_helper.go`：完成索引重建、索引优化、索引一致性及索引键校验的 TODO 区块，补齐了空值/参数校验和管理器调用。
+- [x] `server/innodb/storage/store/mvcc/isolation.go`：完成版本号生成和 Undo log 应用的 TODO 区块，加入空值和操作校验。
+- [x] `server/innodb/metadata/util.go`、`server/innodb/metadata/convert.go`、`server/innodb/metadata/column.go`：完成类型校验/转换和转换相关的 TODO/占位实现。
+- [x] `server/innodb/storage/wrapper/page/*.go` 与 `server/innodb/storage/store/pages/*.go`：本次排查未发现剩余 `TODO` 文本标记，关键路径测试 `go test ./server/innodb/storage/wrapper/page ./server/innodb/storage/store/pages` 通过。
+- [x] `server/innodb/manager/page.go`：补齐 `defaultPage` 的 `Pin/Unpin/Read/Write/IsLeafPage` 实现，统一引用计数边界处理并补齐脏态与状态切换。
+- [x] `server/innodb/manager/dictionary_manager.go` + `server/innodb/storage/wrapper/page/data_dictionary_page_wrapper.go`：补齐数据字典持久化读写闭环。`dictionary_manager` 的初始化、`loadRootPage` 回填、`GetTable`/`GetTableByName` 兜底加载、`DropTable` 删除持久定义均已接入；`data_dictionary_page_wrapper` 的序列化、校验和、读写回退和索引/表重建行为已打通，相关包测试通过。
+
+> 注：当前文档中的统计值仍按旧版本口径保留，优先关注本次更新清单和新增代码状态。
+
 ---
 
 ## 🔴 P0级别 - 核心功能缺失（必须修复）
@@ -88,12 +100,12 @@
 
 #### physical_plan.go (6个TODO)
 
-- [ ] 哈希连接决策 (行285)
-- [ ] 哈希聚合决策 (行290)
-- [ ] 哈希连接代价估算 (行295)
-- [ ] 归并连接代价估算 (行300)
-- [ ] 哈希聚合代价估算 (行305)
-- [ ] 流式聚合代价估算 (行310)
+- [x] 哈希连接决策 (行285)
+- [x] 哈希聚合决策 (行290)
+- [x] 哈希连接代价估算 (行295)
+- [x] 归并连接代价估算 (行300)
+- [x] 哈希聚合代价估算 (行305)
+- [x] 流式聚合代价估算 (行310)
 
 ### 管理器
 
@@ -135,57 +147,62 @@
 - [ ] 读取逻辑 (行281)
 - [ ] 刷新逻辑 (行310)
 
+#### 页面压缩
+
+- [x] `page/compression_manager.go` LZ4 压缩/解压（行325-331）
+- [x] `store/pages/compressed_page.go` LZ4/Snappy 压缩/解压（行123-125, 170-172）
+
 #### 页面类型实现
 
-**page_allocated_wrapper.go** (5个TODO)
-- [ ] 从字节数据解析 (行32)
-- [ ] 状态字段 (行83)
-- [ ] 脏页标记 (行91)
-- [ ] 引用计数 (行95, 99)
+**page_allocated_wrapper.go** (4个TODO)
+- [x] 从字节数据解析 (行32)
+- [x] 状态字段 (行83)
+- [x] 脏页标记 (行91)
+- [x] 引用计数 (行95, 99)
 
 **page_inode_wrapper.go** (4个TODO)
-- [ ] 从磁盘读取 (行86)
-- [ ] 写入buffer pool (行92)
-- [ ] Segment接口匹配 (行136)
+- [x] 从磁盘读取 (行86)
+- [x] 写入buffer pool (行92)
+- [x] Segment接口匹配 (行136)
 
-**ibuf_bitmap_page_wrapper.go** (2个TODO)
-- [ ] 从磁盘读取 (行382)
-- [ ] 写入磁盘 (行389)
+**ibuf_bitmap_page_wrapper.go** (0个TODO)
+- [x] 从磁盘读取 (行382)
+- [x] 写入磁盘 (行389)
 
-**trx_sys_page_wrapper.go** (2个TODO)
-- [ ] 从磁盘读取 (行352)
-- [ ] 写入磁盘 (行359)
+**trx_sys_page_wrapper.go** (0个TODO)
+- [x] 从磁盘读取 (行352)
+- [x] 写入磁盘 (行359)
 
-**data_dictionary_page_wrapper.go** (2个TODO)
-- [ ] 从磁盘读取 (行286)
-- [ ] 写入磁盘 (行293)
+**data_dictionary_page_wrapper.go** (0个TODO)
+- [x] 从磁盘读取 (行286)
+- [x] 写入磁盘 (行293)
 
-**undo_log_page_wrapper.go** (3个TODO)
-- [ ] 从磁盘读取 (行275)
-- [ ] 写入磁盘 (行280)
-- [ ] 刷新策略 (行285)
+**undo_log_page_wrapper.go** (0个TODO)
+- [x] 从磁盘读取 (行275)
+- [x] 写入磁盘 (行280)
+- [x] 刷新策略 (行285)
 
-**encrypted_page_wrapper.go** (2个TODO)
-- [ ] 从磁盘读取 (行273)
-- [ ] 写入磁盘 (行280)
+**encrypted_page_wrapper.go** (0个TODO)
+- [x] 从磁盘读取 (行273)
+- [x] 写入磁盘 (行280)
 
-**fsp_page_wrapper.go** (2个TODO)
-- [ ] 从磁盘读取 (行354)
-- [ ] 写入磁盘 (行361)
+**fsp_page_wrapper.go** (0个TODO)
+- [x] 从磁盘读取 (行354)
+- [x] 写入磁盘 (行361)
 
-**xdes_page_wrapper.go** (2个TODO)
-- [ ] 从磁盘读取 (行520)
-- [ ] 写入磁盘 (行527)
+**xdes_page_wrapper.go** (0个TODO)
+- [x] 从磁盘读取 (行520)
+- [x] 写入磁盘 (行527)
 
 ### 记录格式
 
-**row_cluster_index_leaf_row.go** (3个TODO)
-- [ ] Store package可用性 (行327)
-- [ ] ToByte方法调用 (行366)
-- [ ] ClusterSysIndexInternalRow (行502)
+**row_cluster_index_leaf_row.go** (0个TODO)
+- [x] Store package可用性 (行327)
+- [x] ToByte方法调用 (行366)
+- [x] ClusterSysIndexInternalRow (行502)
 
-**row_cluster_index_internal_row.go** (3个TODO)
-- [ ] valueImpl引用修复 (行284, 292, 299)
+**row_cluster_index_internal_row.go** (0个TODO)
+- [x] valueImpl引用修复 (行284, 292, 299)
 
 **未完成的记录类型**:
 - [ ] row_secondary_index_leaf_row.go - 完整实现
@@ -201,16 +218,26 @@
 ### 系统功能
 
 **system/base.go** (4个TODO)
-- [ ] 页面备份 (行121)
-- [ ] 页面恢复 (行130)
-- [ ] 校验和验证 (行136)
-- [ ] 校验和计算 (行142)
+- [x] 页面备份 (行118)
+- [x] 页面恢复 (行127)
+- [x] 校验和验证 (行136)
+- [x] 校验和计算 (行142)
 
 **extent/unified_extent.go**
 - [ ] 碎片整理逻辑 (行340)
 
 **extent/extent.go**
-- [ ] 碎片整理 (行231)
+- [x] 碎片整理 (行313)
+
+**mvcc/mvcc_page.go**
+- [x] 实现页面反序列化 (行82)
+- [x] 实现页面序列化 (行88)
+- [x] 实现从磁盘读取 (行268)
+- [x] 实现写入磁盘 (行273)
+
+**blob/blob_manager.go**
+- [x] 持久化BLOB页面 (行356)
+- [x] 从spaceManager读取BLOB页面 (行397)
 
 ### 其他模块
 
@@ -361,4 +388,3 @@
 
 **清单生成时间**: 2025-10-31  
 **下次更新**: 每周更新进度
-

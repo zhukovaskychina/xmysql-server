@@ -1,7 +1,6 @@
 package manager
 
 import (
-	"encoding/binary"
 	"fmt"
 	"sync"
 	"testing"
@@ -300,16 +299,16 @@ func TestRedoLogReplay(t *testing.T) {
 
 		// 准备测试数据
 		testData := make([]byte, 16384)
-		binary.BigEndian.PutUint64(testData[0:8], 0) // 初始LSN为0
-		copy(testData[8:], []byte("test data"))
+		setRecoveryPageLSN(testData, 0) // 初始LSN为0
+		copy(testData[64:], []byte("test data"))
 
 		// 先写入初始页面
 		mockStorage.WritePage(10, testData)
 
 		// 创建日志条目
 		newData := make([]byte, 16384)
-		binary.BigEndian.PutUint64(newData[0:8], 400) // 新LSN
-		copy(newData[8:], []byte("updated data"))
+		setRecoveryPageLSN(newData, 400) // 新LSN
+		copy(newData[64:], []byte("updated data"))
 
 		entry := &RedoLogEntry{
 			LSN:    400,
@@ -326,7 +325,7 @@ func TestRedoLogReplay(t *testing.T) {
 		// 验证页面已更新
 		pageData, err := mockStorage.ReadPage(10)
 		assert.NoError(t, err)
-		pageLSN := binary.BigEndian.Uint64(pageData[0:8])
+		pageLSN := recoveryPageLSN(pageData)
 		assert.Equal(t, uint64(400), pageLSN)
 	})
 }

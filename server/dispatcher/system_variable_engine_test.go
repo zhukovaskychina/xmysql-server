@@ -1,16 +1,153 @@
 package dispatcher
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zhukovaskychina/xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
+
+func TestSystemVariableEngine_InformationSchemaTablesFiltersEqualityPredicates(t *testing.T) {
+	useInformationSchemaTablesFixture(t, map[string][]string{
+		"app_schema":   {"orders", "archive"},
+		"other_schema": {"orders"},
+	})
+
+	result := (&SystemVariableEngine{}).executeInformationSchemaTablesQuery(
+		"SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema = 'app_schema' AND table_name = 'orders'",
+	)
+
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	assert.Equal(t, informationSchemaTablesColumns(), result.Columns)
+	assert.Equal(t, [][]interface{}{informationSchemaTableRow("app_schema", "orders")}, result.Rows)
+}
+
+func TestSystemVariableEngine_InformationSchemaTablesFiltersLikePredicates(t *testing.T) {
+	useInformationSchemaTablesFixture(t, map[string][]string{
+		"app_schema":   {"orders", "archive"},
+		"other_schema": {"orders"},
+	})
+
+	result := (&SystemVariableEngine{}).executeInformationSchemaTablesQuery(
+		"SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema LIKE 'app_%' AND table_name LIKE 'ord%'",
+	)
+
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	assert.Equal(t, [][]interface{}{informationSchemaTableRow("app_schema", "orders")}, result.Rows)
+}
+
+func TestSystemVariableEngine_InformationSchemaTablesIgnoresNonSelectStatements(t *testing.T) {
+	result := (&SystemVariableEngine{}).executeInformationSchemaTablesQuery("DELETE FROM information_schema.tables")
+
+	assert.Nil(t, result)
+}
+
+func TestSystemVariableEngine_InformationSchemaTablesUsesConfiguredDataDir(t *testing.T) {
+	dataDir := t.TempDir()
+	frmPath := filepath.Join(dataDir, "app_schema", "orders.frm")
+	require.NoError(t, os.MkdirAll(filepath.Dir(frmPath), 0o755))
+	require.NoError(t, os.WriteFile(frmPath, nil, 0o644))
+
+	storageManager := manager.NewStorageManager(&conf.Cfg{
+		DataDir:              dataDir,
+		InnodbDataDir:        dataDir,
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+		InnodbPageSize:       16384,
+	})
+	result := (&SystemVariableEngine{storageManager: storageManager}).executeInformationSchemaTablesQuery(
+		"SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema = 'app_schema' AND table_name = 'orders'",
+	)
+
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	assert.Equal(t, [][]interface{}{informationSchemaTableRow("app_schema", "orders")}, result.Rows)
+}
+
+func TestSystemVariableEngine_DoesNotRouteInformationSchemaMetadataQueries(t *testing.T) {
+	query := "SELECT TABLE_CAT, TABLE_SCHEM, TABLE_NAME, TABLE_TYPE, REMARKS FROM information_schema.tables WHERE table_schema = 'app_schema'"
+
+	assert.Equal(t, "innodb", NewDefaultSQLRouter().Route(nil, query))
+	assert.False(t, (&SystemVariableEngine{}).CanHandle(query))
+}
+
+func TestSystemVariableEngine_DoesNotRouteJDBCInformationSchemaProbes(t *testing.T) {
+	queries := []string{
+		"SELECT ROUTINE_SCHEMA AS PROCEDURE_CAT FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_NAME LIKE '%'",
+		"SELECT SPECIFIC_SCHEMA AS PROCEDURE_CAT FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_NAME LIKE '%'",
+		"SELECT TABLE_SCHEMA AS TABLE_CAT FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 'users'",
+		"SELECT A.TABLE_SCHEMA AS FKTABLE_CAT FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE A JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS B USING (TABLE_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)",
+		"SELECT R.CONSTRAINT_NAME FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS R",
+		"select table_name, view_definition, definer from information_schema.views where table_schema = 'app'",
+		"select table_name, partition_name from information_schema.partitions where table_schema = 'app'",
+		"select trigger_name, event_manipulation from information_schema.triggers where trigger_schema = 'app'",
+		"select event_name, event_definition from information_schema.events where event_schema = 'app'",
+		"select collation_name, character_set_name, is_default from information_schema.collations",
+		"select grantee, privilege_type, is_grantable from information_schema.user_privileges",
+		"select grantee, table_schema, privilege_type, is_grantable from information_schema.schema_privileges",
+		"select Host, User, Routine_name, Proc_priv, Routine_type = 'PROCEDURE' as is_proc from mysql.procs_priv where Db = 'app'",
+	}
+
+	for _, query := range queries {
+		assert.Equal(t, "innodb", NewDefaultSQLRouter().Route(nil, query), query)
+		assert.False(t, (&SystemVariableEngine{}).CanHandle(query), query)
+	}
+}
+
+func TestSystemVariableEngine_DataGripSessionInfoQueryDoesNotFail(t *testing.T) {
+	engine := &SystemVariableEngine{
+		name:          "system_variable",
+		sysVarManager: manager.NewSystemVariablesManager(),
+	}
+	session := newTestDispatcherSession()
+	session.SetParamByName("session_id", "sess-datagrip-info")
+	session.SetParamByName("database", "app")
+	session.SetParamByName("user", "root")
+
+	result := engine.executeSystemFunctionQuery(
+		session,
+		"select database(), schema(), left(user(), instr(concat(user(),'@'),'@')-1)",
+		"app",
+	)
+
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	require.Equal(t, "select", result.ResultType)
+	require.Equal(t, []string{"database()", "schema()", "user"}, result.Columns)
+	require.Equal(t, [][]interface{}{{"app", "app", "root"}}, result.Rows)
+}
+
+func informationSchemaTableRow(schemaName, tableName string) []interface{} {
+	return []interface{}{schemaName, nil, tableName, "TABLE", "", nil, nil, nil, nil, nil}
+}
+
+func useInformationSchemaTablesFixture(t *testing.T, schemas map[string][]string) {
+	t.Helper()
+	previousDir, err := os.Getwd()
+	require.NoError(t, err)
+	tempDir := t.TempDir()
+	require.NoError(t, os.Chdir(tempDir))
+	t.Cleanup(func() {
+		require.NoError(t, os.Chdir(previousDir))
+	})
+
+	for schema, tables := range schemas {
+		for _, table := range tables {
+			frmPath := filepath.Join("server", "net", "data", schema, table+".frm")
+			require.NoError(t, os.MkdirAll(filepath.Dir(frmPath), 0o755))
+			require.NoError(t, os.WriteFile(frmPath, nil, 0o644))
+		}
+	}
+}
 
 type testDispatcherSession struct {
 	params map[string]interface{}
@@ -59,6 +196,23 @@ func TestSystemVariableEngine_ExecuteShowStatement_GlobalVariablesUsesGlobalScop
 	require.Len(t, result.Rows, 1)
 	assert.Equal(t, "autocommit", result.Rows[0][0])
 	assert.Equal(t, "OFF", result.Rows[0][1])
+}
+
+func TestSystemVariableEngine_SetAutocommitSyncsSessionState(t *testing.T) {
+	sysVarMgr := manager.NewSystemVariablesManager()
+	engine := &SystemVariableEngine{
+		name:          "system_variable",
+		sysVarManager: sysVarMgr,
+	}
+	session := newTestDispatcherSession()
+	session.SetParamByName("session_id", "sess-set-autocommit")
+	session.SetParamByName("autocommit", "1")
+
+	result := engine.executeSetStatement(session, "set autocommit=0", "testdb")
+
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	assert.Equal(t, "0", session.GetParamByName("autocommit"))
 }
 
 func TestSystemVariableEngine_ExecuteShowStatement_SessionVariablesUsesSessionScope(t *testing.T) {

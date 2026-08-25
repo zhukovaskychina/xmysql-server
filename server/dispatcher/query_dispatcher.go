@@ -8,6 +8,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
@@ -35,12 +36,15 @@ type SQLRouter interface {
 
 // SQLResult SQL执行结果
 type SQLResult struct {
-	Err        error
-	Data       interface{}
-	ResultType string
-	Message    string
-	Columns    []string
-	Rows       [][]interface{}
+	Err          error
+	Data         interface{}
+	ResultType   string
+	Message      string
+	Columns      []string
+	ColumnTypes  []string
+	Rows         [][]interface{}
+	AffectedRows uint64
+	LastInsertID uint64
 }
 
 // NewSQLDispatcher 创建SQL分发器
@@ -209,6 +213,10 @@ func (e *InnoDBSQLEngine) Name() string {
 
 // CanHandle 检查是否能处理该查询
 func (e *InnoDBSQLEngine) CanHandle(query string) bool {
+	if engine.IsTransactionCommand(query) {
+		return true
+	}
+
 	query = strings.TrimSpace(strings.ToUpper(query))
 
 	supportedQueries := []string{
@@ -266,7 +274,7 @@ func (e *InnoDBSQLEngine) convertResult(xmysqlResult *engine.Result) *SQLResult 
 		result.Message = "Variable set successfully"
 	case common.RESULT_TYPE_ERROR:
 		result.ResultType = "error"
-	case common.RESULT_TYPE_QUERY:
+	case common.RESULT_TYPE_QUERY, "QUERY":
 		result.ResultType = "query"
 		//  对于QUERY类型，检查是否有Message，如果Message包含"Database changed"，说明是USE语句
 		if xmysqlResult.Message != "" && strings.Contains(xmysqlResult.Message, "Database changed") {
@@ -275,8 +283,20 @@ func (e *InnoDBSQLEngine) convertResult(xmysqlResult *engine.Result) *SQLResult 
 			result.Columns = []string{}     // 确保没有列
 			result.Rows = [][]interface{}{} // 确保没有行
 		} else {
-			// 其他QUERY类型，正常转换
-			result = e.convertSelectResult(xmysqlResult, result)
+			if dmlResult, ok := xmysqlResult.Data.(*engine.DMLResult); ok {
+				result.Message = dmlResult.Message
+				result.AffectedRows = uint64(dmlResult.AffectedRows)
+				result.LastInsertID = dmlResult.LastInsertId
+				result.Columns = []string{}
+				result.Rows = [][]interface{}{}
+			} else if xmysqlResult.Data == nil && xmysqlResult.Message != "" {
+				result.Message = xmysqlResult.Message
+				result.Columns = []string{}
+				result.Rows = [][]interface{}{}
+			} else {
+				// 其他QUERY类型，正常转换
+				result = e.convertSelectResult(xmysqlResult, result)
+			}
 		}
 	default:
 		result.ResultType = xmysqlResult.ResultType
@@ -288,6 +308,29 @@ func (e *InnoDBSQLEngine) convertResult(xmysqlResult *engine.Result) *SQLResult 
 
 // convertSelectResult 转换SELECT查询结果
 func (e *InnoDBSQLEngine) convertSelectResult(xmysqlResult *engine.Result, result *SQLResult) *SQLResult {
+	if selectResult, ok := xmysqlResult.Data.(*engine.SelectResult); ok {
+		result.Columns = selectResult.Columns
+		result.ColumnTypes = selectResult.ColumnTypes
+		result.Rows = make([][]interface{}, 0, len(selectResult.Records))
+		for _, record := range selectResult.Records {
+			if record == nil {
+				continue
+			}
+			values := record.GetValues()
+			row := make([]interface{}, 0, len(values))
+			for _, value := range values {
+				if value == nil {
+					row = append(row, nil)
+				} else {
+					row = append(row, basicValueToInterface(value))
+				}
+			}
+			result.Rows = append(result.Rows, normalizeRowValuesByColumnTypes(row, result.ColumnTypes))
+		}
+		result.Message = selectResult.Message
+		return result
+	}
+
 	// 这里需要根据XMySQLEngine的实际数据结构来转换
 	if data, ok := xmysqlResult.Data.(map[string]interface{}); ok {
 		if columns, exists := data["columns"]; exists {
@@ -316,6 +359,63 @@ func (e *InnoDBSQLEngine) convertSelectResult(xmysqlResult *engine.Result, resul
 	return result
 }
 
+func basicValueToInterface(value basic.Value) interface{} {
+	if value == nil || value.IsNull() {
+		return nil
+	}
+
+	switch value.Type() {
+	case basic.ValueTypeTinyInt:
+		return int8(value.Int())
+	case basic.ValueTypeSmallInt:
+		return int16(value.Int())
+	case basic.ValueTypeMediumInt, basic.ValueTypeInt:
+		return int32(value.Int())
+	case basic.ValueTypeBigInt:
+		return value.Int()
+	case basic.ValueTypeFloat, basic.ValueTypeDouble, basic.ValueTypeDecimal:
+		return value.Float64()
+	case basic.ValueTypeBool, basic.ValueTypeBoolean:
+		return value.Bool()
+	default:
+		return value.ToString()
+	}
+}
+
+func normalizeRowValuesByColumnTypes(row []interface{}, columnTypes []string) []interface{} {
+	if len(columnTypes) == 0 {
+		return row
+	}
+	normalized := make([]interface{}, len(row))
+	copy(normalized, row)
+	for i := range normalized {
+		if i >= len(columnTypes) {
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(columnTypes[i])) {
+		case "bool", "boolean", "tinyint", "smallint", "mediumint", "int", "integer", "bigint":
+			switch v := normalized[i].(type) {
+			case string:
+				switch strings.ToLower(strings.TrimSpace(v)) {
+				case "true", "1", "yes", "on":
+					normalized[i] = int64(1)
+				case "false", "0", "no", "off":
+					normalized[i] = int64(0)
+				}
+			case int64:
+				if strings.EqualFold(strings.TrimSpace(columnTypes[i]), "bool") || strings.EqualFold(strings.TrimSpace(columnTypes[i]), "boolean") {
+					normalized[i] = v != 0
+				}
+			case int:
+				if strings.EqualFold(strings.TrimSpace(columnTypes[i]), "bool") || strings.EqualFold(strings.TrimSpace(columnTypes[i]), "boolean") {
+					normalized[i] = v != 0
+				}
+			}
+		}
+	}
+	return normalized
+}
+
 // DefaultSQLRouter 默认SQL路由器
 type DefaultSQLRouter struct{}
 
@@ -326,6 +426,16 @@ func NewDefaultSQLRouter() SQLRouter {
 
 // Route 路由SQL查询到合适的引擎
 func (r *DefaultSQLRouter) Route(session server.MySQLServerSession, query string) string {
+	if engine.IsTransactionCommand(query) {
+		logger.Debugf(" [DefaultSQLRouter] 识别为事务控制语句，路由到 innodb 引擎")
+		return "innodb"
+	}
+
+	if isInformationSchemaMetadataQuery(query) {
+		logger.Debugf(" [DefaultSQLRouter] information_schema metadata query routes to innodb")
+		return "innodb"
+	}
+
 	query = strings.TrimSpace(strings.ToUpper(query))
 
 	logger.Debugf(" [DefaultSQLRouter] 路由查询: %s", query)
@@ -385,6 +495,10 @@ func (r *DefaultSQLRouter) Route(session server.MySQLServerSession, query string
 
 // isSystemVariableQuery 检查是否为系统变量查询
 func (r *DefaultSQLRouter) isSystemVariableQuery(query string) bool {
+	if isInformationSchemaMetadataQuery(query) {
+		return false
+	}
+
 	// 检查是否包含@@
 	if strings.Contains(query, "@@") {
 		return true

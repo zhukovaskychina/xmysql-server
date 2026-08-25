@@ -117,6 +117,10 @@ func NewOptimizedBufferPoolManager(config *BufferPoolConfig) (*OptimizedBufferPo
 		prefetchQueue: make(chan PrefetchRequest, config.MaxQueueSize),
 	}
 
+	lruCache.SetEvictedFunc(func(interface{}, interface{}) {
+		atomic.AddUint64(&bpm.stats.evictions, 1)
+	})
+
 	// 初始化对象池
 	bpm.pagePool.New = func() interface{} {
 		return &buffer_pool.BufferPage{}
@@ -201,6 +205,20 @@ func (bpm *OptimizedBufferPoolManager) FreePage(spaceID, pageNo uint32) error {
 	bpm.lruCache.Remove(spaceID, pageNo)
 	atomic.AddUint64(&bpm.stats.totalPages, ^uint64(0))
 	return nil
+}
+
+// ClearCache drops all cached pages without flushing them.
+// Callers must only use this after restoring storage from an older snapshot,
+// where flushing dirty pages would re-apply rolled-back data.
+func (bpm *OptimizedBufferPoolManager) ClearCache() {
+	if bpm == nil {
+		return
+	}
+	bpm.lruCache.Purge()
+	bpm.dirtyMutex.Lock()
+	bpm.dirtyPageList = make(map[uint64]*buffer_pool.BufferPage)
+	bpm.dirtyMutex.Unlock()
+	atomic.StoreUint64(&bpm.stats.dirtyPages, 0)
 }
 
 // GetDirtyPage 获取页面并标记为脏页
@@ -394,7 +412,6 @@ func (bpm *OptimizedBufferPoolManager) GetStatistics() *BufferPoolStatistics {
 	}
 }
 
-
 // ApplyHint applies a buffer pool tuning hint. The current implementation is a
 // no-op used to satisfy integration code expectations.
 func (bpm *OptimizedBufferPoolManager) ApplyHint(hint string) error {
@@ -413,7 +430,6 @@ func (bpm *OptimizedBufferPoolManager) SetReadAheadPages(pages int) error {
 	}
 	return nil
 }
-
 
 // calculateHitRate 计算缓存命中率
 func (bpm *OptimizedBufferPoolManager) calculateHitRate() float64 {

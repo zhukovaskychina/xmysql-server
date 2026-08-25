@@ -7,6 +7,8 @@ import (
 	"io"
 	"sync"
 	"time"
+
+	"github.com/pierrec/lz4/v4"
 )
 
 /*
@@ -321,14 +323,31 @@ func (cm *CompressionManager) decompressZLIB(data []byte) ([]byte, error) {
 
 // compressLZ4 LZ4压缩（简化实现，实际应使用第三方库）
 func (cm *CompressionManager) compressLZ4(data []byte) ([]byte, error) {
-	// 注意：这里应该使用github.com/pierrec/lz4等第三方库
-	// 为了Go 1.16.2兼容性，这里提供接口占位
-	return nil, fmt.Errorf("LZ4 compression not implemented, use external library")
+	var buf bytes.Buffer
+	encoder := lz4.NewWriter(&buf)
+	defer encoder.Close()
+
+	if _, err := encoder.Write(data); err != nil {
+		return nil, fmt.Errorf("lz4 compression failed: %w", err)
+	}
+
+	if err := encoder.Close(); err != nil {
+		return nil, fmt.Errorf("lz4 compression close failed: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }
 
 // decompressLZ4 LZ4解压（简化实现）
 func (cm *CompressionManager) decompressLZ4(data []byte) ([]byte, error) {
-	return nil, fmt.Errorf("LZ4 decompression not implemented, use external library")
+	reader := lz4.NewReader(bytes.NewReader(data))
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, reader); err != nil {
+		return nil, fmt.Errorf("lz4 decompression failed: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }
 
 // compressZSTD ZSTD压缩（简化实现，实际应使用第三方库）

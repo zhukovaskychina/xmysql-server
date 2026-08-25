@@ -628,9 +628,9 @@ for i := len(undoLogs) - 1; i >= 0; i-- {
 
 | 文档 | 位置 | 说明 |
 |------|------|------|
-| 剩余问题分析 | `docs/REMAINING_ISSUES_ANALYSIS.md` | 所有P0/P1/P2问题 |
-| 执行器重构报告 | `docs/EXECUTOR_REFACTOR_COMPLETION_REPORT.md` | EXEC-001修复报告 |
-| 本修复报告 | `docs/TXN_002_ROLLBACK_FIX_REPORT.md` | TXN-002详细修复 |
+| 剩余问题分析 | `docs/analysis/REMAINING_ISSUES_ANALYSIS.md` | 2025-10 问题快照；当前缺口矩阵见 `docs/planning/UNIMPLEMENTED_CAPABILITY_BASELINE_2026-04.md` |
+| 执行器重构报告 | `docs/executor-reports/EXECUTOR_REFACTOR_COMPLETION_REPORT.md` | EXEC-001 相关 |
+| 本修复报告 | `docs/transaction-reports/TXN_002_ROLLBACK_FIX_REPORT.md` | TXN-002 详细修复 |
 
 ---
 
@@ -677,7 +677,7 @@ for i := len(undoLogs) - 1; i >= 0; i-- {
 
 ## 🎯 下一步计划
 
-按照REMAINING_ISSUES_ANALYSIS.md的优先级：
+按历史文档 `docs/analysis/REMAINING_ISSUES_ANALYSIS.md` 中的优先级（**仅供参考**；当前以 `docs/未实现功能梳理.md` 与基线文档为准）：
 
 ### 已完成 ✅
 1. ✅ **EXEC-001**: 火山执行器代码重复 - **已完成**
@@ -685,7 +685,7 @@ for i := len(undoLogs) - 1; i >= 0; i-- {
 
 ### 下一个目标 ⏭️
 3. **INDEX-001**: 二级索引维护缺失（P0，5-6天）
-   - 完整修复代码已在REMAINING_ISSUES_ANALYSIS.md中提供
+   - 历史分析见 `docs/analysis/REMAINING_ISSUES_ANALYSIS.md`；实现状态以当前代码与 `未实现功能梳理` 为准
    - 建议立即开始修复
 
 ---

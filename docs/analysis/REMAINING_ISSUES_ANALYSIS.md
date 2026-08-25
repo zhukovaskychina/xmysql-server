@@ -5,25 +5,47 @@
 > **问题总数**: 8个关键问题  
 > **预计总工作量**: 38-54天
 
+> **历史文档状态（2026-04 同步说明）**：本文问题描述与文中部分 **代码摘录** 反映的是 **2025-10-31** 前后快照，**Undo/回滚、MVCC、执行器等模块此后已有多次修复与报告**。是否仍成立请以当前 `server/` 源码与专项报告为准，并优先对照：
+>
+> - [未实现功能梳理.md](../未实现功能梳理.md)
+> - [UNIMPLEMENTED_CAPABILITY_BASELINE_2026-04.md](../planning/UNIMPLEMENTED_CAPABILITY_BASELINE_2026-04.md)
+> - Undo/回滚权威材料：`docs/transaction-reports/TXN_002_ROLLBACK_FIX_REPORT.md`（及 `TXN-002` 相关索引页）
+
+---
+
+## 2026-04 当前执行清单（替代阅读入口）
+
+为避免将本文历史快照直接当作当前任务单，建议按以下顺序执行：
+
+1. 先读 `docs/planning/UNIMPLEMENTED_CAPABILITY_BASELINE_2026-04.md`（能力域矩阵 + Top10）
+2. 再读 `docs/planning/PRODUCTION_GAP_LIST.md`（生产灰度阻塞项）
+3. 结合 `docs/未实现功能梳理.md` 定位模块级未实现项
+4. 对事务/回滚专项，优先看 `docs/transaction-reports/TXN_002_ROLLBACK_FIX_REPORT.md`
+
+本文后续章节（P0/P1/P2）保留为历史分析参考，不直接作为当前排期依据。
+
 ---
 
 ## 📊 问题优先级分布
 
-| 优先级 | 问题数 | 工作量 | 数据安全风险 |
-|--------|--------|--------|-------------|
-| 🔴 P0（严重） | 2个 | 11-13天 | **高** - 影响数据一致性 |
-| 🟡 P1（高）   | 3个 | 11-13天 | 中 - 影响功能完整性 |
-| 🟢 P2（优化） | 3个 | 16-28天 | 低 - 性能优化 |
+
+| 优先级       | 问题数 | 工作量    | 数据安全风险          |
+| --------- | --- | ------ | --------------- |
+| 🔴 P0（严重） | 2个  | 11-13天 | **高** - 影响数据一致性 |
+| 🟡 P1（高）  | 3个  | 11-13天 | 中 - 影响功能完整性     |
+| 🟢 P2（优化） | 3个  | 16-28天 | 低 - 性能优化        |
+
 
 ---
 
 ## 🔴 P0 严重问题（必须立即修复）
 
-### 1. TXN-002: Undo日志回滚不完整 
+### 1. TXN-002: Undo日志回滚不完整
 
 **📍 位置**: `server/innodb/manager/undo_log_manager.go`
 
 **❌ 当前问题**:
+
 ```go
 // Rollback 回滚事务（当前实现不完整）
 func (u *UndoLogManager) Rollback(txID int64) error {
@@ -161,11 +183,12 @@ func (u *UndoLogManager) updateVersionChain(log *UndoLogEntry) error {
 **⏱️ 工作量**: 5-7天
 
 **🎯 验收标准**:
-- [x] 按LSN倒序回滚所有Undo日志
-- [x] 写入CLR确保回滚操作可恢复
-- [x] 正确更新MVCC版本链
-- [x] 通过回滚测试用例
-- [x] 支持部分回滚（Savepoint）
+
+- 按LSN倒序回滚所有Undo日志
+- 写入CLR确保回滚操作可恢复
+- 正确更新MVCC版本链
+- 通过回滚测试用例
+- 支持部分回滚（Savepoint）
 
 ---
 
@@ -174,6 +197,7 @@ func (u *UndoLogManager) updateVersionChain(log *UndoLogEntry) error {
 **📍 位置**: `server/innodb/manager/index_manager.go`
 
 **❌ 当前问题**:
+
 - INSERT操作未同步更新二级索引
 - UPDATE操作未维护二级索引一致性
 - DELETE操作未清理二级索引条目
@@ -332,11 +356,12 @@ func (im *IndexManager) buildSecondaryIndexKey(
 **⏱️ 工作量**: 5-6天
 
 **🎯 验收标准**:
-- [x] INSERT同步更新所有二级索引
-- [x] UPDATE正确维护二级索引
-- [x] DELETE清理二级索引条目
-- [x] 二级索引查询返回正确结果
-- [x] 通过二级索引完整性测试
+
+- INSERT同步更新所有二级索引
+- UPDATE正确维护二级索引
+- DELETE清理二级索引条目
+- 二级索引查询返回正确结果
+- 通过二级索引完整性测试
 
 ---
 
@@ -347,6 +372,7 @@ func (im *IndexManager) buildSecondaryIndexKey(
 **📍 位置**: `server/innodb/buffer_pool/buffer_lru.go`
 
 **问题分析**:
+
 - 当前固定间隔刷新，未考虑负载
 - 脏页堆积时可能导致性能抖动
 - 缺少自适应刷新机制
@@ -362,6 +388,7 @@ func (im *IndexManager) buildSecondaryIndexKey(
 **📍 位置**: `server/innodb/manager/space_expansion_manager.go`
 
 **问题分析**:
+
 - 并发扩展表空间时缺少锁保护
 - 可能导致多个协程同时扩展导致数据覆盖
 
@@ -376,6 +403,7 @@ func (im *IndexManager) buildSecondaryIndexKey(
 **📍 位置**: `server/innodb/manager/lock_manager.go` 和 `gap_lock.go`
 
 **问题分析**:
+
 - Gap锁范围确定逻辑不正确
 - 缺少Gap锁冲突检测
 - 无法防止幻读
@@ -416,51 +444,59 @@ func (im *IndexManager) buildSecondaryIndexKey(
 
 根据代码扫描，发现以下TODO分布：
 
-| 模块 | TODO数量 | 主要问题 |
-|------|---------|---------|
-| manager/ | 50+ | Undo回滚、二级索引、Gap锁 |
-| engine/ | 30+ | 执行器重复代码、Schema类型 |
-| plan/ | 20+ | 统计信息、优化器 |
-| storage/ | 40+ | 页面加密、碎片整理 |
-| **总计** | **140+** | - |
+
+| 模块       | TODO数量   | 主要问题             |
+| -------- | -------- | ---------------- |
+| manager/ | 50+      | Undo回滚、二级索引、Gap锁 |
+| engine/  | 30+      | 执行器重复代码、Schema类型 |
+| plan/    | 20+      | 统计信息、优化器         |
+| storage/ | 40+      | 页面加密、碎片整理        |
+| **总计**   | **140+** | -                |
+
 
 ---
 
 ## 🎯 推荐修复顺序
 
 ### 第一阶段（1-2周）- P0问题
+
 1. **TXN-002**: Undo日志回滚（5-7天）
 2. **INDEX-001**: 二级索引维护（5-6天）
 
-### 第二阶段（1-2周）- P1问题  
-3. **BUFFER-001**: 脏页刷新（2-3天）
-4. **STORAGE-001**: 表空间并发（2-3天）
-5. **LOCK-001**: Gap锁完善（4-5天）
+### 第二阶段（1-2周）- P1问题
+
+1. **BUFFER-001**: 脏页刷新（2-3天）
+2. **STORAGE-001**: 表空间并发（2-3天）
+3. **LOCK-001**: Gap锁完善（4-5天）
 
 ### 第三阶段（3-4周）- P2优化
-6. **OPT-016**: 统计信息（8-10天）
-7. **OPT-017**: 选择性估算（5-7天）
-8. **OPT-018**: 连接顺序（7-11天）
+
+1. **OPT-016**: 统计信息（8-10天）
+2. **OPT-017**: 选择性估算（5-7天）
+3. **OPT-018**: 连接顺序（7-11天）
 
 ---
 
 ## ✅ 验收清单
 
 ### P0问题验收
-- [ ] Undo日志倒序回滚测试通过
-- [ ] CLR记录正确写入
-- [ ] 二级索引DML同步测试通过
-- [ ] 二级索引查询一致性测试通过
+
+- Undo日志倒序回滚测试通过
+- CLR记录正确写入
+- 二级索引DML同步测试通过
+- 二级索引查询一致性测试通过
 
 ### P1问题验收
-- [ ] 脏页刷新策略压力测试
-- [ ] 表空间并发扩展测试
-- [ ] Gap锁幻读防护测试
+
+- 脏页刷新策略压力测试
+- 表空间并发扩展测试
+- Gap锁幻读防护测试
 
 ### P2优化验收
-- [ ] 统计信息准确性测试
-- [ ] 查询优化器性能测试
-- [ ] TPC-H查询性能基准
+
+- 统计信息准确性测试
+- 查询优化器性能测试
+- TPC-H查询性能基准
 
 ---
 

@@ -8,11 +8,13 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
+	"github.com/zhukovaskychina/xmysql-server/server/observability/metrics"
 
 	getty "github.com/AlexStocks/getty/transport"
 	gxlog "github.com/AlexStocks/goext/log"
@@ -26,6 +28,8 @@ import (
 const (
 	pprofPath = "/debug/pprof/"
 )
+var metricsHTTPOnce sync.Once
+
 const logBanner = `
 ******************************************************************************************
 
@@ -74,7 +78,8 @@ func (srv *MySQLServer) Start() {
 	// 启动 XMySQL 引擎 (包括恢复和后台任务)
 	if srv.xmysqlEngine != nil {
 		if err := srv.xmysqlEngine.Start(context.Background()); err != nil {
-			panic(fmt.Sprintf("Failed to start XMySQL Engine: %v", err))
+			log.Error("Failed to start XMySQL Engine: %v", err)
+			return
 		}
 	}
 
@@ -98,6 +103,9 @@ func initProfiling(conf *conf.Cfg) {
 		addr string
 	)
 	addr = gxnet.HostAddress(conf.BindAddress, conf.ProfilePort)
+	metricsHTTPOnce.Do(func() {
+		http.Handle("/metrics", metrics.Handler(metrics.DefaultRegistry()))
+	})
 	log.Info("App Profiling startup on address{%v}", addr+pprofPath)
 	go func() {
 		log.Info(http.ListenAndServe(addr, nil))
@@ -128,7 +136,7 @@ func (srv *MySQLServer) initServer(conf *conf.Cfg) {
 		}
 		tcpConn, ok := session.Conn().(*net.TCPConn)
 		if !ok {
-			panic(fmt.Sprintf("%s, session.conn{%#v} is not tcp connection", session.Stat(), session.Conn()))
+			return fmt.Errorf("%s, session.Conn{%#v} is not tcp connection", session.Stat(), session.Conn())
 		}
 		tcpConn.SetNoDelay(conf.MySQLSessionParam.TcpNoDelay)
 		tcpConn.SetKeepAlive(conf.MySQLSessionParam.TcpKeepAlive)

@@ -1,6 +1,6 @@
 module github.com/zhukovaskychina/xmysql-server
 
-go 1.20
+go 1.24
 
 require (
 	github.com/AlexStocks/getty v1.3.0

@@ -14,14 +14,8 @@ var (
 	ErrInodePageFull    = errors.New("inode page is full")
 	ErrSegmentNotFound  = errors.New("segment not found")
 	ErrInvalidSegmentID = errors.New("invalid segment ID")
+	ErrNoBufferPage     = errors.New("inode page buffer page not set")
 )
-
-// TODO: This file has been temporarily disabled due to missing dependencies
-// The original implementation referenced packages that don't exist:
-// - xmysql-server/server/innodb/storage/store/segment
-// - Various undefined types like XDESEntryWrapper, Fsp, etc.
-//
-// This file needs to be rewritten once the proper dependencies are available
 
 // InodePageWrapper INode页面包装器实现
 type InodePageWrapper struct {
@@ -29,6 +23,7 @@ type InodePageWrapper struct {
 
 	mu         sync.RWMutex
 	segmentIDs map[uint64]bool // 简化为只存储段ID
+	segments   map[uint64]segment.Segment
 	nextPage   uint32          // 指向下一个INode页面
 	prevPage   uint32          // 指向前一个INode页面
 
@@ -44,6 +39,7 @@ func NewInodeWrapper(id, spaceID uint32) *InodePageWrapper {
 	return &InodePageWrapper{
 		BasePageWrapper: base,
 		segmentIDs:      make(map[uint64]bool),
+		segments:        make(map[uint64]segment.Segment),
 		freePages:       make([]uint32, 0),
 		fullPages:       make([]uint32, 0),
 	}
@@ -95,13 +91,51 @@ func (ip *InodePageWrapper) SetBufferPage(bp *buffer_pool.BufferPage) {
 
 // Read 从磁盘或buffer pool读取
 func (ip *InodePageWrapper) Read() error {
-	// TODO: 实现从磁盘或buffer pool读取逻辑
+	ip.Lock()
+	defer ip.Unlock()
+
+	if ip.bufferPage == nil {
+		return ErrNoBufferPage
+	}
+
+	content := ip.bufferPage.GetContent()
+	if len(content) == 0 {
+		return ErrPageNotLoaded
+	}
+
+	if err := ip.ParseFromBytes(content); err != nil {
+		return err
+	}
+
+	if len(content) != len(ip.content) {
+		buf := make([]byte, len(content))
+		copy(buf, content)
+		ip.content = buf
+	} else {
+		copy(ip.content, content)
+	}
+
+	ip.markDirty()
 	return nil
 }
 
 // Write 写入buffer pool和磁盘
 func (ip *InodePageWrapper) Write() error {
-	// TODO: 实现写入buffer pool和磁盘逻辑
+	ip.Lock()
+	defer ip.Unlock()
+
+	content, err := ip.ToBytes()
+	if err != nil {
+		return err
+	}
+
+	if ip.bufferPage == nil {
+		return ErrNoBufferPage
+	}
+
+	ip.bufferPage.SetContent(content)
+	ip.bufferPage.MarkDirty()
+	ip.content = content
 	ip.markDirty()
 	return nil
 }
@@ -113,6 +147,7 @@ func (ip *InodePageWrapper) Init() error {
 
 	// 初始化INode页面特有的数据结构
 	ip.segmentIDs = make(map[uint64]bool)
+	ip.segments = make(map[uint64]segment.Segment)
 	ip.freePages = make([]uint32, 0)
 	ip.fullPages = make([]uint32, 0)
 	ip.nextPage = 0
@@ -145,9 +180,13 @@ func (ip *InodePageWrapper) GetSegment(id uint64) (*segment.Segment, error) {
 		return nil, ErrSegmentNotFound
 	}
 
-	// TODO: 由于segment接口不匹配问题，暂时返回nil
-	// 在实际使用中，这应该从段管理器中获取正确的段实现
-	return nil, errors.New("segment interface not implemented yet")
+	seg, exists := ip.segments[id]
+	if !exists || seg == nil {
+		return nil, ErrSegmentNotFound
+	}
+
+	copySeg := seg
+	return &copySeg, nil
 }
 
 // AddSegment 添加段到页面
@@ -156,11 +195,17 @@ func (ip *InodePageWrapper) AddSegment(seg *segment.Segment) error {
 		return ErrInvalidSegmentID
 	}
 
+	if *seg == nil {
+		return ErrInvalidSegmentID
+	}
+
 	ip.mu.Lock()
 	defer ip.mu.Unlock()
 
-	// 使用一个固定的ID作为示例，实际应该从段中获取
-	segID := uint64(len(ip.segmentIDs) + 1)
+	segID := (*seg).GetID()
+	if segID == 0 {
+		return ErrInvalidSegmentID
+	}
 
 	// 检查是否已存在
 	if ip.segmentIDs[segID] {
@@ -173,6 +218,7 @@ func (ip *InodePageWrapper) AddSegment(seg *segment.Segment) error {
 	}
 
 	ip.segmentIDs[segID] = true
+	ip.segments[segID] = *seg
 	ip.markDirty()
 
 	return nil
@@ -188,6 +234,7 @@ func (ip *InodePageWrapper) RemoveSegment(id uint64) error {
 	}
 
 	delete(ip.segmentIDs, id)
+	delete(ip.segments, id)
 	ip.markDirty()
 
 	return nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
@@ -65,11 +66,12 @@ func (i *InsertOperator) Open(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get table metadata: %w", err)
 	}
+	if tableMetadata == nil || tableMetadata.Schema == nil {
+		return fmt.Errorf("table metadata schema is nil for %s.%s", i.schemaName, i.tableName)
+	}
 
-	// Schema字段类型不匹配，暂时设为nil
-	// TODO: 需要重构BaseOperator.schema字段类型或创建适配器
-	i.schema = nil
-	_ = tableMetadata // 避免未使用错误
+	// 统一使用QuerySchema统一对外输出
+	i.schema = metadata.FromTable(tableMetadata.Schema)
 
 	logger.Debugf("InsertOperator opened for table %s.%s", i.schemaName, i.tableName)
 	return nil
@@ -96,13 +98,19 @@ func (i *InsertOperator) Next(ctx context.Context) (Record, error) {
 	affectedRows, err := i.executeInsert(ctx, txn)
 	if err != nil {
 		// 回滚事务
-		_ = i.transactionAdapter.RollbackTransaction(ctx, txn)
-		return nil, fmt.Errorf("insert failed: %w", err)
+		if rollbackErr := i.transactionAdapter.RollbackTransaction(ctx, txn); rollbackErr != nil {
+			logger.Errorf("insert rollback failed: schema=%s table=%s txn=%d err=%v rollbackErr=%v", i.schemaName, i.tableName, txn.TxnID, err, rollbackErr)
+			return nil, fmt.Errorf("insert failed in %s.%s: %w; rollback failed: %v", i.schemaName, i.tableName, err, rollbackErr)
+		}
+
+		logger.Debugf("insert rolled back: schema=%s table=%s txn=%d", i.schemaName, i.tableName, txn.TxnID)
+		return nil, fmt.Errorf("insert failed in %s.%s: %w", i.schemaName, i.tableName, err)
 	}
 
 	// 提交事务
 	if err := i.transactionAdapter.CommitTransaction(ctx, txn); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+		logger.Errorf("insert commit failed: schema=%s table=%s txn=%d err=%v", i.schemaName, i.tableName, txn.TxnID, err)
+		return nil, fmt.Errorf("failed to commit transaction for insert on %s.%s: %w", i.schemaName, i.tableName, err)
 	}
 
 	i.affectedRows = affectedRows
@@ -373,56 +381,93 @@ func (i *InsertOperator) isDuplicateKeyError(err error) bool {
 
 // findDuplicateRecord 查找冲突的记录
 func (i *InsertOperator) findDuplicateRecord(ctx context.Context, txn *Transaction, row map[string]interface{}, schema *metadata.Table) (Record, error) {
-	// 简化实现：通过主键查找
-	// 实际应该：
-	// 1. 检查所有唯一索引
-	// 2. 找到冲突的记录
-
-	logger.Debugf("Finding duplicate record (simplified implementation)")
-	return nil, fmt.Errorf("findDuplicateRecord not fully implemented")
+	if i.storageAdapter == nil {
+		return nil, fmt.Errorf("storage adapter is nil")
+	}
+	record, err := i.storageAdapter.FindDuplicateRecord(ctx, i.schemaName, i.tableName, row, schema, txn)
+	if err != nil {
+		if errors.Is(err, ErrStorageAdapterRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return record, nil
 }
 
 // insertRow 插入单行记录
 func (i *InsertOperator) insertRow(ctx context.Context, txn *Transaction, row map[string]interface{}, schema *metadata.Table) error {
-	// 简化实现：调用存储适配器插入
-	// 实际应该：
-	// 1. 验证数据
-	// 2. 插入到聚簇索引
-	// 3. 更新二级索引
-	// 4. 写入Undo日志
-
-	logger.Debugf("Inserting row (simplified implementation)")
-	return nil
+	if i.storageAdapter == nil {
+		return fmt.Errorf("storage adapter is nil")
+	}
+	return i.storageAdapter.InsertRecord(ctx, i.schemaName, i.tableName, row, schema, txn)
 }
 
 // updateRecord 更新记录
 func (i *InsertOperator) updateRecord(ctx context.Context, txn *Transaction, oldRecord Record, newRecord map[string]interface{}, schema *metadata.Table) error {
-	// 简化实现：调用存储适配器更新
-	// 实际应该：
-	// 1. 锁定记录
-	// 2. 写入Undo日志
-	// 3. 更新聚簇索引
-	// 4. 更新二级索引
-
-	logger.Debugf("Updating record (simplified implementation)")
-	return nil
+	if i.storageAdapter == nil {
+		return fmt.Errorf("storage adapter is nil")
+	}
+	newExecutorRecord, err := mapToExecutorRecord(newRecord, schema)
+	if err != nil {
+		return err
+	}
+	return i.storageAdapter.UpdateRecord(ctx, i.schemaName, i.tableName, oldRecord, newExecutorRecord, schema, txn)
 }
 
 // getTableSchema 获取表Schema
 func (i *InsertOperator) getTableSchema() (*metadata.Table, error) {
-	// 简化实现：返回模拟的表Schema
-	// 实际应该从TableManager获取
-	return &metadata.Table{
-		Name:    i.tableName,
-		Columns: []*metadata.Column{},
-	}, nil
+	if i.storageAdapter == nil {
+		return nil, fmt.Errorf("storage adapter is nil")
+	}
+
+	tableMetadata, err := i.storageAdapter.GetTableMetadata(context.Background(), i.schemaName, i.tableName)
+	if err != nil {
+		return nil, err
+	}
+	if tableMetadata == nil || tableMetadata.Schema == nil {
+		return nil, fmt.Errorf("table metadata schema is nil for %s.%s", i.schemaName, i.tableName)
+	}
+
+	return tableMetadata.Schema, nil
 }
 
 // parseInsertRows 解析INSERT语句中的行数据
 func (i *InsertOperator) parseInsertRows(schema *metadata.Table) ([]map[string]interface{}, error) {
-	// 简化实现：返回空行列表
-	// 实际应该解析stmt.Rows
-	return []map[string]interface{}{}, nil
+	if i.stmt == nil {
+		return nil, fmt.Errorf("insert statement is nil")
+	}
+	if schema == nil {
+		return nil, fmt.Errorf("table schema is nil")
+	}
+
+	values, ok := i.stmt.Rows.(sqlparser.Values)
+	if !ok {
+		return nil, fmt.Errorf("unsupported INSERT rows type: %T", i.stmt.Rows)
+	}
+
+	columnNames, err := i.resolveInsertColumnNames(schema)
+	if err != nil {
+		return nil, err
+	}
+
+	rows := make([]map[string]interface{}, 0, len(values))
+	for rowIdx, tuple := range values {
+		if len(tuple) != len(columnNames) {
+			return nil, fmt.Errorf("insert row %d has %d values, expected %d", rowIdx, len(tuple), len(columnNames))
+		}
+
+		row := make(map[string]interface{}, len(columnNames))
+		for colIdx, expr := range tuple {
+			value, err := i.exprToInterface(expr)
+			if err != nil {
+				return nil, fmt.Errorf("failed to evaluate insert value at row %d column %s: %w", rowIdx, columnNames[colIdx], err)
+			}
+			row[columnNames[colIdx]] = value
+		}
+		rows = append(rows, row)
+	}
+
+	return rows, nil
 }
 
 // valueToInterface 将basic.Value转换为interface{}
@@ -430,14 +475,77 @@ func (i *InsertOperator) valueToInterface(val basic.Value) interface{} {
 	if val == nil {
 		return nil
 	}
-	// 简化实现：返回原始值
-	return val
+	return val.Raw()
 }
 
 // sqlValToInterface 将SQLVal转换为interface{}
 func (i *InsertOperator) sqlValToInterface(val *sqlparser.SQLVal) interface{} {
-	// 简化实现
-	return string(val.Val)
+	if val == nil {
+		return nil
+	}
+	value, err := i.sqlValToTypedInterface(val)
+	if err != nil {
+		return string(val.Val)
+	}
+	return value
+}
+
+func (i *InsertOperator) resolveInsertColumnNames(schema *metadata.Table) ([]string, error) {
+	if len(i.stmt.Columns) > 0 {
+		columnNames := make([]string, 0, len(i.stmt.Columns))
+		for _, col := range i.stmt.Columns {
+			colName := col.String()
+			if colName == "" {
+				return nil, fmt.Errorf("insert column name cannot be empty")
+			}
+			if _, ok := schema.GetColumn(colName); !ok {
+				return nil, fmt.Errorf("column %s not found in table %s", colName, schema.Name)
+			}
+			columnNames = append(columnNames, colName)
+		}
+		return columnNames, nil
+	}
+
+	if len(schema.Columns) == 0 {
+		return nil, fmt.Errorf("insert column list omitted but table %s has no columns", schema.Name)
+	}
+
+	columnNames := make([]string, 0, len(schema.Columns))
+	for _, col := range schema.Columns {
+		if col == nil || col.Name == "" {
+			return nil, fmt.Errorf("table %s contains invalid column metadata", schema.Name)
+		}
+		columnNames = append(columnNames, col.Name)
+	}
+	return columnNames, nil
+}
+
+func (i *InsertOperator) exprToInterface(expr sqlparser.Expr) (interface{}, error) {
+	switch v := expr.(type) {
+	case *sqlparser.SQLVal:
+		return i.sqlValToTypedInterface(v)
+	case *sqlparser.NullVal:
+		return nil, nil
+	case sqlparser.BoolVal:
+		return bool(v), nil
+	default:
+		return nil, fmt.Errorf("unsupported insert expression type: %T", expr)
+	}
+}
+
+func (i *InsertOperator) sqlValToTypedInterface(val *sqlparser.SQLVal) (interface{}, error) {
+	switch val.Type {
+	case sqlparser.StrVal:
+		return string(val.Val), nil
+	case sqlparser.IntVal:
+		return strconv.ParseInt(string(val.Val), 10, 64)
+	case sqlparser.FloatVal:
+		return strconv.ParseFloat(string(val.Val), 64)
+	case sqlparser.HexVal:
+		return val.Val, nil
+	default:
+		return string(val.Val), nil
+	}
 }
 
 // ========================================
@@ -494,13 +602,16 @@ func (u *UpdateOperator) Open(ctx context.Context) error {
 	}
 
 	// 获取表元数据
-	_, err := u.storageAdapter.GetTableMetadata(ctx, u.schemaName, u.tableName)
+	tableMetadata, err := u.storageAdapter.GetTableMetadata(ctx, u.schemaName, u.tableName)
 	if err != nil {
 		return fmt.Errorf("failed to get table metadata: %w", err)
 	}
+	if tableMetadata == nil || tableMetadata.Schema == nil {
+		return fmt.Errorf("table metadata schema is nil for %s.%s", u.schemaName, u.tableName)
+	}
 
-	// TODO: Fix schema assignment - tableMetadata.Schema is *metadata.Table, not metadata.Schema interface
-	u.schema = nil
+	// 统一使用QuerySchema
+	u.schema = metadata.FromTable(tableMetadata.Schema)
 
 	logger.Debugf("UpdateOperator opened for table %s.%s", u.schemaName, u.tableName)
 	return nil
@@ -527,13 +638,19 @@ func (u *UpdateOperator) Next(ctx context.Context) (Record, error) {
 	affectedRows, err := u.executeUpdate(ctx, txn)
 	if err != nil {
 		// 回滚事务
-		_ = u.transactionAdapter.RollbackTransaction(ctx, txn)
-		return nil, fmt.Errorf("update failed: %w", err)
+		if rollbackErr := u.transactionAdapter.RollbackTransaction(ctx, txn); rollbackErr != nil {
+			logger.Errorf("update rollback failed: schema=%s table=%s txn=%d err=%v rollbackErr=%v", u.schemaName, u.tableName, txn.TxnID, err, rollbackErr)
+			return nil, fmt.Errorf("update failed in %s.%s: %w; rollback failed: %v", u.schemaName, u.tableName, err, rollbackErr)
+		}
+
+		logger.Debugf("update rolled back: schema=%s table=%s txn=%d", u.schemaName, u.tableName, txn.TxnID)
+		return nil, fmt.Errorf("update failed in %s.%s: %w", u.schemaName, u.tableName, err)
 	}
 
 	// 提交事务
 	if err := u.transactionAdapter.CommitTransaction(ctx, txn); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+		logger.Errorf("update commit failed: schema=%s table=%s txn=%d err=%v", u.schemaName, u.tableName, txn.TxnID, err)
+		return nil, fmt.Errorf("failed to commit transaction for update on %s.%s: %w", u.schemaName, u.tableName, err)
 	}
 
 	u.affectedRows = affectedRows
@@ -599,17 +716,18 @@ func (u *UpdateOperator) executeUpdate(ctx context.Context, txn *Transaction) (i
 
 // getTableSchema 获取表的元数据
 func (u *UpdateOperator) getTableSchema() (*metadata.Table, error) {
-	// 从存储适配器获取表元数据
 	if u.storageAdapter == nil {
 		return nil, fmt.Errorf("storage adapter is nil")
 	}
 
-	// 简化实现：创建基本的表结构
-	// 实际应该从元数据管理器获取
-	return &metadata.Table{
-		Name:    u.tableName,
-		Columns: []*metadata.Column{}, // 简化：空列列表
-	}, nil
+	tableMetadata, err := u.storageAdapter.GetTableMetadata(context.Background(), u.schemaName, u.tableName)
+	if err != nil {
+		return nil, err
+	}
+	if tableMetadata == nil || tableMetadata.Schema == nil {
+		return nil, fmt.Errorf("table metadata schema is nil for %s.%s", u.schemaName, u.tableName)
+	}
+	return tableMetadata.Schema, nil
 }
 
 // applySetClause 应用SET子句到记录
@@ -621,14 +739,75 @@ func (u *UpdateOperator) applySetClause(oldRecord Record, schema *metadata.Table
 	newValues := make([]basic.Value, len(oldValues))
 	copy(newValues, oldValues)
 
-	// 应用SET子句中的每个赋值
-	// 简化实现：直接返回旧记录
-	// 实际应该解析SET表达式并更新对应列的值
-	logger.Debugf("Applying SET clause (simplified)")
+	if u.stmt == nil {
+		return nil, fmt.Errorf("update statement is nil")
+	}
+	if schema == nil {
+		return nil, fmt.Errorf("table schema is nil")
+	}
+
+	columnIndex := make(map[string]int, len(schema.Columns))
+	for idx, col := range schema.Columns {
+		if col == nil {
+			continue
+		}
+		columnIndex[col.Name] = idx
+	}
+
+	for _, expr := range u.stmt.Exprs {
+		if expr == nil || expr.Name == nil {
+			return nil, fmt.Errorf("invalid SET expression")
+		}
+
+		colName := expr.Name.Name.String()
+		idx, ok := columnIndex[colName]
+		if !ok {
+			return nil, fmt.Errorf("column %s not found in table %s", colName, schema.Name)
+		}
+		if idx >= len(newValues) {
+			return nil, fmt.Errorf("column %s index %d out of record range %d", colName, idx, len(newValues))
+		}
+
+		value, err := updateExprToBasicValue(expr.Expr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to evaluate SET expression for %s: %w", colName, err)
+		}
+		newValues[idx] = value
+	}
 
 	// 创建新记录
 	newRecord := NewExecutorRecordFromValues(newValues, nil)
 	return newRecord, nil
+}
+
+func updateExprToBasicValue(expr sqlparser.Expr) (basic.Value, error) {
+	switch v := expr.(type) {
+	case *sqlparser.SQLVal:
+		switch v.Type {
+		case sqlparser.StrVal:
+			return basic.NewStringValue(string(v.Val)), nil
+		case sqlparser.IntVal:
+			parsed, err := strconv.ParseInt(string(v.Val), 10, 64)
+			if err != nil {
+				return nil, err
+			}
+			return basic.NewInt64Value(parsed), nil
+		case sqlparser.FloatVal:
+			parsed, err := strconv.ParseFloat(string(v.Val), 64)
+			if err != nil {
+				return nil, err
+			}
+			return basic.NewFloatValue(parsed), nil
+		default:
+			return basic.NewStringValue(string(v.Val)), nil
+		}
+	case *sqlparser.NullVal:
+		return basic.NewNull(), nil
+	case sqlparser.BoolVal:
+		return basic.NewBool(bool(v)), nil
+	default:
+		return nil, fmt.Errorf("unsupported expression type %T", expr)
+	}
 }
 
 // checkIndexColumnsChanged 检查索引列是否变更
@@ -657,21 +836,11 @@ func (u *UpdateOperator) checkIndexColumnsChanged(oldRecord, newRecord Record, s
 func (u *UpdateOperator) updateInPlace(ctx context.Context, txn *Transaction, oldRecord, newRecord Record, schema *metadata.Table) error {
 	logger.Debugf("Performing in-place update")
 
-	// 使用存储适配器更新记录
 	if u.storageAdapter == nil {
 		return fmt.Errorf("storage adapter is nil")
 	}
 
-	// 简化实现：直接更新记录
-	// 实际应该：
-	// 1. 获取记录的物理位置（页号、槽号）
-	// 2. 锁定记录
-	// 3. 更新记录内容
-	// 4. 写入Undo日志
-	// 5. 更新MVCC版本链
-
-	logger.Debugf("✅ In-place update completed")
-	return nil
+	return u.storageAdapter.UpdateRecord(ctx, u.schemaName, u.tableName, oldRecord, newRecord, schema, txn)
 }
 
 // updateWithIndexChange 更新记录（索引列变更，需要删除+插入）
@@ -696,38 +865,20 @@ func (u *UpdateOperator) updateWithIndexChange(ctx context.Context, txn *Transac
 
 // deleteOldRecord 删除旧记录
 func (u *UpdateOperator) deleteOldRecord(ctx context.Context, txn *Transaction, record Record, schema *metadata.Table) error {
-	// 使用存储适配器删除记录
 	if u.storageAdapter == nil {
 		return fmt.Errorf("storage adapter is nil")
 	}
 
-	// 简化实现：标记删除
-	// 实际应该：
-	// 1. 锁定记录
-	// 2. 写入Undo日志
-	// 3. 标记删除位
-	// 4. 更新二级索引
-
-	logger.Debugf("Deleted old record")
-	return nil
+	return u.storageAdapter.DeleteRecord(ctx, u.schemaName, u.tableName, record, schema, txn)
 }
 
 // insertNewRecord 插入新记录
 func (u *UpdateOperator) insertNewRecord(ctx context.Context, txn *Transaction, record Record, schema *metadata.Table) error {
-	// 使用存储适配器插入记录
 	if u.storageAdapter == nil {
 		return fmt.Errorf("storage adapter is nil")
 	}
 
-	// 简化实现：插入新记录
-	// 实际应该：
-	// 1. 分配新的记录空间
-	// 2. 写入记录内容
-	// 3. 更新主键索引
-	// 4. 更新二级索引
-
-	logger.Debugf("Inserted new record")
-	return nil
+	return u.storageAdapter.InsertRecord(ctx, u.schemaName, u.tableName, recordToInsertRow(record, schema), schema, txn)
 }
 
 // valuesEqual 比较两个Value是否相等
@@ -791,13 +942,16 @@ func (d *DeleteOperator) Open(ctx context.Context) error {
 	}
 
 	// 获取表元数据
-	_, err := d.storageAdapter.GetTableMetadata(ctx, d.schemaName, d.tableName)
+	tableMetadata, err := d.storageAdapter.GetTableMetadata(ctx, d.schemaName, d.tableName)
 	if err != nil {
 		return fmt.Errorf("failed to get table metadata: %w", err)
 	}
+	if tableMetadata == nil || tableMetadata.Schema == nil {
+		return fmt.Errorf("table metadata schema is nil for %s.%s", d.schemaName, d.tableName)
+	}
 
-	// TODO: Fix schema assignment - tableMetadata.Schema is *metadata.Table, not metadata.Schema interface
-	d.schema = nil
+	// 统一使用QuerySchema
+	d.schema = metadata.FromTable(tableMetadata.Schema)
 
 	logger.Debugf("DeleteOperator opened for table %s.%s", d.schemaName, d.tableName)
 	return nil
@@ -824,13 +978,19 @@ func (d *DeleteOperator) Next(ctx context.Context) (Record, error) {
 	affectedRows, err := d.executeDelete(ctx, txn)
 	if err != nil {
 		// 回滚事务
-		_ = d.transactionAdapter.RollbackTransaction(ctx, txn)
-		return nil, fmt.Errorf("delete failed: %w", err)
+		if rollbackErr := d.transactionAdapter.RollbackTransaction(ctx, txn); rollbackErr != nil {
+			logger.Errorf("delete rollback failed: schema=%s table=%s txn=%d err=%v rollbackErr=%v", d.schemaName, d.tableName, txn.TxnID, err, rollbackErr)
+			return nil, fmt.Errorf("delete failed in %s.%s: %w; rollback failed: %v", d.schemaName, d.tableName, err, rollbackErr)
+		}
+
+		logger.Debugf("delete rolled back: schema=%s table=%s txn=%d", d.schemaName, d.tableName, txn.TxnID)
+		return nil, fmt.Errorf("delete failed in %s.%s: %w", d.schemaName, d.tableName, err)
 	}
 
 	// 提交事务
 	if err := d.transactionAdapter.CommitTransaction(ctx, txn); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+		logger.Errorf("delete commit failed: schema=%s table=%s txn=%d err=%v", d.schemaName, d.tableName, txn.TxnID, err)
+		return nil, fmt.Errorf("failed to commit transaction for delete on %s.%s: %w", d.schemaName, d.tableName, err)
 	}
 
 	d.affectedRows = affectedRows
@@ -846,29 +1006,147 @@ func (d *DeleteOperator) Next(ctx context.Context) (Record, error) {
 
 // executeDelete 执行实际的删除逻辑
 func (d *DeleteOperator) executeDelete(ctx context.Context, txn *Transaction) (int64, error) {
-	// TODO: 实现实际的删除逻辑
-	// 1. 使用scanOperator扫描需要删除的记录
-	// 2. 标记删除记录（InnoDB的删除是标记删除）
-	// 3. 删除二级索引项
+	if d.scanOperator == nil {
+		return 0, fmt.Errorf("scan operator is nil")
+	}
+	if d.storageAdapter == nil {
+		return 0, fmt.Errorf("storage adapter is nil")
+	}
 
 	logger.Debugf("Executing DELETE on table %s.%s", d.schemaName, d.tableName)
 
 	affectedRows := int64(0)
 
-	// 扫描需要删除的记录
 	for {
 		record, err := d.scanOperator.Next(ctx)
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("failed to scan record: %v", err)
 		}
 		if record == nil {
-			break // EOF
+			break
 		}
 
-		// 删除记录
-		// TODO: 实现记录删除逻辑
+		if err := d.deleteRecord(ctx, txn, record); err != nil {
+			return 0, fmt.Errorf("failed to delete record: %v", err)
+		}
+
 		affectedRows++
 	}
 
+	logger.Debugf("✅ DELETE completed: affected %d rows", affectedRows)
 	return affectedRows, nil
+}
+
+func (d *DeleteOperator) deleteRecord(ctx context.Context, txn *Transaction, record Record) error {
+	if d.storageAdapter == nil {
+		return fmt.Errorf("storage adapter is nil")
+	}
+	if d.storageAdapter.deleteRecordFunc != nil {
+		return d.storageAdapter.DeleteRecord(ctx, d.schemaName, d.tableName, record, nil, txn)
+	}
+
+	tableSchema, err := d.storageAdapter.GetTableMetadata(ctx, d.schemaName, d.tableName)
+	if err != nil {
+		return err
+	}
+	if tableSchema == nil || tableSchema.Schema == nil {
+		return fmt.Errorf("table metadata schema is nil for %s.%s", d.schemaName, d.tableName)
+	}
+
+	return d.storageAdapter.DeleteRecord(ctx, d.schemaName, d.tableName, record, tableSchema.Schema, txn)
+}
+
+func mapToExecutorRecord(row map[string]interface{}, schema *metadata.Table) (Record, error) {
+	if schema == nil {
+		return nil, fmt.Errorf("table schema is nil")
+	}
+	values := make([]basic.Value, len(schema.Columns))
+	for idx, col := range schema.Columns {
+		if col == nil {
+			continue
+		}
+		raw, ok := row[col.Name]
+		if !ok {
+			if col.DefaultValue != nil {
+				raw = col.DefaultValue
+			} else if col.IsNullable {
+				raw = nil
+			} else {
+				return nil, fmt.Errorf("column %s has no value and no default", col.Name)
+			}
+		}
+		value, err := interfaceToBasicValue(raw)
+		if err != nil {
+			return nil, fmt.Errorf("convert column %s: %w", col.Name, err)
+		}
+		values[idx] = value
+	}
+	return NewExecutorRecordFromValues(values, metadata.FromTable(schema)), nil
+}
+
+func recordToInsertRow(record Record, schema *metadata.Table) map[string]interface{} {
+	row := make(map[string]interface{})
+	if record == nil || schema == nil {
+		return row
+	}
+	values := record.GetValues()
+	for idx, col := range schema.Columns {
+		if col == nil || idx >= len(values) || values[idx] == nil {
+			continue
+		}
+		row[col.Name] = basicValueToInterface(values[idx])
+	}
+	return row
+}
+
+func basicValueToInterface(value basic.Value) interface{} {
+	if value == nil || value.IsNull() {
+		return nil
+	}
+	switch value.Type() {
+	case basic.ValueTypeInt, basic.ValueTypeTinyInt, basic.ValueTypeSmallInt, basic.ValueTypeMediumInt, basic.ValueTypeBigInt:
+		return value.Int()
+	case basic.ValueTypeFloat, basic.ValueTypeDouble, basic.ValueTypeDecimal:
+		return value.Float64()
+	case basic.ValueTypeBool, basic.ValueTypeBoolean:
+		return value.Bool()
+	default:
+		return value.ToString()
+	}
+}
+
+func interfaceToBasicValue(raw interface{}) (basic.Value, error) {
+	switch v := raw.(type) {
+	case nil:
+		return basic.NewNull(), nil
+	case basic.Value:
+		return v, nil
+	case int:
+		return basic.NewInt64Value(int64(v)), nil
+	case int32:
+		return basic.NewInt64Value(int64(v)), nil
+	case int64:
+		return basic.NewInt64Value(v), nil
+	case uint:
+		return basic.NewInt64Value(int64(v)), nil
+	case uint32:
+		return basic.NewInt64Value(int64(v)), nil
+	case uint64:
+		if v > uint64(^uint64(0)>>1) {
+			return nil, fmt.Errorf("integer overflows int64")
+		}
+		return basic.NewInt64Value(int64(v)), nil
+	case float32:
+		return basic.NewFloatValue(float64(v)), nil
+	case float64:
+		return basic.NewFloatValue(v), nil
+	case bool:
+		return basic.NewBool(v), nil
+	case string:
+		return basic.NewStringValue(v), nil
+	case []byte:
+		return basic.NewStringValue(string(v)), nil
+	default:
+		return basic.NewStringValue(fmt.Sprintf("%v", v)), nil
+	}
 }

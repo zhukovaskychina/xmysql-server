@@ -349,24 +349,127 @@ func (m *EnhancedBTreeManager) AnalyzeIndex(ctx context.Context, indexID uint64)
 
 // RebuildIndex 重建索引
 func (m *EnhancedBTreeManager) RebuildIndex(ctx context.Context, indexID uint64) error {
-	// TODO: 实现索引重建逻辑
-	return fmt.Errorf("index rebuild not implemented yet")
-}
-
-// DropIndex 删除索引
-func (m *EnhancedBTreeManager) DropIndex(ctx context.Context, indexID uint64) error {
-	// 卸载索引
-	if err := m.UnloadIndex(indexID); err != nil {
-		return fmt.Errorf("failed to unload index: %v", err)
+	if atomic.LoadUint32(&m.isShutdown) == 1 {
+		return fmt.Errorf("btree manager is shutdown")
 	}
 
-	// 删除索引文件/页面
 	metadata, err := m.metadataManager.GetIndexMetadata(indexID)
 	if err != nil {
 		return err
 	}
 
-	// TODO: 实现删除索引页面的逻辑
+	if m.storageManager == nil || m.storageManager.GetBufferPoolManager() == nil {
+		return fmt.Errorf("storage manager or buffer pool manager is not initialized")
+	}
+
+	metadata.IndexState = EnhancedIndexStateBuilding
+	metadata.UpdateTime = time.Now()
+
+	recordsToRebuild := m.collectLoadedIndexRecords(indexID)
+
+	m.mu.Lock()
+	if loaded, exists := m.loadedIndexes[indexID]; exists {
+		if err := loaded.Flush(ctx); err != nil {
+			m.mu.Unlock()
+			metadata.IndexState = EnhancedIndexStateCorrupted
+			return fmt.Errorf("failed to flush index before rebuild: %v", err)
+		}
+		delete(m.loadedIndexes, indexID)
+		m.removeIndexLoadOrderLocked(indexID)
+		metadata.IsLoaded = false
+	}
+	m.mu.Unlock()
+
+	rebuilt := NewEnhancedBTreeIndex(metadata, m.storageManager, m.config)
+	if err := rebuilt.InitializeEmptyIndex(ctx); err != nil {
+		metadata.IndexState = EnhancedIndexStateCorrupted
+		return fmt.Errorf("failed to initialize rebuilt index: %v", err)
+	}
+
+	for _, record := range recordsToRebuild {
+		if record.DeleteMark {
+			continue
+		}
+		if err := rebuilt.Insert(ctx, record.Key, record.Value); err != nil {
+			metadata.IndexState = EnhancedIndexStateCorrupted
+			return fmt.Errorf("failed to rebuild record: %v", err)
+		}
+	}
+
+	if err := rebuilt.UpdateStatistics(ctx); err != nil {
+		metadata.IndexState = EnhancedIndexStateCorrupted
+		return fmt.Errorf("failed to update rebuilt index statistics: %v", err)
+	}
+
+	m.mu.Lock()
+	m.loadedIndexes[indexID] = rebuilt
+	m.indexLoadOrder = append(m.indexLoadOrder, indexID)
+	m.mu.Unlock()
+
+	metadata.IndexState = EnhancedIndexStateActive
+	metadata.IsLoaded = true
+	metadata.UpdateTime = time.Now()
+	atomic.StoreUint64(&m.stats.IndexesLoaded, uint64(m.GetLoadedIndexCount()))
+
+	logger.Debugf(" Rebuilt index %d '%s'\n", indexID, metadata.IndexName)
+	return nil
+}
+
+func (m *EnhancedBTreeManager) collectLoadedIndexRecords(indexID uint64) []IndexRecord {
+	m.mu.RLock()
+	index := m.loadedIndexes[indexID]
+	m.mu.RUnlock()
+	if index == nil {
+		return nil
+	}
+
+	index.mu.RLock()
+	defer index.mu.RUnlock()
+
+	seen := make(map[string]struct{})
+	records := make([]IndexRecord, 0)
+	for _, page := range index.pageCache {
+		if page == nil {
+			continue
+		}
+		for _, record := range page.Records {
+			key := string(record.Key)
+			if _, exists := seen[key]; exists {
+				continue
+			}
+			seen[key] = struct{}{}
+			recordCopy := IndexRecord{
+				Key:        append([]byte(nil), record.Key...),
+				Value:      append([]byte(nil), record.Value...),
+				PageNo:     record.PageNo,
+				SlotNo:     record.SlotNo,
+				TxnID:      record.TxnID,
+				DeleteMark: record.DeleteMark,
+			}
+			records = append(records, recordCopy)
+		}
+	}
+	return records
+}
+
+// DropIndex 删除索引
+func (m *EnhancedBTreeManager) DropIndex(ctx context.Context, indexID uint64) error {
+	extraPages := m.loadedIndexPages(indexID)
+
+	// 卸载索引
+	if err := m.UnloadIndex(indexID); err != nil {
+		return fmt.Errorf("failed to unload index: %v", err)
+	}
+
+	metadata, err := m.metadataManager.GetIndexMetadata(indexID)
+	if err != nil {
+		return err
+	}
+
+	metadata.IndexState = EnhancedIndexStateDropping
+	if err := m.freeIndexPages(ctx, metadata, extraPages...); err != nil {
+		return fmt.Errorf("failed to free index pages: %v", err)
+	}
 
 	// 移除元信息
 	if err := m.metadataManager.RemoveIndex(indexID); err != nil {
@@ -463,6 +566,74 @@ func (m *EnhancedBTreeManager) updateIndexAccessOrder(indexID uint64) {
 			break
 		}
 	}
+}
+
+func (m *EnhancedBTreeManager) removeIndexLoadOrderLocked(indexID uint64) {
+	for i, id := range m.indexLoadOrder {
+		if id == indexID {
+			m.indexLoadOrder = append(m.indexLoadOrder[:i], m.indexLoadOrder[i+1:]...)
+			return
+		}
+	}
+}
+
+func (m *EnhancedBTreeManager) loadedIndexPages(indexID uint64) []uint32 {
+	m.mu.RLock()
+	index := m.loadedIndexes[indexID]
+	m.mu.RUnlock()
+	if index == nil {
+		return nil
+	}
+
+	index.mu.RLock()
+	defer index.mu.RUnlock()
+
+	pages := make([]uint32, 0, len(index.pageCache)+len(index.pageLoadOrder))
+	for pageNo := range index.pageCache {
+		pages = append(pages, pageNo)
+	}
+	for _, pageNo := range index.pageLoadOrder {
+		pages = append(pages, pageNo)
+	}
+	return pages
+}
+
+func (m *EnhancedBTreeManager) freeIndexPages(ctx context.Context, metadata *IndexMetadata, extraPages ...uint32) error {
+	if metadata == nil {
+		return fmt.Errorf("metadata is nil")
+	}
+	if m.storageManager == nil || m.storageManager.GetBufferPoolManager() == nil {
+		return fmt.Errorf("storage manager or buffer pool manager is not initialized")
+	}
+
+	index := NewEnhancedBTreeIndex(metadata, m.storageManager, m.config)
+	pages, err := index.GetAllLeafPages(ctx)
+	if err != nil || len(pages) == 0 {
+		pages = []uint32{metadata.RootPageNo}
+	}
+	pages = append(pages, extraPages...)
+
+	seen := map[uint32]struct{}{}
+	for _, pageNo := range pages {
+		if pageNo == 0 {
+			continue
+		}
+		if _, exists := seen[pageNo]; exists {
+			continue
+		}
+		seen[pageNo] = struct{}{}
+		if err := m.storageManager.GetBufferPoolManager().FreePage(metadata.SpaceID, pageNo); err != nil {
+			return fmt.Errorf("free page %d: %v", pageNo, err)
+		}
+	}
+
+	if _, freedRoot := seen[metadata.RootPageNo]; !freedRoot && metadata.RootPageNo != 0 {
+		if err := m.storageManager.GetBufferPoolManager().FreePage(metadata.SpaceID, metadata.RootPageNo); err != nil {
+			return fmt.Errorf("free root page %d: %v", metadata.RootPageNo, err)
+		}
+	}
+
+	return nil
 }
 
 // enforceMemoryLimits 强制执行内存限制

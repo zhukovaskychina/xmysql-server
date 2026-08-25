@@ -1,17 +1,21 @@
+﻿//go:build demo
+// +build demo
+
 package main
 
 import (
 	"context"
 	"fmt"
 
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 )
 
 func main() {
-	fmt.Println("=== 测试B+树管理器构造函数修复 ===")
+	fmt.Println("=== 娴嬭瘯B+鏍戠鐞嗗櫒鏋勯€犲嚱鏁颁慨澶?===")
 
-	// 创建配置
+	// 鍒涘缓閰嶇疆
 	config := &conf.Cfg{
 		DataDir:              "test_data",
 		InnodbDataDir:        "test_data/innodb",
@@ -20,97 +24,97 @@ func main() {
 		InnodbPageSize:       16384,     // 16KB
 	}
 
-	fmt.Println("1. 创建存储管理器...")
+	fmt.Println("1. 鍒涘缓瀛樺偍绠＄悊鍣?..")
 	storageManager := manager.NewStorageManager(config)
 
-	fmt.Println("2. 获取缓冲池管理器...")
+	fmt.Println("2. 鑾峰彇缂撳啿姹犵鐞嗗櫒...")
 	bufferPoolManager := storageManager.GetBufferPoolManager()
 	if bufferPoolManager == nil {
-		fmt.Println(" 缓冲池管理器为空，使用模拟实现")
+		fmt.Println(" 缂撳啿姹犵鐞嗗櫒涓虹┖锛屼娇鐢ㄦā鎷熷疄鐜?)
 		return
 	}
 
-	fmt.Println("3. 创建表存储映射管理器...")
+	fmt.Println("3. 鍒涘缓琛ㄥ瓨鍌ㄦ槧灏勭鐞嗗櫒...")
 	tableStorageManager := manager.NewTableStorageManager(storageManager)
 
-	fmt.Println("4. 测试为表创建B+树管理器...")
+	fmt.Println("4. 娴嬭瘯涓鸿〃鍒涘缓B+鏍戠鐞嗗櫒...")
 
-	// 测试获取mysql.user表的存储信息
+	// 娴嬭瘯鑾峰彇mysql.user琛ㄧ殑瀛樺偍淇℃伅
 	userTableInfo, err := tableStorageManager.GetTableStorageInfo("mysql", "user")
 	if err != nil {
-		logger.Debugf(" 获取mysql.user表存储信息失败: %v\n", err)
+		logger.Debugf(" 鑾峰彇mysql.user琛ㄥ瓨鍌ㄤ俊鎭け璐? %v\n", err)
 		return
 	}
 
-	logger.Debugf("✓ mysql.user表存储信息: SpaceID=%d, RootPage=%d\n",
+	logger.Debugf("鉁?mysql.user琛ㄥ瓨鍌ㄤ俊鎭? SpaceID=%d, RootPage=%d\n",
 		userTableInfo.SpaceID, userTableInfo.RootPageNo)
 
-	// 测试创建表特定的B+树管理器
+	// 娴嬭瘯鍒涘缓琛ㄧ壒瀹氱殑B+鏍戠鐞嗗櫒
 	ctx := context.Background()
 	userBTreeManager, err := tableStorageManager.CreateBTreeManagerForTable(ctx, "mysql", "user")
 	if err != nil {
-		logger.Debugf(" 创建mysql.user表B+树管理器失败: %v\n", err)
+		logger.Debugf(" 鍒涘缓mysql.user琛˙+鏍戠鐞嗗櫒澶辫触: %v\n", err)
 		return
 	}
 
-	fmt.Println("✓ 成功创建mysql.user表的增强版B+树管理器")
+	fmt.Println("鉁?鎴愬姛鍒涘缓mysql.user琛ㄧ殑澧炲己鐗圔+鏍戠鐞嗗櫒")
 
-	// 测试B+树管理器的基本功能
-	fmt.Println("\n5. 测试增强版B+树管理器基本功能...")
+	// 娴嬭瘯B+鏍戠鐞嗗櫒鐨勫熀鏈姛鑳?
+	fmt.Println("\n5. 娴嬭瘯澧炲己鐗圔+鏍戠鐞嗗櫒鍩烘湰鍔熻兘...")
 
-	// 测试获取第一个叶子页面
+	// 娴嬭瘯鑾峰彇绗竴涓彾瀛愰〉闈?
 	firstLeafPage, err := userBTreeManager.GetFirstLeafPage(ctx)
 	if err != nil {
-		logger.Debugf(" 获取第一个叶子页面失败: %v\n", err)
+		logger.Debugf(" 鑾峰彇绗竴涓彾瀛愰〉闈㈠け璐? %v\n", err)
 	} else {
-		logger.Debugf("✓ 第一个叶子页面: %d\n", firstLeafPage)
+		logger.Debugf("鉁?绗竴涓彾瀛愰〉闈? %d\n", firstLeafPage)
 	}
 
-	// 测试获取所有叶子页面
+	// 娴嬭瘯鑾峰彇鎵€鏈夊彾瀛愰〉闈?
 	leafPages, err := userBTreeManager.GetAllLeafPages(ctx)
 	if err != nil {
-		logger.Debugf(" 获取所有叶子页面失败: %v\n", err)
+		logger.Debugf(" 鑾峰彇鎵€鏈夊彾瀛愰〉闈㈠け璐? %v\n", err)
 	} else {
-		logger.Debugf("✓ 叶子页面数量: %d\n", len(leafPages))
+		logger.Debugf("鉁?鍙跺瓙椤甸潰鏁伴噺: %d\n", len(leafPages))
 		if len(leafPages) > 0 {
-			logger.Debugf("  叶子页面: %v\n", leafPages)
+			logger.Debugf("  鍙跺瓙椤甸潰: %v\n", leafPages)
 		}
 	}
 
-	// 测试插入数据
-	fmt.Println("\n6. 测试插入数据到增强版B+树...")
+	// 娴嬭瘯鎻掑叆鏁版嵁
+	fmt.Println("\n6. 娴嬭瘯鎻掑叆鏁版嵁鍒板寮虹増B+鏍?..")
 	testKey := "test_user"
 	testValue := []byte("test_user_data")
 
 	err = userBTreeManager.Insert(ctx, testKey, testValue)
 	if err != nil {
-		logger.Debugf(" 插入数据失败: %v\n", err)
+		logger.Debugf(" 鎻掑叆鏁版嵁澶辫触: %v\n", err)
 	} else {
-		logger.Debugf("✓ 成功插入数据: key=%s\n", testKey)
+		logger.Debugf("鉁?鎴愬姛鎻掑叆鏁版嵁: key=%s\n", testKey)
 	}
 
-	// 测试搜索数据
-	fmt.Println("\n7. 测试搜索数据...")
+	// 娴嬭瘯鎼滅储鏁版嵁
+	fmt.Println("\n7. 娴嬭瘯鎼滅储鏁版嵁...")
 	pageNo, slot, err := userBTreeManager.Search(ctx, testKey)
 	if err != nil {
-		logger.Debugf(" 搜索数据失败: %v\n", err)
+		logger.Debugf(" 鎼滅储鏁版嵁澶辫触: %v\n", err)
 	} else {
-		logger.Debugf("✓ 找到数据: page=%d, slot=%d\n", pageNo, slot)
+		logger.Debugf("鉁?鎵惧埌鏁版嵁: page=%d, slot=%d\n", pageNo, slot)
 	}
 
-	// 测试范围查询
-	fmt.Println("\n8. 测试范围查询...")
+	// 娴嬭瘯鑼冨洿鏌ヨ
+	fmt.Println("\n8. 娴嬭瘯鑼冨洿鏌ヨ...")
 	rows, err := userBTreeManager.RangeSearch(ctx, "a", "z")
 	if err != nil {
-		logger.Debugf(" 范围查询失败: %v\n", err)
+		logger.Debugf(" 鑼冨洿鏌ヨ澶辫触: %v\n", err)
 	} else {
-		logger.Debugf("✓ 范围查询结果数量: %d\n", len(rows))
+		logger.Debugf("鉁?鑼冨洿鏌ヨ缁撴灉鏁伴噺: %d\n", len(rows))
 	}
 
-	fmt.Println("\n 增强版B+树管理器测试完成！")
+	fmt.Println("\n 澧炲己鐗圔+鏍戠鐞嗗櫒娴嬭瘯瀹屾垚锛?)
 
-	fmt.Println("\n=== 测试完成 ===")
-	fmt.Println("✓ B+树管理器构造函数修复成功")
-	fmt.Println("✓ 表存储映射管理器工作正常")
-	fmt.Println("✓ 可以成功为特定表创建B+树管理器")
+	fmt.Println("\n=== 娴嬭瘯瀹屾垚 ===")
+	fmt.Println("鉁?B+鏍戠鐞嗗櫒鏋勯€犲嚱鏁颁慨澶嶆垚鍔?)
+	fmt.Println("鉁?琛ㄥ瓨鍌ㄦ槧灏勭鐞嗗櫒宸ヤ綔姝ｅ父")
+	fmt.Println("鉁?鍙互鎴愬姛涓虹壒瀹氳〃鍒涘缓B+鏍戠鐞嗗櫒")
 }

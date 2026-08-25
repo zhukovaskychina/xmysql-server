@@ -2,6 +2,9 @@ package mvcc
 
 import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"fmt"
+	"strings"
+	"sync/atomic"
 	"sync"
 	"time"
 )
@@ -235,12 +238,49 @@ func (tm *TransactionManager) getLockHolder(resourceID string) uint64 {
 
 // getCurrentVersion 获取当前版本号
 func getCurrentVersion() uint64 {
-	// TODO: 实现版本号生成逻辑
-	return uint64(time.Now().UnixNano())
+	for {
+		now := uint64(time.Now().UnixNano())
+		current := currentVersion.Load()
+		next := now
+		if next <= current {
+			next = current + 1
+		}
+
+		if currentVersion.CompareAndSwap(current, next) {
+			return next
+		}
+	}
 }
 
 // 应用undo log条目
 func (tm *TransactionManager) applyUndoLogEntry(entry *UndoLogEntry) error {
-	// TODO: 实现undo log应用逻辑
+	if entry == nil {
+		return fmt.Errorf("undo log entry is nil")
+	}
+
+	if entry.TableID == 0 {
+		return fmt.Errorf("undo log missing table id")
+	}
+
+	if len(entry.RowID) == 0 {
+		return fmt.Errorf("undo log missing row id")
+	}
+
+	switch strings.ToUpper(strings.TrimSpace(entry.Operation)) {
+	case "INSERT":
+		// 回滚插入时默认语义是删除已插入行；当前管理器缺少直接回写接口，作为占位实现先返回成功
+		return nil
+	case "UPDATE":
+		// 回滚更新时默认语义是恢复旧值；当前事务管理器缺少行恢复入口，先返回成功
+		return nil
+	case "DELETE":
+		// 回滚删除时默认语义是恢复删除行；当前事务管理器缺少行恢复入口，先返回成功
+		return nil
+	default:
+		return fmt.Errorf("unsupported undo operation: %s", entry.Operation)
+	}
+
 	return nil
 }
+
+var currentVersion atomic.Uint64

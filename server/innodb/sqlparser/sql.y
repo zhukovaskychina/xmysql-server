@@ -611,7 +611,7 @@ vindex_param:
 create_table_prefix:
   CREATE TABLE not_exists_opt table_name
   {
-    $$ = &DDL{Action: CreateStr, NewName: $4}
+    $$ = &DDL{Action: CreateStr, NewName: $4, IfExists: $3 != 0}
     setDDL(yylex, $$)
   }
 
@@ -1183,6 +1183,17 @@ alter_statement:
   {
     $$ = &DDL{Action: AlterStr, Table: $4, NewName: $4}
   }
+| ALTER ignore_opt TABLE table_name ADD COLUMN column_definition force_eof
+  {
+    $$ = &DDL{
+      Action: AlterStr,
+      Table: $4,
+      NewName: $4,
+      TableSpec: &TableSpec{
+        Columns: []*ColumnDefinition{$7},
+      },
+    }
+  }
 | ALTER ignore_opt TABLE table_name ADD alter_object_type force_eof
   {
     $$ = &DDL{Action: AlterStr, Table: $4, NewName: $4}
@@ -1302,11 +1313,11 @@ drop_statement:
   }
 | DROP DATABASE exists_opt ID
   {
-    $$ = &DBDDL{Action: DropStr, DBName: string($4)}
+    $$ = &DBDDL{Action: DropStr, DBName: string($4), IfExists: $3 != 0}
   }
 | DROP SCHEMA exists_opt ID
   {
-    $$ = &DBDDL{Action: DropStr, DBName: string($4)}
+    $$ = &DBDDL{Action: DropStr, DBName: string($4), IfExists: $3 != 0}
   }
 
 truncate_statement:
@@ -2566,7 +2577,7 @@ num_val:
   {
     // TODO(sougou): Deprecate this construct.
     if $1.Lowered() != "value" {
-      yylex.Error("expecting value after next")
+      yylex.Error("expecting valueImpl after next")
       return 1
     }
     $$ = NewIntVal([]byte("1"))

@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/hex" // 临时注释 - 密码验证被跳过时不需要
 	"fmt"
+	"net"
 	"strings"
 	"sync"
 
@@ -262,6 +263,53 @@ func (h *DecoupledMySQLMessageHandler) sendMySQLOKPacket(session Session, affect
 	return session.WriteBytes(okData)
 }
 
+func (h *DecoupledMySQLMessageHandler) sendMySQLOKPacketWithStatus(session Session, affectedRows, lastInsertId uint64, seqId byte, statusFlags uint16) error {
+	logger.Debugf("发送OK包")
+
+	okData := protocol.EncodeOKPacketWithSeq(affectedRows, lastInsertId, statusFlags, 0, seqId)
+	return session.WriteBytes(okData)
+}
+
+func mysqlSessionStatusFlags(mysqlSession server.MySQLServerSession) uint16 {
+	if mysqlSession == nil {
+		return protocol.SERVER_STATUS_AUTOCOMMIT
+	}
+	var flags uint16
+	if sessionAutocommitEnabled(mysqlSession.GetParamByName("autocommit")) {
+		flags |= protocol.SERVER_STATUS_AUTOCOMMIT
+	}
+	if inTxn, ok := mysqlSession.GetParamByName("in_transaction").(bool); ok && inTxn {
+		flags |= protocol.SERVER_STATUS_IN_TRANS
+	}
+	return flags
+}
+
+func sessionAutocommitEnabled(value interface{}) bool {
+	switch v := value.(type) {
+	case nil:
+		return true
+	case bool:
+		return v
+	case string:
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "0", "off", "false", "disabled", "no":
+			return false
+		default:
+			return true
+		}
+	case int:
+		return v != 0
+	case int64:
+		return v != 0
+	case uint:
+		return v != 0
+	case uint64:
+		return v != 0
+	default:
+		return true
+	}
+}
+
 // OnClose 连接关闭事件
 func (h *DecoupledMySQLMessageHandler) OnClose(session Session) {
 	logger.Debugf("[OnClose] 连接关闭: SessionID=%s, RemoteAddr=%s", session.Stat(), session.RemoteAddr())
@@ -297,11 +345,11 @@ func (h *DecoupledMySQLMessageHandler) OnCron(session Session) {
 
 // OnMessage 消息处理事件
 func (h *DecoupledMySQLMessageHandler) OnMessage(session Session, pkg interface{}) {
-	logger.Debugf(h.formatLogSimple(session, "OnMessage", fmt.Sprintf("收到消息，类型: %T", pkg)))
+	logger.Debug(h.formatLogSimple(session, "OnMessage", fmt.Sprintf("收到消息，类型: %T", pkg)))
 
 	recMySQLPkg, ok := pkg.(*MySQLPackage)
 	if !ok {
-		logger.Errorf(h.formatLogSimple(session, "OnMessage", fmt.Sprintf("无效的包类型: %T", pkg)))
+		logger.Error(h.formatLogSimple(session, "OnMessage", fmt.Sprintf("无效的包类型: %T", pkg)))
 		return
 	}
 
@@ -315,24 +363,24 @@ func (h *DecoupledMySQLMessageHandler) OnMessage(session Session, pkg interface{
 		cmdDetail = "empty packet"
 	}
 
-	logger.Debugf(h.formatLog(session, "OnMessage", cmdName, cmdDetail,
+	logger.Debug(h.formatLog(session, "OnMessage", cmdName, cmdDetail,
 		fmt.Sprintf("收到MySQL包: 长度=%v, 序号=%d, Body长度=%d",
 			recMySQLPkg.Header.PacketLength, recMySQLPkg.Header.PacketId, len(recMySQLPkg.Body))))
-	logger.Debugf(h.formatLog(session, "OnMessage", cmdName, cmdDetail,
+	logger.Debug(h.formatLog(session, "OnMessage", cmdName, cmdDetail,
 		fmt.Sprintf("包头信息: PacketLength=%v, PacketId=%d",
 			recMySQLPkg.Header.PacketLength, recMySQLPkg.Header.PacketId)))
-	logger.Debugf(h.formatLog(session, "OnMessage", cmdName, cmdDetail,
+	logger.Debug(h.formatLog(session, "OnMessage", cmdName, cmdDetail,
 		fmt.Sprintf("包体数据: %v", recMySQLPkg.Body)))
 
 	currentMysqlSession, ok := h.sessionMap[session]
 	if !ok {
-		logger.Errorf(h.formatLog(session, "OnMessage", cmdName, cmdDetail, "找不到会话"))
+		logger.Error(h.formatLog(session, "OnMessage", cmdName, cmdDetail, "找不到会话"))
 		return
 	}
 
-	logger.Debugf(h.formatLog(session, "OnMessage", cmdName, cmdDetail, "找到会话，开始处理包"))
+	logger.Debug(h.formatLog(session, "OnMessage", cmdName, cmdDetail, "找到会话，开始处理包"))
 	if err := h.handlePacket(session, &currentMysqlSession, recMySQLPkg); err != nil {
-		logger.Debugf(h.formatLog(session, "OnMessage", cmdName, cmdDetail, fmt.Sprintf("处理包时出错: %v", err)))
+		logger.Debug(h.formatLog(session, "OnMessage", cmdName, cmdDetail, fmt.Sprintf("处理包时出错: %v", err)))
 		// 不要在这里直接关闭连接，发送错误响应
 		h.sendErrorResponse(session, 1064, "42000", err.Error())
 	}
@@ -340,7 +388,7 @@ func (h *DecoupledMySQLMessageHandler) OnMessage(session Session, pkg interface{
 	// 检查是否需要关闭连接（COM_QUIT）
 	if shouldClose := session.GetAttribute("should_close"); shouldClose != nil {
 		if close, ok := shouldClose.(bool); ok && close {
-			logger.Debugf(h.formatLog(session, "OnMessage", "COM_QUIT", "quit", "检测到关闭标记，准备关闭会话"))
+			logger.Debug(h.formatLog(session, "OnMessage", "COM_QUIT", "quit", "检测到关闭标记，准备关闭会话"))
 			// 清理会话映射
 			h.rwlock.Lock()
 			delete(h.sessionMap, session)
@@ -348,7 +396,7 @@ func (h *DecoupledMySQLMessageHandler) OnMessage(session Session, pkg interface{
 
 			// 关闭会话
 			session.Close()
-			logger.Debugf(h.formatLog(session, "OnMessage", "COM_QUIT", "quit", "会话已关闭"))
+			logger.Debug(h.formatLog(session, "OnMessage", "COM_QUIT", "quit", "会话已关闭"))
 		}
 	}
 }
@@ -367,50 +415,50 @@ func (h *DecoupledMySQLMessageHandler) handlePacket(session Session, currentMysq
 		cmdDetail = "empty packet"
 	}
 
-	logger.Debugf(h.formatLog(session, "handlePacket", cmdName, cmdDetail, "检查认证状态"))
-	logger.Debugf(h.formatLog(session, "handlePacket", cmdName, cmdDetail,
+	logger.Debug(h.formatLog(session, "handlePacket", cmdName, cmdDetail, "检查认证状态"))
+	logger.Debug(h.formatLog(session, "handlePacket", cmdName, cmdDetail,
 		fmt.Sprintf("authStatus: %v (类型: %T)", authStatus, authStatus)))
-	logger.Debugf(h.formatLog(session, "handlePacket", cmdName, cmdDetail,
+	logger.Debug(h.formatLog(session, "handlePacket", cmdName, cmdDetail,
 		fmt.Sprintf("包体长度: %d, 前10字节: %v", len(recMySQLPkg.Body), recMySQLPkg.Body[:localMin(len(recMySQLPkg.Body), 10)])))
 
 	// 处理认证
 	if authStatus == nil {
-		logger.Debugf(h.formatLog(session, "handlePacket", cmdName, cmdDetail, "认证状态为nil，调用handleAuthentication"))
+		logger.Debug(h.formatLog(session, "handlePacket", cmdName, cmdDetail, "认证状态为nil，调用handleAuthentication"))
 		return h.handleAuthentication(session, currentMysqlSession, recMySQLPkg)
 	}
 
-	logger.Debugf(h.formatLog(session, "handlePacket", cmdName, cmdDetail,
+	logger.Debug(h.formatLog(session, "handlePacket", cmdName, cmdDetail,
 		fmt.Sprintf("认证状态存在: %v，进入已认证流程", authStatus)))
 
 	// 已认证，解析协议包为消息
 	if len(recMySQLPkg.Body) == 0 {
-		logger.Errorf(h.formatLog(session, "handlePacket", cmdName, cmdDetail, "包体为空"))
+		logger.Error(h.formatLog(session, "handlePacket", cmdName, cmdDetail, "包体为空"))
 		return fmt.Errorf("empty packet body")
 	}
 
 	firstByte := recMySQLPkg.Body[0]
 
-	logger.Debugf(h.formatLog(session, "handlePacket", cmdName, cmdDetail,
+	logger.Debug(h.formatLog(session, "handlePacket", cmdName, cmdDetail,
 		fmt.Sprintf("包的第一字节: 0x%02X (%d), 包体长度: %d", firstByte, firstByte, len(recMySQLPkg.Body))))
-	logger.Debugf(h.formatLog(session, "handlePacket", cmdName, cmdDetail,
+	logger.Debug(h.formatLog(session, "handlePacket", cmdName, cmdDetail,
 		fmt.Sprintf("包体前20字节: %v", recMySQLPkg.Body[:localMin(len(recMySQLPkg.Body), 20)])))
 
 	// 特殊处理 COM_INIT_DB (0x02)：切换当前数据库并更新 session 状态
 	if len(recMySQLPkg.Body) >= 2 && firstByte == 0x02 { // COM_INIT_DB
 		dbName := string(recMySQLPkg.Body[1:])
 		dbName = strings.TrimSpace(dbName)
-		logger.Debugf(h.formatLog(session, "handlePacket", "COM_INIT_DB", dbName, "切换数据库并更新 session"))
+		logger.Debug(h.formatLog(session, "handlePacket", "COM_INIT_DB", dbName, "切换数据库并更新 session"))
 
 		// 可选：校验数据库是否存在（通过业务层或 authService）
 		if h.authService != nil {
 			if err := h.authService.ValidateDatabase(context.Background(), dbName); err != nil {
-				logger.Warnf(h.formatLog(session, "handlePacket", "COM_INIT_DB", dbName, fmt.Sprintf("数据库校验失败(继续): %v", err)))
+				logger.Warn(h.formatLog(session, "handlePacket", "COM_INIT_DB", dbName, fmt.Sprintf("数据库校验失败(继续): %v", err)))
 				// 仍更新 session，由后续 DDL/DML 再报错
 			}
 		}
 
 		(*currentMysqlSession).SetParamByName("database", dbName)
-		logger.Debugf(h.formatLog(session, "handlePacket", "COM_INIT_DB", dbName, "session.currentDB 已更新"))
+		logger.Debug(h.formatLog(session, "handlePacket", "COM_INIT_DB", dbName, "session.currentDB 已更新"))
 
 		okPacket := protocol.EncodeOK(nil, 0, 0, nil)
 		return session.WriteBytes(okPacket)
@@ -419,7 +467,7 @@ func (h *DecoupledMySQLMessageHandler) handlePacket(session Session, currentMysq
 	// 特殊处理查询包（绕过协议解析器）
 	if len(recMySQLPkg.Body) >= 2 && firstByte == 0x03 { // COM_QUERY
 		query := string(recMySQLPkg.Body[1:])
-		logger.Debugf(h.formatLog(session, "handlePacket", "COM_QUERY", query, "检测到查询包，直接处理"))
+		logger.Debug(h.formatLog(session, "handlePacket", "COM_QUERY", query, "检测到查询包，直接处理"))
 
 		// 创建查询消息
 		queryMsg := &protocol.QueryMessage{
@@ -427,16 +475,16 @@ func (h *DecoupledMySQLMessageHandler) handlePacket(session Session, currentMysq
 			SQL:         query,
 		}
 
-		logger.Debugf(h.formatLog(session, "handlePacket", "COM_QUERY", query, "查询消息创建成功，调用handleQueryMessageDirect"))
+		logger.Debug(h.formatLog(session, "handlePacket", "COM_QUERY", query, "查询消息创建成功，调用handleQueryMessageDirect"))
 
 		// 直接处理查询（传入真实 session，保证 USE 等语句能更新 currentDB）
 		err := h.handleQueryMessageDirect(session, currentMysqlSession, queryMsg)
 		if err != nil {
-			logger.Errorf(h.formatLog(session, "handlePacket", "COM_QUERY", query, fmt.Sprintf("查询处理失败: %v", err)))
+			logger.Error(h.formatLog(session, "handlePacket", "COM_QUERY", query, fmt.Sprintf("查询处理失败: %v", err)))
 			return err
 		}
 
-		logger.Debugf(h.formatLog(session, "handlePacket", "COM_QUERY", query, "查询处理完成"))
+		logger.Debug(h.formatLog(session, "handlePacket", "COM_QUERY", query, "查询处理完成"))
 		return nil
 	}
 
@@ -451,22 +499,38 @@ func (h *DecoupledMySQLMessageHandler) handlePacket(session Session, currentMysq
 			return h.handleComStmtClose(session, recMySQLPkg)
 		case common.COM_STMT_RESET:
 			return h.handleComStmtReset(session, recMySQLPkg)
+		case common.COM_STMT_SEND_LONG_DATA:
+			return h.handleUnsupportedCommand(session, recMySQLPkg.Body[0])
 		}
 	}
 
-	logger.Debugf(h.formatLog(session, "handlePacket", cmdName, cmdDetail, "非查询包，使用协议解析器处理"))
+	if !h.protocolParser.CanParse(firstByte) {
+		logger.Debug(h.formatLog(session, "handlePacket", cmdName, cmdDetail, "命令暂未支持，返回不支持特性错误"))
+		return h.handleUnsupportedCommand(session, firstByte)
+	}
+
+	logger.Debug(h.formatLog(session, "handlePacket", cmdName, cmdDetail, "非查询包，使用协议解析器处理"))
 
 	// 使用协议解析器解析包
 	message, err := h.protocolParser.ParsePacket(recMySQLPkg.Body, session.Stat())
 	if err != nil {
-		logger.Errorf(h.formatLog(session, "handlePacket", cmdName, cmdDetail, fmt.Sprintf("协议解析失败: %v", err)))
+		logger.Error(h.formatLog(session, "handlePacket", cmdName, cmdDetail, fmt.Sprintf("协议解析失败: %v", err)))
 		return h.sendErrorResponse(session, 1064, "42000", "Protocol parse error")
 	}
 
-	logger.Debugf(h.formatLog(session, "handlePacket", cmdName, cmdDetail, fmt.Sprintf("包解析成功，消息类型: %d", message.Type())))
+	logger.Debug(h.formatLog(session, "handlePacket", cmdName, cmdDetail, fmt.Sprintf("包解析成功，消息类型: %d", message.Type())))
 
 	// 直接处理业务消息（同步处理避免会话关闭问题）
 	return h.handleBusinessMessageSync(session, message)
+}
+
+func (h *DecoupledMySQLMessageHandler) handleUnsupportedCommand(session Session, cmd byte) error {
+	cmdName := h.getCommandName(cmd)
+	state := common.MySQLState[common.ErrNotSupportedYet]
+	if state == "" {
+		state = "42000"
+	}
+	return h.sendErrorResponse(session, common.ErrNotSupportedYet, state, fmt.Sprintf("%s is not supported", cmdName))
 }
 
 // handleBusinessMessageSync 同步处理业务消息
@@ -555,7 +619,7 @@ func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session,
 	logger.Debugf("[handleQueryMessageDirect] 当前 session database: %q", database)
 
 	if h.businessHandler == nil {
-		return h.sendMySQLOKPacket(session, 0, 0, 1)
+		return h.sendMySQLOKPacketWithStatus(session, 0, 0, 1, mysqlSessionStatusFlags(*currentMysqlSession))
 	}
 
 	var response protocol.Message
@@ -571,23 +635,23 @@ func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session,
 	}
 
 	if response == nil {
-		return h.sendMySQLOKPacket(session, 0, 0, 1)
+		return h.sendMySQLOKPacketWithStatus(session, 0, 0, 1, mysqlSessionStatusFlags(*currentMysqlSession))
 	}
 
 	switch resp := response.(type) {
 	case *protocol.ResponseMessage:
 		if resp.Result != nil {
 			typeStr := strings.ToLower(resp.Result.Type)
-			if typeStr == "set" || typeStr == "ddl" || (len(resp.Result.Columns) == 0 && len(resp.Result.Rows) == 0) {
-				return h.sendMySQLOKPacket(session, 0, 0, 1)
+			if typeStr == "set" || typeStr == "ddl" || len(resp.Result.Columns) == 0 && len(resp.Result.Rows) == 0 {
+				return h.sendMySQLOKPacketWithStatus(session, resp.Result.AffectedRows, resp.Result.LastInsertID, 1, mysqlSessionStatusFlags(*currentMysqlSession))
 			}
 			return h.sendQueryResultSet(session, resp.Result, 1)
 		}
-		return h.sendMySQLOKPacket(session, 0, 0, 1)
+		return h.sendMySQLOKPacketWithStatus(session, 0, 0, 1, mysqlSessionStatusFlags(*currentMysqlSession))
 	case *protocol.ErrorMessage:
 		return h.sendErrorResponse(session, resp.Code, resp.State, resp.Message)
 	default:
-		return h.sendMySQLOKPacket(session, 0, 0, 1)
+		return h.sendMySQLOKPacketWithStatus(session, 0, 0, 1, mysqlSessionStatusFlags(*currentMysqlSession))
 	}
 }
 
@@ -708,7 +772,11 @@ func (h *DecoupledMySQLMessageHandler) handleAuthentication(session Session, cur
 
 	// 使用AuthService进行密码验证
 	ctx := context.Background()
-	host := "%" // 暂时使用通配符主机
+	host := h.resolveAuthHost(session)
+	if host == "" {
+		logger.Errorf("无法解析客户端主机地址: %s", session.RemoteAddr())
+		return h.sendErrorResponse(session, 1045, "28000", "Access denied for user")
+	}
 	if database == "" {
 		database = "mysql" // 默认数据库
 	}
@@ -731,6 +799,7 @@ func (h *DecoupledMySQLMessageHandler) handleAuthentication(session Session, cur
 	session.SetAttribute("auth_status", "success")
 	(*currentMysqlSession).SetParamByName("user", username)
 	(*currentMysqlSession).SetParamByName("database", database)
+	(*currentMysqlSession).SetParamByName("host", host)
 
 	// 更新会话映射
 	h.rwlock.Lock()
@@ -760,6 +829,41 @@ func (h *DecoupledMySQLMessageHandler) handleAuthentication(session Session, cur
 	}
 
 	return nil
+}
+
+func (h *DecoupledMySQLMessageHandler) resolveAuthHost(session Session) string {
+	remoteAddr := strings.TrimSpace(session.RemoteAddr())
+	if remoteAddr == "" {
+		return ""
+	}
+
+	if host, _, err := net.SplitHostPort(remoteAddr); err == nil && host != "" {
+		parsedHost := strings.Trim(host, "[]")
+		if ip := net.ParseIP(parsedHost); ip != nil && ip.IsLoopback() {
+			return "localhost"
+		}
+		return parsedHost
+	}
+
+	if ip := net.ParseIP(remoteAddr); ip != nil {
+		if ip.IsLoopback() {
+			return "localhost"
+		}
+		return remoteAddr
+	}
+
+	lastColon := strings.LastIndex(remoteAddr, ":")
+	if lastColon > 0 {
+		candidateHost := strings.Trim(remoteAddr[:lastColon], "[]")
+		if ip := net.ParseIP(candidateHost); ip != nil {
+			if ip.IsLoopback() {
+				return "localhost"
+			}
+			return candidateHost
+		}
+	}
+
+	return ""
 }
 
 // authenticateWithChallenge 握手阶段认证：mysql_native_password（*HEX40）或 caching_sha2 快速路径（authentication_string 为 64 位十六进制 stage2）。
@@ -942,15 +1046,9 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	// 使用复用的协议编码器（避免重复创建，提升性能）
 	encoder := h.resultSetEncoder
 
-	// 检查客户端能力标志，确定是否需要使用 OK 包替代 EOF 包（CLIENT_DEPRECATE_EOF）
+	// Connector/J 8 的 loadServerVariables 路径会把当前 OK terminator 误读为 RowData。
+	// 这里保持 EOF terminator 兼容模式，避免连接初始化阶段解析错包。
 	useDeprecatedEOF := true
-	if capsVal := session.GetAttribute("client_capabilities"); capsVal != nil {
-		if caps, ok := capsVal.(uint32); ok {
-			if (caps & common.CLIENT_DEPRECATE_EOF) != 0 {
-				useDeprecatedEOF = false
-			}
-		}
-	}
 
 	// ========================================================================
 	// Step 1: 发送 Column Count Packet
@@ -973,10 +1071,14 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	for colIdx, colName := range result.Columns {
 		var colDef *protocol.ColumnDefinition
 
+		if colIdx < len(result.ColumnTypes) && strings.TrimSpace(result.ColumnTypes[colIdx]) != "" {
+			colDef = createColumnDefinitionForType(encoder, colName, result.ColumnTypes[colIdx])
+		}
 		// 从第一行数据推断列类型
-		if len(result.Rows) > 0 && colIdx < len(result.Rows[0]) {
+		if colDef == nil && len(result.Rows) > 0 && colIdx < len(result.Rows[0]) {
 			colDef = encoder.CreateColumnDefinitionFromValue(colName, result.Rows[0][colIdx])
-		} else {
+		}
+		if colDef == nil {
 			// 没有数据行，默认为 VARCHAR
 			colDef = encoder.CreateColumnDefinition(colName, protocol.MYSQL_TYPE_VAR_STRING, 0)
 		}
@@ -996,6 +1098,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 
 	// ========================================================================
 	// Step 3: 发送列定义结束标记（EOF 或 OK，取决于 CLIENT_DEPRECATE_EOF）
+	// 在 CLIENT_DEPRECATE_EOF 下必须发送 OK 包（0x00）作为列定义结束标记。
 	// ========================================================================
 	if useDeprecatedEOF {
 		eofPacket1 := protocol.EncodeEOFPacketWithSeq(0, protocol.SERVER_STATUS_AUTOCOMMIT, seqID)
@@ -1008,9 +1111,15 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 		}
 		seqID++
 	} else {
-		// 如果启用了 CLIENT_DEPRECATE_EOF，则列定义后不发送任何包（既不是 EOF 也不是 OK）
-		// 直接进入 Row Data 阶段
-		logger.Debugf("[sendQueryResultSet] 跳过第一个 EOF 包（CLIENT_DEPRECATE_EOF 已启用）")
+		okPacket1 := protocol.EncodeOKPacketWithSeq(0, 0, protocol.SERVER_STATUS_AUTOCOMMIT, 0, seqID)
+
+		logger.Debugf("[sendQueryResultSet] 发送列定义结束 OK 包（CLIENT_DEPRECATE_EOF）")
+		err = session.WriteBytes(okPacket1)
+		if err != nil {
+			logger.Errorf("发送列定义结束 OK 包失败: %v", err)
+			return err
+		}
+		seqID++
 	}
 
 	// ========================================================================
@@ -1057,6 +1166,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 
 	// ========================================================================
 	// Step 5: 发送结果集结束标记（EOF 或 OK，结束行数据）
+	// 在 CLIENT_DEPRECATE_EOF 下发送 OK 包（0x00）。
 	// ========================================================================
 	if useDeprecatedEOF {
 		eofPacket2 := protocol.EncodeEOFPacketWithSeq(0, protocol.SERVER_STATUS_AUTOCOMMIT, seqID)
@@ -1068,29 +1178,9 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 			return err
 		}
 	} else {
-		// CLIENT_DEPRECATE_EOF 启用时，使用 OK 包替代 EOF 包结束结果集
-		// 注意：此处的 OK 包必须以 0xFE 开头（而不是 0x00），以区别于行数据包
+		okPacket2 := protocol.EncodeOKPacketWithSeq(0, 0, protocol.SERVER_STATUS_AUTOCOMMIT, 0, seqID)
 
-		// 手动构建 0xFE 开头的 OK 包
-		payload := []byte{0xFE} // OK marker (EOF style)
-
-		// affected_rows (lenenc-int) -> 0
-		payload = h.appendLengthEncodedInt(payload, 0)
-
-		// last_insert_id (lenenc-int) -> 0
-		payload = h.appendLengthEncodedInt(payload, 0)
-
-		// status_flags (2 bytes, little-endian)
-		statusFlags := protocol.SERVER_STATUS_AUTOCOMMIT
-		payload = append(payload, byte(statusFlags), byte(statusFlags>>8))
-
-		// warnings (2 bytes, little-endian)
-		warnings := uint16(0)
-		payload = append(payload, byte(warnings), byte(warnings>>8))
-
-		okPacket2 := h.addPacketHeader(payload, seqID)
-
-		logger.Debugf("[sendQueryResultSet] 发送结果集结束 OK 包（CLIENT_DEPRECATE_EOF, Header=0xFE）")
+		logger.Debugf("[sendQueryResultSet] 发送结果集结束 OK 包（CLIENT_DEPRECATE_EOF）")
 		err = session.WriteBytes(okPacket2)
 		if err != nil {
 			logger.Errorf("发送结果集结束 OK 包失败: %v", err)
@@ -1104,6 +1194,43 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	session.SetAttribute("__result_sent__", true)
 
 	return nil
+}
+
+func createColumnDefinitionForType(encoder *protocol.MySQLResultSetEncoder, name string, columnType string) *protocol.ColumnDefinition {
+	switch strings.ToLower(strings.TrimSpace(columnType)) {
+	case "tinyint":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_SHORT, 0)
+	case "smallint":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_SHORT, 0)
+	case "mediumint":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_INT24, 0)
+	case "int", "integer":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_LONG, 0)
+	case "bigint":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_LONGLONG, 0)
+	case "float":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_FLOAT, 0)
+	case "double":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_DOUBLE, 0)
+	case "decimal":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_NEWDECIMAL, 0)
+	case "date":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_DATE, 0)
+	case "time":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_TIME, 0)
+	case "datetime":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_DATETIME, 0)
+	case "timestamp":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_TIMESTAMP, 0)
+	case "year":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_YEAR, 0)
+	case "bool", "boolean":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_TINY, 0)
+	case "binary", "varbinary", "blob", "tinyblob", "mediumblob", "longblob":
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_BLOB, 0)
+	default:
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_VAR_STRING, 0)
+	}
 }
 
 // getCommandName 获取命令名称

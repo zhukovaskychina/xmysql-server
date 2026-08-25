@@ -2,7 +2,7 @@
 
 本目录存放使用 **writing-plans** 技能生成的、可被 agent 或人工按步骤执行的实施计划。
 
-> **权威路线图（避免与仓库主文档重复）**：模块完成度、任务 ID 与状态以 [DEVELOPMENT_ROADMAP_TASKS.md](../../development/DEVELOPMENT_ROADMAP_TASKS.md)、[未实现功能梳理.md](../../未实现功能梳理.md) 为准；本目录各 `phase*.md` 保留为**历史/分 Chunk 执行切片**，排期冲突时以上述权威文档与 `P0_PRODUCTION_TASKS` 为准。
+> **权威路线图（避免与仓库主文档重复）**：P0 core 当前状态以 [P0_CORE_STATUS_20260713.md](../../planning/P0_CORE_STATUS_20260713.md) 为准；广义生产 P0 以 [P0_PRODUCTION_TASKS.md](../../planning/P0_PRODUCTION_TASKS.md) 为准；模块完成度、任务 ID 与状态以 [DEVELOPMENT_ROADMAP_TASKS.md](../../development/DEVELOPMENT_ROADMAP_TASKS.md)、[未实现功能梳理.md](../../未实现功能梳理.md) 为准。本目录各 `phase*.md` 保留为**历史/分 Chunk 执行切片**。
 
 ## 当前计划
 

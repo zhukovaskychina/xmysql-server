@@ -67,6 +67,12 @@ type CheckpointManager struct {
 	// 同步控制
 	mutex sync.RWMutex
 
+	// Sharp Checkpoint 写门控。写路径可在真正写入前调用 WaitForWritePermit，
+	// Sharp Checkpoint 期间会等待门控释放。
+	writeGateMutex sync.Mutex
+	writeBlocked   bool
+	writeUnblockCh chan struct{}
+
 	// 配置
 	maxCheckpoints   int    // 最大保留检查点数
 	checkpointPrefix string // 检查点文件前缀
@@ -88,7 +94,58 @@ func NewCheckpointManager(
 		checkpointIndex:   0,
 		maxCheckpoints:    10, // 保留最近10个检查点
 		checkpointPrefix:  "checkpoint",
+		writeUnblockCh:    make(chan struct{}),
 	}
+}
+
+// WaitForWritePermit 等待写门控放行。
+// Sharp Checkpoint 会短暂阻塞新的写操作，调用方应在开始修改页面前调用该方法。
+func (cm *CheckpointManager) WaitForWritePermit(ctx context.Context) error {
+	cm.writeGateMutex.Lock()
+	if !cm.writeBlocked {
+		cm.writeGateMutex.Unlock()
+		return nil
+	}
+	unblockCh := cm.writeUnblockCh
+	cm.writeGateMutex.Unlock()
+
+	select {
+	case <-unblockCh:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// IsWriteBlocked 返回 Sharp Checkpoint 写门控当前状态。
+func (cm *CheckpointManager) IsWriteBlocked() bool {
+	cm.writeGateMutex.Lock()
+	defer cm.writeGateMutex.Unlock()
+	return cm.writeBlocked
+}
+
+func (cm *CheckpointManager) blockWritesForCheckpoint() {
+	cm.writeGateMutex.Lock()
+	defer cm.writeGateMutex.Unlock()
+
+	if cm.writeBlocked {
+		return
+	}
+
+	cm.writeBlocked = true
+	cm.writeUnblockCh = make(chan struct{})
+}
+
+func (cm *CheckpointManager) unblockWritesForCheckpoint() {
+	cm.writeGateMutex.Lock()
+	defer cm.writeGateMutex.Unlock()
+
+	if !cm.writeBlocked {
+		return
+	}
+
+	close(cm.writeUnblockCh)
+	cm.writeBlocked = false
 }
 
 // Start 启动检查点管理器
@@ -482,7 +539,8 @@ func (cm *CheckpointManager) WriteSharpCheckpoint(lsn uint64) error {
 	logger.Infof("🔒 开始Sharp Checkpoint: LSN=%d", lsn)
 
 	// 1. 阻塞新的写操作（通过事务管理器）
-	// TODO: 实现写操作阻塞机制
+	cm.blockWritesForCheckpoint()
+	defer cm.unblockWritesForCheckpoint()
 
 	// 2. 刷新所有脏页
 	if cm.bufferPoolManager != nil {
@@ -504,9 +562,6 @@ func (cm *CheckpointManager) WriteSharpCheckpoint(lsn uint64) error {
 	if err := cm.WriteCheckpoint(checkpoint); err != nil {
 		return err
 	}
-
-	// 4. 恢复写操作
-	// TODO: 解除写操作阻塞
 
 	logger.Infof("✅ Sharp Checkpoint完成")
 	return nil

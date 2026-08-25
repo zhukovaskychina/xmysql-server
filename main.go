@@ -46,7 +46,7 @@ func main() {
 	logger.Debugf("Config loaded: error_log=%s, info_log=%s\n", config.LogError, config.LogInfos)
 
 	// 初始化日志
-	logger.Info("Initializing logger...")
+	logger.Infof("Initializing logger...")
 	logConfig := logger.LogConfig{
 		ErrorLogPath: config.LogError,
 		InfoLogPath:  config.LogInfos,
@@ -55,9 +55,10 @@ func main() {
 
 	if err := logger.InitLogger(logConfig); err != nil {
 		logger.Debugf("Failed to initialize logger: %s\n", err.Error())
-		panic("Failed to initialize logger: " + err.Error())
+		fmt.Printf("Failed to initialize logger: %v\n", err)
+		return
 	}
-	logger.Info("Logger initialized successfully with level: %s\n", config.LogLevel)
+	logger.Infof("Logger initialized successfully with level: %s\n", config.LogLevel)
 
 	logger.Info("XMySQL Server starting...")
 	// 使用现有的网络层实现，已经集成了分层架构：

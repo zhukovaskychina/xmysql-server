@@ -5,24 +5,30 @@ import (
 	"github.com/smartystreets/assertions"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
 func TestWriteFileBySeekStart(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "test_simple_protocol.ibd")
 
 	buff := []byte{'A', 'B'}
-	WriteFileBySeekStart("/home/zhukovasky/xmysql/test_simple_protocol.ibd", 38, buff)
-	result := ReadFileBySeekStartWithSize("/home/zhukovasky/xmysql/test_simple_protocol.ibd", 38, 2)
+	WriteFileBySeekStart(testFile, 38, buff)
+	result := ReadFileBySeekStartWithSize(testFile, 38, 2)
 	assertions.ShouldEqual(buff, result)
 }
 
 func TestWriteByte(t *testing.T) {
+	tmpDir := t.TempDir()
+	filename := filepath.Join(tmpDir, "sample.txt")
+
 	err := ioutil.WriteFile(filename, []byte(start_data), 0644)
 	if err != nil {
 		panic(err)
 	}
 
-	printContents()
+	printContents(filename)
 
 	f, err := os.OpenFile(filename, os.O_RDWR, 0644)
 	if err != nil {
@@ -38,16 +44,13 @@ func TestWriteByte(t *testing.T) {
 		panic(err)
 	}
 
-	printContents()
+	printContents(filename)
 }
 
-const (
-	filename   = "/home/zhukovasky/xmysql/sample.txt"
-	start_data = "1234567890123456789012345678901234567890"
-)
+const start_data = "1234567890123456789012345678901234567890"
 
-func printContents() {
-	data, err := ioutil.ReadFile(filename)
+func printContents(file string) {
+	data, err := ioutil.ReadFile(file)
 	if err != nil {
 		panic(err)
 	}

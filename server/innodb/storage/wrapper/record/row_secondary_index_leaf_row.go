@@ -11,11 +11,6 @@ import (
 	"strings"
 )
 
-// TODO: This file needs complete implementation
-// Currently disabled due to missing dependencies
-
-// Placeholder to avoid compilation errors
-
 // SecondaryIndexLeafRowHeader 辅助索引叶子节点行头部
 type SecondaryIndexLeafRowHeader struct {
 	basic.FieldDataHeader

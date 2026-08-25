@@ -2,6 +2,9 @@ package page
 
 import (
 	"bytes"
+	"errors"
+	"sync"
+
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
@@ -13,6 +16,11 @@ type Allocated struct {
 	body []byte //16384-38-8
 
 	FileTrailer pages.FileTrailer
+
+	state    basic.PageState
+	dirty    bool
+	pinCount int32
+	mu       sync.RWMutex
 }
 
 // 实现IPageWrapper接口
@@ -29,7 +37,22 @@ func (a *Allocated) GetPageType() common.PageType {
 }
 
 func (a *Allocated) ParseFromBytes(data []byte) error {
-	// TODO: 实现从字节数据解析
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if len(data) < common.PageSize {
+		return errors.New("invalid allocated page size")
+	}
+
+	if err := a.FileHeader.ParseFileHeader(data[:pages.FileHeaderSize]); err != nil {
+		return err
+	}
+
+	bodyLen := common.PageSize - pages.FileHeaderSize - pages.FileTrailerSize
+	a.body = make([]byte, bodyLen)
+	copy(a.body, data[pages.FileHeaderSize:common.PageSize-pages.FileTrailerSize])
+	copy(a.FileTrailer.FileTrailer[:], data[common.PageSize-pages.FileTrailerSize:])
+
 	return nil
 }
 
@@ -76,31 +99,48 @@ func (a *Allocated) SetLSN(lsn uint64) {
 }
 
 func (a *Allocated) GetState() basic.PageState {
-	return basic.PageStateClean
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.state
 }
 
 func (a *Allocated) SetState(state basic.PageState) {
-	// TODO: 添加状态字段
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.state = state
 }
 
 func (a *Allocated) IsDirty() bool {
-	return false
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.dirty
 }
 
 func (a *Allocated) MarkDirty() {
-	// TODO: 添加脏页标记
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.dirty = true
+	a.state = basic.PageStateDirty
 }
 
 func (a *Allocated) Pin() {
-	// TODO: 添加引用计数
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.pinCount++
 }
 
 func (a *Allocated) Unpin() {
-	// TODO: 添加引用计数
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.pinCount > 0 {
+		a.pinCount--
+	}
 }
 
 func (a *Allocated) GetPinCount() int32 {
-	return 0
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.pinCount
 }
 
 func (a *Allocated) GetStats() *basic.PageStats {
@@ -127,6 +167,7 @@ func NewAllocatedPage(pageNumber uint32) IPageWrapper {
 	allocated.FileHeader.WritePageFileType(int16(common.FIL_PAGE_TYPE_ALLOCATED))
 	allocated.FileHeader.WritePageOffset(pageNumber)
 	allocated.FileTrailer = pages.NewFileTrailer()
+	allocated.state = basic.PageStateClean
 	return allocated
 }
 
@@ -138,5 +179,6 @@ func NewAllocatedPageByBytes(spaceId uint32, pageNumber uint32) IPageWrapper {
 	allocated.FileHeader.WritePageOffset(pageNumber)
 	allocated.FileHeader.WritePageArch(spaceId)
 	allocated.FileTrailer = pages.NewFileTrailer()
+	allocated.state = basic.PageStateClean
 	return allocated
 }

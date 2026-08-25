@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"encoding/binary"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -92,9 +93,19 @@ func TestRecordRowAdapter_SetTransactionId(t *testing.T) {
 	adapter := &RecordRowAdapter{
 		record: &pagepkg.Record{Data: []byte("v")},
 	}
+	adapter.SetNOwned(7)
+	adapter.SetNextRowOffset(128)
+	adapter.SetHeapNo(9)
 
 	adapter.SetTransactionId(12345)
-	// SetTransactionId 当前为桩实现，仅保证无 panic
+
+	if len(adapter.record.Data) < 13 {
+		t.Fatalf("record data length = %d, want at least 13", len(adapter.record.Data))
+	}
+	assert.Equal(t, byte(7), adapter.GetNOwned())
+	assert.Equal(t, uint16(128), adapter.GetNextRowOffset())
+	assert.Equal(t, uint16(9), adapter.GetHeapNo())
+	assert.Equal(t, uint64(12345), binary.LittleEndian.Uint64(adapter.record.Data[5:13]))
 }
 
 func TestRecordRowAdapter_GetPageNumber(t *testing.T) {

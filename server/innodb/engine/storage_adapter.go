@@ -1,9 +1,14 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
@@ -13,6 +18,16 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
+func newStorageAdapterError(stage string, code ExecutionErrorCode, schema, table string, err error, msg string, args ...interface{}) error {
+	if err == nil {
+		return nil
+	}
+	if len(args) > 0 {
+		return NewExecutionErrorf("engine", stage, code, schema, table, "", 0, err, msg, args...)
+	}
+	return NewExecutionErrorWithCause("engine", stage, code, schema, table, "", 0, err, msg)
+}
+
 // StorageAdapter 存储适配器，连接算子与存储引擎
 // 提供抽象的存储访问接口，隐藏底层存储细节
 type StorageAdapter struct {
@@ -20,6 +35,27 @@ type StorageAdapter struct {
 	bufferPoolManager   *manager.OptimizedBufferPoolManager
 	storageManager      *manager.StorageManager
 	tableStorageManager *manager.TableStorageManager
+
+	insertRecordFunc        func(ctx context.Context, schemaName, tableName string, row map[string]interface{}, schema *metadata.Table, txn *Transaction) error
+	findDuplicateRecordFunc func(ctx context.Context, schemaName, tableName string, row map[string]interface{}, schema *metadata.Table, txn *Transaction) (Record, error)
+	updateRecordFunc        func(ctx context.Context, schemaName, tableName string, oldRecord Record, newRecord Record, schema *metadata.Table, txn *Transaction) error
+	deleteRecordFunc        func(ctx context.Context, schemaName, tableName string, record Record, schema *metadata.Table, txn *Transaction) error
+}
+
+var (
+	ErrStorageAdapterTableStorageManagerNil = errors.New("storage adapter table storage manager is nil")
+	ErrStorageAdapterTableManagerNil        = errors.New("storage adapter table manager is nil")
+	ErrStorageAdapterBufferPoolManagerNil   = errors.New("storage adapter buffer pool manager is nil")
+	ErrStorageAdapterSchemaNil              = errors.New("storage adapter schema is nil")
+	ErrStorageAdapterRecordNotFound         = errors.New("storage adapter record not found")
+	errStorageAdapterNoPrimaryKey           = errors.New("storage adapter primary key is not defined")
+)
+
+func getTableSchemaName(schema *metadata.Table) string {
+	if schema == nil || schema.Schema == nil {
+		return ""
+	}
+	return schema.Schema.Name
 }
 
 // NewStorageAdapter 创建存储适配器
@@ -37,18 +73,418 @@ func NewStorageAdapter(
 	}
 }
 
+// InsertRecord persists one logical table row through the table B+Tree mapping.
+func (sa *StorageAdapter) InsertRecord(ctx context.Context, schemaName, tableName string, row map[string]interface{}, schema *metadata.Table, txn *Transaction) error {
+	if sa != nil && sa.insertRecordFunc != nil {
+		return sa.insertRecordFunc(ctx, schemaName, tableName, row, schema, txn)
+	}
+	if sa == nil {
+		return fmt.Errorf("storage adapter is nil")
+	}
+	normalized, err := normalizeStorageRow(row, schema)
+	if err != nil {
+		return err
+	}
+	duplicate, err := sa.FindDuplicateRecord(ctx, schemaName, tableName, normalized, schema, txn)
+	if err != nil && !errors.Is(err, ErrStorageAdapterRecordNotFound) {
+		return err
+	}
+	if duplicate != nil {
+		return basic.ErrDuplicateKey
+	}
+	btreeManager, err := sa.btreeManagerForTable(ctx, schemaName, tableName)
+	if err != nil {
+		return err
+	}
+	key, err := storageAdapterClusteredKeyFromRow(schemaName, tableName, normalized, schema)
+	if err != nil {
+		return err
+	}
+	payload, err := encodeStorageRow(normalized, schema)
+	if err != nil {
+		return err
+	}
+	if err := btreeManager.Insert(ctx, key, payload); err != nil {
+		return err
+	}
+	return nil
+}
+
+// FindDuplicateRecord checks primary/unique key conflicts visible through the storage mapping.
+func (sa *StorageAdapter) FindDuplicateRecord(ctx context.Context, schemaName, tableName string, row map[string]interface{}, schema *metadata.Table, txn *Transaction) (Record, error) {
+	if sa != nil && sa.findDuplicateRecordFunc != nil {
+		return sa.findDuplicateRecordFunc(ctx, schemaName, tableName, row, schema, txn)
+	}
+	if sa == nil {
+		return nil, fmt.Errorf("storage adapter is nil")
+	}
+	if schema == nil {
+		return nil, ErrStorageAdapterSchemaNil
+	}
+	key, err := primaryKeyValueFromRow(row, schema)
+	if err != nil {
+		if errors.Is(err, errStorageAdapterNoPrimaryKey) {
+			return nil, ErrStorageAdapterRecordNotFound
+		}
+		return nil, err
+	}
+	btreeManager, err := sa.btreeManagerForTable(ctx, schemaName, tableName)
+	if err != nil {
+		return nil, err
+	}
+	pageNo, slot, err := btreeManager.Search(ctx, key)
+	if err != nil {
+		return nil, ErrStorageAdapterRecordNotFound
+	}
+	if sa.tableStorageManager == nil {
+		return nil, ErrStorageAdapterTableStorageManagerNil
+	}
+	tableInfo, err := sa.tableStorageManager.GetTableStorageInfo(schemaName, tableName)
+	if err != nil {
+		return nil, err
+	}
+	page, err := sa.ReadPage(ctx, tableInfo.SpaceID, pageNo)
+	if err != nil {
+		return nil, err
+	}
+	records, err := sa.ParseRecords(ctx, page, schema)
+	if err != nil {
+		return nil, err
+	}
+	if slot < 0 || slot >= len(records) {
+		return nil, ErrStorageAdapterRecordNotFound
+	}
+	return records[slot], nil
+}
+
+// UpdateRecord persists a logical record replacement. If the concrete B+Tree manager
+// supports Delete, old primary-key entries are removed before inserting the replacement.
+func (sa *StorageAdapter) UpdateRecord(ctx context.Context, schemaName, tableName string, oldRecord Record, newRecord Record, schema *metadata.Table, txn *Transaction) error {
+	if sa != nil && sa.updateRecordFunc != nil {
+		return sa.updateRecordFunc(ctx, schemaName, tableName, oldRecord, newRecord, schema, txn)
+	}
+	if sa == nil {
+		return fmt.Errorf("storage adapter is nil")
+	}
+	if oldRecord == nil || newRecord == nil {
+		return fmt.Errorf("old and new records are required")
+	}
+	btreeManager, err := sa.btreeManagerForTable(ctx, schemaName, tableName)
+	if err != nil {
+		return err
+	}
+	oldRow := recordToStorageRow(oldRecord, schema)
+	newRow := recordToStorageRow(newRecord, schema)
+	oldKey, oldKeyErr := storageAdapterClusteredKeyFromRow(schemaName, tableName, oldRow, schema)
+	newKey, err := storageAdapterClusteredKeyFromRow(schemaName, tableName, newRow, schema)
+	if err != nil {
+		return err
+	}
+	if !storageAdapterSchemaHasPrimaryKey(schema) {
+		newRow[hiddenRowIDColumnName] = fmt.Sprintf("%v", oldKey)
+		newKey = oldKey
+	}
+	if oldKeyErr == nil && fmt.Sprintf("%v", oldKey) != fmt.Sprintf("%v", newKey) {
+		deleter, ok := btreeManager.(interface {
+			Delete(context.Context, interface{}) error
+		})
+		if !ok {
+			return fmt.Errorf("B+树管理器不支持删除旧主键，无法更新索引列")
+		}
+		if err := deleter.Delete(ctx, oldKey); err != nil {
+			return err
+		}
+	}
+	payload, err := encodeStorageRow(newRow, schema)
+	if err != nil {
+		return err
+	}
+	return btreeManager.Insert(ctx, newKey, payload)
+}
+
+// DeleteRecord deletes one logical record using its primary key when the B+Tree manager supports Delete.
+func (sa *StorageAdapter) DeleteRecord(ctx context.Context, schemaName, tableName string, record Record, schema *metadata.Table, txn *Transaction) error {
+	if sa != nil && sa.deleteRecordFunc != nil {
+		return sa.deleteRecordFunc(ctx, schemaName, tableName, record, schema, txn)
+	}
+	if sa == nil {
+		return fmt.Errorf("storage adapter is nil")
+	}
+	if record == nil {
+		return fmt.Errorf("record is required")
+	}
+	btreeManager, err := sa.btreeManagerForTable(ctx, schemaName, tableName)
+	if err != nil {
+		return err
+	}
+	deleter, ok := btreeManager.(interface {
+		Delete(context.Context, interface{}) error
+	})
+	if !ok {
+		return fmt.Errorf("B+树管理器不支持删除")
+	}
+	key, err := storageAdapterClusteredKeyFromRow(schemaName, tableName, recordToStorageRow(record, schema), schema)
+	if err != nil {
+		return err
+	}
+	return deleter.Delete(ctx, key)
+}
+
+func (sa *StorageAdapter) btreeManagerForTable(ctx context.Context, schemaName, tableName string) (basic.BPlusTreeManager, error) {
+	if sa.tableStorageManager == nil {
+		return nil, ErrStorageAdapterTableStorageManagerNil
+	}
+	return sa.tableStorageManager.CreateBTreeManagerForTable(ctx, schemaName, tableName)
+}
+
+func normalizeStorageRow(row map[string]interface{}, schema *metadata.Table) (map[string]interface{}, error) {
+	if schema == nil {
+		return nil, ErrStorageAdapterSchemaNil
+	}
+	if row == nil {
+		return nil, fmt.Errorf("row is nil")
+	}
+	normalized := make(map[string]interface{}, len(schema.Columns))
+	seen := make(map[string]bool, len(row))
+	for rawName, value := range row {
+		if rawName == hiddenRowIDColumnName {
+			normalized[hiddenRowIDColumnName] = value
+			continue
+		}
+		col, ok := schema.GetColumn(rawName)
+		if !ok {
+			return nil, fmt.Errorf("column %s not found in table %s", rawName, schema.Name)
+		}
+		converted, err := convertStorageValueForColumn(value, col)
+		if err != nil {
+			return nil, fmt.Errorf("column %s value conversion failed: %w", col.Name, err)
+		}
+		normalized[col.Name] = converted
+		seen[strings.ToLower(col.Name)] = true
+	}
+	for _, col := range schema.Columns {
+		if col == nil {
+			continue
+		}
+		if seen[strings.ToLower(col.Name)] {
+			continue
+		}
+		if col.DefaultValue != nil {
+			normalized[col.Name] = col.DefaultValue
+			continue
+		}
+		if col.IsNullable {
+			normalized[col.Name] = nil
+			continue
+		}
+		return nil, fmt.Errorf("column %s has no value and no default", col.Name)
+	}
+	return normalized, nil
+}
+
+func convertStorageValueForColumn(value interface{}, col *metadata.Column) (interface{}, error) {
+	if value == nil {
+		if col != nil && !col.IsNullable {
+			return nil, fmt.Errorf("column is not nullable")
+		}
+		return nil, nil
+	}
+	if col == nil {
+		return value, nil
+	}
+	switch col.DataType {
+	case metadata.TypeTinyInt, metadata.TypeSmallInt, metadata.TypeMediumInt, metadata.TypeInt, metadata.TypeBigInt:
+		switch v := value.(type) {
+		case int:
+			return int64(v), nil
+		case int32:
+			return int64(v), nil
+		case int64:
+			return v, nil
+		case uint:
+			return int64(v), nil
+		case uint32:
+			return int64(v), nil
+		case uint64:
+			if v > uint64(^uint64(0)>>1) {
+				return nil, fmt.Errorf("integer overflows int64")
+			}
+			return int64(v), nil
+		case string:
+			return strconv.ParseInt(v, 10, 64)
+		default:
+			return value, nil
+		}
+	case metadata.TypeFloat, metadata.TypeDouble, metadata.TypeDecimal:
+		switch v := value.(type) {
+		case float32:
+			return float64(v), nil
+		case float64:
+			return v, nil
+		case int64:
+			return float64(v), nil
+		case string:
+			return strconv.ParseFloat(v, 64)
+		default:
+			return value, nil
+		}
+	default:
+		return value, nil
+	}
+}
+
+func primaryKeyValueFromRow(row map[string]interface{}, schema *metadata.Table) (interface{}, error) {
+	if schema == nil {
+		return nil, ErrStorageAdapterSchemaNil
+	}
+	var columns []string
+	if schema.PrimaryKey != nil && len(schema.PrimaryKey.Columns) > 0 {
+		columns = schema.PrimaryKey.Columns
+	} else {
+		for _, idx := range schema.Indices {
+			if idx != nil && idx.IsPrimary && len(idx.Columns) > 0 {
+				columns = idx.Columns
+				break
+			}
+		}
+	}
+	if len(columns) == 0 {
+		return nil, errStorageAdapterNoPrimaryKey
+	}
+	parts := make([]string, 0, len(columns))
+	for _, col := range columns {
+		value, ok := row[col]
+		if !ok {
+			return nil, fmt.Errorf("primary key column %s not found in row", col)
+		}
+		parts = append(parts, fmt.Sprintf("%v", value))
+	}
+	if len(parts) == 1 {
+		return row[columns[0]], nil
+	}
+	return buildLengthPrefixedStorageKey(row, columns)
+}
+
+func storageAdapterClusteredKeyFromRow(schemaName, tableName string, row map[string]interface{}, schema *metadata.Table) (interface{}, error) {
+	key, err := primaryKeyValueFromRow(row, schema)
+	if err == nil {
+		return key, nil
+	}
+	if !errors.Is(err, errStorageAdapterNoPrimaryKey) {
+		return nil, err
+	}
+	if hiddenID, ok := hiddenRowIDBytesFromValue(row[hiddenRowIDColumnName]); ok {
+		return string(hiddenID), nil
+	}
+	hiddenID := generateHiddenRowID(schemaName, tableName, row)
+	row[hiddenRowIDColumnName] = string(hiddenID)
+	return string(hiddenID), nil
+}
+
+func storageAdapterSchemaHasPrimaryKey(schema *metadata.Table) bool {
+	if schema == nil {
+		return false
+	}
+	if schema.PrimaryKey != nil && len(schema.PrimaryKey.Columns) > 0 {
+		return true
+	}
+	for _, idx := range schema.Indices {
+		if idx != nil && idx.IsPrimary && len(idx.Columns) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func buildLengthPrefixedStorageKey(row map[string]interface{}, columns []string) ([]byte, error) {
+	parts := make([][]byte, 0, len(columns))
+	for _, col := range columns {
+		value, ok := row[col]
+		if !ok {
+			return nil, fmt.Errorf("primary key column %s not found in row", col)
+		}
+		part := []byte(fmt.Sprintf("%v", value))
+		prefixed := make([]byte, 4, 4+len(part))
+		binary.BigEndian.PutUint32(prefixed, uint32(len(part)))
+		prefixed = append(prefixed, part...)
+		parts = append(parts, prefixed)
+	}
+	return bytes.Join(parts, nil), nil
+}
+
+func recordToStorageRow(record Record, schema *metadata.Table) map[string]interface{} {
+	row := make(map[string]interface{})
+	if record == nil || schema == nil {
+		return row
+	}
+	values := record.GetValues()
+	for idx, col := range schema.Columns {
+		if col == nil || idx >= len(values) || values[idx] == nil {
+			continue
+		}
+		row[col.Name] = values[idx].Raw()
+	}
+	return row
+}
+
+func encodeStorageRow(row map[string]interface{}, schema *metadata.Table) ([]byte, error) {
+	normalized, err := normalizeStorageRow(row, schema)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(normalized)
+}
+
 // GetTableMetadata 获取表的元数据
 func (sa *StorageAdapter) GetTableMetadata(ctx context.Context, schemaName, tableName string) (*TableScanMetadata, error) {
+	if sa.tableManager == nil {
+		return nil, newStorageAdapterError(
+			"table-metadata-load",
+			ExecutionErrorCodeMetadataMissing,
+			schemaName,
+			tableName,
+			ErrStorageAdapterTableManagerNil,
+			"table manager is nil",
+		)
+	}
+
+	if sa.tableStorageManager == nil {
+		return nil, newStorageAdapterError(
+			"table-metadata-load",
+			ExecutionErrorCodeStorageMissing,
+			schemaName,
+			tableName,
+			ErrStorageAdapterTableStorageManagerNil,
+			"table storage manager is nil",
+		)
+	}
+
 	// 1. 获取表的元数据
 	table, err := sa.tableManager.GetTable(ctx, schemaName, tableName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get table metadata: %w", err)
+		return nil, newStorageAdapterError(
+			"table-metadata-load",
+			ExecutionErrorCodeMetadataMissing,
+			schemaName,
+			tableName,
+			err,
+			"failed to get table metadata: %v",
+			err,
+		)
 	}
 
 	// 2. 获取表的存储信息 (包含表空间ID和段信息)
 	storageInfo, err := sa.tableStorageManager.GetTableStorageInfo(schemaName, tableName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get table storage info: %w", err)
+		return nil, newStorageAdapterError(
+			"table-storage-info",
+			ExecutionErrorCodeStorageMissing,
+			schemaName,
+			tableName,
+			err,
+			"failed to get table storage info: %v",
+			err,
+		)
 	}
 
 	return &TableScanMetadata{
@@ -61,9 +497,30 @@ func (sa *StorageAdapter) GetTableMetadata(ctx context.Context, schemaName, tabl
 
 // ReadPage 读取指定页面
 func (sa *StorageAdapter) ReadPage(ctx context.Context, spaceID, pageNo uint32) (*buffer_pool.BufferPage, error) {
+	if sa.bufferPoolManager == nil {
+		return nil, newStorageAdapterError(
+			"read-page",
+			ExecutionErrorCodeStorageMissing,
+			"",
+			"",
+			ErrStorageAdapterBufferPoolManagerNil,
+			"buffer pool manager is nil",
+		)
+	}
+
 	page, err := sa.bufferPoolManager.GetPage(spaceID, pageNo)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read page %d from space %d: %w", pageNo, spaceID, err)
+		return nil, newStorageAdapterError(
+			"read-page",
+			ExecutionErrorCodeStorageReadFailure,
+			"",
+			"",
+			err,
+			"failed to read page %d from space %d: %v",
+			pageNo,
+			spaceID,
+			err,
+		)
 	}
 	return page, nil
 }
@@ -71,9 +528,38 @@ func (sa *StorageAdapter) ReadPage(ctx context.Context, spaceID, pageNo uint32) 
 // ParseRecords 解析页面中的记录
 // 根据InnoDB页面格式解析记录，返回Record列表
 func (sa *StorageAdapter) ParseRecords(ctx context.Context, page *buffer_pool.BufferPage, schema *metadata.Table) ([]Record, error) {
+	if page == nil {
+		return nil, newStorageAdapterError(
+			"parse-records",
+			ExecutionErrorCodeValidation,
+			"",
+			schema.Name,
+			fmt.Errorf("page is nil"),
+			"page is nil",
+		)
+	}
+
 	content := page.GetContent()
+	if content == nil {
+		return nil, newStorageAdapterError(
+			"parse-records",
+			ExecutionErrorCodeValidation,
+			"",
+			schema.Name,
+			fmt.Errorf("page content is nil"),
+			"page content is nil",
+		)
+	}
 	if len(content) < common.PageHeaderSize {
-		return nil, fmt.Errorf("invalid page content size: %d", len(content))
+		return nil, newStorageAdapterError(
+			"parse-records",
+			ExecutionErrorCodeValidation,
+			"",
+			schema.Name,
+			fmt.Errorf("invalid page content size: %d", len(content)),
+			"invalid page content size: %d",
+			len(content),
+		)
 	}
 
 	querySchema := metadata.FromTable(schema)
@@ -173,50 +659,152 @@ func (sa *StorageAdapter) ScanTable(ctx context.Context, metadata *TableScanMeta
 func (sa *StorageAdapter) GetRecordByPrimaryKey(ctx context.Context, spaceID uint32, primaryKey []byte, schema *metadata.Table) (Record, error) {
 	logger.Debugf("GetRecordByPrimaryKey: spaceID=%d, primaryKey=%v", spaceID, primaryKey)
 
+	if schema == nil {
+		return nil, newStorageAdapterError(
+			"primary-key-lookup",
+			ExecutionErrorCodeMetadataMissing,
+			"",
+			"",
+			ErrStorageAdapterSchemaNil,
+			"schema is nil",
+		)
+	}
+
+	if sa.tableStorageManager == nil {
+		return nil, newStorageAdapterError(
+			"primary-key-lookup",
+			ExecutionErrorCodeStorageMissing,
+			"",
+			schema.Name,
+			ErrStorageAdapterTableStorageManagerNil,
+			"table storage manager is nil",
+		)
+	}
+
+	if sa.bufferPoolManager == nil {
+		return nil, newStorageAdapterError(
+			"primary-key-lookup",
+			ExecutionErrorCodeStorageMissing,
+			"",
+			schema.Name,
+			ErrStorageAdapterBufferPoolManagerNil,
+			"buffer pool manager is nil",
+		)
+	}
+
 	// 1. 获取表的存储信息
 	tableInfo, err := sa.tableStorageManager.GetTableBySpaceID(spaceID)
 	if err != nil {
-		logger.Debugf("Failed to get table info by spaceID %d: %v, using fallback", spaceID, err)
-		return sa.getFallbackRecord(schema), nil
+		return nil, newStorageAdapterError(
+			"primary-key-lookup",
+			ExecutionErrorCodeMetadataMissing,
+			getTableSchemaName(schema),
+			schema.Name,
+			err,
+			"failed to get table storage info by spaceID %d: %v",
+			spaceID,
+			err,
+		)
 	}
 
 	// 2. 创建B+树管理器
 	btreeManager, err := sa.tableStorageManager.CreateBTreeManagerForTable(ctx, tableInfo.SchemaName, tableInfo.TableName)
 	if err != nil {
-		logger.Debugf("Failed to create btree manager: %v, using fallback", err)
-		return sa.getFallbackRecord(schema), nil
+		return nil, newStorageAdapterError(
+			"primary-key-lookup",
+			ExecutionErrorCodeIndexOperation,
+			tableInfo.SchemaName,
+			tableInfo.TableName,
+			err,
+			"failed to create btree manager for table %s.%s: %v",
+			tableInfo.SchemaName,
+			tableInfo.TableName,
+			err,
+		)
 	}
 
 	// 3. 在B+树中查找主键
-	// 将primaryKey字节数组转换为interface{}类型
-	var keyInterface interface{}
-	if len(primaryKey) > 0 {
-		// 尝试将字节数组转换为字符串（简化实现）
-		keyInterface = string(primaryKey)
-	} else {
-		keyInterface = ""
-	}
+	keyInterface := primaryKeyLookupValue(primaryKey, schema)
 
 	pageNo, slot, err := btreeManager.Search(ctx, keyInterface)
 	if err != nil {
-		logger.Debugf("Failed to search in btree: %v, using fallback", err)
-		return sa.getFallbackRecord(schema), nil
+		return nil, newStorageAdapterError(
+			"primary-key-lookup",
+			ExecutionErrorCodeIndexOperation,
+			getTableSchemaName(schema),
+			schema.Name,
+			err,
+			"failed to search primary key: %v",
+			err,
+		)
 	}
 
 	logger.Debugf("Found record at page %d, slot %d", pageNo, slot)
+	tableMeta := tableMetaFromSchema(schema)
+	if fullScanner, ok := btreeManager.(interface {
+		FullScan(context.Context) ([]basic.Row, error)
+	}); ok {
+		rows, scanErr := fullScanner.FullScan(ctx)
+		if scanErr == nil {
+			for _, row := range rows {
+				payload := row.ToByte()
+				if !strings.HasPrefix(string(payload), clusteredRecordMagic) {
+					continue
+				}
+				decoded, decodeErr := DecodeClusteredRecord(payload, tableMeta)
+				if decodeErr != nil {
+					return nil, newStorageAdapterError(
+						"primary-key-lookup",
+						ExecutionErrorCodeStorageReadFailure,
+						getTableSchemaName(schema),
+						schema.Name,
+						decodeErr,
+						"failed to decode clustered record: %v",
+						decodeErr,
+					)
+				}
+				if !storageAdapterSchemaHasPrimaryKey(schema) {
+					if rowKeyBytes, ok := storageKeyToBytes(row.GetPrimaryKey().Raw()); ok && bytes.Equal(rowKeyBytes, primaryKey) {
+						return recordFromInsertRowData(decoded, tableMeta), nil
+					}
+					continue
+				}
+				decodedKey, found, keyErr := buildPrimaryKeyIfAvailable(decoded.ColumnValues, tableMeta)
+				if keyErr != nil || !found || !bytes.Equal(decodedKey, primaryKey) {
+					continue
+				}
+				return recordFromInsertRowData(decoded, tableMeta), nil
+			}
+		}
+	}
 
 	// 4. 从页面读取记录
 	page, err := sa.ReadPage(ctx, spaceID, pageNo)
 	if err != nil {
-		logger.Debugf("Failed to read page %d: %v, using fallback", pageNo, err)
-		return sa.getFallbackRecord(schema), nil
+		return nil, newStorageAdapterError(
+			"primary-key-lookup",
+			ExecutionErrorCodeStorageReadFailure,
+			getTableSchemaName(schema),
+			schema.Name,
+			err,
+			"failed to read page %d for primary key lookup: %v",
+			pageNo,
+			err,
+		)
 	}
 
 	// 5. 解析页面中的记录
 	records, err := sa.ParseRecords(ctx, page, schema)
 	if err != nil {
-		logger.Debugf("Failed to parse records: %v, using fallback", err)
-		return sa.getFallbackRecord(schema), nil
+		return nil, newStorageAdapterError(
+			"primary-key-lookup",
+			ExecutionErrorCodeStorageReadFailure,
+			getTableSchemaName(schema),
+			schema.Name,
+			err,
+			"failed to parse records while resolving primary key: %v",
+			err,
+		)
 	}
 
 	// 6. 返回指定槽位的记录
@@ -224,27 +812,64 @@ func (sa *StorageAdapter) GetRecordByPrimaryKey(ctx context.Context, spaceID uin
 		return records[slot], nil
 	}
 
-	logger.Debugf("Slot %d out of range (total records: %d), using fallback", slot, len(records))
-	return sa.getFallbackRecord(schema), nil
+	logger.Warnf("GetRecordByPrimaryKey: slot %d out of range (total records: %d), schema=%s", slot, len(records), schema.Name)
+	return nil, newStorageAdapterError(
+		"primary-key-lookup",
+		ExecutionErrorCodeMetadataMissing,
+		getTableSchemaName(schema),
+		schema.Name,
+		fmt.Errorf("%w: slot %d out of range for page %d (total records: %d)", ErrStorageAdapterRecordNotFound, slot, pageNo, len(records)),
+		"slot %d out of range for page %d (total records: %d)",
+		slot,
+		pageNo,
+		len(records),
+	)
 }
 
-// getFallbackRecord 返回模拟记录（当实际查找失败时使用）
-func (sa *StorageAdapter) getFallbackRecord(schema *metadata.Table) Record {
-	values := make([]basic.Value, len(schema.Columns))
-	for i, col := range schema.Columns {
-		// 根据列类型创建默认值
-		switch col.DataType {
-		case metadata.TypeInt, metadata.TypeBigInt:
-			values[i] = basic.NewInt64(int64(i + 1))
-		case metadata.TypeVarchar, metadata.TypeChar:
-			values[i] = basic.NewString(fmt.Sprintf("value_%d", i+1))
-		case metadata.TypeFloat, metadata.TypeDouble:
-			values[i] = basic.NewFloat64(float64(i + 1))
-		default:
-			values[i] = basic.NewString("")
+func primaryKeyLookupValue(primaryKey []byte, schema *metadata.Table) interface{} {
+	value := string(primaryKey)
+	if schema == nil || schema.PrimaryKey == nil || len(schema.PrimaryKey.Columns) != 1 {
+		return value
+	}
+	if len(primaryKey) >= 4 {
+		length := int(binary.BigEndian.Uint32(primaryKey[:4]))
+		if length == len(primaryKey)-4 {
+			value = string(primaryKey[4:])
 		}
 	}
-	return NewExecutorRecordFromValues(values, metadata.FromTable(schema))
+	column, exists := schema.GetColumn(schema.PrimaryKey.Columns[0])
+	if !exists || column == nil || !column.IsNumeric() {
+		return value
+	}
+	number, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return value
+	}
+	return number
+}
+
+func tableMetaFromSchema(schema *metadata.Table) *metadata.TableMeta {
+	tableMeta := &metadata.TableMeta{Name: schema.Name, Columns: make([]*metadata.ColumnMeta, 0, len(schema.Columns))}
+	for _, column := range schema.Columns {
+		if column == nil {
+			continue
+		}
+		tableMeta.Columns = append(tableMeta.Columns, &metadata.ColumnMeta{
+			Name:            column.Name,
+			Type:            column.DataType,
+			Length:          column.CharMaxLength,
+			IsNullable:      column.IsNullable,
+			IsAutoIncrement: column.IsAutoIncrement,
+			DefaultValue:    column.DefaultValue,
+			Charset:         column.Charset,
+			Collation:       column.Collation,
+			Comment:         column.Comment,
+		})
+	}
+	if schema.PrimaryKey != nil {
+		tableMeta.PrimaryKey = append([]string(nil), schema.PrimaryKey.Columns...)
+	}
+	return tableMeta
 }
 
 // TableScanMetadata 表扫描元数据

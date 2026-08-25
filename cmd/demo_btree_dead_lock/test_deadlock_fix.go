@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
@@ -35,7 +36,8 @@ func main() {
 	// 创建缓冲池管理器
 	bpm, err := manager.NewOptimizedBufferPoolManager(bufferPoolConfig)
 	if err != nil {
-		log.Fatalf("创建缓冲池管理器失败: %v", err)
+		logger.Errorf("创建缓冲池管理器失败: %v", err)
+		return
 	}
 	defer bpm.Close()
 

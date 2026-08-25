@@ -3,6 +3,7 @@ package engine
 import (
 	"testing"
 
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
@@ -140,4 +141,30 @@ func TestMySQLUserTableSelectAll(t *testing.T) {
 
 	t.Logf("SELECT * result columns count: %d", len(result.Columns))
 	t.Logf("SELECT * result row count: %d", result.RowCount)
+}
+
+func TestSelectExecutorApplyWhereFilterEvaluatesPredicate(t *testing.T) {
+	tableMeta := &metadata.TableMeta{
+		Name: "users",
+		Columns: []*metadata.ColumnMeta{
+			{Name: "id", Type: metadata.TypeInt},
+			{Name: "name", Type: metadata.TypeVarchar},
+		},
+	}
+	records := []Record{
+		NewExecutorRecordFromInterface([]interface{}{1, "alice"}, tableMeta),
+		NewExecutorRecordFromInterface([]interface{}{2, "bob"}, tableMeta),
+		NewExecutorRecordFromInterface([]interface{}{3, "carol"}, tableMeta),
+	}
+	se := &SelectExecutor{whereConditions: []string{"id = 2"}}
+
+	filtered := se.applyWhereFilter(records)
+
+	if len(filtered) != 1 {
+		t.Fatalf("expected exactly one filtered record, got %d", len(filtered))
+	}
+	got := filtered[0].GetValueByIndex(0).Int()
+	if got != int64(2) {
+		t.Fatalf("expected id=2, got %v", got)
+	}
 }

@@ -13,7 +13,6 @@ const BYTES_1024 = 2
 
 const BYTES_2048 = 3
 
-// 等待实现
 // BitMap
 type IBufBitMapPage struct {
 	AbstractPage

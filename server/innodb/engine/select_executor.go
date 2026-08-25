@@ -2,11 +2,15 @@ package engine
 
 import (
 	"context"
+	"crypto/sha1"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
@@ -21,6 +25,11 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/page"
 )
 
+var (
+	userWhereConditionRe = regexp.MustCompile("(?i)\\b(?:`?user`?)\\s*=\\s*(?:'([^']*)'|\"([^\"]*)\"|([^\\s]+))")
+	hostWhereConditionRe = regexp.MustCompile("(?i)\\b(?:`?host`?)\\s*=\\s*(?:'([^']*)'|\"([^\"]*)\"|([^\\s]+))")
+)
+
 // SelectExecutor SELECT查询执行器
 // 注意：此执行器是查询协调器，不是火山模型的Operator
 // 实际的算子执行使用volcano_executor.go中的Operator接口
@@ -30,6 +39,7 @@ type SelectExecutor struct {
 	bufferPoolManager *manager.OptimizedBufferPoolManager
 	btreeManager      basic.BPlusTreeManager
 	tableManager      *manager.TableManager
+	storageManager    *manager.StorageManager
 
 	// dataDir 用于在无 tableManager 时从 .frm 文件加载表定义（与 executor 写入的 CREATE TABLE 一致）
 	dataDir string
@@ -41,6 +51,10 @@ type SelectExecutor struct {
 	schemaName      string
 	whereConditions []string
 	selectExprs     []string
+	selectAliases   []string
+	distinct        bool
+	groupByColumns  []string
+	havingCondition string
 	orderByColumns  []string
 	limit           int
 	offset          int
@@ -49,6 +63,7 @@ type SelectExecutor struct {
 	currentRowIndex int
 	resultSet       []Record
 	isInitialized   bool
+	lastAccessPath  string
 }
 
 // NewSelectExecutor 创建SELECT执行器。dataDir 可选，非空时在无 tableManager 时从 dataDir/schema/table.frm 加载表定义。
@@ -56,6 +71,7 @@ func NewSelectExecutor(
 	optimizerManager *manager.OptimizerManager,
 	bufferPoolManager *manager.OptimizedBufferPoolManager,
 	btreeManager basic.BPlusTreeManager,
+	storageManager *manager.StorageManager,
 	tableManager *manager.TableManager,
 	dataDir string,
 ) *SelectExecutor {
@@ -63,6 +79,7 @@ func NewSelectExecutor(
 		optimizerManager:  optimizerManager,
 		bufferPoolManager: bufferPoolManager,
 		btreeManager:      btreeManager,
+		storageManager:    storageManager,
 		tableManager:      tableManager,
 		dataDir:           dataDir,
 		currentRowIndex:   0,
@@ -75,6 +92,14 @@ func NewSelectExecutor(
 
 // ExecuteSelect 执行SELECT查询的主入口
 func (se *SelectExecutor) ExecuteSelect(ctx context.Context, stmt *sqlparser.Select, schemaName string) (*SelectResult, error) {
+	// 重置执行态，避免复用实例时污染上一次查询状态
+	se.resetExecutionState()
+	se.schemaName = schemaName
+
+	if selectHasJoin(stmt) {
+		return se.executeJoinSelect(ctx, stmt, schemaName)
+	}
+
 	// 1. 解析SELECT语句
 	if err := se.parseSelectStatement(stmt, schemaName); err != nil {
 		return nil, fmt.Errorf("parse SELECT statement failed: %v", err)
@@ -105,9 +130,31 @@ func (se *SelectExecutor) ExecuteSelect(ctx context.Context, stmt *sqlparser.Sel
 	return result, nil
 }
 
+func (se *SelectExecutor) resetExecutionState() {
+	se.schemaName = ""
+	se.tableName = ""
+
+	se.whereConditions = nil
+	se.selectExprs = nil
+	se.selectAliases = nil
+	se.distinct = false
+	se.groupByColumns = nil
+	se.havingCondition = ""
+	se.orderByColumns = nil
+	se.limit = -1
+	se.offset = 0
+
+	se.currentRowIndex = 0
+	se.resultSet = nil
+	se.isInitialized = false
+	se.lastAccessPath = ""
+}
+
 // parseSelectStatement 解析SELECT语句
 func (se *SelectExecutor) parseSelectStatement(stmt *sqlparser.Select, schemaName string) error {
+	se.resetExecutionState()
 	se.schemaName = schemaName
+	se.distinct = strings.EqualFold(strings.TrimSpace(stmt.Distinct), strings.TrimSpace(sqlparser.DistinctStr))
 
 	// 解析FROM子句
 	if len(stmt.From) == 0 {
@@ -139,6 +186,13 @@ func (se *SelectExecutor) parseSelectStatement(stmt *sqlparser.Select, schemaNam
 		se.whereConditions = se.parseWhereConditions(stmt.Where.Expr)
 	}
 
+	for _, expr := range stmt.GroupBy {
+		se.groupByColumns = append(se.groupByColumns, sqlparser.String(expr))
+	}
+	if stmt.Having != nil {
+		se.havingCondition = sqlparser.String(stmt.Having.Expr)
+	}
+
 	// 解析ORDER BY
 	if err := se.parseOrderBy(stmt.OrderBy); err != nil {
 		return err
@@ -159,9 +213,15 @@ func (se *SelectExecutor) parseSelectExprs(selectExprs sqlparser.SelectExprs) er
 		case *sqlparser.StarExpr:
 			// SELECT *
 			se.selectExprs = append(se.selectExprs, "*")
+			se.selectAliases = append(se.selectAliases, "")
 		case *sqlparser.AliasedExpr:
 			// SELECT column_name [AS alias]
 			se.selectExprs = append(se.selectExprs, sqlparser.String(v.Expr))
+			if !v.As.IsEmpty() {
+				se.selectAliases = append(se.selectAliases, v.As.String())
+			} else {
+				se.selectAliases = append(se.selectAliases, "")
+			}
 		default:
 			return fmt.Errorf("unsupported SELECT expression type: %T", v)
 		}
@@ -171,6 +231,10 @@ func (se *SelectExecutor) parseSelectExprs(selectExprs sqlparser.SelectExprs) er
 
 // parseWhereConditions 解析WHERE条件
 func (se *SelectExecutor) parseWhereConditions(expr sqlparser.Expr) []string {
+	if expr == nil {
+		return []string{}
+	}
+
 	// 简化实现，将WHERE条件转换为字符串
 	conditions := []string{sqlparser.String(expr)}
 	return conditions
@@ -200,7 +264,11 @@ func (se *SelectExecutor) parseLimit(limitClause *sqlparser.Limit) error {
 		switch v := limitClause.Rowcount.(type) {
 		case *sqlparser.SQLVal:
 			if v.Type == sqlparser.IntVal {
-				se.limit = int(v.Val[0]) // 简化处理
+				limit, err := strconv.Atoi(string(v.Val))
+				if err != nil {
+					return fmt.Errorf("invalid LIMIT value: %s", string(v.Val))
+				}
+				se.limit = limit
 			}
 		}
 	}
@@ -209,7 +277,11 @@ func (se *SelectExecutor) parseLimit(limitClause *sqlparser.Limit) error {
 		switch v := limitClause.Offset.(type) {
 		case *sqlparser.SQLVal:
 			if v.Type == sqlparser.IntVal {
-				se.offset = int(v.Val[0]) // 简化处理
+				offset, err := strconv.Atoi(string(v.Val))
+				if err != nil {
+					return fmt.Errorf("invalid OFFSET value: %s", string(v.Val))
+				}
+				se.offset = offset
 			}
 		}
 	}
@@ -260,6 +332,8 @@ func (se *SelectExecutor) generatePhysicalPlan(ctx context.Context) error {
 
 // chooseAccessMethod 选择访问方法
 func (se *SelectExecutor) chooseAccessMethod(ctx context.Context) error {
+	se.lastAccessPath = "table_scan"
+
 	// 获取表的索引信息
 	indices, err := se.tableManager.GetTableIndices(ctx, se.schemaName, se.tableName)
 	if err != nil {
@@ -272,6 +346,7 @@ func (se *SelectExecutor) chooseAccessMethod(ctx context.Context) error {
 	if len(indices) > 0 && len(se.whereConditions) > 0 {
 		se.physicalPlan.PlanType = manager.PLAN_TYPE_INDEX_SCAN
 		se.physicalPlan.IndexName = indices[0].Name
+		se.lastAccessPath = "secondary_index:" + indices[0].Name
 	} else {
 		se.physicalPlan.PlanType = manager.PLAN_TYPE_SEQUENTIAL_SCAN
 	}
@@ -296,9 +371,13 @@ func (se *SelectExecutor) executeQuery(ctx context.Context) error {
 	if se.tableManager != nil {
 		meta, err := se.tableManager.GetTableMetadata(ctx, se.schemaName, se.tableName)
 		if err == nil && meta != nil && len(meta.Columns) > 0 {
+			if frmMeta, frmErr := se.loadTableMetaFromFrm(se.dataDir, se.schemaName, se.tableName); frmErr == nil && frmMeta != nil {
+				meta = frmMeta
+			}
 			logger.Debugf(" [SelectExecutor] 使用表管理器元数据: %s.%s, 列数=%d", se.schemaName, se.tableName, len(meta.Columns))
-			// 使用表管理器时暂不扫表，返回正确列结构、空结果集；后续可在此接入 BTree/存储扫描
-			se.resultSet = []Record{}
+			if err := se.scanStorageRows(ctx, meta); err != nil {
+				return err
+			}
 			logger.Debugf(" [SelectExecutor] 查询执行完成，返回 %d 行数据", len(se.resultSet))
 			return nil
 		}
@@ -310,8 +389,10 @@ func (se *SelectExecutor) executeQuery(ctx context.Context) error {
 	// 无表管理器或表中未在表管理器注册时：从 .frm 加载表定义（与 CREATE TABLE 写入一致）
 	if se.dataDir != "" {
 		if frmMeta, err := se.loadTableMetaFromFrm(se.dataDir, se.schemaName, se.tableName); err == nil && frmMeta != nil {
-			logger.Debugf(" [SelectExecutor] 从 .frm 使用表定义，返回 0 行（列: %v）", frmMeta.Columns)
-			se.resultSet = []Record{}
+			logger.Debugf(" [SelectExecutor] 从 .frm 使用表定义并扫描数据页，列: %v", frmMeta.Columns)
+			if err := se.scanStorageRows(ctx, frmMeta); err != nil {
+				return err
+			}
 			logger.Debugf(" [SelectExecutor] 查询执行完成，返回 %d 行数据", len(se.resultSet))
 			return nil
 		}
@@ -328,51 +409,308 @@ func (se *SelectExecutor) executeQuery(ctx context.Context) error {
 	return nil
 }
 
+func (se *SelectExecutor) scanStorageRows(ctx context.Context, tableMeta *metadata.TableMeta) error {
+	if se.storageManager == nil || se.storageManager.GetTableStorageManager() == nil || se.bufferPoolManager == nil {
+		se.resultSet = []Record{}
+		return nil
+	}
+	if err := se.ensureTableStorageMapping(ctx); err != nil {
+		return err
+	}
+	if used, err := se.scanSecondaryIndexRows(ctx, tableMeta); err != nil || used {
+		return err
+	}
+
+	btreeManager := se.btreeManager
+	if storageTableManager := se.storageManager.GetTableStorageManager(); storageTableManager != nil {
+		tableBTreeManager, err := storageTableManager.CreateBTreeManagerForTable(ctx, se.schemaName, se.tableName)
+		if err == nil && tableBTreeManager != nil {
+			btreeManager = tableBTreeManager
+		}
+	}
+	if btreeManager == nil && se.tableManager != nil {
+		tableBTreeManager, err := se.tableManager.GetTableBTreeManager(ctx, se.schemaName, se.tableName)
+		if err == nil && tableBTreeManager != nil {
+			btreeManager = tableBTreeManager
+		}
+	}
+	if btreeManager == nil {
+		se.resultSet = []Record{}
+		return nil
+	}
+
+	scanner := NewClusteredIndexScanner(btreeManager, tableMeta)
+	rows, err := scanner.Scan(ctx, se.whereConditions)
+	if err != nil {
+		return fmt.Errorf("scan clustered index failed: %v", err)
+	}
+
+	records := make([]Record, 0, len(rows))
+	for _, row := range rows {
+		records = append(records, recordFromInsertRowData(row, tableMeta))
+	}
+	se.resultSet = records
+	return nil
+}
+
+func (se *SelectExecutor) scanSecondaryIndexRows(ctx context.Context, tableMeta *metadata.TableMeta) (bool, error) {
+	column, operator, value, ok := secondaryIndexPredicate(se.whereConditions)
+	if !ok {
+		se.lastAccessPath = "table_scan"
+		return false, nil
+	}
+	tableStorageManager := se.storageManager.GetTableStorageManager()
+	tableInfo, err := tableStorageManager.GetTableStorageInfo(se.schemaName, se.tableName)
+	if err != nil {
+		return false, err
+	}
+	indexManager := se.storageManager.GetIndexManager()
+	if indexManager == nil {
+		return false, nil
+	}
+	if err := indexManager.EnsureSecondaryIndexes(tableInfo, tableMeta); err != nil {
+		return false, err
+	}
+	var selected *manager.Index
+	tableID := manager.SecondaryIndexTableID(se.schemaName, se.tableName)
+	for _, index := range indexManager.ListIndexes(tableID) {
+		if index != nil && index.State == manager.IndexStateActive && len(index.Columns) > 0 && strings.EqualFold(index.Columns[0].Name, column) {
+			selected = index
+			break
+		}
+	}
+	if selected == nil {
+		se.lastAccessPath = "table_scan"
+		return false, nil
+	}
+	if err := indexManager.InitializeSecondaryIndex(selected.IndexID); err != nil {
+		return false, fmt.Errorf("initialize secondary index %d: %w", selected.IndexID, err)
+	}
+	indexMeta := metadata.IndexMeta{Name: selected.Name, Columns: indexColumnNames(selected), Unique: selected.IsUnique}
+	var startKey, endKey []byte
+	if operator == "=" {
+		startKey, endKey, err = manager.SecondaryIndexEqualityRange(tableID, indexMeta, map[string]interface{}{selected.Columns[0].Name: value})
+	} else {
+		startKey, endKey, err = manager.SecondaryIndexFullRange(tableID, indexMeta)
+	}
+	if err != nil {
+		return false, err
+	}
+	indexRows, err := indexManager.RangeSearch(selected.IndexID, startKey, endKey)
+	if err != nil {
+		return false, fmt.Errorf("secondary index range search failed: %w", err)
+	}
+	storageAdapter := NewStorageAdapter(se.tableManager, se.bufferPoolManager, se.storageManager, tableStorageManager)
+	tableSchema := tableFromMetadata(tableMeta)
+	records := make([]Record, 0, len(indexRows))
+	for _, indexRow := range indexRows {
+		primaryKey, err := manager.DecodeSecondaryIndexValue(indexRow.ToByte())
+		if err != nil {
+			return false, fmt.Errorf("decode secondary index value for index %d: %w", selected.IndexID, err)
+		}
+		record, err := storageAdapter.GetRecordByPrimaryKey(ctx, tableInfo.SpaceID, primaryKey, tableSchema)
+		if err != nil {
+			return false, err
+		}
+		records = append(records, record)
+	}
+	se.resultSet = se.applyWhereFilter(records)
+	se.lastAccessPath = "secondary_index:" + selected.Name
+	return true, nil
+}
+
+func tableFromMetadata(tableMeta *metadata.TableMeta) *metadata.Table {
+	table := metadata.NewTable(tableMeta.Name)
+	for _, columnMeta := range tableMeta.Columns {
+		if columnMeta == nil {
+			continue
+		}
+		table.AddColumn(&metadata.Column{
+			Name:            columnMeta.Name,
+			DataType:        columnMeta.Type,
+			CharMaxLength:   columnMeta.Length,
+			IsNullable:      columnMeta.IsNullable,
+			DefaultValue:    columnMeta.DefaultValue,
+			IsAutoIncrement: columnMeta.IsAutoIncrement,
+			Charset:         columnMeta.Charset,
+			Collation:       columnMeta.Collation,
+			Comment:         columnMeta.Comment,
+		})
+	}
+	if len(tableMeta.PrimaryKey) > 0 {
+		table.PrimaryKey = &metadata.Index{Name: "PRIMARY", Columns: append([]string(nil), tableMeta.PrimaryKey...), IsPrimary: true}
+	} else {
+		primaryColumns := effectivePrimaryKeyColumns(tableMeta)
+		if len(primaryColumns) > 0 {
+			table.PrimaryKey = &metadata.Index{Name: "PRIMARY", Columns: append([]string(nil), primaryColumns...), IsPrimary: true}
+		}
+	}
+	return table
+}
+
+func secondaryIndexPredicate(conditions []string) (column, operator, value string, ok bool) {
+	if len(conditions) != 1 {
+		return "", "", "", false
+	}
+	condition := strings.TrimSpace(conditions[0])
+	lowerCondition := strings.ToLower(condition)
+	if betweenAt := strings.Index(lowerCondition, " between "); betweenAt > 0 {
+		rangeValues := lowerCondition[betweenAt+len(" between "):]
+		if strings.Count(rangeValues, " and ") == 1 {
+			column = strings.Trim(strings.TrimSpace(condition[:betweenAt]), "`")
+			if column != "" {
+				return column, "between", "", true
+			}
+		}
+		return "", "", "", false
+	}
+	if strings.Contains(lowerCondition, " and ") {
+		return "", "", "", false
+	}
+	for _, candidate := range []string{">=", "<=", "="} {
+		parts := strings.SplitN(condition, candidate, 2)
+		if len(parts) != 2 || strings.ContainsAny(parts[0], "<>") {
+			continue
+		}
+		column = strings.Trim(strings.TrimSpace(parts[0]), "`")
+		value = strings.Trim(strings.TrimSpace(parts[1]), "'\"")
+		if column != "" && value != "" {
+			return column, candidate, value, true
+		}
+	}
+	return "", "", "", false
+}
+
+func indexColumnNames(index *manager.Index) []string {
+	columns := make([]string, len(index.Columns))
+	for i, column := range index.Columns {
+		columns[i] = column.Name
+	}
+	return columns
+}
+
+func (se *SelectExecutor) ensureTableStorageMapping(ctx context.Context) error {
+	tableStorageManager := se.storageManager.GetTableStorageManager()
+	rootPageNo, err := se.loadPersistedTableRootPage()
+	if err != nil {
+		return err
+	}
+	if existing, err := tableStorageManager.GetTableStorageInfo(se.schemaName, se.tableName); err == nil && existing.RootPageNo == rootPageNo {
+		return nil
+	}
+	spaceName := fmt.Sprintf("%s/%s", se.schemaName, se.tableName)
+	handle, err := se.storageManager.CreateTablespace(spaceName)
+	if err != nil {
+		handle, err = se.storageManager.GetTablespace(spaceName)
+		if err != nil {
+			return fmt.Errorf("recover table storage mapping for %s: %w", spaceName, err)
+		}
+	}
+	info := &manager.TableStorageInfo{
+		SchemaName:    se.schemaName,
+		TableName:     se.tableName,
+		SpaceID:       handle.SpaceID,
+		RootPageNo:    rootPageNo,
+		IndexPageNo:   rootPageNo,
+		DataSegmentID: handle.DataSegmentID,
+		Type:          manager.TableTypeUser,
+	}
+	if _, err := tableStorageManager.GetTableStorageInfo(se.schemaName, se.tableName); err == nil {
+		return tableStorageManager.ReplaceTableStorage(ctx, info)
+	}
+	return tableStorageManager.RegisterTable(ctx, info)
+}
+
+func (se *SelectExecutor) loadPersistedTableRootPage() (uint32, error) {
+	path := filepath.Join(se.dataDir, se.schemaName, se.tableName+".frm")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return 0, fmt.Errorf("read table metadata for storage recovery: %w", err)
+	}
+	var definition struct {
+		StorageRootPage uint32 `json:"storage_root_page"`
+	}
+	if err := json.Unmarshal(raw, &definition); err != nil {
+		return 0, fmt.Errorf("decode table metadata for storage recovery: %w", err)
+	}
+	if definition.StorageRootPage == 0 {
+		return 0, fmt.Errorf("table storage root page is missing for %s.%s", se.schemaName, se.tableName)
+	}
+	return definition.StorageRootPage, nil
+}
+
+func recordFromInsertRowData(row *InsertRowData, tableMeta *metadata.TableMeta) Record {
+	return recordFromRowMap(row.ColumnValues, tableMeta)
+}
+
+func recordFromRowMap(row map[string]interface{}, tableMeta *metadata.TableMeta) Record {
+	values := make([]interface{}, 0, len(tableMeta.Columns))
+	for _, col := range tableMeta.Columns {
+		if col == nil {
+			continue
+		}
+		values = append(values, row[col.Name])
+	}
+	return NewExecutorRecordFromInterface(values, tableMeta)
+}
+
 // executeUserTableQuery 执行 mysql.user 表的特殊查询逻辑
 func (se *SelectExecutor) executeUserTableQuery(ctx context.Context) error {
 	logger.Debugf(" [SelectExecutor] 执行 mysql.user 表查询")
 
-	// 尝试从缓冲池管理器获取存储管理器
-	var storageManager interface{}
-	if se.bufferPoolManager != nil {
-		// 尝试通过反射或其他方式获取存储管理器
-		// 这里暂时设置为 nil，使用默认用户数据
-		storageManager = nil
-	}
-
-	// 如果获取不到存储管理器，创建默认的用户数据
+	// 优先使用真实存储管理器获取 mysql.user 信息
+	storageManager := se.storageManager
 	if storageManager == nil {
-		logger.Warnf("  [SelectExecutor] 无法获取存储管理器，创建默认 mysql.user 数据")
-		return se.createDefaultUserData()
+		return fmt.Errorf("storage manager is required for mysql.user query")
 	}
 
-	// 尝试查询用户数据
-	if sm, ok := storageManager.(interface {
-		QueryMySQLUser(username, host string) (interface{}, error)
-	}); ok {
+	if se.storageManager != nil {
 		logger.Debugf(" [SelectExecutor] 使用存储管理器查询用户数据")
 
 		// 解析WHERE条件以获取用户名和主机
 		username, host := se.parseUserQueryConditions()
 
-		user, err := sm.QueryMySQLUser(username, host)
-		if err != nil {
-			logger.Warnf("  [SelectExecutor] 查询用户数据失败: %v，使用默认数据", err)
-			return se.createDefaultUserData()
+		hostCandidates := []string{host}
+		if host == "127.0.0.1" || host == "::1" {
+			hostCandidates = append(hostCandidates, "localhost", "%")
+		}
+		if host != "localhost" {
+			hostCandidates = append(hostCandidates, "localhost")
+		}
+		if host != "%" {
+			hostCandidates = append(hostCandidates, "%")
 		}
 
-		// 将用户数据转换为记录
-		if err := se.convertUserToRecord(user); err != nil {
-			logger.Warnf("  [SelectExecutor] 转换用户数据失败: %v，使用默认数据", err)
-			return se.createDefaultUserData()
+		seen := make(map[string]struct{})
+		for _, candidateHost := range hostCandidates {
+			if candidateHost == "" {
+				continue
+			}
+			if _, exists := seen[candidateHost]; exists {
+				continue
+			}
+			seen[candidateHost] = struct{}{}
+
+			user, err := storageManager.QueryMySQLUser(username, candidateHost)
+			if err != nil {
+				logger.Warnf("  [SelectExecutor] 查询用户数据失败: user=%s host=%s -> %v", username, candidateHost, err)
+				continue
+			}
+
+			// 将用户数据转换为记录
+			if err := se.convertMySQLUserToRecord(user); err != nil {
+				logger.Warnf("  [SelectExecutor] 转换用户数据失败: %v", err)
+				continue
+			}
+
+			logger.Debugf(" [SelectExecutor] 成功从存储管理器获取用户数据: user=%s host=%s", user.User, user.Host)
+			return nil
 		}
 
-		logger.Debugf(" [SelectExecutor] 成功从存储管理器获取用户数据")
-		return nil
+		return fmt.Errorf("mysql.user record not found for %s@%s", username, host)
 	}
 
-	logger.Warnf("  [SelectExecutor] 存储管理器接口不匹配，创建默认 mysql.user 数据")
-	return se.createDefaultUserData()
+	return fmt.Errorf("mysql.user query failed")
 }
 
 // parseUserQueryConditions 解析WHERE条件中的用户名和主机
@@ -383,69 +721,122 @@ func (se *SelectExecutor) parseUserQueryConditions() (username, host string) {
 	username = "root"
 	host = "localhost"
 
-	// 简单的条件解析
-	for _, condition := range se.whereConditions {
-		conditionUpper := strings.ToUpper(condition)
+	if len(se.whereConditions) == 0 {
+		logger.Debugf(" [SelectExecutor] WHERE条件为空，使用默认值 user=%s, host=%s", username, host)
+		logger.Debugf(" [SelectExecutor] 最终解析结果: user=%s, host=%s", username, host)
+		return username, host
+	}
 
-		// 查找 User = 'xxx' 条件
-		if strings.Contains(conditionUpper, "USER") && strings.Contains(conditionUpper, "=") {
-			parts := strings.Split(condition, "=")
-			if len(parts) >= 2 {
-				userValue := strings.TrimSpace(parts[1])
-				userValue = strings.Trim(userValue, "'\"")
-				if userValue != "" {
-					username = userValue
-					logger.Debugf(" [SelectExecutor] 解析到用户名: %s", username)
-				}
-			}
-		}
+	whereClause := strings.Join(se.whereConditions, " AND ")
+	userValue := se.extractWhereValue(userWhereConditionRe, whereClause)
+	hostValue := se.extractWhereValue(hostWhereConditionRe, whereClause)
 
-		// 查找 Host = 'xxx' 条件
-		if strings.Contains(conditionUpper, "HOST") && strings.Contains(conditionUpper, "=") {
-			parts := strings.Split(condition, "=")
-			if len(parts) >= 2 {
-				hostValue := strings.TrimSpace(parts[1])
-				hostValue = strings.Trim(hostValue, "'\"")
-				if hostValue != "" {
-					host = hostValue
-					logger.Debugf(" [SelectExecutor] 解析到主机: %s", host)
-				}
-			}
-		}
+	if userValue != "" {
+		username = userValue
+		logger.Debugf(" [SelectExecutor] 解析到用户名: %s", username)
+	} else {
+		logger.Warnf(" [SelectExecutor] 未解析到User条件，使用默认值: %s", username)
+	}
+	if hostValue != "" {
+		host = hostValue
+		logger.Debugf(" [SelectExecutor] 解析到主机: %s", host)
+	} else {
+		logger.Warnf(" [SelectExecutor] 未解析到Host条件，使用默认值: %s", host)
 	}
 
 	logger.Debugf(" [SelectExecutor] 最终解析结果: user=%s, host=%s", username, host)
 	return username, host
 }
 
+func (se *SelectExecutor) extractWhereValue(re *regexp.Regexp, whereClause string) string {
+	matches := re.FindStringSubmatch(whereClause)
+	if len(matches) < 2 {
+		return ""
+	}
+
+	value := ""
+	for _, candidate := range matches[1:] {
+		if candidate != "" {
+			value = candidate
+			break
+		}
+	}
+	value = strings.TrimSpace(strings.Trim(value, `"'`))
+	return value
+}
+
 // convertUserToRecord 将用户数据转换为记录
-func (se *SelectExecutor) convertUserToRecord(user interface{}) error {
-	logger.Debugf(" [SelectExecutor] 转换用户数据为记录")
+func (se *SelectExecutor) convertMySQLUserToRecord(user *manager.MySQLUser) error {
+	if user == nil {
+		return fmt.Errorf("mysql user is nil")
+	}
 
-	// 创建用户记录（这里需要根据实际的用户数据结构进行转换）
-	// 简化实现：创建包含基本用户信息的记录
+	logger.Debugf(" [SelectExecutor] 转换用户数据为记录: user=%s host=%s", user.User, user.Host)
+
+	var passwordLifetime interface{}
+	if user.PasswordLifetime != nil {
+		passwordLifetime = int(*user.PasswordLifetime)
+	}
+
+	var passwordReuseCount interface{}
+	if user.PasswordReuseCcount != nil {
+		passwordReuseCount = int(*user.PasswordReuseCcount)
+	}
+
+	var passwordReuseTime interface{}
+	if user.PasswordReuseTime != nil {
+		passwordReuseTime = int(*user.PasswordReuseTime)
+	}
+
 	tableMeta := se.getMySQLUserTableMeta()
-
-	// 假设用户对象有基本的字段
-	userData := []interface{}{
-		"localhost", // Host
-		"root",      // User
-		"Y",         // Select_priv
-		"Y",         // Insert_priv
-		"Y",         // Update_priv
-		"Y",         // Delete_priv
-		"Y",         // Create_priv
-		"Y",         // Drop_priv
-		// ... 其他字段根据需要添加
+	rawValues := []interface{}{
+		user.Host,
+		user.User,
+		user.SelectPriv,
+		user.InsertPriv,
+		user.UpdatePriv,
+		user.DeletePriv,
+		user.CreatePriv,
+		user.DropPriv,
+		user.ReloadPriv,
+		user.ShutdownPriv,
+		user.ProcessPriv,
+		user.FilePriv,
+		user.GrantPriv,
+		user.ReferencesPriv,
+		user.IndexPriv,
+		user.AlterPriv,
+		user.ShowDbPriv,
+		user.SuperPriv,
+		user.CreateTmpTablePriv,
+		user.LockTablesPriv,
+		user.ExecutePriv,
+		user.ReplSlavePriv,
+		user.ReplClientPriv,
+		user.CreateViewPriv,
+		user.ShowViewPriv,
+		user.CreateRoutinePriv,
+		user.AlterRoutinePriv,
+		user.CreateUserPriv,
+		user.EventPriv,
+		user.TriggerPriv,
+		user.CreateTablespacePriv,
+		user.AuthenticationString,
+		user.PasswordExpired,
+		passwordLifetime,
+		user.AccountLocked,
+		func() interface{} {
+			if user.PasswordLastChanged.IsZero() {
+				return nil
+			}
+			return user.PasswordLastChanged.Format("2006-01-02 15:04:05")
+		}(),
+		passwordReuseCount,
+		passwordReuseTime,
+		user.PasswordRequireCurrent,
+		user.UserAttributes,
 	}
-
-	// 确保数据长度匹配列数
-	columnCount := len(tableMeta.Columns)
-	for len(userData) < columnCount {
-		userData = append(userData, "")
-	}
-
-	record := NewExecutorRecordFromInterface(userData, tableMeta)
+	record := NewExecutorRecordFromInterface(rawValues, tableMeta)
 	se.resultSet = []Record{record}
 
 	logger.Debugf(" [SelectExecutor] 用户数据转换完成，生成 1 条记录")
@@ -457,6 +848,7 @@ func (se *SelectExecutor) createDefaultUserData() error {
 	logger.Debugf("  [SelectExecutor] 创建默认 mysql.user 表数据")
 
 	tableMeta := se.getMySQLUserTableMeta()
+	defaultPasswordHash := se.getDefaultRootUserPasswordHash()
 
 	// 创建默认的root用户记录
 	// 字段顺序：Host, User, 29个权限字段, authentication_string, password_expired,
@@ -467,14 +859,14 @@ func (se *SelectExecutor) createDefaultUserData() error {
 			"localhost", "root", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
 			"Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
 			"Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
-			"Y", "*23AE809DDACAF96AF0FD78ED04B6A265E05AA257", "N",
+			"Y", defaultPasswordHash, "N",
 			"0", "0", "0", "0", "N", "2024-01-01 00:00:00", "Y", "{}",
 		},
 		{
 			"%", "root", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
 			"Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
 			"Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y",
-			"Y", "*23AE809DDACAF96AF0FD78ED04B6A265E05AA257", "N",
+			"Y", defaultPasswordHash, "N",
 			"0", "0", "0", "0", "N", "2024-01-01 00:00:00", "Y", "{}",
 		},
 	}
@@ -486,6 +878,13 @@ func (se *SelectExecutor) createDefaultUserData() error {
 
 	logger.Debugf(" [SelectExecutor] 创建了 %d 条默认用户记录", len(se.resultSet))
 	return nil
+}
+
+func (se *SelectExecutor) getDefaultRootUserPasswordHash() string {
+	defaultPassword := "root@1234"
+	stage1 := sha1.Sum([]byte(defaultPassword))
+	stage2 := sha1.Sum(stage1[:])
+	return fmt.Sprintf("*%X", stage2)
 }
 
 // getMySQLUserTableMeta 获取 mysql.user 表的元数据
@@ -671,6 +1070,7 @@ func (se *SelectExecutor) getTableMetadata() (*metadata.TableMeta, error) {
 type frmTableInfo struct {
 	TableName string                   `json:"table_name"`
 	Columns   []map[string]interface{} `json:"columns"`
+	Indexes   []map[string]interface{} `json:"indexes"`
 }
 
 // loadTableMetaFromFrm 从 dataDir/schema/table.frm（JSON）加载表定义，与 executor 写入格式一致。
@@ -711,11 +1111,47 @@ func (se *SelectExecutor) loadTableMetaFromFrm(dataDir, schemaName, tableName st
 		if b, ok := col["nullable"].(bool); ok {
 			nullable = b
 		}
-		meta.Columns = append(meta.Columns, &metadata.ColumnMeta{
+		isPrimary, _ := col["primary"].(bool)
+		isUnique, _ := col["unique"].(bool)
+		isAutoIncrement, _ := col["auto_increment"].(bool)
+		columnMeta := &metadata.ColumnMeta{
 			Name:       name,
 			Type:       metadata.DataType(typeStr),
 			Length:     length,
 			IsNullable: nullable,
+			IsPrimary:  isPrimary,
+			IsUnique:   isUnique,
+		}
+		columnMeta.IsAutoIncrement = isAutoIncrement
+		if defaultValue, ok := col["default"]; ok {
+			columnMeta.DefaultValue = defaultValue
+		}
+		meta.Columns = append(meta.Columns, columnMeta)
+		if isPrimary {
+			meta.PrimaryKey = append(meta.PrimaryKey, name)
+		}
+	}
+	for _, idx := range info.Indexes {
+		name, _ := idx["name"].(string)
+		if name == "" {
+			continue
+		}
+		rawColumns, _ := idx["columns"].([]interface{})
+		columns := make([]string, 0, len(rawColumns))
+		for _, rawColumn := range rawColumns {
+			columnName, _ := rawColumn.(string)
+			if columnName != "" {
+				columns = append(columns, columnName)
+			}
+		}
+		if len(columns) == 0 {
+			continue
+		}
+		unique, _ := idx["unique"].(bool)
+		meta.Indices = append(meta.Indices, metadata.IndexMeta{
+			Name:    name,
+			Columns: columns,
+			Unique:  unique,
 		})
 	}
 	logger.Debugf(" [SelectExecutor] 从 .frm 加载表定义: %s.%s, 列数=%d", schemaName, tableName, len(meta.Columns))
@@ -1012,11 +1448,19 @@ func (se *SelectExecutor) applyWhereFilter(records []Record) []Record {
 		return records
 	}
 
-	var filteredRecords []Record
-
-	// 简化实现：只是返回一部分记录来模拟过滤效果
-	for i, record := range records {
-		if i%2 == 0 { // 简单的过滤逻辑：只返回偶数索引的记录
+	filteredRecords := make([]Record, 0, len(records))
+	for _, record := range records {
+		values, err := se.recordValuesForWhere(record)
+		if err != nil {
+			logger.Warnf(" [applyWhereFilter] failed to read record values: %v", err)
+			continue
+		}
+		matched, err := rowMatchesWhereConditions(values, se.whereConditions)
+		if err != nil {
+			logger.Warnf(" [applyWhereFilter] failed to evaluate WHERE %v: %v", se.whereConditions, err)
+			continue
+		}
+		if matched {
 			filteredRecords = append(filteredRecords, record)
 		}
 	}
@@ -1024,16 +1468,84 @@ func (se *SelectExecutor) applyWhereFilter(records []Record) []Record {
 	return filteredRecords
 }
 
+func (se *SelectExecutor) recordValuesForWhere(record Record) (map[string]interface{}, error) {
+	if record == nil {
+		return nil, fmt.Errorf("record is nil")
+	}
+	tableMeta, err := se.getRecordTableMeta(record)
+	if err != nil {
+		return nil, err
+	}
+	values := make(map[string]interface{}, len(tableMeta.Columns))
+	for idx, column := range tableMeta.Columns {
+		if column == nil {
+			continue
+		}
+		value := record.GetValueByIndex(idx)
+		if value == nil {
+			values[column.Name] = nil
+			continue
+		}
+		values[column.Name] = recordValueForPredicate(value, column.Type)
+	}
+	return values, nil
+}
+
+func recordValueForPredicate(value basic.Value, dataType metadata.DataType) interface{} {
+	if value == nil || value.IsNull() {
+		return nil
+	}
+	switch dataType {
+	case metadata.TypeTinyInt, metadata.TypeSmallInt, metadata.TypeMediumInt, metadata.TypeInt,
+		metadata.TypeBigInt, metadata.TypeYear:
+		return value.Int()
+	case metadata.TypeFloat, metadata.TypeDouble, metadata.TypeDecimal:
+		return value.Float64()
+	case metadata.TypeBool, metadata.TypeBoolean:
+		return value.Bool()
+	default:
+		return value.String()
+	}
+}
+
 // buildSelectResult 构建SELECT结果
 func (se *SelectExecutor) buildSelectResult() *SelectResult {
+	if se.hasAggregateQuery() || len(se.groupByColumns) > 0 {
+		return se.buildAggregateSelectResult()
+	}
+
 	// 应用投影
 	projectedRecords := se.applyProjection(se.resultSet)
+
+	if se.isCountStarQuery() {
+		columns := se.getColumnNames()
+		if len(columns) == 0 {
+			columns = []string{"COUNT(*)"}
+		}
+		record := NewExecutorRecordFromInterface([]interface{}{int64(len(se.resultSet))}, &metadata.TableMeta{
+			Name: se.tableName,
+			Columns: []*metadata.ColumnMeta{
+				{Name: columns[0], Type: metadata.TypeInt},
+			},
+		})
+		return &SelectResult{
+			Records:     []Record{record},
+			RowCount:    1,
+			Columns:     columns,
+			ColumnTypes: []string{string(metadata.TypeBigInt)},
+			ResultType:  common.RESULT_TYPE_QUERY,
+			Message:     "Query OK, 1 row in set",
+		}
+	}
 
 	// 应用排序
 	sortedRecords := se.applyOrderBy(projectedRecords)
 
+	// 应用DISTINCT
+	distinctRecords := se.applyDistinct(sortedRecords)
+
 	// 应用LIMIT和OFFSET
-	limitedRecords := se.applyLimitOffset(sortedRecords)
+	limitedRecords := se.applyLimitOffset(distinctRecords)
 
 	// 获取列信息
 	columns := se.getColumnNames()
@@ -1058,11 +1570,12 @@ func (se *SelectExecutor) buildSelectResult() *SelectResult {
 	}
 
 	result := &SelectResult{
-		Records:    limitedRecords,
-		RowCount:   len(limitedRecords),
-		Columns:    columns,
-		ResultType: common.RESULT_TYPE_QUERY,
-		Message:    fmt.Sprintf("Query OK, %d rows in set", len(limitedRecords)),
+		Records:     limitedRecords,
+		RowCount:    len(limitedRecords),
+		Columns:     columns,
+		ColumnTypes: se.getColumnTypes(columns),
+		ResultType:  common.RESULT_TYPE_QUERY,
+		Message:     fmt.Sprintf("Query OK, %d rows in set", len(limitedRecords)),
 	}
 
 	logger.Debugf(" [buildSelectResult] 构建完成: %d行, %d列", result.RowCount, len(result.Columns))
@@ -1108,9 +1621,13 @@ func (se *SelectExecutor) projectRecord(record Record, selectExprs []string) (Re
 	projectedValues := make([]basic.Value, 0, len(selectExprs))
 	projectedColumns := make([]*metadata.ColumnMeta, 0, len(selectExprs))
 
-	for _, expr := range selectExprs {
+	for exprIdx, expr := range selectExprs {
 		// 清理表达式（移除空格、别名等）
 		columnName := se.cleanColumnExpression(expr)
+		outputName := columnName
+		if exprIdx < len(se.selectAliases) && strings.TrimSpace(se.selectAliases[exprIdx]) != "" {
+			outputName = strings.TrimSpace(se.selectAliases[exprIdx])
+		}
 
 		// 大小写不敏感查找列索引
 		columnIndex, exists := se.findColumnIndex(columnName, columnIndexMap)
@@ -1118,7 +1635,7 @@ func (se *SelectExecutor) projectRecord(record Record, selectExprs []string) (Re
 			// 如果列不存在，创建一个 NULL 值
 			projectedValues = append(projectedValues, basic.NewNull())
 			projectedColumns = append(projectedColumns, &metadata.ColumnMeta{
-				Name: columnName,
+				Name: outputName,
 				Type: "UNKNOWN",
 			})
 			continue
@@ -1130,10 +1647,12 @@ func (se *SelectExecutor) projectRecord(record Record, selectExprs []string) (Re
 
 		// 添加列元数据
 		if columnIndex < len(tableMeta.Columns) {
-			projectedColumns = append(projectedColumns, tableMeta.Columns[columnIndex])
+			colMeta := *tableMeta.Columns[columnIndex]
+			colMeta.Name = outputName
+			projectedColumns = append(projectedColumns, &colMeta)
 		} else {
 			projectedColumns = append(projectedColumns, &metadata.ColumnMeta{
-				Name: columnName,
+				Name: outputName,
 				Type: "UNKNOWN",
 			})
 		}
@@ -1237,8 +1756,344 @@ func (se *SelectExecutor) applyOrderBy(records []Record) []Record {
 		return records
 	}
 
-	// 简化实现：不进行实际排序
-	return records
+	sortedRecords := append([]Record(nil), records...)
+	sort.SliceStable(sortedRecords, func(i, j int) bool {
+		for _, orderSpec := range se.orderByColumns {
+			columnName, desc := parseOrderBySpec(orderSpec)
+			left, leftOK := se.recordValueByColumnName(sortedRecords[i], columnName)
+			right, rightOK := se.recordValueByColumnName(sortedRecords[j], columnName)
+			if !leftOK || !rightOK {
+				continue
+			}
+			cmp := compareScalarValues(left, right)
+			if cmp == 0 {
+				continue
+			}
+			if desc {
+				return cmp > 0
+			}
+			return cmp < 0
+		}
+		return false
+	})
+	return sortedRecords
+}
+
+func parseOrderBySpec(orderSpec string) (string, bool) {
+	trimmed := strings.TrimSpace(orderSpec)
+	upper := strings.ToUpper(trimmed)
+	switch {
+	case strings.HasSuffix(upper, " DESC"):
+		return strings.TrimSpace(trimmed[:len(trimmed)-5]), true
+	case strings.HasSuffix(upper, " ASC"):
+		return strings.TrimSpace(trimmed[:len(trimmed)-4]), false
+	default:
+		return trimmed, false
+	}
+}
+
+func (se *SelectExecutor) recordValueByColumnName(record Record, columnName string) (interface{}, bool) {
+	if record == nil {
+		return nil, false
+	}
+	cleanName := strings.ToLower(se.cleanColumnExpression(columnName))
+	tableMeta, err := se.getRecordTableMeta(record)
+	if err != nil || tableMeta == nil {
+		return nil, false
+	}
+	for idx, col := range tableMeta.Columns {
+		if col == nil {
+			continue
+		}
+		if strings.ToLower(col.Name) != cleanName {
+			continue
+		}
+		return recordValueForPredicate(record.GetValueByIndex(idx), col.Type), true
+	}
+	return nil, false
+}
+
+func (se *SelectExecutor) applyDistinct(records []Record) []Record {
+	if !se.distinct {
+		return records
+	}
+	seen := make(map[string]struct{}, len(records))
+	distinctRecords := make([]Record, 0, len(records))
+	for _, record := range records {
+		key := recordDistinctKey(record)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		distinctRecords = append(distinctRecords, record)
+	}
+	return distinctRecords
+}
+
+func recordDistinctKey(record Record) string {
+	if record == nil {
+		return "<nil>"
+	}
+	values := record.GetValues()
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == nil || value.IsNull() {
+			parts = append(parts, "<null>")
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s:%v", value.Type().String(), value.Raw()))
+	}
+	return strings.Join(parts, "\x00")
+}
+
+func (se *SelectExecutor) hasAggregateQuery() bool {
+	for _, expr := range se.selectExprs {
+		if parseAggregateExpression(expr).funcName != "" {
+			return true
+		}
+	}
+	return false
+}
+
+type aggregateExpression struct {
+	funcName string
+	column   string
+}
+
+func parseAggregateExpression(expr string) aggregateExpression {
+	trimmed := strings.TrimSpace(expr)
+	open := strings.Index(trimmed, "(")
+	closeIdx := strings.LastIndex(trimmed, ")")
+	if open <= 0 || closeIdx <= open {
+		return aggregateExpression{}
+	}
+	fn := strings.ToUpper(strings.TrimSpace(trimmed[:open]))
+	switch fn {
+	case "COUNT", "SUM", "AVG", "MIN", "MAX":
+	default:
+		return aggregateExpression{}
+	}
+	column := strings.TrimSpace(trimmed[open+1 : closeIdx])
+	if strings.HasPrefix(strings.ToLower(column), "distinct ") {
+		column = strings.TrimSpace(column[len("distinct "):])
+	}
+	return aggregateExpression{funcName: fn, column: strings.Trim(column, "` ")}
+}
+
+type aggregateAccumulator struct {
+	fn      string
+	count   int64
+	sum     float64
+	min     interface{}
+	max     interface{}
+	hasData bool
+}
+
+func (a *aggregateAccumulator) add(value interface{}) {
+	if strings.EqualFold(a.fn, "COUNT") {
+		a.count++
+		return
+	}
+	if value == nil {
+		return
+	}
+	switch a.fn {
+	case "SUM", "AVG":
+		if num, ok := toFloat64(value); ok {
+			a.sum += num
+			a.count++
+			a.hasData = true
+		}
+	case "MIN":
+		if !a.hasData || compareScalarValues(value, a.min) < 0 {
+			a.min = value
+			a.hasData = true
+		}
+	case "MAX":
+		if !a.hasData || compareScalarValues(value, a.max) > 0 {
+			a.max = value
+			a.hasData = true
+		}
+	}
+}
+
+func (a *aggregateAccumulator) value() interface{} {
+	switch a.fn {
+	case "COUNT":
+		return a.count
+	case "SUM":
+		if !a.hasData {
+			return nil
+		}
+		return normalizeNumericResult(a.sum)
+	case "AVG":
+		if a.count == 0 {
+			return nil
+		}
+		return a.sum / float64(a.count)
+	case "MIN":
+		return a.min
+	case "MAX":
+		return a.max
+	default:
+		return nil
+	}
+}
+
+type aggregateGroupState struct {
+	groupValues []interface{}
+	accs        []aggregateAccumulator
+}
+
+func (se *SelectExecutor) buildAggregateSelectResult() *SelectResult {
+	groupColumns := se.cleanColumnNames(se.groupByColumns)
+	aggregateExprs := make([]aggregateExpression, len(se.selectExprs))
+	for i, expr := range se.selectExprs {
+		aggregateExprs[i] = parseAggregateExpression(expr)
+	}
+
+	groups := make(map[string]*aggregateGroupState)
+	groupOrder := make([]string, 0)
+	for _, record := range se.resultSet {
+		groupValues := make([]interface{}, 0, len(groupColumns))
+		for _, groupColumn := range groupColumns {
+			value, _ := se.recordValueByColumnName(record, groupColumn)
+			groupValues = append(groupValues, value)
+		}
+		groupKey := aggregateGroupKey(groupValues)
+		if len(groupColumns) == 0 {
+			groupKey = "__all__"
+		}
+		state := groups[groupKey]
+		if state == nil {
+			state = &aggregateGroupState{
+				groupValues: groupValues,
+				accs:        make([]aggregateAccumulator, len(se.selectExprs)),
+			}
+			for i, agg := range aggregateExprs {
+				if agg.funcName != "" {
+					state.accs[i] = aggregateAccumulator{fn: agg.funcName}
+				}
+			}
+			groups[groupKey] = state
+			groupOrder = append(groupOrder, groupKey)
+		}
+
+		for i, agg := range aggregateExprs {
+			if agg.funcName == "" {
+				continue
+			}
+			var value interface{}
+			if agg.column != "*" {
+				value, _ = se.recordValueByColumnName(record, agg.column)
+			}
+			state.accs[i].add(value)
+		}
+	}
+
+	columns := se.getColumnNames()
+	columnTypes := make([]string, len(columns))
+	records := make([]Record, 0, len(groupOrder))
+	for _, key := range groupOrder {
+		state := groups[key]
+		if state == nil {
+			continue
+		}
+		rowValues := make([]interface{}, 0, len(se.selectExprs))
+		projectedColumns := make([]*metadata.ColumnMeta, 0, len(se.selectExprs))
+		for i, expr := range se.selectExprs {
+			agg := aggregateExprs[i]
+			if agg.funcName != "" {
+				value := state.accs[i].value()
+				rowValues = append(rowValues, value)
+				colType := metadata.TypeDecimal
+				if agg.funcName == "COUNT" {
+					colType = metadata.TypeBigInt
+				}
+				columnTypes[i] = strings.ToLower(string(colType))
+				projectedColumns = append(projectedColumns, &metadata.ColumnMeta{Name: columns[i], Type: colType})
+				continue
+			}
+			value := se.groupValueForExpression(expr, groupColumns, state.groupValues)
+			rowValues = append(rowValues, value)
+			colType := se.columnTypeForExpression(expr)
+			columnTypes[i] = strings.ToLower(string(colType))
+			projectedColumns = append(projectedColumns, &metadata.ColumnMeta{Name: columns[i], Type: colType})
+		}
+
+		rowMap := make(map[string]interface{}, len(columns)*2)
+		for i, col := range columns {
+			rowMap[col] = rowValues[i]
+			rowMap[strings.ToLower(col)] = rowValues[i]
+		}
+		for i, expr := range se.selectExprs {
+			rowMap[expr] = rowValues[i]
+			rowMap[strings.ToLower(expr)] = rowValues[i]
+		}
+		if se.havingCondition != "" {
+			matches, err := rowMatchesWhereConditions(rowMap, []string{se.havingCondition})
+			if err != nil || !matches {
+				continue
+			}
+		}
+
+		records = append(records, NewExecutorRecordFromInterface(rowValues, &metadata.TableMeta{
+			Name:    se.tableName + "_aggregate",
+			Columns: projectedColumns,
+		}))
+	}
+
+	sortedRecords := se.applyOrderBy(records)
+	distinctRecords := se.applyDistinct(sortedRecords)
+	limitedRecords := se.applyLimitOffset(distinctRecords)
+	return &SelectResult{
+		Records:     limitedRecords,
+		RowCount:    len(limitedRecords),
+		Columns:     columns,
+		ColumnTypes: columnTypes,
+		ResultType:  common.RESULT_TYPE_QUERY,
+		Message:     fmt.Sprintf("Query OK, %d rows in set", len(limitedRecords)),
+	}
+}
+
+func aggregateGroupKey(values []interface{}) string {
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		parts = append(parts, fmt.Sprintf("%T:%v", value, value))
+	}
+	return strings.Join(parts, "\x00")
+}
+
+func (se *SelectExecutor) cleanColumnNames(columns []string) []string {
+	cleaned := make([]string, 0, len(columns))
+	for _, column := range columns {
+		cleaned = append(cleaned, se.cleanColumnExpression(column))
+	}
+	return cleaned
+}
+
+func (se *SelectExecutor) groupValueForExpression(expr string, groupColumns []string, groupValues []interface{}) interface{} {
+	cleanExpr := strings.ToLower(se.cleanColumnExpression(expr))
+	for i, column := range groupColumns {
+		if strings.ToLower(column) == cleanExpr && i < len(groupValues) {
+			return groupValues[i]
+		}
+	}
+	return nil
+}
+
+func (se *SelectExecutor) columnTypeForExpression(expr string) metadata.DataType {
+	tableMeta, err := se.getTableMetadata()
+	if err != nil || tableMeta == nil {
+		return metadata.TypeVarchar
+	}
+	cleanExpr := strings.ToLower(se.cleanColumnExpression(expr))
+	for _, col := range tableMeta.Columns {
+		if col != nil && strings.ToLower(col.Name) == cleanExpr {
+			return col.Type
+		}
+	}
+	return metadata.TypeVarchar
 }
 
 // applyLimitOffset 应用LIMIT和OFFSET
@@ -1258,6 +2113,12 @@ func (se *SelectExecutor) applyLimitOffset(records []Record) []Record {
 
 // getColumnNames 获取列名。SELECT * 时从 getTableMetadata 取列（含从 .frm 加载）；否则用解析出的 select 表达式。
 func (se *SelectExecutor) getColumnNames() []string {
+	if se.isCountStarQuery() {
+		if len(se.selectAliases) > 0 && strings.TrimSpace(se.selectAliases[0]) != "" {
+			return []string{strings.TrimSpace(se.selectAliases[0])}
+		}
+		return []string{se.selectExprs[0]}
+	}
 	if len(se.selectExprs) == 1 && se.selectExprs[0] == "*" {
 		tableMeta, err := se.getTableMetadata()
 		if err != nil || tableMeta == nil {
@@ -1269,16 +2130,58 @@ func (se *SelectExecutor) getColumnNames() []string {
 		}
 		return names
 	}
-	return se.selectExprs
+	names := make([]string, len(se.selectExprs))
+	for i, expr := range se.selectExprs {
+		if i < len(se.selectAliases) && strings.TrimSpace(se.selectAliases[i]) != "" {
+			names[i] = strings.TrimSpace(se.selectAliases[i])
+		} else {
+			names[i] = se.cleanColumnExpression(expr)
+		}
+	}
+	return names
+}
+
+func (se *SelectExecutor) getColumnTypes(columns []string) []string {
+	if len(columns) == 0 {
+		return nil
+	}
+	tableMeta, err := se.getTableMetadata()
+	if err != nil || tableMeta == nil {
+		return nil
+	}
+	columnTypeByName := make(map[string]string, len(tableMeta.Columns))
+	for _, col := range tableMeta.Columns {
+		if col == nil {
+			continue
+		}
+		columnTypeByName[strings.ToLower(col.Name)] = strings.ToLower(string(col.Type))
+	}
+	types := make([]string, len(columns))
+	for i, column := range columns {
+		cleanName := strings.ToLower(se.cleanColumnExpression(column))
+		if typ := columnTypeByName[cleanName]; typ != "" {
+			types[i] = typ
+		}
+	}
+	return types
+}
+
+func (se *SelectExecutor) isCountStarQuery() bool {
+	if len(se.selectExprs) != 1 {
+		return false
+	}
+	normalized := strings.ToLower(strings.ReplaceAll(se.selectExprs[0], " ", ""))
+	return normalized == "count(*)"
 }
 
 // SelectResult SELECT查询结果
 type SelectResult struct {
-	Records    []Record
-	RowCount   int
-	Columns    []string
-	ResultType string
-	Message    string
+	Records     []Record
+	RowCount    int
+	Columns     []string
+	ColumnTypes []string
+	ResultType  string
+	Message     string
 }
 
 // InfoSchemaAdapter 信息模式适配器实现

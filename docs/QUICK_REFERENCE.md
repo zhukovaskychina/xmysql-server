@@ -28,36 +28,42 @@ packets := encoder.SendResultSetPackets(resultSet)
 
 ## 📊 MySQL 字段类型速查表
 
-| Go 类型 | MySQL 类型 | 类型码 | 说明 |
-|---------|-----------|--------|------|
-| `bool` | TINYINT | 0x01 | 布尔值 |
-| `int8` | TINYINT | 0x01 | 8位整数 |
-| `int16` | SMALLINT | 0x02 | 16位整数 |
-| `int`, `int32` | INT | 0x03 | 32位整数 |
-| `int64` | BIGINT | 0x08 | 64位整数 |
-| `float32` | FLOAT | 0x04 | 单精度浮点 |
-| `float64` | DOUBLE | 0x05 | 双精度浮点 |
-| `string` | VARCHAR | 0xFD | 字符串 |
-| `[]byte` | BLOB | 0xFC | 二进制数据 |
-| `nil` | NULL | 0x06 | 空值 |
+
+| Go 类型          | MySQL 类型 | 类型码  | 说明    |
+| -------------- | -------- | ---- | ----- |
+| `bool`         | TINYINT  | 0x01 | 布尔值   |
+| `int8`         | TINYINT  | 0x01 | 8位整数  |
+| `int16`        | SMALLINT | 0x02 | 16位整数 |
+| `int`, `int32` | INT      | 0x03 | 32位整数 |
+| `int64`        | BIGINT   | 0x08 | 64位整数 |
+| `float32`      | FLOAT    | 0x04 | 单精度浮点 |
+| `float64`      | DOUBLE   | 0x05 | 双精度浮点 |
+| `string`       | VARCHAR  | 0xFD | 字符串   |
+| `[]byte`       | BLOB     | 0xFC | 二进制数据 |
+| `nil`          | NULL     | 0x06 | 空值    |
+
 
 ## 🔢 Length-Encoded Integer 速查
 
-| 值范围 | 编码格式 | 示例 |
-|--------|---------|------|
-| 0-250 | 1 字节 | `250` → `[0xFA]` |
-| 251-65535 | 0xFC + 2 字节 | `251` → `[0xFC, 0xFB, 0x00]` |
-| 65536-16777215 | 0xFD + 3 字节 | `65536` → `[0xFD, 0x00, 0x00, 0x01]` |
-| 16777216+ | 0xFE + 8 字节 | `16777216` → `[0xFE, 0x00, 0x00, 0x00, 0x01, ...]` |
+
+| 值范围            | 编码格式        | 示例                                                 |
+| -------------- | ----------- | -------------------------------------------------- |
+| 0-250          | 1 字节        | `250` → `[0xFA]`                                   |
+| 251-65535      | 0xFC + 2 字节 | `251` → `[0xFC, 0xFB, 0x00]`                       |
+| 65536-16777215 | 0xFD + 3 字节 | `65536` → `[0xFD, 0x00, 0x00, 0x01]`               |
+| 16777216+      | 0xFE + 8 字节 | `16777216` → `[0xFE, 0x00, 0x00, 0x00, 0x01, ...]` |
+
 
 ## 📝 Length-Encoded String 速查
 
-| 值 | 编码 | 说明 |
-|----|------|------|
-| `""` | `[0x00]` | 空字符串 |
-| `"a"` | `[0x01, 0x61]` | 单字符 |
-| `"hello"` | `[0x05, 0x68, 0x65, 0x6C, 0x6C, 0x6F]` | 普通字符串 |
-| `nil` | `[0xFB]` | NULL 值 |
+
+| 值         | 编码                                     | 说明     |
+| --------- | -------------------------------------- | ------ |
+| `""`      | `[0x00]`                               | 空字符串   |
+| `"a"`     | `[0x01, 0x61]`                         | 单字符    |
+| `"hello"` | `[0x05, 0x68, 0x65, 0x6C, 0x6C, 0x6F]` | 普通字符串  |
+| `nil`     | `[0xFB]`                               | NULL 值 |
+
 
 ## 📦 ResultSet 包顺序
 
@@ -286,20 +292,20 @@ for i, col := range columns {
 
 - 查看完整文档: `PROTOCOL_FIX_GUIDE.md`
 - 查看测试用例: `server/net/mysql_protocol_encoder_test.go`
-- MySQL 协议文档: https://dev.mysql.com/doc/internals/en/client-server-protocol.html
+- MySQL 协议文档: [https://dev.mysql.com/doc/internals/en/client-server-protocol.html](https://dev.mysql.com/doc/internals/en/client-server-protocol.html)
 
 ## ✅ 检查清单
 
 在提交代码前，确保：
 
-- [ ] 所有单元测试通过
-- [ ] JDBC 可以成功连接
-- [ ] `SELECT @@session.tx_read_only` 返回正确结果
-- [ ] MySQL CLI 可以正常查询
-- [ ] 没有硬编码的列名或类型
-- [ ] NULL 值正确处理
-- [ ] 日志输出清晰
-- [ ] 性能测试通过
+- 所有单元测试通过
+- JDBC 可以成功连接
+- `SELECT @@session.tx_read_only` 返回正确结果
+- MySQL CLI 可以正常查询
+- 没有硬编码的列名或类型
+- NULL 值正确处理
+- 日志输出清晰
+- 性能测试通过
 
 ---
 

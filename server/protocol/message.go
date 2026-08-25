@@ -117,12 +117,14 @@ type QueryMessage struct {
 
 // MessageQueryResult 查询结果
 type MessageQueryResult struct {
-	Columns     []string
-	ColumnTypes []string // 列类型信息（可选）
-	Rows        [][]interface{}
-	Error       error
-	Message     string
-	Type        string // select, insert, update, delete, ddl, etc.
+	Columns      []string
+	ColumnTypes  []string // 列类型信息（可选）
+	Rows         [][]interface{}
+	Error        error
+	Message      string
+	Type         string // select, insert, update, delete, ddl, etc.
+	AffectedRows uint64
+	LastInsertID uint64
 }
 
 // ResponseMessage 响应消息

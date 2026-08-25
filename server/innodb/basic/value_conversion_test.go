@@ -2,6 +2,7 @@ package basic
 
 import (
 	"testing"
+	"time"
 )
 
 // TestInt64Conversion 测试int64类型转换
@@ -284,4 +285,75 @@ func TestBoolConversion(t *testing.T) {
 	}
 
 	t.Log("✅ Bool conversion tests passed")
+}
+
+func TestTimeConversion(t *testing.T) {
+	t.Run("time.Time", func(t *testing.T) {
+		value := NewTime(time.Date(2026, 6, 10, 12, 34, 56, 0, time.UTC))
+
+		if got := value.Type(); got != ValueTypeDateTime {
+			t.Fatalf("Type() = %v, want DATETIME", got)
+		}
+		if got := value.Time(); got != "2026-06-10 12:34:56" {
+			t.Fatalf("Time() = %v, want 2026-06-10 12:34:56", got)
+		}
+		if got := value.ToString(); got != "2026-06-10 12:34:56" {
+			t.Fatalf("ToString() = %q, want 2026-06-10 12:34:56", got)
+		}
+	})
+
+	t.Run("string", func(t *testing.T) {
+		value := NewTime("2026-06-10 01:02:03")
+
+		if got := value.Type(); got != ValueTypeDateTime {
+			t.Fatalf("Type() = %v, want DATETIME", got)
+		}
+		if got := value.Time(); got != "2026-06-10 01:02:03" {
+			t.Fatalf("Time() = %v, want 2026-06-10 01:02:03", got)
+		}
+	})
+
+	t.Run("unsupported input", func(t *testing.T) {
+		value := NewTime(123)
+
+		if !value.IsNull() {
+			t.Fatalf("NewTime(123) returned %#v, want NULL", value)
+		}
+	})
+}
+
+func TestSimpleRowMutationAndHeaderState(t *testing.T) {
+	row := NewRow([]byte("pk"))
+
+	row.WriteWithNull([]byte("name"))
+	if got, want := row.ToByte(), []byte{'p', 'k', 'n', 'a', 'm', 'e', 0}; string(got) != string(want) {
+		t.Fatalf("WriteWithNull ToByte() = %v, want %v", got, want)
+	}
+
+	row.SetNOwned(3)
+	if got := row.GetNOwned(); got != 3 {
+		t.Fatalf("GetNOwned() = %d, want 3", got)
+	}
+
+	row.SetNextRowOffset(128)
+	if got := row.GetNextRowOffset(); got != 128 {
+		t.Fatalf("GetNextRowOffset() = %d, want 128", got)
+	}
+
+	row.SetHeapNo(42)
+	if got := row.GetHeapNo(); got != 42 {
+		t.Fatalf("GetHeapNo() = %d, want 42", got)
+	}
+}
+
+func TestSimpleRowReadMissingValueAsNull(t *testing.T) {
+	row := NewRow([]byte("pk"))
+
+	if got := row.ReadValueByIndex(0); got.ToString() != "pk" {
+		t.Fatalf("ReadValueByIndex(0) = %q, want pk", got.ToString())
+	}
+
+	if got := row.ReadValueByIndex(1); got == nil || !got.IsNull() {
+		t.Fatalf("ReadValueByIndex(1) = %#v, want NULL value", got)
+	}
 }

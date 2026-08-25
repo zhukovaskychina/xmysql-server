@@ -1,6 +1,7 @@
 package record
 
 import (
+	"encoding/binary"
 	"fmt"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
@@ -448,7 +449,12 @@ func (r *UnifiedRecordImpl) SetHeapNo(heapNo uint16) {
 }
 
 func (r *UnifiedRecordImpl) SetTransactionId(trxId uint64) {
-	// TODO: 实现事务ID设置
+	if len(r.data) < 13 {
+		tmp := make([]byte, 13)
+		copy(tmp, r.data)
+		r.data = tmp
+	}
+	binary.LittleEndian.PutUint64(r.data[5:13], trxId)
 }
 
 func (r *UnifiedRecordImpl) GetValueByColName(colName string) basic.Value {

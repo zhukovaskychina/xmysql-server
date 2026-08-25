@@ -1,3 +1,6 @@
+﻿//go:build demo
+// +build demo
+
 package main
 
 import (
@@ -5,27 +8,27 @@ import (
 	"os"
 	"strings"
 
+	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
-	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 func main() {
 	fmt.Println("=" + strings.Repeat("=", 80))
-	fmt.Println("🏛️  XMySQL InnoDB SystemSpaceManager 功能演示")
-	fmt.Println("   基于 innodb_file_per_table=ON 配置的系统表空间管理")
+	fmt.Println("馃彌锔? XMySQL InnoDB SystemSpaceManager 鍔熻兘婕旂ず")
+	fmt.Println("   鍩轰簬 innodb_file_per_table=ON 閰嶇疆鐨勭郴缁熻〃绌洪棿绠＄悊")
 	fmt.Println("=" + strings.Repeat("=", 80))
 
-	// 创建演示目录
+	// 鍒涘缓婕旂ず鐩綍
 	demoDir := "demo_system_space_manager"
-	os.RemoveAll(demoDir) // 清理之前的数据
+	os.RemoveAll(demoDir) // 娓呯悊涔嬪墠鐨勬暟鎹?
 	os.MkdirAll(demoDir, 0755)
 	defer func() {
-		fmt.Println("\n🧹 清理演示数据...")
+		fmt.Println("\n馃Ч 娓呯悊婕旂ず鏁版嵁...")
 		os.RemoveAll(demoDir)
 	}()
 
-	// 创建演示配置
+	// 鍒涘缓婕旂ず閰嶇疆
 	cfg := &conf.Cfg{
 		DataDir:              demoDir,
 		InnodbDataDir:        demoDir,
@@ -36,157 +39,157 @@ func main() {
 		InnodbLogBufferSize:  1048576,          // 1MB
 	}
 
-	logger.Debugf("\n 演示配置 (innodb_file_per_table=ON):\n")
-	logger.Debugf("  - 数据目录: %s\n", cfg.DataDir)
-	logger.Debugf("  - 系统表空间: %s\n", cfg.InnodbDataFilePath)
-	logger.Debugf("  - 缓冲池大小: %d MB\n", cfg.InnodbBufferPoolSize/1024/1024)
-	logger.Debugf("  - 页面大小: %d KB\n", cfg.InnodbPageSize/1024)
+	logger.Debugf("\n 婕旂ず閰嶇疆 (innodb_file_per_table=ON):\n")
+	logger.Debugf("  - 鏁版嵁鐩綍: %s\n", cfg.DataDir)
+	logger.Debugf("  - 绯荤粺琛ㄧ┖闂? %s\n", cfg.InnodbDataFilePath)
+	logger.Debugf("  - 缂撳啿姹犲ぇ灏? %d MB\n", cfg.InnodbBufferPoolSize/1024/1024)
+	logger.Debugf("  - 椤甸潰澶у皬: %d KB\n", cfg.InnodbPageSize/1024)
 
-	// 初始化存储管理器
-	fmt.Println("\n🚀 初始化 StorageManager...")
+	// 鍒濆鍖栧瓨鍌ㄧ鐞嗗櫒
+	fmt.Println("\n馃殌 鍒濆鍖?StorageManager...")
 	fmt.Println(strings.Repeat("-", 60))
 
 	storageManager := manager.NewStorageManager(cfg)
 	if storageManager == nil {
-		logger.Debugf(" 创建StorageManager失败\n")
+		logger.Debugf(" 鍒涘缓StorageManager澶辫触\n")
 		return
 	}
 
-	// 获取SystemSpaceManager
+	// 鑾峰彇SystemSpaceManager
 	systemSpaceManager := storageManager.GetSystemSpaceManager()
 	if systemSpaceManager == nil {
-		logger.Debugf(" SystemSpaceManager未初始化\n")
+		logger.Debugf(" SystemSpaceManager鏈垵濮嬪寲\n")
 		return
 	}
 
-	fmt.Println(" StorageManager 和 SystemSpaceManager 初始化完成")
+	fmt.Println(" StorageManager 鍜?SystemSpaceManager 鍒濆鍖栧畬鎴?)
 
-	// 演示1: 系统表空间架构分析
+	// 婕旂ず1: 绯荤粺琛ㄧ┖闂存灦鏋勫垎鏋?
 	demonstrateSystemSpaceArchitecture(systemSpaceManager)
 
-	// 演示2: ibdata1组件管理
+	// 婕旂ず2: ibdata1缁勪欢绠＄悊
 	demonstrateIBData1Components(systemSpaceManager)
 
-	// 演示3: 独立表空间映射
+	// 婕旂ず3: 鐙珛琛ㄧ┖闂存槧灏?
 	demonstrateIndependentTablespaces(systemSpaceManager)
 
-	// 演示4: Space ID分配策略
+	// 婕旂ず4: Space ID鍒嗛厤绛栫暐
 	demonstrateSpaceIDAllocation(systemSpaceManager)
 
-	// 演示5: 统计信息和监控
+	// 婕旂ず5: 缁熻淇℃伅鍜岀洃鎺?
 	demonstrateStatisticsAndMonitoring(systemSpaceManager)
 
-	// 关闭管理器
-	fmt.Println("\n🔄 关闭SystemSpaceManager...")
+	// 鍏抽棴绠＄悊鍣?
+	fmt.Println("\n馃攧 鍏抽棴SystemSpaceManager...")
 	systemSpaceManager.Close()
 	storageManager.Close()
 
-	fmt.Println("\n SystemSpaceManager功能演示完成!")
-	fmt.Println("\n💡 关键特性总结:")
-	fmt.Println("  • ibdata1专门存储系统级数据，不再存储用户表数据")
-	fmt.Println("  • MySQL系统表采用独立表空间，便于管理和维护")
-	fmt.Println("  • 清晰的Space ID分配策略，避免冲突")
-	fmt.Println("  • 统一的文件管理，所有IBD文件由SpaceManager统一处理")
-	fmt.Println("  • 专业的系统组件管理，每个组件职责明确")
+	fmt.Println("\n SystemSpaceManager鍔熻兘婕旂ず瀹屾垚!")
+	fmt.Println("\n馃挕 鍏抽敭鐗规€ф€荤粨:")
+	fmt.Println("  鈥?ibdata1涓撻棬瀛樺偍绯荤粺绾ф暟鎹紝涓嶅啀瀛樺偍鐢ㄦ埛琛ㄦ暟鎹?)
+	fmt.Println("  鈥?MySQL绯荤粺琛ㄩ噰鐢ㄧ嫭绔嬭〃绌洪棿锛屼究浜庣鐞嗗拰缁存姢")
+	fmt.Println("  鈥?娓呮櫚鐨凷pace ID鍒嗛厤绛栫暐锛岄伩鍏嶅啿绐?)
+	fmt.Println("  鈥?缁熶竴鐨勬枃浠剁鐞嗭紝鎵€鏈塈BD鏂囦欢鐢盨paceManager缁熶竴澶勭悊")
+	fmt.Println("  鈥?涓撲笟鐨勭郴缁熺粍浠剁鐞嗭紝姣忎釜缁勪欢鑱岃矗鏄庣‘")
 }
 
 func demonstrateSystemSpaceArchitecture(ssm *manager.SystemSpaceManager) {
-	fmt.Println("\n  演示1: 系统表空间架构分析")
+	fmt.Println("\n  婕旂ず1: 绯荤粺琛ㄧ┖闂存灦鏋勫垎鏋?)
 	fmt.Println(strings.Repeat("-", 60))
 
-	logger.Debugf("独立表空间模式: %s\n", getEnabledStatus(ssm.IsFilePerTableEnabled()))
+	logger.Debugf("鐙珛琛ㄧ┖闂存ā寮? %s\n", getEnabledStatus(ssm.IsFilePerTableEnabled()))
 
 	if systemSpace := ssm.GetSystemSpace(); systemSpace != nil {
-		logger.Debugf("系统表空间 (ibdata1): Space ID = 0\n")
-		logger.Debugf("  - 文件名: %s\n", systemSpace.Name())
-		logger.Debugf("  - 页面数量: %d\n", systemSpace.GetPageCount())
-		logger.Debugf("  - 已用空间: %d KB\n", systemSpace.GetUsedSpace()/1024)
-		logger.Debugf("  - 状态: %s\n", getActiveStatus(systemSpace.IsActive()))
+		logger.Debugf("绯荤粺琛ㄧ┖闂?(ibdata1): Space ID = 0\n")
+		logger.Debugf("  - 鏂囦欢鍚? %s\n", systemSpace.Name())
+		logger.Debugf("  - 椤甸潰鏁伴噺: %d\n", systemSpace.GetPageCount())
+		logger.Debugf("  - 宸茬敤绌洪棿: %d KB\n", systemSpace.GetUsedSpace()/1024)
+		logger.Debugf("  - 鐘舵€? %s\n", getActiveStatus(systemSpace.IsActive()))
 	}
 
-	fmt.Println("\n📖 ibdata1职责 (基于innodb_file_per_table=ON):")
-	fmt.Println("   Undo Logs - 事务回滚数据")
-	fmt.Println("   Insert Buffer - 延迟索引插入优化")
-	fmt.Println("   Double Write Buffer - 崩溃恢复保护")
-	fmt.Println("   System Management Pages - FSP_HDR, XDES, INODE页面")
-	fmt.Println("   Transaction System Data - 事务锁信息")
-	fmt.Println("   Data Dictionary Root - 数据字典根页面 (Page 5)")
-	fmt.Println("   不再存储: 用户表数据和索引")
+	fmt.Println("\n馃摉 ibdata1鑱岃矗 (鍩轰簬innodb_file_per_table=ON):")
+	fmt.Println("   Undo Logs - 浜嬪姟鍥炴粴鏁版嵁")
+	fmt.Println("   Insert Buffer - 寤惰繜绱㈠紩鎻掑叆浼樺寲")
+	fmt.Println("   Double Write Buffer - 宕╂簝鎭㈠淇濇姢")
+	fmt.Println("   System Management Pages - FSP_HDR, XDES, INODE椤甸潰")
+	fmt.Println("   Transaction System Data - 浜嬪姟閿佷俊鎭?)
+	fmt.Println("   Data Dictionary Root - 鏁版嵁瀛楀吀鏍归〉闈?(Page 5)")
+	fmt.Println("   涓嶅啀瀛樺偍: 鐢ㄦ埛琛ㄦ暟鎹拰绱㈠紩")
 }
 
 func demonstrateIBData1Components(ssm *manager.SystemSpaceManager) {
-	fmt.Println("\n 演示2: ibdata1组件管理")
+	fmt.Println("\n 婕旂ず2: ibdata1缁勪欢绠＄悊")
 	fmt.Println(strings.Repeat("-", 60))
 
 	components := ssm.GetIBData1Components()
 	if components == nil {
-		fmt.Println(" IBData1组件未初始化")
+		fmt.Println(" IBData1缁勪欢鏈垵濮嬪寲")
 		return
 	}
 
-	fmt.Println("IBData1系统组件状态:")
+	fmt.Println("IBData1绯荤粺缁勪欢鐘舵€?")
 
-	// Undo日志管理器
+	// Undo鏃ュ織绠＄悊鍣?
 	if components.UndoLogs != nil {
-		fmt.Println("   UndoLogManager: 正常运行")
-		fmt.Println("     - 职责: 管理事务回滚日志")
-		fmt.Println("     - 位置: ibdata1 多个页面")
+		fmt.Println("   UndoLogManager: 姝ｅ父杩愯")
+		fmt.Println("     - 鑱岃矗: 绠＄悊浜嬪姟鍥炴粴鏃ュ織")
+		fmt.Println("     - 浣嶇疆: ibdata1 澶氫釜椤甸潰")
 	}
 
-	// 插入缓冲管理器
+	// 鎻掑叆缂撳啿绠＄悊鍣?
 	if components.InsertBuffer != nil {
-		fmt.Println("   InsertBufferManager: 正常运行")
-		fmt.Println("     - 职责: 优化二级索引插入性能")
-		fmt.Println("     - 位置: ibdata1 专用页面")
+		fmt.Println("   InsertBufferManager: 姝ｅ父杩愯")
+		fmt.Println("     - 鑱岃矗: 浼樺寲浜岀骇绱㈠紩鎻掑叆鎬ц兘")
+		fmt.Println("     - 浣嶇疆: ibdata1 涓撶敤椤甸潰")
 	}
 
-	// 双写缓冲管理器
+	// 鍙屽啓缂撳啿绠＄悊鍣?
 	if components.DoubleWriteBuffer != nil {
-		fmt.Println("   DoubleWriteBufferManager: 正常运行")
-		fmt.Println("     - 职责: 防止页面部分写入导致的数据损坏")
-		fmt.Println("     - 位置: ibdata1 连续64+64页面")
+		fmt.Println("   DoubleWriteBufferManager: 姝ｅ父杩愯")
+		fmt.Println("     - 鑱岃矗: 闃叉椤甸潰閮ㄥ垎鍐欏叆瀵艰嚧鐨勬暟鎹崯鍧?)
+		fmt.Println("     - 浣嶇疆: ibdata1 杩炵画64+64椤甸潰")
 	}
 
-	// 表空间管理页面
+	// 琛ㄧ┖闂寸鐞嗛〉闈?
 	if components.SpaceManagementPages != nil {
-		fmt.Println("   SpaceManagementPages: 正常运行")
-		fmt.Println("     - 职责: FSP_HDR, XDES, INODE页面管理")
-		fmt.Println("     - 位置: ibdata1 前几个页面")
+		fmt.Println("   SpaceManagementPages: 姝ｅ父杩愯")
+		fmt.Println("     - 鑱岃矗: FSP_HDR, XDES, INODE椤甸潰绠＄悊")
+		fmt.Println("     - 浣嶇疆: ibdata1 鍓嶅嚑涓〉闈?)
 	}
 
-	// 事务系统管理器
+	// 浜嬪姟绯荤粺绠＄悊鍣?
 	if components.TransactionSystemData != nil {
-		fmt.Println("   TransactionSystemManager: 正常运行")
-		fmt.Println("     - 职责: 事务状态和锁信息管理")
-		fmt.Println("     - 位置: ibdata1 页面6开始")
+		fmt.Println("   TransactionSystemManager: 姝ｅ父杩愯")
+		fmt.Println("     - 鑱岃矗: 浜嬪姟鐘舵€佸拰閿佷俊鎭鐞?)
+		fmt.Println("     - 浣嶇疆: ibdata1 椤甸潰6寮€濮?)
 	}
 
-	// 锁信息管理器
+	// 閿佷俊鎭鐞嗗櫒
 	if components.LockInfoManager != nil {
-		fmt.Println("   LockInfoManager: 正常运行")
-		fmt.Println("     - 职责: 行锁和表锁信息管理")
-		fmt.Println("     - 位置: ibdata1 事务系统页面")
+		fmt.Println("   LockInfoManager: 姝ｅ父杩愯")
+		fmt.Println("     - 鑱岃矗: 琛岄攣鍜岃〃閿佷俊鎭鐞?)
+		fmt.Println("     - 浣嶇疆: ibdata1 浜嬪姟绯荤粺椤甸潰")
 	}
 
-	// 数据字典根页面
+	// 鏁版嵁瀛楀吀鏍归〉闈?
 	if components.DataDictionaryRoot != nil {
-		fmt.Println("   DataDictionaryRoot: 正常运行")
-		fmt.Println("     - 职责: 数据字典元数据根页面")
-		fmt.Println("     - 位置: ibdata1 页面5 (固定位置)")
-		logger.Debugf("     - 最大表ID: %d\n", components.DataDictionaryRoot.GetMaxTableId())
-		logger.Debugf("     - 最大索引ID: %d\n", components.DataDictionaryRoot.GetMaxIndexId())
-		logger.Debugf("     - 最大Space ID: %d\n", components.DataDictionaryRoot.GetMaxSpaceId())
+		fmt.Println("   DataDictionaryRoot: 姝ｅ父杩愯")
+		fmt.Println("     - 鑱岃矗: 鏁版嵁瀛楀吀鍏冩暟鎹牴椤甸潰")
+		fmt.Println("     - 浣嶇疆: ibdata1 椤甸潰5 (鍥哄畾浣嶇疆)")
+		logger.Debugf("     - 鏈€澶ц〃ID: %d\n", components.DataDictionaryRoot.GetMaxTableId())
+		logger.Debugf("     - 鏈€澶х储寮旾D: %d\n", components.DataDictionaryRoot.GetMaxIndexId())
+		logger.Debugf("     - 鏈€澶pace ID: %d\n", components.DataDictionaryRoot.GetMaxSpaceId())
 	}
 }
 
 func demonstrateIndependentTablespaces(ssm *manager.SystemSpaceManager) {
-	fmt.Println("\n 演示3: 独立表空间映射")
+	fmt.Println("\n 婕旂ず3: 鐙珛琛ㄧ┖闂存槧灏?)
 	fmt.Println(strings.Repeat("-", 60))
 
 	independentSpaces := ssm.ListIndependentTablespaces()
-	logger.Debugf("独立表空间总数: %d\n", len(independentSpaces))
+	logger.Debugf("鐙珛琛ㄧ┖闂存€绘暟: %d\n", len(independentSpaces))
 
-	// 分类统计
+	// 鍒嗙被缁熻
 	mysqlSystemTables := make([]string, 0)
 	infoSchemaTables := make([]string, 0)
 	perfSchemaTables := make([]string, 0)
@@ -205,60 +208,60 @@ func demonstrateIndependentTablespaces(ssm *manager.SystemSpaceManager) {
 		}
 	}
 
-	// 显示MySQL系统表映射
-	logger.Debugf("\n MySQL系统表独立表空间 (%d个):\n", len(mysqlSystemTables))
+	// 鏄剧ずMySQL绯荤粺琛ㄦ槧灏?
+	logger.Debugf("\n MySQL绯荤粺琛ㄧ嫭绔嬭〃绌洪棿 (%d涓?:\n", len(mysqlSystemTables))
 	count := 0
 	for spaceID, info := range independentSpaces {
 		if info.TableType == "system" && count < 8 {
-			logger.Debugf("  • %s -> Space ID %d (%s)\n", info.Name, spaceID, info.FilePath)
+			logger.Debugf("  鈥?%s -> Space ID %d (%s)\n", info.Name, spaceID, info.FilePath)
 			count++
 		}
 	}
 	if len(mysqlSystemTables) > 8 {
-		logger.Debugf("  • ... 还有 %d 个MySQL系统表\n", len(mysqlSystemTables)-8)
+		logger.Debugf("  鈥?... 杩樻湁 %d 涓狹ySQL绯荤粺琛╘n", len(mysqlSystemTables)-8)
 	}
 
-	// 显示虚拟表映射示例
-	logger.Debugf("\n information_schema 表空间 (%d个):\n", len(infoSchemaTables))
+	// 鏄剧ず铏氭嫙琛ㄦ槧灏勭ず渚?
+	logger.Debugf("\n information_schema 琛ㄧ┖闂?(%d涓?:\n", len(infoSchemaTables))
 	if len(infoSchemaTables) > 0 {
-		fmt.Println("  • Space ID范围: 100-199 (虚拟表)")
-		fmt.Println("  • 特点: 动态生成，不存储持久数据")
+		fmt.Println("  鈥?Space ID鑼冨洿: 100-199 (铏氭嫙琛?")
+		fmt.Println("  鈥?鐗圭偣: 鍔ㄦ€佺敓鎴愶紝涓嶅瓨鍌ㄦ寔涔呮暟鎹?)
 	}
 
-	logger.Debugf("\n⚡ performance_schema 表空间 (%d个):\n", len(perfSchemaTables))
+	logger.Debugf("\n鈿?performance_schema 琛ㄧ┖闂?(%d涓?:\n", len(perfSchemaTables))
 	if len(perfSchemaTables) > 0 {
-		fmt.Println("  • Space ID范围: 200-299 (性能监控)")
-		fmt.Println("  • 特点: 内存表，重启后重新生成")
+		fmt.Println("  鈥?Space ID鑼冨洿: 200-299 (鎬ц兘鐩戞帶)")
+		fmt.Println("  鈥?鐗圭偣: 鍐呭瓨琛紝閲嶅惎鍚庨噸鏂扮敓鎴?)
 	}
 
-	// 展示特定系统表的映射
-	fmt.Println("\n🔑 关键系统表映射示例:")
+	// 灞曠ず鐗瑰畾绯荤粺琛ㄧ殑鏄犲皠
+	fmt.Println("\n馃攽 鍏抽敭绯荤粺琛ㄦ槧灏勭ず渚?")
 	keyTables := []string{"mysql.user", "mysql.db", "mysql.tables_priv", "mysql.plugin"}
 	for _, tableName := range keyTables {
 		if spaceID, exists := ssm.GetMySQLSystemTableSpaceID(tableName); exists {
-			logger.Debugf("  • %s -> Space ID %d\n", tableName, spaceID)
+			logger.Debugf("  鈥?%s -> Space ID %d\n", tableName, spaceID)
 		}
 	}
 }
 
 func demonstrateSpaceIDAllocation(ssm *manager.SystemSpaceManager) {
-	fmt.Println("\n 演示4: Space ID分配策略")
+	fmt.Println("\n 婕旂ず4: Space ID鍒嗛厤绛栫暐")
 	fmt.Println(strings.Repeat("-", 60))
 
-	fmt.Println("Space ID分配规则 (基于innodb_file_per_table=ON):")
+	fmt.Println("Space ID鍒嗛厤瑙勫垯 (鍩轰簬innodb_file_per_table=ON):")
 	fmt.Println()
-	fmt.Println("┌─────────────────┬─────────────┬─────────────────────────────┐")
-	fmt.Println("│    Space ID     │    用途     │           说明              │")
-	fmt.Println("├─────────────────┼─────────────┼─────────────────────────────┤")
-	fmt.Println("│       0         │ 系统表空间  │ ibdata1 (系统级数据)       │")
-	fmt.Println("│     1 - 46      │ MySQL系统表 │ mysql.user, mysql.db等     │")
-	fmt.Println("│   100 - 199     │ info_schema │ 虚拟表 (动态生成)          │")
-	fmt.Println("│   200 - 299     │ perf_schema │ 性能监控表 (内存表)        │")
-	fmt.Println("│    1000+        │   用户表    │ 用户自定义表               │")
-	fmt.Println("└─────────────────┴─────────────┴─────────────────────────────┘")
+	fmt.Println("鈹屸攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹?)
+	fmt.Println("鈹?   Space ID     鈹?   鐢ㄩ€?    鈹?          璇存槑              鈹?)
+	fmt.Println("鈹溾攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹尖攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹尖攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹?)
+	fmt.Println("鈹?      0         鈹?绯荤粺琛ㄧ┖闂? 鈹?ibdata1 (绯荤粺绾ф暟鎹?       鈹?)
+	fmt.Println("鈹?    1 - 46      鈹?MySQL绯荤粺琛?鈹?mysql.user, mysql.db绛?    鈹?)
+	fmt.Println("鈹?  100 - 199     鈹?info_schema 鈹?铏氭嫙琛?(鍔ㄦ€佺敓鎴?          鈹?)
+	fmt.Println("鈹?  200 - 299     鈹?perf_schema 鈹?鎬ц兘鐩戞帶琛?(鍐呭瓨琛?        鈹?)
+	fmt.Println("鈹?   1000+        鈹?  鐢ㄦ埛琛?   鈹?鐢ㄦ埛鑷畾涔夎〃               鈹?)
+	fmt.Println("鈹斺攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹粹攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹粹攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹?)
 
-	// 验证当前分配情况
-	fmt.Println("\n📈 当前Space ID分配状况:")
+	// 楠岃瘉褰撳墠鍒嗛厤鎯呭喌
+	fmt.Println("\n馃搱 褰撳墠Space ID鍒嗛厤鐘跺喌:")
 	independentSpaces := ssm.ListIndependentTablespaces()
 
 	systemCount := 0
@@ -269,7 +272,7 @@ func demonstrateSpaceIDAllocation(ssm *manager.SystemSpaceManager) {
 	for spaceID, info := range independentSpaces {
 		switch {
 		case spaceID == 0:
-			// 系统表空间，已单独处理
+			// 绯荤粺琛ㄧ┖闂达紝宸插崟鐙鐞?
 		case spaceID >= 1 && spaceID <= 46:
 			systemCount++
 		case spaceID >= 100 && spaceID <= 199:
@@ -279,78 +282,78 @@ func demonstrateSpaceIDAllocation(ssm *manager.SystemSpaceManager) {
 		case spaceID >= 1000:
 			userCount++
 		}
-		_ = info // 避免未使用变量警告
+		_ = info // 閬垮厤鏈娇鐢ㄥ彉閲忚鍛?
 	}
 
-	logger.Debugf("  • 系统表空间 (0): 1个 (ibdata1)\n")
-	logger.Debugf("  • MySQL系统表 (1-46): %d个\n", systemCount)
-	logger.Debugf("  • information_schema (100-199): %d个\n", infoSchemaCount)
-	logger.Debugf("  • performance_schema (200-299): %d个\n", perfSchemaCount)
-	logger.Debugf("  • 用户表 (1000+): %d个\n", userCount)
+	logger.Debugf("  鈥?绯荤粺琛ㄧ┖闂?(0): 1涓?(ibdata1)\n")
+	logger.Debugf("  鈥?MySQL绯荤粺琛?(1-46): %d涓猏n", systemCount)
+	logger.Debugf("  鈥?information_schema (100-199): %d涓猏n", infoSchemaCount)
+	logger.Debugf("  鈥?performance_schema (200-299): %d涓猏n", perfSchemaCount)
+	logger.Debugf("  鈥?鐢ㄦ埛琛?(1000+): %d涓猏n", userCount)
 
-	fmt.Println("\n✨ 分配策略优势:")
-	fmt.Println("  • 避免Space ID冲突")
-	fmt.Println("  • 便于按类型管理表空间")
-	fmt.Println("  • 支持大规模部署扩展")
-	fmt.Println("  • 兼容MySQL官方实现")
+	fmt.Println("\n鉁?鍒嗛厤绛栫暐浼樺娍:")
+	fmt.Println("  鈥?閬垮厤Space ID鍐茬獊")
+	fmt.Println("  鈥?渚夸簬鎸夌被鍨嬬鐞嗚〃绌洪棿")
+	fmt.Println("  鈥?鏀寔澶ц妯￠儴缃叉墿灞?)
+	fmt.Println("  鈥?鍏煎MySQL瀹樻柟瀹炵幇")
 }
 
 func demonstrateStatisticsAndMonitoring(ssm *manager.SystemSpaceManager) {
-	fmt.Println("\n 演示5: 统计信息和监控")
+	fmt.Println("\n 婕旂ず5: 缁熻淇℃伅鍜岀洃鎺?)
 	fmt.Println(strings.Repeat("-", 60))
 
 	stats := ssm.GetTablespaceStats()
 	if stats == nil {
-		fmt.Println(" 统计信息不可用")
+		fmt.Println(" 缁熻淇℃伅涓嶅彲鐢?)
 		return
 	}
 
-	fmt.Println("📈 表空间统计信息:")
-	logger.Debugf("  • 系统表空间ID: %d (ibdata1)\n", stats.SystemSpaceID)
-	logger.Debugf("  • 系统表空间大小: %d KB\n", stats.SystemSpaceSize/1024)
-	logger.Debugf("  • 独立表空间总数: %d\n", stats.IndependentSpaceCount)
-	logger.Debugf("  • MySQL系统表数量: %d\n", stats.MySQLSystemTableCount)
-	logger.Debugf("  • 用户表数量: %d\n", stats.UserTableCount)
-	logger.Debugf("  • information_schema表: %d\n", stats.InformationSchemaTableCount)
-	logger.Debugf("  • performance_schema表: %d\n", stats.PerformanceSchemaTableCount)
+	fmt.Println("馃搱 琛ㄧ┖闂寸粺璁′俊鎭?")
+	logger.Debugf("  鈥?绯荤粺琛ㄧ┖闂碔D: %d (ibdata1)\n", stats.SystemSpaceID)
+	logger.Debugf("  鈥?绯荤粺琛ㄧ┖闂村ぇ灏? %d KB\n", stats.SystemSpaceSize/1024)
+	logger.Debugf("  鈥?鐙珛琛ㄧ┖闂存€绘暟: %d\n", stats.IndependentSpaceCount)
+	logger.Debugf("  鈥?MySQL绯荤粺琛ㄦ暟閲? %d\n", stats.MySQLSystemTableCount)
+	logger.Debugf("  鈥?鐢ㄦ埛琛ㄦ暟閲? %d\n", stats.UserTableCount)
+	logger.Debugf("  鈥?information_schema琛? %d\n", stats.InformationSchemaTableCount)
+	logger.Debugf("  鈥?performance_schema琛? %d\n", stats.PerformanceSchemaTableCount)
 
-	// 计算存储利用率
+	// 璁＄畻瀛樺偍鍒╃敤鐜?
 	totalIndependentSpaces := stats.MySQLSystemTableCount +
 		stats.UserTableCount +
 		stats.InformationSchemaTableCount +
 		stats.PerformanceSchemaTableCount
 
-	fmt.Println("\n 存储分布分析:")
+	fmt.Println("\n 瀛樺偍鍒嗗竷鍒嗘瀽:")
 	if totalIndependentSpaces > 0 {
 		mysqlPct := float64(stats.MySQLSystemTableCount) / float64(totalIndependentSpaces) * 100
 		userPct := float64(stats.UserTableCount) / float64(totalIndependentSpaces) * 100
 		infoPct := float64(stats.InformationSchemaTableCount) / float64(totalIndependentSpaces) * 100
 		perfPct := float64(stats.PerformanceSchemaTableCount) / float64(totalIndependentSpaces) * 100
 
-		logger.Debugf("  • MySQL系统表: %.1f%%\n", mysqlPct)
-		logger.Debugf("  • 用户表: %.1f%%\n", userPct)
-		logger.Debugf("  • information_schema: %.1f%%\n", infoPct)
-		logger.Debugf("  • performance_schema: %.1f%%\n", perfPct)
+		logger.Debugf("  鈥?MySQL绯荤粺琛? %.1f%%\n", mysqlPct)
+		logger.Debugf("  鈥?鐢ㄦ埛琛? %.1f%%\n", userPct)
+		logger.Debugf("  鈥?information_schema: %.1f%%\n", infoPct)
+		logger.Debugf("  鈥?performance_schema: %.1f%%\n", perfPct)
 	}
 
-	fmt.Println("\n 监控建议:")
-	fmt.Println("  • 定期检查ibdata1增长情况")
-	fmt.Println("  • 监控独立表空间文件大小")
-	fmt.Println("  • 关注Undo日志空间使用")
-	fmt.Println("  • 观察插入缓冲使用率")
+	fmt.Println("\n 鐩戞帶寤鸿:")
+	fmt.Println("  鈥?瀹氭湡妫€鏌bdata1澧為暱鎯呭喌")
+	fmt.Println("  鈥?鐩戞帶鐙珛琛ㄧ┖闂存枃浠跺ぇ灏?)
+	fmt.Println("  鈥?鍏虫敞Undo鏃ュ織绌洪棿浣跨敤")
+	fmt.Println("  鈥?瑙傚療鎻掑叆缂撳啿浣跨敤鐜?)
 }
 
-// 辅助函数
+// 杈呭姪鍑芥暟
 func getEnabledStatus(enabled bool) string {
 	if enabled {
-		return "启用 (innodb_file_per_table=ON)"
+		return "鍚敤 (innodb_file_per_table=ON)"
 	}
-	return "禁用 (innodb_file_per_table=OFF)"
+	return "绂佺敤 (innodb_file_per_table=OFF)"
 }
 
 func getActiveStatus(active bool) string {
 	if active {
-		return "活跃"
+		return "娲昏穬"
 	}
-	return "非活跃"
+	return "闈炴椿璺?
 }

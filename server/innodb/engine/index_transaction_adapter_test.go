@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -208,6 +209,21 @@ func TestTransactionAdapterLocking(t *testing.T) {
 	}
 	t.Logf("✅ Released lock successfully")
 
+	// 验证释放的是单锁，另一个资源的锁仍保留
+	err = txnAdapter.AcquireLock(ctx, txn, "S", "1:100:5")
+	if err != nil {
+		t.Errorf("Failed to re-acquire lock after single release: %v", err)
+	}
+	t.Logf("✅ Re-acquired released resource lock")
+
+	if err := txnAdapter.ReleaseLock(ctx, txn, "1:100:6"); err != nil {
+		t.Errorf("Failed to release remaining lock: %v", err)
+	}
+	t.Logf("✅ Released remaining lock successfully")
+	if err := txnAdapter.AcquireLock(ctx, txn, "X", "1:100:6"); err != nil {
+		t.Errorf("Failed to acquire lock after releasing single lock: %v", err)
+	}
+
 	// 测试无效的锁类型
 	err = txnAdapter.AcquireLock(ctx, txn, "INVALID", "1:100:7")
 	if err == nil {
@@ -247,19 +263,32 @@ func TestTransactionAdapterWithoutLockManager(t *testing.T) {
 		StartTime:      0,
 	}
 
-	// 测试获取锁（应该成功，但不实际获取锁）
+	// 测试获取锁（缺少锁管理器时必须返回结构化错误，不能静默跳过）
 	err := txnAdapter.AcquireLock(ctx, txn, "S", "1:100:5")
-	if err != nil {
-		t.Errorf("AcquireLock should succeed without lock manager: %v", err)
+	if err == nil {
+		t.Fatal("expected AcquireLock error without lock manager, got nil")
 	}
-	t.Logf("✅ AcquireLock succeeds without lock manager (simplified mode)")
+	var execErr *ExecutionError
+	if !errors.As(err, &execErr) {
+		t.Fatalf("expected ExecutionError for missing lock manager, got %T: %v", err, err)
+	}
+	if execErr.ErrorCode != ExecutionErrorCodeTxnContextInvalid {
+		t.Fatalf("expected %s, got %s", ExecutionErrorCodeTxnContextInvalid, execErr.ErrorCode)
+	}
+	t.Logf("✅ AcquireLock rejects missing lock manager with structured error: %v", err)
 
-	// 测试释放锁（应该成功，但不实际释放锁）
+	// 测试释放锁（缺少锁管理器时必须返回结构化错误，不能静默跳过）
 	err = txnAdapter.ReleaseLock(ctx, txn, "1:100:5")
-	if err != nil {
-		t.Errorf("ReleaseLock should succeed without lock manager: %v", err)
+	if err == nil {
+		t.Fatal("expected ReleaseLock error without lock manager, got nil")
 	}
-	t.Logf("✅ ReleaseLock succeeds without lock manager (simplified mode)")
+	if !errors.As(err, &execErr) {
+		t.Fatalf("expected ExecutionError for missing lock manager, got %T: %v", err, err)
+	}
+	if execErr.ErrorCode != ExecutionErrorCodeTxnContextInvalid {
+		t.Fatalf("expected %s, got %s", ExecutionErrorCodeTxnContextInvalid, execErr.ErrorCode)
+	}
+	t.Logf("✅ ReleaseLock rejects missing lock manager with structured error: %v", err)
 
 	// 测试提交（应该成功）
 	err = txnAdapter.CommitTransaction(ctx, txn)
