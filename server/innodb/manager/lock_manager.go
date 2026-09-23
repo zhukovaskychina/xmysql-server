@@ -56,6 +56,7 @@ type LockManager struct {
 	lockTable   map[string]*LockInfo // 锁表
 	waitGraph   map[uint64][]uint64  // 等待图
 	waitHistory []WaitEdge           // recently completed lock waits
+	waitSummary []WaitEdge           // instance-lifetime completed waits for summary views
 	txnLocks    map[uint64][]string  // 事务持有的锁
 	stopChan    chan struct{}        // 停止信号
 	// 回滚回调：用于在死锁检测中通知事务管理器回滚事务
@@ -76,6 +77,7 @@ func NewLockManager() *LockManager {
 		lockTable:   make(map[string]*LockInfo),
 		waitGraph:   make(map[uint64][]uint64),
 		waitHistory: make([]WaitEdge, 0, 128),
+		waitSummary: make([]WaitEdge, 0, 128),
 		txnLocks:    make(map[uint64][]string),
 		stopChan:    make(chan struct{}),
 		// TXN-012: 初始化Gap锁和Next-Key锁相关映射
@@ -166,6 +168,17 @@ func (lm *LockManager) WaitHistorySnapshot() []WaitEdge {
 	defer lm.mu.RUnlock()
 	result := make([]WaitEdge, len(lm.waitHistory))
 	copy(result, lm.waitHistory)
+	return result
+}
+
+// WaitSummarySnapshot returns all completed record-lock waits for
+// PERFORMANCE_SCHEMA summary views. Unlike WaitHistorySnapshot, it is not
+// truncated to the history window.
+func (lm *LockManager) WaitSummarySnapshot() []WaitEdge {
+	lm.mu.RLock()
+	defer lm.mu.RUnlock()
+	result := make([]WaitEdge, len(lm.waitSummary))
+	copy(result, lm.waitSummary)
 	return result
 }
 
@@ -667,12 +680,14 @@ func (lm *LockManager) recordWaitHistoryLocked(resourceID string, blocking, wait
 	if duration < 0 {
 		duration = 0
 	}
-	lm.waitHistory = append(lm.waitHistory, WaitEdge{
+	edge := WaitEdge{
 		WaitingTxID: waiting.TxID, BlockingTxID: blocking.TxID,
 		ResourceID: resourceID, Since: waiting.Created,
 		LockType: waiting.LockType, Mode: waiting.Mode,
 		WaitDuration: duration,
-	})
+	}
+	lm.waitSummary = append(lm.waitSummary, edge)
+	lm.waitHistory = append(lm.waitHistory, edge)
 	if len(lm.waitHistory) > 128 {
 		lm.waitHistory = lm.waitHistory[len(lm.waitHistory)-128:]
 	}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -322,6 +323,35 @@ func TestMetadataLockWaitHistoryRetainsCompletedWait(t *testing.T) {
 	require.Positive(t, history[0].WaitDuration)
 
 	lock.unlockOwned(tableLockRead, "thread/202")
+}
+
+func TestMetadataLockWaitSummaryRetainsLifetimeTotalsBeyondHistory(t *testing.T) {
+	coordinator := newTableDDLCoordinator()
+	lock := coordinator.lockFor("app.users")
+	const total = metadataLockWaitHistoryLimit + 7
+	for index := 0; index < total; index++ {
+		blockingOwner := fmt.Sprintf("thread/blocking-%d", index)
+		waitingOwner := fmt.Sprintf("thread/waiting-%d", index)
+		require.NoError(t, lock.lockWithContextOwned(context.Background(), tableLockWrite, blockingOwner))
+		waitDone := make(chan error, 1)
+		go func(owner string) {
+			waitDone <- lock.lockWithContextOwned(context.Background(), tableLockRead, owner)
+		}(waitingOwner)
+		require.Eventually(t, func() bool { return len(coordinator.MetadataLockWaitEdges()) == 1 }, time.Second, time.Millisecond)
+		lock.unlockOwned(tableLockWrite, blockingOwner)
+		require.NoError(t, <-waitDone)
+		lock.unlockOwned(tableLockRead, waitingOwner)
+	}
+
+	history := coordinator.MetadataLockWaitHistory()
+	require.Len(t, history, metadataLockWaitHistoryLimit)
+	summary := coordinator.MetadataLockWaitSummary()
+	require.Len(t, summary, total)
+	require.Equal(t, waitingOwnerForMetadataLockTest(total-1), summary[len(summary)-1].WaitingOwner)
+}
+
+func waitingOwnerForMetadataLockTest(index int) string {
+	return fmt.Sprintf("thread/waiting-%d", index)
 }
 
 func lockOwnerSnapshots(lock *tableDDLTableLock) []MetadataLockSnapshot {

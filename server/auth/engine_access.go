@@ -562,8 +562,9 @@ func (ea *InnoDBEngineAccess) executeQuery(ctx context.Context, sql, database st
 
 	// 创建临时会话
 	session := &MockEngineSession{
-		sessionID: "auth-query",
-		database:  database,
+		sessionID:     "auth-query",
+		database:      database,
+		internalQuery: true,
 	}
 
 	logger.Debugf(" [executeQuery] 创建临时会话: %s", session.sessionID)
@@ -799,9 +800,10 @@ func (ea *InnoDBEngineAccess) matchHost(host, pattern string) bool {
 
 // MockEngineSession 模拟引擎会话
 type MockEngineSession struct {
-	sessionID string
-	database  string
-	ctx       *server.SessionContext
+	sessionID     string
+	database      string
+	internalQuery bool
+	ctx           *server.SessionContext
 }
 
 func (s *MockEngineSession) GetSessionId() string {
@@ -825,6 +827,9 @@ func (s *MockEngineSession) SetParamByName(name string, value interface{}) {
 }
 
 func (s *MockEngineSession) GetParamByName(name string) interface{} {
+	if name == "__xmysql_internal_query" {
+		return s.internalQuery
+	}
 	return nil
 }
 

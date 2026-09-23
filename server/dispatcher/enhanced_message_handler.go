@@ -99,16 +99,6 @@ func (h *EnhancedBusinessMessageHandler) HandleQueryWithRealSession(realSession 
 
 	logger.Debugf(" 查询用户: %s@%s", user, host)
 
-	//  特殊处理简单查询
-	if isSelectOneQuery(query) {
-		logger.Debugf(" 检测到 SELECT 1 查询，返回硬编码响应")
-		// 创建临时消息用于响应生成
-		tempMsg := &protocol.QueryMessage{
-			BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_REQUEST, "temp", query),
-		}
-		return h.createSelectOneResponse(tempMsg), nil
-	}
-
 	if engine.IsTransactionCommand(query) {
 		logger.Debugf(" 检测到事务控制语句，跳过权限解析并分发到SQLDispatcher")
 		return h.dispatchQueryResult("temp", realSession, query, database)
@@ -314,12 +304,6 @@ func (h *EnhancedBusinessMessageHandler) handleQueryMessage(ctx context.Context,
 	}
 
 	logger.Debugf(" 查询用户: %s@%s", user, host)
-
-	//  特殊处理简单查询
-	if isSelectOneQuery(queryMsg.SQL) {
-		logger.Debugf(" 检测到 SELECT 1 查询，返回硬编码响应")
-		return h.createSelectOneResponse(msg), nil
-	}
 
 	if engine.IsTransactionCommand(queryMsg.SQL) {
 		logger.Debugf(" 检测到事务控制语句，跳过权限解析并分发到SQLDispatcher")
@@ -1380,35 +1364,4 @@ func (h *EnhancedBusinessMessageHandler) inferColumnTypes(rows [][]interface{}, 
 		types[col] = t
 	}
 	return types
-}
-
-// createSelectOneResponse 创建SELECT 1查询的硬编码响应
-func (h *EnhancedBusinessMessageHandler) createSelectOneResponse(msg protocol.Message) protocol.Message {
-	logger.Debugf("  创建 SELECT 1 硬编码响应")
-
-	queryResult := &protocol.MessageQueryResult{
-		Columns:     []string{"1"},
-		ColumnTypes: []string{"BIGINT"},
-		Rows:        [][]interface{}{{int64(1)}},
-		Error:       nil,
-		Message:     "Query OK, 1 row in set",
-		Type:        "SELECT",
-	}
-
-	responseMsg := &protocol.ResponseMessage{
-		BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_RESPONSE, msg.SessionID(), queryResult),
-		Result:      queryResult,
-	}
-
-	logger.Debugf(" SELECT 1 硬编码响应创建完成")
-	return responseMsg
-}
-
-func isSelectOneQuery(query string) bool {
-	normalized := strings.ToUpper(strings.TrimSpace(query))
-	normalized = strings.TrimSuffix(normalized, ";")
-	if strings.Contains(normalized, " FROM ") {
-		return false
-	}
-	return normalized == "SELECT 1" || strings.HasPrefix(normalized, "SELECT 1 AS ")
 }

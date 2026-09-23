@@ -306,7 +306,11 @@ func (h *DecoupledMySQLMessageHandler) sendMySQLOKPacket(session Session, affect
 	logger.Debugf("发送OK包")
 
 	okData := protocol.EncodeOKPacketWithSeq(affectedRows, lastInsertId, protocol.SERVER_STATUS_AUTOCOMMIT, 0, seqId)
-	return session.WriteBytes(okData)
+	err := session.WriteBytes(okData)
+	if err == nil {
+		advanceQueryResponseSequence(session, seqId+1)
+	}
+	return err
 }
 
 func (h *DecoupledMySQLMessageHandler) sendMySQLOKPacketWithStatus(session Session, affectedRows, lastInsertId uint64, seqId byte, statusFlags uint16) error {
@@ -317,7 +321,36 @@ func (h *DecoupledMySQLMessageHandler) sendMySQLOKPacketWithStatusAndWarnings(se
 	logger.Debugf("发送OK包")
 
 	okData := protocol.EncodeOKPacketWithSeq(affectedRows, lastInsertId, statusFlags, warningCount, seqId)
-	return session.WriteBytes(okData)
+	err := session.WriteBytes(okData)
+	if err == nil {
+		advanceQueryResponseSequence(session, seqId+1)
+	}
+	return err
+}
+
+const (
+	queryResponseSequenceActiveAttribute = "__query_response_sequence_active__"
+	queryResponseSequenceAttribute       = "__query_response_sequence__"
+)
+
+func queryResponseSequence(session Session) byte {
+	if session != nil {
+		if active, ok := session.GetAttribute(queryResponseSequenceActiveAttribute).(bool); ok && active {
+			if sequence, ok := session.GetAttribute(queryResponseSequenceAttribute).(byte); ok {
+				return sequence
+			}
+		}
+	}
+	return 1
+}
+
+func advanceQueryResponseSequence(session Session, next byte) {
+	if session == nil {
+		return
+	}
+	if active, ok := session.GetAttribute(queryResponseSequenceActiveAttribute).(bool); ok && active {
+		session.SetAttribute(queryResponseSequenceAttribute, next)
+	}
 }
 
 func mysqlResponseStatusFlags(session Session, mysqlSession server.MySQLServerSession) uint16 {
@@ -1081,6 +1114,12 @@ func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session,
 			session.SetAttribute("__more_results__", false)
 			return h.sendErrorResponse(session, 1064, "42000", "multiple statements are disabled")
 		}
+		session.SetAttribute(queryResponseSequenceActiveAttribute, true)
+		session.SetAttribute(queryResponseSequenceAttribute, byte(1))
+		defer func() {
+			session.SetAttribute(queryResponseSequenceActiveAttribute, false)
+			session.SetAttribute(queryResponseSequenceAttribute, nil)
+		}()
 		for index, statement := range statements {
 			session.SetAttribute("__more_results__", index < len(statements)-1)
 			next := &protocol.QueryMessage{BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_REQUEST, message.SessionID(), statement), SQL: statement, Database: queryMsg.Database}
@@ -1099,13 +1138,24 @@ func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session,
 	statementType := runtimeStatementType(query)
 	database := ""
 	defer func() {
+		// The enhanced path delegates to the real SQL engine, which records the
+		// completed statement and query counters after execution. Recording here
+		// as well would make Questions/Com_* and statement history count twice.
+		if _, delegatedToEngine := h.businessHandler.(*dispatcher.EnhancedBusinessMessageHandler); delegatedToEngine {
+			return
+		}
 		status := "ok"
 		if err != nil {
 			status = "error"
 		}
 		latency := time.Since(startedAt)
 		recorder := metrics.DefaultRuntimeRecorder()
-		recorder.RecordStatementWithThreadID(0, database, query, statementType, status, latency)
+		var metricsSession server.MySQLServerSession
+		if currentMysqlSession != nil {
+			metricsSession = *currentMysqlSession
+		}
+		threadID, user, host := runtimeSessionMetricsIdentity(metricsSession)
+		recorder.RecordStatementWithThreadIDAndIdentity(threadID, user, host, database, query, statementType, status, latency)
 		recorder.RecordQuery(database, statementType, status, latency)
 		if err != nil {
 			recorder.RecordQueryError(database, "execution", "1064")
@@ -1165,9 +1215,9 @@ func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session,
 		if resp.Result != nil {
 			typeStr := strings.ToLower(resp.Result.Type)
 			if typeStr == "set" || typeStr == "ddl" || len(resp.Result.Columns) == 0 && len(resp.Result.Rows) == 0 {
-				return h.sendMySQLOKPacketWithStatusAndWarnings(session, resp.Result.AffectedRows, resp.Result.LastInsertID, 1, mysqlResponseStatusFlags(session, *currentMysqlSession), resp.Result.WarningCount)
+				return h.sendMySQLOKPacketWithStatusAndWarnings(session, resp.Result.AffectedRows, resp.Result.LastInsertID, queryResponseSequence(session), mysqlResponseStatusFlags(session, *currentMysqlSession), resp.Result.WarningCount)
 			}
-			return h.sendQueryResultSet(session, resp.Result, 1)
+			return h.sendQueryResultSet(session, resp.Result, queryResponseSequence(session))
 		}
 		return h.sendMySQLOKPacketWithStatus(session, 0, 0, 1, mysqlResponseStatusFlags(session, *currentMysqlSession))
 	case *protocol.ErrorMessage:
@@ -1183,6 +1233,29 @@ func runtimeStatementType(query string) string {
 		return "UNKNOWN"
 	}
 	return strings.ToUpper(strings.Trim(fields[0], "`"))
+}
+
+func runtimeSessionMetricsIdentity(session server.MySQLServerSession) (int64, string, string) {
+	if session == nil {
+		return 0, "", ""
+	}
+	threadID := int64(0)
+	switch value := session.GetParamByName("connection_id").(type) {
+	case int:
+		threadID = int64(value)
+	case int64:
+		threadID = value
+	case uint32:
+		threadID = int64(value)
+	case uint64:
+		threadID = int64(value)
+	}
+	if threadID == 0 && session.SessionContext() != nil {
+		threadID = int64(session.SessionContext().GetConnectionID())
+	}
+	user, _ := session.GetParamByName("user").(string)
+	host, _ := session.GetParamByName("host").(string)
+	return threadID, user, host
 }
 
 // multiStatementsEnabled applies COM_SET_OPTION as an explicit per-session
@@ -2251,6 +2324,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 			return err
 		}
 	}
+	advanceQueryResponseSequence(session, seqID+1)
 
 	logger.Debugf("[sendQueryResultSet] ✅ 查询结果集发送完成: %d 列, %d 行", len(result.Columns), len(result.Rows))
 

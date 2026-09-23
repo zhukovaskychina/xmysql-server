@@ -144,8 +144,12 @@ func (e *XMySQLExecutor) executeInformationSchemaFilesSelect(query string) *Sele
 		path := informationSchemaSpacePath(e, space)
 		schemaName, tableName := informationSchemaSpaceTableParts(space.Name)
 		var tableRows interface{}
+		var persistedCreateTime interface{}
 		if schemaName != "" && tableName != "" {
 			tableRows = e.physicalTableRowCount(schemaName, tableName)
+			if createdAt := readFrmMetadataCreatedAt(filepath.Join(e.getDataDir(), schemaName, tableName+".frm")); createdAt != "" {
+				persistedCreateTime = createdAt
+			}
 		}
 		pageSize := space.PageSize
 		if pageSize == 0 {
@@ -175,7 +179,7 @@ func (e *XMySQLExecutor) executeInformationSchemaFilesSelect(query string) *Sele
 			"INITIAL_SIZE":         informationSchemaSpaceFileSize(space),
 			"MAXIMUM_SIZE":         nil,
 			"AUTOEXTEND_SIZE":      nil,
-			"CREATION_TIME":        nil,
+			"CREATION_TIME":        persistedCreateTime,
 			"LAST_UPDATE_TIME":     nil,
 			"LAST_ACCESS_TIME":     nil,
 			"RECOVER_TIME":         nil,
@@ -188,7 +192,7 @@ func (e *XMySQLExecutor) executeInformationSchemaFilesSelect(query string) *Sele
 			"MAX_DATA_LENGTH":      nil,
 			"INDEX_LENGTH":         nil,
 			"DATA_FREE":            int64(space.FreePages) * int64(pageSize),
-			"CREATE_TIME":          nil,
+			"CREATE_TIME":          persistedCreateTime,
 			"UPDATE_TIME":          nil,
 			"CHECK_TIME":           nil,
 			"CHECKSUM":             nil,

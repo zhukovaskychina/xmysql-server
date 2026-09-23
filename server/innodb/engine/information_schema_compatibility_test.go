@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 func TestInformationSchemaNativeSelectStarUsesMySQL84ColumnShapes(t *testing.T) {
@@ -59,6 +60,59 @@ func TestInformationSchemaNativeSelectStarUsesMySQL84ColumnShapes(t *testing.T) 
 	}
 }
 
+func TestInformationSchemaTablesProjectsPersistedCreateTime(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database create_time_app")
+	mustExecSQL(t, executor, "create_time_app", "create table created_table (id int primary key)")
+
+	result := mustSelectResultSQL(t, executor, "", "select table_name, create_time from information_schema.tables where table_schema='create_time_app' and table_name='created_table'")
+	rows := make([][]interface{}, 0, len(result.Records))
+	for _, record := range result.Records {
+		raw := make([]interface{}, 0, len(record.GetValues()))
+		for _, value := range record.GetValues() {
+			switch value.Type() {
+			case basic.ValueTypeTinyInt, basic.ValueTypeSmallInt, basic.ValueTypeMediumInt, basic.ValueTypeInt, basic.ValueTypeBigInt:
+				raw = append(raw, value.Int())
+			default:
+				if bytes, ok := value.Raw().([]byte); ok {
+					raw = append(raw, string(bytes))
+				} else {
+					raw = append(raw, value.Raw())
+				}
+			}
+		}
+		rows = append(rows, raw)
+	}
+	require.Len(t, rows, 1)
+	require.Equal(t, "created_table", rows[0][0])
+	require.NotEmpty(t, rows[0][1])
+}
+
+func TestInformationSchemaPartitionsProjectsPersistedCreateTime(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database partition_create_time_app")
+	mustExecSQL(t, executor, "partition_create_time_app", "create table created_partition_table (id int primary key)")
+
+	result := mustSelectResultSQL(t, executor, "", "select table_name, create_time from information_schema.partitions where table_schema='partition_create_time_app' and table_name='created_partition_table'")
+	rows := selectResultRows(result)
+	require.Len(t, rows, 1)
+	require.Equal(t, "created_partition_table", rows[0][0])
+	require.NotEmpty(t, rows[0][1])
+}
+
+func TestInformationSchemaFilesProjectsPersistedCreateTime(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database files_create_time_app")
+	mustExecSQL(t, executor, "files_create_time_app", "create table created_file_table (id int primary key)")
+
+	result := mustSelectResultSQL(t, executor, "", "select table_name, creation_time, create_time from information_schema.files where table_schema='files_create_time_app' and table_name='created_file_table'")
+	rows := selectResultRows(result)
+	require.Len(t, rows, 1)
+	require.Equal(t, "created_file_table", rows[0][0])
+	require.NotEmpty(t, rows[0][1])
+	require.NotEmpty(t, rows[0][2])
+}
+
 func TestInformationSchemaNativeProjectionPreservesNullableColumns(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	mustExecSQL(t, executor, "", "create database app")
@@ -74,6 +128,131 @@ func TestInformationSchemaNativeProjectionPreservesNullableColumns(t *testing.T)
 		require.Nil(t, values[2].Raw())
 		require.Nil(t, values[3].Raw())
 	}
+}
+
+func TestInformationSchemaColumnsProjectsNumericTemporalAndCharacterPrecision(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database precision_app")
+	mustExecSQL(t, executor, "precision_app", "create table typed_values (signed_id int not null, unsigned_id int unsigned, amount decimal(10,2), default_amount decimal, happened_at datetime(6), label varchar(10))")
+
+	result := mustSelectResultSQL(t, executor, "", "select column_name, character_maximum_length, character_octet_length, numeric_precision, numeric_scale, datetime_precision from information_schema.columns where table_schema='precision_app' and table_name='typed_values' order by ordinal_position")
+	rows := make([][]interface{}, 0, len(result.Records))
+	for _, record := range result.Records {
+		raw := make([]interface{}, 0, len(record.GetValues()))
+		for _, value := range record.GetValues() {
+			switch value.Type() {
+			case basic.ValueTypeTinyInt, basic.ValueTypeSmallInt, basic.ValueTypeMediumInt, basic.ValueTypeInt, basic.ValueTypeBigInt:
+				raw = append(raw, value.Int())
+			default:
+				if bytes, ok := value.Raw().([]byte); ok {
+					raw = append(raw, string(bytes))
+				} else {
+					raw = append(raw, value.Raw())
+				}
+			}
+		}
+		rows = append(rows, raw)
+	}
+	require.Len(t, rows, 6)
+	require.Equal(t, []interface{}{"signed_id", nil, nil, int64(10), int64(0), nil}, rows[0])
+	require.Equal(t, []interface{}{"unsigned_id", nil, nil, int64(10), int64(0), nil}, rows[1])
+	require.Equal(t, []interface{}{"amount", nil, nil, int64(10), int64(2), nil}, rows[2])
+	require.Equal(t, []interface{}{"default_amount", nil, nil, int64(10), int64(0), nil}, rows[3])
+	require.Equal(t, []interface{}{"happened_at", nil, nil, nil, nil, int64(6)}, rows[4])
+	require.Equal(t, []interface{}{"label", int64(10), int64(40), nil, nil, nil}, rows[5])
+}
+
+func TestInformationSchemaColumnsInheritTableCharacterSetForOctetLength(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database charset_app")
+	mustExecSQL(t, executor, "charset_app", "create table latin1_values (label varchar(7)) default character set latin1")
+
+	result := mustSelectResultSQL(t, executor, "", "select character_set_name, collation_name, character_maximum_length, character_octet_length from information_schema.columns where table_schema='charset_app' and table_name='latin1_values' and column_name='label'")
+	require.Len(t, result.Records, 1)
+	values := result.Records[0].GetValues()
+	require.Equal(t, "latin1", values[0].String())
+	require.Equal(t, "latin1_swedish_ci", values[1].String())
+	require.Equal(t, int64(7), values[2].Int())
+	require.Equal(t, int64(7), values[3].Int())
+}
+
+func TestInformationSchemaViewColumnsPreserveSourcePrecisionAndCharacterSet(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database view_metadata_app")
+	mustExecSQL(t, executor, "view_metadata_app", "create table source_values (label varchar(7), amount decimal(8,2), happened_at datetime(3)) default character set latin1")
+	mustExecSQL(t, executor, "view_metadata_app", "create view projected_values as select label, amount, happened_at from source_values")
+
+	result := mustSelectResultSQL(t, executor, "", "select column_name, character_set_name, collation_name, character_maximum_length, character_octet_length, numeric_precision, numeric_scale, datetime_precision from information_schema.columns where table_schema='view_metadata_app' and table_name='projected_values' order by ordinal_position")
+	require.Len(t, result.Records, 3)
+
+	label := result.Records[0].GetValues()
+	require.Equal(t, "label", label[0].String())
+	require.Equal(t, "latin1", label[1].String())
+	require.Equal(t, "latin1_swedish_ci", label[2].String())
+	require.Equal(t, int64(7), label[3].Int())
+	require.Equal(t, int64(7), label[4].Int())
+
+	amount := result.Records[1].GetValues()
+	require.Equal(t, "amount", amount[0].String())
+	require.Nil(t, amount[1].Raw())
+	require.Nil(t, amount[2].Raw())
+	require.Equal(t, int64(8), amount[5].Int())
+	require.Equal(t, int64(2), amount[6].Int())
+
+	happenedAt := result.Records[2].GetValues()
+	require.Equal(t, "happened_at", happenedAt[0].String())
+	require.Equal(t, int64(3), happenedAt[7].Int())
+}
+
+func TestInformationSchemaParametersProjectTypePrecision(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database routine_metadata_app")
+	mustExecSQL(t, executor, "routine_metadata_app", "create procedure typed_parameters(IN label varchar(7), IN amount decimal(8,2), IN happened_at datetime(3)) begin select label, amount, happened_at; end")
+
+	result := mustSelectResultSQL(t, executor, "", "select parameter_name, character_maximum_length, character_octet_length, numeric_precision, numeric_scale, datetime_precision from information_schema.parameters where specific_schema='routine_metadata_app' and specific_name='typed_parameters' order by ordinal_position")
+	require.Len(t, result.Records, 3)
+
+	label := result.Records[0].GetValues()
+	require.Equal(t, "label", label[0].String())
+	require.Equal(t, int64(7), label[1].Int())
+	require.Equal(t, int64(28), label[2].Int())
+	require.Nil(t, label[3].Raw())
+	require.Nil(t, label[4].Raw())
+	require.Nil(t, label[5].Raw())
+
+	amount := result.Records[1].GetValues()
+	require.Equal(t, "amount", amount[0].String())
+	require.Equal(t, int64(8), amount[3].Int())
+	require.Equal(t, int64(2), amount[4].Int())
+
+	happenedAt := result.Records[2].GetValues()
+	require.Equal(t, "happened_at", happenedAt[0].String())
+	require.Equal(t, int64(3), happenedAt[5].Int())
+}
+
+func TestInformationSchemaRoutinesProjectReturnTypePrecision(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database routine_return_app")
+	mustExecSQL(t, executor, "routine_return_app", "create function decimal_return(input_value int) returns decimal(8,2) deterministic begin return input_value; end")
+	mustExecSQL(t, executor, "routine_return_app", "create function text_return(input_value int) returns varchar(7) deterministic begin return 'value'; end")
+
+	result := mustSelectResultSQL(t, executor, "", "select routine_schema, routine_name, character_maximum_length, character_octet_length, numeric_precision, numeric_scale, datetime_precision from information_schema.routines where routine_schema='routine_return_app' order by routine_name")
+	require.Len(t, result.Records, 2)
+
+	decimalReturn := result.Records[0].GetValues()
+	require.Equal(t, "decimal_return", decimalReturn[1].String())
+	require.Nil(t, decimalReturn[2].Raw())
+	require.Equal(t, int64(8), decimalReturn[4].Int())
+	require.Equal(t, int64(2), decimalReturn[5].Int())
+	require.Nil(t, decimalReturn[6].Raw())
+
+	textReturn := result.Records[1].GetValues()
+	require.Equal(t, "text_return", textReturn[1].String())
+	require.Equal(t, int64(7), textReturn[2].Int())
+	require.Equal(t, int64(28), textReturn[3].Int())
+	require.Nil(t, textReturn[4].Raw())
+	require.Nil(t, textReturn[5].Raw())
+	require.Nil(t, textReturn[6].Raw())
 }
 
 func TestInformationSchemaSchemataAppliesCatalogAndPropertyFilters(t *testing.T) {
@@ -599,7 +778,6 @@ func TestInformationSchemaPrivilegeViewsRespectSessionVisibility(t *testing.T) {
 	mustExecSQL(t, executor, "", "grant select on app.reader_table to 'priv_reader'@'localhost'")
 	mustExecSQL(t, executor, "", "grant select on app.other_table to 'priv_other'@'localhost'")
 	mustExecSQL(t, executor, "", "grant select on app.* to 'priv_reader'@'localhost'")
-	mustExecSQL(t, executor, "", "grant select on *.* to 'priv_reader'@'localhost'")
 	mustExecSQL(t, executor, "", "grant shutdown on *.* to 'priv_other'@'localhost'")
 
 	session := newTestMySQLSession()
@@ -615,8 +793,23 @@ func TestInformationSchemaPrivilegeViewsRespectSessionVisibility(t *testing.T) {
 	require.NotContains(t, schemaPrivileges, []interface{}{"'priv_other'@'localhost'", "app"})
 
 	userPrivileges := mustQuerySessionSQL(t, executor, session, "", "select grantee, privilege_type from information_schema.user_privileges")
-	require.Contains(t, userPrivileges, []interface{}{"'priv_reader'@'localhost'", "SELECT"})
-	require.NotContains(t, userPrivileges, []interface{}{"'priv_other'@'localhost'", "SHUTDOWN"})
+	require.Empty(t, userPrivileges)
+}
+
+func TestInformationSchemaPrivilegeViewsHonorGlobalMySQLUserVisibility(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database global_visibility_app")
+	mustExecSQL(t, executor, "global_visibility_app", "create table visible_table (id int primary key)")
+	mustExecSQL(t, executor, "", "create user 'visibility_reader'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "create user 'visibility_target'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant select on *.* to 'visibility_reader'@'localhost'")
+	mustExecSQL(t, executor, "", "grant select on global_visibility_app.visible_table to 'visibility_target'@'localhost'")
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "visibility_reader")
+	session.SetParamByName("host", "localhost")
+	rows := mustQuerySessionSQL(t, executor, session, "", "select grantee, table_name from information_schema.table_privileges where table_schema='global_visibility_app' and table_name='visible_table'")
+	require.Contains(t, rows, []interface{}{"'visibility_target'@'localhost'", "visible_table"})
 }
 
 func TestInformationSchemaPrivilegeViewsApplyPrivilegePredicates(t *testing.T) {
@@ -667,6 +860,39 @@ func TestInformationSchemaDiscoversVirtualPerformanceSchemaTablesAndColumns(t *t
 	require.Len(t, columns.Records, 24)
 	require.Equal(t, "THREAD_ID", columns.Records[0].GetValues()[1].String())
 	require.Equal(t, "TELEMETRY_ACTIVE", columns.Records[23].GetValues()[1].String())
+}
+
+func TestInformationSchemaVirtualPerformanceSchemaColumnsProjectTypePrecision(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	result := mustSelectResultSQL(t, executor, "", "select column_name, data_type, character_maximum_length, numeric_precision, numeric_scale, character_set_name from information_schema.columns where table_schema='performance_schema' and table_name='events_statements_summary_global_by_event_name'")
+	rows := selectResultRows(result)
+	var eventName, countStar []interface{}
+	for _, row := range rows {
+		if len(row) == 0 {
+			continue
+		}
+		switch row[0] {
+		case "EVENT_NAME":
+			eventName = row
+		case "COUNT_STAR":
+			countStar = row
+		}
+	}
+	require.NotNil(t, eventName)
+	require.Equal(t, "VARCHAR", eventName[1])
+	require.Equal(t, "255", eventName[2])
+	require.Equal(t, "utf8mb4", eventName[5])
+	require.NotNil(t, countStar)
+	require.Equal(t, "BIGINT", countStar[1])
+	require.Equal(t, "19", countStar[3])
+	require.Equal(t, "0", countStar[4])
+	for _, record := range result.Records {
+		values := record.GetValues()
+		if len(values) > 0 && values[0].String() == "COUNT_STAR" {
+			require.Nil(t, values[2].Raw())
+			require.Nil(t, values[5].Raw())
+		}
+	}
 }
 
 func TestInformationSchemaColumnsDescribesNativeInformationSchemaViews(t *testing.T) {

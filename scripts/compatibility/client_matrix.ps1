@@ -20,6 +20,14 @@ $results = @()
 $serverProcess = $null
 $serverStartedHere = $false
 $serverDir = Join-Path $resolvedReport "server"
+$caseSpecPath = Join-Path $workspaceRoot "scripts/compatibility/client_matrix_cases.json"
+$requiredRunnerCases = @(
+    "connection-auth", "database-ddl-dml", "prepared-statements", "transactions",
+    "null-and-types", "metadata", "multi-result-and-error", "reconnect"
+)
+if (Test-Path -LiteralPath $caseSpecPath) {
+    $requiredRunnerCases = @((Get-Content -LiteralPath $caseSpecPath -Raw | ConvertFrom-Json) | ForEach-Object { $_.name })
+}
 
 function Add-Result([string]$name, [string]$status, [int]$exitCode, [string]$output, [string]$errorMessage = $null) {
     $script:results += [ordered]@{
@@ -65,7 +73,28 @@ function Invoke-Client([string]$name, [string]$command, [string[]]$arguments, [h
         if ($code -eq 125) {
             Add-Result $name "SKIPPED_ENVIRONMENT" $code (($output | Out-String).Trim())
         } elseif ($code -eq 0) {
-            Add-Result $name "PASS" $code (($output | Out-String).Trim())
+            $text = (($output | Out-String).Trim())
+            if ($name -in @("go", "python", "node")) {
+                try {
+                    $runner = $text | ConvertFrom-Json
+                    if ($null -eq $runner.cases) {
+                        Add-Result $name "FAIL" 1 $text "client runner did not return a cases map"
+                        return
+                    }
+                    $missing = @($requiredRunnerCases | Where-Object {
+                        $case = $_
+                        $null -eq $runner.cases.$case -or [string]$runner.cases.$case -ne "PASS"
+                    })
+                    if ($missing.Count -gt 0) {
+                        Add-Result $name "FAIL" 1 $text ("client runner missing passing cases: " + ($missing -join ", "))
+                        return
+                    }
+                } catch {
+                    Add-Result $name "FAIL" 1 $text ("client runner output is not valid JSON: " + $_.Exception.Message)
+                    return
+                }
+            }
+            Add-Result $name "PASS" $code $text
         } else {
             Add-Result $name "FAIL" $code (($output | Out-String).Trim())
         }
@@ -75,6 +104,65 @@ function Invoke-Client([string]$name, [string]$command, [string[]]$arguments, [h
         foreach ($key in $environment.Keys) {
             [Environment]::SetEnvironmentVariable($key, $old[$key])
         }
+    }
+}
+
+function Invoke-MySqlCliMatrix([string]$password) {
+    $oldPassword = [Environment]::GetEnvironmentVariable("MYSQL_PWD")
+    [Environment]::SetEnvironmentVariable("MYSQL_PWD", $password)
+    $commonArguments = @("--protocol=TCP", "-h", "127.0.0.1", "-P", "$Port", "-u", $User, "--batch", "--raw", "--skip-column-names")
+    $cases = [ordered]@{}
+    try {
+        function Invoke-MySqlCase([string]$sql, [bool]$expectFailure = $false) {
+            $output = & mysql @commonArguments @("-e", $sql) 2>&1
+            $code = $LASTEXITCODE
+            if ($expectFailure) {
+                if ($code -eq 0) { throw "expected mysql CLI failure but command succeeded: $sql" }
+                return (($output | Out-String).Trim())
+            }
+            if ($code -ne 0) { throw "mysql CLI command failed ($code): $sql`n$(($output | Out-String).Trim())" }
+            return (($output | Out-String).Trim())
+        }
+
+        if ((Invoke-MySqlCase "SELECT 1") -notmatch "(^|\r?\n)1(\r?\n|$)") { throw "connection-auth did not return 1" }
+        $cases["connection-auth"] = "PASS"
+
+        Invoke-MySqlCase "CREATE DATABASE IF NOT EXISTS client_matrix; CREATE TABLE IF NOT EXISTS client_matrix.matrix_rows(id INT PRIMARY KEY, label VARCHAR(32)); INSERT INTO client_matrix.matrix_rows(id, label) VALUES (1, 'one') ON DUPLICATE KEY UPDATE label=VALUES(label)" | Out-Null
+        $cases["database-ddl-dml"] = "PASS"
+
+        $prepared = Invoke-MySqlCase "PREPARE xmysql_stmt FROM 'SELECT ? + 1'; SET @xmysql_value = 41; EXECUTE xmysql_stmt USING @xmysql_value; DEALLOCATE PREPARE xmysql_stmt"
+        if ($prepared -notmatch "(^|\r?\n)42(\r?\n|$)") { throw "prepared-statements did not return 42" }
+        $cases["prepared-statements"] = "PASS"
+
+        $transaction = Invoke-MySqlCase "START TRANSACTION; INSERT INTO client_matrix.matrix_rows(id, label) VALUES (200000, 'cli-tx'); ROLLBACK; SELECT COUNT(*) FROM client_matrix.matrix_rows WHERE id=200000"
+        if ($transaction -notmatch "(^|\r?\n)0(\r?\n|$)") { throw "transactions did not rollback" }
+        $cases["transactions"] = "PASS"
+
+        $typed = Invoke-MySqlCase "SELECT IF(NULL IS NULL AND CAST(42 AS SIGNED)=42 AND _utf8mb4'兼容'='兼容', 'PASS', 'FAIL')"
+        if ($typed -notmatch "(^|\r?\n)PASS(\r?\n|$)") { throw "null-and-types failed" }
+        $cases["null-and-types"] = "PASS"
+
+        $charset = Invoke-MySqlCase "SELECT IF(_utf8mb4'兼容'='兼容', 'PASS', 'FAIL')"
+        if ($charset -notmatch "(^|\r?\n)PASS(\r?\n|$)") { throw "charset failed" }
+        $cases["charset"] = "PASS"
+
+        $metadata = Invoke-MySqlCase "SELECT IF(COUNT(*) > 0, 'PASS', 'FAIL') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='client_matrix'"
+        if ($metadata -notmatch "(^|\r?\n)PASS(\r?\n|$)") { throw "metadata failed" }
+        $cases["metadata"] = "PASS"
+
+        $multi = Invoke-MySqlCase "SELECT 1 AS first_value; SELECT 2 AS second_value"
+        if ($multi -notmatch "1" -or $multi -notmatch "2") { throw "multi-result did not return both result values" }
+        $errorOutput = Invoke-MySqlCase "SELECT * FROM table_that_does_not_exist" $true
+        if ($errorOutput -notmatch "(?i)table|doesn't exist|unknown table") { throw "multi-result-and-error returned an unexpected error: $errorOutput" }
+        $cases["multi-result-and-error"] = "PASS"
+
+        if ((Invoke-MySqlCase "SELECT 1") -notmatch "(^|\r?\n)1(\r?\n|$)") { throw "reconnect failed" }
+        $cases["reconnect"] = "PASS"
+        Add-Result "mysql-cli" "PASS" 0 (([ordered]@{ client = "mysql-cli"; cases = $cases } | ConvertTo-Json -Compress))
+    } catch {
+        Add-Result "mysql-cli" "FAIL" 1 (([ordered]@{ client = "mysql-cli"; cases = $cases } | ConvertTo-Json -Compress)) $_.Exception.Message
+    } finally {
+        [Environment]::SetEnvironmentVariable("MYSQL_PWD", $oldPassword)
     }
 }
 
@@ -137,11 +225,11 @@ try {
             switch ($name) {
                 "mysql-cli" {
                     if (-not (Test-CommandAvailable "mysql")) { Add-Result $name "SKIPPED_ENVIRONMENT" 125 "mysql executable not found"; continue }
-                    Invoke-Client $name "mysql" @("--protocol=TCP", "-h", "127.0.0.1", "-P", "$Port", "-u", $User, "--batch", "--raw", "-e", "SELECT 1; CREATE DATABASE IF NOT EXISTS client_matrix; SELECT NULL, _utf8mb4'兼容'") @{ MYSQL_PWD = $Password }
+                    Invoke-MySqlCliMatrix $Password
                 }
                 "go" {
                     if (-not (Test-CommandAvailable "go")) { Add-Result $name "SKIPPED_ENVIRONMENT" 125 "go executable not found"; continue }
-                    Invoke-Client $name "go" @("run", "./client_compatibility/go") @{ XMYSQL_CLIENT_DSN = "$User`:$Password@tcp(127.0.0.1`:$Port)/mysql?charset=utf8mb4&parseTime=true" }
+                    Invoke-Client $name "go" @("run", "./client_compatibility/go") @{ XMYSQL_CLIENT_DSN = "$User`:$Password@tcp(127.0.0.1`:$Port)/mysql?charset=utf8mb4&parseTime=true&multiStatements=true" }
                 }
                 "python" {
                     if (-not (Test-CommandAvailable "python")) { Add-Result $name "SKIPPED_ENVIRONMENT" 125 "python executable not found"; continue }

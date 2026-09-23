@@ -127,6 +127,9 @@ func (e *XMySQLEngine) Start(ctx context.Context) error {
 			return fmt.Errorf("failed to start replication runtime: %v", err)
 		}
 	}
+	if e.QueryExecutor != nil {
+		e.QueryExecutor.markServerStarted()
+	}
 
 	logger.Info("✅ XMySQL Engine started successfully")
 	e.ready.Store(true)
@@ -576,6 +579,7 @@ func (e *XMySQLEngine) ActivateAllRolesOnLogin() bool {
 
 func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query string, databaseName string) <-chan *Result {
 	query = rewriteCharsetIntroducers(query)
+	metricsEnabled := e != nil && e.QueryExecutor != nil && e.QueryExecutor.metricsRecorder != nil && runtimeMetricsEnabled(session)
 	// ExecuteQuery normally produces one terminal result, but a few legacy
 	// branches can emit more than one. Collect the worker's results internally
 	// and expose them only after the worker's deferred metrics/slow-query
@@ -598,7 +602,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			pending = append(pending, result)
 		}
 		summary := <-statementSummary
-		if e.QueryExecutor != nil && e.QueryExecutor.metricsRecorder != nil {
+		if metricsEnabled {
 			actorSetting := e.QueryExecutor.performanceSchemaStatementSettingForSession(session)
 			e.QueryExecutor.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccountingWithRowsExaminedAndScan(
 				summary.threadID, summary.user, summary.host, databaseName, strings.TrimSpace(query), metricStatementType(query), summary.status, summary.latency,
@@ -619,7 +623,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 		if session != nil {
 			memoryThreadID = int64(sessionConnectionID(session))
 		}
-		if e.QueryExecutor != nil && e.QueryExecutor.metricsRecorder != nil {
+		if metricsEnabled {
 			e.QueryExecutor.metricsRecorder.RecordMemoryAllocation(memoryThreadID, "memory/sql/THD::main_mem_root", int64(len(query)))
 			defer e.QueryExecutor.metricsRecorder.RecordMemoryFree(memoryThreadID, "memory/sql/THD::main_mem_root", int64(len(query)))
 		}
@@ -637,7 +641,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 				}
 			}
 			e.logSlowQuery(session, query, time.Since(start), rowsAffected, txnID, stage, status, execErr)
-			if e.QueryExecutor != nil && e.QueryExecutor.metricsRecorder != nil {
+			if metricsEnabled {
 				latency := time.Since(start)
 				e.QueryExecutor.metricsRecorder.RecordQuery(databaseName, metricStatementType(query), status, latency)
 				threadID := int64(0)
@@ -663,7 +667,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 				}
 				statementSummary <- statementExecutionSummary{threadID: threadID, user: user, host: host, status: status, latency: latency, rowsExamined: rowsExamined, selectScan: selectScan}
 			}
-			if e.QueryExecutor == nil || e.QueryExecutor.metricsRecorder == nil {
+			if !metricsEnabled {
 				rowsExamined := int64(0)
 				selectScan := int64(0)
 				if statementContext != nil {
@@ -1518,6 +1522,18 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 	}()
 
 	return results
+}
+
+// runtimeMetricsEnabled distinguishes client statements from SQL issued by
+// internal subsystems such as authentication metadata lookup. Internal
+// queries still execute normally, but must not inflate client-facing
+// Questions, Com_* counters, statement history, or error summaries.
+func runtimeMetricsEnabled(session server.MySQLServerSession) bool {
+	if session == nil {
+		return true
+	}
+	enabled, ok := session.GetParamByName("__xmysql_internal_query").(bool)
+	return !ok || !enabled
 }
 
 // ResetSession applies the engine-side rollback and session-state reset used

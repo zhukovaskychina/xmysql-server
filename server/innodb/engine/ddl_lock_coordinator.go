@@ -32,6 +32,7 @@ type tableDDLTableLock struct {
 	owners       map[string]metadataLockOwner
 	waiters      map[string]metadataLockWaiter
 	history      []MetadataLockWaitEdge
+	waitSummary  []MetadataLockWaitEdge
 }
 
 const metadataLockWaitHistoryLimit = 128
@@ -283,11 +284,13 @@ func (l *tableDDLTableLock) recordWaitHistoryLocked(waitingOwner string, waiting
 	}
 	sort.Strings(ownerNames)
 	for _, blockingOwner := range ownerNames {
-		l.history = append(l.history, MetadataLockWaitEdge{
+		edge := MetadataLockWaitEdge{
 			WaitingOwner: waitingOwner, BlockingOwner: blockingOwner,
 			WaitingMode: waiting.mode, BlockingMode: waiting.blockers[blockingOwner],
 			WaitStarted: waiting.waitStarted, WaitDuration: duration,
-		})
+		}
+		l.waitSummary = append(l.waitSummary, edge)
+		l.history = append(l.history, edge)
 		if len(l.history) > metadataLockWaitHistoryLimit {
 			l.history = append([]MetadataLockWaitEdge(nil), l.history[len(l.history)-metadataLockWaitHistoryLimit:]...)
 		}
@@ -497,6 +500,51 @@ func (c *tableDDLCoordinator) MetadataLockWaitHistory() []MetadataLockWaitEdge {
 		return history[i].WaitStarted.Before(history[j].WaitStarted)
 	})
 	return history
+}
+
+// MetadataLockWaitSummary returns all completed owner-aware metadata-lock
+// waits for instance-lifetime Performance Schema summaries. Unlike
+// MetadataLockWaitHistory, this source is not bounded by the history-view
+// retention limit.
+func (c *tableDDLCoordinator) MetadataLockWaitSummary() []MetadataLockWaitEdge {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	tables := make([]string, 0, len(c.locks))
+	locks := make(map[string]*tableDDLTableLock, len(c.locks))
+	for table, lock := range c.locks {
+		tables = append(tables, table)
+		locks[table] = lock
+	}
+	c.mu.Unlock()
+	sort.Strings(tables)
+	summary := make([]MetadataLockWaitEdge, 0)
+	for _, table := range tables {
+		lock := locks[table]
+		if lock == nil {
+			continue
+		}
+		lock.stateMu.Lock()
+		for _, edge := range lock.waitSummary {
+			edge.Table = table
+			summary = append(summary, edge)
+		}
+		lock.stateMu.Unlock()
+	}
+	sort.SliceStable(summary, func(i, j int) bool {
+		if summary[i].WaitStarted.Equal(summary[j].WaitStarted) {
+			if summary[i].Table == summary[j].Table {
+				if summary[i].WaitingOwner == summary[j].WaitingOwner {
+					return summary[i].BlockingOwner < summary[j].BlockingOwner
+				}
+				return summary[i].WaitingOwner < summary[j].WaitingOwner
+			}
+			return summary[i].Table < summary[j].Table
+		}
+		return summary[i].WaitStarted.Before(summary[j].WaitStarted)
+	})
+	return summary
 }
 
 func metadataLockModesConflict(waiting, blocking tableLockMode) bool {

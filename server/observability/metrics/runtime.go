@@ -32,6 +32,43 @@ type StatementEvent struct {
 	Warnings      int64
 }
 
+// StatementSummaryRow is an instance-lifetime aggregate for one statement
+// type and execution identity. It is separate from StatementEvent because
+// Performance Schema history is intentionally bounded while summary tables
+// continue accumulating until the recorder is recreated or reset.
+type StatementSummaryRow struct {
+	ThreadID        int64
+	User            string
+	Host            string
+	Schema          string
+	StatementType   string
+	SQL             string
+	Count           int64
+	SumTimerWait    int64
+	MinTimerWait    int64
+	MaxTimerWait    int64
+	Errors          int64
+	Warnings        int64
+	RowsAffected    int64
+	RowsSent        int64
+	RowsExamined    int64
+	SelectScan      int64
+	FirstSeen       time.Time
+	LastSeen        time.Time
+	SampleSeen      time.Time
+	SampleTimerWait int64
+	LatencySamples  []int64
+}
+
+type statementSummaryKey struct {
+	threadID      int64
+	user          string
+	host          string
+	schema        string
+	statementType string
+	sql           string
+}
+
 // MemorySummaryRow is the bounded memory lifecycle snapshot exposed to
 // Performance Schema compatibility views. Bytes are tracked at instrument
 // boundaries, rather than inferred from Go heap statistics.
@@ -121,21 +158,25 @@ type memorySummaryKey struct {
 // It is intentionally small and dependency-free so execution, transaction,
 // lock, recovery, and checkpoint paths can adopt it incrementally.
 type RuntimeRecorder struct {
-	registry         *Registry
-	statementMu      sync.RWMutex
-	statementEvents  []StatementEvent
-	memoryMu         sync.RWMutex
-	memoryRows       map[memorySummaryKey]*MemorySummaryRow
-	errorMu          sync.RWMutex
-	errorRows        map[string]*ErrorSummaryRow
-	errorByIdentity  map[string]*ErrorIdentitySummaryRow
-	errorLog         []ErrorLogEvent
-	authMu           sync.RWMutex
-	failedLogins     map[string]int64
-	connectionMu     sync.RWMutex
-	connectionTotals map[string]int64
-	fileIOMu         sync.Mutex
-	fileIO           *fileSummaryRecorder
+	registry          *Registry
+	statementMu       sync.RWMutex
+	statementEvents   []StatementEvent
+	statementSummary  map[statementSummaryKey]*StatementSummaryRow
+	memoryMu          sync.RWMutex
+	memoryRows        map[memorySummaryKey]*MemorySummaryRow
+	errorMu           sync.RWMutex
+	errorRows         map[string]*ErrorSummaryRow
+	errorByIdentity   map[string]*ErrorIdentitySummaryRow
+	errorLog          []ErrorLogEvent
+	authMu            sync.RWMutex
+	failedLogins      map[string]int64
+	authFailuresTotal int64
+	connectionMu      sync.RWMutex
+	connectionTotals  map[string]int64
+	queryMu           sync.RWMutex
+	queryTotals       map[string]int64
+	fileIOMu          sync.Mutex
+	fileIO            *fileSummaryRecorder
 }
 
 // NewRuntimeRecorder creates a recorder backed by registry.
@@ -143,12 +184,14 @@ func NewRuntimeRecorder(registry *Registry) *RuntimeRecorder {
 	return &RuntimeRecorder{
 		registry:         registry,
 		statementEvents:  make([]StatementEvent, 0, statementHistoryLimit),
+		statementSummary: make(map[statementSummaryKey]*StatementSummaryRow),
 		memoryRows:       make(map[memorySummaryKey]*MemorySummaryRow),
 		errorRows:        make(map[string]*ErrorSummaryRow),
 		errorByIdentity:  make(map[string]*ErrorIdentitySummaryRow),
 		errorLog:         make([]ErrorLogEvent, 0, errorLogLimit),
 		failedLogins:     make(map[string]int64),
 		connectionTotals: make(map[string]int64),
+		queryTotals:      make(map[string]int64),
 		fileIO:           newFileSummaryRecorder(),
 	}
 }
@@ -210,7 +253,21 @@ func (r *RuntimeRecorder) RecordAuthenticationFailure(user, host string) {
 		r.failedLogins = make(map[string]int64)
 	}
 	r.failedLogins[key]++
+	r.authFailuresTotal++
 	r.authMu.Unlock()
+}
+
+// AuthenticationFailuresTotal returns the server-lifetime count of failed
+// authentication attempts. It intentionally does not reset when a later
+// successful login clears the active connection-control counter.
+func (r *RuntimeRecorder) AuthenticationFailuresTotal() int64 {
+	if r == nil {
+		return 0
+	}
+	r.authMu.RLock()
+	total := r.authFailuresTotal
+	r.authMu.RUnlock()
+	return total
 }
 
 // RecordAuthenticationSuccess resets the account's consecutive failed-login
@@ -362,6 +419,48 @@ func (r *RuntimeRecorder) RecordStatementWithThreadIDAndIdentityAndAccountingWit
 	}
 	r.statementMu.Lock()
 	defer r.statementMu.Unlock()
+	key := statementSummaryKey{
+		threadID: threadID, user: user, host: host, schema: database, statementType: statementType, sql: sql,
+	}
+	summary := r.statementSummary[key]
+	if summary == nil {
+		summary = &StatementSummaryRow{
+			ThreadID: threadID, User: user, Host: host, Schema: database, StatementType: statementType, SQL: sql,
+		}
+		r.statementSummary[key] = summary
+	}
+	timer := latency.Nanoseconds() * 1000
+	if timer < 0 {
+		timer = 0
+	}
+	summary.Count++
+	summary.SumTimerWait += timer
+	if summary.Count == 1 {
+		summary.FirstSeen = event.Time
+		summary.SampleSeen = event.Time
+		summary.SampleTimerWait = timer
+	}
+	if summary.FirstSeen.IsZero() || event.Time.Before(summary.FirstSeen) {
+		summary.FirstSeen = event.Time
+	}
+	if summary.LastSeen.IsZero() || event.Time.After(summary.LastSeen) {
+		summary.LastSeen = event.Time
+	}
+	if summary.Count == 1 || timer < summary.MinTimerWait {
+		summary.MinTimerWait = timer
+	}
+	if timer > summary.MaxTimerWait {
+		summary.MaxTimerWait = timer
+	}
+	if strings.EqualFold(status, "error") {
+		summary.Errors++
+	}
+	summary.Warnings += warnings
+	summary.RowsAffected += rowsAffected
+	summary.RowsSent += rowsSent
+	summary.RowsExamined += rowsExamined
+	summary.SelectScan += selectScan
+	summary.LatencySamples = append(summary.LatencySamples, timer)
 	if len(r.statementEvents) >= statementHistoryLimit {
 		copy(r.statementEvents, r.statementEvents[1:])
 		r.statementEvents = r.statementEvents[:statementHistoryLimit-1]
@@ -377,6 +476,44 @@ func (r *RuntimeRecorder) StatementHistory() []StatementEvent {
 	r.statementMu.RLock()
 	defer r.statementMu.RUnlock()
 	return append([]StatementEvent(nil), r.statementEvents...)
+}
+
+// StatementSummary returns a deterministic copy of instance-lifetime
+// statement aggregates. Unlike StatementHistory, this snapshot is not
+// truncated at statementHistoryLimit.
+func (r *RuntimeRecorder) StatementSummary() []StatementSummaryRow {
+	if r == nil {
+		return nil
+	}
+	r.statementMu.RLock()
+	rows := make([]StatementSummaryRow, 0, len(r.statementSummary))
+	for _, row := range r.statementSummary {
+		if row != nil {
+			copyRow := *row
+			copyRow.LatencySamples = append([]int64(nil), row.LatencySamples...)
+			rows = append(rows, copyRow)
+		}
+	}
+	r.statementMu.RUnlock()
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].ThreadID != rows[j].ThreadID {
+			return rows[i].ThreadID < rows[j].ThreadID
+		}
+		if rows[i].User != rows[j].User {
+			return rows[i].User < rows[j].User
+		}
+		if rows[i].Host != rows[j].Host {
+			return rows[i].Host < rows[j].Host
+		}
+		if rows[i].Schema != rows[j].Schema {
+			return rows[i].Schema < rows[j].Schema
+		}
+		if rows[i].StatementType != rows[j].StatementType {
+			return rows[i].StatementType < rows[j].StatementType
+		}
+		return rows[i].SQL < rows[j].SQL
+	})
+	return rows
 }
 
 // RecordMemoryAllocation records one instrumented allocation and updates its
@@ -527,6 +664,16 @@ func (r *RuntimeRecorder) FileSummary() []FileSummaryRow {
 
 // RecordQuery records one completed query.
 func (r *RuntimeRecorder) RecordQuery(database, statementType, status string, latency time.Duration) {
+	if r == nil {
+		return
+	}
+	statementType = strings.ToLower(strings.TrimSpace(statementType))
+	r.queryMu.Lock()
+	if r.queryTotals == nil {
+		r.queryTotals = make(map[string]int64)
+	}
+	r.queryTotals[statementType]++
+	r.queryMu.Unlock()
 	labels := Labels{
 		"database": database,
 		"status":   status,
@@ -537,6 +684,23 @@ func (r *RuntimeRecorder) RecordQuery(database, statementType, status string, la
 		"statement_type": statementType,
 		"status":         status,
 	})
+}
+
+// QueryTotals returns server-lifetime query counts grouped by normalized
+// statement type. Unlike StatementHistory, these counters are not bounded by
+// the Performance Schema history size and are suitable for global status
+// counters such as Com_select and Questions.
+func (r *RuntimeRecorder) QueryTotals() map[string]int64 {
+	if r == nil {
+		return nil
+	}
+	r.queryMu.RLock()
+	totals := make(map[string]int64, len(r.queryTotals))
+	for statementType, count := range r.queryTotals {
+		totals[statementType] = count
+	}
+	r.queryMu.RUnlock()
+	return totals
 }
 
 // PrometheusText returns the live registry snapshot for compatibility views

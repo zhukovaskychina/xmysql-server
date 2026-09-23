@@ -47,6 +47,7 @@ var jdbcTableCatIdentifierPattern = regexp.MustCompile(`(?i)(^|[^a-z0-9_])table_
 type XMySQLExecutor struct {
 	infosSchemaManager metadata.InfoSchemaManager // 信息模式管理器
 	conf               *conf.Cfg                  // 配置项
+	serverStartedAt    time.Time                  // runtime start time used by status/observability views
 	ctx                *ExecutionContext          // 执行上下文
 	results            chan *Result               // 结果通道
 
@@ -99,6 +100,7 @@ type XMySQLExecutor struct {
 	performanceSchemaTransactionHistoryLong []performanceSchemaTransactionEvent
 	performanceSchemaTransactionSummaries   []performanceSchemaTransactionEvent
 	performanceSchemaProgramHistoryLong     []performanceSchemaProgramEvent
+	performanceSchemaProgramSummaries       map[string]performanceSchemaProgramEvent
 	optimizerTraceMu                        sync.RWMutex
 	optimizerTraces                         []optimizerTraceEntry
 	activeTransactions                      atomic.Int64
@@ -183,23 +185,25 @@ func NewXMySQLExecutor(infosSchemaManager metadata.InfoSchemaManager, conf *conf
 		}
 	}
 	return &XMySQLExecutor{
-		infosSchemaManager:             infosSchemaManager,
-		conf:                           conf,
-		metricsRecorder:                observabilitymetrics.DefaultRuntimeRecorder(),
-		eventScheduler:                 NewEventScheduler(false),
-		ddlCoordinator:                 newTableDDLCoordinator(),
-		performanceSchemaConsumers:     defaultPerformanceSchemaConsumers(),
-		performanceSchemaInstruments:   defaultPerformanceSchemaInstruments(),
-		performanceSchemaObjects:       defaultPerformanceSchemaObjects(),
-		performanceSchemaLoggers:       defaultPerformanceSchemaLoggers(),
-		performanceSchemaMeters:        defaultPerformanceSchemaMeters(),
-		performanceSchemaActors:        performanceSchemaActorSetting{Enabled: true, History: true},
-		performanceSchemaActorSessions: make(map[server.MySQLServerSession]performanceSchemaActorSetting),
-		optimizerTraces:                make([]optimizerTraceEntry, 0, optimizerTraceHistoryLimit),
-		activeQueries:                  make(map[server.MySQLServerSession]activeQueryHandle),
-		activeStatements:               make(map[server.MySQLServerSession]activeStatement),
-		xaPrepared:                     make(map[string]*xaPreparedTransaction),
-		xaSuspended:                    make(map[string]*xaSuspendedTransaction),
+		infosSchemaManager:                infosSchemaManager,
+		conf:                              conf,
+		serverStartedAt:                   time.Now(),
+		metricsRecorder:                   observabilitymetrics.DefaultRuntimeRecorder(),
+		eventScheduler:                    NewEventScheduler(false),
+		ddlCoordinator:                    newTableDDLCoordinator(),
+		performanceSchemaConsumers:        defaultPerformanceSchemaConsumers(),
+		performanceSchemaInstruments:      defaultPerformanceSchemaInstruments(),
+		performanceSchemaObjects:          defaultPerformanceSchemaObjects(),
+		performanceSchemaLoggers:          defaultPerformanceSchemaLoggers(),
+		performanceSchemaMeters:           defaultPerformanceSchemaMeters(),
+		performanceSchemaActors:           performanceSchemaActorSetting{Enabled: true, History: true},
+		performanceSchemaActorSessions:    make(map[server.MySQLServerSession]performanceSchemaActorSetting),
+		performanceSchemaProgramSummaries: make(map[string]performanceSchemaProgramEvent),
+		optimizerTraces:                   make([]optimizerTraceEntry, 0, optimizerTraceHistoryLimit),
+		activeQueries:                     make(map[server.MySQLServerSession]activeQueryHandle),
+		activeStatements:                  make(map[server.MySQLServerSession]activeStatement),
+		xaPrepared:                        make(map[string]*xaPreparedTransaction),
+		xaSuspended:                       make(map[string]*xaSuspendedTransaction),
 	}
 }
 
@@ -6774,7 +6778,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatementsSelect(query string) 
 		latencies                                                  []int64
 	}
 	aggregates := make(map[string]*digestAggregate)
-	for _, event := range e.metricsRecorder.StatementHistory() {
+	for _, event := range e.metricsRecorder.StatementSummary() {
 		digestText := performanceSchemaDigestText(event.SQL)
 		key := event.Schema + "\x00" + digestText
 		aggregate := aggregates[key]
@@ -6782,48 +6786,36 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatementsSelect(query string) 
 			digest := sha256.Sum256([]byte(digestText))
 			aggregate = &digestAggregate{
 				schema: event.Schema, digest: fmt.Sprintf("%x", digest[:]), digestText: digestText,
-				min: -1, sample: event.SQL, sampleSeen: event.Time,
+				min: -1, sample: event.SQL, sampleSeen: event.SampleSeen,
 			}
 			aggregates[key] = aggregate
 		}
-		timer := event.Latency.Nanoseconds() * 1000
-		if timer < 0 {
-			timer = 0
+		if aggregate.count == 0 || (!event.FirstSeen.IsZero() && event.FirstSeen.Before(aggregate.firstSeen)) {
+			aggregate.firstSeen = event.FirstSeen
 		}
-		if aggregate.count == 0 {
-			aggregate.firstSeen = event.Time
-			aggregate.sampleTimer = timer
+		if aggregate.count == 0 || (!event.SampleSeen.IsZero() && event.SampleSeen.Before(aggregate.sampleSeen)) {
+			aggregate.sampleSeen = event.SampleSeen
+			aggregate.sample = event.SQL
+			aggregate.sampleTimer = event.SampleTimerWait
 		}
-		if aggregate.firstSeen.IsZero() || (!event.Time.IsZero() && event.Time.Before(aggregate.firstSeen)) {
-			aggregate.firstSeen = event.Time
+		if aggregate.lastSeen.IsZero() || event.LastSeen.After(aggregate.lastSeen) {
+			aggregate.lastSeen = event.LastSeen
 		}
-		if aggregate.lastSeen.IsZero() || event.Time.After(aggregate.lastSeen) {
-			aggregate.lastSeen = event.Time
+		aggregate.count += event.Count
+		aggregate.sum += event.SumTimerWait
+		if aggregate.min < 0 || event.MinTimerWait < aggregate.min {
+			aggregate.min = event.MinTimerWait
 		}
-		if aggregate.sampleSeen.IsZero() {
-			aggregate.sampleSeen = event.Time
+		if event.MaxTimerWait > aggregate.max {
+			aggregate.max = event.MaxTimerWait
 		}
-		aggregate.count++
-		aggregate.sum += timer
-		if aggregate.min < 0 || timer < aggregate.min {
-			aggregate.min = timer
-		}
-		if timer > aggregate.max {
-			aggregate.max = timer
-		}
-		aggregate.latencies = append(aggregate.latencies, timer)
-		if strings.EqualFold(event.Status, "error") {
-			aggregate.errors++
-		}
+		aggregate.latencies = append(aggregate.latencies, event.LatencySamples...)
+		aggregate.errors += event.Errors
 		aggregate.warnings += event.Warnings
 		aggregate.rowsAffected += event.RowsAffected
 		aggregate.rowsSent += event.RowsSent
 		aggregate.rowsExamined += event.RowsExamined
 		aggregate.selectScan += event.SelectScan
-		if aggregate.sample == "" {
-			aggregate.sample = event.SQL
-			aggregate.sampleTimer = timer
-		}
 	}
 	keys := make([]string, 0, len(aggregates))
 	for key := range aggregates {
@@ -7213,16 +7205,14 @@ func (e *XMySQLExecutor) executePerformanceSchemaStageSummarySelect(query string
 		return newInformationSchemaSelectResult(name, columns, nil)
 	}
 	byKey := make(map[string]*performanceSchemaWaitSummary)
-	for _, event := range e.metricsRecorder.StatementHistory() {
+	for _, event := range e.metricsRecorder.StatementSummary() {
 		if byThread && !performanceSchemaSummaryFilterMatches(query, "thread_id", fmt.Sprint(event.ThreadID)) {
 			continue
 		}
-		timer := performanceSchemaTimerWait(event.Latency)
-		if !instrumentTimed {
-			timer = 0
-		}
-		if timer < 0 {
-			timer = 0
+		count := event.Count
+		timerSum, timerMin, timerMax := int64(0), int64(0), int64(0)
+		if instrumentTimed {
+			timerSum, timerMin, timerMax = event.SumTimerWait, event.MinTimerWait, event.MaxTimerWait
 		}
 		key := "stage/sql/execute"
 		if byThread {
@@ -7230,16 +7220,16 @@ func (e *XMySQLExecutor) executePerformanceSchemaStageSummarySelect(query string
 		}
 		summary := byKey[key]
 		if summary == nil {
-			summary = &performanceSchemaWaitSummary{threadID: event.ThreadID, event: "stage/sql/execute", min: timer, max: timer}
+			summary = &performanceSchemaWaitSummary{threadID: event.ThreadID, event: "stage/sql/execute", min: timerMin, max: timerMax}
 			byKey[key] = summary
 		}
-		summary.count++
-		summary.sum += timer
-		if timer < summary.min {
-			summary.min = timer
+		summary.count += count
+		summary.sum += timerSum
+		if timerMin < summary.min {
+			summary.min = timerMin
 		}
-		if timer > summary.max {
-			summary.max = timer
+		if timerMax > summary.max {
+			summary.max = timerMax
 		}
 	}
 	values := make([]performanceSchemaWaitSummary, 0, len(byKey))
@@ -7376,7 +7366,10 @@ type performanceSchemaProgramEvent struct {
 	ObjectType        string
 	ObjectSchema      string
 	ObjectName        string
+	Count             int64
 	TimerWait         int64
+	TimerWaitMin      int64
+	TimerWaitMax      int64
 	StatementCount    int64
 	StatementsWaitSum int64
 	StatementsWaitMin int64
@@ -7432,11 +7425,46 @@ func (e *XMySQLExecutor) recordPerformanceSchemaProgramExecution(objectType, sch
 	}
 	e.performanceSchemaMu.Lock()
 	defer e.performanceSchemaMu.Unlock()
+	if e.performanceSchemaProgramSummaries == nil {
+		e.performanceSchemaProgramSummaries = make(map[string]performanceSchemaProgramEvent)
+	}
+	key := objectType + "\x00" + schema + "\x00" + name
+	summary := e.performanceSchemaProgramSummaries[key]
+	if summary.Count == 0 {
+		summary.ObjectType = objectType
+		summary.ObjectSchema = schema
+		summary.ObjectName = name
+		summary.TimerWaitMin = timerWait
+		summary.TimerWaitMax = timerWait
+	}
+	summary.Count++
+	summary.TimerWait += timerWait
+	if timerWait < summary.TimerWaitMin {
+		summary.TimerWaitMin = timerWait
+	}
+	if timerWait > summary.TimerWaitMax {
+		summary.TimerWaitMax = timerWait
+	}
+	summary.StatementCount += statementCount
+	summary.StatementsWaitSum += statementsWaitSum
+	if statementCount > 0 {
+		if summary.StatementsWaitMin == 0 || statementsWaitMin < summary.StatementsWaitMin {
+			summary.StatementsWaitMin = statementsWaitMin
+		}
+		if statementsWaitMax > summary.StatementsWaitMax {
+			summary.StatementsWaitMax = statementsWaitMax
+		}
+	}
+	summary.Errors += errors
+	summary.Warnings += warnings
+	summary.RowsAffected += rowsAffected
+	summary.RowsSent += rowsSent
+	e.performanceSchemaProgramSummaries[key] = summary
 	if len(e.performanceSchemaProgramHistoryLong) >= performanceSchemaProgramHistoryLongLimit {
 		e.performanceSchemaProgramHistoryLong = e.performanceSchemaProgramHistoryLong[1:]
 	}
 	e.performanceSchemaProgramHistoryLong = append(e.performanceSchemaProgramHistoryLong, performanceSchemaProgramEvent{
-		ObjectType: objectType, ObjectSchema: schema, ObjectName: name,
+		ObjectType: objectType, ObjectSchema: schema, ObjectName: name, Count: 1,
 		TimerWait: timerWait, StatementCount: statementCount, StatementsWaitSum: statementsWaitSum,
 		StatementsWaitMin: statementsWaitMin, StatementsWaitMax: statementsWaitMax, Errors: errors,
 		Warnings: warnings, RowsAffected: rowsAffected, RowsSent: rowsSent,
@@ -7494,9 +7522,9 @@ func (e *XMySQLExecutor) recordPerformanceSchemaTransactionHistory(session serve
 	}, User: sessionStringParam(session, "user"), Host: sessionStringParam(session, "host"), TimerWait: timerWait}
 	session.SetParamByName("performance_schema_transaction_started_at", nil)
 	e.performanceSchemaMu.Lock()
-	if len(e.performanceSchemaTransactionSummaries) >= performanceSchemaTransactionHistoryLongLimit {
-		e.performanceSchemaTransactionSummaries = e.performanceSchemaTransactionSummaries[1:]
-	}
+	// Summary consumers need instance-lifetime totals; only the dedicated
+	// history-long slice below is bounded to the Performance Schema history
+	// window.
 	e.performanceSchemaTransactionSummaries = append(e.performanceSchemaTransactionSummaries, event)
 	if keepLongHistory {
 		if len(e.performanceSchemaTransactionHistoryLong) >= performanceSchemaTransactionHistoryLongLimit {
@@ -8288,18 +8316,42 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatusSelect(name, query string
 	}
 	threadsConnected := "0"
 	threadsRunning := "0"
+	connections := "0"
+	abortedConnections := "0"
+	questions := int64(0)
+	commandCounts := make(map[string]int64)
+	if e != nil && e.metricsRecorder != nil {
+		var total int64
+		for _, account := range e.metricsRecorder.ConnectionTotals() {
+			total += account.TotalConnections
+		}
+		connections = strconv.FormatInt(total, 10)
+		abortedConnections = strconv.FormatInt(e.metricsRecorder.AuthenticationFailuresTotal(), 10)
+		if !strings.HasSuffix(name, "session_status") {
+			for statementType, count := range e.metricsRecorder.QueryTotals() {
+				questions += count
+				if variableName := performanceSchemaCommandStatusVariable(statementType); variableName != "" {
+					commandCounts[variableName] += count
+				}
+			}
+		}
+	}
 	if strings.HasSuffix(name, "session_status") {
 		if len(current) > 0 && current[0] != nil {
 			threadsConnected = "1"
 			threadID, _, _ := performanceSchemaSessionIdentity(current[0])
 			if e != nil && e.metricsRecorder != nil {
-				count := 0
-				for _, event := range e.metricsRecorder.StatementHistory() {
+				count := int64(0)
+				for _, event := range e.metricsRecorder.StatementSummary() {
 					if event.ThreadID == threadID {
-						count++
+						count += event.Count
+						questions += event.Count
+						if variableName := performanceSchemaCommandStatusVariable(event.StatementType); variableName != "" {
+							commandCounts[variableName] += event.Count
+						}
 					}
 				}
-				queryCount = strconv.Itoa(count)
+				queryCount = strconv.FormatInt(count, 10)
 			}
 			for _, event := range e.activeStatementEvents() {
 				if event.ThreadID == threadID {
@@ -8321,8 +8373,19 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatusSelect(name, query string
 	rows := [][]interface{}{
 		{"Threads_connected", threadsConnected},
 		{"Threads_running", threadsRunning},
+		{"Connections", connections},
+		{"Aborted_connects", abortedConnections},
+		{"Questions", strconv.FormatInt(questions, 10)},
 		{"Queries", queryCount},
-		{"Uptime", "0"},
+		{"Uptime", e.performanceSchemaUptimeSeconds()},
+	}
+	for _, variableName := range []string{
+		"Com_select", "Com_insert", "Com_update", "Com_delete", "Com_begin", "Com_commit", "Com_rollback", "Com_show",
+		"Com_replace", "Com_truncate", "Com_set_option", "Com_flush", "Com_call_procedure",
+		"Com_change_db", "Com_explain", "Com_describe", "Com_analyze", "Com_savepoint", "Com_grant", "Com_revoke",
+		"Com_lock_tables", "Com_unlock_tables", "Com_kill", "Com_reset",
+	} {
+		rows = append(rows, []interface{}{variableName, strconv.FormatInt(commandCounts[variableName], 10)})
 	}
 	if query != "" {
 		rows = filterPerformanceSchemaVariableRows(query, rows)
@@ -8338,6 +8401,78 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatusSelect(name, query string
 		}))
 	}
 	return newInformationSchemaSelectResult(name, columns, projected)
+}
+
+func performanceSchemaCommandStatusVariable(statementType string) string {
+	switch strings.ToLower(strings.TrimSpace(statementType)) {
+	case "select":
+		return "Com_select"
+	case "insert":
+		return "Com_insert"
+	case "update":
+		return "Com_update"
+	case "delete":
+		return "Com_delete"
+	case "begin", "start":
+		return "Com_begin"
+	case "commit":
+		return "Com_commit"
+	case "rollback":
+		return "Com_rollback"
+	case "show":
+		return "Com_show"
+	case "replace":
+		return "Com_replace"
+	case "truncate":
+		return "Com_truncate"
+	case "set":
+		return "Com_set_option"
+	case "flush":
+		return "Com_flush"
+	case "call":
+		return "Com_call_procedure"
+	case "use":
+		return "Com_change_db"
+	case "explain":
+		return "Com_explain"
+	case "describe", "desc":
+		return "Com_describe"
+	case "analyze":
+		return "Com_analyze"
+	case "savepoint":
+		return "Com_savepoint"
+	case "grant":
+		return "Com_grant"
+	case "revoke":
+		return "Com_revoke"
+	case "lock":
+		return "Com_lock_tables"
+	case "unlock":
+		return "Com_unlock_tables"
+	case "kill":
+		return "Com_kill"
+	case "reset":
+		return "Com_reset"
+	default:
+		return ""
+	}
+}
+
+func (e *XMySQLExecutor) performanceSchemaUptimeSeconds() string {
+	if e == nil || e.serverStartedAt.IsZero() {
+		return "0"
+	}
+	elapsed := time.Since(e.serverStartedAt)
+	if elapsed < 0 {
+		return "0"
+	}
+	return strconv.FormatInt(int64(elapsed/time.Second), 10)
+}
+
+func (e *XMySQLExecutor) markServerStarted() {
+	if e != nil {
+		e.serverStartedAt = time.Now()
+	}
 }
 
 func (e *XMySQLExecutor) executePerformanceSchemaThreadsSelect(query string, current ...server.MySQLServerSession) *SelectResult {
@@ -9569,7 +9704,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaWaitSummarySelect(query string,
 		}
 	}
 	if e != nil && e.lockManager != nil {
-		for _, edge := range e.lockManager.WaitHistorySnapshot() {
+		for _, edge := range e.lockManager.WaitSummarySnapshot() {
 			included, wait := e.performanceSchemaObservedWait("wait/lock/table/sql/handler", edge.WaitDuration)
 			if included {
 				add(int64(edge.WaitingTxID), "wait/lock/table/sql/handler", wait)
@@ -9577,7 +9712,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaWaitSummarySelect(query string,
 		}
 	}
 	if e != nil {
-		for _, edge := range e.getDDLCoordinator().MetadataLockWaitHistory() {
+		for _, edge := range e.getDDLCoordinator().MetadataLockWaitSummary() {
 			included, wait := e.performanceSchemaObservedWait("wait/lock/metadata/sql/mdl", edge.WaitDuration)
 			if included {
 				if id, ok := metadataLockThreadID(edge.WaitingOwner).(int64); ok {
@@ -9762,7 +9897,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaTableLockWaitSummarySelect(quer
 		}
 	}
 	if e != nil && e.lockManager != nil {
-		for _, edge := range e.lockManager.WaitHistorySnapshot() {
+		for _, edge := range e.lockManager.WaitSummarySnapshot() {
 			included, wait := e.performanceSchemaObservedWait("wait/lock/table/sql/handler", edge.WaitDuration)
 			if included {
 				add("TABLE", "", edge.ResourceID, wait, edge.LockType, false)
@@ -9770,7 +9905,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaTableLockWaitSummarySelect(quer
 		}
 	}
 	if e != nil {
-		for _, edge := range e.getDDLCoordinator().MetadataLockWaitHistory() {
+		for _, edge := range e.getDDLCoordinator().MetadataLockWaitSummary() {
 			included, wait := e.performanceSchemaObservedWait("wait/lock/metadata/sql/mdl", edge.WaitDuration)
 			if included {
 				schema, table := compatibilityQualifiedTable(edge.Table, "")
@@ -10189,6 +10324,9 @@ func (e *XMySQLExecutor) executeInformationSchemaPartitionsSelect(query string) 
 			"PARTITION_DESCRIPTION": nil, "TABLE_ROWS": int64(0), "AVG_ROW_LENGTH": int64(0), "DATA_LENGTH": int64(0),
 			"MAX_DATA_LENGTH": nil, "INDEX_LENGTH": int64(0), "DATA_FREE": int64(0), "CREATE_TIME": nil, "UPDATE_TIME": nil,
 			"CHECK_TIME": nil, "CHECKSUM": nil, "PARTITION_COMMENT": "", "NODEGROUP": nil, "TABLESPACE_NAME": nil,
+		}
+		if table.createdAt != "" {
+			values["CREATE_TIME"] = table.createdAt
 		}
 		partitionRows := e.partitionRowsForTable(table.schemaName, table.tableName)
 		if len(partitionRows) == 0 {
@@ -10797,12 +10935,16 @@ func (e *XMySQLExecutor) executeInformationSchemaTablesSelect(query string, sess
 		engineName, tableCollation, createOptions := persistedTableDisplayOptions(e, table.schemaName, table.tableName)
 		rowFormat := persistedTableRowFormat(e, table.schemaName, table.tableName)
 		autoIncrement := persistedAutoIncrementValue(e.getDataDir(), table.schemaName, table.tableName, table.columns)
+		var createTime interface{}
+		if table.createdAt != "" {
+			createTime = table.createdAt
+		}
 		values := map[string]interface{}{
 			"TABLE_CATALOG": "def", "TABLE_SCHEMA": table.schemaName, "TABLE_NAME": visibleTableName,
 			"TABLE_TYPE": "TABLE", "ENGINE": engineName, "VERSION": int64(10),
 			"ROW_FORMAT": rowFormat, "TABLE_ROWS": rowCount, "AVG_ROW_LENGTH": avgRowLength,
 			"DATA_LENGTH": dataLength, "MAX_DATA_LENGTH": nil, "INDEX_LENGTH": indexLength,
-			"DATA_FREE": int64(0), "AUTO_INCREMENT": autoIncrement, "CREATE_TIME": nil, "UPDATE_TIME": nil,
+			"DATA_FREE": int64(0), "AUTO_INCREMENT": autoIncrement, "CREATE_TIME": createTime, "UPDATE_TIME": nil,
 			"CHECK_TIME": nil, "TABLE_COLLATION": tableCollation, "CHECKSUM": nil,
 			"CREATE_OPTIONS": createOptions, "TABLE_COMMENT": persistedTableComment(e, table.schemaName, table.tableName),
 			// JDBC's historical aliases are kept as first-class projections.
@@ -11017,11 +11159,17 @@ func (e *XMySQLExecutor) executeInformationSchemaColumnsSelect(query string, ses
 			if !metadataPatternMatches(column.name, columnPattern) {
 				continue
 			}
+			if strings.TrimSpace(column.charset) == "" && strings.TrimSpace(table.charset) != "" && informationSchemaCharacterSet(column.typeName) != nil {
+				column.charset = table.charset
+			}
+			if strings.TrimSpace(column.collation) == "" && strings.TrimSpace(table.collation) != "" && informationSchemaCharacterSet(column.typeName) != nil {
+				column.collation = table.collation
+			}
 			nullable := int64(1)
 			if !column.nullable {
 				nullable = 0
 			}
-			columnType := formatInformationSchemaColumnType(column.typeName, column.length)
+			columnType := formatInformationSchemaColumnTypeWithPrecision(column)
 			dataType := int64(12)
 			if strings.EqualFold(strings.TrimSpace(column.typeName), string(metadata.TypeBit)) {
 				dataType = -7 // java.sql.Types.BIT
@@ -11044,8 +11192,8 @@ func (e *XMySQLExecutor) executeInformationSchemaColumnsSelect(query string, ses
 				"TABLE_CATALOG": "def", "TABLE_SCHEMA": table.schemaName, "TABLE_NAME": visibleTableName,
 				"TABLE_CAT": table.schemaName, "TABLE_SCHEM": nil,
 				"COLUMN_NAME": column.name, "DATA_TYPE": dataTypeValue, "TYPE_NAME": strings.ToUpper(column.typeName), "COLUMN_TYPE": columnType,
-				"CHARACTER_MAXIMUM_LENGTH": informationSchemaCharacterLength(column), "CHARACTER_OCTET_LENGTH": informationSchemaCharacterLength(column),
-				"NUMERIC_PRECISION": nil, "NUMERIC_SCALE": nil, "DATETIME_PRECISION": nil, "CHARACTER_SET_NAME": informationSchemaCharacterSet(column.typeName), "COLLATION_NAME": informationSchemaCollation(column.typeName),
+				"CHARACTER_MAXIMUM_LENGTH": informationSchemaCharacterLength(column), "CHARACTER_OCTET_LENGTH": informationSchemaCharacterOctetLength(column),
+				"NUMERIC_PRECISION": informationSchemaNumericPrecision(column), "NUMERIC_SCALE": informationSchemaNumericScale(column), "DATETIME_PRECISION": informationSchemaDateTimePrecision(column), "CHARACTER_SET_NAME": informationSchemaColumnCharacterSet(column), "COLLATION_NAME": informationSchemaColumnCollation(column),
 				"COLUMN_SIZE": int64(column.length), "NULLABLE": nullable, "IS_NULLABLE": map[bool]string{true: "YES", false: "NO"}[column.nullable], "REMARKS": column.comment,
 				"ORDINAL_POSITION": int64(ordinal + 1), "COLUMN_KEY": columnKey, "EXTRA": extra, "PRIVILEGES": "select,insert,update,references", "COLUMN_COMMENT": column.comment,
 				"COLUMN_DEFAULT": column.defaultValue, "GENERATION_EXPRESSION": column.generatedExpression, "SRS_ID": nil,
@@ -11070,15 +11218,26 @@ func (e *XMySQLExecutor) executeInformationSchemaColumnsSelect(query string, ses
 			if strings.Contains(strings.ToLower(query), "type_name") || strings.Contains(strings.ToLower(query), "column_size") {
 				dataType = int64(12)
 			}
+			characterMaximumLength := informationSchemaCharacterLength(column)
+			characterOctetLength := informationSchemaCharacterOctetLength(column)
+			numericPrecision := informationSchemaNumericPrecision(column)
+			numericScale := informationSchemaNumericScale(column)
+			datetimePrecision := informationSchemaDateTimePrecision(column)
+			columnSize := interface{}(int64(length))
+			if numericPrecision != nil {
+				columnSize = numericPrecision
+			} else if characterMaximumLength != nil {
+				columnSize = characterMaximumLength
+			}
 			values := map[string]interface{}{
 				"TABLE_CATALOG": "def", "TABLE_SCHEMA": parts[0], "TABLE_NAME": parts[1],
 				"TABLE_CAT": parts[0], "TABLE_SCHEM": nil, "COLUMN_NAME": columnName,
 				"ORDINAL_POSITION": int64(ordinal + 1), "COLUMN_DEFAULT": nil, "IS_NULLABLE": map[bool]string{true: "YES", false: "NO"}[nullable],
-				"DATA_TYPE": dataType, "TYPE_NAME": typeName, "COLUMN_TYPE": typeName,
-				"CHARACTER_MAXIMUM_LENGTH": informationSchemaCharacterLength(column), "CHARACTER_OCTET_LENGTH": informationSchemaCharacterLength(column),
-				"NUMERIC_PRECISION": nil, "NUMERIC_SCALE": nil, "DATETIME_PRECISION": nil,
+				"DATA_TYPE": dataType, "TYPE_NAME": typeName, "COLUMN_TYPE": formatInformationSchemaColumnType(typeName, length),
+				"CHARACTER_MAXIMUM_LENGTH": characterMaximumLength, "CHARACTER_OCTET_LENGTH": characterOctetLength,
+				"NUMERIC_PRECISION": numericPrecision, "NUMERIC_SCALE": numericScale, "DATETIME_PRECISION": datetimePrecision,
 				"CHARACTER_SET_NAME": informationSchemaCharacterSet(typeName), "COLLATION_NAME": informationSchemaCollation(typeName),
-				"COLUMN_SIZE": int64(length), "NULLABLE": map[bool]int64{true: 1, false: 0}[nullable], "REMARKS": nil,
+				"COLUMN_SIZE": columnSize, "NULLABLE": map[bool]int64{true: 1, false: 0}[nullable], "REMARKS": nil,
 				"COLUMN_KEY": "", "EXTRA": "", "PRIVILEGES": "select", "COLUMN_COMMENT": nil,
 				"GENERATION_EXPRESSION": nil, "SRS_ID": nil,
 			}
@@ -11108,6 +11267,33 @@ func formatInformationSchemaColumnType(typeName string, length int) string {
 		}
 	}
 	return upper
+}
+
+func formatInformationSchemaColumnTypeWithPrecision(column frmMetadataColumn) string {
+	base := strings.ToUpper(strings.TrimSpace(strings.SplitN(column.typeName, "(", 2)[0]))
+	formatted := formatInformationSchemaColumnType(column.typeName, column.length)
+	switch base {
+	case "DECIMAL", "NUMERIC":
+		if column.length > 0 {
+			formatted = fmt.Sprintf("%s(%d,%d)", base, column.length, column.scale)
+		}
+	case "FLOAT", "DOUBLE", "REAL":
+		if column.length > 0 {
+			formatted = fmt.Sprintf("%s(%d,%d)", base, column.length, column.scale)
+		}
+	case "TIME", "DATETIME", "TIMESTAMP":
+		precision := column.scale
+		if precision == 0 {
+			precision = column.length
+		}
+		if precision > 0 {
+			formatted = fmt.Sprintf("%s(%d)", base, precision)
+		}
+	}
+	if column.unsigned && formatted != "" {
+		formatted += " UNSIGNED"
+	}
+	return formatted
 }
 
 func informationSchemaRowSortKey(row []interface{}, columns []string) string {
@@ -11814,6 +12000,9 @@ type frmMetadataTable struct {
 	tableName        string
 	columns          []frmMetadataColumn
 	indexes          []frmMetadataIndex
+	charset          string
+	collation        string
+	createdAt        string
 	rowFormat        string
 	totalRowVersions int
 }
@@ -11829,6 +12018,10 @@ type frmMetadataColumn struct {
 	name                string
 	typeName            string
 	length              int
+	scale               int
+	unsigned            bool
+	charset             string
+	collation           string
 	nullable            bool
 	comment             string
 	autoIncrement       bool
@@ -11862,17 +12055,35 @@ func (e *XMySQLExecutor) scanFrmTables() []frmMetadataTable {
 			}
 			tableName := strings.TrimSuffix(tableEntry.Name(), ".frm")
 			frmPath := filepath.Join(dataDir, schemaName, tableEntry.Name())
+			charset, collation := readFrmMetadataCharacterSet(frmPath)
 			tables = append(tables, frmMetadataTable{
 				schemaName:       schemaName,
 				tableName:        tableName,
 				columns:          readFrmMetadataColumns(frmPath),
 				indexes:          readFrmMetadataIndexes(frmPath),
+				charset:          charset,
+				collation:        collation,
+				createdAt:        readFrmMetadataCreatedAt(frmPath),
 				rowFormat:        readFrmMetadataRowFormat(frmPath),
 				totalRowVersions: readFrmMetadataTotalRowVersions(frmPath),
 			})
 		}
 	}
 	return tables
+}
+
+func readFrmMetadataCharacterSet(path string) (string, string) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", ""
+	}
+	var tableInfo struct {
+		Options map[string]interface{} `json:"options"`
+	}
+	if err := json.Unmarshal(raw, &tableInfo); err != nil {
+		return "", ""
+	}
+	return persistedString(tableInfo.Options["charset"]), persistedString(tableInfo.Options["collation"])
 }
 
 func readFrmMetadataRowFormat(path string) string {
@@ -11887,6 +12098,27 @@ func readFrmMetadataRowFormat(path string) string {
 		return ""
 	}
 	return persistedString(tableInfo.Options["row_format"])
+}
+
+func readFrmMetadataCreatedAt(path string) string {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	var tableInfo struct {
+		CreatedAt string `json:"created_at"`
+	}
+	if err := json.Unmarshal(raw, &tableInfo); err != nil || strings.TrimSpace(tableInfo.CreatedAt) == "" {
+		return ""
+	}
+	createdAt, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(tableInfo.CreatedAt))
+	if err != nil {
+		createdAt, err = time.Parse(time.RFC3339, strings.TrimSpace(tableInfo.CreatedAt))
+	}
+	if err != nil {
+		return ""
+	}
+	return createdAt.Format("2006-01-02 15:04:05")
 }
 
 func readFrmMetadataTotalRowVersions(path string) int {
@@ -11941,7 +12173,8 @@ func (e *XMySQLExecutor) scanViewTables(session server.MySQLServerSession) []frm
 					continue
 				}
 				frmColumns = append(frmColumns, frmMetadataColumn{
-					name: column.Name, typeName: string(column.Type), length: column.Length,
+					name: column.Name, typeName: string(column.Type), length: column.Length, scale: column.Scale,
+					unsigned: column.IsUnsigned, charset: column.Charset, collation: column.Collation,
 					nullable: column.IsNullable, comment: column.Comment,
 				})
 			}
@@ -12017,13 +12250,28 @@ func (e *XMySQLExecutor) viewColumnMetadata(schemaName, viewName string) ([]*met
 			typeName = string(sourceColumn.Type)
 		}
 		length := 0
+		scale := 0
 		nullable := true
 		comment := ""
+		unsigned := false
+		charset := ""
+		collation := ""
+		var defaultValue interface{}
+		var generatedExpression string
+		var enumValues []string
 		if sourceColumn != nil {
-			length, nullable, comment = sourceColumn.Length, sourceColumn.IsNullable, sourceColumn.Comment
+			length, scale, nullable, comment = sourceColumn.Length, sourceColumn.Scale, sourceColumn.IsNullable, sourceColumn.Comment
+			unsigned = sourceColumn.IsUnsigned
+			charset, collation = sourceColumn.Charset, sourceColumn.Collation
+			defaultValue = sourceColumn.DefaultValue
+			generatedExpression = sourceColumn.GeneratedExpression
+			enumValues = append([]string(nil), sourceColumn.EnumValues...)
 		}
 		columns = append(columns, &metadata.ColumnMeta{
-			Name: columnName, Type: metadata.DataType(typeName), Length: length, IsNullable: nullable, Comment: comment,
+			Name: columnName, Type: metadata.DataType(typeName), EnumValues: enumValues,
+			Length: length, Scale: scale, IsNullable: nullable, IsUnsigned: unsigned,
+			DefaultValue: defaultValue, GeneratedExpression: generatedExpression,
+			Charset: charset, Collation: collation, Comment: comment,
 		})
 	}
 	return columns, nil
@@ -12050,15 +12298,32 @@ func viewSourceColumns(e *XMySQLExecutor, schemaName string, stmt *sqlparser.Sel
 	if err != nil || sourceMeta == nil {
 		return nil
 	}
-	sourceByName := make(map[string]*metadata.ColumnMeta, len(sourceMeta.Columns))
-	for _, column := range sourceMeta.Columns {
-		if column != nil {
-			sourceByName[strings.ToLower(column.Name)] = column
+	sourceCharset, sourceCollation := sourceMeta.Charset, sourceMeta.Collation
+	if persistedCharset, persistedCollation := readFrmMetadataCharacterSet(filepath.Join(e.getDataDir(), sourceSchema, sourceName+".frm")); persistedCharset != "" {
+		sourceCharset = persistedCharset
+		if persistedCollation != "" {
+			sourceCollation = persistedCollation
 		}
+	}
+	sourceByName := make(map[string]*metadata.ColumnMeta, len(sourceMeta.Columns))
+	normalizedSourceColumns := make([]*metadata.ColumnMeta, 0, len(sourceMeta.Columns))
+	for _, column := range sourceMeta.Columns {
+		if column == nil {
+			continue
+		}
+		normalized := *column
+		if strings.TrimSpace(normalized.Charset) == "" && informationSchemaCharacterSet(string(normalized.Type)) != nil {
+			normalized.Charset = sourceCharset
+		}
+		if strings.TrimSpace(normalized.Collation) == "" && informationSchemaCharacterSet(string(normalized.Type)) != nil {
+			normalized.Collation = sourceCollation
+		}
+		normalizedSourceColumns = append(normalizedSourceColumns, &normalized)
+		sourceByName[strings.ToLower(normalized.Name)] = &normalized
 	}
 	if len(stmt.SelectExprs) == 1 {
 		if _, star := stmt.SelectExprs[0].(*sqlparser.StarExpr); star {
-			return append([]*metadata.ColumnMeta(nil), sourceMeta.Columns...)
+			return normalizedSourceColumns
 		}
 	}
 	columns := make([]*metadata.ColumnMeta, len(stmt.SelectExprs))
@@ -12213,6 +12478,13 @@ func readFrmMetadataColumns(path string) []frmMetadataColumn {
 		case int:
 			length = value
 		}
+		scale := 0
+		switch value := column["scale"].(type) {
+		case float64:
+			scale = int(value)
+		case int:
+			scale = value
+		}
 		nullable := true
 		if value, ok := column["nullable"].(bool); ok {
 			nullable = value
@@ -12221,6 +12493,10 @@ func readFrmMetadataColumns(path string) []frmMetadataColumn {
 			name:                name,
 			typeName:            typeName,
 			length:              length,
+			scale:               scale,
+			unsigned:            persistedBool(column["unsigned"]),
+			charset:             persistedString(column["charset"]),
+			collation:           persistedString(column["collate"]),
 			nullable:            nullable,
 			comment:             persistedString(column["comment"]),
 			autoIncrement:       persistedBool(column["auto_increment"]),
@@ -12290,10 +12566,103 @@ func informationSchemaPersistedNullableString(value interface{}) interface{} {
 }
 
 func informationSchemaCharacterLength(column frmMetadataColumn) interface{} {
-	if informationSchemaCharacterSet(column.typeName) == nil || column.length <= 0 {
+	if informationSchemaColumnCharacterSet(column) == nil || column.length <= 0 {
 		return nil
 	}
 	return int64(column.length)
+}
+
+func informationSchemaCharacterOctetLength(column frmMetadataColumn) interface{} {
+	length := informationSchemaCharacterLength(column)
+	if length == nil {
+		return nil
+	}
+	bytesPerCharacter := informationSchemaCharacterSetMaxBytes(fmt.Sprint(informationSchemaColumnCharacterSet(column)))
+	return length.(int64) * bytesPerCharacter
+}
+
+func informationSchemaCharacterSetMaxBytes(charset string) int64 {
+	switch strings.ToLower(strings.TrimSpace(charset)) {
+	case "utf8mb4", "utf16", "utf16le", "utf32":
+		return 4
+	case "utf8", "utf8mb3":
+		return 3
+	case "ucs2", "gbk", "big5", "sjis", "cp932", "euckr":
+		return 2
+	default:
+		return 1
+	}
+}
+
+func informationSchemaNumericPrecision(column frmMetadataColumn) interface{} {
+	base := strings.ToUpper(strings.TrimSpace(strings.SplitN(column.typeName, "(", 2)[0]))
+	if column.length > 0 {
+		switch base {
+		case "DECIMAL", "NUMERIC", "FLOAT", "DOUBLE", "REAL":
+			return int64(column.length)
+		}
+	}
+	if base == "DECIMAL" || base == "NUMERIC" {
+		// MySQL's omitted DECIMAL precision defaults to DECIMAL(10,0).
+		return int64(10)
+	}
+	defaults := map[string]int64{
+		"TINYINT": 3, "SMALLINT": 5, "MEDIUMINT": 7, "INT": 10, "INTEGER": 10,
+		"BIGINT": 19,
+	}
+	if precision, ok := defaults[base]; ok {
+		if column.unsigned && base == "BIGINT" {
+			return int64(20)
+		}
+		return precision
+	}
+	if base == "BIT" && column.length > 0 {
+		return int64(column.length)
+	}
+	return nil
+}
+
+func informationSchemaNumericScale(column frmMetadataColumn) interface{} {
+	base := strings.ToUpper(strings.TrimSpace(strings.SplitN(column.typeName, "(", 2)[0]))
+	switch base {
+	case "TINYINT", "SMALLINT", "MEDIUMINT", "INT", "INTEGER", "BIGINT", "BIT":
+		return int64(0)
+	case "DECIMAL", "NUMERIC", "FLOAT", "DOUBLE", "REAL":
+		return int64(column.scale)
+	default:
+		return nil
+	}
+}
+
+func informationSchemaDateTimePrecision(column frmMetadataColumn) interface{} {
+	base := strings.ToUpper(strings.TrimSpace(strings.SplitN(column.typeName, "(", 2)[0]))
+	switch base {
+	case "TIME", "DATETIME", "TIMESTAMP":
+		precision := column.scale
+		if precision == 0 {
+			precision = column.length
+		}
+		return int64(precision)
+	default:
+		return nil
+	}
+}
+
+func informationSchemaColumnCharacterSet(column frmMetadataColumn) interface{} {
+	if strings.TrimSpace(column.charset) != "" {
+		return column.charset
+	}
+	return informationSchemaCharacterSet(column.typeName)
+}
+
+func informationSchemaColumnCollation(column frmMetadataColumn) interface{} {
+	if strings.TrimSpace(column.collation) != "" {
+		return column.collation
+	}
+	if informationSchemaColumnCharacterSet(column) == nil {
+		return nil
+	}
+	return informationSchemaCollationForCharacterSet(fmt.Sprint(informationSchemaColumnCharacterSet(column)))
 }
 
 func informationSchemaCharacterSet(typeName string) interface{} {
@@ -12307,10 +12676,24 @@ func informationSchemaCharacterSet(typeName string) interface{} {
 }
 
 func informationSchemaCollation(typeName string) interface{} {
-	if informationSchemaCharacterSet(typeName) == nil {
+	charset := informationSchemaCharacterSet(typeName)
+	if charset == nil {
 		return nil
 	}
-	return "utf8mb4_general_ci"
+	return informationSchemaCollationForCharacterSet(fmt.Sprint(charset))
+}
+
+func informationSchemaCollationForCharacterSet(charset string) interface{} {
+	switch strings.ToLower(strings.TrimSpace(charset)) {
+	case "latin1":
+		return "latin1_swedish_ci"
+	case "utf8", "utf8mb3":
+		return "utf8mb3_general_ci"
+	case "binary":
+		return "binary"
+	default:
+		return "utf8mb4_general_ci"
+	}
 }
 
 func persistedAutoIncrementValue(dataDir, schemaName, tableName string, columns []frmMetadataColumn) interface{} {
@@ -12419,6 +12802,7 @@ func (e *XMySQLExecutor) executeInformationSchemaParametersSelect(query string, 
 		}
 		for index, parameter := range object.Parameters {
 			mode, name, typeName := parseStoredRoutineParameterMetadata(parameter)
+			typeMetadata := informationSchemaRoutineTypeMetadata(typeName)
 			dataType := interface{}(strings.ToLower(strings.SplitN(typeName, "(", 2)[0]))
 			if jdbcProjection {
 				dataType = fmt.Sprintf("%d", storedRoutineParameterDataType(typeName))
@@ -12426,9 +12810,9 @@ func (e *XMySQLExecutor) executeInformationSchemaParametersSelect(query string, 
 			values := map[string]interface{}{
 				"SPECIFIC_CATALOG": "def", "SPECIFIC_SCHEMA": object.Schema, "SPECIFIC_NAME": object.Name,
 				"ORDINAL_POSITION": int64(index + 1), "PARAMETER_MODE": mode, "PARAMETER_NAME": name,
-				"DATA_TYPE": dataType, "CHARACTER_MAXIMUM_LENGTH": nil,
-				"CHARACTER_OCTET_LENGTH": nil, "NUMERIC_PRECISION": nil, "NUMERIC_SCALE": nil,
-				"DATETIME_PRECISION": nil, "CHARACTER_SET_NAME": nil, "COLLATION_NAME": nil,
+				"DATA_TYPE": dataType, "CHARACTER_MAXIMUM_LENGTH": informationSchemaCharacterLength(typeMetadata),
+				"CHARACTER_OCTET_LENGTH": informationSchemaCharacterOctetLength(typeMetadata), "NUMERIC_PRECISION": informationSchemaNumericPrecision(typeMetadata), "NUMERIC_SCALE": informationSchemaNumericScale(typeMetadata),
+				"DATETIME_PRECISION": informationSchemaDateTimePrecision(typeMetadata), "CHARACTER_SET_NAME": informationSchemaColumnCharacterSet(typeMetadata), "COLLATION_NAME": informationSchemaColumnCollation(typeMetadata),
 				"DTD_IDENTIFIER": typeName, "ROUTINE_TYPE": strings.ToUpper(object.ObjectType),
 				"PROCEDURE_CAT": nil, "PROCEDURE_SCHEM": object.Schema, "PROCEDURE_NAME": object.Name,
 				"COLUMN_NAME": name, "COLUMN_TYPE": fmt.Sprintf("%d", storedRoutineParameterColumnType(mode)),
@@ -12441,6 +12825,7 @@ func (e *XMySQLExecutor) executeInformationSchemaParametersSelect(query string, 
 			rows = append(rows, projectInformationSchemaRow(columns, values))
 		}
 		if strings.EqualFold(object.ObjectType, "function") {
+			typeMetadata := informationSchemaRoutineTypeMetadata(object.ReturnType)
 			dataType := interface{}(strings.ToLower(strings.SplitN(object.ReturnType, "(", 2)[0]))
 			if jdbcProjection {
 				dataType = fmt.Sprintf("%d", storedRoutineParameterDataType(object.ReturnType))
@@ -12448,9 +12833,9 @@ func (e *XMySQLExecutor) executeInformationSchemaParametersSelect(query string, 
 			values := map[string]interface{}{
 				"SPECIFIC_CATALOG": "def", "SPECIFIC_SCHEMA": object.Schema, "SPECIFIC_NAME": object.Name,
 				"ORDINAL_POSITION": int64(0), "PARAMETER_MODE": nil, "PARAMETER_NAME": "RETURN_VALUE",
-				"DATA_TYPE": dataType, "CHARACTER_MAXIMUM_LENGTH": nil,
-				"CHARACTER_OCTET_LENGTH": nil, "NUMERIC_PRECISION": nil, "NUMERIC_SCALE": nil,
-				"DATETIME_PRECISION": nil, "CHARACTER_SET_NAME": nil, "COLLATION_NAME": nil,
+				"DATA_TYPE": dataType, "CHARACTER_MAXIMUM_LENGTH": informationSchemaCharacterLength(typeMetadata),
+				"CHARACTER_OCTET_LENGTH": informationSchemaCharacterOctetLength(typeMetadata), "NUMERIC_PRECISION": informationSchemaNumericPrecision(typeMetadata), "NUMERIC_SCALE": informationSchemaNumericScale(typeMetadata),
+				"DATETIME_PRECISION": informationSchemaDateTimePrecision(typeMetadata), "CHARACTER_SET_NAME": informationSchemaColumnCharacterSet(typeMetadata), "COLLATION_NAME": informationSchemaColumnCollation(typeMetadata),
 				"DTD_IDENTIFIER": object.ReturnType, "ROUTINE_TYPE": "FUNCTION",
 				"PROCEDURE_CAT": nil, "PROCEDURE_SCHEM": object.Schema, "PROCEDURE_NAME": object.Name,
 				"COLUMN_NAME": "RETURN_VALUE", "COLUMN_TYPE": "5",
@@ -12493,6 +12878,32 @@ func parseStoredRoutineParameterMetadata(raw string) (mode, name, typeName strin
 		typeName = strings.ToUpper(strings.TrimSpace(fields[start+1]))
 	}
 	return mode, name, typeName
+}
+
+func informationSchemaRoutineTypeMetadata(typeName string) frmMetadataColumn {
+	upper := strings.ToUpper(strings.TrimSpace(typeName))
+	base := strings.TrimSpace(strings.SplitN(upper, "(", 2)[0])
+	fields := strings.Fields(base)
+	if len(fields) > 0 {
+		base = fields[0]
+	}
+	column := frmMetadataColumn{typeName: base, unsigned: strings.Contains(upper, " UNSIGNED")}
+	if open := strings.Index(upper, "("); open >= 0 {
+		if closeOffset := strings.Index(upper[open+1:], ")"); closeOffset >= 0 {
+			parts := strings.Split(upper[open+1:open+1+closeOffset], ",")
+			if len(parts) > 0 {
+				column.length, _ = strconv.Atoi(strings.TrimSpace(parts[0]))
+			}
+			if len(parts) > 1 {
+				column.scale, _ = strconv.Atoi(strings.TrimSpace(parts[1]))
+			}
+		}
+	}
+	if informationSchemaCharacterSet(base) != nil {
+		column.charset = fmt.Sprint(informationSchemaCharacterSet(base))
+		column.collation = fmt.Sprint(informationSchemaCollation(base))
+	}
+	return column
 }
 
 func storedRoutineParameterColumnType(mode string) int64 {
@@ -16528,6 +16939,9 @@ func (e *XMySQLExecutor) parseTableOptions(spec *sqlparser.TableSpec) map[string
 		}
 		if value, ok := parseTableOptionValue(spec.Options, `(?:default\s+)?(?:character\s+set|charset)`); ok {
 			options["charset"] = value
+			if _, hasCollation := parseTableOptionValue(spec.Options, `collate`); !hasCollation {
+				options["collation"] = fmt.Sprint(informationSchemaCollationForCharacterSet(value))
+			}
 		}
 		if value, ok := parseTableOptionValue(spec.Options, `collate`); ok {
 			options["collation"] = value
@@ -16559,7 +16973,7 @@ func normalizeTableRowFormat(value string) string {
 }
 
 func parseTableOptionValue(options, keyPattern string) (string, bool) {
-	pattern := regexp.MustCompile(`(?is)\b` + keyPattern + `\s*=\s*([a-zA-Z0-9_]+)`).FindStringSubmatch(options)
+	pattern := regexp.MustCompile(`(?is)\b` + keyPattern + `\s*(?:=\s*)?([a-zA-Z0-9_]+)`).FindStringSubmatch(options)
 	if len(pattern) != 2 {
 		return "", false
 	}
@@ -18296,11 +18710,27 @@ func (e *XMySQLExecutor) executeShowStatus(ctx *ExecutionContext, stmt *sqlparse
 func (e *XMySQLExecutor) executeShowStatusWithQuery(ctx *ExecutionContext, stmt *sqlparser.Show, rawQuery string) {
 	logger.Debugf(" [executeShowStatus] 执行SHOW STATUS")
 
-	// 简化实现，返回一些状态变量
-	rows := [][]interface{}{
-		{"Threads_connected", "1"},
-		{"Uptime", "3600"},
-		{"Questions", "100"},
+	statusName := "performance_schema.session_status"
+	if strings.Contains(strings.ToLower(rawQuery), "show global status") || (stmt != nil && strings.EqualFold(stmt.Scope, "global")) {
+		statusName = "performance_schema.global_status"
+	}
+	var current server.MySQLServerSession
+	if ctx != nil {
+		current = ctx.Session
+	}
+	statusResult := e.executePerformanceSchemaStatusSelect(statusName, "", current)
+	rows := make([][]interface{}, 0, len(statusResult.Records))
+	for _, record := range statusResult.Records {
+		values := record.GetValues()
+		if len(values) < 2 {
+			continue
+		}
+		// SHOW STATUS exposes textual variable names and values. The
+		// information-schema result stores them as basic.Value instances whose
+		// Raw form is a byte slice; preserve the public SHOW contract as strings
+		// so LIKE/WHERE filtering and protocol encoding see the same shape as
+		// the previous SHOW implementation.
+		rows = append(rows, []interface{}{values[0].ToString(), values[1].ToString()})
 	}
 
 	likePattern := ResolveShowLikePattern("status", stmt, rawQuery)

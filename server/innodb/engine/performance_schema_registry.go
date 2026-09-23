@@ -757,10 +757,8 @@ func (e *XMySQLExecutor) executePerformanceSchemaSessionRuntimeRegistrySelect(qu
 	columns := requestedInformationSchemaColumns(query, performanceSchemaTableColumns(table))
 	rows := make([][]interface{}, 0)
 	type statusAggregate struct {
-		user, host       string
-		threadsConnected int64
-		threadsRunning   int64
-		queries          int64
+		user, host   string
+		statusValues map[string]int64
 	}
 	aggregates := make(map[string]*statusAggregate)
 	for _, session := range e.performanceSchemaLiveSessions(current) {
@@ -810,13 +808,18 @@ func (e *XMySQLExecutor) executePerformanceSchemaSessionRuntimeRegistrySelect(qu
 			"Queries":           int64(0),
 		}
 		if e != nil && e.metricsRecorder != nil {
-			queryCount := int64(0)
-			for _, event := range e.metricsRecorder.StatementHistory() {
+			for _, event := range e.metricsRecorder.StatementSummary() {
 				if event.ThreadID == threadID {
-					queryCount++
+					statusValues["Queries"] = statusValues["Queries"].(int64) + event.Count
+					if variableName := performanceSchemaCommandStatusVariable(event.StatementType); variableName != "" {
+						current := int64(0)
+						if raw := statusValues[variableName]; raw != nil {
+							current, _ = raw.(int64)
+						}
+						statusValues[variableName] = current + event.Count
+					}
 				}
 			}
-			statusValues["Queries"] = queryCount
 		}
 		for _, event := range e.activeStatementEvents() {
 			if event.ThreadID == threadID {
@@ -839,12 +842,12 @@ func (e *XMySQLExecutor) executePerformanceSchemaSessionRuntimeRegistrySelect(qu
 			}
 			aggregate := aggregates[key]
 			if aggregate == nil {
-				aggregate = &statusAggregate{user: user, host: host}
+				aggregate = &statusAggregate{user: user, host: host, statusValues: make(map[string]int64)}
 				aggregates[key] = aggregate
 			}
-			aggregate.threadsConnected += statusValues["Threads_connected"].(int64)
-			aggregate.threadsRunning += statusValues["Threads_running"].(int64)
-			aggregate.queries += statusValues["Queries"].(int64)
+			for name, value := range statusValues {
+				aggregate.statusValues[name] += value.(int64)
+			}
 			continue
 		}
 		for name, value := range statusValues {
@@ -883,12 +886,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaSessionRuntimeRegistrySelect(qu
 		sort.Strings(keys)
 		for _, key := range keys {
 			aggregate := aggregates[key]
-			statusValues := map[string]interface{}{
-				"Threads_connected": aggregate.threadsConnected,
-				"Threads_running":   aggregate.threadsRunning,
-				"Queries":           aggregate.queries,
-			}
-			for name, value := range statusValues {
+			for name, value := range aggregate.statusValues {
 				if !performanceSchemaSummaryFilterMatches(query, "variable_name", name) {
 					continue
 				}
@@ -1133,7 +1131,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatementHistogramSelect(query 
 		total  int64
 	}
 	grouped := make(map[string]*bucketCounts)
-	for _, event := range e.metricsRecorder.StatementHistory() {
+	for _, event := range e.metricsRecorder.StatementSummary() {
 		key := ""
 		if byDigest {
 			key = event.Schema + "\x00" + performanceSchemaDigestText(event.SQL)
@@ -1143,12 +1141,10 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatementHistogramSelect(query 
 			counts = &bucketCounts{counts: make([]int64, len(performanceSchemaStatementHistogramBounds)+1)}
 			grouped[key] = counts
 		}
-		timer := event.Latency.Nanoseconds() * 1000
-		if timer < 0 {
-			timer = 0
+		for _, timer := range event.LatencySamples {
+			counts.counts[performanceSchemaStatementHistogramBucket(timer)]++
+			counts.total++
 		}
-		counts.counts[performanceSchemaStatementHistogramBucket(timer)]++
-		counts.total++
 	}
 	rows := make([][]interface{}, 0)
 	keys := make([]string, 0, len(grouped))
@@ -1228,7 +1224,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatementSummaryRegistrySelect(
 		warnings, rowsAffected, rowsSent, rowsExamined, selectScan int64
 	}
 	byKey := make(map[string]*summary)
-	for _, event := range e.metricsRecorder.StatementHistory() {
+	for _, event := range e.metricsRecorder.StatementSummary() {
 		eventName := "statement/sql/" + strings.ToLower(event.StatementType)
 		user, host := event.User, event.Host
 		if host == "" {
@@ -1250,21 +1246,15 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatementSummaryRegistrySelect(
 			item = &summary{threadID: event.ThreadID, user: user, host: host, eventName: eventName, min: -1}
 			byKey[key] = item
 		}
-		timer := event.Latency.Nanoseconds() * 1000
-		if timer < 0 {
-			timer = 0
+		item.count += event.Count
+		item.sum += event.SumTimerWait
+		if item.min < 0 || event.MinTimerWait < item.min {
+			item.min = event.MinTimerWait
 		}
-		item.count++
-		item.sum += timer
-		if item.min < 0 || timer < item.min {
-			item.min = timer
+		if event.MaxTimerWait > item.max {
+			item.max = event.MaxTimerWait
 		}
-		if timer > item.max {
-			item.max = timer
-		}
-		if event.Status == "error" {
-			item.errors++
-		}
+		item.errors += event.Errors
 		item.warnings += event.Warnings
 		item.rowsAffected += event.RowsAffected
 		item.rowsSent += event.RowsSent
@@ -1342,7 +1332,13 @@ func (e *XMySQLExecutor) executePerformanceSchemaProgramSummarySelect(query stri
 	}
 	byKey := make(map[string]*summary)
 	e.performanceSchemaMu.RLock()
-	events := append([]performanceSchemaProgramEvent(nil), e.performanceSchemaProgramHistoryLong...)
+	events := make([]performanceSchemaProgramEvent, 0, len(e.performanceSchemaProgramSummaries))
+	for _, event := range e.performanceSchemaProgramSummaries {
+		events = append(events, event)
+	}
+	if len(events) == 0 {
+		events = append(events, e.performanceSchemaProgramHistoryLong...)
+	}
 	e.performanceSchemaMu.RUnlock()
 	for _, event := range events {
 		key := event.ObjectType + "\x00" + event.ObjectSchema + "\x00" + event.ObjectName
@@ -1351,8 +1347,19 @@ func (e *XMySQLExecutor) executePerformanceSchemaProgramSummarySelect(query stri
 			item = &summary{objectType: event.ObjectType, objectSchema: event.ObjectSchema, objectName: event.ObjectName, min: -1}
 			byKey[key] = item
 		}
-		item.count++
+		count := event.Count
+		if count <= 0 {
+			count = 1
+		}
+		item.count += count
 		item.sum += event.TimerWait
+		timerMin, timerMax := event.TimerWaitMin, event.TimerWaitMax
+		if timerMin == 0 && event.TimerWait > 0 {
+			timerMin = event.TimerWait
+		}
+		if timerMax == 0 && event.TimerWait > 0 {
+			timerMax = event.TimerWait
+		}
 		item.statementCount += event.StatementCount
 		item.statementsWaitSum += event.StatementsWaitSum
 		if event.StatementCount > 0 && (item.statementsWaitMin == 0 || event.StatementsWaitMin < item.statementsWaitMin) {
@@ -1361,11 +1368,11 @@ func (e *XMySQLExecutor) executePerformanceSchemaProgramSummarySelect(query stri
 		if event.StatementsWaitMax > item.statementsWaitMax {
 			item.statementsWaitMax = event.StatementsWaitMax
 		}
-		if item.min < 0 || event.TimerWait < item.min {
-			item.min = event.TimerWait
+		if item.min < 0 || timerMin < item.min {
+			item.min = timerMin
 		}
-		if event.TimerWait > item.max {
-			item.max = event.TimerWait
+		if timerMax > item.max {
+			item.max = timerMax
 		}
 		item.errors += event.Errors
 		item.warnings += event.Warnings
@@ -1439,10 +1446,11 @@ func (e *XMySQLExecutor) executePerformanceSchemaStageSummaryRegistrySelect(quer
 		count, sum, min, max  int64
 	}
 	byKey := make(map[string]*summary)
-	for _, event := range e.metricsRecorder.StatementHistory() {
-		timer := int64(0)
+	for _, event := range e.metricsRecorder.StatementSummary() {
+		count := event.Count
+		timerSum, timerMin, timerMax := int64(0), int64(0), int64(0)
 		if instrumentTimed {
-			timer = performanceSchemaTimerWait(event.Latency)
+			timerSum, timerMin, timerMax = event.SumTimerWait, event.MinTimerWait, event.MaxTimerWait
 		}
 		user, host := event.User, event.Host
 		if host == "" {
@@ -1459,13 +1467,13 @@ func (e *XMySQLExecutor) executePerformanceSchemaStageSummaryRegistrySelect(quer
 			item = &summary{user: user, host: host, eventName: "stage/sql/execute", min: -1}
 			byKey[key] = item
 		}
-		item.count++
-		item.sum += timer
-		if item.min < 0 || timer < item.min {
-			item.min = timer
+		item.count += count
+		item.sum += timerSum
+		if item.min < 0 || timerMin < item.min {
+			item.min = timerMin
 		}
-		if timer > item.max {
-			item.max = timer
+		if timerMax > item.max {
+			item.max = timerMax
 		}
 	}
 	keys := make([]string, 0, len(byKey))
@@ -1603,7 +1611,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaWaitSummaryByInstanceSelect(que
 		}
 	}
 	if e != nil && e.lockManager != nil {
-		for _, edge := range e.lockManager.WaitHistorySnapshot() {
+		for _, edge := range e.lockManager.WaitSummarySnapshot() {
 			included, wait := e.performanceSchemaObservedWait("wait/lock/table/sql/handler", edge.WaitDuration)
 			if included {
 				add("wait/lock/table/sql/handler", edge.ResourceID, wait)
@@ -1617,7 +1625,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaWaitSummaryByInstanceSelect(que
 		}
 	}
 	if e != nil {
-		for _, edge := range e.getDDLCoordinator().MetadataLockWaitHistory() {
+		for _, edge := range e.getDDLCoordinator().MetadataLockWaitSummary() {
 			included, wait := e.performanceSchemaObservedWait("wait/lock/metadata/sql/mdl", edge.WaitDuration)
 			if included {
 				add("wait/lock/metadata/sql/mdl", edge.Table, wait)

@@ -183,27 +183,10 @@ func informationSchemaPrivilegeAccountVisible(file persistedAccountFile, session
 		return true
 	}
 	effective := effectiveAccountGrants(file, *current, session)
-	if grantsContainExactScope(effective, "mysql.user", "SELECT") || grantsContainExactScope(effective, "mysql.user", "UPDATE") {
+	if grantsContain(effective, "mysql.user", "SELECT") || grantsContain(effective, "mysql.user", "UPDATE") {
 		return true
 	}
 	return grantsContain(effective, "*.*", "CREATE USER") && grantsContain(effective, "*.*", "SYSTEM_USER")
-}
-
-func grantsContainExactScope(grants map[string][]string, scope, wanted string) bool {
-	if partialRevokeDenied(grants, scope, wanted) {
-		return false
-	}
-	for grantedScope, privileges := range grants {
-		if strings.HasPrefix(grantedScope, partialRevokeScopePrefix) || !strings.EqualFold(grantedScope, scope) {
-			continue
-		}
-		for _, privilege := range privileges {
-			if strings.EqualFold(privilege, wanted) || strings.EqualFold(privilege, "ALL") || strings.EqualFold(privilege, "ALL PRIVILEGES") {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func (e *XMySQLExecutor) executeMySQLProcsPrivSelect(query string) *SelectResult {

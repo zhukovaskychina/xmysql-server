@@ -2398,7 +2398,7 @@ func parseRoutineReturnType(objectType, definition string) string {
 	if !strings.EqualFold(objectType, "function") {
 		return ""
 	}
-	match := regexp.MustCompile(`(?is)\breturns\s+([a-zA-Z0-9_()]+)`).FindStringSubmatch(definition)
+	match := regexp.MustCompile(`(?is)\breturns\s+([a-zA-Z0-9_]+(?:\s*\([^)]*\))?(?:\s+unsigned)?)`).FindStringSubmatch(definition)
 	if len(match) == 2 {
 		return strings.ToUpper(strings.TrimSpace(match[1]))
 	}
@@ -2951,14 +2951,16 @@ func (e *XMySQLExecutor) executeInformationSchemaRoutinesSelect(query string, se
 		}
 		if native {
 			dataType := interface{}(nil)
+			typeMetadata := frmMetadataColumn{}
 			if strings.EqualFold(object.ObjectType, "function") {
 				dataType = strings.ToUpper(object.ReturnType)
+				typeMetadata = informationSchemaRoutineTypeMetadata(object.ReturnType)
 			}
 			values := map[string]interface{}{
 				"SPECIFIC_NAME": object.Name, "ROUTINE_CATALOG": "def", "ROUTINE_SCHEMA": object.Schema, "ROUTINE_NAME": object.Name,
 				"ROUTINE_TYPE": strings.ToUpper(object.ObjectType), "DATA_TYPE": dataType,
-				"CHARACTER_MAXIMUM_LENGTH": nil, "CHARACTER_OCTET_LENGTH": nil, "NUMERIC_PRECISION": nil,
-				"NUMERIC_SCALE": nil, "DATETIME_PRECISION": nil, "CHARACTER_SET_NAME": nil, "COLLATION_NAME": nil,
+				"CHARACTER_MAXIMUM_LENGTH": informationSchemaCharacterLength(typeMetadata), "CHARACTER_OCTET_LENGTH": informationSchemaCharacterOctetLength(typeMetadata), "NUMERIC_PRECISION": informationSchemaNumericPrecision(typeMetadata),
+				"NUMERIC_SCALE": informationSchemaNumericScale(typeMetadata), "DATETIME_PRECISION": informationSchemaDateTimePrecision(typeMetadata), "CHARACTER_SET_NAME": informationSchemaColumnCharacterSet(typeMetadata), "COLLATION_NAME": informationSchemaColumnCollation(typeMetadata),
 				"DTD_IDENTIFIER": dataType, "ROUTINE_BODY": "SQL", "ROUTINE_DEFINITION": object.Definition,
 				"EXTERNAL_NAME": nil, "EXTERNAL_LANGUAGE": nil, "PARAMETER_STYLE": "SQL", "IS_DETERMINISTIC": boolToYesNo(routineIsDeterministic(object.Definition)),
 				"SQL_DATA_ACCESS": routineSQLDataAccess(object.Definition), "SQL_PATH": nil, "SECURITY_TYPE": routineSecurityType(object.SQLSecurity),

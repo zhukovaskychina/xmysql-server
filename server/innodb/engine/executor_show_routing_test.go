@@ -15,6 +15,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
+	metrics "github.com/zhukovaskychina/xmysql-server/server/observability/metrics"
 )
 
 type testMySQLSession struct {
@@ -826,6 +827,39 @@ func TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowGlobalStatusLikeFilter
 	require.True(t, ok)
 	require.Len(t, rows, 1)
 	assert.Equal(t, "Uptime", rows[0][0])
+}
+
+func TestXMySQLExecutor_ExecuteShowGlobalStatusProjectsRuntimeCounters(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.metricsRecorder = metrics.NewRuntimeRecorder(metrics.NewRegistry())
+	beforeConnections := int64(0)
+	for _, total := range executor.QueryExecutor.metricsRecorder.ConnectionTotals() {
+		beforeConnections += total.TotalConnections
+	}
+	beforeAborted := executor.QueryExecutor.metricsRecorder.AuthenticationFailuresTotal()
+	executor.QueryExecutor.metricsRecorder.RecordConnection("show_status_user", "localhost")
+	executor.QueryExecutor.metricsRecorder.RecordAuthenticationFailure("show_status_user", "127.0.0.1")
+
+	readStatus := func(query string) []interface{} {
+		results := make(chan *Result, 1)
+		ctx := &ExecutionContext{Context: context.Background(), Results: results}
+		executor.QueryExecutor.executeShowStatementWithQuery(ctx, &sqlparser.Show{Type: "status", Scope: "global"}, nil, query)
+		result := <-results
+		require.NoError(t, result.Err)
+		data := result.Data.(map[string]interface{})
+		rows := data["rows"].([][]interface{})
+		require.Len(t, rows, 1)
+		return rows[0]
+	}
+
+	connections := readStatus("show global status like 'Connections'")
+	connectionsValue, err := strconv.ParseInt(connections[1].(string), 10, 64)
+	require.NoError(t, err)
+	assert.Equal(t, beforeConnections+1, connectionsValue)
+	aborted := readStatus("show global status like 'Aborted_connects'")
+	abortedValue, err := strconv.ParseInt(aborted[1].(string), 10, 64)
+	require.NoError(t, err)
+	assert.Equal(t, beforeAborted+1, abortedValue)
 }
 
 func TestXMySQLExecutor_ExecuteShowStatementWithQuery_ShowVariablesUsesStmtFilterWithoutRawQuery(t *testing.T) {

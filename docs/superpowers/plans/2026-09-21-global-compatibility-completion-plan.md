@@ -14,6 +14,7 @@
 
 - 纳入全局任务：完整 INFORMATION_SCHEMA、完整 PERFORMANCE_SCHEMA、非 Connector/J 客户端兼容矩阵、XA 与原生 binlog/复制/崩溃恢复互操作。
 - 保持 P0 基线：MySQL 可启动、单机核心 CRUD、集群复制/故障切换、Connector/J 当前 139 项门禁。
+- 优先级重排：完整 I_S/P_S 语义为 P1；xmysql-native XA/binlog/recovery 收口为 P2；非 Connector/J 全量客户端矩阵及集群 endpoint 验证为 P3；官方 MySQL 双向 XA/binlog/GTID/复制/崩溃恢复互操作为 P4。它们都保留在全局任务中，但不阻塞 P0 基线交付。
 - 暂不纳入本轮：FULLTEXT 及全文检索生态。
 - 明确不处理：MyISAM、ARCHIVE、CSV 等非 InnoDB 引擎、非 InnoDB `REPAIR TABLE`、非 InnoDB 引擎转换。
 - 所有测试和报告必须区分“已实现并验证”“部分实现”“未覆盖”；不得使用旧报告证明新代码已通过。
@@ -25,9 +26,10 @@
   (`ENABLED_ROLES`, `APPLICABLE_ROLES`, `ADMINISTRABLE_ROLE_AUTHORIZATIONS`,
   `ROLE_*_GRANTS`) are session-aware for the implemented role graph; the four
   account-grant views (`COLUMN_PRIVILEGES`, `TABLE_PRIVILEGES`,
-  `SCHEMA_PRIVILEGES`, `USER_PRIVILEGES`) still need a dedicated session-visibility
-  matrix covering current account, object visibility, grant option, role-derived
-  visibility, and administrator behavior.
+  `SCHEMA_PRIVILEGES`, `USER_PRIVILEGES`) now cover ordinary schema-scoped
+  visibility and global `mysql.user` visibility, while the complete matrix still
+  needs dedicated coverage for grant option, role-derived visibility, partial
+  revokes, and administrator behavior.
 - The MySQL 8.4 P_S registry is intentionally not treated as complete merely
   because a table has a name and column list. The remaining component/runtime
   families without an authoritative xmysql source are tracked as partial:
@@ -51,11 +53,13 @@
 | P0 | MySQL startup and InnoDB core CRUD | Implemented and release-gated | Keep the existing startup/core CRUD regression and release-candidate gate green |
 | P0 | xmysql cluster replication and failover | Implemented for the current xmysql topology | Retain cluster smoke coverage; official MySQL Group Replication is not implied by this item |
 | P0 | Connector/J | Implemented for the current 139-case gate | Preserve the 139/0/0/0 result while P1 work lands |
-| P1-A | INFORMATION_SCHEMA | Core metadata, InnoDB dictionary/tablespace views, privilege/role views, filters and common extensions are implemented; the registry covers the supported MySQL 8.4 surface | Complete remaining field precision and authoritative runtime values. Keep `NULL` where xmysql has no source; do not fabricate InnoDB internal encodings, full statistics or FULLTEXT-only tables |
-| P1-A | PERFORMANCE_SCHEMA | Core statement/stage/transaction/wait/lock/thread/socket/file/memory/status/variable/setup and replication views have runtime producers; `table_handles` now exposes explicit `LOCK TABLES` leases | Add implicit table-handle lifecycle, remaining runtime counters and exact event/lock/thread semantics. Clone, firewall/keyring, component scheduler, NDB sync, thread-pool, UDF and group-replication component tables remain shape/empty-result or component-dependent until a real source exists |
-| P1-B | Non-Connector/J clients | Go MySQL driver, PyMySQL and Node.js/mysql2 have local passing evidence; the full matrix is still partial | Complete the same auth, prepared statement, transaction, metadata, charset, error, reconnect and cluster cases for every client; MySQL CLI remains environment-unverified when `mysql.exe` is unavailable |
-| P1-C | XA and xmysql-native replication | XA state transitions, durable recovery, native binlog emission/dump, GTID filtering, replica apply and local crash recovery are test-covered | Verify bidirectional interoperability with an official MySQL fixture, including XA/binlog boundaries, GTID resume, duplicate delivery, crash-after-prepare/append/commit and promotion |
-| P2 | FULLTEXT | Deferred by scope decision | Do not block the current release; reopen only when explicitly requested |
+| P0 | Query dispatch path | `SELECT 1` now goes through the configured SQL dispatcher in both enhanced network paths; the old hardcoded response shortcut was removed | Preserve the no-table privilege-probe exception while verifying the real executor result through dispatcher tests |
+| P1-A | INFORMATION_SCHEMA | Core metadata, InnoDB dictionary/tablespace views, privilege/role views, filters and common extensions are implemented; persisted creation time is projected for `TABLES`, `PARTITIONS` and logical `FILES` rows; `COLUMNS` now derives integer/DECIMAL precision including the default `DECIMAL(10,0)`, temporal fractional precision, UNSIGNED type text, table-level character-set inheritance and character-set-specific octet length from persisted definitions, including source metadata propagated into ordinary view columns; `PARAMETERS` and function rows in `ROUTINES` now project type precision; the registry covers the supported MySQL 8.4 surface | Complete remaining field precision and authoritative runtime values across the other views. Keep `NULL` where xmysql has no source; do not fabricate InnoDB internal encodings, full statistics or FULLTEXT-only tables |
+| P1-A | PERFORMANCE_SCHEMA | Core statement/stage/transaction/wait/lock/thread/socket/file/memory/status/variable/setup and replication views have runtime producers; `table_handles` exposes explicit `LOCK TABLES` and transaction-scoped implicit leases, global/session status and `status_by_account/status_by_host/status_by_user` expose runtime-backed common query counters, internal auth SQL is excluded from client counters, real protocol execution no longer double-records those counters, statement/program/transaction/record-lock/metadata-lock summary views retain instance-lifetime totals beyond bounded history windows, and statement-derived stage/status summaries use the same lifetime source | Add remaining runtime counters and exact event/lock/thread semantics, plus non-statement component sources. Clone, firewall/keyring, component scheduler, NDB sync, thread-pool, UDF and group-replication component tables remain shape/empty-result or component-dependent until a real source exists |
+| P2 | XA and xmysql-native replication | XA state transitions, durable recovery, native binlog emission/dump, GTID filtering, replica apply and local crash recovery are test-covered | Close the remaining local exactly-once and crash-boundary semantics before moving to the external fixture gate |
+| P3 | Non-Connector/J clients | Go MySQL driver, PyMySQL and Node.js/mysql2 have local runner coverage for the 9-case matrix, including a dedicated UTF-8/UTF-8MB4 case, multi-result/error and reconnect; the full matrix is still partial | Add MySQL CLI evidence when `mysql.exe` is available and extend the same cases to the remaining supported clients and cluster scenarios |
+| P4 | Official MySQL interoperability | Not verified in the current environment; no official MySQL fixture is available | Verify bidirectional interoperability with an official MySQL fixture, including XA/binlog boundaries, GTID resume, duplicate delivery, crash-after-prepare/append/commit and promotion |
+| Deferred | FULLTEXT | Deferred by scope decision | Do not block the current release; reopen only when explicitly requested |
 | Out of scope | MyISAM/ARCHIVE/CSV, non-InnoDB `REPAIR TABLE`, engine conversion | Explicitly excluded | Do not put these back into the global remaining-task list |
 
 The distinction above is intentional: an official table name and column list proves
@@ -71,9 +75,10 @@ remain the inventory baseline.
 |---|---|---|
 | P0 baseline | Core server, cluster, Connector/J | Existing release gate remains `GO`; 139 Connector/J tests pass with 0 failures/errors/skips |
 | P1-A | INFORMATION_SCHEMA/PERFORMANCE_SCHEMA | Inventory has no unclassified table; supported tables have MySQL-compatible columns, NULL/type/projection/filter semantics and runtime freshness tests |
-| P1-B | Non-Connector/J clients | MySQL CLI, Go, Python and Node.js matrix passes connection/auth/prepared statement/transaction/metadata/error/charset cases |
-| P1-C | XA/native replication | XA prepare/recover/commit/rollback, binlog position/GTID dump, replica apply, crash recovery and promotion preserve exactly-once transaction visibility |
-| P2 | FULLTEXT | Explicitly deferred until the user reopens scope |
+| P2 | xmysql-native XA/replication | XA prepare/recover/commit/rollback, binlog position/GTID dump, replica apply, crash recovery and promotion preserve exactly-once transaction visibility in xmysql-to-xmysql topology |
+| P3 | Non-Connector/J clients | MySQL CLI, Go, Python and Node.js plus the supported client set pass connection/auth/prepared statement/transaction/metadata/error/charset cases |
+| P4 | Official MySQL interoperability | An official MySQL fixture proves bidirectional XA/binlog/GTID/replication/crash-recovery behavior; absence of the fixture remains an explicit external gate, not a local pass |
+| Deferred | FULLTEXT | Explicitly deferred until the user reopens scope |
 | Out of scope | Non-InnoDB engines and repair/conversion | Must not appear as a release blocker or remaining implementation task |
 
 ## Review Focus
@@ -158,7 +163,7 @@ remain the inventory baseline.
 - Modify: `server/innodb/engine/performance_schema_compatibility_test.go` or create it if absent
 
 **Interfaces:**
-- Consumes real session IDs, connection attributes, statement history, transaction history, MDL/lock diagnostics, replication state, metrics and server lifecycle events.
+- Consumes real session IDs, connection attributes, bounded statement history plus instance-lifetime statement summaries, transaction history, MDL/lock diagnostics, replication state, metrics and server lifecycle events.
 - Produces consistent rows for statement/stage/transaction/wait/lock/thread/socket/file/memory/setup/status/variable tables with bounded history and deterministic filtering.
 
 - [ ] **Step 1: Write runtime freshness tests**
@@ -264,7 +269,7 @@ remain the inventory baseline.
 
 - [ ] **Step 1: Add required checks**
 
-  Require I_S/P_S coverage, client matrix and XA/native replication evidence in the release report; keep Connector/J and cluster checks mandatory.
+  Require P1 I_S/P_S coverage and P2 native XA/replication evidence in the release report; keep P0 Connector/J and cluster checks mandatory. Record P3 client and P4 official-MySQL fixture checks as `pending_external` when their environment/fixture is unavailable; never convert them to a local pass.
 
 - [ ] **Step 2: Run the complete scoped gate**
 

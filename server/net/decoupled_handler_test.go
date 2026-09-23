@@ -15,6 +15,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/auth"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
 	"github.com/zhukovaskychina/xmysql-server/server/observability/metrics"
 	"github.com/zhukovaskychina/xmysql-server/server/protocol"
 )
@@ -320,6 +321,32 @@ func TestHandleQueryAllowsNegotiatedMultiStatementsAndSetOptionOverride(t *testi
 	}
 	if len(session.written) != 1 || session.written[0][4] != 0xff {
 		t.Fatalf("disabled multi-statement response = %v, want one ERR packet", session.written)
+	}
+}
+
+func TestHandleQueryMultiStatementContinuesPacketSequenceAcrossResults(t *testing.T) {
+	business := &capturingQueryBusinessHandler{response: &protocol.ResponseMessage{
+		BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_RESPONSE, "multi-sequence", nil),
+		Result: &protocol.MessageQueryResult{
+			Columns: []string{"value"},
+			Rows:    [][]interface{}{{int64(1)}},
+		},
+	}}
+	handler := &DecoupledMySQLMessageHandler{businessHandler: business}
+	session := NewMockSession("multi-sequence")
+	mysqlSession := NewMySQLServerSession(session)
+	session.SetAttribute("client_capabilities", uint32(protocol.CLIENT_MULTI_STATEMENTS|protocol.CLIENT_MULTI_RESULTS))
+
+	err := handler.handleQueryMessageDirect(session, &mysqlSession, &protocol.QueryMessage{
+		BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_REQUEST, "multi-sequence", "select 1; select 2"),
+		SQL:         "select 1; select 2",
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, business.calls)
+	require.Len(t, session.written, 10)
+	for index, packet := range session.written {
+		require.GreaterOrEqual(t, len(packet), 4)
+		require.Equal(t, byte(index+1), packet[3], "packet %d sequence", index)
 	}
 }
 
@@ -852,6 +879,37 @@ func TestHandleQueryMessageDirectRecordsRuntimeMetrics(t *testing.T) {
 	require.Equal(t, "select 1", history[len(history)-1].SQL)
 	require.Equal(t, "SELECT", history[len(history)-1].StatementType)
 	require.Contains(t, metrics.DefaultRuntimeRecorder().PrometheusText(), `xmysql_queries_total{database="",status="ok"}`)
+}
+
+func TestHandleQueryMessageDirectDoesNotDoubleRecordEngineMetrics(t *testing.T) {
+	cfg := &conf.Cfg{
+		DataDir:              t.TempDir(),
+		InnodbDataDir:        t.TempDir(),
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+	}
+	cfg.InnodbDataDir = cfg.DataDir
+	xmysqlEngine := engine.NewXMySQLEngine(cfg)
+	t.Cleanup(func() { require.NoError(t, xmysqlEngine.Close()) })
+	handler := NewDecoupledMySQLMessageHandlerWithEngine(cfg, xmysqlEngine)
+	session := NewMockSession("runtime-engine-metrics")
+	require.NoError(t, handler.OnOpen(session))
+
+	beforeHistory := len(metrics.DefaultRuntimeRecorder().StatementHistory())
+	query := &protocol.QueryMessage{
+		BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_REQUEST, "runtime-engine-metrics", "select 1"),
+		SQL:         "select 1",
+	}
+	require.NoError(t, handler.handleQueryMessageDirect(session, nil, query))
+
+	events := make([]metrics.StatementEvent, 0)
+	history := metrics.DefaultRuntimeRecorder().StatementHistory()
+	for _, event := range history[beforeHistory:] {
+		if event.SQL == "select 1" {
+			events = append(events, event)
+		}
+	}
+	require.Len(t, events, 1)
+	require.Equal(t, int64(session.ID()), events[0].ThreadID)
 }
 
 func TestHandlePacketUnsupportedCommandReturnsErrorPacket(t *testing.T) {

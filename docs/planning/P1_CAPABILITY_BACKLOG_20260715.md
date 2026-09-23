@@ -982,6 +982,15 @@ P1 items are important for broad MySQL compatibility, query quality, performance
 - MyISAM/ARCHIVE/CSV、非 InnoDB `REPAIR TABLE` 和引擎转换继续明确排除；FULLTEXT 继续后置，不作为当前 release blocker。
 - 本轮文档复核通过；带详细输出的 `go test ./server/innodb/engine -run 'TestPerformanceSchema' -count=1 -timeout 120s -v` 通过，P_S 专项耗时 15.790s，exit 0。
 
+### Continuation 1081
+
+- P1-B 客户端矩阵补齐真实协议断言：runner 现在必须返回完整 `cases` 且每个计划用例均为 `PASS`，避免仅凭进程 exit 0 把未执行/漏报的客户端误判为通过。
+- 修复多语句结果集的 MySQL wire packet sequence：拆分执行的后续结果集继续沿用同一响应序列，不再从 sequence 1 重启；新增 `TestHandleQueryMultiStatementContinuesPacketSequenceAcrossResults`，定向 `server/net` 回归通过。
+- 修复 `SELECT 1 AS alias` 快捷路径丢失列别名：`HandleQueryWithRealSession` 临时消息现在保留 SQL/数据库，硬编码响应通过 SQL AST 投影别名；新增 dispatcher 回归，并保留 engine 层别名回归。
+- Go runner 改用 `multiStatements=true` 和 `Rows.NextResultSet` 验证两个结果集的列名/值，再验证缺表错误；PyMySQL、Go MySQL driver、Node.js/mysql2 均完成同一 8-case 本地矩阵并通过：分别使用报告 `reports/compatibility/client-matrix-current-python-final/`、`client-matrix-current-go-final/`、`client-matrix-current-node-final2/`。
+- 本轮局部证据：dispatcher 两项别名测试、engine 别名测试、net 多结果 sequence 测试均 exit 0；三个客户端矩阵均 `passed=true`。MySQL CLI 仍因当前环境缺少 `mysql.exe` 保持 `SKIPPED_ENVIRONMENT`，不能据此宣称完整跨客户端矩阵完成。
+- 全局剩余项保持不变：完整 I_S/P_S 字段精度及运行时统计、隐式句柄/锁等待/线程完整语义；XA 与官方 MySQL binlog/GTID/复制/崩溃恢复双向互操作；剩余客户端和集群场景矩阵。FULLTEXT 继续后置，MyISAM/ARCHIVE/CSV 及非 InnoDB `REPAIR TABLE`/引擎转换继续排除。
+
 ### Continuation 1078
 
 - 本轮继续收口 `PERFORMANCE_SCHEMA` statement-event 的扫描计数：真实 `table_scan` 查询现在投影 `SELECT_SCAN=1`，并汇总到 `events_statements_summary_by_digest.SUM_SELECT_SCAN`；只对执行器明确选择聚簇全表扫描的路径计数，二级索引、join、临时表和其他算子仍不伪造该字段。
@@ -1032,3 +1041,207 @@ P1 items are important for broad MySQL compatibility, query quality, performance
 - 新增 `TestInformationSchemaInnoDBTablesProjectsPersistedTablespaceFlag`，先修改持久化页标志形成红测，再验证 `INNODB_TABLES.FLAG` 与 `INNODB_TABLESPACES.FLAG` 同步投影为 7；普通 `ROW_FORMAT=COMPRESSED` 元数据不会被误判为已写入 FSP 压缩标志。
 - 定向 InnoDB 字典回归通过；完整 P_S、engine 全量和串行全仓回归沿用本轮 wait-event 验证结果，后续需在最终交付门禁中重新采集最新全量证据。
 - 全局剩余项仍包括：其他 I_S/P_S 表的完整字段精度与真实运行时采样、锁/等待/线程完整语义；XA 与官方 MySQL binlog/复制/崩溃恢复双向互操作；完整非 Connector/J 客户端矩阵。FULLTEXT 继续后置，非 InnoDB 引擎与相关修复/转换继续排除。
+
+### Continuation 1082
+
+- P1-A 继续收口 INFORMATION_SCHEMA 的权威时间字段：`TABLES.CREATE_TIME` 与 `PARTITIONS.CREATE_TIME` 现在都读取持久化 `.frm` 元数据中的 `created_at`，并投影为 MySQL datetime；`UPDATE_TIME`、`CHECK_TIME` 仍在没有权威来源时返回 `NULL`。
+- 新增 `TestInformationSchemaPartitionsProjectsPersistedCreateTime`，与既有 `TABLES.CREATE_TIME` 回归一起验证表级和分区视图的持久化创建时间。
+- P_S 运行时覆盖已扩展：`table_handles` 已验证显式 `LOCK TABLES` lease 和事务作用域隐式 lease 的出现/清理；`global_status`/`session_status` 的 `Uptime` 由 executor/server 启动时间计算，engine 启动时刷新起始时间。
+- 本轮新增的 I_S/P_S 定向测试通过；最终交付前仍需重新采集 engine 全量和串行全仓回归证据。
+- 全局剩余项仍包括：其他 I_S/P_S 表的完整字段精度与真实运行时采样、锁/等待/线程完整语义；XA 与官方 MySQL binlog/复制/崩溃恢复双向互操作；完整非 Connector/J 客户端矩阵。FULLTEXT 继续后置，非 InnoDB 引擎及 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1083
+
+- P1-A 收口 INFORMATION_SCHEMA 账号授权视图的对象可见性：普通账号仅能看到自己以及其有对象权限的范围；拥有 `SELECT`/`UPDATE` 覆盖 `mysql.user` 的全局或 `mysql.*` 授权账号，可以看到其他账号的授权行。
+- `informationSchemaPrivilegeAccountVisible` 改用统一的 scope 覆盖判断，保留 partial revoke 限制，不再把 `*.*`/`mysql.*` 错误地当作无法覆盖 `mysql.user` 的授权。
+- 新增 `TestInformationSchemaPrivilegeViewsHonorGlobalMySQLUserVisibility`，并调整普通 schema 授权回归，覆盖普通账号与全局授权账号的差异；相关三项 privilege visibility 测试通过。
+- 官方语义依据：[INFORMATION_SCHEMA 权限说明](https://dev.mysql.com/doc/refman/8.4/en/information-schema-introduction.html)、[TABLE_PRIVILEGES](https://dev.mysql.com/doc/refman/8.4/en/information-schema-table-privileges-table.html)、[SHOW GRANTS](https://dev.mysql.com/doc/refman/8.4/en/show-grants.html)。
+- 全局剩余项仍包括：grant option、角色继承、partial revoke、管理员行为的完整权限矩阵；其他 I_S/P_S 字段精度与真实运行时采样、锁/等待/线程完整语义；XA 与官方 MySQL binlog/复制/崩溃恢复双向互操作；完整非 Connector/J 客户端矩阵。FULLTEXT 继续后置，非 InnoDB 引擎及 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1084
+
+- P1-A 继续补齐 `PERFORMANCE_SCHEMA.global_status/session_status` 的运行时计数：`Connections` 现在由现有 metrics recorder 的认证连接累计值计算，不再遗漏 MySQL 常用连接总数状态项。
+- 新增 `TestPerformanceSchemaGlobalStatusProjectsConnectionTotals`，以 recorder 当前累计值为基线，验证新增连接后 `global_status.Connections` 增量准确为 2；既有 `Threads_*`、`Queries`、`Uptime` 回归保持通过。
+- 全局剩余项仍包括：P_S 其他运行时计数与精确 event/lock/thread 语义、I_S grant option/角色继承/partial revoke/管理员完整权限矩阵；XA 与官方 MySQL binlog/复制/崩溃恢复双向互操作；完整非 Connector/J 客户端矩阵。FULLTEXT 继续后置，非 InnoDB 引擎及 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1085
+
+- P1-A 继续收口 INFORMATION_SCHEMA.FILES 的时间字段：对能映射到逻辑 schema/table 的 InnoDB tablespace，`CREATION_TIME` 与 `CREATE_TIME` 读取对应 `.frm` 的持久化 `created_at`；无法映射的系统/物理空间继续保留 `NULL`。
+- 新增 `TestInformationSchemaFilesProjectsPersistedCreateTime`，与 `TABLES`、`PARTITIONS` 创建时间回归一起验证同一权威元数据源在三个 I_S 视图中的投影。
+- 定向三项创建时间测试通过；最终引擎全量回归需在本次代码变更后重新采集。
+- 全局剩余项仍包括：其他 I_S 字段精度与权威运行时值、P_S 其他运行时计数与精确 event/lock/thread 语义、I_S grant option/角色继承/partial revoke/管理员完整权限矩阵；XA 与官方 MySQL binlog/复制/崩溃恢复双向互操作；完整非 Connector/J 客户端矩阵。FULLTEXT 继续后置，非 InnoDB 引擎及 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1086
+
+- P1-B 扩展非 Connector/J 客户端规范：在原有 8 个 case 基础上增加独立 `charset` case，分别验证 Go MySQL driver、PyMySQL 和 Node.js/mysql2 对 `_utf8mb4` 字符串的返回值。
+- `client_matrix.ps1` 仍从 `client_matrix_cases.json` 动态读取必需 case，因此新增 case 会进入 runner 完整性校验；Go 编译、Python 语法检查、Node 语法检查和规范 case 列表校验通过。
+- 当前仍未把单机 runner 误标为完整矩阵：MySQL CLI 仍因环境没有 `mysql.exe` 而为 `SKIPPED_ENVIRONMENT`，集群 endpoint case 及官方客户端交叉验证仍待对应运行环境。
+
+### Continuation 1087
+
+- 本轮验证证据刷新：`go test -p 1 ./... -count=1 -timeout 45m` exit 0；engine 149.276s、net 7.712s、replication 1.901s，其他 Go 包同样通过。
+- xmysql 集群 smoke 通过：`reports/compatibility/p1-cluster-current-20260923/cluster-report.json`；内部 crash-recovery 三次重复通过；外部进程级 crash/recovery 三次通过：`reports/compatibility/external-crash-current-20260923/`。
+- 客户端诊断刷新于 2026-09-23：Go/PyMySQL/Node 可用，MySQL CLI 因没有 `mysql.exe` 为 `SKIPPED_ENVIRONMENT`；实际功能矩阵因当前环境未设置受保护的 `XMYSQL_CLIENT_PASSWORD`，未运行且不能宣称通过。
+- 全局剩余项仍包括：完整 I_S/P_S 语义与组件运行时来源、完整客户端/集群 endpoint 矩阵、XA 与官方 MySQL 双向 binlog/GTID/XA/崩溃恢复互操作。FULLTEXT 继续后置，非 InnoDB 引擎及 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1088
+
+- P1-A 继续补齐 `PERFORMANCE_SCHEMA.global_status/session_status`：新增 `Aborted_connects`，由 metrics recorder 的认证失败累计值投影；与 `host_cache` 的当前失败计数分离，成功认证不会回退历史累计值。
+- 新增 `TestPerformanceSchemaGlobalStatusProjectsAbortedConnections`，与 `Connections` 状态回归一起验证连接总数和认证失败总数均从运行时基线增量计算。
+- 定向状态测试通过；最终引擎全量门禁需在本次变更后重新采集。
+- 全局剩余项仍包括：其他 P_S 运行时计数与精确 event/lock/thread 语义、组件运行时来源；完整 I_S 权限矩阵、客户端/集群 endpoint 矩阵；XA 与官方 MySQL 双向 binlog/GTID/XA/崩溃恢复互操作。FULLTEXT 继续后置，非 InnoDB 引擎及 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1089
+
+- `SHOW STATUS` / `SHOW GLOBAL STATUS` 现在复用 `PERFORMANCE_SCHEMA` 状态运行时投影，不再返回旧的硬编码 `Threads_connected=1`、`Uptime=3600`、`Questions=100`；`Connections`、`Aborted_connects`、`Uptime` 等状态项与 recorder/server 启动时间保持一致，LIKE/WHERE 和 AST filter 回归通过。
+- 新增 SHOW 状态路由与运行时计数回归；状态测试改用独立 recorder，避免测试之间共享默认 runtime recorder 造成跨用例污染。
+- 本轮最终串行全仓回归通过：`go test -p 1 ./... -count=1 -timeout 45m` exit 0；engine 149.007s、net 8.539s、replication 1.868s、metrics 0.377s、protocol 0.555s，其余 Go 包通过。
+- 当前全局剩余项不变：完整 I_S/P_S 表/字段精度与所有组件运行时来源、锁/等待/线程完整语义；完整非 Connector/J 客户端及集群 endpoint 矩阵；XA 与官方 MySQL 双向 binlog/GTID/XA/崩溃恢复互操作。FULLTEXT 继续后置，非 InnoDB 引擎及 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1090
+
+- P0 请求分发路径移除 `SELECT 1` 硬编码 shortcut：`HandleQueryWithRealSession` 和认证后的 `handleQueryMessage` 现在都进入真实 `SQLDispatcher`/引擎执行，保留 `SELECT 1` 作为无表连接探测时的权限例外，但不再伪造列和值。
+- 新增 dispatcher 回归，使用独立测试引擎返回非 `1` 的结果，验证真实分发被调用并保留列别名；dispatcher 全量测试通过。
+- 该变更未改变 FULLTEXT、非 InnoDB、完整 I_S/P_S、非 Connector/J 全量矩阵或官方 MySQL XA 互操作的范围判断；这些仍按当前全局任务继续推进或保留为环境/组件依赖。
+
+### Continuation 1091
+
+- P1-A 新增 `PERFORMANCE_SCHEMA.global_status/session_status` 的常用命令计数投影：`Questions`、`Com_select`、`Com_insert`、`Com_update`、`Com_delete`、`Com_begin`、`Com_commit`、`Com_rollback`、`Com_show`。
+- 计数来自 `RuntimeRecorder` 的服务生命周期累计 query totals；session scope 则按真实 statement history 的 thread ID 过滤，避免把有界 history 当作 global lifetime counter。
+- 新增 `TestPerformanceSchemaGlobalStatusProjectsStatementCommandCounters`；P_S 专项通过（15.587s），metrics 专项通过（0.431s）。本次变更后的全仓门禁仍需在最终交付前重新采集。
+- 全局剩余项仍包括：完整 I_S/P_S 表/字段精度与所有组件运行时来源、锁/等待/线程完整语义；完整非 Connector/J 客户端及集群 endpoint 矩阵；XA 与官方 MySQL 双向 binlog/GTID/XA/崩溃恢复互操作。FULLTEXT 继续后置，非 InnoDB 引擎及 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1092
+
+- 本轮最终串行全仓回归通过：`go test -p 1 ./... -count=1 -timeout 45m` exit 0；engine 172.048s、net 7.520s、replication 3.895s、metrics 0.553s、protocol 0.542s，其余 Go 包通过。
+- 本轮涉及的 P0 dispatcher、P_S 状态计数和 runtime recorder 变更均已纳入该全仓证据；未执行 reset、clean、commit 或 push，保留现有用户工作区改动。
+- 当前全局剩余项仍是：完整 I_S/P_S 表/字段精度与组件运行时来源、锁/等待/线程完整语义；完整 9-case 非 Connector/J 功能矩阵及集群 endpoint；XA 与官方 MySQL 双向 binlog/GTID/XA/崩溃恢复互操作。FULLTEXT 继续后置，非 InnoDB 引擎及 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1093
+
+- 修复真实协议查询的 P_S 记账重复：增强网络路径已经由 InnoDB SQL 引擎记录完成查询，网络层不再二次写入 `StatementHistory`、`Questions` 和 `Com_*`；非增强回退路径仍保留协议层记账。
+- 非增强协议记账现在从真实会话读取 `connection_id`、用户和主机，语句历史不再把客户端语句统一归到线程 `0`；新增真实引擎网络回归，验证同一 `select 1` 只产生一条事件且线程号等于连接 ID。
+- 相关定向回归通过：`go test ./server/net ./server/dispatcher ./server/observability/metrics -count=1 -timeout 240s`；`git diff --check` 无错误（仅保留现有换行格式提示）。全仓门禁需在本轮最终交付前重新采集。
+- 当前全局剩余项仍是：完整 I_S/P_S 表/字段精度与组件运行时来源、锁/等待/线程完整语义；完整 9-case 非 Connector/J 功能矩阵及集群 endpoint；XA 与官方 MySQL 双向 binlog/GTID/XA/崩溃恢复互操作。FULLTEXT 继续后置，非 InnoDB 引擎及 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1094
+
+- P1-A 扩展 `PERFORMANCE_SCHEMA.status_by_account/status_by_host/status_by_user`：复用真实 statement history 和命令分类，补齐 `Com_select`、`Com_insert`、`Com_update`、`Com_delete`、`Com_begin`、`Com_commit`、`Com_rollback`、`Com_show` 以及 `Com_replace`、`Com_truncate`、`Com_set_option`、`Com_flush`、`Com_call_procedure` 等状态行。
+- `global_status/session_status` 同步支持上述新增常用命令计数；新增账号状态聚合回归和全量 P_S 专项回归通过。
+- 当前全局剩余项仍是：完整 I_S/P_S 表/字段精度与组件运行时来源、锁/等待/线程完整语义；完整 9-case 非 Connector/J 功能矩阵及集群 endpoint；XA 与官方 MySQL 双向 binlog/GTID/XA/崩溃恢复互操作。FULLTEXT 继续后置，非 InnoDB 引擎及 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1095
+
+- 修复 P_S 客户端统计污染：认证和权限检查使用的内部临时 SQL 会话现在标记为 internal query，仍正常执行但不写入 `Questions`、`Com_*`、statement history 或错误摘要。
+- 新增 `TestPerformanceSchemaIgnoresMarkedInternalEngineQueries`，验证内部 `SELECT` 不改变 runtime recorder 的 query totals 和 statement history；认证包与 P_S 定向回归通过。
+- 当前全局剩余项仍是：完整 I_S/P_S 表/字段精度与组件运行时来源、锁/等待/线程完整语义；完整 9-case 非 Connector/J 功能矩阵及集群 endpoint；XA 与官方 MySQL 双向 binlog/GTID/XA/崩溃恢复互操作。FULLTEXT 继续后置，非 InnoDB 引擎及 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1096
+
+- 本轮串行全仓门禁通过：`go test -p 1 ./... -count=1 -timeout 45m` exit 0；engine 154.563s、net 8.033s、replication 1.935s、metrics 0.372s、protocol 0.560s，其他 Go 包同样通过。
+- 本轮新增的 P_S 状态聚合、常用 `Com_*` 计数和内部认证 SQL 过滤均包含在该全仓证据中；未执行 reset、clean、commit 或 push，保留现有用户工作区改动。
+
+### Continuation 1097
+
+- P1-A 继续扩展无歧义的常用 `Com_*` 状态：`Com_change_db`、`Com_explain`、`Com_describe`、`Com_analyze`、`Com_savepoint`、`Com_grant`、`Com_revoke`、`Com_lock_tables`、`Com_unlock_tables`、`Com_kill`、`Com_reset`。
+- 这些状态同时出现在 global/session status 和按账号/主机/用户聚合的 P_S 状态视图中；P_S 专项回归通过（14.914s）。
+
+### Continuation 1098
+
+- 最新串行全仓门禁通过：`go test -p 1 ./... -count=1 -timeout 45m` exit 0；engine 149.792s、net 7.533s、replication 3.896s、metrics 0.434s、protocol 0.562s，其他 Go 包同样通过。
+- 本轮改动未执行 reset、clean、commit 或 push，继续保留用户工作区现有改动。
+
+### Continuation 1099
+
+- P1-A 收口 `INFORMATION_SCHEMA.COLUMNS` 的一组真实字段精度：从持久化列定义读取整数/DECIMAL 的 `NUMERIC_PRECISION`、`NUMERIC_SCALE`，读取 `TIME/DATETIME/TIMESTAMP` 的 fractional `DATETIME_PRECISION`，保留 `UNSIGNED` 的 `COLUMN_TYPE`，并按 `utf8mb4` 计算 `CHARACTER_OCTET_LENGTH`；显式列字符集与排序规则优先于默认值。
+- 新增 `TestInformationSchemaColumnsProjectsNumericTemporalAndCharacterPrecision`，先行失败后转绿；I_S 定向套件 `go test ./server/innodb/engine -run '^(TestInformationSchema|Test.*InformationSchema)' -count=1 -timeout 300s` 通过（23.393s）。
+- 最新串行全仓回归 `go test -p 1 ./... -count=1 -timeout 45m` 通过；engine 151.251s、net 7.763s、replication 1.871s、metrics 0.525s、protocol 0.542s，其他 Go 包同样通过；`git diff --check` 无实际错误。
+- 客户端诊断仍显示 Go/PyMySQL/Node.js 可用，MySQL CLI 因当前环境没有 `mysql.exe` 保持 `SKIPPED_ENVIRONMENT`；未设置 `XMYSQL_CLIENT_PASSWORD`，因此本轮不伪造功能矩阵通过。全局剩余项仍包括其他 I_S/P_S 字段与组件运行时语义、完整客户端/集群 endpoint 矩阵、XA 与官方 MySQL 双向 binlog/GTID/XA/复制/崩溃恢复互操作；FULLTEXT 后置，非 InnoDB 引擎及相关 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1100
+
+- 继续收口 `INFORMATION_SCHEMA.COLUMNS`：未显式指定精度的 `DECIMAL/NUMERIC` 现在按 MySQL 默认 `DECIMAL(10,0)` 投影 `NUMERIC_PRECISION=10`、`NUMERIC_SCALE=0`；新增默认精度回归，先行失败后转绿。
+- I_S 定向套件通过（19.760s），最新串行全仓门禁 `go test -p 1 ./... -count=1 -timeout 45m` 通过；engine 165.136s、net 8.078s、replication 1.971s、metrics 0.362s、protocol 0.558s，其余 Go 包通过。
+- 当前仍不能宣称全局完成：I_S/P_S 的组件依赖表与剩余完整字段/运行时语义、完整非 Connector/J 客户端及集群 endpoint 矩阵、官方 MySQL 双向 XA/binlog/GTID/复制/崩溃恢复互操作仍需继续实现或外部 fixture 验证；FULLTEXT 后置，非 InnoDB 引擎及相关 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1101
+
+- 根据全局范围确认，完整 INFORMATION_SCHEMA/PERFORMANCE_SCHEMA 继续纳入 P1；需要继续补齐未覆盖表的字段精度、NULL/type/filter 语义、权威运行时值，以及组件依赖的锁/等待/线程和状态来源，不能仅以表名和空结果视为完成。
+- 非 Connector/J 的完整客户端兼容矩阵继续纳入全局 backlog，但优先级后置为 P3；当前 Go/PyMySQL/Node.js 只有 runner 和局部证据，MySQL CLI 因环境没有 `mysql.exe` 仍未验证，完整功能矩阵和集群 endpoint 场景不能宣称通过。
+- XA 继续拆分：xmysql-to-xmysql 的本地 XA/binlog/GTID/复制/崩溃恢复收口为 P2；与官方 MySQL 的双向 XA/binlog/GTID/复制/崩溃恢复互操作列为 P4 外部 fixture 门禁，当前没有官方 MySQL fixture，保持未验证。
+- MyISAM、ARCHIVE、CSV、非 InnoDB `REPAIR TABLE` 和非 InnoDB 引擎转换不纳入全局剩余任务；FULLTEXT 继续按范围决策后置，不阻塞 P0。
+
+### Continuation 1102
+
+- P1-A 继续收口 `INFORMATION_SCHEMA.COLUMNS` 字符集元数据：表级 `DEFAULT CHARACTER SET/CHARSET` 在没有列级覆盖时现在继承到字符列，表级 collation 同步继承；无 `=` 的标准 MySQL 表选项写法也会被解析。
+- `CHARACTER_OCTET_LENGTH` 现在按常见字符集最大字节数计算，覆盖 `utf8mb4`、`utf8/utf8mb3`、`utf16/utf16le`、`utf32`、`ucs2` 及常见双字节字符集；数值列不会错误继承字符集属性。
+- 新增 `TestInformationSchemaColumnsInheritTableCharacterSetForOctetLength`，先行失败后转绿；I_S 定向套件通过（19.411s）。串行全仓门禁 `go test -p 1 ./... -count=1 -timeout 45m` 通过，engine 153.204s、net 7.762s、metrics 0.372s、protocol 0.536s、replication 1.915s，其余 Go 包通过。
+- 当前未完成项不变：完整 I_S/P_S 组件运行时和剩余字段语义、P2 xmysql-native XA/复制边界、P3 非 Connector/J 全量客户端及集群 endpoint、P4 官方 MySQL 双向互操作；FULLTEXT 后置，非 InnoDB 引擎及相关 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1103
+
+- P1-A 继续收口视图元数据：`INFORMATION_SCHEMA.COLUMNS` 对普通视图现在保留源列的 `Scale`、`UNSIGNED`、字符集、排序规则、默认值、生成表达式和枚举值；源表的表级 charset/collation 会在列级未覆盖时传递到视图列。
+- 新增 `TestInformationSchemaViewColumnsPreserveSourcePrecisionAndCharacterSet`，先行失败后转绿；覆盖视图中的 `VARCHAR`、`DECIMAL(8,2)` 和 `DATETIME(3)` 元数据。
+- I_S 定向套件通过（19.190s）；串行全仓门禁 `go test -p 1 ./... -count=1 -timeout 45m` 通过，engine 148.569s、net 7.462s、metrics 0.388s、protocol 0.590s、replication 3.847s，其余 Go 包通过。
+- 当前未完成项仍为完整 I_S/P_S 组件运行时和剩余字段语义、P2 xmysql-native XA/复制边界、P3 非 Connector/J 全量客户端及集群 endpoint、P4 官方 MySQL 双向互操作；FULLTEXT 后置，非 InnoDB 引擎及相关 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1104
+
+- P1-A 继续补齐 `INFORMATION_SCHEMA.PARAMETERS`：存储过程参数和函数返回值现在复用统一类型元数据计算，投影字符长度/字节长度、数值精度/scale、时间精度、字符集和排序规则；没有对应类型来源的字段继续保留 `NULL`。
+- 新增 `TestInformationSchemaParametersProjectTypePrecision`，先行失败后转绿；I_S 定向套件通过（19.661s）。
+- 最新串行全仓门禁 `go test -p 1 ./... -count=1 -timeout 45m` 通过，engine 150.669s、net 7.581s、metrics 0.566s、protocol 0.547s、replication 1.912s，其余 Go 包通过。
+- 当前未完成项仍为完整 I_S/P_S 组件运行时和剩余字段语义、P2 xmysql-native XA/复制边界、P3 非 Connector/J 全量客户端及集群 endpoint、P4 官方 MySQL 双向互操作；FULLTEXT 后置，非 InnoDB 引擎及相关 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1105
+
+- P1-A 继续收口 `INFORMATION_SCHEMA.ROUTINES`：函数返回值现在投影字符长度/字节长度、数值 precision/scale、时间精度、字符集和排序规则；`RETURNS DECIMAL(8,2)` 等带逗号的返回类型会完整持久化，不再被旧正则截断。
+- 新增 `TestInformationSchemaRoutinesProjectReturnTypePrecision`，先行失败后转绿；存储对象和 I_S 相关回归通过（21.054s）。
+- 最新串行全仓门禁 `go test -p 1 ./... -count=1 -timeout 45m` 通过，engine 151.151s、manager 8.476s、net 7.781s、metrics 0.359s、protocol 0.601s、replication 1.913s，其余 Go 包通过。
+- 当前未完成项仍为完整 I_S/P_S 组件运行时和剩余字段语义、P2 xmysql-native XA/复制边界、P3 非 Connector/J 全量客户端及集群 endpoint、P4 官方 MySQL 双向互操作；FULLTEXT 后置，非 InnoDB 引擎及相关 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1106
+
+- P1-A 修复 `PERFORMANCE_SCHEMA.events_statements_summary_*` 的累计来源：summary 视图现在读取 `RuntimeRecorder` 的实例生命周期聚合，不再仅从 256 条有界 statement history 重新计算；超过历史窗口后，`COUNT_STAR`、计时、错误、warning、affected/sent/examined rows 和 `SELECT_SCAN` 仍保持累计值。
+- 新增 `TestPerformanceSchemaStatementSummaryRetainsLifetimeTotalsBeyondHistory`，先行失败并准确暴露 256/300 截断，改为生命周期聚合后转绿；metrics 与 engine 定向测试通过，engine 全套 `go test ./server/observability/metrics ./server/innodb/engine -count=1 -timeout 300s` 通过（engine 150.806s）。
+- 最新串行全仓门禁 `go test -p 1 ./... -count=1 -timeout 45m` 通过：engine 152.005s、manager 8.228s、net 7.859s、metrics 0.368s、protocol 0.550s、replication 1.971s，其余 Go 包通过。
+- 本轮明确留下的 P1 子项：digest summary、statement histogram、部分 stage/status 投影仍直接依赖有界 history 或组件专用历史，尚未统一为 MySQL 级别的生命周期累计；完整 I_S/P_S 字段精度、NULL/type/filter 语义及锁/等待/线程权威来源仍需继续补齐。P2 xmysql-native XA/复制边界、P3 非 Connector/J 全量客户端及集群 endpoint、P4 官方 MySQL 双向互操作仍未验证；FULLTEXT 后置，非 InnoDB 引擎及相关 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1107
+
+- P1-A 继续修复生命周期来源：`events_statements_summary_by_digest` 和 `events_statements_histogram_{global,by_digest}` 现在读取 `RuntimeRecorder` 的实例生命周期 statement summary；digest 的 `COUNT_STAR`、计时、错误、warning、行数、首末时间和 quantile 输入，以及 histogram 的 bucket 累计值不再被 256 条 history 截断。
+- 新增 `TestPerformanceSchemaStatementDigestRetainsLifetimeTotalsBeyondHistory` 与 `TestPerformanceSchemaStatementHistogramRetainsLifetimeTotalsBeyondHistory`，均先行失败并暴露 256/300 截断，改为生命周期来源后转绿；P_S/metrics 专项 `go test ./server/observability/metrics ./server/innodb/engine -run '^(TestPerformanceSchema|TestRuntime)' -count=1 -timeout 300s` 通过（metrics 0.440s，engine 16.425s）。
+- 最新串行全仓门禁 `go test -p 1 ./... -count=1 -timeout 45m` 通过：engine 173.778s、manager 7.601s、net 7.547s、metrics 0.392s、protocol 0.588s、replication 5.908s，其余 Go 包通过。
+- 当前 P1 剩余重点收敛为：stage/status 等仍依赖有界 history 的投影、其他 P_S/I_S 表的完整字段精度/NULL/type/filter 语义、锁/等待/线程及组件权威运行时来源。P2 xmysql-native XA/复制边界、P3 非 Connector/J 全量客户端及集群 endpoint、P4 官方 MySQL 双向互操作仍未验证；FULLTEXT 后置，非 InnoDB 引擎及相关 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1108
+
+- P1-A 收口 statement-derived 生命周期来源：`events_stages_summary_by_{user,host,account,thread}_by_event_name`、`session_status` 以及 `status_by_account/status_by_host/status_by_user` 的命令计数现在复用实例生命周期 statement summary；有界 history 继续只服务 current/history 事件视图。
+- 新增 `TestPerformanceSchemaStageSummaryRetainsLifetimeTotalsBeyondHistory` 与 `TestPerformanceSchemaSessionStatusRetainsLifetimeCommandTotalsBeyondHistory`，覆盖用户/全局/线程 stage summary 及 `Queries`/`Com_select`，均先行失败并准确暴露 256/300 截断，修复后转绿。
+- 最新 P_S/metrics 专项通过：engine 16.188s、metrics 0.464s；最新串行全仓门禁 `go test -p 1 ./... -count=1 -timeout 45m` 通过：engine 171.389s、manager 7.130s、net 7.531s、metrics 0.355s、protocol 0.551s、replication 2.030s，其余 Go 包通过。
+- 当前 P1 重点进一步收敛为：其他 I_S/P_S 表的完整字段精度/NULL/type/filter 语义、锁/等待/线程及组件权威运行时来源；statement-derived summary 的生命周期累计已覆盖本轮范围。P2 xmysql-native XA/复制边界、P3 非 Connector/J 全量客户端及集群 endpoint、P4 官方 MySQL 双向互操作仍未验证；FULLTEXT 后置，非 InnoDB 引擎及相关 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1109
+
+- 对 `RuntimeRecorder.StatementSummary()` 做并发安全收口：返回值现在在读锁内深拷贝 latency samples，避免与执行线程追加生命周期样本时发生数据竞争；不改变 P_S 投影结果。
+- 并发修复后的专项回归通过：engine 16.555s、metrics 0.397s；最终串行全仓门禁 `go test -p 1 ./... -count=1 -timeout 45m` 通过：engine 171.023s、manager 7.152s、net 7.570s、metrics 0.393s、protocol 0.594s、replication 3.912s，其余 Go 包通过；`git diff --check` 无实际错误，仅有既存换行格式提示。
+- 当前全局任务仍未完成：P1 还需补齐其他 I_S/P_S 表的字段精度、NULL/type/filter 语义、锁/等待/线程及组件权威来源；P2 xmysql-native XA/复制边界、P3 非 Connector/J 全量客户端及集群 endpoint、P4 官方 MySQL 双向互操作仍未完成或验证。FULLTEXT 后置，非 InnoDB 引擎及相关 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1110
+
+- P1-A 收口虚拟元数据：`INFORMATION_SCHEMA.COLUMNS` 对 `PERFORMANCE_SCHEMA` 虚拟表列现在复用统一类型精度计算；数值列投影 `NUMERIC_PRECISION/NUMERIC_SCALE`，字符列投影字符最大长度和字符集字节长度，`COLUMN_SIZE` 同步采用数值 precision 或字符长度，字符列以外的字符集/排序规则保持 NULL。
+- 新增 `TestInformationSchemaVirtualPerformanceSchemaColumnsProjectTypePrecision`，先行失败并暴露 `COUNT_STAR.NUMERIC_PRECISION` 缺失，修复后转绿；I_S/P_S 定向套件通过（engine 34.911s）。
+- 最新串行全仓门禁 `go test -p 1 ./... -count=1 -timeout 45m` 通过：engine 170.593s、manager 7.095s、net 9.767s、metrics 0.409s、protocol 0.546s、replication 1.883s，其余 Go 包通过。
+- 当前 P1 仍需继续补齐其他 I_S/P_S 表的完整字段精度、NULL/type/filter 语义、锁/等待/线程及组件权威来源；P2 xmysql-native XA/复制边界、P3 非 Connector/J 全量客户端及集群 endpoint、P4 官方 MySQL 双向互操作仍未完成或验证。FULLTEXT 后置，非 InnoDB 引擎及相关 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1111
+
+- P1-A 继续收口生命周期 summary：`events_statements_summary_by_program` 新增独立实例生命周期累计，超过原 1024 条 program history 后仍保留 count、timer、statement wait、warning 和 rows；transaction summary 不再使用 1024 条 history 窗口截断；record-lock wait summary 新增不截断来源，`events_waits_summary_*` 和 table-lock summary 改用该来源，history 视图仍保持 bounded。
+- 新增 `TestPerformanceSchemaProgramSummaryRetainsLifetimeTotalsBeyondHistory`、`TestPerformanceSchemaTransactionSummaryRetainsLifetimeTotalsBeyondHistory`、`TestPerformanceSchemaWaitSummaryRetainsLifetimeTotalsBeyondHistory`，分别覆盖 1100/1100/130 次执行或等待，均先行暴露 1024/128 截断后转绿。
+- 同步补齐 `INFORMATION_SCHEMA.COLUMNS` 对虚拟 P_S 列的 numeric/character precision、octet length、`COLUMN_SIZE` 和 NULL 字符元数据；I_S/P_S、manager 定向测试及最新串行全仓门禁通过：engine 225.249s、manager 39.715s、net 7.674s、metrics 0.371s、protocol 0.580s、replication 3.881s，其余 Go 包通过。
+- 当前 P1 剩余重点：其他 I_S/P_S 表的完整字段精度、NULL/type/filter 语义、线程/组件权威运行时来源，以及必要的 bounded-history 与 lifetime-summary 分层。P2 xmysql-native XA/复制边界、P3 非 Connector/J 全量客户端及集群 endpoint、P4 官方 MySQL 双向互操作仍未完成或验证；FULLTEXT 后置，非 InnoDB 引擎及相关 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1112
+
+- P1-A 补齐元数据锁 summary 的生命周期来源：`tableDDLCoordinator` 现在将已完成的 owner-aware metadata-lock waits 分为有界 `MetadataLockWaitHistory()` 与不截断的 `MetadataLockWaitSummary()`；`events_waits_summary_by_*`、`events_waits_summary_by_instance` 和 `table_lock_waits_summary_by_table` 的 MDL 聚合改读 lifetime summary，`events_waits_history*` 继续只读 bounded history。
+- 新增 `TestMetadataLockWaitSummaryRetainsLifetimeTotalsBeyondHistory`，先行验证 135 次真实 owner-aware MDL wait 后 history 保持 128 条而 summary 保留全部事件；元数据锁定向回归通过。
+- 当前 P1 剩余重点仍是其他 I_S/P_S 表的完整字段精度、NULL/type/filter 语义、线程/组件权威运行时来源，以及必要的 bounded-history 与 lifetime-summary 分层。P2 xmysql-native XA/复制边界、P3 非 Connector/J 全量客户端及集群 endpoint、P4 官方 MySQL 双向互操作仍未完成或验证；FULLTEXT 后置，非 InnoDB 引擎及相关 `REPAIR TABLE`/引擎转换继续排除。
