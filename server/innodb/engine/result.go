@@ -21,7 +21,6 @@ type Result struct {
 type statementResultAccounting struct {
 	rowsAffected int64
 	rowsSent     int64
-	selectScan   int64
 	warnings     int64
 }
 

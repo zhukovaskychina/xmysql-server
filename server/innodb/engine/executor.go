@@ -6614,6 +6614,8 @@ func (e *XMySQLExecutor) executeInformationSchemaMetadataSelect(query string, se
 		return e.executePerformanceSchemaSetupObjectsSelect(query), true, nil
 	case strings.Contains(lower, "performance_schema.setup_timers"):
 		return e.executePerformanceSchemaSetupTimersSelect(query), true, nil
+	case strings.Contains(lower, "performance_schema.table_handles"):
+		return e.executePerformanceSchemaTableHandlesSelect(query, session), true, nil
 	case strings.Contains(lower, "performance_schema.global_variables"):
 		return e.executePerformanceSchemaVariablesSelect("performance_schema.global_variables", query), true, nil
 	case strings.Contains(lower, "performance_schema.session_variables"):

@@ -1496,6 +1496,31 @@ func TestPerformanceSchemaTableLockSummaryAggregatesCurrentWaits(t *testing.T) {
 	locks.ReleaseLocks(2)
 }
 
+func TestPerformanceSchemaTableHandlesExposeExplicitTableLocks(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	owner := newTestMySQLSession()
+	observer := newTestMySQLSession()
+	owner.SetParamByName("connection_id", int64(431))
+	owner.SessionContext().SetConnectionID(431)
+	observer.SetParamByName("connection_id", int64(432))
+	observer.SessionContext().SetConnectionID(432)
+	mustExecSessionSQL(t, executor, owner, "", "create database app")
+	mustExecSessionSQL(t, executor, owner, "app", "create table table_handle_target (id int primary key)")
+	mustExecSessionSQL(t, executor, owner, "app", "lock tables table_handle_target read")
+	executor.QueryExecutor.SetProcesslistProvider(func() []server.MySQLServerSession {
+		return []server.MySQLServerSession{owner, observer}
+	})
+
+	result := <-executor.ExecuteQuery(observer, "select object_type, object_schema, object_name, owner_thread_id, internal_lock, external_lock from performance_schema.table_handles", "app")
+	require.NoError(t, result.Err)
+	require.Equal(t, [][]interface{}{{"TABLE", "app", "table_handle_target", "431", "READ", "READ"}}, selectResultRows(result.Data.(*SelectResult)))
+
+	mustExecSessionSQL(t, executor, owner, "app", "unlock tables")
+	afterUnlock := <-executor.ExecuteQuery(observer, "select object_name from performance_schema.table_handles where object_name='table_handle_target'", "app")
+	require.NoError(t, afterUnlock.Err)
+	require.Empty(t, selectResultRows(afterUnlock.Data.(*SelectResult)))
+}
+
 func TestPerformanceSchemaObjectsSummaryFiltersCurrentWaitObjects(t *testing.T) {
 	locks := manager.NewLockManager()
 	defer locks.Close()

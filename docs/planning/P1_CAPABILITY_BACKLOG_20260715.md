@@ -967,6 +967,28 @@ P1 items are important for broad MySQL compatibility, query quality, performance
 - 官方语义依据：[MySQL `events_statements_current`](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-events-statements-current-table.html)；MySQL 明确将 current/history/history_long 视为同一事件表结构的不同生命周期视图。
 - 全局剩余项仍包括：其他 I_S/P_S 表的完整字段精度与真实运行时采样、锁/等待/线程完整语义；XA 与官方 MySQL binlog/复制/崩溃恢复双向互操作；完整非 Connector/J 客户端矩阵。FULLTEXT 继续后置，非 InnoDB 引擎与相关修复/转换继续排除。
 
+### Continuation 1079
+
+- 本轮补齐 `PERFORMANCE_SCHEMA.table_handles` 的运行时行生产：查询现在读取 live session 的 `sessionTableLockLease`，真实投影 `OBJECT_TYPE`、schema/table、`OWNER_THREAD_ID`、读写 `INTERNAL_LOCK/EXTERNAL_LOCK` 和稳定的实例标识；`UNLOCK TABLES` 后对应句柄消失，并支持已有列过滤/投影。
+- 新增 `TestPerformanceSchemaTableHandlesExposeExplicitTableLocks`，验证显式 `LOCK TABLES ... READ` 返回句柄、观察会话可查询且释放后为空。
+- 验证结果：定向测试通过；完整 `TestPerformanceSchema` 通过（15.530s）；engine 全量通过（151.291s）。
+- 当前仍未完成：未持有显式表锁的隐式句柄、完整 `table_handles` 事件/内部锁语义，以及其他 I_S/P_S 表的全量字段精度和运行时采样；XA 与官方 MySQL binlog/复制/崩溃恢复双向互操作、完整非 Connector/J 客户端矩阵仍未完成或未验证。FULLTEXT 后置，非 InnoDB 引擎及 `REPAIR TABLE`/引擎转换继续排除。
+
+### Continuation 1080
+
+- 全局任务重新按交付层次梳理：P0 保持 MySQL 启动、InnoDB 核心 CRUD、xmysql 集群复制/故障切换和 Connector/J 139 项门禁；P1-A 继续补完整 I_S/P_S 的字段精度、真实运行时统计、锁等待和线程生命周期；P1-B 纳入完整非 Connector/J 客户端矩阵；P1-C 纳入 XA 与官方 MySQL binlog/GTID/复制/崩溃恢复双向互操作。
+- `INFORMATION_SCHEMA` / `PERFORMANCE_SCHEMA` 的“表名已注册”与“运行时语义已实现”分开统计：插件、NDB、线程池、UDF、Group Replication 专属表如果没有 xmysql 对应组件，只能标记为组件依赖或形状/空结果，不得冒充完整实现；同理，`table_handles` 当前已覆盖显式 `LOCK TABLES` lease，隐式句柄和完整内部锁事件仍是 P1-A 未完成项。
+- 非 Connector/J 矩阵中，Go MySQL driver、PyMySQL、Node.js/mysql2 已有本地证据；MySQL CLI 因当前环境缺少 `mysql.exe` 仍为环境未验证。XA/xmysql-native binlog/恢复已有本地回归，但官方 MySQL 双向互操作必须使用官方 fixture 单独验收。
+- MyISAM/ARCHIVE/CSV、非 InnoDB `REPAIR TABLE` 和引擎转换继续明确排除；FULLTEXT 继续后置，不作为当前 release blocker。
+- 本轮文档复核通过；带详细输出的 `go test ./server/innodb/engine -run 'TestPerformanceSchema' -count=1 -timeout 120s -v` 通过，P_S 专项耗时 15.790s，exit 0。
+
+### Continuation 1078
+
+- 本轮继续收口 `PERFORMANCE_SCHEMA` statement-event 的扫描计数：真实 `table_scan` 查询现在投影 `SELECT_SCAN=1`，并汇总到 `events_statements_summary_by_digest.SUM_SELECT_SCAN`；只对执行器明确选择聚簇全表扫描的路径计数，二级索引、join、临时表和其他算子仍不伪造该字段。
+- 更新 `TestPerformanceSchemaStatementHistoryProjectsRowsExaminedFromClusteredScan`，验证同一条查询同时得到 `ROWS_EXAMINED=2`、`ROWS_SENT=1`、`SELECT_SCAN=1`，digest 汇总为 `SUM_ROWS_EXAMINED=2`、`SUM_SELECT_SCAN=1`。
+- P_S 全套通过（16.036s），engine 全量通过（157.944s）；串行全仓 `go test -p 1 ./... -count=1 -timeout 35m` 最终明确 `XMYSQL_TEST_EXIT_CODE=0`，engine 150.410s、integration 0.782s、manager 7.708s、net 7.608s、metrics 0.372s、protocol 0.577s、replication 1.954s。
+- 全局剩余项仍包括：完整 I_S/P_S 表和字段覆盖、字段精度、所有运行时统计及锁/等待/线程完整语义；XA 与官方 MySQL binlog/复制/崩溃恢复双向互操作；完整非 Connector/J 客户端矩阵。FULLTEXT 继续后置，非 InnoDB 引擎及 `REPAIR TABLE`/引擎转换继续排除。
+
 ### Continuation 1076
 
 - 本轮继续收口 `INFORMATION_SCHEMA.INNODB_TABLESTATS`：`CLUST_INDEX_SIZE` 优先读取聚簇索引叶页链，`OTHER_INDEX_SIZE` 现在汇总持久化二级索引管理器维护的页数，不再固定返回 0；`MODIFIED_COUNTER` 改为读取 `InfoSchemaManager` 的真实 DML invalidation 计数，并在旧持久化统计 reload 时保留待刷新计数；聚簇索引页链不可用时才回退到表空间总页数。

@@ -44,6 +44,27 @@
   official-MySQL bidirectional binlog/GTID/XA/crash-recovery interoperability is
   an external fixture gate, not something to infer from local tests.
 
+## Current implementation map (2026-09-23)
+
+| Priority | Capability | Current assessment | Remaining work / exit condition |
+|---|---|---|---|
+| P0 | MySQL startup and InnoDB core CRUD | Implemented and release-gated | Keep the existing startup/core CRUD regression and release-candidate gate green |
+| P0 | xmysql cluster replication and failover | Implemented for the current xmysql topology | Retain cluster smoke coverage; official MySQL Group Replication is not implied by this item |
+| P0 | Connector/J | Implemented for the current 139-case gate | Preserve the 139/0/0/0 result while P1 work lands |
+| P1-A | INFORMATION_SCHEMA | Core metadata, InnoDB dictionary/tablespace views, privilege/role views, filters and common extensions are implemented; the registry covers the supported MySQL 8.4 surface | Complete remaining field precision and authoritative runtime values. Keep `NULL` where xmysql has no source; do not fabricate InnoDB internal encodings, full statistics or FULLTEXT-only tables |
+| P1-A | PERFORMANCE_SCHEMA | Core statement/stage/transaction/wait/lock/thread/socket/file/memory/status/variable/setup and replication views have runtime producers; `table_handles` now exposes explicit `LOCK TABLES` leases | Add implicit table-handle lifecycle, remaining runtime counters and exact event/lock/thread semantics. Clone, firewall/keyring, component scheduler, NDB sync, thread-pool, UDF and group-replication component tables remain shape/empty-result or component-dependent until a real source exists |
+| P1-B | Non-Connector/J clients | Go MySQL driver, PyMySQL and Node.js/mysql2 have local passing evidence; the full matrix is still partial | Complete the same auth, prepared statement, transaction, metadata, charset, error, reconnect and cluster cases for every client; MySQL CLI remains environment-unverified when `mysql.exe` is unavailable |
+| P1-C | XA and xmysql-native replication | XA state transitions, durable recovery, native binlog emission/dump, GTID filtering, replica apply and local crash recovery are test-covered | Verify bidirectional interoperability with an official MySQL fixture, including XA/binlog boundaries, GTID resume, duplicate delivery, crash-after-prepare/append/commit and promotion |
+| P2 | FULLTEXT | Deferred by scope decision | Do not block the current release; reopen only when explicitly requested |
+| Out of scope | MyISAM/ARCHIVE/CSV, non-InnoDB `REPAIR TABLE`, engine conversion | Explicitly excluded | Do not put these back into the global remaining-task list |
+
+The distinction above is intentional: an official table name and column list proves
+catalog discovery only; a runtime producer and behavior test are required before a
+table is considered semantically implemented. MySQL's official
+[Performance Schema table reference](https://dev.mysql.com/doc/refman/8.4/en/performance-schema-table-reference.html)
+and [Information Schema table reference](https://dev.mysql.com/doc/refman/8.4/en/information-schema-general-table-reference.html)
+remain the inventory baseline.
+
 ## Priority and Exit Criteria
 
 | Priority | Scope | Exit criteria |
