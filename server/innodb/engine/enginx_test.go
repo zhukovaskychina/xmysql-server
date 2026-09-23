@@ -35,6 +35,16 @@ func TestXMySQLEngine_resolveDmlDatabaseName(t *testing.T) {
 	assert.Equal(t, "p0e_db", got)
 }
 
+func TestXMySQLEngineCloseReleasesTableFiles(t *testing.T) {
+	tmp := t.TempDir()
+	engine := newTestStorageIntegratedExecutor(t, tmp)
+	mustExecSQL(t, engine, "", "create database app")
+	mustExecSQL(t, engine, "app", "create table users (id int primary key, name varchar(20))")
+
+	require.NoError(t, engine.Close())
+	require.NoError(t, os.RemoveAll(tmp))
+}
+
 func TestXMySQLEngine_extractTableExprSchema(t *testing.T) {
 	engine := &XMySQLEngine{}
 
@@ -65,4 +75,16 @@ func TestXMySQLEngineExecuteQueryAlterTableAddColumn(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join(dbPath, "users.frm"))
 	require.NoError(t, err)
 	require.Contains(t, string(raw), `"name": "name"`)
+}
+
+func TestXMySQLEngineReadinessLifecycle(t *testing.T) {
+	var nilEngine *XMySQLEngine
+	assert.False(t, nilEngine.IsReady())
+
+	engine := &XMySQLEngine{}
+	assert.False(t, engine.IsReady())
+	engine.ready.Store(true)
+	assert.True(t, engine.IsReady())
+	require.NoError(t, engine.Close())
+	assert.False(t, engine.IsReady())
 }

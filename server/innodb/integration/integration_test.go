@@ -13,6 +13,114 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
 )
 
+var _ plan.StorageEngineAccessor = (*StorageAccessor)(nil)
+
+type integrationStatisticsAccessor struct{}
+
+func (integrationStatisticsAccessor) GetTableRowCount(uint32) (int64, error) {
+	return 37, nil
+}
+
+func (integrationStatisticsAccessor) SampleTableRecords(uint32, float64) ([][]interface{}, error) {
+	return nil, nil
+}
+
+func (integrationStatisticsAccessor) GetIndexCardinality(uint32) (int64, error) {
+	return 0, nil
+}
+
+func (integrationStatisticsAccessor) GetTableSpaceSize(uint32) (int64, int64, error) {
+	return 4096, 2048, nil
+}
+
+func (integrationStatisticsAccessor) GetBTreeStatistics(uint32) (int, int64, int64, error) {
+	return 2, 3, 1, nil
+}
+
+func (integrationStatisticsAccessor) GetTableModifyCount(string, string) (int64, error) {
+	return 11, nil
+}
+
+func (integrationStatisticsAccessor) GetTableSpaceID(string, string) (uint32, error) {
+	return 42, nil
+}
+
+type integrationDecodedStatisticsAccessor struct {
+	records [][]interface{}
+}
+
+func (a *integrationDecodedStatisticsAccessor) GetTableRowCount(uint32) (int64, error) {
+	return int64(len(a.records)), nil
+}
+
+func (a *integrationDecodedStatisticsAccessor) SampleTableRecords(uint32, float64) ([][]interface{}, error) {
+	return a.records, nil
+}
+
+func (a *integrationDecodedStatisticsAccessor) GetIndexCardinality(uint32) (int64, error) {
+	return 0, nil
+}
+
+func (a *integrationDecodedStatisticsAccessor) GetTableSpaceSize(uint32) (int64, int64, error) {
+	return 0, 0, nil
+}
+
+func (a *integrationDecodedStatisticsAccessor) GetBTreeStatistics(uint32) (int, int64, int64, error) {
+	return 0, 0, 0, fmt.Errorf("not configured")
+}
+
+func (a *integrationDecodedStatisticsAccessor) GetTableSpaceID(string, string) (uint32, error) {
+	return 42, nil
+}
+
+func TestStorageEngineIntegratorUsesAuthoritativeStatistics(t *testing.T) {
+	integrator := &StorageEngineIntegrator{storageAccessor: integrationStatisticsAccessor{}}
+	table := metadata.NewTable("users")
+	table.Schema = &metadata.DatabaseSchema{Name: "test_db"}
+
+	rowCount, dataSize, indexSize, modifyCount := integrator.resolveTableStatistics(table, 42, nil)
+	assert.Equal(t, int64(37), rowCount)
+	assert.Equal(t, int64(4096), dataSize)
+	assert.Equal(t, int64(2048), indexSize)
+	assert.Equal(t, int64(11), modifyCount)
+}
+
+func TestStorageEngineIntegratorUsesColumnStatisticsForTableSelectivity(t *testing.T) {
+	collector := plan.NewEnhancedStatisticsCollector(&plan.StatisticsConfig{EnableAutoUpdate: false}, nil, nil)
+	defer collector.Stop()
+	collector.SetStorageEngineAccessor(&integrationDecodedStatisticsAccessor{records: [][]interface{}{
+		{"paid"}, {"paid"}, {"pending"}, {nil},
+	}})
+	integrator := &StorageEngineIntegrator{enhancedStatistics: collector}
+	table := metadata.NewTable("orders")
+	table.AddColumn(&metadata.Column{Name: "status", DataType: metadata.TypeVarchar})
+	if _, err := collector.CollectTableStatistics(context.Background(), table); err != nil {
+		t.Fatalf("CollectTableStatistics() error = %v", err)
+	}
+	if _, err := collector.CollectColumnStatistics(context.Background(), table, table.Columns[0]); err != nil {
+		t.Fatalf("CollectColumnStatistics() error = %v", err)
+	}
+	condition := &plan.BinaryOperation{
+		Op:    plan.OpEQ,
+		Left:  &plan.Column{Name: "status"},
+		Right: &plan.Constant{Value: "paid"},
+	}
+
+	selectivity := integrator.estimateSelectivity(table, []plan.Expression{condition})
+	if selectivity != 0.375 {
+		t.Fatalf("estimateSelectivity() = %v, want 0.375 from NDV and NULL ratio", selectivity)
+	}
+}
+
+func TestStorageEngineIntegratorResolvesCanonicalTableSpace(t *testing.T) {
+	integrator := &StorageEngineIntegrator{storageAccessor: integrationStatisticsAccessor{}}
+	table := metadata.NewTable("users")
+	table.Schema = &metadata.DatabaseSchema{Name: "test_db"}
+	if got := integrator.getTableSpaceID(table); got != 42 {
+		t.Fatalf("getTableSpaceID() = %d, want canonical accessor space 42", got)
+	}
+}
+
 // TestStorageEngineIntegration 测试存储引擎集成
 func TestStorageEngineIntegration(t *testing.T) {
 	// 创建模拟的管理器
@@ -26,6 +134,9 @@ func TestStorageEngineIntegration(t *testing.T) {
 	stats := integrator.GetIntegrationStats()
 	assert.NotNil(t, stats)
 	assert.Equal(t, uint64(0), stats.OptimizedQueries)
+	assert.NotNil(t, integrator.storageAccessor)
+	_, err := integrator.storageAccessor.SampleTableRecords(999999, 0.1)
+	assert.Error(t, err)
 
 	// 测试查询优化
 	ctx := context.Background()

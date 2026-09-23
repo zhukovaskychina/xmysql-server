@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
@@ -166,5 +167,28 @@ func TestSelectExecutorApplyWhereFilterEvaluatesPredicate(t *testing.T) {
 	got := filtered[0].GetValueByIndex(0).Int()
 	if got != int64(2) {
 		t.Fatalf("expected id=2, got %v", got)
+	}
+}
+
+func TestSelectExecutorDeterminesStorageProjectionWithPredicateDependencies(t *testing.T) {
+	se := &SelectExecutor{
+		selectExprs:     []string{"id"},
+		whereConditions: []string{"active = 1"},
+	}
+	tableMeta := &metadata.TableMeta{Columns: []*metadata.ColumnMeta{
+		{Name: "id", Type: metadata.TypeInt},
+		{Name: "name", Type: metadata.TypeVarchar},
+		{Name: "active", Type: metadata.TypeTinyInt},
+	}}
+
+	got, ok, err := se.determineStorageProjectionColumns(tableMeta)
+	if err != nil {
+		t.Fatalf("determineStorageProjectionColumns() error = %v", err)
+	}
+	if !ok {
+		t.Fatal("determineStorageProjectionColumns() unexpectedly disabled projection")
+	}
+	if strings.Join(got, ",") != "id,active" {
+		t.Fatalf("storage projection columns = %v, want [id active]", got)
 	}
 }

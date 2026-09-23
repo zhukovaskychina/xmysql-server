@@ -125,6 +125,7 @@ type MessageQueryResult struct {
 	Type         string // select, insert, update, delete, ddl, etc.
 	AffectedRows uint64
 	LastInsertID uint64
+	WarningCount uint16
 }
 
 // ResponseMessage 响应消息

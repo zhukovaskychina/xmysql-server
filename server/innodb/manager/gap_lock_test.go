@@ -138,6 +138,45 @@ func TestNextKeyLockBasic(t *testing.T) {
 	t.Log("Next-Key lock basic test passed")
 }
 
+func TestNextKeyLockOnRecordChecksExistingRecordLock(t *testing.T) {
+	lm := NewLockManager()
+	defer lm.Close()
+
+	gapRange := &GapRange{
+		LowerBound: 10,
+		UpperBound: 30,
+		TableID:    7,
+		IndexID:    3,
+	}
+	if err := lm.AcquireLock(1, 7, 11, 42, LOCK_X); err != nil {
+		t.Fatalf("failed to acquire existing record lock: %v", err)
+	}
+
+	if err := lm.AcquireNextKeyLockOnRecord(2, 7, 3, 11, 42, 20, gapRange, LOCK_S); err != ErrLockConflict {
+		t.Fatalf("next-key lock should conflict with the existing record lock, got %v", err)
+	}
+
+	if err := lm.ReleaseLock(1, makeResourceID(7, 11, 42)); err != nil {
+		t.Fatalf("failed to release existing record lock: %v", err)
+	}
+	if err := lm.AcquireNextKeyLockOnRecord(2, 7, 3, 11, 42, 20, gapRange, LOCK_S); err != nil {
+		t.Fatalf("next-key lock should succeed after record lock release: %v", err)
+	}
+}
+
+func TestNextKeyLockOnRecordRejectsConflictingNextKeyLock(t *testing.T) {
+	lm := NewLockManager()
+	defer lm.Close()
+
+	gapRange := &GapRange{LowerBound: 10, UpperBound: 30, TableID: 7, IndexID: 3}
+	if err := lm.AcquireNextKeyLockOnRecord(1, 7, 3, 11, 42, 20, gapRange, LOCK_S); err != nil {
+		t.Fatalf("failed to acquire shared next-key lock: %v", err)
+	}
+	if err := lm.AcquireNextKeyLockOnRecord(2, 7, 3, 11, 42, 20, gapRange, LOCK_X); err != ErrLockConflict {
+		t.Fatalf("conflicting physical next-key lock should fail immediately, got %v", err)
+	}
+}
+
 // TestNextKeyLockAndInsertIntention 测试Next-Key锁与插入意向锁的冲突
 func TestNextKeyLockAndInsertIntention(t *testing.T) {
 	lm := NewLockManager()
@@ -411,6 +450,30 @@ func TestCompareKeys(t *testing.T) {
 	}
 
 	t.Log("Compare keys test passed")
+}
+
+func TestCompareKeysSupportsMixedNumericAndBinaryValues(t *testing.T) {
+	cases := []struct {
+		name     string
+		left     interface{}
+		right    interface{}
+		expected int
+	}{
+		{name: "int and int64", left: 10, right: int64(20), expected: -1},
+		{name: "uint and int", left: uint32(20), right: -1, expected: 1},
+		{name: "int64 and uint64", left: int64(-1), right: uint64(0), expected: -1},
+		{name: "binary ascending", left: []byte("abc"), right: []byte("abd"), expected: -1},
+		{name: "binary descending", left: []byte("abd"), right: []byte("abc"), expected: 1},
+		{name: "binary equal", left: []byte("same"), right: []byte("same"), expected: 0},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := compareKeys(tc.left, tc.right); got != tc.expected {
+				t.Fatalf("compareKeys(%T(%v), %T(%v)) = %d, want %d", tc.left, tc.left, tc.right, tc.right, got, tc.expected)
+			}
+		})
+	}
 }
 
 // TestExplainLockConflict 测试锁冲突解释功能

@@ -69,16 +69,24 @@ type DataDictionaryPageWrapper struct {
 
 // NewDataDictionaryPageWrapper 创建数据字典页面
 func NewDataDictionaryPageWrapper(id, spaceID uint32, bp *buffer_pool.BufferPool) *DataDictionaryPageWrapper {
+	return NewDataDictionaryPageWrapperWithStorage(id, spaceID, bp, nil)
+}
+
+// NewDataDictionaryPageWrapperWithStorage creates a data dictionary page with
+// an optional durable provider for the factory and direct provider-backed paths.
+func NewDataDictionaryPageWrapperWithStorage(id, spaceID uint32, bp *buffer_pool.BufferPool, storage basic.StorageProvider) *DataDictionaryPageWrapper {
 	base := NewBasePageWrapper(id, spaceID, common.FIL_PAGE_TYPE_SYS)
 	dictPage := pages.NewDataDictHeaderPage()
 
-	return &DataDictionaryPageWrapper{
+	page := &DataDictionaryPageWrapper{
 		BasePageWrapper: base,
 		bufferPool:      bp,
+		storageProvider: storage,
 		dictPage:        dictPage,
 		tables:          make(map[uint64]*TableDef),
 		indexMap:        make(map[uint64]dictIndexRecord),
 	}
+	return page
 }
 
 // SetStorageProvider 设置回退读取/写入的 storage 提供者
@@ -301,13 +309,18 @@ func (dw *DataDictionaryPageWrapper) parseAndCacheContent(content []byte) error 
 
 // Write 实现PageWrapper接口
 func (dw *DataDictionaryPageWrapper) Write() error {
+	if dw.storageProvider == nil && dw.bufferPool == nil {
+		return ErrPageStorageUnavailable
+	}
+
 	content, err := dw.ToBytes()
 	if err != nil {
 		return err
 	}
 
+	var bufferPage *buffer_pool.BufferPage
 	if dw.bufferPool != nil {
-		bufferPage, err := dw.bufferPool.GetPage(dw.GetSpaceID(), dw.GetPageID())
+		bufferPage, err = dw.bufferPool.GetPage(dw.GetSpaceID(), dw.GetPageID())
 		if err == nil && bufferPage != nil {
 			bufferPage.SetContent(content)
 			bufferPage.MarkDirty()
@@ -329,7 +342,7 @@ func (dw *DataDictionaryPageWrapper) Write() error {
 	}
 
 	if dw.bufferPool != nil {
-		return dw.bufferPool.FlushPage(buffer_pool.NewBufferPage(dw.GetSpaceID(), dw.GetPageID()))
+		return dw.bufferPool.FlushPage(bufferPage)
 	}
 
 	dw.Lock()

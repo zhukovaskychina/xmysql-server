@@ -3,6 +3,7 @@ package page
 import (
 	"errors"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
 )
 
@@ -30,7 +31,13 @@ type RollbackPageWrapper struct {
 
 // NewRollbackPageWrapper 创建新的回滚页面包装器
 func NewRollbackPageWrapper(id, spaceID uint32) *RollbackPageWrapper {
-	base := NewBasePageWrapper(id, spaceID, common.FIL_PAGE_UNDO_LOG)
+	return NewRollbackPageWrapperWithStorage(id, spaceID, nil)
+}
+
+// NewRollbackPageWrapperWithStorage creates a rollback page with an optional
+// durable provider for factory and direct storage-backed paths.
+func NewRollbackPageWrapperWithStorage(id, spaceID uint32, storage basic.StorageProvider) *RollbackPageWrapper {
+	base := NewBasePageWrapperWithStorage(id, spaceID, common.FIL_PAGE_UNDO_LOG, storage)
 	rollbackPage := pages.NewRollBackPage()
 
 	return &RollbackPageWrapper{
@@ -103,9 +110,51 @@ func (rpw *RollbackPageWrapper) ToBytes() ([]byte, error) {
 	rpw.RLock()
 	defer rpw.RUnlock()
 
-	// 由于store/pages中的RollBackPage没有完整的序列化方法
-	// 这里使用基础包装器的内容
-	return rpw.BasePageWrapper.ToBytes()
+	data, err := rpw.BasePageWrapper.ToBytes()
+	if err != nil {
+		return nil, err
+	}
+	if rpw.rollbackPage == nil || len(data) < common.PageSize {
+		return data, nil
+	}
+
+	offset := pages.FileHeaderSize
+	copy(data[offset:offset+rollbackPageMaxSizeFieldSize], rpw.rollbackPage.TrxRsegMaxSize)
+	offset += rollbackPageMaxSizeFieldSize
+	copy(data[offset:offset+rollbackPageHistorySizeFieldSize], rpw.rollbackPage.TrxRsegHistorySize)
+	offset += rollbackPageHistorySizeFieldSize
+	copy(data[offset:offset+rollbackPageHistoryOffsetFieldSize], rpw.rollbackPage.TrxRsegHistory)
+	offset += rollbackPageHistoryOffsetFieldSize
+	copy(data[offset:offset+rollbackPageFsegHeaderFieldSize], rpw.rollbackPage.TrxRsegFsegHeader)
+	offset += rollbackPageFsegHeaderFieldSize
+	copy(data[offset:offset+rollbackPageUndoSlotsFieldSize], rpw.rollbackPage.TrxRsegUndoSlots)
+	offset += rollbackPageUndoSlotsFieldSize
+	bodyEnd := common.PageSize - pages.FileTrailerSize
+	copy(data[offset:bodyEnd], rpw.rollbackPage.EmptySpace)
+	return data, nil
+}
+
+// Read loads and decodes the rollback-specific payload after the common
+// wrapper reads its durable 16KB image.
+func (rpw *RollbackPageWrapper) Read() error {
+	if err := rpw.BasePageWrapper.Read(); err != nil {
+		return err
+	}
+	return rpw.ParseFromBytes(append([]byte(nil), rpw.content...))
+}
+
+// Write serializes the rollback-specific payload before delegating durable I/O
+// to the common page wrapper.
+func (rpw *RollbackPageWrapper) Write() error {
+	data, err := rpw.ToBytes()
+	if err != nil {
+		return err
+	}
+	rpw.Lock()
+	rpw.content = data
+	rpw.markDirtyLocked()
+	rpw.Unlock()
+	return rpw.BasePageWrapper.Write()
 }
 
 // 回滚页面特有的方法
@@ -129,7 +178,7 @@ func (rpw *RollbackPageWrapper) SetTrxRsegMaxSize(maxSize []byte) {
 	if rpw.rollbackPage != nil {
 		rpw.rollbackPage.TrxRsegMaxSize = make([]byte, len(maxSize))
 		copy(rpw.rollbackPage.TrxRsegMaxSize, maxSize)
-		rpw.MarkDirty()
+		rpw.BasePageWrapper.markDirtyLocked()
 	}
 }
 
@@ -152,7 +201,7 @@ func (rpw *RollbackPageWrapper) SetTrxRsegHistorySize(historySize []byte) {
 	if rpw.rollbackPage != nil {
 		rpw.rollbackPage.TrxRsegHistorySize = make([]byte, len(historySize))
 		copy(rpw.rollbackPage.TrxRsegHistorySize, historySize)
-		rpw.MarkDirty()
+		rpw.BasePageWrapper.markDirtyLocked()
 	}
 }
 
@@ -175,7 +224,7 @@ func (rpw *RollbackPageWrapper) SetTrxRsegHistory(history []byte) {
 	if rpw.rollbackPage != nil {
 		rpw.rollbackPage.TrxRsegHistory = make([]byte, len(history))
 		copy(rpw.rollbackPage.TrxRsegHistory, history)
-		rpw.MarkDirty()
+		rpw.BasePageWrapper.markDirtyLocked()
 	}
 }
 
@@ -198,7 +247,7 @@ func (rpw *RollbackPageWrapper) SetTrxRsegFsegHeader(fsegHeader []byte) {
 	if rpw.rollbackPage != nil {
 		rpw.rollbackPage.TrxRsegFsegHeader = make([]byte, len(fsegHeader))
 		copy(rpw.rollbackPage.TrxRsegFsegHeader, fsegHeader)
-		rpw.MarkDirty()
+		rpw.BasePageWrapper.markDirtyLocked()
 	}
 }
 
@@ -221,7 +270,7 @@ func (rpw *RollbackPageWrapper) SetTrxRsegUndoSlots(undoSlots []byte) {
 	if rpw.rollbackPage != nil {
 		rpw.rollbackPage.TrxRsegUndoSlots = make([]byte, len(undoSlots))
 		copy(rpw.rollbackPage.TrxRsegUndoSlots, undoSlots)
-		rpw.MarkDirty()
+		rpw.BasePageWrapper.markDirtyLocked()
 	}
 }
 
@@ -280,7 +329,7 @@ func (rpw *RollbackPageWrapper) SetUndoSlot(index int, pageNo uint32) error {
 	rpw.rollbackPage.TrxRsegUndoSlots[offset+2] = byte(pageNo >> 16)
 	rpw.rollbackPage.TrxRsegUndoSlots[offset+3] = byte(pageNo >> 24)
 
-	rpw.MarkDirty()
+	rpw.BasePageWrapper.markDirtyLocked()
 	return nil
 }
 

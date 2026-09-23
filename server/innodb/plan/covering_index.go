@@ -1,6 +1,8 @@
 package plan
 
 import (
+	"strings"
+
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
@@ -13,19 +15,25 @@ func IsCoveringIndex(table *metadata.Table, index *metadata.Index, requiredColum
 	}
 
 	indexCols := make(map[string]bool)
+	normalizeColumn := func(name string) string {
+		_, column := splitQualifiedColumnName(name)
+		return strings.ToLower(strings.TrimSpace(column))
+	}
 	if index.IsPrimary && index.Table != nil {
 		for _, col := range index.Table.Columns {
-			indexCols[col.Name] = true
+			if col != nil {
+				indexCols[normalizeColumn(col.Name)] = true
+			}
 		}
 	} else {
 		for _, col := range index.Columns {
-			indexCols[col] = true
+			indexCols[normalizeColumn(col)] = true
 		}
 	}
 
 	if !index.IsPrimary && index.Table != nil && index.Table.PrimaryKey != nil {
 		for _, pkCol := range index.Table.PrimaryKey.Columns {
-			indexCols[pkCol] = true
+			indexCols[normalizeColumn(pkCol)] = true
 		}
 	}
 
@@ -33,7 +41,7 @@ func IsCoveringIndex(table *metadata.Table, index *metadata.Index, requiredColum
 		if col == "*" {
 			return false
 		}
-		if !indexCols[col] {
+		if !indexCols[normalizeColumn(col)] {
 			return false
 		}
 	}

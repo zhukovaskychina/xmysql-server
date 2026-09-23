@@ -202,16 +202,25 @@ func (pa *PageAllocator) AllocatePages(count uint32) ([]uint32, error) {
 	}
 
 	// 根据数量选择分配策略
+	var (
+		pages []uint32
+		err   error
+	)
 	if count < FragmentThreshold {
 		// 小批量：逐个从Fragment分配
-		return pa.allocatePagesFromFragment(count)
+		pages, err = pa.allocatePagesFromFragment(count)
 	} else if count >= BatchThreshold {
 		// 大批量：分配完整Extent
-		return pa.allocatePagesFromExtents(count)
+		pages, err = pa.allocatePagesFromExtents(count)
 	} else {
 		// 中等批量：混合分配
-		return pa.allocatePagesHybrid(count)
+		pages, err = pa.allocatePagesHybrid(count)
 	}
+	if len(pages) > 0 {
+		pa.stats.AllocatedPages += uint32(len(pages))
+		pa.updateFragmentationRate()
+	}
+	return pages, err
 }
 
 // allocateFromFragment 从Fragment Extent分配页面
@@ -311,6 +320,9 @@ func (pa *PageAllocator) allocatePagesFromFragment(count uint32) ([]uint32, erro
 // allocatePagesFromExtents 从Extent分配多个页面
 func (pa *PageAllocator) allocatePagesFromExtents(count uint32) ([]uint32, error) {
 	pages := make([]uint32, 0, count)
+	if pa.spaceManager == nil && len(pa.freeExtents) == 0 {
+		return nil, fmt.Errorf("space manager is not configured")
+	}
 
 	// 计算需要的Extent数量
 	extentsNeeded := (count + PagesPerExtent - 1) / PagesPerExtent
@@ -363,7 +375,7 @@ func (pa *PageAllocator) allocatePagesFromExtents(count uint32) ([]uint32, error
 	}
 
 	pa.stats.BatchAllocs++
-	pa.stats.ExtentPages += count
+	pa.stats.ExtentPages += uint32(len(pages))
 	return pages, nil
 }
 
@@ -396,6 +408,9 @@ func (pa *PageAllocator) FreePage(pageNo uint32) error {
 
 	// 判断是Fragment页面还是Extent页面
 	if pageNo < FragmentPages {
+		if !pa.isFragmentBitSet(pageNo) {
+			return fmt.Errorf("page %d is not allocated", pageNo)
+		}
 		// Fragment页面
 		pa.clearFragmentBit(pageNo)
 		pa.fragmentUsed--
@@ -403,11 +418,18 @@ func (pa *PageAllocator) FreePage(pageNo uint32) error {
 	} else {
 		// Extent页面
 		extentID := pageNo / PagesPerExtent
+		used, ok := pa.extentUsage[extentID]
+		mask := uint64(1) << (pageNo % PagesPerExtent)
+		if !ok || used&mask == 0 {
+			return fmt.Errorf("page %d is not allocated", pageNo)
+		}
 		pa.freePageInExtent(extentID, pageNo%PagesPerExtent)
 		pa.stats.ExtentPages--
 	}
 
-	pa.stats.AllocatedPages--
+	if pa.stats.AllocatedPages > 0 {
+		pa.stats.AllocatedPages--
+	}
 	pa.updateFragmentationRate()
 
 	return nil
@@ -417,6 +439,26 @@ func (pa *PageAllocator) FreePage(pageNo uint32) error {
 func (pa *PageAllocator) FreePages(pages []uint32) error {
 	pa.Lock()
 	defer pa.Unlock()
+
+	seen := make(map[uint32]struct{}, len(pages))
+	for _, pageNo := range pages {
+		if _, duplicate := seen[pageNo]; duplicate {
+			return fmt.Errorf("page %d appears more than once", pageNo)
+		}
+		seen[pageNo] = struct{}{}
+		if pageNo < FragmentPages {
+			if !pa.isFragmentBitSet(pageNo) {
+				return fmt.Errorf("page %d is not allocated", pageNo)
+			}
+			continue
+		}
+		extentID := pageNo / PagesPerExtent
+		used, ok := pa.extentUsage[extentID]
+		mask := uint64(1) << (pageNo % PagesPerExtent)
+		if !ok || used&mask == 0 {
+			return fmt.Errorf("page %d is not allocated", pageNo)
+		}
+	}
 
 	for _, pageNo := range pages {
 		if pageNo < FragmentPages {
@@ -428,7 +470,9 @@ func (pa *PageAllocator) FreePages(pages []uint32) error {
 			pa.freePageInExtent(extentID, pageNo%PagesPerExtent)
 			pa.stats.ExtentPages--
 		}
-		pa.stats.AllocatedPages--
+		if pa.stats.AllocatedPages > 0 {
+			pa.stats.AllocatedPages--
+		}
 	}
 
 	pa.updateFragmentationRate()

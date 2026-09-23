@@ -34,6 +34,13 @@ type InfoSchemaManager struct {
 
 	// 表统计信息缓存
 	tableStatsCache map[string]*metadata.InfoTableStats
+	// 可选的持久化统计加载器，由引擎把 durable table metadata 接入。
+	statsLoader func(context.Context, string, string) (*metadata.InfoTableStats, error)
+	// 可选的持久化统计写入器。保持 manager 层与具体 .frm/.stats.json
+	// 格式解耦，同时保证直接调用 UpdateTableStats 时不会只更新内存缓存。
+	statsPersister func(context.Context, string, string, *metadata.InfoTableStats) error
+	// 已提交 DML 失效次数，直到下一次统计刷新时带入 ModifyCount
+	modifyCounts map[string]uint64
 }
 
 // SimpleSchema 简单的Schema实现
@@ -456,10 +463,13 @@ func (im *InfoSchemaManager) GetTableMetadata(ctx context.Context, schemaName, t
 			Name:            col.Name,
 			Type:            col.DataType,
 			Length:          col.CharMaxLength,
+			Scale:           col.Scale,
 			IsNullable:      col.IsNullable,
 			IsPrimary:       false, // 需要从索引信息中确定
 			IsUnique:        false, // 需要从索引信息中确定
 			IsAutoIncrement: col.IsAutoIncrement,
+			IsUnsigned:      col.IsUnsigned,
+			EnumValues:      append([]string(nil), col.EnumValues...),
 			DefaultValue:    col.DefaultValue,
 			Charset:         col.Charset,
 			Collation:       col.Collation,
@@ -517,6 +527,28 @@ func (im *InfoSchemaManager) GetTableStats(ctx context.Context, schemaName, tabl
 	}
 	im.mu.RUnlock()
 
+	if im.statsLoader != nil {
+		if persisted, err := im.statsLoader(ctx, schemaName, tableName); err == nil && persisted != nil {
+			im.mu.Lock()
+			// A DML invalidation deliberately removes the cached statistics so
+			// the next read can reload the durable row estimate.  The durable
+			// snapshot may still carry ModifyCount=0, however; preserve the
+			// manager's pending invalidation count instead of erasing it during
+			// that reload.
+			if persisted.ModifyCount == 0 && im.modifyCounts[cacheKey] > 0 {
+				persisted.ModifyCount = im.modifyCounts[cacheKey]
+			}
+			im.tableStatsCache[cacheKey] = persisted
+			if persisted.ModifyCount == 0 {
+				delete(im.modifyCounts, cacheKey)
+			} else {
+				im.modifyCounts[cacheKey] = persisted.ModifyCount
+			}
+			im.mu.Unlock()
+			return persisted, nil
+		}
+	}
+
 	// 获取表定义
 	table, err := im.GetTableByName(ctx, schemaName, tableName)
 	if err != nil {
@@ -532,6 +564,9 @@ func (im *InfoSchemaManager) GetTableStats(ctx context.Context, schemaName, tabl
 		ColumnStats: make(map[string]metadata.Stats),
 		IndexStats:  make(map[string]metadata.Stats),
 	}
+	im.mu.RLock()
+	stats.ModifyCount = im.modifyCounts[cacheKey]
+	im.mu.RUnlock()
 
 	// 如果有表统计信息，使用实际值
 	if table.Stats != nil {
@@ -546,22 +581,101 @@ func (im *InfoSchemaManager) GetTableStats(ctx context.Context, schemaName, tabl
 	// 缓存结果
 	im.mu.Lock()
 	im.tableStatsCache[cacheKey] = stats
+	if stats.ModifyCount == 0 {
+		delete(im.modifyCounts, cacheKey)
+	} else {
+		im.modifyCounts[cacheKey] = stats.ModifyCount
+	}
 	im.mu.Unlock()
 
 	return stats, nil
 }
 
+// SetStatsLoader connects the information-schema cache to durable table
+// statistics without coupling the manager package to a concrete SQL engine.
+func (im *InfoSchemaManager) SetStatsLoader(loader func(context.Context, string, string) (*metadata.InfoTableStats, error)) {
+	if im == nil {
+		return
+	}
+	im.mu.Lock()
+	defer im.mu.Unlock()
+	im.statsLoader = loader
+}
+
+// SetStatsPersister connects ANALYZE/statistics updates to the engine's
+// durable metadata writer without coupling this manager to a storage format.
+func (im *InfoSchemaManager) SetStatsPersister(persister func(context.Context, string, string, *metadata.InfoTableStats) error) {
+	if im == nil {
+		return
+	}
+	im.mu.Lock()
+	defer im.mu.Unlock()
+	im.statsPersister = persister
+}
+
 func (im *InfoSchemaManager) UpdateTableStats(ctx context.Context, schemaName, tableName string, stats *metadata.InfoTableStats) error {
 	cacheKey := fmt.Sprintf("%s.%s", schemaName, tableName)
+	if stats == nil {
+		return fmt.Errorf("table statistics cannot be nil")
+	}
 
 	// 更新缓存
 	im.mu.Lock()
 	im.tableStatsCache[cacheKey] = stats
+	if stats.ModifyCount == 0 {
+		delete(im.modifyCounts, cacheKey)
+	} else {
+		im.modifyCounts[cacheKey] = stats.ModifyCount
+	}
 	im.mu.Unlock()
 
-	// TODO: 将统计信息持久化到存储层
+	im.mu.RLock()
+	persister := im.statsPersister
+	im.mu.RUnlock()
+	if persister != nil {
+		if err := persister(ctx, schemaName, tableName, stats); err != nil {
+			return fmt.Errorf("persist table statistics for %s: %w", cacheKey, err)
+		}
+	}
 
 	return nil
+}
+
+// InvalidateTableStats discards cached statistics after a committed DML
+// change. The next ANALYZE/metadata request can then observe current rows.
+func (im *InfoSchemaManager) InvalidateTableStats(ctx context.Context, schemaName, tableName string) error {
+	if im == nil {
+		return nil
+	}
+	cacheKey := fmt.Sprintf("%s.%s", schemaName, tableName)
+	table, _ := im.GetTableByName(ctx, schemaName, tableName)
+	im.mu.Lock()
+	delete(im.tableStatsCache, cacheKey)
+	if im.modifyCounts == nil {
+		im.modifyCounts = make(map[string]uint64)
+	}
+	im.modifyCounts[cacheKey]++
+	if table != nil {
+		table.Stats = nil
+	}
+	im.mu.Unlock()
+	return nil
+}
+
+// GetTableModifyCount returns the number of committed DML invalidations seen
+// since the last statistics refresh for one table.  It is intentionally a
+// read-only projection of the manager's authoritative counter so diagnostic
+// views can expose MODIFIED_COUNTER without requiring a complete table-stats
+// reload or fabricating a value from row counts.
+func (im *InfoSchemaManager) GetTableModifyCount(schemaName, tableName string) uint64 {
+	if im == nil {
+		return 0
+	}
+	cacheKey := fmt.Sprintf("%s.%s", schemaName, tableName)
+	im.mu.RLock()
+	count := im.modifyCounts[cacheKey]
+	im.mu.RUnlock()
+	return count
 }
 
 func (im *InfoSchemaManager) DatabaseExists(name string) (bool, error) {
@@ -836,6 +950,7 @@ func NewInfoSchemaManager(dictManager *DictionaryManager, spaceManager basic.Spa
 		schemaCache:     make(map[string]metadata.Schema),
 		tableMetaCache:  make(map[string]*metadata.TableMeta),
 		tableStatsCache: make(map[string]*metadata.InfoTableStats),
+		modifyCounts:    make(map[string]uint64),
 	}
 }
 

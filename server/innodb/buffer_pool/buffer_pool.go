@@ -540,6 +540,10 @@ func (fbl *FreeBlockList) GetPage(spaceID uint32, pageNo uint32) *BufferBlock {
 	block := NewBufferBlock(page)
 
 	// Get space from storage manager
+	if fbl.storageManager == nil {
+		logger.Debugf("cannot load page %d without a storage manager\n", pageNo)
+		return nil
+	}
 	space, err := fbl.storageManager.GetSpace(spaceID)
 	if err != nil {
 		logger.Debugf("failed to get space %d: %v\n", spaceID, err)

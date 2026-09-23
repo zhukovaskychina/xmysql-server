@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"sort"
 	"sync"
@@ -64,6 +65,14 @@ func NewXDESPageWrapper(id, spaceID uint32, bp *buffer_pool.BufferPool) *XDESPag
 	}
 }
 
+// NewXDESPageWrapperWithStorage creates an XDES wrapper backed by a storage
+// provider when no buffer pool is available.
+func NewXDESPageWrapperWithStorage(id, spaceID uint32, bp *buffer_pool.BufferPool, storage basic.StorageProvider) *XDESPageWrapper {
+	page := NewXDESPageWrapper(id, spaceID, bp)
+	page.storage = storage
+	return page
+}
+
 // 实现IPageWrapper接口
 
 // ParseFromBytes 从字节数据解析XDES页面
@@ -71,7 +80,7 @@ func (xw *XDESPageWrapper) ParseFromBytes(data []byte) error {
 	xw.Lock()
 	defer xw.Unlock()
 
-	if err := xw.BasePageWrapper.ParseFromBytes(data); err != nil {
+	if err := xw.BasePageWrapper.parseFromBytesLocked(data); err != nil {
 		return err
 	}
 
@@ -518,6 +527,16 @@ func (xw *XDESPageWrapper) removeFromFreeList(extentID uint32) {
 
 // 内部方法：从磁盘读取
 func (xw *XDESPageWrapper) readFromDisk() ([]byte, error) {
+	if xw.storage != nil {
+		content, err := xw.storage.ReadPage(xw.GetSpaceID(), xw.GetPageID())
+		if err != nil {
+			return nil, err
+		}
+		if len(content) < common.PageSize {
+			return nil, ErrInvalidPageSize
+		}
+		return append([]byte(nil), content[:common.PageSize]...), nil
+	}
 	if xw.bufferPool == nil {
 		return nil, errors.New("buffer pool not configured for xdes page")
 	}
@@ -542,8 +561,14 @@ func (xw *XDESPageWrapper) readFromDisk() ([]byte, error) {
 
 // 内部方法：写入磁盘
 func (xw *XDESPageWrapper) writeToDisk(content []byte) error {
+	if xw.storage != nil {
+		if len(content) < common.PageSize {
+			return ErrInvalidPageSize
+		}
+		return xw.storage.WritePage(xw.GetSpaceID(), xw.GetPageID(), content[:common.PageSize])
+	}
 	if xw.bufferPool == nil {
-		return nil
+		return ErrPageStorageUnavailable
 	}
 
 	pageContent := make([]byte, common.PageSize)

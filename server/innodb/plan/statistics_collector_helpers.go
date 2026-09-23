@@ -1,10 +1,12 @@
 package plan
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"math"
 	"math/rand"
+	"sort"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
@@ -16,9 +18,32 @@ import (
 
 // getTableSpaceID 获取表空间ID
 func (esc *EnhancedStatisticsCollector) getTableSpaceID(table *metadata.Table) uint32 {
+	if esc != nil && esc.storageAccessor != nil && table != nil {
+		if resolver, ok := esc.storageAccessor.(interface {
+			GetTableSpaceID(schemaName, tableName string) (uint32, error)
+		}); ok {
+			schemaName := ""
+			if table.Schema != nil {
+				schemaName = table.Schema.Name
+			}
+			if spaceID, err := resolver.GetTableSpaceID(schemaName, table.Name); err == nil && spaceID > 0 {
+				return spaceID
+			}
+		}
+	}
+
 	// 简化实现：根据表名生成空间ID
-	// 实际应该从表元数据获取
+	// 仅用于没有表存储映射能力的测试/兼容 accessor。
 	hash := 0
+	if table != nil && table.Schema != nil {
+		for _, c := range table.Schema.Name {
+			hash = hash*31 + int(c)
+		}
+	}
+	hash = hash*31 + int('.')
+	if table == nil {
+		return 0
+	}
 	for _, c := range table.Name {
 		hash = hash*31 + int(c)
 	}
@@ -32,6 +57,11 @@ func (esc *EnhancedStatisticsCollector) getTableSpaceID(table *metadata.Table) u
 
 // getRealRowCount 获取真实行数
 func (esc *EnhancedStatisticsCollector) getRealRowCount(space basic.Space) int64 {
+	if esc != nil && esc.storageAccessor != nil && space != nil {
+		if rowCount, err := esc.storageAccessor.GetTableRowCount(space.ID()); err == nil && rowCount >= 0 {
+			return rowCount
+		}
+	}
 	pageCount := space.GetPageCount()
 	if pageCount == 0 {
 		return 0
@@ -49,10 +79,17 @@ func (esc *EnhancedStatisticsCollector) getRealRowCount(space basic.Space) int64
 
 // getExactRowCount 获取精确行数（遍历所有页面）
 func (esc *EnhancedStatisticsCollector) getExactRowCount(space basic.Space) int64 {
-	// 如果有B+树管理器，使用B+树统计
 	if esc.btreeManager != nil {
-		// B+Tree接口当前只暴露叶子页号，不暴露叶子记录迭代器。
-		// 因此精确行数仍以页头 PAGE_N_RECS 为准。
+		// Count only clustered-index leaf pages when the B+Tree can expose them;
+		// scanning every INDEX page would incorrectly include internal nodes whose
+		// PAGE_N_RECS field is not a table-row count.
+		if leafPages, err := esc.btreeManager.GetAllLeafPages(context.Background()); err == nil && len(leafPages) > 0 {
+			var total int64
+			for _, pageID := range leafPages {
+				total += esc.countRowsInPage(space, pageID)
+			}
+			return total
+		}
 	}
 
 	pageCount := space.GetPageCount()
@@ -95,8 +132,10 @@ func (esc *EnhancedStatisticsCollector) getSampledRowCount(space basic.Space, to
 
 	// 基于采样结果估算总行数
 	if validSampleCount == 0 {
-		// 使用默认估算
-		return int64(totalPages) * 100
+		// Do not turn unreadable or non-index pages into synthetic rows. The
+		// caller can retry with a real storage accessor or an exact scan once
+		// the page source becomes available.
+		return 0
 	}
 
 	avgRowsPerPage := float64(totalRowsInSample) / float64(validSampleCount)
@@ -117,7 +156,7 @@ func (esc *EnhancedStatisticsCollector) selectRandomPages(totalPages uint32, sam
 	}
 
 	// 使用水塘采样算法
-	rand.Seed(time.Now().UnixNano())
+	random := rand.New(rand.NewSource(time.Now().UnixNano()))
 	selected := make([]uint32, sampleCount)
 
 	// 初始化前sampleCount个页面
@@ -127,7 +166,7 @@ func (esc *EnhancedStatisticsCollector) selectRandomPages(totalPages uint32, sam
 
 	// 对剩余页面进行采样
 	for i := sampleCount; i < int(totalPages); i++ {
-		j := rand.Intn(i + 1)
+		j := random.Intn(i + 1)
 		if j < sampleCount {
 			selected[j] = uint32(i)
 		}
@@ -167,6 +206,11 @@ func (esc *EnhancedStatisticsCollector) countRowsInPageWithValidity(space basic.
 
 // getSpaceSize 获取空间大小
 func (esc *EnhancedStatisticsCollector) getSpaceSize(space basic.Space) (dataSize int64, indexSize int64) {
+	if esc != nil && esc.storageAccessor != nil && space != nil {
+		if dataSize, indexSize, err := esc.storageAccessor.GetTableSpaceSize(space.ID()); err == nil && dataSize >= 0 && indexSize >= 0 {
+			return dataSize, indexSize
+		}
+	}
 	usedSpace := space.GetUsedSpace()
 
 	// 简单估算：70%为数据，30%为索引
@@ -178,15 +222,23 @@ func (esc *EnhancedStatisticsCollector) getSpaceSize(space basic.Space) (dataSiz
 
 // getFreeSpace 获取空闲空间
 func (esc *EnhancedStatisticsCollector) getFreeSpace(space basic.Space) int64 {
+	if space == nil {
+		return 0
+	}
 	totalSpace := int64(space.GetPageCount()) * 16384 // 16KB per page
 	usedSpace := int64(space.GetUsedSpace())
+	if totalSpace <= usedSpace {
+		return 0
+	}
 	return totalSpace - usedSpace
 }
 
 // getAutoIncrementValue 获取自增值
 func (esc *EnhancedStatisticsCollector) getAutoIncrementValue(table *metadata.Table) uint64 {
-	// TODO: 从表元数据或系统表获取
-	return 0
+	if table == nil || table.Stats == nil || table.Stats.AutoIncrement <= 0 {
+		return 0
+	}
+	return uint64(table.Stats.AutoIncrement)
 }
 
 // ============ NDV统计 (OPT-016.2) ============
@@ -197,8 +249,12 @@ func (esc *EnhancedStatisticsCollector) sampleColumnData(
 	column *metadata.Column,
 	tableRowCount int64,
 ) []interface{} {
-	// 确定采样大小
 	sampleSize := esc.sampler.GetSampleSize(tableRowCount)
+	if esc.storageAccessor != nil && space != nil {
+		if values, ok := esc.sampleColumnDataFromAccessor(space.ID(), column, tableRowCount); ok {
+			return values
+		}
+	}
 
 	// 根据配置选择采样策略
 	if esc.config.SampleRate >= 1.0 {
@@ -210,19 +266,61 @@ func (esc *EnhancedStatisticsCollector) sampleColumnData(
 	}
 }
 
+func (esc *EnhancedStatisticsCollector) sampleColumnDataFromAccessor(
+	spaceID uint32,
+	column *metadata.Column,
+	tableRowCount int64,
+) ([]interface{}, bool) {
+	if esc == nil || esc.storageAccessor == nil {
+		return nil, false
+	}
+	sampleSize := esc.sampler.GetSampleSize(tableRowCount)
+	exactMode := esc.config != nil && esc.config.SampleRate >= 1.0
+	if exactMode && tableRowCount > 0 {
+		// ANALYZE with SampleRate=1 is an explicit full-scan request. Do not
+		// apply AdaptiveSampler's 50,000-row cap in that mode.
+		sampleSize = tableRowCount
+	}
+	rate := esc.config.SampleRate
+	if rate <= 0 || exactMode {
+		rate = 1.0
+	}
+	if records, err := esc.storageAccessor.SampleTableRecords(spaceID, rate); err == nil {
+		return sampleColumnValuesFromRecords(records, column, sampleSize), true
+	}
+	return nil, false
+}
+
+func sampleColumnValuesFromRecords(records [][]interface{}, column *metadata.Column, sampleSize int64) []interface{} {
+	if column == nil || len(records) == 0 || sampleSize <= 0 {
+		return []interface{}{}
+	}
+	columnIndex := column.OrdinalPosition - 1
+	if columnIndex < 0 {
+		columnIndex = 0
+	}
+	values := make([]interface{}, 0, len(records))
+	for _, record := range records {
+		if columnIndex >= len(record) {
+			continue
+		}
+		values = append(values, record[columnIndex])
+		if int64(len(values)) >= sampleSize {
+			break
+		}
+	}
+	return values
+}
+
 // scanAllColumnData 扫描所有列数据（精确模式）
 func (esc *EnhancedStatisticsCollector) scanAllColumnData(
 	space basic.Space,
 	column *metadata.Column,
 	tableRowCount int64,
 ) []interface{} {
-	// TODO: 实现真实的全表扫描逻辑
-	// 这需要：
-	// 1. 遍历所有数据页
-	// 2. 解析每个记录
-	// 3. 提取列值
-
-	// 暂时降级为采样模式
+	// The generic basic.Space contract exposes page bytes but no clustered-row
+	// decoder. Production ANALYZE uses StorageAccessor for decoded full scans;
+	// without that capability retain the explicit page-sampling fallback.
 	sampleSize := esc.sampler.GetSampleSize(tableRowCount)
 	return esc.sampleColumnDataFromPages(space, column, sampleSize)
 }
@@ -261,14 +359,6 @@ func (esc *EnhancedStatisticsCollector) sampleColumnDataFromPages(
 		}
 	}
 
-	// 如果样本不足，使用生成的数据补充
-	if int64(len(sampleData)) < sampleSize {
-		rand.Seed(time.Now().UnixNano())
-		for i := int64(len(sampleData)); i < sampleSize; i++ {
-			sampleData = append(sampleData, esc.generateSampleValue(column, i, sampleSize))
-		}
-	}
-
 	// 限制样本大小
 	if int64(len(sampleData)) > sampleSize {
 		sampleData = sampleData[:sampleSize]
@@ -288,49 +378,11 @@ func (esc *EnhancedStatisticsCollector) extractColumnValuesFromPage(
 		return []interface{}{}
 	}
 
-	values := make([]interface{}, 0, rowCount)
-	for i := int64(0); i < rowCount; i++ {
-		values = append(values, esc.generateSampleValue(column, i, rowCount))
-	}
-
-	return values
-}
-
-// generateSampleValue 生成采样值
-func (esc *EnhancedStatisticsCollector) generateSampleValue(
-	column *metadata.Column,
-	index int64,
-	totalRows int64,
-) interface{} {
-	// 5%概率为NULL（如果列允许NULL）
-	if column.IsNullable && rand.Float64() < 0.05 {
-		return nil
-	}
-
-	switch column.DataType {
-	case metadata.TypeInt, metadata.TypeBigInt:
-		return rand.Int63n(totalRows) + 1
-	case metadata.TypeVarchar, metadata.TypeText:
-		// 生成随机字符串
-		length := rand.Intn(20) + 5
-		return esc.randomString(length)
-	case metadata.TypeDateTime, metadata.TypeTimestamp:
-		// 生成过去一年内的随机时间
-		days := rand.Intn(365)
-		return time.Now().AddDate(0, 0, -days)
-	default:
-		return index
-	}
-}
-
-// randomString 生成随机字符串
-func (esc *EnhancedStatisticsCollector) randomString(length int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = charset[rand.Intn(len(charset))]
-	}
-	return string(b)
+	// The generic page abstraction exposes row counts but not decoded column
+	// values. Returning no values is intentional: callers can keep explicit
+	// fallback statistics instead of persisting synthetic values. Production
+	// ANALYZE uses StorageEngineAccessor.SampleTableRecords for real values.
+	return nil
 }
 
 // ============ 直方图构建 (OPT-016.3) ============
@@ -356,12 +408,19 @@ func (esc *EnhancedStatisticsCollector) buildEnhancedHistogram(
 	histType HistogramType,
 	totalRowCount int64,
 ) *Histogram {
+	if totalRowCount <= 0 {
+		totalRowCount = int64(len(sampleData))
+	}
+	bucketLimit := esc.config.HistogramBuckets
+	if bucketLimit <= 0 {
+		bucketLimit = 1
+	}
 	histogram := &Histogram{
-		NumBuckets:    esc.config.HistogramBuckets,
+		NumBuckets:    bucketLimit,
 		TotalCount:    totalRowCount,
 		HistogramType: histType,
 		SampleRows:    int64(len(sampleData)),
-		Buckets:       make([]Bucket, 0, esc.config.HistogramBuckets),
+		Buckets:       make([]Bucket, 0, bucketLimit),
 	}
 
 	// 过滤NULL值
@@ -378,6 +437,7 @@ func (esc *EnhancedStatisticsCollector) buildEnhancedHistogram(
 	case HistogramFrequency:
 		esc.buildFrequencyHistogram(histogram, nonNullData, column)
 	}
+	histogram.NumBuckets = len(histogram.Buckets)
 
 	// 计算NDV
 	hll := NewHyperLogLog(14)
@@ -398,6 +458,13 @@ func (esc *EnhancedStatisticsCollector) buildEquiWidthHistogram(
 	if len(data) == 0 {
 		return
 	}
+	bucketCount := histogram.NumBuckets
+	if bucketCount <= 0 {
+		bucketCount = 1
+	}
+	if bucketCount > len(data) {
+		bucketCount = len(data)
+	}
 
 	// 找到最大最小值
 	maxVal, minVal := esc.findMinMax(data)
@@ -414,7 +481,7 @@ func (esc *EnhancedStatisticsCollector) buildEquiWidthHistogram(
 		bucket := Bucket{
 			LowerBound: minVal,
 			UpperBound: maxVal,
-			Count:      histogram.TotalCount,
+			Count:      esc.scaleHistogramCount(int64(len(data)), histogram),
 			Distinct:   1,
 		}
 		histogram.Buckets = append(histogram.Buckets, bucket)
@@ -422,32 +489,31 @@ func (esc *EnhancedStatisticsCollector) buildEquiWidthHistogram(
 	}
 
 	// 计算桶宽度
-	bucketWidth := (maxFloat - minFloat) / float64(histogram.NumBuckets)
+	bucketWidth := (maxFloat - minFloat) / float64(bucketCount)
 
 	// 构建桶
-	for i := 0; i < histogram.NumBuckets; i++ {
+	for i := 0; i < bucketCount; i++ {
 		lowerBound := minFloat + float64(i)*bucketWidth
 		upperBound := minFloat + float64(i+1)*bucketWidth
 
-		if i == histogram.NumBuckets-1 {
+		lastBucket := i == bucketCount-1
+		if lastBucket {
 			upperBound = maxFloat // 最后一个桶包含最大值
 		}
 
-		// 计算桶中的数据量（基于采样）
-		count := esc.countInRange(data, lowerBound, upperBound)
-
-		// 推算总体计数
-		sampleRatio := float64(len(data)) / float64(histogram.TotalCount)
-		totalCount := int64(float64(count) / sampleRatio)
+		// 只让最后一个桶包含上界，避免相邻桶在边界处重复计数。
+		count := esc.countInRangeBounded(data, lowerBound, upperBound, lastBucket)
+		distinct := esc.distinctInRange(data, lowerBound, upperBound, lastBucket)
 
 		bucket := Bucket{
 			LowerBound: esc.fromFloat64(lowerBound, column.DataType),
 			UpperBound: esc.fromFloat64(upperBound, column.DataType),
-			Count:      totalCount,
-			Distinct:   esc.estimateDistinctInBucket(count),
+			Count:      esc.scaleHistogramCount(count, histogram),
+			Distinct:   int64(len(distinct)),
 		}
 		histogram.Buckets = append(histogram.Buckets, bucket)
 	}
+	esc.rebalanceHistogramCounts(histogram, int64(len(data)))
 }
 
 // buildEquiDepthHistogram 构建等深直方图（字符串型）
@@ -463,11 +529,15 @@ func (esc *EnhancedStatisticsCollector) buildEquiDepthHistogram(
 	// 排序数据
 	sortedData := esc.sortData(data)
 
-	// 计算每个桶的目标数据量
-	targetCount := len(sortedData) / histogram.NumBuckets
-	if targetCount == 0 {
-		targetCount = 1
+	bucketCount := histogram.NumBuckets
+	if bucketCount <= 0 {
+		bucketCount = 1
 	}
+	if bucketCount > len(sortedData) {
+		bucketCount = len(sortedData)
+	}
+	// 使用向上取整，确保输出桶数不超过配置上限。
+	targetCount := (len(sortedData) + bucketCount - 1) / bucketCount
 
 	currentBucket := Bucket{
 		Count:    0,
@@ -481,18 +551,14 @@ func (esc *EnhancedStatisticsCollector) buildEquiDepthHistogram(
 		}
 
 		currentBucket.Count++
-		if strVal, ok := val.(string); ok {
-			distinctSet[strVal] = struct{}{}
-		}
+		distinctSet[statisticsValueKey(val)] = struct{}{}
 
 		// 如果达到目标数量或是最后一个值，结束当前桶
 		if currentBucket.Count >= int64(targetCount) || i == len(sortedData)-1 {
 			currentBucket.UpperBound = val
 			currentBucket.Distinct = int64(len(distinctSet))
 
-			// 推算总体计数
-			sampleRatio := float64(len(data)) / float64(histogram.TotalCount)
-			currentBucket.Count = int64(float64(currentBucket.Count) / sampleRatio)
+			currentBucket.Count = esc.scaleHistogramCount(currentBucket.Count, histogram)
 
 			histogram.Buckets = append(histogram.Buckets, currentBucket)
 
@@ -506,6 +572,7 @@ func (esc *EnhancedStatisticsCollector) buildEquiDepthHistogram(
 			}
 		}
 	}
+	esc.rebalanceHistogramCounts(histogram, int64(len(data)))
 }
 
 // buildFrequencyHistogram 构建频率直方图
@@ -519,47 +586,53 @@ func (esc *EnhancedStatisticsCollector) buildFrequencyHistogram(
 	}
 
 	// 统计频率
-	freqMap := make(map[string]int64)
+	type frequency struct {
+		value interface{}
+		count int64
+	}
+	freqMap := make(map[string]frequency)
 	for _, val := range data {
-		key := fmt.Sprintf("%v", val)
-		freqMap[key]++
+		key := statisticsValueKey(val)
+		entry := freqMap[key]
+		entry.value = val
+		entry.count++
+		freqMap[key] = entry
 	}
 
 	// 按频率排序
 	type freqPair struct {
-		value string
+		key   string
+		value interface{}
 		count int64
 	}
 
 	freqList := make([]freqPair, 0, len(freqMap))
-	for val, count := range freqMap {
-		freqList = append(freqList, freqPair{val, count})
+	for key, entry := range freqMap {
+		freqList = append(freqList, freqPair{key, entry.value, entry.count})
 	}
 
-	// 排序（频率降序）
-	for i := 0; i < len(freqList); i++ {
-		for j := i + 1; j < len(freqList); j++ {
-			if freqList[j].count > freqList[i].count {
-				freqList[i], freqList[j] = freqList[j], freqList[i]
-			}
+	// 排序（频率降序；频率相同按稳定键排序，保证 ANALYZE 可复现）
+	sort.Slice(freqList, func(i, j int) bool {
+		if freqList[i].count != freqList[j].count {
+			return freqList[i].count > freqList[j].count
 		}
-	}
+		return freqList[i].key < freqList[j].key
+	})
 
 	// 取Top N作为桶
 	numBuckets := histogram.NumBuckets
+	if numBuckets <= 0 {
+		numBuckets = 1
+	}
 	if len(freqList) < numBuckets {
 		numBuckets = len(freqList)
 	}
 
 	for i := 0; i < numBuckets; i++ {
-		// 推算总体计数
-		sampleRatio := float64(len(data)) / float64(histogram.TotalCount)
-		totalCount := int64(float64(freqList[i].count) / sampleRatio)
-
 		bucket := Bucket{
 			LowerBound: freqList[i].value,
 			UpperBound: freqList[i].value,
-			Count:      totalCount,
+			Count:      esc.scaleHistogramCount(freqList[i].count, histogram),
 			Distinct:   1,
 		}
 		histogram.Buckets = append(histogram.Buckets, bucket)
@@ -585,12 +658,15 @@ func (esc *EnhancedStatisticsCollector) findMinMax(data []interface{}) (max, min
 		return nil, nil
 	}
 
-	max = data[0]
-	min = data[0]
-
 	for _, val := range data {
 		if val == nil {
 			continue
+		}
+		if max == nil {
+			max = val
+		}
+		if min == nil {
+			min = val
 		}
 		if esc.compare(val, max) > 0 {
 			max = val
@@ -684,17 +760,74 @@ func (esc *EnhancedStatisticsCollector) fromFloat64(val float64, dataType metada
 
 // countInRange 统计范围内的数据量
 func (esc *EnhancedStatisticsCollector) countInRange(data []interface{}, lower, upper float64) int64 {
+	return esc.countInRangeBounded(data, lower, upper, true)
+}
+
+func (esc *EnhancedStatisticsCollector) countInRangeBounded(data []interface{}, lower, upper float64, includeUpper bool) int64 {
 	count := int64(0)
 	for _, val := range data {
 		if val == nil {
 			continue
 		}
 		valFloat := esc.toFloat64(val)
-		if valFloat >= lower && valFloat <= upper {
+		if valFloat >= lower && (valFloat < upper || includeUpper) {
 			count++
 		}
 	}
 	return count
+}
+
+func (esc *EnhancedStatisticsCollector) distinctInRange(data []interface{}, lower, upper float64, includeUpper bool) map[string]struct{} {
+	distinct := make(map[string]struct{})
+	for _, val := range data {
+		if val == nil {
+			continue
+		}
+		valFloat := esc.toFloat64(val)
+		if valFloat >= lower && (valFloat < upper || includeUpper) {
+			distinct[statisticsValueKey(val)] = struct{}{}
+		}
+	}
+	return distinct
+}
+
+func statisticsValueKey(value interface{}) string {
+	return fmt.Sprintf("%T:%v", value, value)
+}
+
+func (esc *EnhancedStatisticsCollector) scaleHistogramCount(sampleCount int64, histogram *Histogram) int64 {
+	if sampleCount <= 0 {
+		return 0
+	}
+	if histogram == nil || histogram.SampleRows <= 0 || histogram.TotalCount <= histogram.SampleRows {
+		return sampleCount
+	}
+	scaled := int64(math.Round(float64(sampleCount) * float64(histogram.TotalCount) / float64(histogram.SampleRows)))
+	if scaled < 1 {
+		return 1
+	}
+	return scaled
+}
+
+func (esc *EnhancedStatisticsCollector) rebalanceHistogramCounts(histogram *Histogram, sampleCount int64) {
+	if histogram == nil || len(histogram.Buckets) == 0 {
+		return
+	}
+	target := esc.scaleHistogramCount(sampleCount, histogram)
+	var current int64
+	for _, bucket := range histogram.Buckets {
+		current += bucket.Count
+	}
+	delta := target - current
+	if delta > 0 {
+		histogram.Buckets[len(histogram.Buckets)-1].Count += delta
+		return
+	}
+	for i := len(histogram.Buckets) - 1; i >= 0 && delta < 0; i-- {
+		remove := int64(math.Min(float64(histogram.Buckets[i].Count), float64(-delta)))
+		histogram.Buckets[i].Count -= remove
+		delta += remove
+	}
 }
 
 // estimateDistinctInBucket 估算桶中的不同值数量
@@ -935,5 +1068,5 @@ func (esc *EnhancedStatisticsCollector) handleUpdateRequest(req *StatisticsUpdat
 
 // Stop 停止统计信息收集器
 func (esc *EnhancedStatisticsCollector) Stop() {
-	close(esc.stopCh)
+	esc.stopOnce.Do(func() { close(esc.stopCh) })
 }

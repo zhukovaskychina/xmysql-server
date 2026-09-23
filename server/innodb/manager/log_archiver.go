@@ -28,6 +28,7 @@ type LogArchiver struct {
 	enableArchive     bool          // 是否启用归档
 	archiveInterval   time.Duration // 归档间隔
 	archiveAge        time.Duration // 归档年龄阈值
+	retentionAge      time.Duration // 归档文件保留期限
 	enableCompression bool          // 是否压缩归档文件
 
 	// 当前日志文件
@@ -37,6 +38,7 @@ type LogArchiver struct {
 
 	// 运行控制
 	running  bool
+	closed   bool
 	stopChan chan struct{}
 
 	// 统计信息
@@ -74,6 +76,7 @@ func NewLogArchiver(logDir, archiveDir string) (*LogArchiver, error) {
 		enableArchive:     true,
 		archiveInterval:   1 * time.Hour,
 		archiveAge:        24 * time.Hour,
+		retentionAge:      7 * 24 * time.Hour,
 		enableCompression: true,
 		stopChan:          make(chan struct{}),
 		stats:             &ArchiverStats{},
@@ -90,7 +93,7 @@ func NewLogArchiver(logDir, archiveDir string) (*LogArchiver, error) {
 // Start 启动归档器
 func (la *LogArchiver) Start() {
 	la.mu.Lock()
-	if la.running {
+	if la.running || la.closed {
 		la.mu.Unlock()
 		return
 	}
@@ -103,18 +106,23 @@ func (la *LogArchiver) Start() {
 // Stop 停止归档器
 func (la *LogArchiver) Stop() {
 	la.mu.Lock()
-	if !la.running {
+	if la.closed {
 		la.mu.Unlock()
 		return
 	}
+	la.closed = true
 	la.running = false
+	stopChan := la.stopChan
+	currentLogFile := la.currentLogFile
+	la.currentLogFile = nil
 	la.mu.Unlock()
 
-	close(la.stopChan)
+	close(stopChan)
 
 	// 关闭当前日志文件
-	if la.currentLogFile != nil {
-		la.currentLogFile.Close()
+	if currentLogFile != nil {
+		_ = currentLogFile.Sync()
+		_ = currentLogFile.Close()
 	}
 }
 
@@ -122,6 +130,9 @@ func (la *LogArchiver) Stop() {
 func (la *LogArchiver) Write(data []byte) (int, error) {
 	la.mu.Lock()
 	defer la.mu.Unlock()
+	if la.closed || la.currentLogFile == nil {
+		return 0, fmt.Errorf("log archiver is closed")
+	}
 
 	// 检查是否需要轮转
 	if la.currentLogSize+int64(len(data)) > la.maxLogSize {
@@ -206,7 +217,7 @@ func (la *LogArchiver) archiveOldLogs() {
 	la.mu.Lock()
 	defer la.mu.Unlock()
 
-	if !la.enableArchive {
+	if la.closed || !la.enableArchive {
 		return
 	}
 
@@ -293,40 +304,46 @@ func (la *LogArchiver) cleanupOldArchives() {
 		return
 	}
 
-	// 如果归档文件数超过限制，删除最老的
-	if len(files) > la.maxLogFiles {
-		// 按修改时间排序
-		type fileInfo struct {
-			path    string
-			modTime time.Time
+	// First enforce the PITR time horizon, then enforce the file-count cap.
+	type fileInfo struct {
+		path    string
+		modTime time.Time
+	}
+	fileInfos := make([]fileInfo, 0, len(files))
+	retentionThreshold := time.Time{}
+	if la.retentionAge > 0 {
+		retentionThreshold = time.Now().Add(-la.retentionAge)
+	}
+	for _, file := range files {
+		stat, err := os.Stat(file)
+		if err != nil {
+			continue
 		}
-
-		fileInfos := make([]fileInfo, 0, len(files))
-		for _, file := range files {
-			stat, err := os.Stat(file)
-			if err != nil {
-				continue
+		if !retentionThreshold.IsZero() && stat.ModTime().Before(retentionThreshold) {
+			if err := os.Remove(file); err == nil {
+				la.stats.TotalDeleted++
 			}
-			fileInfos = append(fileInfos, fileInfo{
-				path:    file,
-				modTime: stat.ModTime(),
-			})
+			continue
 		}
+		fileInfos = append(fileInfos, fileInfo{path: file, modTime: stat.ModTime()})
+	}
 
-		// 简单冒泡排序（文件数量不多）
-		for i := 0; i < len(fileInfos)-1; i++ {
-			for j := 0; j < len(fileInfos)-1-i; j++ {
-				if fileInfos[j].modTime.After(fileInfos[j+1].modTime) {
-					fileInfos[j], fileInfos[j+1] = fileInfos[j+1], fileInfos[j]
-				}
+	// Sort oldest first. Archive counts are intentionally small, so a simple
+	// comparison sort keeps the lifecycle logic easy to audit.
+	for i := 0; i < len(fileInfos)-1; i++ {
+		for j := 0; j < len(fileInfos)-1-i; j++ {
+			if fileInfos[j].modTime.After(fileInfos[j+1].modTime) {
+				fileInfos[j], fileInfos[j+1] = fileInfos[j+1], fileInfos[j]
 			}
 		}
+	}
 
-		// 删除最老的文件
+	if la.maxLogFiles > 0 && len(fileInfos) > la.maxLogFiles {
 		deleteCount := len(fileInfos) - la.maxLogFiles
 		for i := 0; i < deleteCount; i++ {
-			os.Remove(fileInfos[i].path)
-			la.stats.TotalDeleted++
+			if err := os.Remove(fileInfos[i].path); err == nil {
+				la.stats.TotalDeleted++
+			}
 		}
 	}
 }
@@ -367,4 +384,14 @@ func (la *LogArchiver) SetMaxLogFiles(count int) {
 	la.mu.Lock()
 	defer la.mu.Unlock()
 	la.maxLogFiles = count
+}
+
+// SetRetentionPolicy configures both the PITR time horizon and the maximum
+// number of compressed archive files retained. A non-positive value leaves
+// that dimension unbounded, which is useful for externally managed archives.
+func (la *LogArchiver) SetRetentionPolicy(maxFiles int, maxAge time.Duration) {
+	la.mu.Lock()
+	defer la.mu.Unlock()
+	la.maxLogFiles = maxFiles
+	la.retentionAge = maxAge
 }

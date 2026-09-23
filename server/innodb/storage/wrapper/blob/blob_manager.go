@@ -2,9 +2,11 @@ package blob
 
 import (
 	"fmt"
+	"sync"
+	"time"
+
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
-	"sync"
 )
 
 /*
@@ -56,7 +58,8 @@ type BlobManager struct {
 	blobIndex map[uint64]uint32
 
 	// BLOB元数据
-	blobMeta map[uint64]*BlobMetadata
+	blobMeta   map[uint64]*BlobMetadata
+	nextBlobID uint64
 
 	// 统计信息
 	stats *BlobStats
@@ -103,6 +106,7 @@ func NewBlobManager(segMgr basic.SegmentManager, spaceMgr basic.SpaceManager) *B
 		spaceManager:   spaceMgr,
 		blobIndex:      make(map[uint64]uint32),
 		blobMeta:       make(map[uint64]*BlobMetadata),
+		nextBlobID:     1,
 		stats:          &BlobStats{},
 	}
 }
@@ -181,7 +185,7 @@ func (bm *BlobManager) ReadBlob(blobID uint64) ([]byte, error) {
 	}
 
 	// 读取页面链
-	chain, err := bm.readBlobChain(meta.FirstPage, meta.TotalSize)
+	chain, err := bm.readBlobChain(meta.SegmentID, meta.FirstPage, meta.TotalSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read blob chain: %v", err)
 	}
@@ -190,6 +194,9 @@ func (bm *BlobManager) ReadBlob(blobID uint64) ([]byte, error) {
 	data := make([]byte, 0, meta.TotalSize)
 	for _, page := range chain.Pages {
 		data = append(data, page.GetBlobData()...)
+	}
+	if uint32(len(data)) < meta.TotalSize {
+		return nil, fmt.Errorf("blob %d is truncated: read %d bytes, want %d", blobID, len(data), meta.TotalSize)
 	}
 
 	return data[:meta.TotalSize], nil
@@ -207,12 +214,15 @@ func (bm *BlobManager) ReadBlobPartial(blobID uint64, offset, length uint32) ([]
 	}
 
 	// 验证范围
-	if offset >= meta.TotalSize {
+	if offset > meta.TotalSize {
 		return nil, fmt.Errorf("offset %d exceeds blob size %d", offset, meta.TotalSize)
+	}
+	if length == 0 || offset == meta.TotalSize {
+		return []byte{}, nil
 	}
 
 	// 调整长度
-	if offset+length > meta.TotalSize {
+	if length > meta.TotalSize-offset {
 		length = meta.TotalSize - offset
 	}
 
@@ -225,7 +235,7 @@ func (bm *BlobManager) ReadBlobPartial(blobID uint64, offset, length uint32) ([]
 	currentPage := meta.FirstPage
 
 	for i := uint32(0); i <= endPageIdx && currentPage != 0; i++ {
-		page, err := bm.readBlobPage(currentPage)
+		page, err := bm.readBlobPage(meta.SegmentID, currentPage)
 		if err != nil {
 			return nil, err
 		}
@@ -268,7 +278,7 @@ func (bm *BlobManager) DeleteBlob(blobID uint64) error {
 	}
 
 	// 读取页面链以获取所有页面号
-	chain, err := bm.readBlobChain(meta.FirstPage, meta.TotalSize)
+	chain, err := bm.readBlobChain(meta.SegmentID, meta.FirstPage, meta.TotalSize)
 	if err != nil {
 		return fmt.Errorf("failed to read blob chain for deletion: %v", err)
 	}
@@ -335,9 +345,13 @@ func (bm *BlobManager) allocateBlobChain(segmentID uint32, totalSize, pageCount 
 
 // writeBlobData 写入BLOB数据到页面链
 func (bm *BlobManager) writeBlobData(chain *BlobChain, data []byte) error {
-	space, err := bm.spaceManager.GetTableSpace(0)
+	spaceID, err := bm.segmentSpaceID(uint32(chain.Pages[0].BlobHeader.SegmentID))
 	if err != nil {
-		return fmt.Errorf("failed to get table space 0: %v", err)
+		return err
+	}
+	space, err := bm.spaceManager.GetTableSpace(spaceID)
+	if err != nil {
+		return fmt.Errorf("failed to get table space %d: %v", spaceID, err)
 	}
 
 	offset := uint32(0)
@@ -368,7 +382,7 @@ func (bm *BlobManager) writeBlobData(chain *BlobChain, data []byte) error {
 }
 
 // readBlobChain 读取BLOB页面链
-func (bm *BlobManager) readBlobChain(firstPageNo, totalSize uint32) (*BlobChain, error) {
+func (bm *BlobManager) readBlobChain(segmentID uint32, firstPageNo, totalSize uint32) (*BlobChain, error) {
 	chain := &BlobChain{
 		Pages:    make([]*pages.BlobPage, 0),
 		PageNos:  make([]uint32, 0),
@@ -378,7 +392,7 @@ func (bm *BlobManager) readBlobChain(firstPageNo, totalSize uint32) (*BlobChain,
 	currentPageNo := firstPageNo
 
 	for currentPageNo != 0 {
-		page, err := bm.readBlobPage(currentPageNo)
+		page, err := bm.readBlobPage(segmentID, currentPageNo)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read blob page %d: %v", currentPageNo, err)
 		}
@@ -398,10 +412,14 @@ func (bm *BlobManager) readBlobChain(firstPageNo, totalSize uint32) (*BlobChain,
 }
 
 // readBlobPage 读取单个BLOB页面
-func (bm *BlobManager) readBlobPage(pageNo uint32) (*pages.BlobPage, error) {
-	space, err := bm.spaceManager.GetTableSpace(0)
+func (bm *BlobManager) readBlobPage(segmentID, pageNo uint32) (*pages.BlobPage, error) {
+	spaceID, err := bm.segmentSpaceID(segmentID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get table space 0: %v", err)
+		return nil, err
+	}
+	space, err := bm.spaceManager.GetTableSpace(spaceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get table space %d: %v", spaceID, err)
 	}
 
 	pageData, err := space.LoadPageByPageNumber(pageNo)
@@ -433,15 +451,32 @@ func (bm *BlobManager) freeBlobChain(chain *BlobChain) error {
 
 // generateBlobID 生成BLOB ID
 func (bm *BlobManager) generateBlobID() uint64 {
-	// 简化实现：使用当前BLOB数+1
-	// 实际应该使用更健壮的ID生成策略
-	return bm.stats.TotalBlobs + 1
+	if bm.nextBlobID == 0 {
+		bm.nextBlobID = 1
+	}
+	for {
+		id := bm.nextBlobID
+		bm.nextBlobID++
+		if _, exists := bm.blobMeta[id]; !exists {
+			return id
+		}
+	}
+}
+
+func (bm *BlobManager) segmentSpaceID(segmentID uint32) (uint32, error) {
+	if bm.segmentManager == nil {
+		return 0, fmt.Errorf("segment manager is not configured")
+	}
+	info, err := bm.segmentManager.GetSegmentInfo(0, segmentID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to resolve segment %d tablespace: %v", segmentID, err)
+	}
+	return info.SpaceID, nil
 }
 
 // getCurrentTimestamp 获取当前时间戳
 func getCurrentTimestamp() int64 {
-	// 简化实现
-	return 0
+	return time.Now().Unix()
 }
 
 // GetStats 获取统计信息

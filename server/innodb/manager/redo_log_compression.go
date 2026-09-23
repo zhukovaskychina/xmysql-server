@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/pierrec/lz4/v4"
 )
@@ -285,6 +286,7 @@ type BatchCompressor struct {
 	buffer     [][]byte      // 数据缓冲区
 	resultChan chan []byte   // 结果通道
 	stopChan   chan struct{} // 停止信号
+	stopOnce   sync.Once
 }
 
 // NewBatchCompressor 创建批量压缩器
@@ -362,7 +364,7 @@ func (bc *BatchCompressor) GetResult() <-chan []byte {
 
 // Close 关闭批量压缩器
 func (bc *BatchCompressor) Close() {
-	close(bc.stopChan)
+	bc.stopOnce.Do(func() { close(bc.stopChan) })
 }
 
 // ============ 日志块压缩 ============

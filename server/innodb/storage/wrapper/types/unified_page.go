@@ -110,10 +110,18 @@ type UnifiedPage struct {
 
 	// Buffer pool integration
 	bufferPage *buffer_pool.BufferPage // Associated buffer page
+	storage    basic.StorageProvider   // Optional durable page provider
 }
 
 // NewUnifiedPage creates a new unified page
 func NewUnifiedPage(spaceID, pageNo uint32, pageType common.PageType) *UnifiedPage {
+	return NewUnifiedPageWithStorage(spaceID, pageNo, pageType, nil)
+}
+
+// NewUnifiedPageWithStorage creates a unified page with an optional durable
+// storage provider. Existing callers can continue using NewUnifiedPage for
+// in-memory compatibility behavior.
+func NewUnifiedPageWithStorage(spaceID, pageNo uint32, pageType common.PageType, storage basic.StorageProvider) *UnifiedPage {
 	page := &UnifiedPage{
 		spaceID:  spaceID,
 		pageNo:   pageNo,
@@ -121,6 +129,7 @@ func NewUnifiedPage(spaceID, pageNo uint32, pageType common.PageType) *UnifiedPa
 		size:     DefaultPageSize,
 		body:     make([]byte, PageBodySize),
 		rawData:  make([]byte, DefaultPageSize),
+		storage:  storage,
 	}
 
 	// Initialize file header
@@ -561,6 +570,25 @@ func (p *UnifiedPage) Read() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	if p.storage != nil {
+		data, err := p.storage.ReadPage(p.spaceID, p.pageNo)
+		if err != nil {
+			return err
+		}
+		if len(data) < int(p.size) {
+			return ErrUnifiedInvalidPageSize
+		}
+		if err := p.deserializeInternal(data[:p.size]); err != nil {
+			return err
+		}
+		p.rawData = append(p.rawData[:0], data[:p.size]...)
+		p.stats.ReadCount++
+		p.stats.LastAccessed = uint64(time.Now().UnixNano())
+		atomic.StoreUint32(&p.state, uint32(basic.PageStateLoaded))
+		atomic.StoreUint32(&p.dirty, 0)
+		return nil
+	}
+
 	p.stats.ReadCount++
 	p.stats.LastAccessed = uint64(time.Now().UnixNano())
 
@@ -577,6 +605,18 @@ func (p *UnifiedPage) Read() error {
 func (p *UnifiedPage) Write() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	if p.storage != nil {
+		p.updateChecksumInternal()
+		if err := p.storage.WritePage(p.spaceID, p.pageNo, p.rawData); err != nil {
+			return err
+		}
+		p.stats.WriteCount++
+		p.stats.LastModified = uint64(time.Now().UnixNano())
+		atomic.StoreUint32(&p.dirty, 0)
+		atomic.StoreUint32(&p.state, uint32(basic.PageStateClean))
+		return nil
+	}
 
 	p.stats.WriteCount++
 	p.stats.LastModified = uint64(time.Now().UnixNano())
@@ -597,6 +637,11 @@ func (p *UnifiedPage) Write() error {
 func (p *UnifiedPage) Flush() error {
 	if err := p.Write(); err != nil {
 		return err
+	}
+	if p.storage != nil {
+		if err := p.storage.Sync(p.spaceID); err != nil {
+			return err
+		}
 	}
 
 	p.ClearDirty()

@@ -60,6 +60,7 @@ func TestClusteredRecordPersistsAcrossStorageManagerRestart(t *testing.T) {
 	}
 
 	secondStorage := newRestartTestStorageManager(dataDir)
+	t.Cleanup(func() { _ = secondStorage.Close() })
 	secondTableStorage := manager.NewTableStorageManager(secondStorage)
 	_, err = secondStorage.CreateTablespace("mysql/user")
 	if err != nil {

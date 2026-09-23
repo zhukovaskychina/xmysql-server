@@ -19,6 +19,14 @@ func TestRecordRowAdapter_WriteWithNull(t *testing.T) {
 	assert.Equal(t, []byte{'a', 'b', 'c', 0}, adapter.record.Data)
 }
 
+func TestIndexRecordRowAdapterOrdersByPrimaryKey(t *testing.T) {
+	less := &IndexRecordRowAdapter{record: &IndexRecord{Key: []byte("a"), Value: []byte("one")}}
+	greater := &IndexRecordRowAdapter{record: &IndexRecord{Key: []byte("b"), Value: []byte("two")}}
+	if !less.Less(greater) {
+		t.Fatal("index row adapter should order rows by key")
+	}
+}
+
 func TestRecordRowAdapter_WriteBytesWithNullWithsPos(t *testing.T) {
 	adapter := &RecordRowAdapter{
 		record: &pagepkg.Record{Data: []byte("x")},
@@ -111,9 +119,10 @@ func TestRecordRowAdapter_SetTransactionId(t *testing.T) {
 func TestRecordRowAdapter_GetPageNumber(t *testing.T) {
 	adapter := &RecordRowAdapter{
 		record: &pagepkg.Record{Data: []byte("v")},
+		pageNo: 27,
 	}
 
-	assert.Equal(t, uint32(0), adapter.GetPageNumber())
+	assert.Equal(t, uint32(27), adapter.GetPageNumber())
 }
 
 func TestRecordRowAdapter_Less(t *testing.T) {

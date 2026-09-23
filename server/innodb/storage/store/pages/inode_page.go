@@ -122,7 +122,13 @@ func NewINodePage(spaceNo uint32, pageNumber uint32) *INodePage {
 func (ibuf *INodePage) SerializeBytes() []byte {
 	var buff = make([]byte, 0)
 	buff = append(buff, ibuf.FileHeader.GetSerialBytes()...)
-	buff = append(buff, util.AppendByte(12)...)
+	// Persist the inode page list instead of emitting twelve zero bytes. The
+	// parser already reads these four pointers from offsets 38..50, so dropping
+	// them here silently loses the list on provider-backed round trips.
+	buff = append(buff, ibuf.INodePageList.PreNodePageNumber...)
+	buff = append(buff, ibuf.INodePageList.PreNodeOffset...)
+	buff = append(buff, ibuf.INodePageList.NextNodePageNumber...)
+	buff = append(buff, ibuf.INodePageList.NextNodeOffSet...)
 	//SegmentId           []byte               //8个字节，该结构体对应的段的编号（ID） 若值为0，则表示该SLot未被泗洪
 	//NotFullNUsed        []byte               //4个字节，在Notfull链表中已经使用了多少个页面
 	//FreeListBaseNode    []byte               //16个字节，Free链表

@@ -74,6 +74,17 @@ type Cfg struct {
 	InnodbRedoLogDir          string `default:"redo" yaml:"innodb_redo_log_dir" json:"innodb_redo_log_dir,omitempty"`
 	InnodbUndoLogDir          string `default:"undo" yaml:"innodb_undo_log_dir" json:"innodb_undo_log_dir,omitempty"`
 	InnodbEncryption          InnodbEncryptionConfig
+	InnodbCompression         InnodbCompressionConfig
+
+	// replication / cluster (P1: one source, many replicas)
+	ReplicationRole                 string `default:"standalone" yaml:"replication_role" json:"replication_role,omitempty"`
+	ReplicationUUID                 string `default:"" yaml:"replication_uuid" json:"replication_uuid,omitempty"`
+	ReplicationServerID             uint32 `default:"1" yaml:"replication_server_id" json:"replication_server_id,omitempty"`
+	ReplicationListenAddress        string `default:"" yaml:"replication_listen_address" json:"replication_listen_address,omitempty"`
+	ReplicationSourceURL            string `default:"" yaml:"replication_source_url" json:"replication_source_url,omitempty"`
+	ReplicationPollInterval         string `default:"500ms" yaml:"replication_poll_interval" json:"replication_poll_interval,omitempty"`
+	ReplicationPollIntervalDuration time.Duration
+	ReplicationReadOnly             bool `default:"true" yaml:"replication_read_only" json:"replication_read_only,omitempty"`
 
 	// session tcp parameters
 	MySQLSessionParam MySQLSessionParam `required:"true" yaml:"getty_session_param" json:"getty_session_param,omitempty"`
@@ -83,6 +94,14 @@ type InnodbEncryptionConfig struct {
 	KeyRotationDays int    `default:"90" yaml:"key_rotation_days" json:"key_rotation_days,omitempty"`
 	Threads         int    `default:"4" yaml:"threads" json:"threads,omitempty"`
 	BufferSize      int    `default:"8388608" yaml:"buffer_size" json:"buffer_size,omitempty"`
+}
+
+type InnodbCompressionConfig struct {
+	Enabled    bool    `default:"false" yaml:"enabled" json:"enabled,omitempty"`
+	Method     string  `default:"zlib" yaml:"method" json:"method,omitempty"`
+	Level      int     `default:"6" yaml:"level" json:"level,omitempty"`
+	MinSavings float64 `default:"0" yaml:"min_savings" json:"min_savings,omitempty"`
+	AllSpaces  bool    `default:"true" yaml:"all_spaces" json:"all_spaces,omitempty"`
 }
 
 type MySQLSessionParam struct {
@@ -141,6 +160,16 @@ func NewCfg() *Cfg {
 			Threads:         4,
 			BufferSize:      8388608,
 		},
+		InnodbCompression: InnodbCompressionConfig{
+			Method:    "zlib",
+			Level:     6,
+			AllSpaces: true,
+		},
+		ReplicationRole:                 "standalone",
+		ReplicationServerID:             1,
+		ReplicationPollInterval:         "500ms",
+		ReplicationPollIntervalDuration: 500 * time.Millisecond,
+		ReplicationReadOnly:             true,
 	}
 }
 
@@ -157,6 +186,7 @@ func (cfg *Cfg) Load(args *CommandLineArgs) *Cfg {
 	cfg.parseMysqlSessionCfg(cfg.Raw.Section("session"))
 	cfg.parseInnodbCfg(cfg.Raw.Section("innodb"))
 	cfg.parseLogsCfg(cfg.Raw.Section("logs"))
+	cfg.parseReplicationCfg(cfg.Raw.Section("replication"))
 	return cfg
 }
 
@@ -475,6 +505,16 @@ func (cfg *Cfg) parseInnodbCfg(section *ini.Section) *Cfg {
 	bufferSize := section.Key("encryption.buffer_size").MustInt(cfg.InnodbEncryption.BufferSize)
 	cfg.InnodbEncryption.BufferSize = bufferSize
 
+	// Parse transparent page compression settings.
+	cfg.InnodbCompression.Enabled = section.Key("compression.enabled").MustBool(cfg.InnodbCompression.Enabled)
+	compressionMethod, err := valueAsString(section, "compression.method", cfg.InnodbCompression.Method)
+	if err == nil {
+		cfg.InnodbCompression.Method = compressionMethod
+	}
+	cfg.InnodbCompression.Level = section.Key("compression.level").MustInt(cfg.InnodbCompression.Level)
+	cfg.InnodbCompression.MinSavings = section.Key("compression.min_savings").MustFloat64(cfg.InnodbCompression.MinSavings)
+	cfg.InnodbCompression.AllSpaces = section.Key("compression.all_spaces").MustBool(cfg.InnodbCompression.AllSpaces)
+
 	return cfg
 }
 
@@ -531,5 +571,27 @@ func (cfg *Cfg) parseLogsCfg(section *ini.Section) *Cfg {
 		cfg.LongQueryTimeMs = 1000
 	}
 
+	return cfg
+}
+
+func (cfg *Cfg) parseReplicationCfg(section *ini.Section) *Cfg {
+	if section == nil {
+		return cfg
+	}
+	cfg.ReplicationRole = strings.ToLower(parseString(section, "role", cfg.ReplicationRole))
+	cfg.ReplicationUUID = parseString(section, "uuid", cfg.ReplicationUUID)
+	serverID := parseInt(section, "server_id", int(cfg.ReplicationServerID))
+	if serverID > 0 {
+		cfg.ReplicationServerID = uint32(serverID)
+	}
+	cfg.ReplicationListenAddress = parseString(section, "listen_address", cfg.ReplicationListenAddress)
+	cfg.ReplicationSourceURL = parseString(section, "source_url", cfg.ReplicationSourceURL)
+	cfg.ReplicationPollInterval = parseString(section, "poll_interval", cfg.ReplicationPollInterval)
+	cfg.ReplicationPollIntervalDuration = parseDurationOrDefault(
+		"replication.poll_interval",
+		cfg.ReplicationPollInterval,
+		500*time.Millisecond,
+	)
+	cfg.ReplicationReadOnly = parseBool(section, "read_only", cfg.ReplicationReadOnly)
 	return cfg
 }

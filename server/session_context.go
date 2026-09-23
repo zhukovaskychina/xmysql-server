@@ -1,8 +1,34 @@
 package server
 
 import (
+	"context"
 	"sync"
 )
+
+type activeRolesContextKey struct{}
+
+// WithActiveRoles attaches the roles active for a connection to an operation
+// context. The second return value of ActiveRoles distinguishes an explicit
+// SET ROLE NONE (an empty role list) from a legacy caller that has not supplied
+// role state yet.
+func WithActiveRoles(ctx context.Context, roles []string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	copyRoles := append([]string(nil), roles...)
+	return context.WithValue(ctx, activeRolesContextKey{}, copyRoles)
+}
+
+func ActiveRoles(ctx context.Context) ([]string, bool) {
+	if ctx == nil {
+		return nil, false
+	}
+	roles, ok := ctx.Value(activeRolesContextKey{}).([]string)
+	if !ok {
+		return nil, false
+	}
+	return append([]string(nil), roles...), true
+}
 
 // SessionContext 表示单条 MySQL 连接上的会话级状态，是该连接上所有会话变量与语义状态的显式载体。
 // 生命周期与连接一致，由协议层在创建 MySQLServerSession 时创建并持有。

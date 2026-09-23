@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -42,23 +43,26 @@ type IndexManager struct {
 
 // Index 表示一个索引
 type Index struct {
-	IndexID    uint64   // 索引ID
-	TableID    uint64   // 表ID
-	SpaceID    uint32   // 表空间ID
-	Name       string   // 索引名称
-	Type       uint8    // 索引类型
-	Columns    []Column // 索引列
-	IsUnique   bool     // 是否唯一索引
-	IsPrimary  bool     // 是否主键索引
-	SegmentID  uint32   // 关联的段ID
-	RootPageNo uint32   // B+树根页号
-	Height     uint8    // B+树高度
-	PageCount  uint32   // 索引页数
+	IndexID       uint64   // 索引ID
+	TableID       uint64   // 表ID
+	SpaceID       uint32   // 表空间ID
+	Name          string   // 索引名称
+	Type          uint8    // 索引类型
+	Columns       []Column // 索引列
+	IsUnique      bool     // 是否唯一索引
+	IsPrimary     bool     // 是否主键索引
+	IsVisible     bool     // 是否对优化器可见；VisibilitySet=false 兼容历史元数据，默认可见
+	VisibilitySet bool
+	SegmentID     uint32 // 关联的段ID
+	RootPageNo    uint32 // B+树根页号
+	Height        uint8  // B+树高度
+	PageCount     uint32 // 索引页数
 
 	// 索引状态
-	State      IndexState // 索引状态
-	CreateTime time.Time  // 创建时间
-	UpdateTime time.Time  // 更新时间
+	State        IndexState // 索引状态
+	NeedsRebuild bool       // metadata-discovered index has not yet been rebuilt from clustered rows
+	CreateTime   time.Time  // 创建时间
+	UpdateTime   time.Time  // 更新时间
 
 	// 索引统计
 	KeyCount     uint64 // 键数量
@@ -202,14 +206,17 @@ func (im *IndexManager) EnsureSecondaryIndexes(tableInfo *TableStorageInfo, tabl
 	}
 
 	im.mu.Lock()
-	defer im.mu.Unlock()
 	tableID := SecondaryIndexTableID(tableInfo.SchemaName, tableInfo.TableName)
+	desiredIndexIDs := make(map[uint64]struct{})
 	for _, indexMeta := range tableMeta.Indices {
 		if strings.EqualFold(indexMeta.Name, "PRIMARY") || len(indexMeta.Columns) == 0 {
 			continue
 		}
 		indexID := SecondaryIndexID(tableID, indexMeta.Name)
+		desiredIndexIDs[indexID] = struct{}{}
 		if existing := im.indexes[indexID]; existing != nil {
+			existing.IsVisible = indexMeta.IsVisible
+			existing.VisibilitySet = indexMeta.VisibilitySet
 			continue
 		}
 		columns := make([]Column, len(indexMeta.Columns))
@@ -217,20 +224,63 @@ func (im *IndexManager) EnsureSecondaryIndexes(tableInfo *TableStorageInfo, tabl
 			columns[columnIndex] = Column{Name: columnName, Position: uint8(columnIndex)}
 		}
 		im.indexes[indexID] = &Index{
-			IndexID:    indexID,
-			TableID:    tableID,
-			SpaceID:    tableInfo.SpaceID,
-			Name:       indexMeta.Name,
-			Type:       INDEX_TYPE_BTREE,
-			Columns:    columns,
-			IsUnique:   indexMeta.Unique,
-			State:      IndexStateActive,
-			CreateTime: time.Now(),
-			UpdateTime: time.Now(),
-			RootPageNo: tableInfo.RootPageNo,
-			Height:     1,
-			PageCount:  1,
-			LeafPages:  1,
+			IndexID:       indexID,
+			TableID:       tableID,
+			SpaceID:       tableInfo.SpaceID,
+			Name:          indexMeta.Name,
+			Type:          INDEX_TYPE_BTREE,
+			Columns:       columns,
+			IsUnique:      indexMeta.Unique,
+			IsVisible:     indexMeta.IsVisible,
+			VisibilitySet: indexMeta.VisibilitySet,
+			State:         IndexStateActive,
+			NeedsRebuild:  false,
+			CreateTime:    time.Now(),
+			UpdateTime:    time.Now(),
+			RootPageNo:    tableInfo.RootPageNo,
+			Height:        1,
+			PageCount:     1,
+			LeafPages:     1,
+		}
+	}
+	for indexID, index := range im.indexes {
+		if index != nil && index.TableID == tableID && !index.IsPrimary {
+			if _, keep := desiredIndexIDs[indexID]; !keep {
+				delete(im.indexes, indexID)
+			}
+		}
+	}
+	im.mu.Unlock()
+	return nil
+}
+
+// EnsureSecondaryIndexesWithRebuild is the read-path variant of
+// EnsureSecondaryIndexes. It rebuilds indexes discovered from ALTER/restart
+// metadata, while DML keeps using the non-rebuilding method so the row being
+// inserted is not indexed twice.
+func (im *IndexManager) EnsureSecondaryIndexesWithRebuild(tableInfo *TableStorageInfo, tableMeta *metadata.TableMeta) error {
+	if tableInfo == nil || tableMeta == nil {
+		return fmt.Errorf("table storage info and metadata are required")
+	}
+	tableID := SecondaryIndexTableID(tableInfo.SchemaName, tableInfo.TableName)
+	missing := make([]uint64, 0)
+	im.mu.RLock()
+	for _, indexMeta := range tableMeta.Indices {
+		if strings.EqualFold(indexMeta.Name, "PRIMARY") || len(indexMeta.Columns) == 0 {
+			continue
+		}
+		indexID := SecondaryIndexID(tableID, indexMeta.Name)
+		if index := im.indexes[indexID]; index == nil || index.NeedsRebuild {
+			missing = append(missing, indexID)
+		}
+	}
+	im.mu.RUnlock()
+	if err := im.EnsureSecondaryIndexes(tableInfo, tableMeta); err != nil {
+		return err
+	}
+	for _, indexID := range missing {
+		if err := im.RebuildIndexWithTableMetadata(indexID, tableMeta); err != nil {
+			return fmt.Errorf("rebuild newly discovered secondary index %d: %w", indexID, err)
 		}
 	}
 	return nil
@@ -379,8 +429,10 @@ func (im *IndexManager) InsertKey(indexID uint64, key interface{}, value []byte)
 		return err
 	}
 
-	// 检查唯一性约束
-	if idx.IsUnique {
+	// MySQL UNIQUE indexes allow multiple rows when any indexed component is
+	// NULL. The durable key keeps the NULL marker in the encoded components, so
+	// use it to bypass the physical duplicate probe for that case.
+	if idx.IsUnique && !secondaryIndexKeyContainsNull(key) {
 		ctx := context.Background()
 		_, _, err := btreeManager.Search(ctx, key)
 		if err == nil {
@@ -525,6 +577,35 @@ func (im *IndexManager) RangeSearch(indexID uint64, startKey, endKey interface{}
 	return rows, nil
 }
 
+// RangeSearchEntries exposes durable secondary-key bytes for access paths
+// that need to inspect index prefixes (for example skip scan). The legacy
+// RangeSearch API intentionally exposes values only, so this method is
+// available when the table uses the enhanced index manager.
+func (im *IndexManager) RangeSearchEntries(indexID uint64, startKey, endKey []byte) ([]IndexRecord, error) {
+	im.mu.RLock()
+	index := im.indexes[indexID]
+	if index == nil {
+		im.mu.RUnlock()
+		return nil, ErrIndexNotFound
+	}
+	if index.State != IndexStateActive {
+		im.mu.RUnlock()
+		return nil, fmt.Errorf("index %d is not active", indexID)
+	}
+	btreeManager, err := im.secondaryIndexManager(index)
+	im.mu.RUnlock()
+	if err != nil {
+		return nil, err
+	}
+	adapter, ok := btreeManager.(*EnhancedBTreeAdapter)
+	if !ok || adapter.GetEnhancedManager() == nil {
+		return nil, fmt.Errorf("index %d does not expose durable key records", indexID)
+	}
+	// EnhancedBTreeAdapter is the table-level compatibility facade; its
+	// legacy RangeSearch path uses the adapter's default index ID as well.
+	return adapter.GetEnhancedManager().RangeSearch(context.Background(), adapter.defaultIndexID, startKey, endKey)
+}
+
 // InitializeSecondaryIndex loads the durable leaf-page chain before its first
 // query after metadata reconstruction. This avoids treating a not-yet-loaded
 // reopened B+Tree as an empty secondary index.
@@ -662,6 +743,72 @@ func (im *IndexManager) RebuildIndex(indexID uint64) error {
 	return nil
 }
 
+// RebuildIndexWithTableMetadata rebuilds a durable secondary index using the
+// caller's current metadata snapshot. This is needed immediately after ALTER
+// TABLE, before the TableManager cache has necessarily been refreshed.
+func (im *IndexManager) RebuildIndexWithTableMetadata(indexID uint64, tableMeta *metadata.TableMeta) error {
+	if tableMeta == nil {
+		return fmt.Errorf("table metadata is required")
+	}
+	im.mu.Lock()
+	defer im.mu.Unlock()
+	index := im.indexes[indexID]
+	if index == nil {
+		return ErrIndexNotFound
+	}
+	if !im.canRebuildDurableSecondaryIndex(index) {
+		return fmt.Errorf("index %d does not have durable secondary index storage context", indexID)
+	}
+	tableStorageManager := im.storageManager.GetTableStorageManager()
+	tableInfo, err := tableStorageManager.GetTableBySpaceID(index.SpaceID)
+	if err != nil {
+		return err
+	}
+	btreeManager, err := im.secondaryIndexManager(index)
+	if err != nil {
+		return err
+	}
+	rows, err := scanClusteredRowsForSecondaryIndexRepair(context.Background(), btreeManager, tableMeta)
+	if err != nil {
+		return err
+	}
+	expectedEntries, err := buildSecondaryIndexEntriesFromRepairRows(index.TableID, tableMeta, rows, index)
+	if err != nil {
+		return err
+	}
+	actualEntries, err := im.actualSecondaryIndexEntries(context.Background(), index, btreeManager)
+	if err != nil {
+		return err
+	}
+	for _, entry := range actualEntries {
+		if err := btreeManager.Delete(context.Background(), entry.Key); err != nil {
+			return fmt.Errorf("delete stale secondary index key failed: %v", err)
+		}
+	}
+	for _, entry := range expectedEntries {
+		if err := btreeManager.Insert(context.Background(), entry.Key, entry.Value); err != nil {
+			return fmt.Errorf("insert rebuilt secondary index key failed: %v", err)
+		}
+	}
+	leafPages, err := btreeManager.GetAllLeafPages(context.Background())
+	if err != nil {
+		return err
+	}
+	if len(leafPages) == 0 {
+		return fmt.Errorf("rebuilt index %d has no leaf pages", indexID)
+	}
+	index.RootPageNo = tableInfo.RootPageNo
+	index.Height = 1
+	index.KeyCount = uint64(len(expectedEntries))
+	index.LeafPages = uint32(len(leafPages))
+	index.NonLeafPages = 0
+	index.PageCount = index.LeafPages
+	index.State = IndexStateActive
+	index.NeedsRebuild = false
+	index.UpdateTime = time.Now()
+	return nil
+}
+
 func (im *IndexManager) RepairIndex(indexID uint64) error {
 	if err := im.RebuildIndex(indexID); err != nil {
 		return fmt.Errorf("rebuild index %d failed during repair: %w", indexID, err)
@@ -710,6 +857,14 @@ type IndexStatistics struct {
 
 // SyncSecondaryIndexesOnInsert 在INSERT时同步所有二级索引
 func (im *IndexManager) SyncSecondaryIndexesOnInsert(tableID uint64, rowData map[string]interface{}, primaryKeyValue []byte) error {
+	return im.SyncSecondaryIndexesOnInsertWithUniqueChecks(tableID, rowData, primaryKeyValue, true)
+}
+
+// SyncSecondaryIndexesOnInsertWithUniqueChecks synchronizes secondary
+// indexes while allowing import paths to temporarily bypass physical unique
+// probing when UNIQUE_CHECKS=0. Such entries use the non-unique key shape and
+// retain the clustered key, so duplicate imported rows remain addressable.
+func (im *IndexManager) SyncSecondaryIndexesOnInsertWithUniqueChecks(tableID uint64, rowData map[string]interface{}, primaryKeyValue []byte, enforceUnique bool) error {
 	// 先获取二级索引列表（需要读锁）
 	im.mu.RLock()
 	secondaryIndexes := im.getSecondaryIndexesByTable(tableID)
@@ -724,12 +879,11 @@ func (im *IndexManager) SyncSecondaryIndexesOnInsert(tableID uint64, rowData map
 		indexKey, err := EncodeSecondaryIndexKey(tableID, metadata.IndexMeta{
 			Name:    idx.Name,
 			Columns: indexColumnNames(idx),
-			Unique:  idx.IsUnique,
+			Unique:  idx.IsUnique && enforceUnique,
 		}, rowData, primaryKeyValue)
 		if err != nil {
 			return fmt.Errorf("encode index key for index %d failed: %v", idx.IndexID, err)
 		}
-
 		// 插入到二级索引（值为主键）
 		if err := im.InsertKey(idx.IndexID, indexKey, EncodeSecondaryIndexValue(primaryKeyValue)); err != nil {
 			return fmt.Errorf("insert to secondary index %d failed: %v", idx.IndexID, err)
@@ -749,6 +903,27 @@ func indexColumnNames(index *Index) []string {
 
 // SyncSecondaryIndexesOnUpdate 在UPDATE时同步所有二级索引
 func (im *IndexManager) SyncSecondaryIndexesOnUpdate(tableID uint64, oldRowData, newRowData map[string]interface{}, primaryKeyValue []byte) error {
+	return im.SyncSecondaryIndexesOnUpdateWithPrimaryKey(tableID, oldRowData, newRowData, primaryKeyValue, primaryKeyValue)
+}
+
+// SyncSecondaryIndexesOnUpdateWithPrimaryKey updates secondary index entries
+// when either indexed columns or the clustered primary key changes.
+func (im *IndexManager) SyncSecondaryIndexesOnUpdateWithPrimaryKey(
+	tableID uint64,
+	oldRowData, newRowData map[string]interface{},
+	oldPrimaryKeyValue, newPrimaryKeyValue []byte,
+) error {
+	return im.SyncSecondaryIndexesOnUpdateWithPrimaryKeyAndUniqueChecks(tableID, oldRowData, newRowData, oldPrimaryKeyValue, newPrimaryKeyValue, true)
+}
+
+// SyncSecondaryIndexesOnUpdateWithPrimaryKeyAndUniqueChecks is the update
+// counterpart of SyncSecondaryIndexesOnInsertWithUniqueChecks.
+func (im *IndexManager) SyncSecondaryIndexesOnUpdateWithPrimaryKeyAndUniqueChecks(
+	tableID uint64,
+	oldRowData, newRowData map[string]interface{},
+	oldPrimaryKeyValue, newPrimaryKeyValue []byte,
+	enforceUnique bool,
+) error {
 	// 先获取二级索引列表（需要读锁）
 	im.mu.RLock()
 	secondaryIndexes := im.getSecondaryIndexesByTable(tableID)
@@ -761,28 +936,49 @@ func (im *IndexManager) SyncSecondaryIndexesOnUpdate(tableID uint64, oldRowData,
 	// 为每个二级索引更新条目（UpdateKey内部会加写锁）
 	for _, idx := range secondaryIndexes {
 		// 检查索引列是否被更新
-		if !im.isIndexAffected(idx, oldRowData, newRowData) {
+		if !im.isIndexAffected(idx, oldRowData, newRowData) && bytes.Equal(oldPrimaryKeyValue, newPrimaryKeyValue) {
 			continue // 索引列未变化，跳过
 		}
 
 		indexMeta := metadata.IndexMeta{
 			Name:    idx.Name,
 			Columns: indexColumnNames(idx),
-			Unique:  idx.IsUnique,
+			Unique:  idx.IsUnique && enforceUnique,
 		}
-		oldIndexKey, err := EncodeSecondaryIndexKey(tableID, indexMeta, oldRowData, primaryKeyValue)
+		oldIndexMeta := indexMeta
+		if idx.IsUnique && !enforceUnique {
+			// Rows inserted before UNIQUE_CHECKS was disabled retain the
+			// unique key shape. Prefer removing that shape, then fall back to
+			// the duplicate-tolerant shape for rows imported while disabled.
+			oldIndexMeta.Unique = true
+		}
+		oldIndexKey, err := EncodeSecondaryIndexKey(tableID, oldIndexMeta, oldRowData, oldPrimaryKeyValue)
 		if err != nil {
 			return fmt.Errorf("encode old index key for index %d failed: %v", idx.IndexID, err)
 		}
 
-		newIndexKey, err := EncodeSecondaryIndexKey(tableID, indexMeta, newRowData, primaryKeyValue)
+		newIndexKey, err := EncodeSecondaryIndexKey(tableID, indexMeta, newRowData, newPrimaryKeyValue)
 		if err != nil {
 			return fmt.Errorf("encode new index key for index %d failed: %v", idx.IndexID, err)
 		}
 
-		// 更新二级索引
-		if err := im.UpdateKey(idx.IndexID, oldIndexKey, newIndexKey, EncodeSecondaryIndexValue(primaryKeyValue)); err != nil {
-			return fmt.Errorf("update secondary index %d failed: %v", idx.IndexID, err)
+		// 更新二级索引。关闭 UNIQUE_CHECKS 时，兼容此前已按非唯一
+		// 形状写入的重复行；新键始终使用本次请求的形状。
+		if err := im.DeleteKey(idx.IndexID, oldIndexKey); err != nil {
+			if !(idx.IsUnique && !enforceUnique && strings.Contains(strings.ToLower(err.Error()), "record not found")) {
+				return fmt.Errorf("update secondary index %d failed: delete old key: %v", idx.IndexID, err)
+			}
+			oldIndexMeta.Unique = false
+			oldIndexKey, err = EncodeSecondaryIndexKey(tableID, oldIndexMeta, oldRowData, oldPrimaryKeyValue)
+			if err != nil {
+				return fmt.Errorf("encode fallback old index key for index %d failed: %v", idx.IndexID, err)
+			}
+			if err := im.DeleteKey(idx.IndexID, oldIndexKey); err != nil {
+				return fmt.Errorf("update secondary index %d failed: delete fallback old key: %v", idx.IndexID, err)
+			}
+		}
+		if err := im.InsertKey(idx.IndexID, newIndexKey, EncodeSecondaryIndexValue(newPrimaryKeyValue)); err != nil {
+			return fmt.Errorf("update secondary index %d failed: insert new key: %v", idx.IndexID, err)
 		}
 	}
 
@@ -842,7 +1038,7 @@ func (im *IndexManager) extractIndexKey(idx *Index, rowData map[string]interface
 	// 单列索引：直接返回列值
 	if len(idx.Columns) == 1 {
 		colName := idx.Columns[0].Name
-		value, exists := rowData[colName]
+		value, exists := lookupRowValueCaseInsensitive(rowData, colName)
 		if !exists {
 			return nil, fmt.Errorf("column %s not found in row data", colName)
 		}
@@ -852,7 +1048,7 @@ func (im *IndexManager) extractIndexKey(idx *Index, rowData map[string]interface
 	// 复合索引：拼接多列值
 	var keyParts []interface{}
 	for _, col := range idx.Columns {
-		value, exists := rowData[col.Name]
+		value, exists := lookupRowValueCaseInsensitive(rowData, col.Name)
 		if !exists {
 			return nil, fmt.Errorf("column %s not found in row data", col.Name)
 		}
@@ -864,21 +1060,36 @@ func (im *IndexManager) extractIndexKey(idx *Index, rowData map[string]interface
 
 // isIndexAffected 检查索引列是否被更新
 func (im *IndexManager) isIndexAffected(idx *Index, oldRowData, newRowData map[string]interface{}) bool {
+	if idx == nil {
+		return false
+	}
 	for _, col := range idx.Columns {
-		oldValue, oldExists := oldRowData[col.Name]
-		newValue, newExists := newRowData[col.Name]
+		oldValue, oldExists := lookupRowValueCaseInsensitive(oldRowData, col.Name)
+		newValue, newExists := lookupRowValueCaseInsensitive(newRowData, col.Name)
 
 		// 如果列存在性变化，或值变化，则索引受影响
 		if oldExists != newExists {
 			return true
 		}
 
-		if oldExists && newExists && oldValue != newValue {
+		if oldExists && newExists && !reflect.DeepEqual(oldValue, newValue) {
 			return true
 		}
 	}
 
 	return false
+}
+
+func lookupRowValueCaseInsensitive(row map[string]interface{}, columnName string) (interface{}, bool) {
+	if value, ok := row[columnName]; ok {
+		return value, true
+	}
+	for name, value := range row {
+		if strings.EqualFold(name, columnName) {
+			return value, true
+		}
+	}
+	return nil, false
 }
 
 // GetManagerStats 获取管理器统计信息

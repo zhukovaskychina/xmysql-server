@@ -2272,6 +2272,10 @@ function_call_keyword:
   {
     $$ = &FuncExpr{Name: NewColIdent("right"), Exprs: $3}
   }
+| INTERVAL openb select_expression_list_opt closeb
+  {
+    $$ = &FuncExpr{Name: NewColIdent("interval"), Exprs: $3}
+  }
 | CONVERT openb expression ',' convert_type closeb
   {
     $$ = &ConvertExpr{Expr: $3, Type: $5}

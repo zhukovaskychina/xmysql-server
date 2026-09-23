@@ -23,7 +23,6 @@ type ExecutionEngineIntegrator struct {
 	// 执行引擎组件
 	xmysqlExecutor       *engine.XMySQLExecutor
 	selectExecutor       *engine.SelectExecutor
-	dmlExecutor          *engine.DMLExecutor
 	storageIntegratedDML *engine.StorageIntegratedDMLExecutor
 
 	// 集成组件
@@ -106,16 +105,6 @@ func (eei *ExecutionEngineIntegrator) initializeExecutors() {
 		eei.storageManager,
 		eei.tableManager,
 		"", // dataDir：集成层未传，依赖 tableManager
-	)
-
-	// 创建DML执行器
-	eei.dmlExecutor = engine.NewDMLExecutor(
-		eei.optimizerManager,
-		eei.bufferPoolManager,
-		eei.btreeManager,
-		eei.tableManager,
-		eei.transactionManager,
-		eei.indexManager,
 	)
 
 	// 创建存储引擎集成的DML执行器
@@ -241,7 +230,7 @@ func (eei *ExecutionEngineIntegrator) executeIndexScan(
 	databaseName string,
 ) (*engine.SelectResult, error) {
 	// 使用索引扫描优化
-	eei.executionStats.IndexScansUsed++
+	eei.recordAccessMethod(AccessMethodIndexScan)
 
 	// 应用存储提示
 	if err := eei.applyStorageHints(executionPlan.StorageHints); err != nil {
@@ -267,7 +256,7 @@ func (eei *ExecutionEngineIntegrator) executeTableScan(
 	databaseName string,
 ) (*engine.SelectResult, error) {
 	// 使用表扫描
-	eei.executionStats.TableScansUsed++
+	eei.recordAccessMethod(AccessMethodTableScan)
 
 	// 应用存储提示
 	if err := eei.applyStorageHints(executionPlan.StorageHints); err != nil {
@@ -446,6 +435,21 @@ func (eei *ExecutionEngineIntegrator) updateExecutionStats(duration time.Duratio
 	}
 }
 
+// recordAccessMethod updates scan counters through the same lock used by the
+// rest of the integration statistics. Query execution can be concurrent, so
+// direct field increments here would lose updates and race with readers.
+func (eei *ExecutionEngineIntegrator) recordAccessMethod(method AccessMethod) {
+	eei.Lock()
+	defer eei.Unlock()
+
+	switch method {
+	case AccessMethodIndexScan:
+		eei.executionStats.IndexScansUsed++
+	case AccessMethodTableScan:
+		eei.executionStats.TableScansUsed++
+	}
+}
+
 // GetExecutionStats 获取执行统计信息
 func (eei *ExecutionEngineIntegrator) GetExecutionStats() *ExecutionIntegrationStats {
 	eei.RLock()
@@ -463,12 +467,15 @@ func (eei *ExecutionEngineIntegrator) GetCombinedStats() *CombinedIntegrationSta
 	// 获取各组件统计信息
 	storageStats := eei.storageIntegrator.GetIntegrationStats()
 	parserStats := eei.parserIntegrator.GetParserStats()
-	executionStats := eei.executionStats
+	// Return a snapshot rather than the mutable live counter object. The
+	// caller may retain CombinedIntegrationStats while query goroutines keep
+	// updating the integrator.
+	executionStats := *eei.executionStats
 
 	return &CombinedIntegrationStats{
 		StorageStats:       storageStats,
 		ParserStats:        parserStats,
-		ExecutionStats:     executionStats,
+		ExecutionStats:     &executionStats,
 		TotalQueries:       executionStats.ExecutedQueries,
 		SuccessRate:        eei.calculateSuccessRate(),
 		OverallPerformance: eei.calculateOverallPerformance(),

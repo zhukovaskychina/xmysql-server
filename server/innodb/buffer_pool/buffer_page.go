@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-//TODO 用来实现bufferpool
 /**
 这个可以理解为另外一个数据页的控制体，大部分的数据页信息存在其中，例如space_id, page_no, page state, newest_modification，
 oldest_modification，access_time以及压缩页的所有信息等。压缩页的信息包括压缩页的大小，压缩页的数据指针(真正的压缩页数据是存储在由伙伴
@@ -26,6 +25,7 @@ type BufferPage struct {
 	newestModification common.LSNT
 	oldestModification common.LSNT
 	accessTime         uint64
+	modifyCount        uint32
 
 	// 页面内容
 	content []byte
@@ -39,8 +39,9 @@ type BufferPage struct {
 
 // GetContent 获取页面内容
 func (bp *BufferPage) GetContent() []byte {
-	bp.mu.RLock()
-	defer bp.mu.RUnlock()
+	bp.mu.Lock()
+	defer bp.mu.Unlock()
+	bp.accessTime = uint64(time.Now().UnixNano())
 	return bp.content
 }
 
@@ -49,6 +50,7 @@ func (bp *BufferPage) SetContent(content []byte) {
 	bp.mu.Lock()
 	defer bp.mu.Unlock()
 	bp.content = content
+	bp.accessTime = uint64(time.Now().UnixNano())
 }
 
 // GetSpaceID 获取表空间ID
@@ -84,6 +86,7 @@ func (bp *BufferPage) IsDirty() bool {
 func (bp *BufferPage) MarkDirty() {
 	bp.mu.Lock()
 	defer bp.mu.Unlock()
+	bp.modifyCount++
 	bp.dirty = true
 }
 
@@ -107,6 +110,7 @@ func (bp *BufferPage) Reset() {
 	bp.newestModification = 0
 	bp.oldestModification = 0
 	bp.accessTime = 0
+	bp.modifyCount = 0
 	bp.dirty = false
 	atomic.StoreInt32(&bp.pinCount, 0)
 	bp.content = make([]byte, common.UNIV_PAGE_SIZE)
@@ -148,14 +152,32 @@ func (bp *BufferPage) Init(spaceID uint32, pageNo uint32, content []byte) {
 func (bp *BufferPage) SetDirty(dirty bool) {
 	bp.mu.Lock()
 	defer bp.mu.Unlock()
+	if dirty && !bp.dirty {
+		bp.modifyCount++
+	}
 	bp.dirty = dirty
+}
+
+// GetModifyCount returns the number of dirty transitions since page load.
+func (bp *BufferPage) GetModifyCount() uint32 {
+	bp.mu.RLock()
+	defer bp.mu.RUnlock()
+	return bp.modifyCount
 }
 
 // GetData returns the page data
 func (bp *BufferPage) GetData() []byte {
+	bp.mu.Lock()
+	defer bp.mu.Unlock()
+	bp.accessTime = uint64(time.Now().UnixNano())
+	return bp.content
+}
+
+// GetAccessTime returns the last observed access timestamp in Unix nanoseconds.
+func (bp *BufferPage) GetAccessTime() uint64 {
 	bp.mu.RLock()
 	defer bp.mu.RUnlock()
-	return bp.content
+	return bp.accessTime
 }
 
 // IsInYoungRegion returns whether the page is in young region

@@ -22,6 +22,36 @@ type SQLDispatcher struct {
 	mutex   sync.RWMutex
 }
 
+// ResetSession delegates COM_RESET_CONNECTION to the registered SQL engine
+// without making the network layer depend on a concrete engine instance.
+func (d *SQLDispatcher) ResetSession(session server.MySQLServerSession) error {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+	for _, registered := range d.engines {
+		if resetter, ok := registered.(interface {
+			ResetSession(server.MySQLServerSession) error
+		}); ok {
+			return resetter.ResetSession(session)
+		}
+	}
+	return nil
+}
+
+// CleanupTemporaryTables delegates connection-close cleanup to the registered
+// SQL engine without coupling the network layer to a concrete engine.
+func (d *SQLDispatcher) CleanupTemporaryTables(session server.MySQLServerSession) error {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+	for _, registered := range d.engines {
+		if cleaner, ok := registered.(interface {
+			CleanupTemporaryTables(server.MySQLServerSession) error
+		}); ok {
+			return cleaner.CleanupTemporaryTables(session)
+		}
+	}
+	return nil
+}
+
 // SQLEngine SQL引擎接口
 type SQLEngine interface {
 	ExecuteQuery(session server.MySQLServerSession, query string, databaseName string) <-chan *SQLResult
@@ -45,6 +75,7 @@ type SQLResult struct {
 	Rows         [][]interface{}
 	AffectedRows uint64
 	LastInsertID uint64
+	WarningCount uint16
 }
 
 // NewSQLDispatcher 创建SQL分发器
@@ -65,6 +96,25 @@ func NewSQLDispatcher(config *conf.Cfg) *SQLDispatcher {
 
 // NewSQLDispatcherWithStorageManager 创建带存储管理器的SQL分发器
 func NewSQLDispatcherWithStorageManager(config *conf.Cfg, storageManager interface{}) *SQLDispatcher {
+	return newSQLDispatcher(config, NewInnoDBSQLEngine(config), storageManager)
+}
+
+// NewSQLDispatcherWithXMySQLEngine creates a dispatcher that reuses the
+// server-owned engine. The network server already starts one engine before it
+// builds the protocol handler; creating a second engine here leaves duplicate
+// tablespace file handles open on Windows and makes DROP DATABASE fail.
+func NewSQLDispatcherWithXMySQLEngine(config *conf.Cfg, xmysqlEngine *engine.XMySQLEngine, storageManager interface{}) *SQLDispatcher {
+	if xmysqlEngine == nil {
+		return NewSQLDispatcherWithStorageManager(config, storageManager)
+	}
+	return newSQLDispatcher(config, &InnoDBSQLEngine{
+		name:         "innodb",
+		config:       config,
+		xmysqlEngine: xmysqlEngine,
+	}, storageManager)
+}
+
+func newSQLDispatcher(config *conf.Cfg, innodbEngine SQLEngine, storageManager interface{}) *SQLDispatcher {
 	dispatcher := &SQLDispatcher{
 		engines: make(map[string]SQLEngine),
 		config:  config,
@@ -75,7 +125,6 @@ func NewSQLDispatcherWithStorageManager(config *conf.Cfg, storageManager interfa
 	logger.Debugf(" [NewSQLDispatcherWithStorageManager] storageManager是否为nil: %v", storageManager == nil)
 
 	// 注册默认的InnoDB引擎
-	innodbEngine := NewInnoDBSQLEngine(config)
 	dispatcher.RegisterEngine(innodbEngine)
 	logger.Debugf(" [NewSQLDispatcherWithStorageManager] 注册InnoDB引擎: %s", innodbEngine.Name())
 
@@ -211,6 +260,13 @@ func (e *InnoDBSQLEngine) Name() string {
 	return e.name
 }
 
+func (e *InnoDBSQLEngine) ResetSession(session server.MySQLServerSession) error {
+	if e == nil || e.xmysqlEngine == nil {
+		return nil
+	}
+	return e.xmysqlEngine.ResetSession(session)
+}
+
 // CanHandle 检查是否能处理该查询
 func (e *InnoDBSQLEngine) CanHandle(query string) bool {
 	if engine.IsTransactionCommand(query) {
@@ -247,6 +303,7 @@ func (e *InnoDBSQLEngine) ExecuteQuery(session server.MySQLServerSession, query 
 		// 转换结果格式
 		for xmysqlResult := range xmysqlResultChan {
 			sqlResult := e.convertResult(xmysqlResult)
+			persistSessionExecutionState(session, xmysqlResult)
 			resultChan <- sqlResult
 		}
 	}()
@@ -254,11 +311,40 @@ func (e *InnoDBSQLEngine) ExecuteQuery(session server.MySQLServerSession, query 
 	return resultChan
 }
 
+func persistSessionLastInsertID(session server.MySQLServerSession, result *engine.Result) {
+	if session == nil || result == nil {
+		return
+	}
+	dmlResult, ok := result.Data.(*engine.DMLResult)
+	if !ok || dmlResult.LastInsertId == 0 {
+		return
+	}
+	session.SetParamByName("last_insert_id", dmlResult.LastInsertId)
+}
+
+func persistSessionExecutionState(session server.MySQLServerSession, result *engine.Result) {
+	if session == nil || result == nil || result.Err != nil {
+		return
+	}
+	if dmlResult, ok := result.Data.(*engine.DMLResult); ok {
+		session.SetParamByName("row_count", int64(dmlResult.AffectedRows))
+		persistSessionLastInsertID(session, result)
+		return
+	}
+	switch result.ResultType {
+	case common.RESULT_TYPE_SELECT:
+		session.SetParamByName("row_count", int64(-1))
+	case common.RESULT_TYPE_DDL, common.RESULT_TYPE_SET, common.RESULT_TYPE_QUERY, "QUERY":
+		session.SetParamByName("row_count", int64(0))
+	}
+}
+
 // convertResult 将XMySQLEngine的结果转换为SQLResult
 func (e *InnoDBSQLEngine) convertResult(xmysqlResult *engine.Result) *SQLResult {
 	result := &SQLResult{
-		Err:  xmysqlResult.Err,
-		Data: xmysqlResult.Data,
+		Err:          xmysqlResult.Err,
+		Data:         xmysqlResult.Data,
+		WarningCount: uint16(len(xmysqlResult.Warnings)),
 	}
 
 	// 转换结果类型
@@ -287,6 +373,7 @@ func (e *InnoDBSQLEngine) convertResult(xmysqlResult *engine.Result) *SQLResult 
 				result.Message = dmlResult.Message
 				result.AffectedRows = uint64(dmlResult.AffectedRows)
 				result.LastInsertID = dmlResult.LastInsertId
+				result.WarningCount = uint16(len(dmlResult.Warnings))
 				result.Columns = []string{}
 				result.Rows = [][]interface{}{}
 			} else if xmysqlResult.Data == nil && xmysqlResult.Message != "" {
@@ -507,7 +594,7 @@ func (r *DefaultSQLRouter) isSystemVariableQuery(query string) bool {
 	// 检查常见的系统函数
 	systemFunctions := []string{
 		"USER()", "DATABASE()", "VERSION()", "CONNECTION_ID()",
-		"CURRENT_USER()", "SESSION_USER()", "SYSTEM_USER()",
+		"CURRENT_USER()", "SESSION_USER()", "SYSTEM_USER()", "CURRENT_ROLE()", "LAST_INSERT_ID(", "ROW_COUNT(",
 	}
 
 	for _, function := range systemFunctions {
@@ -551,7 +638,7 @@ func (r *DefaultSQLRouter) containsSystemVariableExpression(query string) bool {
 	// 检查系统函数调用
 	systemFunctions := []string{
 		"USER()", "DATABASE()", "VERSION()", "CONNECTION_ID()",
-		"CURRENT_USER()", "SESSION_USER()", "SYSTEM_USER()",
+		"CURRENT_USER()", "SESSION_USER()", "SYSTEM_USER()", "CURRENT_ROLE()", "LAST_INSERT_ID(", "ROW_COUNT(",
 	}
 
 	for _, function := range systemFunctions {
@@ -574,6 +661,7 @@ func (r *DefaultSQLRouter) isShowSystemVariable(query string) bool {
 		"SHOW GLOBAL STATUS",
 		"SHOW ENGINES",
 		"SHOW CHARSET",
+		"SHOW CHARACTER SET",
 		"SHOW COLLATION",
 	}
 
@@ -606,7 +694,7 @@ func (r *DefaultSQLRouter) isSetSystemVariable(query string) bool {
 	// 检查常见的系统变量设置
 	commonSystemVars := []string{
 		"AUTOCOMMIT", "SQL_MODE", "TIME_ZONE", "CHARACTER_SET",
-		"COLLATION", "FOREIGN_KEY_CHECKS", "UNIQUE_CHECKS",
+		"COLLATION", "FOREIGN_KEY_CHECKS", "CHECK_CONSTRAINT_CHECKS", "UNIQUE_CHECKS",
 	}
 
 	for _, sysVar := range commonSystemVars {

@@ -4,8 +4,10 @@ import (
 	"context"
 	"github.com/pelletier/go-toml/query"
 	"github.com/zhukovaskychina/xmysql-server/logger"
+	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"sync"
+	"sync/atomic"
 )
 
 // 定义查询上下文环境，
@@ -28,7 +30,56 @@ type ExecutionContext struct {
 
 	RawQuery string
 
+	Session              server.MySQLServerSession
+	Warnings             []Warning
+	AdminResult          *Result
+	ViewSecurityRequired bool
+	// triggerStack carries the active AFTER-trigger call chain through nested
+	// SQL execution. It is intentionally context-local so recursive trigger
+	// cycles are rejected without leaking state across connections.
+	triggerStack []string
+
+	// SpatialCandidateKeys is an optional storage-key set produced by the
+	// spatial MBR index. Select execution can use it to avoid decoding rows
+	// that cannot satisfy the spatial predicate.
+	SpatialCandidateKeys map[string]struct{}
+
+	// ddlWriteLocks tracks re-entrant compound ALTER calls. The outer ALTER
+	// owns the actual table lock; inner clause execution only increments this
+	// counter so it cannot self-deadlock on the same table.
+	ddlWriteLocks map[string]int
+
 	Cfg *conf.Cfg
+
+	statementRowsAffected atomic.Int64
+	statementRowsSent     atomic.Int64
+	statementRowsExamined atomic.Int64
+	statementSelectScan   atomic.Int64
+	statementWarnings     atomic.Int64
+}
+
+func (ctx *ExecutionContext) recordStatementResult(result *Result) {
+	if ctx == nil {
+		return
+	}
+	accounting := statementResultAccountingFor(result)
+	ctx.statementRowsAffected.Add(accounting.rowsAffected)
+	ctx.statementRowsSent.Add(accounting.rowsSent)
+	ctx.statementWarnings.Add(accounting.warnings)
+}
+
+func (ctx *ExecutionContext) recordRowsExamined(rows int64) {
+	if ctx == nil || rows <= 0 {
+		return
+	}
+	ctx.statementRowsExamined.Add(rows)
+}
+
+func (ctx *ExecutionContext) recordSelectScan(scans int64) {
+	if ctx == nil || scans <= 0 {
+		return
+	}
+	ctx.statementSelectScan.Add(scans)
 }
 
 func (ctx *ExecutionContext) watch() {

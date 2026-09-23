@@ -156,7 +156,17 @@ type BasePageWrapper struct {
 	PinCount    int32
 	fileHeader  *pages.FileHeader
 	fileTrailer *pages.FileTrailer
+	storage     basic.StorageProvider
 }
+
+var (
+	// ErrPageStorageUnavailable indicates that a provider-backed operation was
+	// requested without configuring a storage provider.
+	ErrPageStorageUnavailable = errors.New("page storage provider is unavailable")
+	// ErrPageStorageInvalidSize indicates that a provider returned or received
+	// a page smaller than the configured InnoDB page size.
+	ErrPageStorageInvalidSize = errors.New("page storage provider returned an invalid page size")
+)
 
 // NewBasePageWrapper creates a new base page wrapper
 //
@@ -169,6 +179,15 @@ func NewBasePageWrapper(id, spaceID, pageNo uint32, pageType common.PageType) *B
 		PageType: pageType,
 		Content:  make([]byte, 16384), // Default InnoDB page size
 	}
+}
+
+// NewBasePageWrapperWithStorage creates a legacy wrapper backed by a real
+// StorageProvider. The original constructor remains source-compatible for
+// callers that only use the wrapper as an in-memory parser.
+func NewBasePageWrapperWithStorage(id, spaceID, pageNo uint32, pageType common.PageType, storage basic.StorageProvider) *BasePageWrapper {
+	page := NewBasePageWrapper(id, spaceID, pageNo, pageType)
+	page.storage = storage
+	return page
 }
 
 // ========================================
@@ -346,6 +365,23 @@ func (b *BasePageWrapper) ParseFromBytes(data []byte) error {
 
 // Read implements IPageWrapper
 func (b *BasePageWrapper) Read() error {
+	if b.storage != nil {
+		content, err := b.storage.ReadPage(b.SpaceID, b.PageNo)
+		if err != nil {
+			return err
+		}
+		if len(content) < common.PageSize {
+			return ErrPageStorageInvalidSize
+		}
+		b.Content = append(b.Content[:0], content...)
+		b.fileHeader = nil
+		b.fileTrailer = nil
+		b.State = basic.PageStateLoaded
+		b.Stats.ReadCount++
+		b.Stats.LastAccessAt = uint64(time.Now().UnixNano())
+		b.Stats.AccessTime = b.Stats.LastAccessAt
+		return nil
+	}
 	b.Stats.ReadCount++
 	b.Stats.LastAccessAt = uint64(time.Now().UnixNano())
 	return nil
@@ -353,6 +389,20 @@ func (b *BasePageWrapper) Read() error {
 
 // Write implements IPageWrapper
 func (b *BasePageWrapper) Write() error {
+	if b.storage != nil {
+		if len(b.Content) < common.PageSize {
+			return ErrPageStorageInvalidSize
+		}
+		if err := b.storage.WritePage(b.SpaceID, b.PageNo, b.Content); err != nil {
+			return err
+		}
+		b.Stats.WriteCount++
+		b.Stats.LastModified = uint64(time.Now().UnixNano())
+		b.Stats.AccessTime = b.Stats.LastModified
+		b.isDirtyFlag = false
+		b.State = basic.PageStateClean
+		return nil
+	}
 	b.Stats.WriteCount++
 	b.Stats.LastAccessAt = uint64(time.Now().UnixNano())
 	b.MarkDirty()
@@ -361,6 +411,18 @@ func (b *BasePageWrapper) Write() error {
 
 // Flush implements IPageWrapper
 func (b *BasePageWrapper) Flush() error {
+	if b.storage != nil {
+		if b.isDirtyFlag {
+			if err := b.Write(); err != nil {
+				return err
+			}
+		}
+		if err := b.storage.Sync(b.SpaceID); err != nil {
+			return err
+		}
+		b.State = basic.PageStateFlushed
+		return nil
+	}
 	// 基础实现不执行实际的刷新操作
 	// 子类应该重写此方法以实现实际的刷新逻辑
 	b.isDirtyFlag = false

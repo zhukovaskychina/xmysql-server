@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/segment"
@@ -24,8 +25,8 @@ type InodePageWrapper struct {
 	mu         sync.RWMutex
 	segmentIDs map[uint64]bool // 简化为只存储段ID
 	segments   map[uint64]segment.Segment
-	nextPage   uint32          // 指向下一个INode页面
-	prevPage   uint32          // 指向前一个INode页面
+	nextPage   uint32 // 指向下一个INode页面
+	prevPage   uint32 // 指向前一个INode页面
 
 	// INode页面特有的数据结构
 	freePages []uint32 // 空闲页面列表
@@ -34,7 +35,13 @@ type InodePageWrapper struct {
 
 // NewInodeWrapper 创建新的INode页面包装器（重命名避免冲突）
 func NewInodeWrapper(id, spaceID uint32) *InodePageWrapper {
-	base := NewBasePageWrapper(id, spaceID, common.FIL_PAGE_INODE)
+	return NewInodeWrapperWithStorage(id, spaceID, nil)
+}
+
+// NewInodeWrapperWithStorage creates an inode wrapper backed by an optional
+// durable page provider. The historical constructor remains compatible.
+func NewInodeWrapperWithStorage(id, spaceID uint32, storage basic.StorageProvider) *InodePageWrapper {
+	base := NewBasePageWrapperWithStorage(id, spaceID, common.FIL_PAGE_INODE, storage)
 
 	return &InodePageWrapper{
 		BasePageWrapper: base,
@@ -94,16 +101,26 @@ func (ip *InodePageWrapper) Read() error {
 	ip.Lock()
 	defer ip.Unlock()
 
-	if ip.bufferPage == nil {
+	var content []byte
+	if ip.storage != nil {
+		data, err := ip.storage.ReadPage(ip.GetSpaceID(), ip.GetPageID())
+		if err != nil {
+			return err
+		}
+		if len(data) < common.PageSize {
+			return ErrInvalidPageSize
+		}
+		content = data[:common.PageSize]
+	} else if ip.bufferPage != nil {
+		content = ip.bufferPage.GetContent()
+	} else {
 		return ErrNoBufferPage
 	}
-
-	content := ip.bufferPage.GetContent()
 	if len(content) == 0 {
 		return ErrPageNotLoaded
 	}
 
-	if err := ip.ParseFromBytes(content); err != nil {
+	if err := ip.parseFromBytesLocked(content); err != nil {
 		return err
 	}
 
@@ -115,7 +132,9 @@ func (ip *InodePageWrapper) Read() error {
 		copy(ip.content, content)
 	}
 
-	ip.markDirty()
+	ip.dirty = false
+	ip.state = basic.PageStateLoaded
+	ip.stats.ReadCount++
 	return nil
 }
 
@@ -124,19 +143,28 @@ func (ip *InodePageWrapper) Write() error {
 	ip.Lock()
 	defer ip.Unlock()
 
-	content, err := ip.ToBytes()
+	content, err := ip.toBytesLocked()
 	if err != nil {
 		return err
 	}
 
-	if ip.bufferPage == nil {
+	if ip.bufferPage == nil && ip.storage == nil {
 		return ErrNoBufferPage
 	}
 
-	ip.bufferPage.SetContent(content)
-	ip.bufferPage.MarkDirty()
+	if ip.bufferPage != nil {
+		ip.bufferPage.SetContent(content)
+		ip.bufferPage.MarkDirty()
+	}
+	if ip.storage != nil {
+		if err := ip.storage.WritePage(ip.GetSpaceID(), ip.GetPageID(), content); err != nil {
+			return err
+		}
+	}
 	ip.content = content
-	ip.markDirty()
+	ip.dirty = false
+	ip.state = basic.PageStateFlushed
+	ip.stats.WriteCount++
 	return nil
 }
 
@@ -347,7 +375,13 @@ func (ip *InodePageWrapper) AddFullPage(pageNo uint32) error {
 
 // ParseFromBytes 从字节数据解析INode页面
 func (ip *InodePageWrapper) ParseFromBytes(data []byte) error {
-	if err := ip.BasePageWrapper.ParseFromBytes(data); err != nil {
+	ip.Lock()
+	defer ip.Unlock()
+	return ip.parseFromBytesLocked(data)
+}
+
+func (ip *InodePageWrapper) parseFromBytesLocked(data []byte) error {
+	if err := ip.BasePageWrapper.parseFromBytesLocked(data); err != nil {
 		return err
 	}
 
@@ -393,6 +427,12 @@ func (ip *InodePageWrapper) ParseFromBytes(data []byte) error {
 
 // ToBytes 将INode页面转换为字节数据
 func (ip *InodePageWrapper) ToBytes() ([]byte, error) {
+	ip.Lock()
+	defer ip.Unlock()
+	return ip.toBytesLocked()
+}
+
+func (ip *InodePageWrapper) toBytesLocked() ([]byte, error) {
 	ip.mu.RLock()
 	defer ip.mu.RUnlock()
 
@@ -402,7 +442,7 @@ func (ip *InodePageWrapper) ToBytes() ([]byte, error) {
 	data := make([]byte, size)
 
 	// 写入基础页面头
-	baseData, err := ip.BasePageWrapper.ToBytes()
+	baseData, err := ip.BasePageWrapper.serializeLocked()
 	if err != nil {
 		return nil, err
 	}

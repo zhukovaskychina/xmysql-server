@@ -374,5 +374,54 @@ public class PreparedStatementTest extends BaseIntegrationTest {
             connection.setAutoCommit(true);
         }
     }
+
+    @Test
+    @Order(13)
+    @DisplayName("测试PreparedStatement - JSON_VALUE RETURNING")
+    public void testPreparedStatementJsonValueReturning() throws SQLException {
+        String sql = "SELECT JSON_VALUE(?, '$.n' RETURNING UNSIGNED)";
+
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setString(1, "{\"n\":\"42\"}");
+            try (ResultSet rs = pstmt.executeQuery()) {
+                assertThat(rs.next()).isTrue();
+                assertThat(rs.getInt(1)).isEqualTo(42);
+                assertThat(rs.next()).isFalse();
+            }
+        }
+
+        printSuccess("PreparedStatement JSON_VALUE RETURNING测试通过");
+    }
+
+    @Test
+    @Order(14)
+    @DisplayName("测试PreparedStatement - Connector/J服务器端游标")
+    public void testPreparedStatementServerSideCursor() throws SQLException {
+        String baseUrl = JdbcTestConfig.url(TEST_DB);
+        String separator = baseUrl.contains("?") ? "&" : "?";
+        String cursorUrl = baseUrl + separator + "useServerPrepStmts=true&useCursorFetch=true";
+
+        for (int id = 1; id <= 5; id++) {
+            executeUpdate("INSERT INTO users (username, email, age) VALUES ('cursor-" + id + "', 'cursor-" + id + "@example.com', " + (20 + id) + ")");
+        }
+
+        try (Connection cursorConnection = DriverManager.getConnection(cursorUrl, JdbcTestConfig.user(), JdbcTestConfig.password());
+             PreparedStatement pstmt = cursorConnection.prepareStatement(
+                     "SELECT id, username FROM users ORDER BY id",
+                     ResultSet.TYPE_FORWARD_ONLY,
+                     ResultSet.CONCUR_READ_ONLY)) {
+            pstmt.setFetchSize(2);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                int count = 0;
+                while (rs.next()) {
+                    count++;
+                    assertThat(rs.getString("username")).startsWith("cursor-");
+                }
+                assertThat(count).isEqualTo(5);
+            }
+        }
+
+        printSuccess("PreparedStatement Connector/J服务器端游标测试通过");
+    }
 }
 

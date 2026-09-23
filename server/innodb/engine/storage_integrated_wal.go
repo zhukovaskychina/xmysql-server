@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"os"
 	"path/filepath"
@@ -370,8 +371,20 @@ func (w *WALWriter) serializeEntry(entry *WALEntry) ([]byte, error) {
 
 // calculateChecksum 计算校验和
 func (w *WALWriter) calculateChecksum(entry *WALEntry) uint32 {
-	// 简化实现：使用数据长度作为校验和
-	return uint32(len(entry.Data))
+	return calculateWALEntryChecksum(entry)
+}
+
+func calculateWALEntryChecksum(entry *WALEntry) uint32 {
+	if entry == nil {
+		return 0
+	}
+	copyOfEntry := *entry
+	copyOfEntry.Checksum = 0
+	data, err := json.Marshal(copyOfEntry)
+	if err != nil {
+		return 0
+	}
+	return crc32.ChecksumIEEE(data)
 }
 
 // getWALFiles 获取WAL文件列表
@@ -448,8 +461,8 @@ func (r *WALReader) readEntriesFromFile(filePath string) ([]*WALEntry, error) {
 			continue
 		}
 
-		// 验证校验和（简化实现）
-		expectedChecksum := uint32(len(entry.Data))
+		// Verify the checksum over the complete entry payload.
+		expectedChecksum := calculateWALEntryChecksum(&entry)
 		if entry.Checksum != expectedChecksum {
 			logger.Errorf(" WAL条目校验和不匹配: LSN=%d", entry.LSN)
 			continue

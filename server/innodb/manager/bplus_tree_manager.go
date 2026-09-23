@@ -33,8 +33,9 @@ type BPlusTreeNode struct {
 	RollPtr uint64 // Undo日志指针
 }
 
-// DefaultBPlusTreeManager is the legacy B+Tree implementation kept for legacy helper tests.
-// Production table/index wiring must use EnhancedBTreeAdapter.
+// DefaultBPlusTreeManager is the legacy B+Tree implementation retained only
+// for isolated compatibility tests. Production table/index wiring must use
+// EnhancedBTreeAdapter through the basic.BPlusTreeManager interface.
 type DefaultBPlusTreeManager struct {
 	spaceId           uint32
 	rootPage          uint32
@@ -717,7 +718,7 @@ func (m *DefaultBPlusTreeManager) RangeSearch(ctx context.Context, startKey, end
 
 			// 将page.Record转换为basic.Row
 			// 这里需要创建一个适配器来转换类型
-			row := &RecordRowAdapter{record: record}
+			row := &RecordRowAdapter{record: record, pageNo: currentNode.PageNum}
 			results = append(results, row)
 		}
 
@@ -1370,6 +1371,7 @@ func compareKeyByFallback(a, b interface{}) int {
 // RecordRowAdapter 将page.Record适配为basic.Row接口
 type RecordRowAdapter struct {
 	record *page.Record
+	pageNo uint32
 }
 
 func (r *RecordRowAdapter) Less(than basic.Row) bool {
@@ -1395,7 +1397,10 @@ func (r *RecordRowAdapter) IsSupremumRow() bool {
 }
 
 func (r *RecordRowAdapter) GetPageNumber() uint32 {
-	return 0 // 需要从上下文获取
+	if r == nil {
+		return 0
+	}
+	return r.pageNo
 }
 
 func (r *RecordRowAdapter) WriteWithNull(content []byte) {

@@ -66,7 +66,7 @@ func TestP0BStateSnapshotExport(t *testing.T) {
 	entries := []*RedoLogEntry{
 		{LSN: 100, TrxID: 10, PageID: 1, Type: LOG_TYPE_INSERT, Data: []byte("p0b-row-1-inserted")},
 		{LSN: 200, TrxID: 10, PageID: 2, Type: LOG_TYPE_INSERT, Data: []byte("p0b-row-2-inserted")},
-		{LSN: 300, TrxID: 10, PageID: 1, Type: LOG_TYPE_UPDATE, Data: []byte("p0b-row-1-updated")},
+		{LSN: 300, TrxID: 10, PageID: 1, Type: LOG_TYPE_UPDATE, Data: []byte("p0b-row-1-updated!")},
 	}
 
 	for _, entry := range entries {
@@ -90,7 +90,7 @@ func TestP0BStateSnapshotExport(t *testing.T) {
 	}
 
 	expectedRows := []p0bRowSnapshot{
-		{PageID: 1, LSN: 300, Value: "p0b-row-1-updated"},
+		{PageID: 1, LSN: 300, Value: "p0b-row-1-updated!"},
 		{PageID: 2, LSN: 200, Value: "p0b-row-2-inserted"},
 	}
 	actualRows := []p0bRowSnapshot{
@@ -99,7 +99,7 @@ func TestP0BStateSnapshotExport(t *testing.T) {
 	}
 
 	expectedPages := []p0bPageSnapshot{
-		expectedPageSnapshot(1, 300, []byte("p0b-row-1-updated"), true),
+		expectedPageSnapshot(1, 300, []byte("p0b-row-1-updated!"), true),
 		expectedPageSnapshot(2, 200, []byte("p0b-row-2-inserted"), true),
 	}
 	actualPages := []p0bPageSnapshot{
@@ -108,9 +108,9 @@ func TestP0BStateSnapshotExport(t *testing.T) {
 	}
 
 	expectedWal := []p0bWalBoundarySnapshot{
-		{Operation: "insert", PageID: 1, LSN: 100, ExpectedApplied: true, ActualPageLSNAfterReplay: 300, ActualValueAfterReplay: "p0b-row-1-updated", IdempotentReplayAttempted: false},
+		{Operation: "insert", PageID: 1, LSN: 100, ExpectedApplied: true, ActualPageLSNAfterReplay: 300, ActualValueAfterReplay: "p0b-row-1-updated!", IdempotentReplayAttempted: false},
 		{Operation: "insert", PageID: 2, LSN: 200, ExpectedApplied: true, ActualPageLSNAfterReplay: 200, ActualValueAfterReplay: "p0b-row-2-inserted", IdempotentReplayAttempted: true},
-		{Operation: "update", PageID: 1, LSN: 300, ExpectedApplied: true, ActualPageLSNAfterReplay: 300, ActualValueAfterReplay: "p0b-row-1-updated", IdempotentReplayAttempted: false},
+		{Operation: "update", PageID: 1, LSN: 300, ExpectedApplied: true, ActualPageLSNAfterReplay: 300, ActualValueAfterReplay: "p0b-row-1-updated!", IdempotentReplayAttempted: false},
 	}
 	actualWal := []p0bWalBoundarySnapshot{
 		{Operation: "insert", PageID: 1, LSN: 100, ExpectedApplied: true, ActualPageLSNAfterReplay: page1.GetLSN(), ActualValueAfterReplay: snapshotPageValue(page1), IdempotentReplayAttempted: false},

@@ -107,7 +107,8 @@ func (c *CNFConverter) isAtomicPredicate(expr Expression) bool {
 		// 比较运算符是原子谓词
 		return e.Op == OpEQ || e.Op == OpNE || e.Op == OpLT ||
 			e.Op == OpLE || e.Op == OpGT || e.Op == OpGE ||
-			e.Op == OpLike || e.Op == OpIn
+			e.Op == OpLike || e.Op == OpNotLike || e.Op == OpIn || e.Op == OpNotIn ||
+			e.Op == OpRegexp || e.Op == OpNotRegexp || e.Op == OpNullSafeEQ
 	case *Column, *Constant:
 		return true
 	default:
@@ -206,6 +207,18 @@ func (c *CNFConverter) negateOperator(expr *BinaryOperation) Expression {
 		newOp = OpNE
 	case OpNE:
 		newOp = OpEQ
+	case OpIn:
+		newOp = OpNotIn
+	case OpNotIn:
+		newOp = OpIn
+	case OpLike:
+		newOp = OpNotLike
+	case OpNotLike:
+		newOp = OpLike
+	case OpRegexp:
+		newOp = OpNotRegexp
+	case OpNotRegexp:
+		newOp = OpRegexp
 	case OpLT:
 		newOp = OpGE
 	case OpLE:
@@ -220,9 +233,10 @@ func (c *CNFConverter) negateOperator(expr *BinaryOperation) Expression {
 	}
 
 	return &BinaryOperation{
-		Op:    newOp,
-		Left:  expr.Left,
-		Right: expr.Right,
+		Op:     newOp,
+		Left:   expr.Left,
+		Right:  expr.Right,
+		Escape: expr.Escape,
 	}
 }
 
@@ -477,27 +491,27 @@ func (c *CNFConverter) constantFolding(expr Expression) Expression {
 					// 1 * x = x
 					return e.Right
 				}
-				if leftConst.Value == int64(0) || leftConst.Value == float64(0) {
-					// 0 * x = 0
-					return leftConst
-				}
 			case OpOr:
-				if leftConst.Value == true {
-					// TRUE OR x = TRUE
-					return leftConst
-				}
-				if leftConst.Value == false {
-					// FALSE OR x = x
-					return e.Right
+				if leftConst.Value != nil {
+					if truth, err := expressionTruthValue(leftConst.Value); err == nil {
+						if truth {
+							// TRUE OR x = TRUE
+							return leftConst
+						}
+						// FALSE OR x = x
+						return e.Right
+					}
 				}
 			case OpAnd:
-				if leftConst.Value == false {
-					// FALSE AND x = FALSE
-					return leftConst
-				}
-				if leftConst.Value == true {
-					// TRUE AND x = x
-					return e.Right
+				if leftConst.Value != nil {
+					if truth, err := expressionTruthValue(leftConst.Value); err == nil {
+						if !truth {
+							// FALSE AND x = FALSE
+							return leftConst
+						}
+						// TRUE AND x = x
+						return e.Right
+					}
 				}
 			}
 		}
@@ -520,27 +534,27 @@ func (c *CNFConverter) constantFolding(expr Expression) Expression {
 					// x * 1 = x
 					return e.Left
 				}
-				if rightConst.Value == int64(0) || rightConst.Value == float64(0) {
-					// x * 0 = 0
-					return rightConst
-				}
 			case OpOr:
-				if rightConst.Value == true {
-					// x OR TRUE = TRUE
-					return rightConst
-				}
-				if rightConst.Value == false {
-					// x OR FALSE = x
-					return e.Left
+				if rightConst.Value != nil {
+					if truth, err := expressionTruthValue(rightConst.Value); err == nil {
+						if truth {
+							// x OR TRUE = TRUE
+							return rightConst
+						}
+						// x OR FALSE = x
+						return e.Left
+					}
 				}
 			case OpAnd:
-				if rightConst.Value == false {
-					// x AND FALSE = FALSE
-					return rightConst
-				}
-				if rightConst.Value == true {
-					// x AND TRUE = x
-					return e.Left
+				if rightConst.Value != nil {
+					if truth, err := expressionTruthValue(rightConst.Value); err == nil {
+						if !truth {
+							// x AND FALSE = FALSE
+							return rightConst
+						}
+						// x AND TRUE = x
+						return e.Left
+					}
 				}
 			}
 		}
@@ -549,9 +563,98 @@ func (c *CNFConverter) constantFolding(expr Expression) Expression {
 
 	case *NotExpression:
 		e.Operand = c.constantFolding(e.Operand)
-		if constOp, ok := e.Operand.(*Constant); ok {
-			if b, ok := constOp.Value.(bool); ok {
-				return &Constant{Value: !b}
+		if _, ok := e.Operand.(*Constant); ok {
+			ctx := &EvalContext{Row: make(map[string]interface{})}
+			if result, err := e.Eval(ctx); err == nil {
+				return &Constant{Value: result}
+			}
+		}
+		return e
+
+	case *UnaryOperation:
+		e.Operand = c.constantFolding(e.Operand)
+		if _, ok := e.Operand.(*Constant); ok {
+			ctx := &EvalContext{Row: make(map[string]interface{})}
+			if result, err := e.Eval(ctx); err == nil {
+				return &Constant{Value: result}
+			}
+		}
+		return e
+
+	case *TupleExpression:
+		allConst := true
+		for i, item := range e.Exprs {
+			e.Exprs[i] = c.constantFolding(item)
+			if _, ok := e.Exprs[i].(*Constant); !ok {
+				allConst = false
+			}
+		}
+		if allConst {
+			ctx := &EvalContext{Row: make(map[string]interface{})}
+			if result, err := e.Eval(ctx); err == nil {
+				return &Constant{Value: result}
+			}
+		}
+		return e
+
+	case *CaseExpression:
+		allConst := true
+		if e.Operand != nil {
+			e.Operand = c.constantFolding(e.Operand)
+			if _, ok := e.Operand.(*Constant); !ok {
+				allConst = false
+			}
+		}
+		for i := range e.Whens {
+			e.Whens[i].Condition = c.constantFolding(e.Whens[i].Condition)
+			e.Whens[i].Value = c.constantFolding(e.Whens[i].Value)
+			if _, ok := e.Whens[i].Condition.(*Constant); !ok {
+				allConst = false
+			}
+			if _, ok := e.Whens[i].Value.(*Constant); !ok {
+				allConst = false
+			}
+		}
+		if e.Else != nil {
+			e.Else = c.constantFolding(e.Else)
+			if _, ok := e.Else.(*Constant); !ok {
+				allConst = false
+			}
+		}
+		if allConst {
+			ctx := &EvalContext{Row: make(map[string]interface{})}
+			if result, err := e.Eval(ctx); err == nil {
+				return &Constant{Value: result}
+			}
+		}
+		return e
+
+	case *BetweenExpression:
+		e.Column = c.constantFolding(e.Column)
+		if e.LowerExpr != nil {
+			e.LowerExpr = c.constantFolding(e.LowerExpr)
+		}
+		if e.UpperExpr != nil {
+			e.UpperExpr = c.constantFolding(e.UpperExpr)
+		}
+		return e
+
+	case *IsNullExpression:
+		e.Column = c.constantFolding(e.Column)
+		if _, ok := e.Column.(*Constant); ok {
+			ctx := &EvalContext{Row: make(map[string]interface{})}
+			if result, err := e.Eval(ctx); err == nil {
+				return &Constant{Value: result}
+			}
+		}
+		return e
+
+	case *IsTruthExpression:
+		e.Expr = c.constantFolding(e.Expr)
+		if _, ok := e.Expr.(*Constant); ok {
+			ctx := &EvalContext{Row: make(map[string]interface{})}
+			if result, err := e.Eval(ctx); err == nil {
+				return &Constant{Value: result}
 			}
 		}
 		return e
@@ -929,8 +1032,10 @@ func (c *CNFConverter) cloneExpression(expr Expression) Expression {
 		return &BinaryOperation{
 			BaseExpression: e.BaseExpression,
 			Op:             e.Op,
+			Operator:       e.Operator,
 			Left:           c.cloneExpression(e.Left),
 			Right:          c.cloneExpression(e.Right),
+			Escape:         c.cloneExpression(e.Escape),
 		}
 	case *NotExpression:
 		return &NotExpression{
@@ -974,10 +1079,14 @@ func (n *NotExpression) Eval(ctx *EvalContext) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	if b, ok := val.(bool); ok {
-		return !b, nil
+	if val == nil {
+		return nil, nil
 	}
-	return nil, fmt.Errorf("NOT requires boolean operand, got %T", val)
+	truth, err := expressionTruthValue(val)
+	if err != nil {
+		return nil, err
+	}
+	return !truth, nil
 }
 
 func (n *NotExpression) String() string {

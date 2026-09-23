@@ -1,14 +1,17 @@
 package dispatcher
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zhukovaskychina/xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
@@ -64,6 +67,7 @@ func TestSystemVariableEngine_InformationSchemaTablesUsesConfiguredDataDir(t *te
 		InnodbBufferPoolSize: 16 * 1024 * 1024,
 		InnodbPageSize:       16384,
 	})
+	t.Cleanup(func() { require.NoError(t, storageManager.Close()) })
 	result := (&SystemVariableEngine{storageManager: storageManager}).executeInformationSchemaTablesQuery(
 		"SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema = 'app_schema' AND table_name = 'orders'",
 	)
@@ -124,6 +128,69 @@ func TestSystemVariableEngine_DataGripSessionInfoQueryDoesNotFail(t *testing.T) 
 	require.Equal(t, "select", result.ResultType)
 	require.Equal(t, []string{"database()", "schema()", "user"}, result.Columns)
 	require.Equal(t, [][]interface{}{{"app", "app", "root"}}, result.Rows)
+}
+
+func TestSystemVariableEngine_CurrentRoleReflectsConnectionRoleState(t *testing.T) {
+	engine := &SystemVariableEngine{
+		name:          "system_variable",
+		sysVarManager: manager.NewSystemVariablesManager(),
+	}
+	session := newTestDispatcherSession()
+	session.SetParamByName("active_roles", []string{"report_reader@localhost", "audit_reader@localhost"})
+
+	result := engine.executeSystemFunctionQuery(session, "SELECT CURRENT_ROLE() AS active_role", "app")
+
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	require.Equal(t, []string{"active_role"}, result.Columns)
+	require.Equal(t, [][]interface{}{{"report_reader@localhost,audit_reader@localhost"}}, result.Rows)
+
+	session.SetParamByName("active_roles", []string{})
+	result = engine.executeSystemFunctionQuery(session, "SELECT CURRENT_ROLE()", "app")
+	require.NotNil(t, result)
+	require.Equal(t, [][]interface{}{{"NONE"}}, result.Rows)
+}
+
+func TestSystemVariableEngine_LastInsertIDReadsAndSetsSessionValue(t *testing.T) {
+	engine := &SystemVariableEngine{
+		name:          "system_variable",
+		sysVarManager: manager.NewSystemVariablesManager(),
+	}
+	session := newTestDispatcherSession()
+	session.SetParamByName("last_insert_id", uint64(41))
+
+	result := engine.executeSystemFunctionQuery(session, "SELECT LAST_INSERT_ID() AS current_id", "app")
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	assert.Equal(t, []string{"current_id"}, result.Columns)
+	assert.Equal(t, [][]interface{}{{uint64(41)}}, result.Rows)
+
+	result = engine.executeSystemFunctionQuery(session, "SELECT LAST_INSERT_ID(99) AS assigned_id", "app")
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	assert.Equal(t, [][]interface{}{{uint64(99)}}, result.Rows)
+	assert.Equal(t, uint64(99), session.GetParamByName("last_insert_id"))
+
+	result = engine.executeSystemFunctionQuery(session, "SELECT LAST_INSERT_ID(40 + 2) AS expression_id", "app")
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	assert.Equal(t, [][]interface{}{{uint64(42)}}, result.Rows)
+	assert.Equal(t, uint64(42), session.GetParamByName("last_insert_id"))
+}
+
+func TestSystemVariableEngine_RowCountReadsSessionValue(t *testing.T) {
+	engine := &SystemVariableEngine{
+		name:          "system_variable",
+		sysVarManager: manager.NewSystemVariablesManager(),
+	}
+	session := newTestDispatcherSession()
+	session.SetParamByName("row_count", int64(3))
+
+	result := engine.executeSystemFunctionQuery(session, "SELECT ROW_COUNT() AS affected", "app")
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	assert.Equal(t, []string{"affected"}, result.Columns)
+	assert.Equal(t, [][]interface{}{{int64(3)}}, result.Rows)
 }
 
 func informationSchemaTableRow(schemaName, tableName string) []interface{} {
@@ -213,6 +280,85 @@ func TestSystemVariableEngine_SetAutocommitSyncsSessionState(t *testing.T) {
 	require.NotNil(t, result)
 	require.NoError(t, result.Err)
 	assert.Equal(t, "0", session.GetParamByName("autocommit"))
+}
+
+func TestSystemVariableEngine_SetNamesCollationSyncsSessionState(t *testing.T) {
+	sysVarMgr := manager.NewSystemVariablesManager()
+	engine := &SystemVariableEngine{
+		name:          "system_variable",
+		sysVarManager: sysVarMgr,
+	}
+	session := newTestDispatcherSession()
+	session.SetParamByName("session_id", "sess-set-names")
+
+	result := engine.executeSetStatement(session, "set names latin1 collate latin1_swedish_ci", "testdb")
+
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	assert.Equal(t, "latin1", session.GetParamByName("character_set_client"))
+	assert.Equal(t, "latin1_swedish_ci", session.GetParamByName("collation_connection"))
+}
+
+func TestSystemVariableEngine_SuperReadOnlySynchronizesGlobalState(t *testing.T) {
+	sysVarMgr := manager.NewSystemVariablesManager()
+	engine := &SystemVariableEngine{
+		name:          "system_variable",
+		sysVarManager: sysVarMgr,
+	}
+	session := newTestDispatcherSession()
+	session.SetParamByName("session_id", "sess-super-read-only")
+	session.SetParamByName("global_privileges", []common.PrivilegeType{common.SuperPriv})
+	sysVarMgr.CreateSession("sess-super-read-only")
+
+	result := engine.executeSetStatement(session, "set global super_read_only = on", "testdb")
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	superReadOnly, err := sysVarMgr.GetVariable("", "super_read_only", manager.GlobalScope)
+	require.NoError(t, err)
+	assert.Equal(t, "1", fmt.Sprint(superReadOnly))
+	readOnly, err := sysVarMgr.GetVariable("", "read_only", manager.GlobalScope)
+	require.NoError(t, err)
+	assert.Equal(t, "ON", fmt.Sprint(readOnly))
+
+	result = engine.executeSetStatement(session, "set global read_only = off", "testdb")
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	superReadOnly, err = sysVarMgr.GetVariable("", "super_read_only", manager.GlobalScope)
+	require.NoError(t, err)
+	assert.Equal(t, "OFF", strings.ToUpper(fmt.Sprint(superReadOnly)))
+	readOnly, err = sysVarMgr.GetVariable("", "read_only", manager.GlobalScope)
+	require.NoError(t, err)
+	assert.Equal(t, "OFF", strings.ToUpper(fmt.Sprint(readOnly)))
+}
+
+func TestSystemVariableEngine_SetGlobalTransactionAliasesStaySynchronized(t *testing.T) {
+	sysVarMgr := manager.NewSystemVariablesManager()
+	engine := &SystemVariableEngine{
+		name:          "system_variable",
+		sysVarManager: sysVarMgr,
+	}
+	session := newTestDispatcherSession()
+	session.SetParamByName("session_id", "sess-global-tx")
+	session.SetParamByName("global_privileges", []common.PrivilegeType{common.SuperPriv})
+	sysVarMgr.CreateSession("sess-global-tx")
+	result := engine.executeSetStatement(session, "set global transaction isolation level serializable", "testdb")
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+
+	for _, name := range []string{"transaction_isolation", "tx_isolation"} {
+		value, err := sysVarMgr.GetVariable("", name, manager.GlobalScope)
+		require.NoError(t, err)
+		assert.Equal(t, "SERIALIZABLE", fmt.Sprint(value), name)
+	}
+
+	result = engine.executeSetStatement(session, "set global transaction read only", "testdb")
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	for _, name := range []string{"transaction_read_only", "tx_read_only"} {
+		value, err := sysVarMgr.GetVariable("", name, manager.GlobalScope)
+		require.NoError(t, err)
+		assert.Equal(t, "1", fmt.Sprint(value), name)
+	}
 }
 
 func TestSystemVariableEngine_ExecuteShowStatement_SessionVariablesUsesSessionScope(t *testing.T) {

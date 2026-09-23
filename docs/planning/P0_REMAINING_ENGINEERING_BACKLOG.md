@@ -239,6 +239,22 @@ Impact:
 - Advances `P0-B-HALF-01` by documenting interrupted/half-commit recovery as a test-backed recovery-phase contract.
 - Does not fully close P0-B because standalone page/row/WAL snapshot diff evidence is still required.
 
+## 2026-09-05 current-run evidence update
+
+The current-run P0 evidence suite generated and verified the focused engineering artifacts in:
+
+- `reports/compatibility/p0-evidence-current-continuation493/`
+
+Candidate engineering status from that run:
+
+- P0-B row/page/WAL state-diff artifacts: PASS.
+- P0-C consistency evidence and concurrency acceptance: ACCEPTED with zero required or `NOT_VERIFIED` gaps.
+- P0-D live metrics endpoint, metrics export, structured logging, and alert drill: PASS.
+- P0-E full-chain smoke and timed rollback contract fields: PASS.
+- Final regression gate and evidence bundle: PASS.
+
+The delivery readiness audit is still `NOT_READY` for four non-code release-governance items: approval decision remains HOLD, 17 owner sign-off items are unchecked, 7 P0 risks remain open, and 7 risk owners remain TBD. The P0-E focused artifact explicitly remains a local operator-drill contract and is not evidence of an external deployment-platform rollback.
+
 Next evidence command:
 
 ```powershell

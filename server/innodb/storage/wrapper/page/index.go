@@ -59,6 +59,7 @@ type IndexPage struct {
 	lsn     uint64
 	dirty   bool
 	state   basic.PageState
+	storage basic.StorageProvider
 }
 
 // Lock implements sync.Locker
@@ -83,9 +84,17 @@ func (ip *IndexPage) RUnlock() {
 
 // NewIndexPage creates a new index page
 func NewIndexPage(pageNo uint32, spaceId uint32) *IndexPage {
+	return NewIndexPageWithStorage(pageNo, spaceId, nil)
+}
+
+// NewIndexPageWithStorage creates the legacy index page with an optional
+// durable provider. The original constructor remains in-memory compatible.
+func NewIndexPageWithStorage(pageNo uint32, spaceId uint32, storage basic.StorageProvider) *IndexPage {
 	ip := &IndexPage{
 		pageNo:  pageNo,
 		spaceId: spaceId,
+		storage: storage,
+		content: make([]byte, common.PageSize),
 		indexPageHeader: &types.IndexPageHeader{
 			Level: 0,
 		},
@@ -224,6 +233,17 @@ func (p *IndexPage) Unpin() {
 
 // Read implements types.IPageWrapper
 func (p *IndexPage) Read() error {
+	if p.storage != nil {
+		data, err := p.storage.ReadPage(p.spaceId, p.pageNo)
+		if err != nil {
+			return err
+		}
+		if len(data) < common.PageSize {
+			return fmt.Errorf("page %d/%d has %d bytes, want at least %d", p.spaceId, p.pageNo, len(data), common.PageSize)
+		}
+		p.content = append(p.content[:0], data[:common.PageSize]...)
+	}
+
 	p.Lock()
 	defer p.Unlock()
 
@@ -236,6 +256,7 @@ func (p *IndexPage) Read() error {
 	if err := p.readPageHeader(); err != nil {
 		return err
 	}
+	p.loadIndexPageHeader()
 
 	// Read index entries
 	if err := p.readIndexEntries(); err != nil {
@@ -251,6 +272,11 @@ func (p *IndexPage) Read() error {
 
 // Write implements types.IPageWrapper
 func (p *IndexPage) Write() error {
+	p.Lock()
+	defer p.Unlock()
+	if len(p.content) < common.PageSize {
+		return fmt.Errorf("content too short for index page: %d", len(p.content))
+	}
 	// Write page header
 	binary.LittleEndian.PutUint16(p.content[38:], p.indexPageHeader.KeyCount)
 	binary.LittleEndian.PutUint16(p.content[40:], p.indexPageHeader.Level)
@@ -264,8 +290,29 @@ func (p *IndexPage) Write() error {
 	// Update stats
 	p.stats.IncWriteCount()
 	p.stats.LastModified = basic.GetCurrentTimestamp()
+	if p.storage != nil {
+		if err := p.storage.WritePage(p.spaceId, p.pageNo, append([]byte(nil), p.content[:common.PageSize]...)); err != nil {
+			return err
+		}
+		p.dirty = false
+		p.state = basic.PageStateFlushed
+	}
 
 	return nil
+}
+
+func (p *IndexPage) loadIndexPageHeader() {
+	if len(p.content) < 64 {
+		return
+	}
+	p.indexPageHeader.KeyCount = binary.LittleEndian.Uint16(p.content[38:])
+	p.indexPageHeader.Level = binary.LittleEndian.Uint16(p.content[40:])
+	p.indexPageHeader.IndexID = binary.LittleEndian.Uint64(p.content[42:])
+	p.indexPageHeader.LeftPage = binary.LittleEndian.Uint32(p.content[50:])
+	p.indexPageHeader.RightPage = binary.LittleEndian.Uint32(p.content[54:])
+	p.indexPageHeader.ParentPage = binary.LittleEndian.Uint32(p.content[58:])
+	p.indexPageHeader.IsLeaf = p.content[62] != 0
+	p.indexPageHeader.IsRoot = p.content[63] != 0
 }
 
 // GetSegLeaf implements interfaces.IIndexWrapper
@@ -459,7 +506,17 @@ func (ip *IndexPage) readPageHeader() error {
 // readIndexEntries reads the index entries from content
 func (ip *IndexPage) readIndexEntries() error {
 	offset := FileHeaderSize + PageHeaderSize
-	for offset < len(ip.content) {
+	for offset+14 <= len(ip.content) {
+		allZero := true
+		for _, b := range ip.content[offset : offset+14] {
+			if b != 0 {
+				allZero = false
+				break
+			}
+		}
+		if allZero {
+			break
+		}
 		entry := &types.IndexEntry{}
 		if err := entry.ParseBytes(ip.content[offset:]); err != nil {
 			return err

@@ -29,6 +29,20 @@ func TestSimpleExecutorRecord_SetAndGetValueByName(t *testing.T) {
 	assert.Equal(t, "bob", value.ToString())
 }
 
+func TestSimpleExecutorRecordColumnLookupIsCaseInsensitive(t *testing.T) {
+	schema := metadata.NewQuerySchema()
+	schema.AddColumn(metadata.NewQueryColumn("ID", metadata.TypeInt))
+	record := NewExecutorRecordFromValues([]basic.Value{basic.NewInt64Value(7)}, schema)
+
+	value, err := record.GetValueByName("id")
+	if err != nil {
+		t.Fatalf("case-insensitive GetValueByName() error = %v", err)
+	}
+	if got := value.Int(); got != 7 {
+		t.Fatalf("case-insensitive GetValueByName() = %d, want 7", got)
+	}
+}
+
 func TestSimpleExecutorRecord_ByNameErrors(t *testing.T) {
 	record := &SimpleExecutorRecord{
 		values: []basic.Value{basic.NewInt64Value(1)},

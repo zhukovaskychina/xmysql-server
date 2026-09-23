@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
@@ -48,6 +49,53 @@ func TestClusteredIndexScannerAppliesWhereConditions(t *testing.T) {
 	}
 	if got[0].ColumnValues["id"] != int64(2) {
 		t.Fatalf("Scan() matched id = %#v, want int64(2)", got[0].ColumnValues["id"])
+	}
+}
+
+func TestClusteredIndexScannerProjectsRequestedColumns(t *testing.T) {
+	tableMeta := clusteredScannerTestTableMeta()
+	rows := []*InsertRowData{
+		{ColumnValues: map[string]interface{}{"id": int64(1), "name": "alice", "age": int64(30)}},
+	}
+	btree := &fakeClusteredScannerBTree{rows: encodeClusteredScannerRows(t, tableMeta, rows)}
+
+	scanner := NewClusteredIndexScanner(btree, tableMeta)
+	got, err := scanner.ScanProjected(context.Background(), nil, []string{"name", "age"})
+	if err != nil {
+		t.Fatalf("ScanProjected() error = %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("ScanProjected() row count = %d, want 1", len(got))
+	}
+	if got[0].ColumnValues["name"] != "alice" || got[0].ColumnValues["age"] != int64(30) {
+		t.Fatalf("ScanProjected() values = %#v", got[0].ColumnValues)
+	}
+	if _, exists := got[0].ColumnValues["id"]; exists {
+		t.Fatalf("ScanProjected() retained unrequested id column: %#v", got[0].ColumnValues)
+	}
+}
+
+func TestClusteredIndexScannerRejectsUnknownProjectedColumn(t *testing.T) {
+	tableMeta := clusteredScannerTestTableMeta()
+	btree := &fakeClusteredScannerBTree{}
+
+	_, err := NewClusteredIndexScanner(btree, tableMeta).ScanProjected(context.Background(), nil, []string{"missing"})
+	if err == nil || !strings.Contains(err.Error(), "unknown projected column") {
+		t.Fatalf("ScanProjected() error = %v, want unknown projected column", err)
+	}
+}
+
+func TestClusteredPrimaryKeyColumnMatchesMetadataCaseInsensitively(t *testing.T) {
+	tableMeta := &metadata.TableMeta{
+		PrimaryKey: []string{"id"},
+		Columns: []*metadata.ColumnMeta{
+			{Name: "ID", Type: metadata.TypeInt},
+		},
+	}
+
+	column := clusteredPrimaryKeyColumn(tableMeta)
+	if column == nil || column.Name != "ID" {
+		t.Fatalf("clusteredPrimaryKeyColumn() = %#v, want metadata column ID", column)
 	}
 }
 

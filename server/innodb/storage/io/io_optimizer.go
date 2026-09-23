@@ -2,6 +2,8 @@ package io
 
 import (
 	"container/list"
+	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -45,6 +47,31 @@ const (
 	MaxConcurrentIO = 32   // 最大并发IO数
 )
 
+var ErrPageIOUnavailable = errors.New("page IO backend is not configured")
+
+// PageIO is the durable page backend used by IOOptimizer.
+type PageIO interface {
+	ReadPage(spaceID, pageNo uint32) ([]byte, error)
+	WritePage(spaceID, pageNo uint32, data []byte) error
+}
+
+// PageCompression transforms page bytes at the durable boundary. Callers and
+// all in-memory caches continue to observe the uncompressed page image.
+// manager.CompressionManager implements this interface directly.
+type PageCompression interface {
+	CompressPage(spaceID, pageNo uint32, data []byte) ([]byte, error)
+	DecompressPage(spaceID, pageNo uint32, data []byte) ([]byte, error)
+}
+
+type ioPageKey struct {
+	spaceID uint32
+	pageNo  uint32
+}
+
+func makeIOPageKey(spaceID, pageNo uint32) ioPageKey {
+	return ioPageKey{spaceID: spaceID, pageNo: pageNo}
+}
+
 // IOOptimizer IO优化器
 type IOOptimizer struct {
 	// 预读管理
@@ -63,7 +90,9 @@ type IOOptimizer struct {
 	writeCache *IOCache
 
 	// 配置
-	config *IOOptimizerConfig
+	config      *IOOptimizerConfig
+	pageIO      PageIO
+	compression PageCompression
 
 	// 统计
 	stats *IOStats
@@ -71,11 +100,14 @@ type IOOptimizer struct {
 	// 停止信号
 	stopChan chan struct{}
 
-	mu sync.RWMutex
+	mu       sync.RWMutex
+	stopOnce sync.Once
 }
 
 // IOOptimizerConfig IO优化器配置
 type IOOptimizerConfig struct {
+	PageIO            PageIO
+	PageCompression   PageCompression
 	EnableReadAhead   bool
 	EnableBatchWrite  bool
 	EnableIOScheduler bool
@@ -120,10 +152,11 @@ type ReadAheadManager struct {
 
 	// 访问模式检测
 	lastPageNo    uint32
+	lastSpaceID   uint32
 	sequenceCount int
 
 	// 预读缓存
-	prefetchCache map[uint32][]byte
+	prefetchCache map[ioPageKey][]byte
 	cacheMu       sync.RWMutex
 
 	// 配置
@@ -134,8 +167,9 @@ type ReadAheadManager struct {
 // BatchWriteManager 批量写管理器
 type BatchWriteManager struct {
 	// 写缓冲区
-	buffer   map[uint32][]byte
-	bufferMu sync.Mutex
+	buffer    map[ioPageKey]batchWriteRequest
+	bufferMu  sync.Mutex
+	writePage func(spaceID, pageNo uint32, data []byte) error
 
 	// 刷盘控制
 	flushTimer *time.Timer
@@ -144,6 +178,12 @@ type BatchWriteManager struct {
 	enabled       bool
 	batchSize     int
 	flushInterval time.Duration
+}
+
+type batchWriteRequest struct {
+	spaceID uint32
+	pageNo  uint32
+	data    []byte
 }
 
 // IOScheduler IO调度器
@@ -182,9 +222,9 @@ type IOResult struct {
 
 // IOCache IO缓存
 type IOCache struct {
-	cache   map[uint32][]byte
+	cache   map[uint64][]byte
 	lruList *list.List
-	lruMap  map[uint32]*list.Element
+	lruMap  map[uint64]*list.Element
 	maxSize int
 	mu      sync.RWMutex
 }
@@ -203,18 +243,29 @@ func NewIOOptimizer(config *IOOptimizerConfig) *IOOptimizer {
 			FlushInterval:     FlushIntervalMS,
 		}
 	}
+	if config.ReadAheadSize <= 0 {
+		config.ReadAheadSize = DefaultReadAheadSize
+	}
+	if config.BatchWriteSize <= 0 {
+		config.BatchWriteSize = DefaultBatchWriteSize
+	}
+	if config.FlushInterval <= 0 {
+		config.FlushInterval = FlushIntervalMS
+	}
 
 	ioo := &IOOptimizer{
-		config:   config,
-		stats:    &IOStats{},
-		stopChan: make(chan struct{}),
+		config:      config,
+		pageIO:      config.PageIO,
+		compression: config.PageCompression,
+		stats:       &IOStats{},
+		stopChan:    make(chan struct{}),
 	}
 
 	// 初始化组件
 	if config.EnableReadAhead {
 		ioo.readAhead = &ReadAheadManager{
 			windowSize:    config.ReadAheadSize,
-			prefetchCache: make(map[uint32][]byte),
+			prefetchCache: make(map[ioPageKey][]byte),
 			enabled:       true,
 			adaptive:      true,
 		}
@@ -222,10 +273,11 @@ func NewIOOptimizer(config *IOOptimizerConfig) *IOOptimizer {
 
 	if config.EnableBatchWrite {
 		ioo.batchWriter = &BatchWriteManager{
-			buffer:        make(map[uint32][]byte),
+			buffer:        make(map[ioPageKey]batchWriteRequest),
 			enabled:       true,
 			batchSize:     config.BatchWriteSize,
 			flushInterval: time.Duration(config.FlushInterval) * time.Millisecond,
+			writePage:     ioo.doWrite,
 		}
 		go ioo.batchWriteWorker()
 	}
@@ -262,9 +314,18 @@ func (ioo *IOOptimizer) ReadPage(spaceID, pageNo uint32) ([]byte, error) {
 
 	atomic.AddUint64(&ioo.stats.totalReads, 1)
 
+	// A pending write must be visible before the batch reaches durable storage.
+	if ioo.config.EnableWriteCache {
+		if data := ioo.writeCache.Get(makeIOCacheKey(spaceID, pageNo)); data != nil {
+			atomic.AddUint64(&ioo.stats.writeCacheHits, 1)
+			return data, nil
+		}
+		atomic.AddUint64(&ioo.stats.writeCacheMisses, 1)
+	}
+
 	// 1. 检查读缓存
 	if ioo.config.EnableReadCache {
-		if data := ioo.readCache.Get(pageNo); data != nil {
+		if data := ioo.readCache.Get(makeIOCacheKey(spaceID, pageNo)); data != nil {
 			atomic.AddUint64(&ioo.stats.readCacheHits, 1)
 			return data, nil
 		}
@@ -273,7 +334,7 @@ func (ioo *IOOptimizer) ReadPage(spaceID, pageNo uint32) ([]byte, error) {
 
 	// 2. 检查预读缓存
 	if ioo.config.EnableReadAhead {
-		if data := ioo.readAhead.checkPrefetchCache(pageNo); data != nil {
+		if data := ioo.readAhead.checkPrefetchCache(spaceID, pageNo); data != nil {
 			atomic.AddUint64(&ioo.stats.readAheadHits, 1)
 			return data, nil
 		}
@@ -288,7 +349,7 @@ func (ioo *IOOptimizer) ReadPage(spaceID, pageNo uint32) ([]byte, error) {
 
 	// 4. 更新缓存
 	if ioo.config.EnableReadCache {
-		ioo.readCache.Put(pageNo, data)
+		ioo.readCache.Put(makeIOCacheKey(spaceID, pageNo), data)
 	}
 
 	// 5. 触发预读
@@ -309,15 +370,18 @@ func (ioo *IOOptimizer) WritePage(spaceID, pageNo uint32, data []byte) error {
 	}()
 
 	atomic.AddUint64(&ioo.stats.totalWrites, 1)
+	if ioo.pageIO == nil {
+		return ErrPageIOUnavailable
+	}
 
 	// 1. 更新写缓存
 	if ioo.config.EnableWriteCache {
-		ioo.writeCache.Put(pageNo, data)
+		ioo.writeCache.Put(makeIOCacheKey(spaceID, pageNo), data)
 	}
 
 	// 2. 批量写
 	if ioo.config.EnableBatchWrite {
-		return ioo.batchWriter.addWrite(pageNo, data)
+		return ioo.batchWriter.addWrite(spaceID, pageNo, data)
 	}
 
 	// 3. 直接写入
@@ -325,29 +389,46 @@ func (ioo *IOOptimizer) WritePage(spaceID, pageNo uint32, data []byte) error {
 	return ioo.doWrite(spaceID, pageNo, data)
 }
 
-// doRead 实际读取操作（模拟）
+// doRead delegates to the configured durable page backend.
 func (ioo *IOOptimizer) doRead(spaceID, pageNo uint32) ([]byte, error) {
-	// 这里应该调用实际的磁盘IO操作
-	// 当前为模拟实现
-	data := make([]byte, 16384) // 16KB页面
+	if ioo.pageIO == nil {
+		return nil, ErrPageIOUnavailable
+	}
+	data, err := ioo.pageIO.ReadPage(spaceID, pageNo)
+	if err != nil {
+		return nil, fmt.Errorf("read page space=%d page=%d: %w", spaceID, pageNo, err)
+	}
+	if ioo.compression != nil {
+		data, err = ioo.compression.DecompressPage(spaceID, pageNo, data)
+		if err != nil {
+			return nil, fmt.Errorf("decompress page space=%d page=%d: %w", spaceID, pageNo, err)
+		}
+	}
 	return data, nil
 }
 
-// doWrite 实际写入操作（模拟）
+// doWrite delegates to the configured durable page backend.
 func (ioo *IOOptimizer) doWrite(spaceID, pageNo uint32, data []byte) error {
-	// 这里应该调用实际的磁盘IO操作
-	// 当前为模拟实现
-	return nil
+	if ioo.pageIO == nil {
+		return ErrPageIOUnavailable
+	}
+	if ioo.compression != nil {
+		compressed, err := ioo.compression.CompressPage(spaceID, pageNo, data)
+		if err != nil {
+			return fmt.Errorf("compress page space=%d page=%d: %w", spaceID, pageNo, err)
+		}
+		data = compressed
+	}
+	return ioo.pageIO.WritePage(spaceID, pageNo, data)
 }
 
 // triggerReadAhead 触发预读
 func (ioo *IOOptimizer) triggerReadAhead(spaceID, pageNo uint32) {
 	ioo.readAhead.cacheMu.Lock()
-	defer ioo.readAhead.cacheMu.Unlock()
 
 	// 检测访问模式
 	isSequential := false
-	if pageNo == ioo.readAhead.lastPageNo+1 {
+	if spaceID == ioo.readAhead.lastSpaceID && pageNo == ioo.readAhead.lastPageNo+1 {
 		ioo.readAhead.sequenceCount++
 		if ioo.readAhead.sequenceCount >= 3 {
 			isSequential = true
@@ -357,54 +438,69 @@ func (ioo *IOOptimizer) triggerReadAhead(spaceID, pageNo uint32) {
 		ioo.readAhead.sequenceCount = 0
 		atomic.AddUint64(&ioo.stats.randomReads, 1)
 	}
+	ioo.readAhead.lastSpaceID = spaceID
 	ioo.readAhead.lastPageNo = pageNo
 
+	if !isSequential {
+		ioo.readAhead.cacheMu.Unlock()
+		return
+	}
+
 	// 顺序访问时触发预读
-	if isSequential {
-		windowSize := ioo.readAhead.windowSize
-		if ioo.readAhead.adaptive {
-			// 自适应调整预读窗口
-			if ioo.readAhead.sequenceCount > 10 {
-				windowSize = min(windowSize*2, MaxReadAheadSize)
+	windowSize := ioo.readAhead.windowSize
+	if ioo.readAhead.adaptive {
+		// 自适应调整预读窗口
+		if ioo.readAhead.sequenceCount > 10 {
+			windowSize = min(windowSize*2, MaxReadAheadSize)
+		}
+	}
+	ioo.readAhead.cacheMu.Unlock()
+
+	// 异步预读
+	go func() {
+		for i := 1; i <= windowSize; i++ {
+			nextPageNo := pageNo + uint32(i)
+			key := makeIOPageKey(spaceID, nextPageNo)
+			ioo.readAhead.cacheMu.RLock()
+			_, exists := ioo.readAhead.prefetchCache[key]
+			ioo.readAhead.cacheMu.RUnlock()
+			if exists {
+				continue
+			}
+			data, err := ioo.doRead(spaceID, nextPageNo)
+			if err == nil {
+				ioo.readAhead.cacheMu.Lock()
+				ioo.readAhead.prefetchCache[key] = data
+				ioo.readAhead.cacheMu.Unlock()
 			}
 		}
-
-		// 异步预读
-		go func() {
-			for i := 1; i <= windowSize; i++ {
-				nextPageNo := pageNo + uint32(i)
-				if _, exists := ioo.readAhead.prefetchCache[nextPageNo]; !exists {
-					data, err := ioo.doRead(spaceID, nextPageNo)
-					if err == nil {
-						ioo.readAhead.cacheMu.Lock()
-						ioo.readAhead.prefetchCache[nextPageNo] = data
-						ioo.readAhead.cacheMu.Unlock()
-					}
-				}
-			}
-		}()
-	}
+	}()
 }
 
 // checkPrefetchCache 检查预读缓存
-func (ram *ReadAheadManager) checkPrefetchCache(pageNo uint32) []byte {
-	ram.cacheMu.RLock()
-	defer ram.cacheMu.RUnlock()
+func (ram *ReadAheadManager) checkPrefetchCache(spaceID, pageNo uint32) []byte {
+	ram.cacheMu.Lock()
+	defer ram.cacheMu.Unlock()
 
-	data, exists := ram.prefetchCache[pageNo]
+	key := makeIOPageKey(spaceID, pageNo)
+	data, exists := ram.prefetchCache[key]
 	if exists {
-		delete(ram.prefetchCache, pageNo) // 使用后删除
+		delete(ram.prefetchCache, key) // 使用后删除
 		return data
 	}
 	return nil
 }
 
 // addWrite 添加到批量写缓冲
-func (bwm *BatchWriteManager) addWrite(pageNo uint32, data []byte) error {
+func (bwm *BatchWriteManager) addWrite(spaceID, pageNo uint32, data []byte) error {
 	bwm.bufferMu.Lock()
 	defer bwm.bufferMu.Unlock()
 
-	bwm.buffer[pageNo] = data
+	bwm.buffer[makeIOPageKey(spaceID, pageNo)] = batchWriteRequest{
+		spaceID: spaceID,
+		pageNo:  pageNo,
+		data:    append([]byte(nil), data...),
+	}
 
 	// 达到批量大小时立即刷盘
 	if len(bwm.buffer) >= bwm.batchSize {
@@ -421,14 +517,16 @@ func (bwm *BatchWriteManager) flush() error {
 	}
 
 	// 批量写入
-	for pageNo, data := range bwm.buffer {
-		// 实际写入操作
-		_ = pageNo
-		_ = data
+	for key, request := range bwm.buffer {
+		if bwm.writePage == nil {
+			return ErrPageIOUnavailable
+		}
+		if err := bwm.writePage(request.spaceID, request.pageNo, request.data); err != nil {
+			return err
+		}
+		delete(bwm.buffer, key)
 	}
 
-	// 清空缓冲区
-	bwm.buffer = make(map[uint32][]byte)
 	return nil
 }
 
@@ -441,7 +539,7 @@ func (ioo *IOOptimizer) batchWriteWorker() {
 		select {
 		case <-ticker.C:
 			ioo.batchWriter.bufferMu.Lock()
-			ioo.batchWriter.flush()
+			_ = ioo.batchWriter.flush()
 			ioo.batchWriter.bufferMu.Unlock()
 
 		case <-ioo.stopChan:
@@ -518,17 +616,17 @@ func (sched *IOScheduler) processNextRequest() {
 // NewIOCache 创建IO缓存
 func NewIOCache(maxSize int) *IOCache {
 	return &IOCache{
-		cache:   make(map[uint32][]byte),
+		cache:   make(map[uint64][]byte),
 		lruList: list.New(),
-		lruMap:  make(map[uint32]*list.Element),
+		lruMap:  make(map[uint64]*list.Element),
 		maxSize: maxSize,
 	}
 }
 
 // Get 获取缓存
-func (c *IOCache) Get(key uint32) []byte {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+func (c *IOCache) Get(key uint64) []byte {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	if elem, exists := c.lruMap[key]; exists {
 		c.lruList.MoveToFront(elem)
@@ -538,7 +636,7 @@ func (c *IOCache) Get(key uint32) []byte {
 }
 
 // Put 放入缓存
-func (c *IOCache) Put(key uint32, value []byte) {
+func (c *IOCache) Put(key uint64, value []byte) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -554,7 +652,7 @@ func (c *IOCache) Put(key uint32, value []byte) {
 		// 淘汰最久未使用的
 		oldest := c.lruList.Back()
 		if oldest != nil {
-			oldKey := oldest.Value.(uint32)
+			oldKey := oldest.Value.(uint64)
 			delete(c.cache, oldKey)
 			delete(c.lruMap, oldKey)
 			c.lruList.Remove(oldest)
@@ -589,14 +687,18 @@ func (ioo *IOOptimizer) GetStats() *IOStats {
 
 // Stop 停止优化器
 func (ioo *IOOptimizer) Stop() {
-	close(ioo.stopChan)
+	ioo.stopOnce.Do(func() { close(ioo.stopChan) })
 
 	// 刷盘所有待写数据
 	if ioo.batchWriter != nil {
 		ioo.batchWriter.bufferMu.Lock()
-		ioo.batchWriter.flush()
+		_ = ioo.batchWriter.flush()
 		ioo.batchWriter.bufferMu.Unlock()
 	}
+}
+
+func makeIOCacheKey(spaceID, pageNo uint32) uint64 {
+	return uint64(spaceID)<<32 | uint64(pageNo)
 }
 
 func min(a, b int) int {

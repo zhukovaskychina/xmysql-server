@@ -108,6 +108,61 @@ func TestRecordCodecMissingColumnsUseDefaultOrNil(t *testing.T) {
 	}
 }
 
+func TestRecordCodecProjectedDecodeSkipsUnrequestedColumns(t *testing.T) {
+	tableMeta := recordCodecTestTableMeta()
+	encoded, err := EncodeClusteredRecord(&InsertRowData{ColumnValues: map[string]interface{}{
+		"id": 42, "name": "alice", "active": true, "score": 99.5, "note": []byte("raw"),
+	}}, tableMeta)
+	if err != nil {
+		t.Fatalf("EncodeClusteredRecord() error = %v", err)
+	}
+
+	decoded, err := DecodeClusteredRecordProjected(encoded, tableMeta, []string{"name", "active"})
+	if err != nil {
+		t.Fatalf("DecodeClusteredRecordProjected() error = %v", err)
+	}
+	if !reflect.DeepEqual(decoded.ColumnValues, map[string]interface{}{"name": "alice", "active": true}) {
+		t.Fatalf("projected values = %#v", decoded.ColumnValues)
+	}
+	if len(decoded.ColumnTypes) != 2 || decoded.ColumnTypes["name"] != metadata.TypeVarchar || decoded.ColumnTypes["active"] != metadata.TypeBool {
+		t.Fatalf("projected types = %#v", decoded.ColumnTypes)
+	}
+}
+
+func TestRecordCodecPreservesCharAndBinaryFixedLengthSemantics(t *testing.T) {
+	tableMeta := &metadata.TableMeta{Columns: []*metadata.ColumnMeta{
+		{Name: "label", Type: metadata.TypeChar, Length: 5},
+		{Name: "token", Type: metadata.TypeBinary, Length: 4},
+		{Name: "name", Type: metadata.TypeVarchar, Length: 5},
+		{Name: "raw", Type: metadata.TypeVarBinary, Length: 4},
+	}}
+	encoded, err := EncodeClusteredRecord(&InsertRowData{ColumnValues: map[string]interface{}{
+		"label": "ab  ", "token": "xy", "name": "ab", "raw": []byte("xy"),
+	}}, tableMeta)
+	if err != nil {
+		t.Fatalf("EncodeClusteredRecord() error = %v", err)
+	}
+	decoded, err := DecodeClusteredRecord(encoded, tableMeta)
+	if err != nil {
+		t.Fatalf("DecodeClusteredRecord() error = %v", err)
+	}
+	if got := decoded.ColumnValues["label"]; got != "ab" {
+		t.Fatalf("CHAR value = %#v, want trimmed text", got)
+	}
+	if got := decoded.ColumnValues["token"]; !bytes.Equal(got.([]byte), []byte{'x', 'y', 0, 0}) {
+		t.Fatalf("BINARY value = %#v, want zero-padded bytes", got)
+	}
+	if got := decoded.ColumnValues["name"]; got != "ab" {
+		t.Fatalf("VARCHAR value = %#v, want unchanged text", got)
+	}
+	if got := decoded.ColumnValues["raw"]; !bytes.Equal(got.([]byte), []byte("xy")) {
+		t.Fatalf("VARBINARY value = %#v, want unchanged bytes", got)
+	}
+	if _, err := EncodeClusteredRecord(&InsertRowData{ColumnValues: map[string]interface{}{"token": "12345"}}, tableMeta); err == nil {
+		t.Fatal("BINARY overflow should be rejected")
+	}
+}
+
 func TestRecordCodecEncodingIsDeterministic(t *testing.T) {
 	tableMeta := recordCodecTestTableMeta()
 	first := &InsertRowData{

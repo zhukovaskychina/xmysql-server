@@ -27,6 +27,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
 	"io"
 	"log"
+	"strconv"
 	"strings"
 )
 
@@ -49,6 +50,23 @@ import (
 func Parse(sql string) (Statement, error) {
 	tokenizer := NewStringTokenizer(sql)
 	if yyParse(tokenizer) != 0 {
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(sql)), "with") {
+			if stmt, err := parseWithCompatibility(sql); err != nil {
+				return nil, err
+			} else if stmt != nil {
+				return stmt, nil
+			}
+		}
+		if strings.Contains(strings.ToLower(sql), " over") {
+			if stmt, err := parseWindowCompatibility(sql); err != nil {
+				return nil, err
+			} else if stmt != nil {
+				return stmt, nil
+			}
+		}
+		if stmt, ok := parseCreateTableWithForeignKeys(sql); ok {
+			return stmt, nil
+		}
 		if tokenizer.partialDDL != nil {
 			log.Printf("ignoring error parsing DDL '%s': %v", sql, tokenizer.LastError)
 			tokenizer.ParseTree = tokenizer.partialDDL
@@ -59,11 +77,897 @@ func Parse(sql string) (Statement, error) {
 	return tokenizer.ParseTree, nil
 }
 
+// With is the structured AST for a WITH/​​WITH RECURSIVE statement. The
+// generated yacc grammar in this fork predates CTE syntax, so Parse uses this
+// narrow fallback for CTEs while keeping the regular grammar authoritative for
+// all other statements.
+type With struct {
+	Recursive bool
+	CTEs      []*CTEDefinition
+	Body      Statement
+}
+
+// CTEDefinition is one named common-table expression in a With statement.
+type CTEDefinition struct {
+	Name    TableIdent
+	Columns Columns
+	Query   Statement
+}
+
+func (*With) iStatement() {}
+
+func (node *With) Format(buf *TrackedBuffer) {
+	if node == nil {
+		return
+	}
+	buf.Myprintf("with ")
+	if node.Recursive {
+		buf.Myprintf("recursive ")
+	}
+	for index, cte := range node.CTEs {
+		if index > 0 {
+			buf.Myprintf(", ")
+		}
+		buf.Myprintf("%v", cte)
+	}
+	if node.Body != nil {
+		buf.Myprintf(" %v", node.Body)
+	}
+}
+
+func (node *With) walkSubtree(visit Visit) error {
+	if node == nil {
+		return nil
+	}
+	for _, cte := range node.CTEs {
+		if err := Walk(visit, cte); err != nil {
+			return err
+		}
+	}
+	return Walk(visit, node.Body)
+}
+
+func (node *CTEDefinition) Format(buf *TrackedBuffer) {
+	if node == nil {
+		return
+	}
+	buf.Myprintf("%v%v as (%v)", node.Name, node.Columns, node.Query)
+}
+
+func (node *CTEDefinition) walkSubtree(visit Visit) error {
+	if node == nil {
+		return nil
+	}
+	if err := Walk(visit, node.Name); err != nil {
+		return err
+	}
+	for _, column := range node.Columns {
+		if err := Walk(visit, column); err != nil {
+			return err
+		}
+	}
+	return Walk(visit, node.Query)
+}
+
+func parseWithCompatibility(sql string) (Statement, error) {
+	text := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(sql), ";"))
+	lower := strings.ToLower(text)
+	if !strings.HasPrefix(lower, "with") || (len(lower) > 4 && !isSQLSpace(lower[4])) {
+		return nil, nil
+	}
+	position := 4
+	skipSQLSpace := func() {
+		for position < len(text) && isSQLSpace(text[position]) {
+			position++
+		}
+	}
+	skipSQLSpace()
+	recursive := false
+	if strings.HasPrefix(strings.ToLower(text[position:]), "recursive") &&
+		(position+9 == len(text) || isSQLSpace(text[position+9])) {
+		recursive = true
+		position += 9
+		skipSQLSpace()
+	}
+	ctes := make([]*CTEDefinition, 0, 1)
+	for {
+		skipSQLSpace()
+		name, next, err := parseWithIdentifier(text, position)
+		if err != nil {
+			return nil, err
+		}
+		position = next
+		skipSQLSpace()
+		columns := Columns(nil)
+		if position < len(text) && text[position] == '(' {
+			end := matchingParenthesis(text, position)
+			if end < 0 {
+				return nil, fmt.Errorf("invalid CTE %s: unbalanced column list", name)
+			}
+			columns, err = parseWithColumns(text[position+1 : end])
+			if err != nil {
+				return nil, fmt.Errorf("invalid CTE %s: %w", name, err)
+			}
+			position = end + 1
+			skipSQLSpace()
+		}
+		if !strings.HasPrefix(strings.ToLower(text[position:]), "as") ||
+			(position+2 < len(text) && !isSQLSpace(text[position+2]) && text[position+2] != '(') {
+			return nil, fmt.Errorf("CTE %s requires AS", name)
+		}
+		position += 2
+		skipSQLSpace()
+		if position >= len(text) || text[position] != '(' {
+			return nil, fmt.Errorf("CTE %s requires a parenthesized query", name)
+		}
+		end := matchingParenthesis(text, position)
+		if end < 0 {
+			return nil, fmt.Errorf("invalid CTE %s: unbalanced query", name)
+		}
+		query, err := Parse(strings.TrimSpace(text[position+1 : end]))
+		if err != nil {
+			return nil, fmt.Errorf("invalid CTE %s query: %w", name, err)
+		}
+		ctes = append(ctes, &CTEDefinition{Name: NewTableIdent(name), Columns: columns, Query: query})
+		position = end + 1
+		skipSQLSpace()
+		if position < len(text) && text[position] == ',' {
+			position++
+			continue
+		}
+		break
+	}
+	if position >= len(text) {
+		return nil, fmt.Errorf("WITH statement requires a main query")
+	}
+	body, err := Parse(strings.TrimSpace(text[position:]))
+	if err != nil {
+		return nil, fmt.Errorf("invalid WITH main query: %w", err)
+	}
+	return &With{Recursive: recursive, CTEs: ctes, Body: body}, nil
+}
+
+func parseWithIdentifier(text string, position int) (string, int, error) {
+	if position >= len(text) {
+		return "", position, fmt.Errorf("CTE name is missing")
+	}
+	start := position
+	if text[position] == '`' {
+		position++
+		start = position
+		for position < len(text) && text[position] != '`' {
+			position++
+		}
+		if position >= len(text) {
+			return "", position, fmt.Errorf("unterminated CTE name")
+		}
+		return text[start:position], position + 1, nil
+	}
+	for position < len(text) && !isSQLSpace(text[position]) && text[position] != '(' && text[position] != ',' {
+		position++
+	}
+	if start == position {
+		return "", position, fmt.Errorf("CTE name is missing")
+	}
+	return strings.TrimSpace(text[start:position]), position, nil
+}
+
+func parseWithColumns(text string) (Columns, error) {
+	parts := strings.Split(text, ",")
+	columns := make(Columns, 0, len(parts))
+	for _, part := range parts {
+		part = strings.Trim(strings.TrimSpace(part), "`")
+		if part == "" {
+			return nil, fmt.Errorf("empty column name")
+		}
+		columns = append(columns, NewColIdent(part))
+	}
+	return columns, nil
+}
+
+func isSQLSpace(value byte) bool {
+	return value == ' ' || value == '\t' || value == '\r' || value == '\n'
+}
+
+// WindowSpec describes the OVER clause attached to a function expression.
+// It is deliberately independent from execution-layer window operators so the
+// parser can preserve the user's SQL and the planner can validate it later.
+type WindowSpec struct {
+	Name        ColIdent
+	PartitionBy Exprs
+	OrderBy     OrderBy
+	Frame       *WindowFrame
+}
+
+type WindowFrame struct {
+	Type  string
+	Start WindowFrameBound
+	End   WindowFrameBound
+}
+
+type WindowFrameBound struct {
+	Type   string
+	Offset int64
+}
+
+// NamedWindow is a WINDOW clause declaration scoped to one SELECT.
+type NamedWindow struct {
+	Name ColIdent
+	Spec *WindowSpec
+}
+
+func (node *NamedWindow) Format(buf *TrackedBuffer) {
+	if node == nil {
+		return
+	}
+	buf.Myprintf("%v as %v", node.Name, node.Spec)
+}
+
+func (node *NamedWindow) walkSubtree(visit Visit) error {
+	if node == nil {
+		return nil
+	}
+	return Walk(visit, node.Name, node.Spec)
+}
+
+func (node *WindowSpec) Format(buf *TrackedBuffer) {
+	if node == nil {
+		return
+	}
+	if !node.Name.IsEmpty() {
+		buf.Myprintf("%v", node.Name)
+		return
+	}
+	buf.Myprintf("(")
+	if len(node.PartitionBy) > 0 {
+		buf.Myprintf("partition by %v", node.PartitionBy)
+	}
+	if len(node.OrderBy) > 0 {
+		buf.Myprintf("%v", node.OrderBy)
+	}
+	if node.Frame != nil {
+		buf.Myprintf(" %v", node.Frame)
+	}
+	buf.Myprintf(")")
+}
+
+func (node *WindowSpec) walkSubtree(visit Visit) error {
+	if node == nil {
+		return nil
+	}
+	if err := Walk(visit, node.Name, node.PartitionBy, node.OrderBy); err != nil {
+		return err
+	}
+	return Walk(visit, node.Frame)
+}
+
+func (node *WindowFrame) Format(buf *TrackedBuffer) {
+	if node == nil {
+		return
+	}
+	buf.Myprintf("%s between %v and %v", node.Type, node.Start, node.End)
+}
+
+func (node *WindowFrame) walkSubtree(visit Visit) error { return nil }
+
+func (node WindowFrameBound) Format(buf *TrackedBuffer) {
+	switch node.Type {
+	case "UNBOUNDED_PRECEDING":
+		buf.Myprintf("unbounded preceding")
+	case "UNBOUNDED_FOLLOWING":
+		buf.Myprintf("unbounded following")
+	case "CURRENT_ROW":
+		buf.Myprintf("current row")
+	case "N_PRECEDING":
+		buf.Myprintf("%d preceding", node.Offset)
+	case "N_FOLLOWING":
+		buf.Myprintf("%d following", node.Offset)
+	default:
+		buf.Myprintf("current row")
+	}
+}
+
+func (node WindowFrameBound) walkSubtree(visit Visit) error { return nil }
+
+func parseWindowCompatibility(sql string) (Statement, error) {
+	text := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(sql), ";"))
+	lower := strings.ToLower(text)
+	var namedWindows []*NamedWindow
+	if windowAt := findTopLevelKeyword(text, "window", 0); windowAt >= 0 {
+		windowEnd := findWindowClauseEnd(text, windowAt+len("window"))
+		var err error
+		namedWindows, err = parseNamedWindowDeclarations(text[windowAt+len("window") : windowEnd])
+		if err != nil {
+			return nil, err
+		}
+		text = strings.TrimSpace(text[:windowAt] + " " + text[windowEnd:])
+		lower = strings.ToLower(text)
+	}
+	over := strings.Index(lower, " over")
+	if over < 0 {
+		return nil, nil
+	}
+	windowStart := over + len(" over")
+	for windowStart < len(text) && isSQLSpace(text[windowStart]) {
+		windowStart++
+	}
+	var spec *WindowSpec
+	removeEnd := windowStart
+	if windowStart < len(text) && text[windowStart] == '(' {
+		end := matchingParenthesis(text, windowStart)
+		if end < 0 {
+			return nil, fmt.Errorf("window specification has unbalanced parentheses")
+		}
+		var err error
+		spec, err = parseWindowSpecCompatibility(text[windowStart+1 : end])
+		if err != nil {
+			return nil, err
+		}
+		removeEnd = end + 1
+	} else {
+		nameStart := windowStart
+		for removeEnd < len(text) && !isSQLSpace(text[removeEnd]) {
+			removeEnd++
+		}
+		if nameStart == removeEnd {
+			return nil, fmt.Errorf("window name is missing")
+		}
+		spec = &WindowSpec{Name: NewColIdent(text[nameStart:removeEnd])}
+	}
+	sanitized := strings.TrimSpace(text[:over] + " " + text[removeEnd:])
+	stmt, err := Parse(sanitized)
+	if err != nil {
+		return nil, fmt.Errorf("parse window query: %w", err)
+	}
+	var found *FuncExpr
+	if err := Walk(func(node SQLNode) (bool, error) {
+		if fn, ok := node.(*FuncExpr); ok && found == nil {
+			found = fn
+		}
+		return found == nil, nil
+	}, stmt); err != nil {
+		return nil, err
+	}
+	if found == nil {
+		return nil, fmt.Errorf("window specification is not attached to a function")
+	}
+	found.Over = spec
+	if len(namedWindows) > 0 {
+		selectStmt, ok := stmt.(*Select)
+		if !ok {
+			return nil, fmt.Errorf("named WINDOW clause requires a SELECT statement")
+		}
+		selectStmt.Windows = namedWindows
+	}
+	return stmt, nil
+}
+
+func findTopLevelKeyword(text, keyword string, start int) int {
+	depth := 0
+	var quote byte
+	for i := start; i <= len(text)-len(keyword); i++ {
+		ch := text[i]
+		if quote != 0 {
+			if ch == quote && (i == 0 || text[i-1] != '\\') {
+				quote = 0
+			}
+			continue
+		}
+		switch ch {
+		case '\'', '"', '`':
+			quote = ch
+			continue
+		case '(':
+			depth++
+			continue
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+			continue
+		}
+		if depth != 0 || !strings.EqualFold(text[i:i+len(keyword)], keyword) {
+			continue
+		}
+		if (i == 0 || !isSQLIdentifierChar(text[i-1])) &&
+			(i+len(keyword) == len(text) || !isSQLIdentifierChar(text[i+len(keyword)])) {
+			return i
+		}
+	}
+	return -1
+}
+
+func isSQLIdentifierChar(value byte) bool {
+	return value == '_' || value == '$' || value == '`' ||
+		(value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z') ||
+		(value >= '0' && value <= '9')
+}
+
+func findWindowClauseEnd(text string, start int) int {
+	for _, clause := range []string{"order", "limit", "for", "lock", "union"} {
+		if at := findTopLevelKeyword(text, clause, start); at >= 0 {
+			return at
+		}
+	}
+	return len(text)
+}
+
+func parseNamedWindowDeclarations(text string) ([]*NamedWindow, error) {
+	parts := splitTopLevelComma(strings.TrimSpace(text))
+	if len(parts) == 0 {
+		return nil, fmt.Errorf("WINDOW clause requires a declaration")
+	}
+	windows := make([]*NamedWindow, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		name, next, err := parseWithIdentifier(part, 0)
+		if err != nil {
+			return nil, fmt.Errorf("invalid WINDOW declaration: %w", err)
+		}
+		rest := strings.TrimSpace(part[next:])
+		if len(rest) < 2 || !strings.EqualFold(rest[:2], "as") ||
+			(len(rest) > 2 && !isSQLSpace(rest[2]) && rest[2] != '(') {
+			return nil, fmt.Errorf("window %s requires AS", name)
+		}
+		rest = strings.TrimSpace(rest[2:])
+		if len(rest) == 0 || rest[0] != '(' {
+			return nil, fmt.Errorf("window %s requires a parenthesized specification", name)
+		}
+		end := matchingParenthesis(rest, 0)
+		if end < 0 || strings.TrimSpace(rest[end+1:]) != "" {
+			return nil, fmt.Errorf("invalid WINDOW declaration %s", name)
+		}
+		spec, err := parseWindowSpecCompatibility(rest[1:end])
+		if err != nil {
+			return nil, fmt.Errorf("invalid WINDOW declaration %s: %w", name, err)
+		}
+		key := strings.ToLower(name)
+		if _, exists := seen[key]; exists {
+			return nil, fmt.Errorf("duplicate WINDOW declaration %s", name)
+		}
+		seen[key] = struct{}{}
+		windows = append(windows, &NamedWindow{Name: NewColIdent(name), Spec: spec})
+	}
+	return windows, nil
+}
+
+func parseWindowSpecCompatibility(text string) (*WindowSpec, error) {
+	spec := &WindowSpec{}
+	lower := strings.ToLower(text)
+	partitionAt := strings.Index(lower, "partition by")
+	orderAt := strings.Index(lower, "order by")
+	frameAt := strings.Index(lower, " rows")
+	if rangeAt := strings.Index(lower, " range"); frameAt < 0 || (rangeAt >= 0 && rangeAt < frameAt) {
+		frameAt = rangeAt
+	}
+	endPartition := len(text)
+	if orderAt >= 0 {
+		endPartition = orderAt
+	} else if frameAt >= 0 {
+		endPartition = frameAt
+	}
+	if partitionAt >= 0 {
+		start := partitionAt + len("partition by")
+		if start > endPartition {
+			return nil, fmt.Errorf("invalid PARTITION BY clause")
+		}
+		for _, part := range splitTopLevelComma(strings.TrimSpace(text[start:endPartition])) {
+			expr, err := parseWindowExpr(part)
+			if err != nil {
+				return nil, err
+			}
+			spec.PartitionBy = append(spec.PartitionBy, expr)
+		}
+	}
+	if orderAt >= 0 {
+		start := orderAt + len("order by")
+		end := len(text)
+		if frameAt > orderAt {
+			end = frameAt
+		}
+		for _, part := range splitTopLevelComma(strings.TrimSpace(text[start:end])) {
+			fields := strings.Fields(part)
+			if len(fields) == 0 {
+				continue
+			}
+			expr, err := parseWindowExpr(fields[0])
+			if err != nil {
+				return nil, err
+			}
+			direction := AscScr
+			if len(fields) > 1 && strings.EqualFold(fields[1], "desc") {
+				direction = DescScr
+			}
+			spec.OrderBy = append(spec.OrderBy, &Order{Expr: expr, Direction: direction})
+		}
+	}
+	if frameAt >= 0 {
+		frame, err := parseWindowFrameCompatibility(strings.TrimSpace(text[frameAt:]))
+		if err != nil {
+			return nil, err
+		}
+		spec.Frame = frame
+	}
+	return spec, nil
+}
+
+func parseWindowExpr(text string) (Expr, error) {
+	stmt, err := Parse("select " + strings.TrimSpace(text) + " from dual")
+	if err != nil {
+		return nil, fmt.Errorf("invalid window expression %q: %w", text, err)
+	}
+	selectStmt, ok := stmt.(*Select)
+	if !ok || len(selectStmt.SelectExprs) != 1 {
+		return nil, fmt.Errorf("invalid window expression %q", text)
+	}
+	aliased, ok := selectStmt.SelectExprs[0].(*AliasedExpr)
+	if !ok {
+		return nil, fmt.Errorf("invalid window expression %q", text)
+	}
+	return aliased.Expr, nil
+}
+
+func parseWindowFrameCompatibility(text string) (*WindowFrame, error) {
+	fields := strings.Fields(text)
+	if len(fields) < 2 || (strings.ToLower(fields[0]) != "rows" && strings.ToLower(fields[0]) != "range") {
+		return nil, fmt.Errorf("invalid window frame %q", text)
+	}
+	body := strings.TrimSpace(text[len(fields[0]):])
+	bodyLower := strings.ToLower(body)
+	if !strings.HasPrefix(bodyLower, "between ") {
+		return nil, fmt.Errorf("window frame requires BETWEEN")
+	}
+	bounds := strings.SplitN(strings.TrimSpace(bodyLower[len("between"):]), "and", 2)
+	if len(bounds) != 2 {
+		return nil, fmt.Errorf("window frame requires BETWEEN ... AND ...")
+	}
+	start, err := parseWindowBoundCompatibility(bounds[0])
+	if err != nil {
+		return nil, err
+	}
+	end, err := parseWindowBoundCompatibility(bounds[1])
+	if err != nil {
+		return nil, err
+	}
+	return &WindowFrame{Type: strings.ToLower(fields[0]), Start: start, End: end}, nil
+}
+
+func parseWindowBoundCompatibility(text string) (WindowFrameBound, error) {
+	fields := strings.Fields(strings.ToLower(strings.TrimSpace(text)))
+	if len(fields) == 2 && fields[0] == "unbounded" && (fields[1] == "preceding" || fields[1] == "following") {
+		if fields[1] == "preceding" {
+			return WindowFrameBound{Type: "UNBOUNDED_PRECEDING"}, nil
+		}
+		return WindowFrameBound{Type: "UNBOUNDED_FOLLOWING"}, nil
+	}
+	if len(fields) == 2 && fields[0] == "current" && fields[1] == "row" {
+		return WindowFrameBound{Type: "CURRENT_ROW"}, nil
+	}
+	if len(fields) == 2 && (fields[1] == "preceding" || fields[1] == "following") {
+		offset, err := strconv.ParseInt(fields[0], 10, 64)
+		if err == nil && offset >= 0 {
+			kind := "N_PRECEDING"
+			if fields[1] == "following" {
+				kind = "N_FOLLOWING"
+			}
+			return WindowFrameBound{Type: kind, Offset: offset}, nil
+		}
+	}
+	return WindowFrameBound{}, fmt.Errorf("invalid window frame bound %q", text)
+}
+
+func parseCreateTableWithForeignKeys(sql string) (Statement, bool) {
+	bodyStart := strings.Index(sql, "(")
+	if bodyStart < 0 || !strings.HasPrefix(strings.ToLower(strings.TrimSpace(sql)), "create table") {
+		return nil, false
+	}
+	bodyEnd := matchingParenthesis(sql, bodyStart)
+	if bodyEnd < 0 {
+		return nil, false
+	}
+
+	definitions := splitTopLevelComma(sql[bodyStart+1 : bodyEnd])
+	kept := make([]string, 0, len(definitions))
+	foreignKeys := make([]*ForeignKeyDefinition, 0)
+	checks := make([]CheckConstraintDefinition, 0)
+	for _, definition := range definitions {
+		fk, ok := parseForeignKeyDefinition(definition)
+		if ok {
+			foreignKeys = append(foreignKeys, fk)
+			continue
+		}
+		fk, columnDefinition, ok := parseInlineForeignKeyDefinition(definition)
+		if ok {
+			kept = append(kept, columnDefinition)
+			foreignKeys = append(foreignKeys, fk)
+			continue
+		}
+		if check, columnDefinition, ok := parseInlineCheckDefinition(definition); ok {
+			kept = append(kept, columnDefinition)
+			checks = append(checks, check)
+			continue
+		}
+		if check, ok := parseCheckConstraintDefinition(definition); ok {
+			checks = append(checks, check)
+			continue
+		}
+		kept = append(kept, definition)
+	}
+	if len(foreignKeys) == 0 && len(checks) == 0 {
+		return nil, false
+	}
+
+	strippedSQL := sql[:bodyStart+1] + strings.Join(kept, ", ") + sql[bodyEnd:]
+	stmt, err := Parse(strippedSQL)
+	if err != nil {
+		return nil, false
+	}
+	ddl, ok := stmt.(*DDL)
+	if !ok || ddl.TableSpec == nil {
+		return nil, false
+	}
+	for _, fk := range foreignKeys {
+		ddl.TableSpec.AddForeignKey(fk)
+	}
+	for _, check := range checks {
+		ddl.TableSpec.AddCheckDefinition(check)
+	}
+	return ddl, true
+}
+
+func parseCheckConstraintDefinition(definition string) (CheckConstraintDefinition, bool) {
+	result := CheckConstraintDefinition{Enforced: true}
+	definition = strings.TrimSpace(definition)
+	lower := strings.ToLower(definition)
+	checkIndex := findTopLevelKeyword(lower, "check", 0)
+	if checkIndex < 0 {
+		return result, false
+	}
+	prefix := strings.TrimSpace(definition[:checkIndex])
+	if prefix != "" {
+		fields := strings.Fields(prefix)
+		if len(fields) != 2 || !strings.EqualFold(fields[0], "constraint") {
+			return result, false
+		}
+		result.Name = strings.Trim(fields[1], "`")
+		if result.Name == "" {
+			return result, false
+		}
+	}
+	open := strings.Index(definition[checkIndex:], "(")
+	if open < 0 {
+		return result, false
+	}
+	open += checkIndex
+	close := matchingParenthesis(definition, open)
+	if close < 0 {
+		return result, false
+	}
+	result.Enforced = !strings.EqualFold(strings.TrimSpace(definition[close+1:]), "not enforced")
+	result.Expression = strings.TrimSpace(definition[open+1 : close])
+	return result, result.Expression != ""
+}
+
+func parseInlineCheckDefinition(definition string) (CheckConstraintDefinition, string, bool) {
+	result := CheckConstraintDefinition{Enforced: true}
+	definition = strings.TrimSpace(definition)
+	lower := strings.ToLower(definition)
+	checkIndex := findTopLevelKeyword(lower, "check", 0)
+	if checkIndex <= 0 {
+		return result, definition, false
+	}
+	prefix := strings.TrimSpace(definition[:checkIndex])
+	columnDefinition := prefix
+	if constraintIndex := findTopLevelKeyword(strings.ToLower(prefix), "constraint", 0); constraintIndex >= 0 {
+		columnDefinition = strings.TrimSpace(prefix[:constraintIndex])
+		constraintFields := strings.Fields(strings.TrimSpace(prefix[constraintIndex+len("constraint"):]))
+		if len(constraintFields) != 1 {
+			return result, definition, false
+		}
+		result.Name = strings.Trim(constraintFields[0], "`")
+	}
+	if columnDefinition == "" {
+		return result, definition, false
+	}
+	open := checkIndex + len("check")
+	for open < len(definition) && (definition[open] == ' ' || definition[open] == '\t' || definition[open] == '\r' || definition[open] == '\n') {
+		open++
+	}
+	if open >= len(definition) || definition[open] != '(' {
+		return result, definition, false
+	}
+	close := matchingParenthesis(definition, open)
+	if close < 0 {
+		return result, definition, false
+	}
+	suffix := strings.TrimSpace(strings.ToLower(definition[close+1:]))
+	if suffix != "" && suffix != "enforced" && suffix != "not enforced" {
+		return result, definition, false
+	}
+	result.Enforced = suffix != "not enforced"
+	result.Expression = strings.TrimSpace(definition[open+1 : close])
+	return result, columnDefinition, result.Expression != ""
+}
+
+func parseInlineForeignKeyDefinition(definition string) (*ForeignKeyDefinition, string, bool) {
+	lower := strings.ToLower(definition)
+	marker := " references "
+	referencesIndex := strings.Index(lower, marker)
+	if referencesIndex < 0 {
+		return nil, definition, false
+	}
+	prefix := strings.TrimSpace(definition[:referencesIndex])
+	fields := strings.Fields(prefix)
+	if len(fields) < 2 || strings.EqualFold(fields[0], "constraint") {
+		return nil, definition, false
+	}
+	foreignDefinition := "foreign key (" + strings.Trim(fields[0], "`") + ")" + definition[referencesIndex:]
+	fk, ok := parseForeignKeyDefinition(foreignDefinition)
+	if !ok {
+		return nil, definition, false
+	}
+	return fk, prefix, true
+}
+
+func parseForeignKeyDefinition(definition string) (*ForeignKeyDefinition, bool) {
+	definition = strings.TrimSpace(definition)
+	lower := strings.ToLower(definition)
+	if !strings.HasPrefix(lower, "foreign key") && !strings.HasPrefix(lower, "constraint ") {
+		return nil, false
+	}
+	foreignIndex := strings.Index(lower, "foreign key")
+	if foreignIndex < 0 {
+		return nil, false
+	}
+	prefix := strings.TrimSpace(definition[:foreignIndex])
+	var name ColIdent
+	if strings.HasPrefix(strings.ToLower(prefix), "constraint ") {
+		name = NewColIdent(strings.Trim(strings.TrimSpace(prefix[len("constraint "):]), "`"))
+	}
+	rest := strings.TrimSpace(definition[foreignIndex+len("foreign key"):])
+	localColumns, rest, ok := parseParenthesizedIdentifiers(rest)
+	if !ok {
+		return nil, false
+	}
+	rest = strings.TrimSpace(rest)
+	if !strings.HasPrefix(strings.ToLower(rest), "references") {
+		return nil, false
+	}
+	rest = strings.TrimSpace(rest[len("references"):])
+	space := strings.IndexAny(rest, " \t(")
+	if space < 0 {
+		return nil, false
+	}
+	tableName := strings.TrimSpace(rest[:space])
+	referencedTable := parseForeignKeyTableName(tableName)
+	referencedColumns, tail, ok := parseParenthesizedIdentifiers(strings.TrimSpace(rest[space:]))
+	if !ok {
+		return nil, false
+	}
+	return &ForeignKeyDefinition{
+		Name:              name,
+		Columns:           localColumns,
+		ReferencedTable:   referencedTable,
+		ReferencedColumns: referencedColumns,
+		OnDelete:          parseReferentialAction(tail, "delete"),
+		OnUpdate:          parseReferentialAction(tail, "update"),
+	}, true
+}
+
+func parseParenthesizedIdentifiers(input string) ([]ColIdent, string, bool) {
+	input = strings.TrimSpace(input)
+	if len(input) == 0 || input[0] != '(' {
+		return nil, input, false
+	}
+	end := matchingParenthesis(input, 0)
+	if end < 0 {
+		return nil, input, false
+	}
+	parts := strings.Split(input[1:end], ",")
+	identifiers := make([]ColIdent, 0, len(parts))
+	for _, part := range parts {
+		part = strings.Trim(strings.TrimSpace(part), "`")
+		if part == "" {
+			return nil, input, false
+		}
+		identifiers = append(identifiers, NewColIdent(part))
+	}
+	return identifiers, input[end+1:], true
+}
+
+func parseForeignKeyTableName(input string) TableName {
+	parts := strings.Split(input, ".")
+	if len(parts) == 1 {
+		return TableName{Name: NewTableIdent(strings.Trim(parts[0], "`"))}
+	}
+	return TableName{
+		Qualifier: NewTableIdent(strings.Trim(parts[len(parts)-2], "`")),
+		Name:      NewTableIdent(strings.Trim(parts[len(parts)-1], "`")),
+	}
+}
+
+func parseReferentialAction(tail, action string) string {
+	tail = strings.ToLower(tail)
+	marker := "on " + action
+	start := strings.Index(tail, marker)
+	if start < 0 {
+		return ""
+	}
+	value := strings.TrimSpace(tail[start+len(marker):])
+	switch {
+	case strings.HasPrefix(value, "cascade"):
+		return "cascade"
+	case strings.HasPrefix(value, "restrict"):
+		return "restrict"
+	case strings.HasPrefix(value, "set null"):
+		return "set null"
+	case strings.HasPrefix(value, "no action"):
+		return "no action"
+	default:
+		return ""
+	}
+}
+
+func matchingParenthesis(input string, start int) int {
+	depth := 0
+	for i := start; i < len(input); i++ {
+		switch input[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func splitTopLevelComma(input string) []string {
+	var parts []string
+	start, depth := 0, 0
+	var quote byte
+	for i := 0; i < len(input); i++ {
+		ch := input[i]
+		if quote != 0 {
+			if ch == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch ch {
+		case '\'', '"', '`':
+			quote = ch
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 0 {
+				if part := strings.TrimSpace(input[start:i]); part != "" {
+					parts = append(parts, part)
+				}
+				start = i + 1
+			}
+		}
+	}
+	if part := strings.TrimSpace(input[start:]); part != "" {
+		parts = append(parts, part)
+	}
+	return parts
+}
+
 // ParseStrictDDL is the same as Parse except it errors on
 // partially parsed DDL statements.
 func ParseStrictDDL(sql string) (Statement, error) {
 	tokenizer := NewStringTokenizer(sql)
 	if yyParse(tokenizer) != 0 {
+		if stmt, ok := parseCreateTableWithForeignKeys(sql); ok {
+			return stmt, nil
+		}
 		return nil, tokenizer.LastError
 	}
 	return tokenizer.ParseTree, nil
@@ -255,6 +1159,7 @@ type Select struct {
 	Where       *Where
 	GroupBy     GroupBy
 	Having      *Where
+	Windows     []*NamedWindow
 	OrderBy     OrderBy
 	Limit       *Limit
 	Lock        string
@@ -290,18 +1195,27 @@ func (node *Select) SetLimit(limit *Limit) {
 
 // Format formats the node.
 func (node *Select) Format(buf *TrackedBuffer) {
-	buf.Myprintf("select %v%s%s%s%v from %v%v%v%v%v%v%s",
+	buf.Myprintf("select %v%s%s%s%v from %v%v%v%v",
 		node.Comments, node.Cache, node.Distinct, node.Hints, node.SelectExprs,
 		node.From, node.Where,
-		node.GroupBy, node.Having, node.OrderBy,
-		node.Limit, node.Lock)
+		node.GroupBy, node.Having)
+	if len(node.Windows) > 0 {
+		buf.Myprintf(" window ")
+		for index, window := range node.Windows {
+			if index > 0 {
+				buf.Myprintf(", ")
+			}
+			buf.Myprintf("%v", window)
+		}
+	}
+	buf.Myprintf("%v%v%s", node.OrderBy, node.Limit, node.Lock)
 }
 
 func (node *Select) walkSubtree(visit Visit) error {
 	if node == nil {
 		return nil
 	}
-	return Walk(
+	if err := Walk(
 		visit,
 		node.Comments,
 		node.SelectExprs,
@@ -311,7 +1225,15 @@ func (node *Select) walkSubtree(visit Visit) error {
 		node.Having,
 		node.OrderBy,
 		node.Limit,
-	)
+	); err != nil {
+		return err
+	}
+	for _, window := range node.Windows {
+		if err := Walk(visit, window); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // AddWhere adds the boolean expression to the
@@ -810,9 +1732,20 @@ func (node *PartitionDefinition) walkSubtree(visit Visit) error {
 
 // TableSpec describes the structure of a table from a CREATE TABLE statement
 type TableSpec struct {
-	Columns []*ColumnDefinition
-	Indexes []*IndexDefinition
-	Options string
+	Columns          []*ColumnDefinition
+	Indexes          []*IndexDefinition
+	ForeignKeys      []*ForeignKeyDefinition
+	Checks           []string
+	CheckDefinitions []CheckConstraintDefinition
+	Options          string
+}
+
+// CheckConstraintDefinition preserves a CHECK constraint's optional name and
+// enforcement mode while Checks remains the legacy expression-only view.
+type CheckConstraintDefinition struct {
+	Name       string
+	Expression string
+	Enforced   bool
 }
 
 // Format formats the node.
@@ -828,6 +1761,26 @@ func (ts *TableSpec) Format(buf *TrackedBuffer) {
 	for _, idx := range ts.Indexes {
 		buf.Myprintf(",\n\t%v", idx)
 	}
+	for _, fk := range ts.ForeignKeys {
+		buf.Myprintf(",\n\t%v", fk)
+	}
+	if len(ts.CheckDefinitions) == len(ts.Checks) {
+		for _, definition := range ts.CheckDefinitions {
+			prefix := ""
+			if definition.Name != "" {
+				prefix = "constraint " + definition.Name + " "
+			}
+			suffix := ""
+			if !definition.Enforced {
+				suffix = " not enforced"
+			}
+			buf.Myprintf(",\n\t%scheck (%s)%s", prefix, definition.Expression, suffix)
+		}
+	} else {
+		for _, check := range ts.Checks {
+			buf.Myprintf(",\n\tcheck (%s)", check)
+		}
+	}
 
 	buf.Myprintf("\n)%s", strings.Replace(ts.Options, ", ", ",\n  ", -1))
 }
@@ -840,6 +1793,23 @@ func (ts *TableSpec) AddColumn(cd *ColumnDefinition) {
 // AddIndex appends the given index to the list in the spec
 func (ts *TableSpec) AddIndex(id *IndexDefinition) {
 	ts.Indexes = append(ts.Indexes, id)
+}
+
+// AddForeignKey appends the given foreign key definition to the table spec.
+func (ts *TableSpec) AddForeignKey(fk *ForeignKeyDefinition) {
+	ts.ForeignKeys = append(ts.ForeignKeys, fk)
+}
+
+// AddCheck appends a table-level CHECK expression.
+func (ts *TableSpec) AddCheck(expression string) {
+	ts.AddCheckDefinition(CheckConstraintDefinition{Expression: expression, Enforced: true})
+}
+
+// AddCheckDefinition appends a CHECK constraint and keeps the legacy Checks
+// slice synchronized for callers that only consume expressions.
+func (ts *TableSpec) AddCheckDefinition(definition CheckConstraintDefinition) {
+	ts.Checks = append(ts.Checks, definition.Expression)
+	ts.CheckDefinitions = append(ts.CheckDefinitions, definition)
 }
 
 func (ts *TableSpec) walkSubtree(visit Visit) error {
@@ -859,6 +1829,84 @@ func (ts *TableSpec) walkSubtree(visit Visit) error {
 		}
 	}
 
+	for _, n := range ts.ForeignKeys {
+		if err := Walk(visit, n); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// ForeignKeyDefinition describes a table-level foreign key constraint.
+type ForeignKeyDefinition struct {
+	Name              ColIdent
+	Columns           []ColIdent
+	ReferencedTable   TableName
+	ReferencedColumns []ColIdent
+	OnDelete          string
+	OnUpdate          string
+}
+
+// ForeignKeyActions contains optional referential actions while parsing a
+// foreign key definition.
+type ForeignKeyActions struct {
+	OnDelete string
+	OnUpdate string
+}
+
+// Format formats the foreign key definition.
+func (fk *ForeignKeyDefinition) Format(buf *TrackedBuffer) {
+	if !fk.Name.IsEmpty() {
+		buf.Myprintf("constraint %v ", fk.Name)
+	}
+	buf.Myprintf("foreign key (%v) references %v (%v)", ColIdentList(fk.Columns), fk.ReferencedTable, ColIdentList(fk.ReferencedColumns))
+	if fk.OnDelete != "" {
+		buf.Myprintf(" on delete %s", fk.OnDelete)
+	}
+	if fk.OnUpdate != "" {
+		buf.Myprintf(" on update %s", fk.OnUpdate)
+	}
+}
+
+func (fk *ForeignKeyDefinition) walkSubtree(visit Visit) error {
+	if fk == nil {
+		return nil
+	}
+	if err := Walk(visit, fk.Name, fk.ReferencedTable); err != nil {
+		return err
+	}
+	for _, col := range fk.Columns {
+		if err := Walk(visit, col); err != nil {
+			return err
+		}
+	}
+	for _, col := range fk.ReferencedColumns {
+		if err := Walk(visit, col); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ColIdentList formats a list of identifiers.
+type ColIdentList []ColIdent
+
+func (list ColIdentList) Format(buf *TrackedBuffer) {
+	for i, col := range list {
+		if i > 0 {
+			buf.Myprintf(", ")
+		}
+		buf.Myprintf("%v", col)
+	}
+}
+
+func (list ColIdentList) walkSubtree(visit Visit) error {
+	for _, col := range list {
+		if err := Walk(visit, col); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -2635,6 +3683,7 @@ type FuncExpr struct {
 	Name      ColIdent
 	Distinct  bool
 	Exprs     SelectExprs
+	Over      *WindowSpec
 }
 
 // Format formats the node.
@@ -2650,6 +3699,9 @@ func (node *FuncExpr) Format(buf *TrackedBuffer) {
 	// if they match a reserved word. So, print the
 	// name as is.
 	buf.Myprintf("%s(%s%v)", node.Name.String(), distinct, node.Exprs)
+	if node.Over != nil {
+		buf.Myprintf(" over %v", node.Over)
+	}
 }
 
 func (node *FuncExpr) walkSubtree(visit Visit) error {
@@ -2661,6 +3713,7 @@ func (node *FuncExpr) walkSubtree(visit Visit) error {
 		node.Qualifier,
 		node.Name,
 		node.Exprs,
+		node.Over,
 	)
 }
 
@@ -2679,22 +3732,25 @@ func (node *FuncExpr) replace(from, to Expr) bool {
 
 // Aggregates is a map of all aggregate functions.
 var Aggregates = map[string]bool{
-	"avg":          true,
-	"bit_and":      true,
-	"bit_or":       true,
-	"bit_xor":      true,
-	"count":        true,
-	"group_concat": true,
-	"max":          true,
-	"min":          true,
-	"std":          true,
-	"stddev_pop":   true,
-	"stddev_samp":  true,
-	"stddev":       true,
-	"sum":          true,
-	"var_pop":      true,
-	"var_samp":     true,
-	"variance":     true,
+	"avg":            true,
+	"bit_and":        true,
+	"bit_or":         true,
+	"bit_xor":        true,
+	"count":          true,
+	"group_concat":   true,
+	"json_arrayagg":  true,
+	"json_objectagg": true,
+	"any_value":      true,
+	"max":            true,
+	"min":            true,
+	"std":            true,
+	"stddev_pop":     true,
+	"stddev_samp":    true,
+	"stddev":         true,
+	"sum":            true,
+	"var_pop":        true,
+	"var_samp":       true,
+	"variance":       true,
 }
 
 // IsAggregate returns true if the function is an aggregate.

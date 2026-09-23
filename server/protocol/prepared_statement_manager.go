@@ -3,12 +3,13 @@ package protocol
 import (
 	"encoding/binary"
 	"fmt"
-	"strings"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/observability/compatibility"
 )
 
 // PreparedStatementManager 预编译语句管理器
@@ -28,16 +29,19 @@ func NewPreparedStatementManager() *PreparedStatementManager {
 
 // PreparedStatement 预编译语句
 type PreparedStatement struct {
-	ID           uint32            // 语句ID
-	SQL          string            // 原始SQL
-	ParamCount   uint16            // 参数数量
-	ColumnCount  uint16            // 列数量
-	Params       []*ParamMetadata  // 参数元数据
-	Columns      []*ColumnMetadata // 列元数据
-	LastParamTypes []byte          // 最近一次 EXECUTE 的参数字节（每条 2 字节），供 new_params_bound_flag=0 复用
-	CreatedAt    time.Time         // 创建时间
-	LastUsedAt   time.Time         // 最后使用时间
-	ExecuteCount uint64            // 执行次数
+	ID             uint32            // 语句ID
+	SQL            string            // 原始SQL
+	ParamCount     uint16            // 参数数量
+	ColumnCount    uint16            // 列数量
+	Params         []*ParamMetadata  // 参数元数据
+	Columns        []*ColumnMetadata // 列元数据
+	LastParamTypes []byte            // 最近一次 EXECUTE 的参数字节（每条 2 字节），供 new_params_bound_flag=0 复用
+	LongData       map[uint16][]byte
+	CreatedAt      time.Time // 创建时间
+	LastUsedAt     time.Time // 最后使用时间
+	ExecuteCount   uint64    // 执行次数
+	CursorResult   *MessageQueryResult
+	CursorOffset   int
 }
 
 // ParamMetadata 参数元数据
@@ -72,7 +76,7 @@ func (m *PreparedStatementManager) Prepare(sql string) (*PreparedStatement, erro
 	stmtID := atomic.AddUint32(&m.nextID, 1)
 
 	// 解析SQL，提取参数
-	paramCount := uint16(strings.Count(sql, "?"))
+	paramCount := uint16(len(sqlPlaceholderPositions(sql)))
 
 	// 创建预编译语句
 	stmt := &PreparedStatement{
@@ -81,6 +85,7 @@ func (m *PreparedStatementManager) Prepare(sql string) (*PreparedStatement, erro
 		ParamCount:  paramCount,
 		ColumnCount: 0, // 需要执行后才知道列数
 		Params:      make([]*ParamMetadata, paramCount),
+		LongData:    make(map[uint16][]byte),
 		Columns:     nil, // 稍后填充
 		CreatedAt:   time.Now(),
 		LastUsedAt:  time.Now(),
@@ -102,10 +107,155 @@ func (m *PreparedStatementManager) Prepare(sql string) (*PreparedStatement, erro
 	return stmt, nil
 }
 
-// Get 获取预编译语句
-func (m *PreparedStatementManager) Get(stmtID uint32) (*PreparedStatement, error) {
+// AppendLongData appends one COM_STMT_SEND_LONG_DATA chunk to a parameter.
+func (m *PreparedStatementManager) AppendLongData(stmtID uint32, paramID uint16, data []byte) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	stmt, exists := m.statements[stmtID]
+	if !exists {
+		return fmt.Errorf("prepared statement %d not found", stmtID)
+	}
+	if paramID >= stmt.ParamCount {
+		return fmt.Errorf("parameter %d out of range for prepared statement %d", paramID, stmtID)
+	}
+	if stmt.LongData == nil {
+		stmt.LongData = make(map[uint16][]byte)
+	}
+	stmt.LongData[paramID] = append(stmt.LongData[paramID], data...)
+	return nil
+}
+
+// ConsumeLongData returns and clears all buffered long-data parameters.
+func (m *PreparedStatementManager) ConsumeLongData(stmtID uint32) (map[uint16][]byte, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	stmt, exists := m.statements[stmtID]
+	if !exists {
+		return nil, fmt.Errorf("prepared statement %d not found", stmtID)
+	}
+	data := make(map[uint16][]byte, len(stmt.LongData))
+	for paramID, value := range stmt.LongData {
+		data[paramID] = append([]byte(nil), value...)
+	}
+	stmt.LongData = make(map[uint16][]byte)
+	return data, nil
+}
+
+// Reset clears execution-bound state for a prepared statement.
+func (m *PreparedStatementManager) Reset(stmtID uint32) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	stmt, exists := m.statements[stmtID]
+	if !exists {
+		return fmt.Errorf("prepared statement %d not found", stmtID)
+	}
+	stmt.LastParamTypes = nil
+	stmt.LongData = make(map[uint16][]byte)
+	stmt.CursorResult = nil
+	stmt.CursorOffset = 0
+	return nil
+}
+
+// SetCursorResult stores the result of an execute request that used the
+// server-side cursor flag. The result is consumed incrementally by FETCH.
+func (m *PreparedStatementManager) SetCursorResult(stmtID uint32, result *MessageQueryResult) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	stmt, exists := m.statements[stmtID]
+	if !exists {
+		return fmt.Errorf("prepared statement %d not found", stmtID)
+	}
+	if stmt.CursorResult != nil {
+		return fmt.Errorf("prepared statement %d has an open cursor", stmtID)
+	}
+	stmt.CursorResult = cloneQueryResult(result)
+	stmt.CursorOffset = 0
+	return nil
+}
+
+// HasOpenCursor reports whether a server-side cursor is still associated with
+// the prepared statement. MySQL requires the caller to fetch it to exhaustion
+// or reset the statement before executing it again.
+func (m *PreparedStatementManager) HasOpenCursor(stmtID uint32) (bool, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	stmt, exists := m.statements[stmtID]
+	if !exists {
+		return false, fmt.Errorf("prepared statement %d not found", stmtID)
+	}
+	return stmt.CursorResult != nil, nil
+}
+
+// FetchCursor returns at most rowCount rows and advances the cursor.
+func (m *PreparedStatementManager) FetchCursor(stmtID uint32, rowCount uint32) (*MessageQueryResult, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	stmt, exists := m.statements[stmtID]
+	if !exists {
+		return nil, false, fmt.Errorf("prepared statement %d not found", stmtID)
+	}
+	if stmt.CursorResult == nil {
+		return nil, false, fmt.Errorf("prepared statement %d has no open cursor", stmtID)
+	}
+	columns := append([]string(nil), stmt.CursorResult.Columns...)
+	columnTypes := append([]string(nil), stmt.CursorResult.ColumnTypes...)
+	if rowCount == 0 {
+		empty := cloneQueryResult(stmt.CursorResult)
+		empty.Rows = [][]interface{}{}
+		if stmt.CursorOffset >= len(stmt.CursorResult.Rows) {
+			stmt.CursorResult = nil
+			stmt.CursorOffset = 0
+			return empty, true, nil
+		}
+		return empty, false, nil
+	}
+	start := stmt.CursorOffset
+	if start >= len(stmt.CursorResult.Rows) {
+		stmt.CursorResult = nil
+		stmt.CursorOffset = 0
+		return &MessageQueryResult{Columns: columns, ColumnTypes: columnTypes, Type: "select"}, true, nil
+	}
+	end := start + int(rowCount)
+	if end > len(stmt.CursorResult.Rows) {
+		end = len(stmt.CursorResult.Rows)
+	}
+	result := cloneQueryResult(stmt.CursorResult)
+	result.Rows = cloneRows(stmt.CursorResult.Rows[start:end])
+	stmt.CursorOffset = end
+	last := end >= len(stmt.CursorResult.Rows)
+	if last {
+		stmt.CursorResult = nil
+		stmt.CursorOffset = 0
+	}
+	return result, last, nil
+}
+
+func cloneQueryResult(result *MessageQueryResult) *MessageQueryResult {
+	if result == nil {
+		return nil
+	}
+	copyResult := *result
+	copyResult.Columns = append([]string(nil), result.Columns...)
+	copyResult.ColumnTypes = append([]string(nil), result.ColumnTypes...)
+	copyResult.Rows = cloneRows(result.Rows)
+	return &copyResult
+}
+
+func cloneRows(rows [][]interface{}) [][]interface{} {
+	copyRows := make([][]interface{}, len(rows))
+	for i, row := range rows {
+		copyRows[i] = append([]interface{}(nil), row...)
+	}
+	return copyRows
+}
+
+// Get 获取预编译语句
+func (m *PreparedStatementManager) Get(stmtID uint32) (*PreparedStatement, error) {
+	// Get updates LastUsedAt and ExecuteCount, so it must use the write lock.
+	// Returning a statement pointer remains safe for the caller because the
+	// statement itself is retained until an explicit COM_STMT_CLOSE/reset.
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	stmt, exists := m.statements[stmtID]
 	if !exists {
@@ -149,6 +299,35 @@ func (m *PreparedStatementManager) Count() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return len(m.statements)
+}
+
+// Snapshot returns a deterministic copy of all currently prepared
+// statements. Mutable cursor and long-data state is intentionally omitted;
+// those are protocol details rather than prepared-statements_instances
+// metadata.
+func (m *PreparedStatementManager) Snapshot() []compatibility.PreparedStatementSnapshot {
+	if m == nil {
+		return nil
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	snapshots := make([]compatibility.PreparedStatementSnapshot, 0, len(m.statements))
+	for _, stmt := range m.statements {
+		if stmt == nil {
+			continue
+		}
+		snapshots = append(snapshots, compatibility.PreparedStatementSnapshot{
+			ID:           stmt.ID,
+			SQL:          stmt.SQL,
+			ParamCount:   stmt.ParamCount,
+			ColumnCount:  stmt.ColumnCount,
+			CreatedAt:    stmt.CreatedAt,
+			LastUsedAt:   stmt.LastUsedAt,
+			ExecuteCount: atomic.LoadUint64(&stmt.ExecuteCount),
+		})
+	}
+	sort.Slice(snapshots, func(i, j int) bool { return snapshots[i].ID < snapshots[j].ID })
+	return snapshots
 }
 
 // EncodePrepareResponse 编码 COM_STMT_PREPARE 响应包

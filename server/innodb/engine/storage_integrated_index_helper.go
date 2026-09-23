@@ -37,7 +37,7 @@ func (dml *StorageIntegratedDMLExecutor) buildIndexKey(
 	}
 
 	columnName := index.Columns[0].Name
-	if value, exists := row.ColumnValues[columnName]; exists {
+	if value, exists := resolveExpressionRowValue(row.ColumnValues, columnName); exists {
 		return value, nil
 	}
 
@@ -61,7 +61,7 @@ func (dml *StorageIntegratedDMLExecutor) buildIndexKeyFromOldValues(
 	}
 
 	columnName := index.Columns[0].Name
-	if value, exists := oldValues[columnName]; exists {
+	if value, exists := resolveExpressionRowValue(oldValues, columnName); exists {
 		return value, nil
 	}
 
@@ -99,13 +99,13 @@ func (dml *StorageIntegratedDMLExecutor) buildIndexKeyFromUpdateExpressions(
 
 	// 首先检查是否有更新表达式更新了这一列
 	for _, expr := range updateExprs {
-		if expr.ColumnName == columnName {
+		if strings.EqualFold(strings.TrimSpace(expr.ColumnName), strings.TrimSpace(columnName)) {
 			return expr.NewValue, nil
 		}
 	}
 
 	// 如果没有更新这一列，使用旧值
-	if value, exists := oldValues[columnName]; exists {
+	if value, exists := resolveExpressionRowValue(oldValues, columnName); exists {
 		return value, nil
 	}
 
@@ -118,7 +118,7 @@ func buildCompositeIndexKey(values map[string]interface{}, index *manager.Index)
 	}
 	key := make([]interface{}, 0, len(index.Columns))
 	for _, column := range index.Columns {
-		value, exists := values[column.Name]
+		value, exists := resolveExpressionRowValue(values, column.Name)
 		if !exists {
 			return nil, fmt.Errorf("索引列 %s 在数据中不存在", column.Name)
 		}
@@ -137,7 +137,7 @@ func buildCompositeKey(row map[string]interface{}, columns []string) ([]byte, er
 
 	parts := make([][]byte, 0, len(columns))
 	for _, col := range columns {
-		val, ok := row[col]
+		val, ok := resolveExpressionRowValue(row, col)
 		if !ok {
 			return nil, fmt.Errorf("missing primary key column '%s'", col)
 		}
@@ -268,8 +268,11 @@ func (dml *StorageIntegratedDMLExecutor) indexNeedsUpdateForExpressions(
 
 	// 检查更新表达式中是否包含索引列
 	for _, expr := range updateExprs {
+		if expr == nil {
+			continue
+		}
 		for _, indexColumn := range index.Columns {
-			if expr.ColumnName == indexColumn.Name {
+			if strings.EqualFold(strings.TrimSpace(expr.ColumnName), strings.TrimSpace(indexColumn.Name)) {
 				logger.Debugf(" 索引列 %s 被更新，需要维护索引", indexColumn.Name)
 				return true
 			}
@@ -287,7 +290,7 @@ func (dml *StorageIntegratedDMLExecutor) indexAffectedByColumns(
 ) bool {
 	for _, affectedColumn := range affectedColumns {
 		for _, indexColumn := range index.Columns {
-			if affectedColumn == indexColumn.Name {
+			if strings.EqualFold(strings.TrimSpace(affectedColumn), strings.TrimSpace(indexColumn.Name)) {
 				return true
 			}
 		}
@@ -303,6 +306,9 @@ func (dml *StorageIntegratedDMLExecutor) insertIndexEntry(
 	indexKey interface{},
 	primaryKey interface{},
 ) error {
+	if dml == nil || dml.indexManager == nil {
+		return fmt.Errorf("索引管理器未初始化")
+	}
 	logger.Debugf(" 插入索引项: IndexID=%d, Key=%v, PrimaryKey=%v", indexID, indexKey, primaryKey)
 
 	// 序列化主键作为索引值
@@ -325,6 +331,9 @@ func (dml *StorageIntegratedDMLExecutor) deleteIndexEntry(
 	indexID uint64,
 	indexKey interface{},
 ) error {
+	if dml == nil || dml.indexManager == nil {
+		return fmt.Errorf("索引管理器未初始化")
+	}
 	logger.Debugf("🗑️ 删除索引项: IndexID=%d, Key=%v", indexID, indexKey)
 
 	// 调用索引管理器删除
@@ -343,12 +352,15 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexEntry(
 	newIndexKey interface{},
 	primaryKey interface{},
 ) error {
+	if dml == nil || dml.indexManager == nil {
+		return fmt.Errorf("索引管理器未初始化")
+	}
 	logger.Debugf("🔄 更新索引项: IndexID=%d, OldKey=%v, NewKey=%v", indexID, oldIndexKey, newIndexKey)
 
 	// 删除旧的索引项
 	err := dml.deleteIndexEntry(indexID, oldIndexKey)
 	if err != nil {
-		logger.Debugf("  警告: 删除旧索引项失败: %v", err)
+		return fmt.Errorf("删除旧索引项失败: %v", err)
 	}
 
 	// 插入新的索引项
@@ -374,10 +386,12 @@ func (dml *StorageIntegratedDMLExecutor) validateIndexKey(
 		return fmt.Errorf("索引 %s 没有定义列", index.Name)
 	}
 	if indexKey == nil {
-		if index.IsUnique {
-			return fmt.Errorf("唯一索引不允许NULL值")
+		if index.IsPrimary || (index.IsUnique && !index.Columns[0].Nullable) {
+			return fmt.Errorf("索引 %s 不允许NULL值", index.Name)
 		}
-		return nil // 非唯一索引允许NULL值
+		// MySQL allows multiple NULL values in a nullable UNIQUE secondary
+		// index because NULL is not equal to NULL for uniqueness purposes.
+		return nil
 	}
 
 	// 复合索引应保持列数一致
@@ -412,20 +426,73 @@ func (dml *StorageIntegratedDMLExecutor) checkIndexKeyUniqueness(
 	indexKey interface{},
 	index *manager.Index,
 ) error {
+	if dml == nil || dml.indexManager == nil {
+		return fmt.Errorf("索引管理器未初始化")
+	}
+	if index == nil {
+		return fmt.Errorf("索引对象为空")
+	}
 	if !index.IsUnique {
 		return nil // 非唯一索引无需检查
 	}
 
 	logger.Debugf(" 检查唯一索引键重复: IndexID=%d, Key=%v", indexID, indexKey)
 
-	// 在索引中查找是否已存在相同的键
-	pageNo, slot, err := dml.indexManager.SearchKey(indexID, indexKey)
-	if err == nil && pageNo > 0 {
-		return fmt.Errorf("唯一索引约束违反: 键 %v 已存在 (页面: %d, 槽位: %d)", indexKey, pageNo, slot)
+	return checkUniqueIndexKey(indexKey, index, func() (uint32, int, error) {
+		return dml.indexManager.SearchKey(indexID, indexKey)
+	})
+}
+
+// checkUniqueIndexKey applies the result contract of a unique-index lookup.
+// A successful lookup is a duplicate regardless of the physical page number;
+// page zero is a valid first leaf page. Only a missing-key result is an
+// expected negative lookup. Other errors must abort the write instead of
+// silently allowing a potentially duplicate row.
+func checkUniqueIndexKey(
+	indexKey interface{},
+	index *manager.Index,
+	lookup func() (uint32, int, error),
+) error {
+	if index == nil {
+		return fmt.Errorf("索引对象为空")
+	}
+	if !index.IsUnique {
+		return nil
+	}
+	if lookup == nil {
+		return fmt.Errorf("唯一索引查找器未初始化")
+	}
+	if indexKeyContainsNull(indexKey) && !index.IsPrimary {
+		// A UNIQUE secondary index does not conflict with another row whose
+		// key contains NULL. Validation above still rejects NULL in a
+		// non-nullable indexed column.
+		return nil
 	}
 
-	// 如果查找失败（键不存在），这是期望的结果
-	return nil
+	pageNo, slot, err := lookup()
+	if err == nil {
+		return fmt.Errorf("唯一索引约束违反: 键 %v 已存在 (页面: %d, 槽位: %d)", indexKey, pageNo, slot)
+	}
+	if errors.Is(err, basic.ErrKeyNotFound) || strings.Contains(strings.ToLower(err.Error()), "key not found") {
+		return nil
+	}
+	return fmt.Errorf("唯一索引检查失败: %w", err)
+}
+
+func indexKeyContainsNull(indexKey interface{}) bool {
+	if indexKey == nil {
+		return true
+	}
+	parts, ok := indexKey.([]interface{})
+	if !ok {
+		return false
+	}
+	for _, part := range parts {
+		if part == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // ===== 索引统计和监控方法 =====
@@ -435,8 +502,9 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexStatistics(
 	indexID uint64,
 	operationType string, // INSERT, UPDATE, DELETE
 ) {
-	// 更新全局统计
-	dml.stats.IndexUpdates++
+	// 该兼容入口没有提供底层耗时，因此只累计次数；实际 DML 同步路径会
+	// 通过 recordIndexUpdate 记录真实耗时。
+	dml.recordIndexUpdate(1, 0)
 
 	// 记录索引更新全局计数，索引级别统计后续补充
 	logger.Debugf(" 更新索引统计: IndexID=%d, 操作=%s", indexID, operationType)
@@ -444,7 +512,21 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexStatistics(
 
 // getIndexUpdateCount 获取索引更新次数
 func (dml *StorageIntegratedDMLExecutor) getIndexUpdateCount() uint64 {
+	if dml == nil || dml.stats == nil {
+		return 0
+	}
 	return dml.stats.IndexUpdates
+}
+
+// recordIndexUpdate 记录一次或一批索引同步的真实耗时。
+func (dml *StorageIntegratedDMLExecutor) recordIndexUpdate(count uint64, elapsed time.Duration) {
+	if dml == nil || dml.stats == nil {
+		return
+	}
+	dml.stats.IndexUpdates += count
+	if elapsed > 0 {
+		dml.stats.IndexUpdateTime += elapsed
+	}
 }
 
 // ===== 索引错误处理方法 =====
@@ -482,16 +564,26 @@ func (dml *StorageIntegratedDMLExecutor) batchInsertIndexEntries(
 	indexID uint64,
 	entries []IndexEntryData,
 ) error {
+	if dml == nil || dml.indexManager == nil {
+		return fmt.Errorf("索引管理器未初始化")
+	}
 	logger.Debugf(" 批量插入索引项: IndexID=%d, 数量=%d", indexID, len(entries))
 
 	successCount := 0
+	inserted := make([]IndexEntryData, 0, len(entries))
 	for _, entry := range entries {
 		err := dml.insertIndexEntry(indexID, entry.Key, entry.PrimaryKey)
 		if err != nil {
 			logger.Debugf("  批量插入失败: %v", err)
-			continue
+			for _, previous := range inserted {
+				if rollbackErr := dml.deleteIndexEntry(indexID, previous.Key); rollbackErr != nil {
+					return fmt.Errorf("批量插入失败并且回滚索引项失败: insert=%v rollback=%v", err, rollbackErr)
+				}
+			}
+			return fmt.Errorf("批量插入失败，已回滚 %d 项: %w", successCount, err)
 		}
 		successCount++
+		inserted = append(inserted, entry)
 	}
 
 	if successCount != len(entries) {
@@ -507,13 +599,20 @@ func (dml *StorageIntegratedDMLExecutor) batchDeleteIndexEntries(
 	indexID uint64,
 	keys []interface{},
 ) error {
+	if dml == nil || dml.indexManager == nil {
+		return fmt.Errorf("索引管理器未初始化")
+	}
 	logger.Debugf(" 批量删除索引项: IndexID=%d, 数量=%d", indexID, len(keys))
 
 	successCount := 0
+	var firstErr error
 	for _, key := range keys {
 		err := dml.deleteIndexEntry(indexID, key)
 		if err != nil {
 			logger.Debugf("  批量删除失败: %v", err)
+			if firstErr == nil {
+				firstErr = err
+			}
 			continue
 		}
 		successCount++
@@ -521,6 +620,7 @@ func (dml *StorageIntegratedDMLExecutor) batchDeleteIndexEntries(
 
 	if successCount != len(keys) {
 		logger.Debugf("  批量删除部分失败: 成功=%d, 总数=%d", successCount, len(keys))
+		return fmt.Errorf("批量删除部分失败: 成功=%d, 总数=%d: %w", successCount, len(keys), firstErr)
 	}
 
 	logger.Debugf(" 批量删除索引项完成: %d 项", successCount)
@@ -540,6 +640,9 @@ func (dml *StorageIntegratedDMLExecutor) rebuildIndexForTable(
 	tableID uint64,
 ) error {
 	logger.Debugf(" 重建表索引: TableID=%d", tableID)
+	if dml == nil || dml.indexManager == nil {
+		return fmt.Errorf("索引管理器未初始化")
+	}
 
 	// 获取表的所有索引
 	indexes := dml.indexManager.ListIndexes(tableID)
@@ -552,9 +655,6 @@ func (dml *StorageIntegratedDMLExecutor) rebuildIndexForTable(
 
 		logger.Debugf(" 重建索引: %s", index.Name)
 
-		if dml.indexManager == nil {
-			return fmt.Errorf("索引管理器未初始化")
-		}
 		if index == nil {
 			continue
 		}
@@ -603,6 +703,9 @@ func (dml *StorageIntegratedDMLExecutor) optimizeIndexes(
 func (dml *StorageIntegratedDMLExecutor) checkIndexConsistency(
 	tableID uint64,
 ) error {
+	if dml == nil || dml.indexManager == nil {
+		return fmt.Errorf("索引管理器未初始化")
+	}
 	logger.Debugf(" 检查索引一致性: TableID=%d", tableID)
 
 	// 获取表的所有索引
@@ -612,7 +715,11 @@ func (dml *StorageIntegratedDMLExecutor) checkIndexConsistency(
 	for _, index := range indexes {
 		err := dml.checkSingleIndexConsistency(index)
 		if err != nil {
-			return fmt.Errorf("索引 %s 一致性检查失败: %v", index.Name, err)
+			indexName := "<nil>"
+			if index != nil {
+				indexName = index.Name
+			}
+			return fmt.Errorf("索引 %s 一致性检查失败: %v", indexName, err)
 		}
 	}
 
@@ -624,7 +731,7 @@ func (dml *StorageIntegratedDMLExecutor) checkIndexConsistency(
 func (dml *StorageIntegratedDMLExecutor) checkSingleIndexConsistency(
 	index *manager.Index,
 ) error {
-	if dml.indexManager == nil {
+	if dml == nil || dml.indexManager == nil {
 		return fmt.Errorf("索引管理器未初始化")
 	}
 	if index == nil {
@@ -648,8 +755,11 @@ func (dml *StorageIntegratedDMLExecutor) checkSingleIndexConsistency(
 
 // monitorIndexPerformance 监控索引性能
 func (dml *StorageIntegratedDMLExecutor) monitorIndexPerformance() *IndexPerformanceStats {
+	if dml == nil {
+		return &IndexPerformanceStats{}
+	}
 	return &IndexPerformanceStats{
-		TotalIndexUpdates: dml.stats.IndexUpdates,
+		TotalIndexUpdates: dml.getIndexUpdateCount(),
 		AverageUpdateTime: dml.calculateAverageIndexUpdateTime(),
 		IndexCacheHitRate: dml.calculateIndexCacheHitRate(),
 		ActiveIndexCount:  dml.getActiveIndexCount(),
@@ -666,18 +776,38 @@ type IndexPerformanceStats struct {
 
 // calculateAverageIndexUpdateTime 计算平均索引更新时间
 func (dml *StorageIntegratedDMLExecutor) calculateAverageIndexUpdateTime() time.Duration {
-	// 简化实现
-	return time.Millisecond * 10
+	if dml == nil || dml.stats == nil || dml.stats.IndexUpdates == 0 || dml.stats.IndexUpdateTime <= 0 {
+		return 0
+	}
+	return dml.stats.IndexUpdateTime / time.Duration(dml.stats.IndexUpdates)
 }
 
 // calculateIndexCacheHitRate 计算索引缓存命中率
 func (dml *StorageIntegratedDMLExecutor) calculateIndexCacheHitRate() float64 {
-	// 简化实现
-	return 0.85
+	if dml == nil || dml.btreeManager == nil {
+		return 0
+	}
+	provider, ok := dml.btreeManager.(interface {
+		GetIndexCacheStats() (uint64, uint64)
+	})
+	if !ok {
+		return 0
+	}
+	hits, misses := provider.GetIndexCacheStats()
+	if hits+misses == 0 {
+		return 0
+	}
+	return float64(hits) / float64(hits+misses)
 }
 
 // getActiveIndexCount 获取活跃索引数量
 func (dml *StorageIntegratedDMLExecutor) getActiveIndexCount() uint32 {
-	// 简化实现
-	return 10
+	if dml == nil || dml.indexManager == nil {
+		return 0
+	}
+	stats := dml.indexManager.GetManagerStats()
+	if stats == nil {
+		return 0
+	}
+	return uint32(stats.ActiveIndexes)
 }

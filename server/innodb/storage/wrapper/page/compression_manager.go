@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/klauspost/compress/zstd"
 	"github.com/pierrec/lz4/v4"
 )
 
@@ -350,18 +351,35 @@ func (cm *CompressionManager) decompressLZ4(data []byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// compressZSTD ZSTD压缩（简化实现，实际应使用第三方库）
+// compressZSTD performs native Zstandard framing. The frame is intentionally
+// kept self-contained so pages can be decoded by standard ZSTD tooling.
 func (cm *CompressionManager) compressZSTD(data []byte) ([]byte, error) {
-	// 注意：这里应该使用github.com/klauspost/compress/zstd等第三方库
-	// 为了Go 1.16.2兼容性，这里提供接口占位
-	// 当前回退到ZLIB
-	return cm.compressZLIB(data)
+	level := cm.config.CompressionLevel
+	if level <= 0 {
+		level = 3
+	}
+	encoder, err := zstd.NewWriter(nil,
+		zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("zstd encoder initialization failed: %w", err)
+	}
+	defer encoder.Close()
+	return encoder.EncodeAll(data, nil), nil
 }
 
-// decompressZSTD ZSTD解压（简化实现）
+// decompressZSTD decodes a native Zstandard frame.
 func (cm *CompressionManager) decompressZSTD(data []byte) ([]byte, error) {
-	// 回退到ZLIB
-	return cm.decompressZLIB(data)
+	decoder, err := zstd.NewReader(nil)
+	if err != nil {
+		return nil, fmt.Errorf("zstd decoder initialization failed: %w", err)
+	}
+	defer decoder.Close()
+	decoded, err := decoder.DecodeAll(data, nil)
+	if err != nil {
+		return nil, fmt.Errorf("zstd decompression failed: %w", err)
+	}
+	return decoded, nil
 }
 
 // cacheCompressionResult 缓存压缩结果

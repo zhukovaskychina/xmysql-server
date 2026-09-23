@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -152,6 +153,17 @@ func (idx *EnhancedBTreeIndex) Delete(ctx context.Context, key []byte) error {
 	// 查找记录
 	record, err := idx.Search(ctx, key)
 	if err != nil {
+		// A legacy page directory or internal separator can make the indexed
+		// lookup miss a record that is still present in the linked leaf chain.
+		// DELETE must remain correct in that case, so retry by scanning the
+		// authoritative leaf records before reporting a missing key.
+		if fallbackErr := idx.deleteByLeafScan(ctx, key); fallbackErr == nil {
+			if idx.metadata.RecordCount > 0 {
+				idx.metadata.RecordCount--
+			}
+			idx.metadata.UpdateTime = time.Now()
+			return nil
+		}
 		return fmt.Errorf("record not found: %v", err)
 	}
 
@@ -174,6 +186,27 @@ func (idx *EnhancedBTreeIndex) Delete(ctx context.Context, key []byte) error {
 	idx.metadata.UpdateTime = time.Now()
 
 	return nil
+}
+
+func (idx *EnhancedBTreeIndex) deleteByLeafScan(ctx context.Context, key []byte) error {
+	pageNo, err := idx.GetFirstLeafPage(ctx)
+	if err != nil {
+		return err
+	}
+	for pageNo != 0 {
+		page, err := idx.GetPage(ctx, pageNo)
+		if err != nil {
+			return err
+		}
+		for _, record := range page.Records {
+			if record.DeleteMark || !bytes.Equal(record.Key, key) {
+				continue
+			}
+			return idx.deleteFromPage(ctx, page, key)
+		}
+		pageNo = page.NextPage
+	}
+	return fmt.Errorf("record not found in leaf chain")
 }
 
 // Search 搜索记录
@@ -448,7 +481,15 @@ func (idx *EnhancedBTreeIndex) CheckConsistency(ctx context.Context) error {
 			return err
 		}
 
-		if idx.getRecordCountFromPage(bufferPage.GetContent()) != page.RecordCount {
+		content := bufferPage.GetContent()
+		if records, parseErr := parsePersistentIndexRecords(content, pageNo); parseErr == nil {
+			// XMySQL clustered pages persist their logical index records in the
+			// extension block. Its count is authoritative for those pages; the
+			// generic InnoDB header count may belong to the physical row format.
+			if len(records) != int(page.RecordCount) {
+				return fmt.Errorf("page %d record count mismatch", pageNo)
+			}
+		} else if idx.getRecordCountFromPage(content) != page.RecordCount {
 			return fmt.Errorf("page %d record count mismatch", pageNo)
 		}
 	}
@@ -1002,7 +1043,11 @@ func (idx *EnhancedBTreeIndex) addRecordToIndexPage(indexPage basic.IIndexPage, 
 		return page.InsertRecord(recordBytes)
 	case interface{ InsertRow(basic.Row) error }:
 		// 创建一个临时的Row实现
-		row := &SimpleRow{data: recordBytes}
+		pageNo := uint32(0)
+		if numberedPage, ok := indexPage.(interface{ GetPageNo() uint32 }); ok {
+			pageNo = numberedPage.GetPageNo()
+		}
+		row := &SimpleRow{data: recordBytes, pageNo: pageNo}
 		return page.InsertRow(row)
 	case interface{ AddUserRecord([]byte) error }:
 		return page.AddUserRecord(recordBytes)
@@ -1058,25 +1103,71 @@ func (idx *EnhancedBTreeIndex) insertRecordDirectly(indexPage basic.IIndexPage, 
 
 // SimpleRow 简单的Row实现，用于接口适配
 type SimpleRow struct {
-	data []byte
+	data   []byte
+	pageNo uint32
 }
 
-func (r *SimpleRow) Less(than basic.Row) bool               { return false }
-func (r *SimpleRow) ToByte() []byte                         { return r.data }
-func (r *SimpleRow) IsInfimumRow() bool                     { return false }
-func (r *SimpleRow) IsSupremumRow() bool                    { return false }
-func (r *SimpleRow) GetPageNumber() uint32                  { return 0 }
-func (r *SimpleRow) WriteWithNull(content []byte)           {}
-func (r *SimpleRow) GetRowLength() uint16                   { return uint16(len(r.data)) }
-func (r *SimpleRow) GetHeaderLength() uint16                { return 5 } // 简化的头部长度
-func (r *SimpleRow) GetPrimaryKey() basic.Value             { return basic.NewStringValue("") }
-func (r *SimpleRow) ReadValueByIndex(index int) basic.Value { return basic.NewStringValue("") }
-func (r *SimpleRow) GetFieldLength() int                    { return 1 } // 简化实现
-func (r *SimpleRow) GetHeapNo() uint16                      { return 0 } // 简化实现
-func (r *SimpleRow) GetNOwned() byte                        { return 0 } // 简化实现
-func (r *SimpleRow) GetNextRowOffset() uint16               { return 0 } // 简化实现
-func (r *SimpleRow) SetNextRowOffset(offset uint16)         {}           // 简化实现
-func (r *SimpleRow) SetHeapNo(heapNo uint16)                {}           // 简化实现
+func (r *SimpleRow) Less(than basic.Row) bool {
+	if r == nil || than == nil {
+		return false
+	}
+	return bytes.Compare(r.data, than.ToByte()) < 0
+}
+
+func (r *SimpleRow) ToByte() []byte      { return r.data }
+func (r *SimpleRow) IsInfimumRow() bool  { return false }
+func (r *SimpleRow) IsSupremumRow() bool { return false }
+func (r *SimpleRow) GetPageNumber() uint32 {
+	if r == nil {
+		return 0
+	}
+	return r.pageNo
+}
+func (r *SimpleRow) WriteWithNull(content []byte) {
+	r.data = append(r.data, content...)
+	r.data = append(r.data, 0)
+}
+func (r *SimpleRow) GetRowLength() uint16    { return uint16(len(r.data)) }
+func (r *SimpleRow) GetHeaderLength() uint16 { return 5 }
+func (r *SimpleRow) GetPrimaryKey() basic.Value {
+	if r == nil {
+		return basic.NewNull()
+	}
+	return basic.NewBytes(r.data)
+}
+func (r *SimpleRow) ReadValueByIndex(index int) basic.Value {
+	if r == nil || index != 0 {
+		return basic.NewNull()
+	}
+	return basic.NewBytes(r.data)
+}
+func (r *SimpleRow) GetFieldLength() int { return 1 }
+func (r *SimpleRow) GetHeapNo() uint16 {
+	if r == nil || len(r.data) < 5 {
+		return 0
+	}
+	return binary.LittleEndian.Uint16(r.data[3:5])
+}
+func (r *SimpleRow) GetNOwned() byte {
+	if r == nil || len(r.data) == 0 {
+		return 0
+	}
+	return r.data[0]
+}
+func (r *SimpleRow) GetNextRowOffset() uint16 {
+	if r == nil || len(r.data) < 3 {
+		return 0
+	}
+	return binary.LittleEndian.Uint16(r.data[1:3])
+}
+func (r *SimpleRow) SetNextRowOffset(offset uint16) {
+	r.ensureHeader()
+	binary.LittleEndian.PutUint16(r.data[1:3], offset)
+}
+func (r *SimpleRow) SetHeapNo(heapNo uint16) {
+	r.ensureHeader()
+	binary.LittleEndian.PutUint16(r.data[3:5], heapNo)
+}
 func (r *SimpleRow) SetTransactionId(trxId uint64) {
 	if len(r.data) < 13 {
 		next := make([]byte, 13)
@@ -1085,10 +1176,46 @@ func (r *SimpleRow) SetTransactionId(trxId uint64) {
 	}
 	binary.LittleEndian.PutUint64(r.data[5:13], trxId)
 }
-func (r *SimpleRow) GetValueByColName(colName string) basic.Value          { return basic.NewStringValue("") } // 简化实现
-func (r *SimpleRow) WriteBytesWithNullWithsPos(content []byte, index byte) {}                                  // 简化实现
-func (r *SimpleRow) SetNOwned(cnt byte)                                    {}                                  // 简化实现
-func (r *SimpleRow) ToString() string                                      { return "SimpleRow{}" }            // 简化实现
+func (r *SimpleRow) GetValueByColName(colName string) basic.Value {
+	if r == nil {
+		return basic.NewNull()
+	}
+	switch strings.ToLower(colName) {
+	case "data", "value", "key":
+		return basic.NewBytes(r.data)
+	default:
+		return basic.NewNull()
+	}
+}
+func (r *SimpleRow) WriteBytesWithNullWithsPos(content []byte, index byte) {
+	if r == nil {
+		return
+	}
+	end := len(r.data)
+	if int(index)+1 < end {
+		end = int(index) + 1
+	}
+	r.data = append(append(append([]byte(nil), r.data[:end]...), content...), 0)
+}
+func (r *SimpleRow) SetNOwned(cnt byte) {
+	r.ensureHeader()
+	r.data[0] = cnt
+}
+func (r *SimpleRow) ToString() string {
+	if r == nil {
+		return ""
+	}
+	return string(r.data)
+}
+
+func (r *SimpleRow) ensureHeader() {
+	if len(r.data) >= 5 {
+		return
+	}
+	next := make([]byte, 5)
+	copy(next, r.data)
+	r.data = next
+}
 
 // deleteFromPage 从页面删除记录
 func (idx *EnhancedBTreeIndex) deleteFromPage(ctx context.Context, page *BTreePage, key []byte) error {
@@ -1556,12 +1683,14 @@ func (idx *EnhancedBTreeIndex) compareKeys(a, b []byte) int {
 
 // getFirstChildPageNo 获取第一个子页面号
 func (idx *EnhancedBTreeIndex) getFirstChildPageNo(page *BTreePage) uint32 {
-	// 简化实现：返回固定值
-	// 实际应该从页面内容中解析
-	if len(page.Records) > 0 {
-		return page.PageNo + 1 // 简化逻辑
+	if page == nil || len(page.Records) == 0 {
+		return 0
 	}
-	return 0
+	firstChild := page.Records[0].Value
+	if len(firstChild) < 4 {
+		return 0
+	}
+	return binary.LittleEndian.Uint32(firstChild[:4])
 }
 
 // countNonZeroBytes 统计非零字节数量

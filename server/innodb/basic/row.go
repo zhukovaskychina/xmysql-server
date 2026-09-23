@@ -2,7 +2,7 @@ package basic
 
 type Row interface {
 	//根据Row的主键值，或者是比较值做排序
-	//TODO 查询下多列组成的key 如何排序，string 如何排序
+	//复合主键由具体行实现按主键列顺序比较；无元数据时回退到编码后的主键值。
 	Less(than Row) bool
 
 	//持久化成byte数组

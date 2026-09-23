@@ -2,6 +2,8 @@ package manager
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -25,9 +27,6 @@ type OptimizedBufferPoolManager struct {
 	config   *BufferPoolConfig              // 配置信息
 	storage  basic.StorageProvider          // 存储提供者
 
-	// 页面缓存池
-	pagePool sync.Pool // 对象池，减少内存分配
-
 	// 统计信息（使用原子操作）
 	stats struct {
 		hits          uint64 // 缓存命中次数
@@ -47,6 +46,10 @@ type OptimizedBufferPoolManager struct {
 	stopChan    chan struct{}
 	flushTicker *time.Ticker
 	wg          sync.WaitGroup
+	closeOnce   sync.Once
+	closeErr    error
+	closed      atomic.Bool
+	lifecycleMu sync.RWMutex
 
 	// 脏页管理
 	dirtyPageList map[uint64]*buffer_pool.BufferPage // 脏页列表
@@ -121,11 +124,6 @@ func NewOptimizedBufferPoolManager(config *BufferPoolConfig) (*OptimizedBufferPo
 		atomic.AddUint64(&bpm.stats.evictions, 1)
 	})
 
-	// 初始化对象池
-	bpm.pagePool.New = func() interface{} {
-		return &buffer_pool.BufferPage{}
-	}
-
 	// 启动后台线程
 	bpm.startBackgroundThreads()
 
@@ -137,12 +135,9 @@ func (bpm *OptimizedBufferPoolManager) GetPage(spaceID, pageNo uint32) (*buffer_
 	// 首先尝试从缓存获取
 	if block, err := bpm.lruCache.Get(spaceID, pageNo); err == nil {
 		atomic.AddUint64(&bpm.stats.hits, 1)
-
-		// 包装为BufferPage
-		page := bpm.pagePool.Get().(*buffer_pool.BufferPage)
-		page.Init(spaceID, pageNo, block.GetContent())
-
-		return page, nil
+		// Return the cache-owned page so dirty state and content mutations are
+		// shared with FlushPage and the dirty-page registry.
+		return block.BufferPage, nil
 	}
 
 	// 缓存未命中，从存储读取
@@ -169,14 +164,10 @@ func (bpm *OptimizedBufferPoolManager) loadPageFromStorage(spaceID, pageNo uint3
 		return nil, fmt.Errorf("failed to add page to cache: %v", err)
 	}
 
-	// 创建BufferPage
-	page := bpm.pagePool.Get().(*buffer_pool.BufferPage)
-	page.Init(spaceID, pageNo, data)
-
 	atomic.AddUint64(&bpm.stats.pageReads, 1)
 	atomic.AddUint64(&bpm.stats.totalPages, 1)
 
-	return page, nil
+	return bufferPage, nil
 }
 
 // AllocatePage 从存储分配新页面并放入缓冲池
@@ -202,9 +193,32 @@ func (bpm *OptimizedBufferPoolManager) FreePage(spaceID, pageNo uint32) error {
 		return err
 	}
 
+	_, cachedErr := bpm.lruCache.Get(spaceID, pageNo)
 	bpm.lruCache.Remove(spaceID, pageNo)
-	atomic.AddUint64(&bpm.stats.totalPages, ^uint64(0))
+	if cachedErr == nil {
+		decrementAtomicIfPositive(&bpm.stats.totalPages)
+	}
+	pageID := makePageID(spaceID, pageNo)
+	bpm.dirtyMutex.Lock()
+	if page, exists := bpm.dirtyPageList[pageID]; exists {
+		page.SetDirty(false)
+		delete(bpm.dirtyPageList, pageID)
+		decrementAtomicIfPositive(&bpm.stats.dirtyPages)
+	}
+	bpm.dirtyMutex.Unlock()
 	return nil
+}
+
+func decrementAtomicIfPositive(value *uint64) {
+	for {
+		current := atomic.LoadUint64(value)
+		if current == 0 {
+			return
+		}
+		if atomic.CompareAndSwapUint64(value, current, current-1) {
+			return
+		}
+	}
 }
 
 // ClearCache drops all cached pages without flushing them.
@@ -228,16 +242,7 @@ func (bpm *OptimizedBufferPoolManager) GetDirtyPage(spaceID, pageNo uint32) (*bu
 		return nil, err
 	}
 
-	// 标记为脏页
-	page.SetDirty(true)
-
-	// 添加到脏页列表
-	pageID := makePageID(spaceID, pageNo)
-	bpm.dirtyMutex.Lock()
-	bpm.dirtyPageList[pageID] = page
-	bpm.dirtyMutex.Unlock()
-
-	atomic.AddUint64(&bpm.stats.dirtyPages, 1)
+	bpm.registerDirtyPage(page)
 
 	return page, nil
 }
@@ -270,10 +275,7 @@ func (bpm *OptimizedBufferPoolManager) FlushPage(spaceID, pageNo uint32) error {
 
 	atomic.AddUint64(&bpm.stats.flushes, 1)
 	atomic.AddUint64(&bpm.stats.pageWrites, 1)
-	atomic.AddUint64(&bpm.stats.dirtyPages, ^uint64(0)) // 原子减1
-
-	// 返回页面到对象池
-	bpm.pagePool.Put(page)
+	decrementAtomicIfPositive(&bpm.stats.dirtyPages)
 
 	return nil
 }
@@ -298,19 +300,23 @@ func (bpm *OptimizedBufferPoolManager) MarkDirty(spaceID, pageNo uint32) error {
 		return err
 	}
 
-	if !page.IsDirty() {
-		page.SetDirty(true)
-
-		// 添加到脏页列表
-		pageID := makePageID(spaceID, pageNo)
-		bpm.dirtyMutex.Lock()
-		bpm.dirtyPageList[pageID] = page
-		bpm.dirtyMutex.Unlock()
-
-		atomic.AddUint64(&bpm.stats.dirtyPages, 1)
-	}
+	bpm.registerDirtyPage(page)
 
 	return nil
+}
+
+// registerDirtyPage marks a page dirty and adds it to the registry exactly once.
+// Keeping the membership check under dirtyMutex prevents concurrent callers from
+// inflating the dirty-page statistic for the same page.
+func (bpm *OptimizedBufferPoolManager) registerDirtyPage(page *buffer_pool.BufferPage) {
+	pageID := makePageID(page.GetSpaceID(), page.GetPageNo())
+	bpm.dirtyMutex.Lock()
+	page.SetDirty(true)
+	if _, exists := bpm.dirtyPageList[pageID]; !exists {
+		bpm.dirtyPageList[pageID] = page
+		atomic.AddUint64(&bpm.stats.dirtyPages, 1)
+	}
+	bpm.dirtyMutex.Unlock()
 }
 
 // GetDirtyPages 获取所有脏页
@@ -366,11 +372,24 @@ func (bpm *OptimizedBufferPoolManager) FlushAllPages() error {
 
 // PrefetchPage 预读页面
 func (bpm *OptimizedBufferPoolManager) PrefetchPage(spaceID, pageNo uint32) {
-	select {
-	case bpm.prefetchQueue <- PrefetchRequest{SpaceID: spaceID, PageNo: pageNo}:
-		// 成功添加到预读队列
-	default:
-		// 队列满了，忽略这次预读请求
+	bpm.lifecycleMu.RLock()
+	defer bpm.lifecycleMu.RUnlock()
+	if bpm.closed.Load() {
+		return
+	}
+	readAhead := bpm.config.ReadAheadPages
+	if readAhead == 0 {
+		readAhead = 1
+	}
+	for offset := uint32(0); offset < readAhead; offset++ {
+		if pageNo > ^uint32(0)-offset {
+			break
+		}
+		select {
+		case bpm.prefetchQueue <- PrefetchRequest{SpaceID: spaceID, PageNo: pageNo + offset}:
+		default:
+			return
+		}
 	}
 }
 
@@ -393,6 +412,16 @@ func (bpm *OptimizedBufferPoolManager) GetStats() map[string]interface{} {
 	}
 }
 
+// SnapshotPages returns a point-in-time diagnostic view of pages resident in
+// the optimized buffer pool.  It is intentionally read-only and is used by
+// INFORMATION_SCHEMA buffer-page views.
+func (bpm *OptimizedBufferPoolManager) SnapshotPages() []buffer_pool.PageSnapshot {
+	if bpm == nil || bpm.lruCache == nil {
+		return nil
+	}
+	return bpm.lruCache.Snapshot()
+}
+
 // GetStatistics returns BufferPoolStatistics in a structured form.
 func (bpm *OptimizedBufferPoolManager) GetStatistics() *BufferPoolStatistics {
 	return &BufferPoolStatistics{
@@ -412,22 +441,47 @@ func (bpm *OptimizedBufferPoolManager) GetStatistics() *BufferPoolStatistics {
 	}
 }
 
-// ApplyHint applies a buffer pool tuning hint. The current implementation is a
-// no-op used to satisfy integration code expectations.
+// ApplyHint applies a buffer pool tuning hint to the live read-ahead policy.
 func (bpm *OptimizedBufferPoolManager) ApplyHint(hint string) error {
-	// Real implementations would adjust buffer pool behavior based on the
-	// provided hint. We simply ignore the hint for now.
-	return nil
+	normalized := strings.ToUpper(strings.TrimSpace(hint))
+	if normalized == "" {
+		return fmt.Errorf("buffer pool hint cannot be empty")
+	}
+	switch normalized {
+	case "OFF", "NONE", "DISABLED":
+		return bpm.SetReadAheadPages(0)
+	case "CONSERVATIVE":
+		return bpm.SetReadAheadPages(1)
+	case "NORMAL":
+		return bpm.SetReadAheadPages(4)
+	case "AGGRESSIVE":
+		return bpm.SetReadAheadPages(16)
+	}
+	if strings.HasPrefix(normalized, "READ_AHEAD=") {
+		pages, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(normalized, "READ_AHEAD=")))
+		if err != nil {
+			return fmt.Errorf("invalid buffer pool read-ahead hint %q", hint)
+		}
+		return bpm.SetReadAheadPages(pages)
+	}
+	return fmt.Errorf("unsupported buffer pool hint %q", hint)
 }
 
 // SetReadAheadPages sets the number of pages to prefetch when read ahead is
-// enabled. It is implemented as a stub so the integrator can compile.
+// enabled. A value of zero disables the extra read-ahead pages.
 func (bpm *OptimizedBufferPoolManager) SetReadAheadPages(pages int) error {
-	// Future implementations might tune internal prefetching behaviour.
-	// We store the value in the config if available.
-	if bpm.config != nil {
-		bpm.config.ReadAheadPages = uint32(pages)
+	if pages < 0 {
+		return fmt.Errorf("read-ahead pages cannot be negative")
 	}
+	if uint64(pages) > uint64(^uint32(0)) {
+		return fmt.Errorf("read-ahead pages exceed uint32 range")
+	}
+	bpm.lifecycleMu.Lock()
+	defer bpm.lifecycleMu.Unlock()
+	if bpm.closed.Load() {
+		return fmt.Errorf("buffer pool manager is closed")
+	}
+	bpm.config.ReadAheadPages = uint32(pages)
 	return nil
 }
 
@@ -446,30 +500,35 @@ func (bpm *OptimizedBufferPoolManager) calculateHitRate() float64 {
 
 // Close 关闭缓冲池管理器
 func (bpm *OptimizedBufferPoolManager) Close() error {
-	// 停止后台线程
-	close(bpm.stopChan)
+	bpm.closeOnce.Do(func() {
+		bpm.lifecycleMu.Lock()
+		bpm.closed.Store(true)
+		// 停止后台线程。
+		close(bpm.stopChan)
 
-	// 等待所有后台线程结束
-	bpm.wg.Wait()
-	bpm.prefetchWg.Wait()
+		// 等待所有后台线程结束，确保它们不再访问缓存或预读队列。
+		bpm.wg.Wait()
+		bpm.prefetchWg.Wait()
 
-	// 刷新所有脏页
-	if err := bpm.FlushAllPages(); err != nil {
-		return fmt.Errorf("failed to flush pages during close: %v", err)
-	}
+		// 即使刷新失败，也继续释放内存和后台资源；调用方仍能收到刷新错误。
+		if err := bpm.FlushAllPages(); err != nil {
+			bpm.closeErr = fmt.Errorf("failed to flush pages during close: %v", err)
+		}
 
-	// 清空缓存
-	bpm.lruCache.Purge()
+		// 清空缓存。
+		bpm.lruCache.Purge()
 
-	// 停止定时器
-	if bpm.flushTicker != nil {
-		bpm.flushTicker.Stop()
-	}
+		// 停止定时器。
+		if bpm.flushTicker != nil {
+			bpm.flushTicker.Stop()
+		}
 
-	// 关闭预读队列
-	close(bpm.prefetchQueue)
+		// 关闭预读队列；worker 已经在上面的 Wait 中退出。
+		close(bpm.prefetchQueue)
+		bpm.lifecycleMu.Unlock()
+	})
 
-	return nil
+	return bpm.closeErr
 }
 
 // startBackgroundThreads 启动后台线程
@@ -561,12 +620,9 @@ func (bpm *OptimizedBufferPoolManager) prefetchWorker() {
 				continue
 			}
 
-			// 预读页面（异步）
-			go func(spaceID, pageNo uint32) {
-				if _, err := bpm.loadPageFromStorage(spaceID, pageNo); err != nil {
-					// 预读失败，记录但不处理
-				}
-			}(req.SpaceID, req.PageNo)
+			// Keep storage reads bounded by PrefetchWorkers. The cache owns the
+			// returned page; no caller handle is retained for this request.
+			_, _ = bpm.loadPageFromStorage(req.SpaceID, req.PageNo)
 		}
 	}
 }

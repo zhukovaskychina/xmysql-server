@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
 	"io"
@@ -58,6 +59,14 @@ func NewEncryptedPageWrapper(id, spaceID, pageNo uint32, bp *buffer_pool.BufferP
 	}
 }
 
+// NewEncryptedPageWrapperWithStorage creates an encrypted page wrapper
+// backed by a storage provider when no buffer pool is available.
+func NewEncryptedPageWrapperWithStorage(id, spaceID, pageNo uint32, bp *buffer_pool.BufferPool, storage basic.StorageProvider) *EncryptedPageWrapper {
+	page := NewEncryptedPageWrapper(id, spaceID, pageNo, bp)
+	page.storage = storage
+	return page
+}
+
 // 实现IPageWrapper接口
 
 // ParseFromBytes 从字节数据解析加密页面
@@ -65,7 +74,7 @@ func (epw *EncryptedPageWrapper) ParseFromBytes(data []byte) error {
 	epw.Lock()
 	defer epw.Unlock()
 
-	if err := epw.BasePageWrapper.ParseFromBytes(data); err != nil {
+	if err := epw.BasePageWrapper.parseFromBytesLocked(data); err != nil {
 		return err
 	}
 
@@ -271,6 +280,16 @@ func (ew *EncryptedPageWrapper) Write() error {
 
 // 内部方法：从磁盘读取
 func (ew *EncryptedPageWrapper) readFromDisk() ([]byte, error) {
+	if ew.storage != nil {
+		content, err := ew.storage.ReadPage(ew.GetSpaceID(), ew.GetPageID())
+		if err != nil {
+			return nil, err
+		}
+		if len(content) < common.PageSize {
+			return nil, ErrInvalidPageSize
+		}
+		return append([]byte(nil), content[:common.PageSize]...), nil
+	}
 	if ew.bufferPool == nil {
 		return nil, errors.New("buffer pool not configured for encrypted page")
 	}
@@ -295,8 +314,14 @@ func (ew *EncryptedPageWrapper) readFromDisk() ([]byte, error) {
 
 // 内部方法：写入磁盘
 func (ew *EncryptedPageWrapper) writeToDisk(content []byte) error {
+	if ew.storage != nil {
+		if len(content) < common.PageSize {
+			return ErrInvalidPageSize
+		}
+		return ew.storage.WritePage(ew.GetSpaceID(), ew.GetPageID(), content[:common.PageSize])
+	}
 	if ew.bufferPool == nil {
-		return nil
+		return ErrPageStorageUnavailable
 	}
 
 	pageContent := make([]byte, common.PageSize)

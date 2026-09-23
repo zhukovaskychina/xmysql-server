@@ -1,7 +1,11 @@
 package manager
 
 import (
+	"bytes"
 	"fmt"
+	"math"
+	"math/big"
+	"reflect"
 	"time"
 )
 
@@ -186,6 +190,39 @@ func (lm *LockManager) ReleaseAllGapLocks(txID uint64) {
 func (lm *LockManager) AcquireNextKeyLock(txID uint64, recordKey interface{}, gapRange *GapRange, lockType LockType) error {
 	lm.mu.Lock()
 	defer lm.mu.Unlock()
+	return lm.acquireNextKeyLockLocked(txID, recordKey, gapRange, lockType, "")
+}
+
+// AcquireNextKeyLockOnRecord acquires a Next-Key lock while also associating
+// its record component with the physical record resource used by AcquireLock.
+// The legacy AcquireNextKeyLock API remains logical-key-only for compatibility.
+func (lm *LockManager) AcquireNextKeyLockOnRecord(
+	txID uint64,
+	tableID, indexID, pageID uint32,
+	rowID uint64,
+	recordKey interface{},
+	gapRange *GapRange,
+	lockType LockType,
+) error {
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
+
+	if gapRange == nil {
+		return fmt.Errorf("gap range cannot be nil")
+	}
+	if gapRange.TableID != tableID || gapRange.IndexID != indexID {
+		return fmt.Errorf("record and gap lock identifiers do not match")
+	}
+	return lm.acquireNextKeyLockLocked(txID, recordKey, gapRange, lockType, makeResourceID(tableID, pageID, rowID))
+}
+
+func (lm *LockManager) acquireNextKeyLockLocked(
+	txID uint64,
+	recordKey interface{},
+	gapRange *GapRange,
+	lockType LockType,
+	recordResourceID string,
+) error {
 
 	if gapRange == nil {
 		return fmt.Errorf("gap range cannot be nil")
@@ -202,32 +239,60 @@ func (lm *LockManager) AcquireNextKeyLock(txID uint64, recordKey interface{}, ga
 				}
 			}
 		}
+		requested := &NextKeyLockInfo{
+			TxID:             txID,
+			LockType:         lockType,
+			RecordKey:        recordKey,
+			RecordResourceID: recordResourceID,
+		}
+		for _, lock := range locks {
+			if lock.Granted && lock.TxID != txID && !isNextKeyLockCompatible(lock, requested) {
+				return ErrLockConflict
+			}
+		}
 	}
 
 	// 检查与其他锁的冲突
 	var holdingTxIDs []uint64
+	recordLockConflict := false
 
 	// 1. 检查与Record Lock的冲突
-	// TODO: 这里应该调用现有的Record Lock检查逻辑
+	if recordResourceID != "" {
+		if info := lm.lockTable[recordResourceID]; info != nil {
+			for _, request := range info.Requests {
+				if request.Granted && request.TxID != txID && !isLockCompatible(request.LockType, lockType) {
+					holdingTxIDs = appendUniqueTxID(holdingTxIDs, request.TxID)
+					recordLockConflict = true
+				}
+			}
+		}
+	}
+	if recordLockConflict {
+		// AcquireLock reports record-resource conflicts immediately. Keep the
+		// explicit physical-record API consistent and let the caller retry or
+		// apply its transaction wait policy.
+		return ErrLockConflict
+	}
 
 	// 2. 检查与插入意向锁的冲突
 	if insertLocks, exists := lm.insertIntLocks[key]; exists {
 		for _, ilock := range insertLocks {
 			if ilock.Granted && gapRangeContains(gapRange, ilock.InsertKey) {
-				holdingTxIDs = append(holdingTxIDs, ilock.TxID)
+				holdingTxIDs = appendUniqueTxID(holdingTxIDs, ilock.TxID)
 			}
 		}
 	}
 
 	// 创建Next-Key锁请求
 	newLock := &NextKeyLockInfo{
-		TxID:       txID,
-		LockType:   lockType,
-		RecordKey:  recordKey,
-		GapRange:   gapRange,
-		Granted:    len(holdingTxIDs) == 0,
-		WaitChan:   make(chan bool, 1),
-		CreateTime: time.Now(),
+		TxID:             txID,
+		LockType:         lockType,
+		RecordKey:        recordKey,
+		GapRange:         gapRange,
+		RecordResourceID: recordResourceID,
+		Granted:          len(holdingTxIDs) == 0,
+		WaitChan:         make(chan bool, 1),
+		CreateTime:       time.Now(),
 	}
 
 	// 添加到Next-Key锁表
@@ -537,7 +602,11 @@ func (lm *LockManager) grantWaitingNextKeyLocks(key string) {
 // isNextKeyLockCompatible 检查Next-Key锁兼容性
 func isNextKeyLockCompatible(lock1, lock2 *NextKeyLockInfo) bool {
 	// 如果锁定不同的记录，则兼容
-	if compareKeys(lock1.RecordKey, lock2.RecordKey) != 0 {
+	sameRecord := compareKeys(lock1.RecordKey, lock2.RecordKey) == 0
+	if lock1.RecordResourceID != "" && lock2.RecordResourceID != "" {
+		sameRecord = lock1.RecordResourceID == lock2.RecordResourceID
+	}
+	if !sameRecord {
 		return true
 	}
 
@@ -559,6 +628,15 @@ func gapRangesEqual(r1, r2 *GapRange) bool {
 		r1.IndexID == r2.IndexID &&
 		compareKeys(r1.LowerBound, r2.LowerBound) == 0 &&
 		compareKeys(r1.UpperBound, r2.UpperBound) == 0
+}
+
+func appendUniqueTxID(txIDs []uint64, txID uint64) []uint64 {
+	for _, existing := range txIDs {
+		if existing == txID {
+			return txIDs
+		}
+	}
+	return append(txIDs, txID)
 }
 
 // gapRangeContains 检查Gap范围是否包含指定键值
@@ -592,34 +670,87 @@ func compareKeys(k1, k2 interface{}) int {
 		return 1
 	}
 
-	// 简单实现：支持常见类型
-	switch v1 := k1.(type) {
-	case int:
-		v2 := k2.(int)
-		if v1 < v2 {
-			return -1
-		} else if v1 > v2 {
-			return 1
+	if left, right, ok := keyBytes(k1, k2); ok {
+		return bytes.Compare(left, right)
+	}
+
+	if left, leftOK := comparableNumericKey(k1); leftOK {
+		if right, rightOK := comparableNumericKey(k2); rightOK {
+			return left.Cmp(right)
 		}
-		return 0
-	case int64:
-		v2 := k2.(int64)
-		if v1 < v2 {
-			return -1
-		} else if v1 > v2 {
-			return 1
-		}
-		return 0
-	case string:
-		v2 := k2.(string)
-		if v1 < v2 {
-			return -1
-		} else if v1 > v2 {
-			return 1
-		}
-		return 0
-	default:
-		// 默认认为相等
+	}
+
+	// Preserve equality for values that are deeply equal, while still giving
+	// unsupported but distinct key types a deterministic ordering instead of
+	// silently treating every pair as equal.
+	if reflect.DeepEqual(k1, k2) {
 		return 0
 	}
+	left := fmt.Sprintf("%T:%v", k1, k1)
+	right := fmt.Sprintf("%T:%v", k2, k2)
+	if left < right {
+		return -1
+	}
+	if left > right {
+		return 1
+	}
+	return 0
+}
+
+func keyBytes(k1, k2 interface{}) ([]byte, []byte, bool) {
+	toBytes := func(value interface{}) ([]byte, bool) {
+		switch typed := value.(type) {
+		case string:
+			return []byte(typed), true
+		case []byte:
+			return typed, true
+		default:
+			return nil, false
+		}
+	}
+	left, leftOK := toBytes(k1)
+	right, rightOK := toBytes(k2)
+	if !leftOK || !rightOK {
+		return nil, nil, false
+	}
+	return left, right, true
+}
+
+func comparableNumericKey(value interface{}) (*big.Rat, bool) {
+	switch typed := value.(type) {
+	case int:
+		return new(big.Rat).SetInt64(int64(typed)), true
+	case int8:
+		return new(big.Rat).SetInt64(int64(typed)), true
+	case int16:
+		return new(big.Rat).SetInt64(int64(typed)), true
+	case int32:
+		return new(big.Rat).SetInt64(int64(typed)), true
+	case int64:
+		return new(big.Rat).SetInt64(typed), true
+	case uint:
+		return new(big.Rat).SetUint64(uint64(typed)), true
+	case uint8:
+		return new(big.Rat).SetUint64(uint64(typed)), true
+	case uint16:
+		return new(big.Rat).SetUint64(uint64(typed)), true
+	case uint32:
+		return new(big.Rat).SetUint64(uint64(typed)), true
+	case uint64:
+		return new(big.Rat).SetUint64(typed), true
+	case float32:
+		return floatRat(float64(typed))
+	case float64:
+		return floatRat(typed)
+	default:
+		return nil, false
+	}
+}
+
+func floatRat(value float64) (*big.Rat, bool) {
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return nil, false
+	}
+	rational, ok := new(big.Rat).SetFloat64(value), true
+	return rational, ok
 }

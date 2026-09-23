@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -246,7 +247,9 @@ func (d *SimpleDatabase) loadTableFromFilesystem(tableName string) (*metadata.Ta
 		col := &metadata.Column{
 			Name:            colMeta.Name,
 			DataType:        colMeta.Type,
+			EnumValues:      normalizeEnumValues(colMeta.EnumValues),
 			CharMaxLength:   colMeta.Length,
+			IsUnsigned:      colMeta.IsUnsigned,
 			IsNullable:      colMeta.IsNullable,
 			IsAutoIncrement: colMeta.IsAutoIncrement,
 			DefaultValue:    colMeta.DefaultValue,
@@ -342,6 +345,7 @@ func (d *SimpleDatabase) buildTableFromDDL(stmt *sqlparser.DDL) (*metadata.Table
 			col := &metadata.Column{
 				Name:       colDef.Name.String(),
 				IsNullable: true, // 默认可空
+				EnumValues: normalizeEnumValues(colDef.Type.EnumValues),
 			}
 
 			// 解析列类型
@@ -350,6 +354,11 @@ func (d *SimpleDatabase) buildTableFromDDL(stmt *sqlparser.DDL) (*metadata.Table
 				if colDef.Type.Length != nil {
 					// 简化处理，实际需要解析sqlparser.SQLVal
 					col.CharMaxLength = 255
+				}
+				if colDef.Type.Scale != nil {
+					if parsed, err := strconv.Atoi(strings.TrimSpace(sqlparser.String(colDef.Type.Scale))); err == nil {
+						col.Scale = parsed
+					}
 				}
 			}
 
@@ -417,14 +426,17 @@ func (d *SimpleDatabase) createTableFile(tableName string, table *metadata.Table
 			Name:            col.Name,
 			Type:            col.DataType,
 			Length:          col.CharMaxLength,
+			Scale:           col.Scale,
 			IsNullable:      col.IsNullable,
 			IsPrimary:       isPrimary,
 			IsUnique:        isUnique,
 			IsAutoIncrement: col.IsAutoIncrement,
+			IsUnsigned:      col.IsUnsigned,
 			DefaultValue:    col.DefaultValue,
 			Charset:         col.Charset,
 			Collation:       col.Collation,
 			Comment:         col.Comment,
+			EnumValues:      normalizeEnumValues(col.EnumValues),
 		}
 		tableMeta.Columns = append(tableMeta.Columns, colMeta)
 	}
@@ -442,6 +454,17 @@ func (d *SimpleDatabase) createTableFile(tableName string, table *metadata.Table
 	}
 
 	return nil
+}
+
+func normalizeEnumValues(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		result = append(result, strings.Trim(strings.TrimSpace(value), "'\""))
+	}
+	return result
 }
 
 // deleteTableFile 删除表定义文件

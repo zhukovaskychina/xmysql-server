@@ -84,6 +84,25 @@ func TestNegateOperator(t *testing.T) {
 	}
 }
 
+func TestCNFConverterSupportsRegexpPredicates(t *testing.T) {
+	converter := NewCNFConverter()
+	expr := &BinaryOperation{
+		Op:    OpRegexp,
+		Left:  &Column{Name: "name"},
+		Right: &Constant{Value: "^a"},
+	}
+
+	if !converter.isCNF(expr) {
+		t.Fatal("REGEXP should be treated as an atomic CNF predicate")
+	}
+
+	result := converter.ConvertToCNF(&NotExpression{Operand: expr})
+	negated, ok := result.(*BinaryOperation)
+	if !ok || negated.Op != OpNotRegexp {
+		t.Fatalf("NOT(REGEXP) = %#v, want BinaryOperation(OpNotRegexp)", result)
+	}
+}
+
 // TestDistributiveRightAnd 测试简单分配律: A OR (B AND C)
 func TestDistributiveRightAnd(t *testing.T) {
 	converter := NewCNFConverter()

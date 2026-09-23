@@ -3,6 +3,8 @@ package manager
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -14,6 +16,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/extent"
 )
 
 /***
@@ -116,6 +119,9 @@ type TablespaceHandle struct {
 type StorageManager struct {
 	mu sync.RWMutex
 
+	closeOnce sync.Once
+	closeErr  error
+
 	// 配置信息
 	config *conf.Cfg
 
@@ -125,6 +131,18 @@ type StorageManager struct {
 	bufferPool    *buffer_pool.BufferPool
 	bufferPoolMgr *OptimizedBufferPoolManager
 	pageMgr       *DefaultPageManager
+
+	// Optional transparent page encryption. It is enabled only when a master
+	// key is configured; the default empty-master-key path is unchanged.
+	encryptionManager *EncryptionManager
+	encryptedProvider *EncryptedStorageProvider
+	keyringPath       string
+
+	// Optional transparent page compression. Compression is composed below
+	// encryption so pages are compressed first and encrypted afterwards.
+	compressionManager    *CompressionManager
+	compressedProvider    *CompressedStorageProvider
+	compressionPolicyPath string
 
 	// 系统表空间管理器 - 新增
 	systemSpaceMgr *SystemSpaceManager
@@ -156,9 +174,6 @@ type StorageManager struct {
 
 func (sm *StorageManager) Init() {
 	// 初始化存储管理器
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-
 	// 确保所有组件都已初始化
 	if sm.spaceMgr == nil || sm.bufferPool == nil || sm.pageMgr == nil || sm.segmentMgr == nil {
 		logger.Warnf("storage manager components not properly initialized: spaceMgr=%v bufferPool=%v pageMgr=%v segmentMgr=%v",
@@ -189,6 +204,15 @@ func (sm *StorageManager) GetBufferPoolManager() *OptimizedBufferPoolManager {
 	//sm.mu.RLock()
 	//defer sm.mu.RUnlock()
 	return sm.bufferPoolMgr
+}
+
+// GetCompressionManager returns the live page-compression statistics source,
+// when transparent compression is enabled for this storage manager.
+func (sm *StorageManager) GetCompressionManager() *CompressionManager {
+	if sm == nil {
+		return nil
+	}
+	return sm.compressionManager
 }
 
 // getBufferPoolManagerInternal 内部方法，不加锁，用于避免死锁
@@ -261,9 +285,6 @@ func (sm *StorageManager) SetBTreeManager(bm basic.BPlusTreeManager) {
 }
 
 func (sm *StorageManager) OpenSpace(spaceID uint32) error {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-
 	// 委托给SpaceManager处理
 	space, err := sm.spaceMgr.GetSpace(spaceID)
 	if err != nil {
@@ -276,9 +297,6 @@ func (sm *StorageManager) OpenSpace(spaceID uint32) error {
 }
 
 func (sm *StorageManager) CloseSpace(spaceID uint32) error {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-
 	// 获取空间
 	space, err := sm.spaceMgr.GetSpace(spaceID)
 	if err != nil {
@@ -299,9 +317,11 @@ func (sm *StorageManager) DeleteSpace(spaceID uint32) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	// 先关闭空间
-	if err := sm.CloseSpace(spaceID); err != nil {
-		return err
+	if _, err := sm.spaceMgr.GetSpace(spaceID); err != nil {
+		return fmt.Errorf("failed to get space %d: %v", spaceID, err)
+	}
+	if err := sm.Flush(); err != nil {
+		return fmt.Errorf("failed to flush space %d: %v", spaceID, err)
 	}
 
 	// 从tablespaces中删除
@@ -330,10 +350,11 @@ func (sm *StorageManager) GetSpaceInfo(spaceID uint32) (*basic.SpaceInfo, error)
 	info := &basic.SpaceInfo{
 		SpaceID:      space.ID(),
 		Name:         space.Name(),
+		Path:         filepath.Join(sm.configDataDir(), filepath.FromSlash(space.Name()+".ibd")),
 		PageSize:     16384, // 固定16KB页面大小
 		TotalPages:   uint64(space.GetPageCount()),
-		ExtentSize:   64,    // 标准64页一个区
-		IsCompressed: false, // 暂不支持压缩
+		ExtentSize:   64, // 标准64页一个区
+		IsCompressed: sm.compressedProvider != nil && sm.compressedProvider.IsSpaceCompressed(spaceID),
 		State:        "active",
 	}
 
@@ -437,14 +458,92 @@ func NewStorageManager(cfg *conf.Cfg) *StorageManager {
 	if dataDir == "" {
 		dataDir = "data"
 	}
-	spaceMgr := NewSpaceManager(dataDir)
+	rawSpaceMgr := NewSpaceManager(dataDir)
+	spaceMgr := rawSpaceMgr
 
 	// Create optimized buffer pool manager with storage provider
+	rawProvider := &StorageProviderAdapter{spaceManager: rawSpaceMgr}
+	var storageProvider basic.StorageProvider = rawProvider
+	var encryptionManager *EncryptionManager
+	var encryptedProvider *EncryptedStorageProvider
+	var encryptedSpaceMgr basic.SpaceManager = rawSpaceMgr
+	keyringPath := ""
+	if strings.TrimSpace(cfg.InnodbEncryption.MasterKey) != "" {
+		encryptionManager = NewEncryptionManager([]byte(cfg.InnodbEncryption.MasterKey), EncryptionSettings{
+			Method:          ENCRYPTION_METHOD_AES,
+			KeyRotationDays: uint32(nonNegativeInt(cfg.InnodbEncryption.KeyRotationDays)),
+			ThreadsNum:      uint8(nonNegativeInt(cfg.InnodbEncryption.Threads)),
+			BufferSize:      uint32(nonNegativeInt(cfg.InnodbEncryption.BufferSize)),
+		})
+		keyringPath = filepath.Join(dataDir, "encryption.keyring")
+		if err := encryptionManager.LoadKeyring(keyringPath); err != nil && !os.IsNotExist(err) {
+			logger.Warnf("failed to load encryption keyring %s: %v", keyringPath, err)
+		}
+		var err error
+		encryptedProvider, err = NewEncryptedStorageProviderFromKeyring(rawProvider, encryptionManager)
+		if err != nil {
+			logger.Warnf("failed to initialize encrypted storage provider: %v", err)
+		} else {
+			storageProvider = encryptedProvider
+			encryptedSpaceMgr, err = NewEncryptedSpaceManager(rawSpaceMgr, encryptedProvider, encryptionManager, keyringPath)
+			if err != nil {
+				logger.Warnf("failed to initialize encrypted space manager: %v", err)
+				encryptedSpaceMgr = rawSpaceMgr
+			}
+		}
+	}
+	var compressionManager *CompressionManager
+	var compressedProvider *CompressedStorageProvider
+	var compressionErr error
+	if cfg.InnodbCompression.Enabled {
+		method, methodErr := compressionMethodFromConfig(cfg.InnodbCompression.Method)
+		if methodErr != nil {
+			logger.Warnf("failed to initialize page compression: %v", methodErr)
+		} else {
+			compressionManager = NewCompressionManager()
+			settings := &CompressionSettings{
+				Method:     method,
+				Level:      uint8(clampCompressionLevel(cfg.InnodbCompression.Level)),
+				MinSavings: cfg.InnodbCompression.MinSavings,
+			}
+			var compressedSpaces []uint32
+			if cfg.InnodbCompression.AllSpaces {
+				if enumerator, ok := rawSpaceMgr.(interface{ ListSpaceIDs() []uint32 }); ok {
+					compressedSpaces = enumerator.ListSpaceIDs()
+				}
+			}
+			compressedProvider, compressionErr = NewCompressedStorageProvider(storageProvider, compressionManager, uint32(pageSize), compressedSpaces...)
+			if compressionErr != nil {
+				logger.Warnf("failed to initialize compressed storage provider: %v", compressionErr)
+				compressionManager = nil
+			} else {
+				storageProvider = compressedProvider
+				compressionPolicyPath := filepath.Join(dataDir, "compression.policy.json")
+				compressionManager.SetCompressionSettings(0, settings)
+				if cfg.InnodbCompression.AllSpaces {
+					compressedProvider.SetDefaultCompressionSettings(settings)
+				}
+				if persisted, loadErr := loadCompressionPolicy(compressionPolicyPath); loadErr == nil {
+					compressedProvider.restoreCompressionPolicy(persisted)
+				} else if !os.IsNotExist(loadErr) {
+					logger.Warnf("failed to load compression policy %s: %v", compressionPolicyPath, loadErr)
+				}
+				spaceMgr, compressionErr = NewCompressedSpaceManager(encryptedSpaceMgr, compressedProvider)
+				if compressionErr != nil {
+					logger.Warnf("failed to initialize compressed space manager: %v", compressionErr)
+					spaceMgr = encryptedSpaceMgr
+				}
+			}
+		}
+	}
+	if compressionManager == nil && spaceMgr == rawSpaceMgr {
+		spaceMgr = encryptedSpaceMgr
+	}
 	bufferPoolConfig := &BufferPoolConfig{
 		PoolSize:        uint32(bufferPoolSize / pageSize),
 		PageSize:        uint32(pageSize),
 		FlushInterval:   time.Second,
-		StorageProvider: &StorageProviderAdapter{spaceManager: spaceMgr}, // 提供StorageProvider
+		StorageProvider: storageProvider, // 提供StorageProvider
 	}
 	bufferPoolMgr, err := NewOptimizedBufferPoolManager(bufferPoolConfig)
 	if err != nil {
@@ -454,19 +553,28 @@ func NewStorageManager(cfg *conf.Cfg) *StorageManager {
 
 	// Create storage manager instance
 	sm := &StorageManager{
-		config:        cfg,
-		spaceMgr:      spaceMgr,
-		bufferPool:    bufferPool,
-		bufferPoolMgr: bufferPoolMgr,
-		tablespaces:   make(map[string]*TablespaceHandle),
-		nextTxID:      1,
+		config:             cfg,
+		spaceMgr:           spaceMgr,
+		bufferPool:         bufferPool,
+		bufferPoolMgr:      bufferPoolMgr,
+		encryptionManager:  encryptionManager,
+		encryptedProvider:  encryptedProvider,
+		keyringPath:        keyringPath,
+		compressionManager: compressionManager,
+		compressedProvider: compressedProvider,
+		compressionPolicyPath: func() string {
+			if compressedProvider == nil {
+				return ""
+			}
+			return filepath.Join(dataDir, "compression.policy.json")
+		}(),
+		tablespaces: make(map[string]*TablespaceHandle),
+		nextTxID:    1,
 	}
 
 	// Set the storage provider's StorageManager reference
 	if bufferPoolMgr != nil {
-		if adapter, ok := bufferPoolConfig.StorageProvider.(*StorageProviderAdapter); ok {
-			adapter.sm = sm
-		}
+		rawProvider.sm = sm
 	}
 
 	// Initialize components
@@ -474,8 +582,41 @@ func NewStorageManager(cfg *conf.Cfg) *StorageManager {
 		logger.Debugf("  StorageManager initialization warning: %v", err)
 		// Continue despite warnings to allow partial functionality
 	}
+	if encryptedSpaceManager, ok := encryptedSpaceMgr.(*EncryptedSpaceManager); ok {
+		if err := encryptedSpaceManager.MigrateExistingSpaces(); err != nil {
+			logger.Warnf("failed to migrate existing plaintext tablespaces: %v", err)
+		}
+	}
 
 	return sm
+}
+
+func nonNegativeInt(value int) int {
+	if value < 0 {
+		return 0
+	}
+	return value
+}
+
+func clampCompressionLevel(level int) int {
+	if level < int(COMPRESSION_LEVEL_FASTEST) {
+		return int(COMPRESSION_LEVEL_DEFAULT)
+	}
+	if level > int(COMPRESSION_LEVEL_BEST) {
+		return int(COMPRESSION_LEVEL_BEST)
+	}
+	return level
+}
+
+func compressionMethodFromConfig(method string) (uint8, error) {
+	switch strings.ToLower(strings.TrimSpace(method)) {
+	case "", "zlib":
+		return COMPRESSION_ZLIB, nil
+	case "none", "off", "disabled":
+		return COMPRESSION_NONE, nil
+	default:
+		return 0, fmt.Errorf("unsupported compression method %q", method)
+	}
 }
 
 // initialize initializes all storage components
@@ -1023,12 +1164,23 @@ func (sm *StorageManager) AllocPage(spaceID uint32, pageType basic.PageType) (ba
 
 // FreePage frees a page
 func (sm *StorageManager) FreePage(spaceID, pageNo uint32) error {
-	if sm == nil || sm.pageMgr == nil {
+	if sm == nil {
 		return fmt.Errorf("page manager is not initialized")
 	}
-
-	// Use page manager to flush the page before freeing
-	return sm.pageMgr.FlushPage(spaceID, pageNo)
+	if sm.bufferPoolMgr != nil {
+		return sm.bufferPoolMgr.FreePage(spaceID, pageNo)
+	}
+	if sm.spaceMgr == nil {
+		return fmt.Errorf("space manager is not initialized")
+	}
+	space, err := sm.spaceMgr.GetSpace(spaceID)
+	if err != nil {
+		return err
+	}
+	if reclaimer, ok := space.(interface{ FreePage(uint32) error }); ok {
+		return reclaimer.FreePage(pageNo)
+	}
+	return fmt.Errorf("page-level reclamation is not supported for space %d", spaceID)
 }
 
 // Begin starts a new transaction
@@ -1066,6 +1218,14 @@ func (sm *StorageManager) Close() error {
 		return fmt.Errorf("storage manager is not initialized")
 	}
 
+	sm.closeOnce.Do(func() {
+		sm.closeErr = sm.closeResources()
+	})
+	return sm.closeErr
+}
+
+func (sm *StorageManager) closeResources() error {
+
 	sm.mu.Lock()
 	mysqlUserBTreeManager := sm.mysqlUserBTreeManager
 	sm.mysqlUserBTreeManager = nil
@@ -1077,21 +1237,38 @@ func (sm *StorageManager) Close() error {
 		}
 	}
 
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
+	sm.mu.RLock()
+	bufferPoolMgr := sm.bufferPoolMgr
+	spaceMgr := sm.spaceMgr
+	sm.mu.RUnlock()
 
 	// Flush all changes
 	if err := sm.Flush(); err != nil {
 		return fmt.Errorf("failed to flush during close: %v", err)
 	}
+	if err := sm.persistCompressionPolicy(); err != nil {
+		return fmt.Errorf("failed to persist compression policy: %v", err)
+	}
+	if sm.encryptionManager != nil && sm.keyringPath != "" {
+		if err := sm.encryptionManager.SaveKeyring(sm.keyringPath); err != nil {
+			return fmt.Errorf("failed to persist encryption keyring during close: %v", err)
+		}
+	}
 
-	// TODO: Close buffer pool when method is available
-	// if err := sm.bufferPool.Close(); err != nil {
-	//     return fmt.Errorf("failed to close buffer pool: %v", err)
-	// }
+	// Stop the optimized buffer pool after the final StorageManager flush and
+	// before closing tablespaces, because its dirty-page flushes still write to
+	// the underlying spaces.
+	if bufferPoolMgr != nil {
+		if err := bufferPoolMgr.Close(); err != nil {
+			return fmt.Errorf("failed to close optimized buffer pool: %v", err)
+		}
+	}
 
 	// Close space manager
-	if err := sm.spaceMgr.Close(); err != nil {
+	if spaceMgr == nil {
+		return fmt.Errorf("space manager is not initialized")
+	}
+	if err := spaceMgr.Close(); err != nil {
 		return fmt.Errorf("failed to close space manager: %v", err)
 	}
 
@@ -1213,28 +1390,68 @@ func (sm *StorageManager) ReclaimSpace(spaceID uint32) (uint64, error) {
 
 // reclaimSegmentSpace 回收单个segment的空闲空间
 func (sm *StorageManager) reclaimSegmentSpace(segment basic.Segment) (uint64, error) {
-	// 类型断言为SegmentImpl
 	segImpl, ok := segment.(*SegmentImpl)
 	if !ok {
 		return 0, fmt.Errorf("segment is not a SegmentImpl")
 	}
 
-	// 获取segment的空闲空间
-	freeSpace := segImpl.GetFreeSpace()
-
-	// 如果空闲空间超过阈值，进行回收
-	threshold := uint64(1024 * 1024) // 1MB阈值
-	if freeSpace < threshold {
+	// Only extents that are already empty can be released without moving
+	// records. DefragmentSpace is responsible for turning fragmented empty
+	// extents into this list; ReclaimSpace then gives them back to the extent
+	// allocator and removes ownership from the segment.
+	if len(segImpl.FreeExtents) == 0 {
 		return 0, nil
 	}
-
-	// 简化实现：返回可回收的空间大小
-	// 实际实现需要释放空闲的extent
-	return freeSpace, nil
+	const extentBytes = uint64(PagesPerExtent * PageSize)
+	freeExtents := append([]*extent.UnifiedExtent(nil), segImpl.FreeExtents...)
+	kept := make([]*extent.UnifiedExtent, 0, len(freeExtents))
+	var reclaimed uint64
+	for _, ext := range freeExtents {
+		if ext == nil || !ext.IsEmpty() {
+			if ext != nil {
+				kept = append(kept, ext)
+			}
+			continue
+		}
+		if err := sm.segmentMgr.extentManager.FreeExtent(ext.GetID()); err != nil {
+			kept = append(kept, ext)
+			continue
+		}
+		if segImpl.ExtentCount > 0 {
+			segImpl.ExtentCount--
+		}
+		if sm.segmentMgr.stats.TotalExtents > 0 {
+			sm.segmentMgr.stats.TotalExtents--
+		}
+		if segImpl.Type == SEGMENT_TYPE_INDEX || segImpl.Type == SEGMENT_TYPE_UNDO {
+			if segImpl.PageCount >= PagesPerExtent {
+				segImpl.PageCount -= PagesPerExtent
+			}
+			if segImpl.FreeSpace >= extentBytes {
+				segImpl.FreeSpace -= extentBytes
+			} else {
+				segImpl.FreeSpace = 0
+			}
+			if sm.segmentMgr.stats.TotalPages >= PagesPerExtent {
+				sm.segmentMgr.stats.TotalPages -= PagesPerExtent
+			}
+			if sm.segmentMgr.stats.FreeSpace >= extentBytes {
+				sm.segmentMgr.stats.FreeSpace -= extentBytes
+			} else {
+				sm.segmentMgr.stats.FreeSpace = 0
+			}
+		}
+		reclaimed += extentBytes
+	}
+	segImpl.FreeExtents = kept
+	if segImpl.LastExtent != nil && segImpl.LastExtent.IsEmpty() {
+		segImpl.LastExtent = nil
+	}
+	return reclaimed, nil
 }
 
-// OptimizeStorage 综合存储优化
-// 执行预分配、碎片整理和空间回收的组合优化
+// OptimizeStorage 综合存储优化。
+// 执行碎片整理和空间回收；需要扩容时由调用方显式调用 PreallocateSpace。
 func (sm *StorageManager) OptimizeStorage(spaceID uint32) error {
 	logger.Infof("Starting comprehensive storage optimization for space %d", spaceID)
 
@@ -1251,10 +1468,15 @@ func (sm *StorageManager) OptimizeStorage(spaceID uint32) error {
 		logger.Infof("Reclaimed %d bytes during optimization", reclaimed)
 	}
 
-	// 3. 根据使用情况预分配空间
-	// 简化实现：预分配2个extent
-	if err := sm.PreallocateSpace(spaceID, 2); err != nil {
-		logger.Warnf("Space preallocation failed for space %d: %v", spaceID, err)
+	// Shrink only when the tablespace implementation can prove that its
+	// physical tail contains no allocated pages. Provider-only implementations
+	// may not expose this optional capability and remain logically optimized.
+	if space, spaceErr := sm.spaceMgr.GetSpace(spaceID); spaceErr == nil {
+		if shrinker, ok := space.(interface{ ShrinkToFit() error }); ok {
+			if err := shrinker.ShrinkToFit(); err != nil {
+				logger.Warnf("Tablespace shrink failed for space %d: %v", spaceID, err)
+			}
+		}
 	}
 
 	logger.Infof("Completed storage optimization for space %d", spaceID)
@@ -1291,7 +1513,6 @@ func (sm *StorageManager) CreateTablespace(name string) (*TablespaceHandle, erro
 		}
 		return nil, fmt.Errorf("failed to create tablespace: %v", err)
 	}
-
 	// 创建数据段
 	_, err = sm.createSegmentInternal(spaceID, basic.SegmentPurposeLeaf)
 	if err != nil {
@@ -1304,7 +1525,128 @@ func (sm *StorageManager) CreateTablespace(name string) (*TablespaceHandle, erro
 		Name:          name,
 	}
 	sm.tablespaces[name] = handle
+	if sm.systemSpaceMgr != nil {
+		sm.systemSpaceMgr.RefreshIndependentTablespaces()
+	}
 	return handle, nil
+}
+
+// ImportTablespace attaches an existing file-per-table tablespace under its
+// durable space identity. The caller is responsible for placing the .ibd
+// file at the configured data-directory path before calling this method.
+func (sm *StorageManager) ImportTablespace(name string, spaceID uint32) (*TablespaceHandle, error) {
+	if sm == nil {
+		return nil, fmt.Errorf("storage manager is nil")
+	}
+	name = strings.TrimSpace(name)
+	if name == "" || spaceID == 0 {
+		return nil, fmt.Errorf("tablespace name and non-zero space ID are required")
+	}
+
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	if handle, exists := sm.tablespaces[name]; exists {
+		if handle.SpaceID != spaceID {
+			return nil, fmt.Errorf("tablespace %s is already attached with space ID %d", name, handle.SpaceID)
+		}
+		return handle, nil
+	}
+	if existing, err := sm.spaceMgr.GetTableSpaceByName(name); err == nil {
+		if existing.GetSpaceId() != spaceID {
+			return nil, fmt.Errorf("tablespace %s contains space ID %d, expected %d", name, existing.GetSpaceId(), spaceID)
+		}
+		handle := &TablespaceHandle{SpaceID: spaceID, DataSegmentID: uint64(spaceID), Name: name}
+		sm.tablespaces[name] = handle
+		return handle, nil
+	}
+	if _, err := sm.spaceMgr.GetSpace(spaceID); err == nil {
+		return nil, fmt.Errorf("space ID %d is already in use", spaceID)
+	}
+	if _, err := sm.spaceMgr.CreateSpace(spaceID, name, false); err != nil {
+		return nil, fmt.Errorf("open imported tablespace %s: %w", name, err)
+	}
+	handle := &TablespaceHandle{SpaceID: spaceID, DataSegmentID: uint64(spaceID), Name: name}
+	sm.tablespaces[name] = handle
+	if sm.systemSpaceMgr != nil {
+		sm.systemSpaceMgr.RefreshIndependentTablespaces()
+	}
+	return handle, nil
+}
+
+// RenameTablespace renames a managed tablespace while preserving its space
+// identity. The concrete space manager performs the handle-safe physical file
+// move; this method keeps StorageManager's logical handle map in sync.
+func (sm *StorageManager) RenameTablespace(oldName, newName string) error {
+	if sm == nil {
+		return fmt.Errorf("storage manager is nil")
+	}
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	if oldName == newName {
+		return nil
+	}
+	handle, exists := sm.tablespaces[oldName]
+	if !exists {
+		return fmt.Errorf("tablespace %s not found", oldName)
+	}
+	if _, exists := sm.tablespaces[newName]; exists {
+		return fmt.Errorf("tablespace %s already exists", newName)
+	}
+	renamer, ok := sm.spaceMgr.(interface {
+		RenameTableSpace(string, string) error
+	})
+	if !ok {
+		return fmt.Errorf("space manager does not support tablespace rename")
+	}
+	if err := renamer.RenameTableSpace(oldName, newName); err != nil {
+		return err
+	}
+	delete(sm.tablespaces, oldName)
+	handle.Name = newName
+	sm.tablespaces[newName] = handle
+	return nil
+}
+
+// DropTablespace removes a managed, standalone tablespace and its physical
+// file. A tablespace that is still referenced by a table cannot be dropped;
+// callers must discard or detach that table first, matching MySQL's safety
+// boundary for general tablespaces.
+func (sm *StorageManager) DropTablespace(name string) error {
+	if sm == nil {
+		return fmt.Errorf("storage manager is nil")
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("tablespace name is empty")
+	}
+
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	handle, exists := sm.tablespaces[name]
+	if !exists || handle == nil {
+		return fmt.Errorf("tablespace %s not found", name)
+	}
+	if handle.SpaceID == 0 {
+		return fmt.Errorf("cannot drop system tablespace %s", name)
+	}
+	if sm.tableStorageManager != nil {
+		for tableName, info := range sm.tableStorageManager.ListAllTables() {
+			if info != nil && info.SpaceID == handle.SpaceID {
+				return fmt.Errorf("tablespace %s is in use by table %s", name, tableName)
+			}
+		}
+	}
+	if err := sm.Flush(); err != nil {
+		return fmt.Errorf("flush tablespace %s before drop failed: %v", name, err)
+	}
+	if err := sm.spaceMgr.DropTableSpace(handle.SpaceID); err != nil {
+		return fmt.Errorf("drop tablespace %s failed: %v", name, err)
+	}
+	delete(sm.tablespaces, name)
+	if sm.systemSpaceMgr != nil {
+		sm.systemSpaceMgr.RefreshIndependentTablespaces()
+	}
+	return nil
 }
 
 // GetTablespace gets a tablespace handle
@@ -1329,7 +1671,7 @@ func (sm *StorageManager) GetSpaceManager() basic.SpaceManager {
 }
 
 func (sm *StorageManager) GetPageManager() basic.PageManager {
-	return nil
+	return &storagePageManagerAdapter{storageManager: sm}
 }
 
 // Transaction implementation
@@ -1436,6 +1778,9 @@ func (spa *StorageProviderAdapter) AllocatePage(spaceID uint32) (uint32, error) 
 	if err != nil {
 		return 0, fmt.Errorf("space %d not found: %v", spaceID, err)
 	}
+	if allocator, ok := space.(interface{ AllocatePage() (uint32, error) }); ok {
+		return allocator.AllocatePage()
+	}
 
 	// 分配一个新的extent
 	// 注意：这种实现非常浪费，每次只使用extent的第一个页面
@@ -1450,9 +1795,14 @@ func (spa *StorageProviderAdapter) AllocatePage(spaceID uint32) (uint32, error) 
 
 // FreePage 释放页面
 func (spa *StorageProviderAdapter) FreePage(spaceID, pageNo uint32) error {
-	// 目前只支持Extent级别的释放，不支持单个页面释放
-	// 未来需要实现更细粒度的空间管理
-	return nil
+	space, err := spa.spaceManager.GetSpace(spaceID)
+	if err != nil {
+		return fmt.Errorf("space %d not found: %v", spaceID, err)
+	}
+	if reclaimer, ok := space.(interface{ FreePage(uint32) error }); ok {
+		return reclaimer.FreePage(pageNo)
+	}
+	return fmt.Errorf("page-level reclamation is not supported for space %d", spaceID)
 }
 
 // CreateSpace 创建空间
@@ -1486,6 +1836,26 @@ func (spa *StorageProviderAdapter) DeleteSpace(spaceID uint32) error {
 
 // GetSpaceInfo 获取空间信息
 func (spa *StorageProviderAdapter) GetSpaceInfo(spaceID uint32) (*basic.SpaceInfo, error) {
+	// Provider operations may run while StorageManager holds its lifecycle
+	// lock (for example, during new tablespace encryption). Read the underlying
+	// Space directly to avoid recursively taking that same lock.
+	if spa.spaceManager != nil {
+		if space, err := spa.spaceManager.GetSpace(spaceID); err == nil {
+			return &basic.SpaceInfo{
+				SpaceID:    space.ID(),
+				Name:       space.Name(),
+				PageSize:   16384,
+				TotalPages: uint64(space.GetPageCount()),
+				ExtentSize: 64,
+				State: func() string {
+					if space.IsActive() {
+						return "active"
+					}
+					return "inactive"
+				}(),
+			}, nil
+		}
+	}
 	if spa.sm != nil {
 		return spa.sm.GetSpaceInfo(spaceID)
 	}

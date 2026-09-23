@@ -49,6 +49,12 @@ $SuiteArgs = @(
     "-ConcurrencyRuns", "$ConcurrencyRuns",
     "-RollbackWindowSeconds", "$RollbackWindowSeconds"
 )
+$SuiteParameters = @{
+    ReportDir = $ReportDir
+    RecoveryRuns = $RecoveryRuns
+    ConcurrencyRuns = $ConcurrencyRuns
+    RollbackWindowSeconds = $RollbackWindowSeconds
+}
 
 $EnabledEvidence = @()
 $DisabledEvidence = @()
@@ -58,6 +64,7 @@ if ($DisableFocusedP0BStateSnapshotEvidence) {
 }
 else {
     $SuiteArgs += "-GenerateP0BStateSnapshotEvidence"
+    $SuiteParameters.GenerateP0BStateSnapshotEvidence = $true
     $EnabledEvidence += "P0-B focused state snapshot evidence"
 }
 
@@ -66,6 +73,7 @@ if ($DisableFocusedP0CConsistencyEvidence) {
 }
 else {
     $SuiteArgs += "-GenerateP0CConsistencyEvidence"
+    $SuiteParameters.GenerateP0CConsistencyEvidence = $true
     $EnabledEvidence += "P0-C focused consistency evidence"
 }
 
@@ -74,6 +82,7 @@ if ($DisableFocusedP0DMetricsEndpointEvidence) {
 }
 else {
     $SuiteArgs += "-GenerateP0DMetricsEndpointEvidence"
+    $SuiteParameters.GenerateP0DMetricsEndpointEvidence = $true
     $EnabledEvidence += "P0-D focused metrics endpoint evidence"
 }
 
@@ -82,15 +91,18 @@ if ($DisableFocusedP0ETimedRollbackEvidence) {
 }
 else {
     $SuiteArgs += "-GenerateP0ETimedRollbackEvidence"
+    $SuiteParameters.GenerateP0ETimedRollbackEvidence = $true
     $EnabledEvidence += "P0-E focused timed rollback evidence"
 }
 
 if (-not [string]::IsNullOrWhiteSpace($AcceptedDeferralsJson)) {
     $SuiteArgs += @("-AcceptedDeferralsJson", $AcceptedDeferralsJson)
+    $SuiteParameters.AcceptedDeferralsJson = $AcceptedDeferralsJson
 }
 
 if (-not [string]::IsNullOrWhiteSpace($OwnerSignoffJson)) {
     $SuiteArgs += @("-OwnerSignoffJson", $OwnerSignoffJson)
+    $SuiteParameters.OwnerSignoffJson = $OwnerSignoffJson
 }
 
 $InitialGovernanceReviewMode = if (-not [string]::IsNullOrWhiteSpace($OwnerSignoffJson)) {
@@ -119,26 +131,31 @@ $ExitCode = 0
 $Failure = ""
 $GovernanceGateAttempted = $false
 try {
+	$global:LASTEXITCODE = 0
     if (-not [string]::IsNullOrWhiteSpace($OwnerSignoffJson) -or -not [string]::IsNullOrWhiteSpace($AcceptedDeferralsJson)) {
         $GovernanceGateAttempted = $true
-        $GovernanceArgs = @("-ReportDir", $ReportDir)
+        $GovernanceParameters = @{ ReportDir = $ReportDir }
         if (-not [string]::IsNullOrWhiteSpace($AcceptedDeferralsJson)) {
-            $GovernanceArgs += @("-AcceptedDeferralsJson", $AcceptedDeferralsJson)
+            $GovernanceParameters.AcceptedDeferralsJson = $AcceptedDeferralsJson
         }
         if (-not [string]::IsNullOrWhiteSpace($OwnerSignoffJson)) {
-            $GovernanceArgs += @("-OwnerSignoffJson", $OwnerSignoffJson, "-RequireOwnerSignoff")
+            $GovernanceParameters.OwnerSignoffJson = $OwnerSignoffJson
+            $GovernanceParameters.RequireOwnerSignoff = $true
         }
 
-        & (Join-Path $ScriptDir "verify_p0_governance_gate.ps1") @GovernanceArgs 2>&1 |
+        & (Join-Path $ScriptDir "verify_p0_governance_gate.ps1") @GovernanceParameters 2>&1 |
             Tee-Object -FilePath $RawLogPath -Append
     }
 
-    & (Join-Path $ScriptDir "run_p0_evidence_suite.ps1") @SuiteArgs 2>&1 |
+    & (Join-Path $ScriptDir "run_p0_evidence_suite.ps1") @SuiteParameters 2>&1 |
         Tee-Object -FilePath $RawLogPath -Append
-    $ExitCode = $LASTEXITCODE
+	$LastExitCodeVariable = Get-Variable -Name LASTEXITCODE -Scope Global -ErrorAction SilentlyContinue
+	$ExitCode = if ($null -ne $LastExitCodeVariable) { [int]$global:LASTEXITCODE } else { 0 }
 }
 catch {
-    $ExitCode = if ($LASTEXITCODE -ne 0) { $LASTEXITCODE } else { 1 }
+	$LastExitCodeVariable = Get-Variable -Name LASTEXITCODE -Scope Global -ErrorAction SilentlyContinue
+	$NativeExitCode = if ($null -ne $LastExitCodeVariable) { [int]$global:LASTEXITCODE } else { 0 }
+	$ExitCode = if ($NativeExitCode -ne 0) { $NativeExitCode } else { 1 }
     $Failure = $_.Exception.Message
     "candidate_error: $Failure" | Add-Content -LiteralPath $RawLogPath -Encoding utf8
 }

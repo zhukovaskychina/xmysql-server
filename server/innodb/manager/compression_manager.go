@@ -131,7 +131,11 @@ func (cm *CompressionManager) CompressPage(spaceID uint32, pageNo uint32, data [
 	// 更新统计信息
 	cm.updateStats(len(data), len(compressed))
 
-	return buf.Bytes(), nil
+	// The buffer is returned to the pool by the deferred cleanup above. Copy
+	// the serialized page before returning so a later compression cannot
+	// overwrite bytes still owned by the caller.
+	result := append([]byte(nil), buf.Bytes()...)
+	return result, nil
 }
 
 // DecompressPage 解压页面内容
@@ -141,9 +145,13 @@ func (cm *CompressionManager) DecompressPage(spaceID uint32, pageNo uint32, data
 		return data, nil
 	}
 
-	// 检查魔数
+	// 检查魔数。A matching magic value is not enough to read the original
+	// size; the complete header must be present before slicing it.
 	if len(data) < len(compressedPageMagic) || !bytes.Equal(data[:len(compressedPageMagic)], compressedPageMagic) {
 		return data, nil // 未压缩的页面
+	}
+	if len(data) < len(compressedPageMagic)+4 {
+		return nil, errors.New("truncated compressed page header")
 	}
 
 	// 读取原始大小

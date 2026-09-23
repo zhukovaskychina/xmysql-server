@@ -35,11 +35,11 @@ $JsonPath = Join-Path $ReportDir "$RunId.json"
 $MarkdownPath = Join-Path $ReportDir "$RunId.md"
 
 if ([string]::IsNullOrWhiteSpace($RecoveryPoint)) {
-    $RecoveryPoint = "snapshot:$RunId:pre_release"
+	$RecoveryPoint = "snapshot:${RunId}:pre_release"
 }
 
 if ([string]::IsNullOrWhiteSpace($ReplayBoundary)) {
-    $ReplayBoundary = "wal:$RunId:last_committed_before_cutover"
+	$ReplayBoundary = "wal:${RunId}:last_committed_before_cutover"
 }
 
 $WithinWindow = $SimulatedRollbackDurationSeconds -le $RollbackWindowSeconds

@@ -91,6 +91,9 @@ func TestP0RollbackRestoresOnDeleteCascadeRows(t *testing.T) {
 	require.Empty(t, mustQuerySQL(t, executor, "app", "select id from children where label = 'child'"))
 
 	mustExecSessionSQL(t, executor, session, "app", "rollback")
+	byID := <-executor.ExecuteQuery(nil, "select id, parent_id, label from children where id = 1", "app")
+	byLabel := <-executor.ExecuteQuery(nil, "select id, parent_id, label from children where label = 'child'", "app")
+	t.Logf("after rollback by id: err=%v data=%T; by label: err=%v data=%T", byID.Err, byID.Data, byLabel.Err, byLabel.Data)
 	require.Len(t, mustQuerySQL(t, executor, "app", "select id, parent_id, label from children where label = 'child'"), 1)
 }
 

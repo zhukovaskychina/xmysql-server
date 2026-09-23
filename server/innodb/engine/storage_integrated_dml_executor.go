@@ -37,24 +37,42 @@ type StorageIntegratedDMLExecutor struct {
 	checkpointManager  *CheckpointManager
 
 	// 执行状态
-	schemaName    string
-	tableName     string
-	dataDir       string
-	isInitialized bool
+	schemaName               string
+	tableName                string
+	dataDir                  string
+	isInitialized            bool
+	foundRows                bool
+	foreignKeyChecks         bool
+	checkConstraintChecks    bool
+	checkConstraintChecksSet bool
+	uniqueChecks             bool
+	ignoreMode               bool
+	strictMode               bool
+	noZeroDate               bool
+	noZeroInDate             bool
+	warnings                 []Warning
 
 	// 性能统计
 	stats *DMLExecutorStats
 
-	transactionChangeRecorder func([]transactionDMLChange)
+	transactionChangeRecorder   func([]transactionDMLChange)
+	beforeTriggerObserver       func(string, string, string, int64, error)
+	afterTriggerExecutor        func(string, string, string, string) error
+	afterTriggerAtomicBegin     func(string, string, string) (func(bool), error)
+	triggerMetadataLockAcquirer func(context.Context, string, string) (func(), error)
+	selectExecutor              func(context.Context, *sqlparser.Select, string) (*SelectResult, error)
+	unionExecutor               func(context.Context, *sqlparser.Union, string) (*SelectResult, error)
 }
 
 type transactionDMLChange struct {
-	tableName  string
-	kind       string
-	rowID      uint64
-	storageKey interface{}
-	before     map[string]interface{}
-	after      map[string]interface{}
+	tableName     string
+	kind          string
+	rowID         uint64
+	storageKey    interface{}
+	newStorageKey interface{}
+	before        map[string]interface{}
+	after         map[string]interface{}
+	columnTypes   map[string]string
 }
 
 // DMLExecutorStats DML执行器统计信息
@@ -67,6 +85,7 @@ type DMLExecutorStats struct {
 	AvgUpdateTime    time.Duration
 	AvgDeleteTime    time.Duration
 	IndexUpdates     uint64
+	IndexUpdateTime  time.Duration
 	TransactionCount uint64
 }
 
@@ -82,16 +101,21 @@ func NewStorageIntegratedDMLExecutor(
 	tableStorageManager *manager.TableStorageManager,
 ) *StorageIntegratedDMLExecutor {
 	executor := &StorageIntegratedDMLExecutor{
-		optimizerManager:    optimizerManager,
-		bufferPoolManager:   bufferPoolManager,
-		btreeManager:        btreeManager,
-		tableManager:        tableManager,
-		txManager:           txManager,
-		indexManager:        indexManager,
-		storageManager:      storageManager,
-		tableStorageManager: tableStorageManager,
-		dataDir:             "./data",
-		isInitialized:       false,
+		optimizerManager:         optimizerManager,
+		bufferPoolManager:        bufferPoolManager,
+		btreeManager:             btreeManager,
+		tableManager:             tableManager,
+		txManager:                txManager,
+		indexManager:             indexManager,
+		storageManager:           storageManager,
+		tableStorageManager:      tableStorageManager,
+		dataDir:                  "./data",
+		isInitialized:            false,
+		foreignKeyChecks:         true,
+		checkConstraintChecks:    true,
+		checkConstraintChecksSet: true,
+		uniqueChecks:             true,
+		strictMode:               true,
 		stats: &DMLExecutorStats{
 			InsertCount:      0,
 			UpdateCount:      0,
@@ -101,6 +125,7 @@ func NewStorageIntegratedDMLExecutor(
 			AvgUpdateTime:    0,
 			AvgDeleteTime:    0,
 			IndexUpdates:     0,
+			IndexUpdateTime:  0,
 			TransactionCount: 0,
 		},
 	}
@@ -119,14 +144,111 @@ func NewStorageIntegratedDMLExecutor(
 	return executor
 }
 
+func (dml *StorageIntegratedDMLExecutor) SetForeignKeyChecks(enabled bool) {
+	if dml != nil {
+		dml.foreignKeyChecks = enabled
+	}
+}
+
+func (dml *StorageIntegratedDMLExecutor) SetCheckConstraintChecks(enabled bool) {
+	if dml != nil {
+		dml.checkConstraintChecks = enabled
+		dml.checkConstraintChecksSet = true
+	}
+}
+
+func (dml *StorageIntegratedDMLExecutor) SetUniqueChecks(enabled bool) {
+	if dml != nil {
+		dml.uniqueChecks = enabled
+	}
+}
+
 func (dml *StorageIntegratedDMLExecutor) SetDataDir(dataDir string) {
 	if strings.TrimSpace(dataDir) != "" {
 		dml.dataDir = dataDir
 	}
 }
 
+// SetSelectExecutor supplies the normal SELECT path for INSERT ... SELECT
+// shapes that need joins, aggregation, ordering, or other query semantics
+// beyond the storage-integrated single-table fast path.
+func (dml *StorageIntegratedDMLExecutor) SetSelectExecutor(executor func(context.Context, *sqlparser.Select, string) (*SelectResult, error)) {
+	if dml != nil {
+		dml.selectExecutor = executor
+	}
+}
+
+// SetUnionExecutor supplies the set-operation path for INSERT ... SELECT
+// sources represented by the parser as a UNION node.
+func (dml *StorageIntegratedDMLExecutor) SetUnionExecutor(executor func(context.Context, *sqlparser.Union, string) (*SelectResult, error)) {
+	if dml != nil {
+		dml.unionExecutor = executor
+	}
+}
+
+// SetClientFoundRows enables CLIENT_FOUND_ROWS semantics for no-op duplicate
+// updates. The default remains changed-rows semantics.
+func (dml *StorageIntegratedDMLExecutor) SetClientFoundRows(enabled bool) {
+	dml.foundRows = enabled
+}
+
+// SetSQLMode applies the session SQL mode relevant to DML conversion. The
+// default is MySQL's strict behavior; an explicit mode without either strict
+// flag uses warning-plus-coercion semantics for convertible column errors.
+func (dml *StorageIntegratedDMLExecutor) SetSQLMode(mode string) {
+	lower := strings.ToLower(strings.TrimSpace(mode))
+	dml.strictMode = strings.Contains(lower, "strict_trans_tables") || strings.Contains(lower, "strict_all_tables")
+	dml.noZeroDate = strings.Contains(lower, "no_zero_date")
+	dml.noZeroInDate = strings.Contains(lower, "no_zero_in_date")
+}
+
+func (dml *StorageIntegratedDMLExecutor) resetDMLDiagnostics() {
+	dml.warnings = nil
+	dml.ignoreMode = false
+}
+
 func (dml *StorageIntegratedDMLExecutor) SetTransactionChangeRecorder(recorder func([]transactionDMLChange)) {
 	dml.transactionChangeRecorder = recorder
+}
+
+// SetBeforeTriggerObserver records the per-row BEFORE-trigger execution
+// boundary for observability without changing the trigger mutation path.
+func (dml *StorageIntegratedDMLExecutor) SetBeforeTriggerObserver(observer func(string, string, string, int64, error)) {
+	if dml != nil {
+		dml.beforeTriggerObserver = observer
+	}
+}
+
+// SetAfterTriggerExecutor attaches the normal SQL executor to AFTER trigger
+// side effects. The callback runs only after the base row write has succeeded.
+func (dml *StorageIntegratedDMLExecutor) SetAfterTriggerExecutor(executor func(string, string, string, string) error) {
+	dml.afterTriggerExecutor = executor
+}
+
+// SetAfterTriggerAtomicBegin starts a session-scoped journal frame for one
+// AFTER-trigger body. All side-effect statements in that body are committed
+// or rolled back together with the invoking DML statement.
+func (dml *StorageIntegratedDMLExecutor) SetAfterTriggerAtomicBegin(begin func(string, string, string) (func(bool), error)) {
+	if dml != nil {
+		dml.afterTriggerAtomicBegin = begin
+	}
+}
+
+// SetTriggerMetadataLockAcquirer attaches the metadata-lock coordinator used
+// by the SQL executor. DML must keep shared leases on all triggers belonging
+// to the target table for the complete statement, including AFTER-trigger
+// side effects, so concurrent DROP/ALTER TRIGGER cannot race with execution.
+func (dml *StorageIntegratedDMLExecutor) SetTriggerMetadataLockAcquirer(acquirer func(context.Context, string, string) (func(), error)) {
+	if dml != nil {
+		dml.triggerMetadataLockAcquirer = acquirer
+	}
+}
+
+func (dml *StorageIntegratedDMLExecutor) acquireTriggerMetadataLocks(ctx context.Context, schema, table string) (func(), error) {
+	if dml == nil || dml.triggerMetadataLockAcquirer == nil {
+		return func() {}, nil
+	}
+	return dml.triggerMetadataLockAcquirer(ctx, strings.TrimSpace(schema), strings.TrimSpace(table))
 }
 
 func (dml *StorageIntegratedDMLExecutor) recordTransactionDMLChanges(changes []transactionDMLChange) {
@@ -144,6 +266,24 @@ func cloneTransactionRow(values map[string]interface{}) map[string]interface{} {
 		cloned[name] = value
 	}
 	return cloned
+}
+
+func cloneTransactionColumnTypes(tableMeta *metadata.TableMeta) map[string]string {
+	if tableMeta == nil {
+		return nil
+	}
+	columnTypes := make(map[string]string, len(tableMeta.Columns))
+	for _, column := range tableMeta.Columns {
+		if column == nil {
+			continue
+		}
+		typeName := strings.ToUpper(strings.TrimSpace(string(column.Type)))
+		if typeName == "" {
+			typeName = "UNKNOWN"
+		}
+		columnTypes[column.Name] = typeName
+	}
+	return columnTypes
 }
 
 func (dml *StorageIntegratedDMLExecutor) transactionTableName() string {
@@ -192,6 +332,8 @@ func (dml *StorageIntegratedDMLExecutor) StopPersistence() error {
 // ExecuteInsert 执行INSERT语句 - 存储引擎集成版本
 func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt *sqlparser.Insert, schemaName string) (*DMLResult, error) {
 	startTime := time.Now()
+	dml.resetDMLDiagnostics()
+	dml.ignoreMode = strings.TrimSpace(stmt.Ignore) != ""
 	logger.Infof("🚀 开始执行存储引擎集成的INSERT语句: %s", sqlparser.String(stmt))
 
 	resolvedSchema := strings.TrimSpace(schemaName)
@@ -207,6 +349,11 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 
 	dml.schemaName = resolvedSchema
 	dml.tableName = stmt.Table.Name.String()
+	releaseTriggerLocks, err := dml.acquireTriggerMetadataLocks(ctx, dml.schemaName, dml.tableName)
+	if err != nil {
+		return nil, err
+	}
+	defer releaseTriggerLocks()
 
 	// 1. 获取表的存储信息
 	if dml.tableStorageManager == nil {
@@ -247,23 +394,96 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 		return nil, fmt.Errorf("解析INSERT数据失败: %v", err)
 	}
 
-	// 4. 验证数据完整性
+	// 4. BEFORE trigger mutations participate in all following validation.
+	for _, row := range insertRows {
+		if err := applyBeforeTriggers(dml.dataDir, resolvedSchema, dml.tableName, "insert", row.ColumnValues, dml.beforeTriggerObserver); err != nil {
+			return nil, err
+		}
+	}
+	if err := dml.applyStringLengthRules(insertRows, tableMeta); err != nil {
+		return nil, err
+	}
+	if err := dml.applyColumnTypeRules(insertRows, tableMeta); err != nil {
+		return nil, err
+	}
+	// 5. 验证数据完整性
 	if err := dml.validateInsertData(insertRows, tableMeta); err != nil {
 		return nil, fmt.Errorf("数据验证失败: %v", err)
+	}
+	if err := validatePartitionRows(dml.dataDir, resolvedSchema, dml.tableName, insertRows); err != nil {
+		return nil, err
+	}
+	if err := dml.validateCheckConstraints(insertRows, resolvedSchema, dml.tableName); err != nil {
+		return nil, err
 	}
 	if err := dml.validateForeignKeyConstraints(ctx, insertRows, resolvedSchema, tableMeta); err != nil {
 		return nil, err
 	}
+	if strings.EqualFold(stmt.Action, sqlparser.ReplaceStr) {
+		deduplicatedRows := make([]*InsertRowData, 0, len(insertRows))
+		uniqueColumns := uniqueConstraintColumns(tableMeta)
+		for _, incoming := range insertRows {
+			replaced := false
+			for index, retained := range deduplicatedRows {
+				conflicts, err := rowConflictsWithInsert(retained.ColumnValues, incoming.ColumnValues, tableMeta, uniqueColumns)
+				if err != nil {
+					return nil, err
+				}
+				if conflicts {
+					deduplicatedRows[index] = incoming
+					replaced = true
+					break
+				}
+			}
+			if !replaced {
+				deduplicatedRows = append(deduplicatedRows, incoming)
+			}
+		}
+		insertRows = deduplicatedRows
+	}
 
 	// 5. 获取或创建表专用的B+树管理器
-	tableBtreeManager, err := dml.tableStorageManager.CreateBTreeManagerForTable(ctx, resolvedSchema, dml.tableName)
+	tableBtreeManager, err := dml.createBTreeManagerForDML(ctx, resolvedSchema, dml.tableName, tableMeta)
 	if err != nil {
 		return nil, fmt.Errorf("创建表B+树管理器失败: %v", err)
 	}
 
-	duplicateRowsByInsert, err := dml.findDuplicateRowsByInsert(ctx, insertRows, tableMeta, tableStorageInfo, tableBtreeManager)
-	if err != nil {
-		return nil, err
+	duplicateRowsByInsert := make(map[int][]*RowUpdateInfo)
+	if dml.uniqueChecks {
+		duplicateRowsByInsert, err = dml.findDuplicateRowsByInsert(ctx, insertRows, tableMeta, tableStorageInfo, tableBtreeManager)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if dml.ignoreMode {
+		filteredRows := make([]*InsertRowData, 0, len(insertRows))
+		uniqueColumns := uniqueConstraintColumns(tableMeta)
+		for index, incoming := range insertRows {
+			if len(duplicateRowsByInsert[index]) > 0 {
+				continue
+			}
+			conflictsWithBatch := false
+			for _, retained := range filteredRows {
+				conflicts, err := rowConflictsWithInsert(retained.ColumnValues, incoming.ColumnValues, tableMeta, uniqueColumns)
+				if err != nil {
+					return nil, err
+				}
+				if conflicts {
+					conflictsWithBatch = true
+					break
+				}
+			}
+			if !conflictsWithBatch {
+				filteredRows = append(filteredRows, incoming)
+			}
+		}
+		insertRows = filteredRows
+		if len(insertRows) == 0 {
+			dml.updateInsertStats(0, time.Since(startTime))
+			result := buildInsertDMLResult(0, 0, 0)
+			result.Warnings = append([]Warning(nil), dml.warnings...)
+			return result, nil
+		}
 	}
 	duplicateRows := flattenDuplicateRowsByInsert(duplicateRowsByInsert, tableMeta)
 	if len(duplicateRows) > 0 && strings.EqualFold(stmt.Action, sqlparser.ReplaceStr) {
@@ -301,7 +521,7 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 			return nil, fmt.Errorf("插入行到存储引擎失败: %v", err)
 		}
 		affectedRows++
-		if insertId > 0 {
+		if lastInsertId == 0 && insertId > 0 {
 			lastInsertId = insertId
 		}
 
@@ -312,15 +532,19 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 			return nil, fmt.Errorf("更新索引失败: %v", err)
 		}
 		changes = append(changes, transactionDMLChange{
-			tableName: dml.transactionTableName(),
-			kind:      "insert",
-			after:     cloneTransactionRow(row.ColumnValues),
+			tableName:   dml.transactionTableName(),
+			kind:        "insert",
+			after:       cloneTransactionRow(row.ColumnValues),
+			columnTypes: cloneTransactionColumnTypes(tableMeta),
 		})
 	}
 
 	// 8. 提交事务
 	if err := dml.commitStorageTransaction(ctx, txn); err != nil {
 		return nil, fmt.Errorf("提交存储事务失败: %v", err)
+	}
+	if err := dml.refreshSpatialIndexState(ctx, tableMeta, tableStorageInfo, tableBtreeManager); err != nil {
+		logger.Warnf("refresh spatial index state after INSERT failed: %v", err)
 	}
 	dml.recordTransactionDMLChanges(changes)
 
@@ -331,7 +555,9 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 	logger.Infof(" 存储引擎集成INSERT执行成功，影响行数: %d, LastInsertID: %d, 耗时: %v",
 		affectedRows, lastInsertId, executionTime)
 
-	return buildInsertDMLResult(affectedRows, lastInsertId, txnID), nil
+	result := buildInsertDMLResult(affectedRows, lastInsertId, txnID)
+	result.Warnings = append([]Warning(nil), dml.warnings...)
+	return result, nil
 }
 
 func (dml *StorageIntegratedDMLExecutor) executeReplaceRows(
@@ -360,7 +586,8 @@ func (dml *StorageIntegratedDMLExecutor) executeReplaceRows(
 		}
 	}
 
-	affectedRows := 0
+	// REPLACE reports one affected row for the delete and one for the insert.
+	affectedRows := len(duplicateRows)
 	var lastInsertId uint64
 	for _, row := range insertRows {
 		insertId, err := dml.insertRowToStorage(ctx, txn, row, tableMeta, tableStorageInfo, tableBtreeManager)
@@ -369,7 +596,7 @@ func (dml *StorageIntegratedDMLExecutor) executeReplaceRows(
 			return nil, fmt.Errorf("REPLACE插入行失败: %v", err)
 		}
 		affectedRows++
-		if insertId > 0 {
+		if lastInsertId == 0 && insertId > 0 {
 			lastInsertId = insertId
 		}
 		if err := dml.updateIndexesForInsert(ctx, txn, row, tableMeta, tableStorageInfo); err != nil {
@@ -381,8 +608,13 @@ func (dml *StorageIntegratedDMLExecutor) executeReplaceRows(
 	if err := dml.commitStorageTransaction(ctx, txn); err != nil {
 		return nil, fmt.Errorf("提交存储事务失败: %v", err)
 	}
+	if err := dml.refreshSpatialIndexState(ctx, tableMeta, tableStorageInfo, tableBtreeManager); err != nil {
+		logger.Warnf("refresh spatial index state after REPLACE failed: %v", err)
+	}
 	dml.updateInsertStats(affectedRows, time.Since(startTime))
-	return buildInsertDMLResult(affectedRows, lastInsertId, txnID), nil
+	result := buildInsertDMLResult(affectedRows, lastInsertId, txnID)
+	result.Warnings = append([]Warning(nil), dml.warnings...)
+	return result, nil
 }
 
 func (dml *StorageIntegratedDMLExecutor) executeOnDuplicateKeyUpdate(
@@ -414,7 +646,16 @@ func (dml *StorageIntegratedDMLExecutor) executeOnDuplicateKeyUpdate(
 	txnID := extractTransactionIDFromStorageCtx(txn)
 
 	duplicateRows := flattenDuplicateRowsByInsert(duplicateRowsByInsert, tableMeta)
-	if err := dml.validateUpdateConstraints(ctx, duplicateRows, updateExprs, tableMeta, tableStorageInfo, tableBtreeManager); err != nil {
+	incomingByRow := make(map[*RowUpdateInfo]map[string]interface{})
+	for insertIndex, rows := range duplicateRowsByInsert {
+		if insertIndex < 0 || insertIndex >= len(insertRows) {
+			continue
+		}
+		for _, rowInfo := range rows {
+			incomingByRow[rowInfo] = insertRows[insertIndex].ColumnValues
+		}
+	}
+	if err := dml.validateUpdateConstraints(ctx, duplicateRows, updateExprs, tableMeta, tableStorageInfo, tableBtreeManager, incomingByRow); err != nil {
 		dml.rollbackStorageTransaction(ctx, txn)
 		return nil, err
 	}
@@ -430,7 +671,7 @@ func (dml *StorageIntegratedDMLExecutor) executeOnDuplicateKeyUpdate(
 				return nil, fmt.Errorf("ON DUPLICATE KEY UPDATE插入非冲突行失败: %v", err)
 			}
 			affectedRows++
-			if insertId > 0 {
+			if lastInsertId == 0 && insertId > 0 {
 				lastInsertId = insertId
 			}
 			if err := dml.updateIndexesForInsert(ctx, txn, row, tableMeta, tableStorageInfo); err != nil {
@@ -440,23 +681,41 @@ func (dml *StorageIntegratedDMLExecutor) executeOnDuplicateKeyUpdate(
 			continue
 		}
 		for _, rowInfo := range rowDuplicates {
-			if err := dml.updateRowInStorage(ctx, txn, rowInfo, updateExprs, tableMeta, tableStorageInfo, tableBtreeManager); err != nil {
+			updatedRow, err := dml.applyUpdateExpressions(&InsertRowData{
+				ColumnValues: cloneTransactionRow(rowInfo.OldValues),
+				ColumnTypes:  make(map[string]metadata.DataType),
+			}, updateExprs, tableMeta, row.ColumnValues)
+			if err != nil {
+				dml.rollbackStorageTransaction(ctx, txn)
+				return nil, fmt.Errorf("ON DUPLICATE KEY UPDATE构造新行失败: %v", err)
+			}
+			changed := !rowMapsEqual(rowInfo.OldValues, updatedRow.ColumnValues)
+			if err := dml.updateRowInStorage(ctx, txn, rowInfo, updateExprs, tableMeta, tableStorageInfo, tableBtreeManager, row.ColumnValues); err != nil {
 				dml.rollbackStorageTransaction(ctx, txn)
 				return nil, fmt.Errorf("ON DUPLICATE KEY UPDATE更新行失败: %v", err)
 			}
-			if err := dml.updateIndexesForUpdate(ctx, txn, []*RowUpdateInfo{rowInfo}, updateExprs, tableMeta, tableStorageInfo); err != nil {
+			if err := dml.updateIndexesForUpdate(ctx, txn, []*RowUpdateInfo{rowInfo}, updateExprs, tableMeta, tableStorageInfo, row.ColumnValues); err != nil {
 				dml.rollbackStorageTransaction(ctx, txn)
 				return nil, fmt.Errorf("ON DUPLICATE KEY UPDATE更新索引失败: %v", err)
 			}
-			affectedRows++
+			if changed {
+				affectedRows += 2
+			} else if dml.foundRows {
+				affectedRows++
+			}
 		}
 	}
 
 	if err := dml.commitStorageTransaction(ctx, txn); err != nil {
 		return nil, fmt.Errorf("提交存储事务失败: %v", err)
 	}
+	if err := dml.refreshSpatialIndexState(ctx, tableMeta, tableStorageInfo, tableBtreeManager); err != nil {
+		logger.Warnf("refresh spatial index state after ON DUPLICATE KEY UPDATE failed: %v", err)
+	}
 	dml.updateUpdateStats(affectedRows, time.Since(startTime))
-	return buildInsertDMLResult(affectedRows, lastInsertId, txnID), nil
+	result := buildInsertDMLResult(affectedRows, lastInsertId, txnID)
+	result.Warnings = append([]Warning(nil), dml.warnings...)
+	return result, nil
 }
 
 func flattenDuplicateRowsByInsert(duplicateRowsByInsert map[int][]*RowUpdateInfo, tableMeta *metadata.TableMeta) []*RowUpdateInfo {
@@ -488,6 +747,7 @@ func buildInsertDMLResult(affectedRows int, lastInsertID uint64, txnID uint64) *
 // ExecuteUpdate 执行UPDATE语句 - 存储引擎集成版本
 func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt *sqlparser.Update, schemaName string) (*DMLResult, error) {
 	startTime := time.Now()
+	dml.resetDMLDiagnostics()
 	logger.Infof("🚀 开始执行存储引擎集成的UPDATE语句: %s", sqlparser.String(stmt))
 
 	resolvedSchema := strings.TrimSpace(schemaName)
@@ -506,6 +766,11 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 	}
 	dml.tableName = tableName
 	dml.schemaName = resolvedSchema
+	releaseTriggerLocks, err := dml.acquireTriggerMetadataLocks(ctx, dml.schemaName, dml.tableName)
+	if err != nil {
+		return nil, err
+	}
+	defer releaseTriggerLocks()
 
 	// 2. 获取表的存储信息
 	tableStorageInfo, err := dml.tableStorageManager.GetTableStorageInfo(resolvedSchema, dml.tableName)
@@ -527,7 +792,7 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 	}
 
 	// 5. 获取表专用的B+树管理器
-	tableBtreeManager, err := dml.tableStorageManager.CreateBTreeManagerForTable(ctx, resolvedSchema, dml.tableName)
+	tableBtreeManager, err := dml.createBTreeManagerForDML(ctx, resolvedSchema, dml.tableName, tableMeta)
 	if err != nil {
 		return nil, fmt.Errorf("创建表B+树管理器失败: %v", err)
 	}
@@ -554,11 +819,28 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 		dml.rollbackStorageTransaction(ctx, txn)
 		return nil, err
 	}
-	if updateTouchesPrimaryKey(updateExprs, tableMeta) && !dml.hasOnUpdateCascade(resolvedSchema, tableName) {
+	if err := validatePartitionRows(dml.dataDir, resolvedSchema, dml.tableName, updatedRowsForCascade); err != nil {
 		dml.rollbackStorageTransaction(ctx, txn)
-		return nil, fmt.Errorf("unsupported primary key UPDATE")
+		return nil, err
 	}
-	shouldUpdateIndexes := updateTouchesAnyIndex(updateExprs, tableMeta)
+	for _, row := range updatedRowsForCascade {
+		if err := applyBeforeTriggers(dml.dataDir, resolvedSchema, dml.tableName, "update", row.ColumnValues, dml.beforeTriggerObserver); err != nil {
+			dml.rollbackStorageTransaction(ctx, txn)
+			return nil, err
+		}
+	}
+	if err := dml.validateCheckConstraints(updatedRowsForCascade, resolvedSchema, tableName); err != nil {
+		dml.rollbackStorageTransaction(ctx, txn)
+		return nil, err
+	}
+	if err := dml.validateUpdatedForeignKeyConstraints(ctx, updatedRowsForCascade, resolvedSchema, tableName, tableMeta); err != nil {
+		dml.rollbackStorageTransaction(ctx, txn)
+		return nil, err
+	}
+	// A primary-key change also changes the clustered-key payload stored in
+	// every secondary index entry, even when no secondary-index column itself
+	// appears in SET.
+	shouldUpdateIndexes := updateTouchesAnyIndex(updateExprs, tableMeta) || updateTouchesPrimaryKey(updateExprs, tableMeta)
 
 	affectedRows := 0
 	changes := make([]transactionDMLChange, 0, len(rowsToUpdate))
@@ -572,6 +854,10 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 		if err != nil {
 			dml.rollbackStorageTransaction(ctx, txn)
 			return nil, fmt.Errorf("构造更新前镜像失败: %v", err)
+		}
+		if err := applyBeforeTriggers(dml.dataDir, resolvedSchema, dml.tableName, "update", updatedRow.ColumnValues, dml.beforeTriggerObserver); err != nil {
+			dml.rollbackStorageTransaction(ctx, txn)
+			return nil, err
 		}
 		err = dml.updateRowInStorage(ctx, txn, rowInfo, updateExprs, tableMeta, tableStorageInfo, tableBtreeManager)
 		if err != nil {
@@ -587,16 +873,27 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 				return nil, fmt.Errorf("更新索引失败: %v", err)
 			}
 		}
+		newStorageKey, err := dml.storageKeyForUpdatedRow(rowInfo, updatedRow, tableMeta)
+		if err != nil {
+			dml.rollbackStorageTransaction(ctx, txn)
+			return nil, fmt.Errorf("生成更新后存储键失败: %v", err)
+		}
 		changes = append(changes, transactionDMLChange{
-			tableName:  dml.transactionTableName(),
-			kind:       "update",
-			rowID:      rowInfo.RowId,
-			storageKey: rowInfo.StorageKey,
-			before:     cloneTransactionRow(rowInfo.OldValues),
-			after:      cloneTransactionRow(updatedRow.ColumnValues),
+			tableName:     dml.transactionTableName(),
+			kind:          "update",
+			rowID:         rowInfo.RowId,
+			storageKey:    rowInfo.StorageKey,
+			newStorageKey: newStorageKey,
+			before:        cloneTransactionRow(rowInfo.OldValues),
+			after:         cloneTransactionRow(updatedRow.ColumnValues),
+			columnTypes:   cloneTransactionColumnTypes(tableMeta),
 		})
 
-		affectedRows++
+		if !rowMapsEqual(rowInfo.OldValues, updatedRow.ColumnValues) {
+			affectedRows++
+		} else if dml.foundRows {
+			affectedRows++
+		}
 	}
 	cascadeChanges, err := dml.applyOnUpdateCascade(ctx, txn, resolvedSchema, tableName, rowsToUpdate, updatedRowsForCascade)
 	if err != nil {
@@ -609,6 +906,9 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 	if err := dml.commitStorageTransaction(ctx, txn); err != nil {
 		return nil, fmt.Errorf("提交存储事务失败: %v", err)
 	}
+	if err := dml.refreshSpatialIndexState(ctx, tableMeta, tableStorageInfo, tableBtreeManager); err != nil {
+		logger.Warnf("refresh spatial index state after UPDATE failed: %v", err)
+	}
 	dml.recordTransactionDMLChanges(changes)
 
 	// 10. 更新统计信息
@@ -620,6 +920,7 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 	return &DMLResult{
 		AffectedRows: affectedRows,
 		LastInsertId: 0,
+		Warnings:     append([]Warning(nil), dml.warnings...),
 		ResultType:   "UPDATE",
 		Message:      fmt.Sprintf("存储引擎集成UPDATE执行成功，影响行数: %d", affectedRows),
 		TxnID:        txnID,
@@ -629,6 +930,7 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 // ExecuteDelete 执行DELETE语句 - 存储引擎集成版本
 func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt *sqlparser.Delete, schemaName string) (*DMLResult, error) {
 	startTime := time.Now()
+	dml.resetDMLDiagnostics()
 	logger.Infof("🚀 开始执行存储引擎集成的DELETE语句: %s", sqlparser.String(stmt))
 
 	resolvedSchema := strings.TrimSpace(schemaName)
@@ -647,6 +949,11 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt
 	}
 	dml.tableName = tableName
 	dml.schemaName = resolvedSchema
+	releaseTriggerLocks, err := dml.acquireTriggerMetadataLocks(ctx, dml.schemaName, dml.tableName)
+	if err != nil {
+		return nil, err
+	}
+	defer releaseTriggerLocks()
 
 	// 2. 获取表的存储信息
 	tableStorageInfo, err := dml.tableStorageManager.GetTableStorageInfo(resolvedSchema, dml.tableName)
@@ -664,7 +971,7 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt
 	whereConditions := dml.parseWhereConditions(stmt.Where)
 
 	// 5. 获取表专用的B+树管理器
-	tableBtreeManager, err := dml.tableStorageManager.CreateBTreeManagerForTable(ctx, resolvedSchema, dml.tableName)
+	tableBtreeManager, err := dml.createBTreeManagerForDML(ctx, resolvedSchema, dml.tableName, tableMeta)
 	if err != nil {
 		return nil, fmt.Errorf("创建表B+树管理器失败: %v", err)
 	}
@@ -707,11 +1014,12 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt
 			return nil, fmt.Errorf("更新索引失败: %v", err)
 		}
 		changes = append(changes, transactionDMLChange{
-			tableName:  dml.transactionTableName(),
-			kind:       "delete",
-			rowID:      rowInfo.RowId,
-			storageKey: rowInfo.StorageKey,
-			before:     cloneTransactionRow(rowInfo.OldValues),
+			tableName:   dml.transactionTableName(),
+			kind:        "delete",
+			rowID:       rowInfo.RowId,
+			storageKey:  rowInfo.StorageKey,
+			before:      cloneTransactionRow(rowInfo.OldValues),
+			columnTypes: cloneTransactionColumnTypes(tableMeta),
 		})
 
 		affectedRows++
@@ -720,6 +1028,9 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt
 	// 9. 提交事务
 	if err := dml.commitStorageTransaction(ctx, txn); err != nil {
 		return nil, fmt.Errorf("提交存储事务失败: %v", err)
+	}
+	if err := dml.refreshSpatialIndexState(ctx, tableMeta, tableStorageInfo, tableBtreeManager); err != nil {
+		logger.Warnf("refresh spatial index state after DELETE failed: %v", err)
 	}
 	dml.recordTransactionDMLChanges(changes)
 
@@ -732,6 +1043,7 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt
 	return &DMLResult{
 		AffectedRows: affectedRows,
 		LastInsertId: 0,
+		Warnings:     append([]Warning(nil), dml.warnings...),
 		ResultType:   "DELETE",
 		Message:      fmt.Sprintf("存储引擎集成DELETE执行成功，影响行数: %d", affectedRows),
 		TxnID:        txnID,
@@ -756,7 +1068,11 @@ func rollbackDMLChange(dml *StorageIntegratedDMLExecutor, change transactionDMLC
 	case "insert":
 		return dml.deleteRowByValues(change.tableName, change.after, change.storageKey)
 	case "update":
-		return dml.updateRowByValues(change.tableName, change.after, change.before, change.rowID, change.storageKey)
+		storageKey := change.newStorageKey
+		if storageKey == nil {
+			storageKey = change.storageKey
+		}
+		return dml.updateRowByValues(change.tableName, change.after, change.before, change.rowID, storageKey)
 	case "delete":
 		return dml.insertRowByValues(change.tableName, change.before, change.storageKey)
 	default:
@@ -786,7 +1102,7 @@ func (dml *StorageIntegratedDMLExecutor) transactionTableResources(ctx context.C
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	btreeManager, err := dml.tableStorageManager.CreateBTreeManagerForTable(ctx, dml.schemaName, dml.tableName)
+	btreeManager, err := dml.createBTreeManagerForDML(ctx, dml.schemaName, dml.tableName, tableMeta)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -955,6 +1271,12 @@ func (dml *StorageIntegratedDMLExecutor) insertRowToStorage(
 	if err != nil {
 		return 0, fmt.Errorf("插入到B+树失败: %v", err)
 	}
+	if err := applyAfterTriggers(dml.dataDir, dml.schemaName, dml.tableName, "insert", row.ColumnValues, nil, dml.afterTriggerExecutor, dml.afterTriggerAtomicBegin); err != nil {
+		if rollbackErr := btreeManager.Delete(ctx, primaryKey); rollbackErr != nil {
+			logger.Warnf("rollback INSERT row after AFTER trigger failure failed: %v", rollbackErr)
+		}
+		return 0, err
+	}
 
 	logger.Debugf(" 行成功插入到B+树，主键: %v", primaryKey)
 	return dml.convertPrimaryKeyToUint64(primaryKey), nil
@@ -969,6 +1291,7 @@ func (dml *StorageIntegratedDMLExecutor) updateRowInStorage(
 	tableMeta *metadata.TableMeta,
 	tableStorageInfo *manager.TableStorageInfo,
 	btreeManager basic.BPlusTreeManager,
+	incomingValues ...map[string]interface{},
 ) error {
 	if rowInfo == nil {
 		return fmt.Errorf("待更新行信息不能为空")
@@ -1003,9 +1326,12 @@ func (dml *StorageIntegratedDMLExecutor) updateRowInStorage(
 	}
 
 	// 2. 应用更新表达式
-	updatedRowData, err := dml.applyUpdateExpressions(existingRowData, updateExprs, tableMeta)
+	updatedRowData, err := dml.applyUpdateExpressions(existingRowData, updateExprs, tableMeta, incomingValues...)
 	if err != nil {
 		return fmt.Errorf("应用更新表达式失败: %v", err)
+	}
+	if err := applyBeforeTriggers(dml.dataDir, dml.schemaName, dml.tableName, "update", updatedRowData.ColumnValues, dml.beforeTriggerObserver); err != nil {
+		return err
 	}
 
 	// 3. 序列化更新后的行数据
@@ -1014,7 +1340,14 @@ func (dml *StorageIntegratedDMLExecutor) updateRowInStorage(
 		return fmt.Errorf("序列化更新后的行数据失败: %v", err)
 	}
 
-	// 4. 在B+树中用同一主键替换记录
+	// 4. 在B+树中替换记录；主键变化时必须移动聚簇键
+	newPrimaryKey := primaryKey
+	if len(effectivePrimaryKeyColumns(tableMeta)) > 0 {
+		newPrimaryKey, err = dml.generatePrimaryKey(updatedRowData, tableMeta)
+		if err != nil {
+			return fmt.Errorf("生成新记录聚簇键失败: %v", err)
+		}
+	}
 	if err := btreeManager.Delete(ctx, primaryKey); err != nil {
 		if fallbackKey, ok := dml.singlePrimaryKeyRowIDFallback(rowInfo, tableMeta); ok {
 			if fallbackErr := btreeManager.Delete(ctx, fallbackKey); fallbackErr == nil {
@@ -1026,13 +1359,40 @@ func (dml *StorageIntegratedDMLExecutor) updateRowInStorage(
 			return fmt.Errorf("删除旧B+树记录失败: %v", err)
 		}
 	}
-	err = btreeManager.Insert(ctx, primaryKey, serializedRow)
+	serializedOldRow, err := dml.serializeRowData(existingRowData, tableMeta)
+	if err != nil {
+		return fmt.Errorf("序列化旧记录失败: %v", err)
+	}
+	err = btreeManager.Insert(ctx, newPrimaryKey, serializedRow)
 	if err != nil {
 		return fmt.Errorf("更新B+树记录失败: %v", err)
+	}
+	if err := applyAfterTriggers(dml.dataDir, dml.schemaName, dml.tableName, "update", updatedRowData.ColumnValues, rowInfo.OldValues, dml.afterTriggerExecutor, dml.afterTriggerAtomicBegin); err != nil {
+		if rollbackErr := btreeManager.Delete(ctx, newPrimaryKey); rollbackErr != nil {
+			logger.Warnf("rollback updated row after AFTER trigger failure failed: %v", rollbackErr)
+		}
+		if rollbackErr := btreeManager.Insert(ctx, primaryKey, serializedOldRow); rollbackErr != nil {
+			logger.Warnf("restore old row after AFTER trigger failure failed: %v", rollbackErr)
+		}
+		return err
 	}
 
 	logger.Debugf(" 行成功在B+树中更新")
 	return nil
+}
+
+func (dml *StorageIntegratedDMLExecutor) storageKeyForUpdatedRow(
+	rowInfo *RowUpdateInfo,
+	updatedRow *InsertRowData,
+	tableMeta *metadata.TableMeta,
+) (interface{}, error) {
+	if rowInfo == nil {
+		return nil, fmt.Errorf("待更新行信息不能为空")
+	}
+	if updatedRow == nil || len(effectivePrimaryKeyColumns(tableMeta)) == 0 {
+		return rowInfo.StorageKey, nil
+	}
+	return dml.generatePrimaryKey(updatedRow, tableMeta)
 }
 
 // deleteRowFromStorage 从存储引擎删除行
@@ -1071,10 +1431,31 @@ func (dml *StorageIntegratedDMLExecutor) deleteRowFromStorage(
 				return nil
 			}
 		}
-		return fmt.Errorf("删除B+树记录失败: %v", err)
+		// A scan can contain a stale duplicate entry after a page split or
+		// compaction. The physical row has already been removed in that case;
+		// keep DELETE idempotent and let the surrounding statement continue.
+		if strings.Contains(strings.ToLower(err.Error()), "record not found") {
+			logger.Debugf("clustered row already absent during delete, key=%v", primaryKey)
+			return nil
+		}
+		return fmt.Errorf("删除B+树记录失败 (key=%v): %v", primaryKey, err)
+	}
+	oldRowData := &InsertRowData{
+		ColumnValues: cloneTransactionRow(rowInfo.OldValues),
+		ColumnTypes:  make(map[string]metadata.DataType),
+	}
+	serializedOldRow, err := dml.serializeRowData(oldRowData, tableMeta)
+	if err != nil {
+		return fmt.Errorf("序列化待删除记录失败: %v", err)
 	}
 
 	logger.Debugf(" 行成功从B+树删除")
+	if err := applyAfterTriggers(dml.dataDir, dml.schemaName, dml.tableName, "delete", nil, rowInfo.OldValues, dml.afterTriggerExecutor, dml.afterTriggerAtomicBegin); err != nil {
+		if rollbackErr := btreeManager.Insert(ctx, primaryKey, serializedOldRow); rollbackErr != nil {
+			logger.Warnf("restore deleted row after AFTER trigger failure failed: %v", rollbackErr)
+		}
+		return err
+	}
 	return nil
 }
 
@@ -1086,6 +1467,14 @@ func (dml *StorageIntegratedDMLExecutor) singlePrimaryKeyRowIDFallback(rowInfo *
 }
 
 // ===== 索引管理方法 =====
+
+func (dml *StorageIntegratedDMLExecutor) secondaryIndexTableID(tableMeta *metadata.TableMeta) uint64 {
+	tableName := dml.tableName
+	if tableMeta != nil && strings.TrimSpace(tableMeta.Name) != "" {
+		tableName = tableMeta.Name
+	}
+	return manager.SecondaryIndexTableID(dml.schemaName, tableName)
+}
 
 // updateIndexesForInsert 为INSERT操作更新所有相关索引
 func (dml *StorageIntegratedDMLExecutor) updateIndexesForInsert(
@@ -1121,10 +1510,12 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForInsert(
 
 	// 调用IndexManager的标准方法同步所有二级索引
 	logger.Debugf("  📝 调用IndexManager.SyncSecondaryIndexesOnInsert，tableID=%d", tableStorageInfo.SpaceID)
-	if err := dml.indexManager.SyncSecondaryIndexesOnInsert(
-		manager.SecondaryIndexTableID(dml.schemaName, dml.tableName),
+	indexUpdateStarted := time.Now()
+	if err := dml.indexManager.SyncSecondaryIndexesOnInsertWithUniqueChecks(
+		dml.secondaryIndexTableID(tableMeta),
 		rowData,
 		primaryKeyBytes,
+		dml.uniqueChecks,
 	); err != nil {
 		return fmt.Errorf("同步二级索引失败: %v", err)
 	}
@@ -1132,7 +1523,7 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForInsert(
 	logger.Debugf(" ✅ 二级索引同步成功")
 
 	// 更新统计信息
-	dml.stats.IndexUpdates++
+	dml.recordIndexUpdate(1, time.Since(indexUpdateStarted))
 
 	return nil
 }
@@ -1170,32 +1561,59 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForUpdate(
 	updateExprs []*UpdateExpression,
 	tableMeta *metadata.TableMeta,
 	tableStorageInfo *manager.TableStorageInfo,
+	incomingValues ...map[string]interface{},
 ) error {
 	logger.Debugf("🔄 更新UPDATE相关索引，表: %s", tableMeta.Name)
 
 	// ===== 新增：使用IndexManager的标准二级索引同步方法 =====
 	// 为每个待更新的行调用IndexManager的同步方法
+	indexUpdateStarted := time.Now()
 	for _, rowInfo := range rowsToUpdate {
 		// 转换旧行数据
 		oldRowData := dml.convertUpdateRowInfoToMap(rowInfo)
 
-		// 应用更新表达式得到新行数据
-		newRowData := dml.applyUpdateExpressionsToRowData(oldRowData, updateExprs)
+		// 应用更新表达式得到新行数据。ON DUPLICATE KEY UPDATE 需要同时
+		// 看到现有行和候选 INSERT 行的 VALUES(col) 值。
+		updatedData, err := dml.applyUpdateExpressions(
+			&InsertRowData{ColumnValues: oldRowData},
+			updateExprs,
+			tableMeta,
+			incomingValues...,
+		)
+		if err != nil {
+			return fmt.Errorf("应用索引更新表达式失败: %v", err)
+		}
+		newRowData := updatedData.ColumnValues
+		if err := applyBeforeTriggers(dml.dataDir, dml.schemaName, dml.tableName, "update", newRowData, dml.beforeTriggerObserver); err != nil {
+			return err
+		}
+		if err := applyGeneratedColumnsToRow(newRowData, tableMeta); err != nil {
+			return fmt.Errorf("计算生成列失败: %v", err)
+		}
 
 		// 生成主键值
-		primaryKeyBytes, err := dml.generatePrimaryKeyBytesFromRowDataWithStorageKey(oldRowData, tableMeta, rowInfo.StorageKey)
+		oldPrimaryKeyBytes, err := dml.generatePrimaryKeyBytesFromRowDataWithStorageKey(oldRowData, tableMeta, rowInfo.StorageKey)
 		if err != nil {
 			return fmt.Errorf("生成主键字节失败: %v", err)
+		}
+		newPrimaryKeyBytes := oldPrimaryKeyBytes
+		if len(effectivePrimaryKeyColumns(tableMeta)) > 0 {
+			newPrimaryKeyBytes, err = dml.generatePrimaryKeyBytesFromRowData(newRowData, tableMeta)
+			if err != nil {
+				return fmt.Errorf("生成新主键字节失败: %v", err)
+			}
 		}
 
 		// 调用IndexManager的标准方法同步所有二级索引
 		logger.Debugf("  📝 调用IndexManager.SyncSecondaryIndexesOnUpdate，tableID=%d, rowID=%d",
 			tableStorageInfo.SpaceID, rowInfo.RowId)
-		if err := dml.indexManager.SyncSecondaryIndexesOnUpdate(
-			manager.SecondaryIndexTableID(dml.schemaName, dml.tableName),
+		if err := dml.indexManager.SyncSecondaryIndexesOnUpdateWithPrimaryKeyAndUniqueChecks(
+			dml.secondaryIndexTableID(tableMeta),
 			oldRowData,
 			newRowData,
-			primaryKeyBytes,
+			oldPrimaryKeyBytes,
+			newPrimaryKeyBytes,
+			dml.uniqueChecks,
 		); err != nil {
 			return fmt.Errorf("同步二级索引失败: %v", err)
 		}
@@ -1204,7 +1622,7 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForUpdate(
 	logger.Debugf(" ✅ 二级索引同步成功，更新了 %d 行", len(rowsToUpdate))
 
 	// 更新统计信息
-	dml.stats.IndexUpdates += uint64(len(rowsToUpdate))
+	dml.recordIndexUpdate(uint64(len(rowsToUpdate)), time.Since(indexUpdateStarted))
 
 	return nil
 }
@@ -1221,6 +1639,7 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForDelete(
 
 	// ===== 新增：使用IndexManager的标准二级索引同步方法 =====
 	// 为每个待删除的行调用IndexManager的同步方法
+	indexUpdateStarted := time.Now()
 	for _, rowInfo := range rowsToDelete {
 		// 转换行数据
 		rowData := dml.convertUpdateRowInfoToMap(rowInfo)
@@ -1233,7 +1652,7 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForDelete(
 		logger.Debugf("  📝 调用IndexManager.SyncSecondaryIndexesOnDelete，tableID=%d, rowID=%d",
 			tableStorageInfo.SpaceID, rowInfo.RowId)
 		if err := dml.indexManager.SyncSecondaryIndexesOnDelete(
-			manager.SecondaryIndexTableID(dml.schemaName, dml.tableName),
+			dml.secondaryIndexTableID(tableMeta),
 			rowData,
 			primaryKeyBytes,
 		); err != nil {
@@ -1244,7 +1663,7 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForDelete(
 	logger.Debugf(" ✅ 二级索引同步成功，删除了 %d 行", len(rowsToDelete))
 
 	// 更新统计信息
-	dml.stats.IndexUpdates += uint64(len(rowsToDelete))
+	dml.recordIndexUpdate(uint64(len(rowsToDelete)), time.Since(indexUpdateStarted))
 
 	return nil
 }
@@ -1253,6 +1672,11 @@ func (dml *StorageIntegratedDMLExecutor) updateIndexesForDelete(
 
 // getTableMetadata 获取表元数据
 func (dml *StorageIntegratedDMLExecutor) getTableMetadata() (*metadata.TableMeta, error) {
+	if dml.dataDir != "" {
+		if tableMeta, err := (&SelectExecutor{}).loadTableMetaFromFrm(dml.dataDir, dml.schemaName, dml.tableName); err == nil && tableMeta != nil {
+			return tableMeta, nil
+		}
+	}
 	var tableManagerErr error
 	if dml.tableManager != nil {
 		tableMeta, err := dml.tableManager.GetTableMetadata(context.Background(), dml.schemaName, dml.tableName)
@@ -1262,12 +1686,6 @@ func (dml *StorageIntegratedDMLExecutor) getTableMetadata() (*metadata.TableMeta
 		tableManagerErr = err
 	} else {
 		tableManagerErr = fmt.Errorf("表管理器未初始化")
-	}
-
-	if dml.dataDir != "" {
-		if tableMeta, err := (&SelectExecutor{}).loadTableMetaFromFrm(dml.dataDir, dml.schemaName, dml.tableName); err == nil && tableMeta != nil {
-			return tableMeta, nil
-		}
 	}
 
 	return nil, fmt.Errorf("获取表元数据失败: %v", tableManagerErr)
@@ -1338,8 +1756,15 @@ func (dml *StorageIntegratedDMLExecutor) clusteredKeyFromRowData(
 	tableMeta *metadata.TableMeta,
 	storageKey interface{},
 ) (interface{}, error) {
+	// The scanner already carries the exact serialized clustered key. Prefer it
+	// over reconstructing the key from decoded JDBC values, whose Go type can
+	// vary (for example int64 versus uint64) while formatting to a different
+	// byte representation.
+	if storageKeyBytes, ok := storageKeyToBytes(storageKey); ok {
+		return string(storageKeyBytes), nil
+	}
 	if tableMeta == nil {
-		if value, exists := rowData["id"]; exists {
+		if value, exists := resolveExpressionRowValue(rowData, "id"); exists {
 			return value, nil
 		}
 		return nil, fmt.Errorf("表元数据为空")
@@ -1350,7 +1775,7 @@ func (dml *StorageIntegratedDMLExecutor) clusteredKeyFromRowData(
 	}
 	if len(primaryKeyColumns) == 1 {
 		columnName := primaryKeyColumns[0]
-		value, exists := rowData[columnName]
+		value, exists := resolveExpressionRowValue(rowData, columnName)
 		if !exists || value == nil {
 			return nil, fmt.Errorf("missing primary key column '%s'", columnName)
 		}
@@ -1358,9 +1783,6 @@ func (dml *StorageIntegratedDMLExecutor) clusteredKeyFromRowData(
 	}
 	if hiddenID, ok := hiddenRowIDBytesFromValue(rowData[hiddenRowIDColumnName]); ok {
 		return string(hiddenID), nil
-	}
-	if storageKeyBytes, ok := storageKeyToBytes(storageKey); ok {
-		return string(storageKeyBytes), nil
 	}
 	hiddenID, err := dml.ensureHiddenRowID(rowData)
 	if err != nil {

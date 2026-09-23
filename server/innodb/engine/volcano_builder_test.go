@@ -54,6 +54,38 @@ func TestVolcanoExecutor_BuildTableScan(t *testing.T) {
 	}
 }
 
+func TestVolcanoExecutor_BuildTableScanCarriesPrunedColumns(t *testing.T) {
+	table := metadata.NewTable("users")
+	table.AddColumn(&metadata.Column{Name: "id", DataType: metadata.TypeInt})
+	table.AddColumn(&metadata.Column{Name: "name", DataType: metadata.TypeVarchar})
+	table.AddColumn(&metadata.Column{Name: "created_at", DataType: metadata.TypeDateTime})
+	schema := metadata.NewSchema("testdb")
+	if err := schema.AddTable(table); err != nil {
+		t.Fatal(err)
+	}
+	pruned := metadata.NewTable("users")
+	pruned.AddColumn(&metadata.Column{Name: "name", DataType: metadata.TypeVarchar})
+	prunedSchema := metadata.NewSchema("testdb")
+	if err := prunedSchema.AddTable(pruned); err != nil {
+		t.Fatal(err)
+	}
+
+	physicalPlan := &plan.PhysicalTableScan{Table: table}
+	physicalPlan.SetSchema(prunedSchema)
+	executor := &VolcanoExecutor{}
+	op, err := executor.buildTableScan(physicalPlan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tableScan, ok := op.(*TableScanOperator)
+	if !ok {
+		t.Fatalf("operator = %T, want *TableScanOperator", op)
+	}
+	if len(tableScan.requiredColumns) != 1 || tableScan.requiredColumns[0] != "name" {
+		t.Fatalf("required columns = %#v, want [name]", tableScan.requiredColumns)
+	}
+}
+
 // TestVolcanoExecutor_BuildMergeJoin EXE-004：PhysicalMergeJoin 能成功构建算子树（当前退化为 NestedLoopJoin）
 func TestVolcanoExecutor_BuildMergeJoin(t *testing.T) {
 	ctx := context.Background()
@@ -87,6 +119,123 @@ func TestVolcanoExecutor_BuildMergeJoin(t *testing.T) {
 	// 当前实现退化为 NestedLoopJoin
 	if _, ok := op.(*NestedLoopJoinOperator); !ok {
 		t.Logf("PhysicalMergeJoin currently builds as %T (NestedLoopJoin fallback expected)", op)
+	}
+}
+
+func TestVolcanoExecutor_BuildMergeJoinEvaluatesNonEquiCondition(t *testing.T) {
+	ctx := context.Background()
+	left := &plan.PhysicalValues{
+		BasePhysicalPlan: plan.BasePhysicalPlan{},
+		Exprs:            []plan.Expression{&plan.Constant{Value: int64(1)}},
+	}
+	right := &plan.PhysicalValues{
+		BasePhysicalPlan: plan.BasePhysicalPlan{},
+		Exprs:            []plan.Expression{&plan.Constant{Value: int64(2)}},
+	}
+	merge := &plan.PhysicalMergeJoin{
+		BasePhysicalPlan: plan.BasePhysicalPlan{},
+		JoinType:         "INNER",
+		Conditions: []plan.Expression{&plan.BinaryOperation{
+			Op:    plan.OpLT,
+			Left:  &plan.Constant{Value: int64(1)},
+			Right: &plan.Constant{Value: int64(0)},
+		}},
+	}
+	merge.SetChildren([]plan.PhysicalPlan{left, right})
+
+	executor := &VolcanoExecutor{}
+	op, err := executor.buildOperatorTree(ctx, merge)
+	if err != nil {
+		t.Fatalf("buildMergeJoin failed: %v", err)
+	}
+	if err := op.Open(ctx); err != nil {
+		t.Fatalf("open merge join failed: %v", err)
+	}
+	defer op.Close()
+
+	row, err := op.Next(ctx)
+	if err != nil {
+		t.Fatalf("read merge join failed: %v", err)
+	}
+	if row != nil {
+		t.Fatalf("non-equi false condition produced a row: %v", row.GetValues())
+	}
+}
+
+func TestVolcanoExecutor_BuildMergeJoinPreservesResidualConditions(t *testing.T) {
+	ctx := context.Background()
+	left := &plan.PhysicalValues{
+		BasePhysicalPlan: plan.BasePhysicalPlan{},
+		Exprs:            []plan.Expression{&plan.Constant{Value: int64(1)}},
+	}
+	right := &plan.PhysicalValues{
+		BasePhysicalPlan: plan.BasePhysicalPlan{},
+		Exprs:            []plan.Expression{&plan.Constant{Value: int64(1)}},
+	}
+	merge := &plan.PhysicalMergeJoin{
+		BasePhysicalPlan: plan.BasePhysicalPlan{},
+		JoinType:         "INNER",
+		Conditions: []plan.Expression{
+			&plan.BinaryOperation{Op: plan.OpEQ, Left: &plan.Column{Name: "1"}, Right: &plan.Column{Name: "1"}},
+			&plan.BinaryOperation{Op: plan.OpLT, Left: &plan.Constant{Value: int64(1)}, Right: &plan.Constant{Value: int64(0)}},
+		},
+	}
+	merge.SetChildren([]plan.PhysicalPlan{left, right})
+
+	op, err := (&VolcanoExecutor{}).buildOperatorTree(ctx, merge)
+	if err != nil {
+		t.Fatalf("buildMergeJoin failed: %v", err)
+	}
+	if err := op.Open(ctx); err != nil {
+		t.Fatalf("open merge join failed: %v", err)
+	}
+	defer op.Close()
+
+	row, err := op.Next(ctx)
+	if err != nil {
+		t.Fatalf("read merge join failed: %v", err)
+	}
+	if row != nil {
+		t.Fatalf("residual false condition produced a row: %v", row.GetValues())
+	}
+}
+
+func TestVolcanoExecutor_BuildHashJoinEvaluatesNonEquiCondition(t *testing.T) {
+	ctx := context.Background()
+	left := &plan.PhysicalValues{
+		BasePhysicalPlan: plan.BasePhysicalPlan{},
+		Exprs:            []plan.Expression{&plan.Constant{Value: int64(1)}},
+	}
+	right := &plan.PhysicalValues{
+		BasePhysicalPlan: plan.BasePhysicalPlan{},
+		Exprs:            []plan.Expression{&plan.Constant{Value: int64(2)}},
+	}
+	hash := &plan.PhysicalHashJoin{
+		BasePhysicalPlan: plan.BasePhysicalPlan{},
+		JoinType:         "INNER",
+		Conditions: []plan.Expression{&plan.BinaryOperation{
+			Op:    plan.OpLT,
+			Left:  &plan.Constant{Value: int64(1)},
+			Right: &plan.Constant{Value: int64(0)},
+		}},
+	}
+	hash.SetChildren([]plan.PhysicalPlan{left, right})
+
+	op, err := (&VolcanoExecutor{}).buildOperatorTree(ctx, hash)
+	if err != nil {
+		t.Fatalf("buildHashJoin failed: %v", err)
+	}
+	if err := op.Open(ctx); err != nil {
+		t.Fatalf("open hash join failed: %v", err)
+	}
+	defer op.Close()
+
+	row, err := op.Next(ctx)
+	if err != nil {
+		t.Fatalf("read hash join failed: %v", err)
+	}
+	if row != nil {
+		t.Fatalf("non-equi false condition produced a row: %v", row.GetValues())
 	}
 }
 
@@ -298,6 +447,9 @@ func TestVolcanoExecutor_FindColumnIndex(t *testing.T) {
 		{"id", 0},
 		{"name", 1},
 		{"age", 2},
+		{"AGE", 2},
+		{"users.age", 2},
+		{"`users`.`age`", 2},
 		{"notexist", -1},
 	}
 

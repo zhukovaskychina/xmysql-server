@@ -29,6 +29,7 @@ type BasePage struct {
 	pinCount int32  // 使用atomic操作
 	dirty    uint32 // 使用atomic操作，0=false, 1=true
 	lock     sync.RWMutex
+	storage  basic.StorageProvider
 }
 
 // NewBasePage 创建基础页面
@@ -36,8 +37,15 @@ type BasePage struct {
 // Deprecated: Use NewUnifiedPage instead.
 // New code path should create pages through types.UnifiedPage.
 func NewBasePage(spaceID, pageNo uint32, pageType PageType) *BasePage {
+	return NewBasePageWithStorage(spaceID, pageNo, pageType, nil)
+}
+
+// NewBasePageWithStorage creates the deprecated base page with an optional
+// durable provider. NewBasePage remains source-compatible for old callers.
+func NewBasePageWithStorage(spaceID, pageNo uint32, pageType PageType, storage basic.StorageProvider) *BasePage {
 	page := &BasePage{
 		rawPage: NewPageHeader(16384), // 默认16KB页面大小
+		storage: storage,
 	}
 
 	// 设置页面头
@@ -131,16 +139,55 @@ func (p *BasePage) Unpin() {
 
 // Read 读取页面
 func (p *BasePage) Read() error {
-	// 更新统计信息
+	if p.storage == nil {
+		return ErrPageStorageUnavailable
+	}
+	spaceID, pageNo := p.GetSpaceID(), p.GetPageNo()
+	data, err := p.storage.ReadPage(spaceID, pageNo)
+	if err != nil {
+		return err
+	}
+	if len(data) < 16384 {
+		return ErrInvalidPageSize
+	}
+
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	copy(p.rawPage.FileHeader, data[:len(p.rawPage.FileHeader)])
+	bodyStart := len(p.rawPage.FileHeader)
+	bodyEnd := bodyStart + len(p.rawPage.FileBody)
+	copy(p.rawPage.FileBody, data[bodyStart:bodyEnd])
+	copy(p.rawPage.FileTrailer, data[bodyEnd:bodyEnd+len(p.rawPage.FileTrailer)])
 	p.stats.LastAccessAt = uint64(time.Now().UnixNano())
 	p.stats.ReadCount++
+	atomic.StoreUint32(&p.dirty, 0)
+	atomic.StoreUint32(&p.state, uint32(basic.PageStateLoaded))
 	return nil
+
 }
 
 // Write 写入页面
 func (p *BasePage) Write() error {
+	if p.storage == nil {
+		return ErrPageStorageUnavailable
+	}
+	spaceID, pageNo := p.GetSpaceID(), p.GetPageNo()
+	p.lock.RLock()
+	data := make([]byte, 0, 16384)
+	data = append(data, p.rawPage.FileHeader...)
+	data = append(data, p.rawPage.FileBody...)
+	data = append(data, p.rawPage.FileTrailer...)
+	p.lock.RUnlock()
+	if err := p.storage.WritePage(spaceID, pageNo, data); err != nil {
+		return err
+	}
+
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	// 更新统计信息
 	p.stats.LastAccessAt = uint64(time.Now().UnixNano())
 	p.stats.WriteCount++
+	atomic.StoreUint32(&p.dirty, 0)
+	atomic.StoreUint32(&p.state, uint32(basic.PageStateClean))
 	return nil
 }

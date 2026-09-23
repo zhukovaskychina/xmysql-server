@@ -263,6 +263,7 @@ func (cbo *CBOIntegratedOptimizer) generatePhysicalPlan(
 		return &PhysicalTableScan{
 			BasePhysicalPlan: BasePhysicalPlan{},
 			Table:            lp.Table,
+			RequiredColumns:  RequiredColumnNames(lp.Table, lp.Schema()),
 		}
 	case *LogicalIndexScan:
 		// 需要把逻辑计划的Index转换为metadata.Index
@@ -275,6 +276,7 @@ func (cbo *CBOIntegratedOptimizer) generatePhysicalPlan(
 			BasePhysicalPlan: BasePhysicalPlan{},
 			Table:            lp.Table,
 			Index:            metaIndex,
+			RequiredColumns:  RequiredColumnNames(lp.Table, lp.Schema()),
 		}
 	case *LogicalSelection:
 		child := cbo.generatePhysicalPlan(lp.Children()[0], joinTree)
@@ -316,8 +318,11 @@ func (cbo *CBOIntegratedOptimizer) generatePhysicalPlan(
 			}
 		}
 	default:
-		// 默认处理
-		return &PhysicalTableScan{}
+		// Keep the integrated optimizer's specialized scan/join choices, but
+		// delegate every other logical node to the complete converter. Returning
+		// an empty table scan here silently discarded aggregation, VALUES, UNION,
+		// CTE, and subquery plan trees.
+		return ConvertToPhysicalPlan(logicalPlan)
 	}
 }
 
@@ -360,6 +365,14 @@ func (cbo *CBOIntegratedOptimizer) estimateTableScanCost(
 // GetStatisticsCollector 获取统计信息收集器
 func (cbo *CBOIntegratedOptimizer) GetStatisticsCollector() *EnhancedStatisticsCollector {
 	return cbo.statsCollector
+}
+
+// SetStorageEngineAccessor wires decoded storage rows into ANALYZE column
+// sampling without changing the existing optimizer constructor contract.
+func (cbo *CBOIntegratedOptimizer) SetStorageEngineAccessor(accessor StorageEngineAccessor) {
+	if cbo != nil && cbo.statsCollector != nil {
+		cbo.statsCollector.SetStorageEngineAccessor(accessor)
+	}
 }
 
 // GetSelectivityEstimator 获取选择率估算器

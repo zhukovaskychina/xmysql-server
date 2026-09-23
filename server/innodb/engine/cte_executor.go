@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
@@ -27,6 +28,7 @@ type CTEDefinition struct {
 type CTEContext struct {
 	definitions  map[string]*CTEDefinition // CTE定义映射
 	materialized map[string][]Record       // 物化的CTE结果
+	generations  map[string]uint64
 }
 
 // NewCTEContext 创建CTE上下文
@@ -34,29 +36,39 @@ func NewCTEContext() *CTEContext {
 	return &CTEContext{
 		definitions:  make(map[string]*CTEDefinition),
 		materialized: make(map[string][]Record),
+		generations:  make(map[string]uint64),
 	}
 }
 
 // AddDefinition 添加CTE定义
 func (ctx *CTEContext) AddDefinition(def *CTEDefinition) {
-	ctx.definitions[def.Name] = def
+	if def == nil {
+		return
+	}
+	ctx.definitions[normalizeCTEName(def.Name)] = def
 }
 
 // GetDefinition 获取CTE定义
 func (ctx *CTEContext) GetDefinition(name string) (*CTEDefinition, bool) {
-	def, ok := ctx.definitions[name]
+	def, ok := ctx.definitions[normalizeCTEName(name)]
 	return def, ok
 }
 
 // Materialize 物化CTE
 func (ctx *CTEContext) Materialize(name string, records []Record) {
+	name = normalizeCTEName(name)
 	ctx.materialized[name] = records
+	ctx.generations[name]++
 }
 
 // GetMaterialized 获取物化的CTE结果
 func (ctx *CTEContext) GetMaterialized(name string) ([]Record, bool) {
-	records, ok := ctx.materialized[name]
+	records, ok := ctx.materialized[normalizeCTEName(name)]
 	return records, ok
+}
+
+func (ctx *CTEContext) generation(name string) uint64 {
+	return ctx.generations[normalizeCTEName(name)]
 }
 
 // ========================================
@@ -96,14 +108,24 @@ func NewCTEOperator(
 
 // Open 初始化CTE算子
 func (c *CTEOperator) Open(ctx context.Context) error {
-	if err := c.BaseOperator.Open(ctx); err != nil {
-		return err
+	if c.opened {
+		return fmt.Errorf("operator already opened")
+	}
+	// The body contains CTEScanOperator instances. Open the definition first
+	// and materialize it before opening the body, otherwise a scan observes an
+	// empty scope and fails with "CTE not materialized".
+	if err := c.cteQuery.Open(ctx); err != nil {
+		return fmt.Errorf("failed to open CTE query: %w", err)
 	}
 
 	// 物化CTE查询
 	if err := c.materializeCTE(ctx); err != nil {
 		return fmt.Errorf("failed to materialize CTE: %w", err)
 	}
+	if err := c.mainQuery.Open(ctx); err != nil {
+		return fmt.Errorf("failed to open CTE body: %w", err)
+	}
+	c.opened = true
 
 	// 设置schema为主查询的schema
 	c.schema = c.mainQuery.Schema()
@@ -120,6 +142,13 @@ func (c *CTEOperator) Next(ctx context.Context) (Record, error) {
 
 	// 直接从主查询获取结果
 	return c.mainQuery.Next(ctx)
+}
+
+func (c *CTEOperator) NextBatch(ctx context.Context, maxRows int) ([]Record, error) {
+	if !c.opened {
+		return nil, fmt.Errorf("operator not opened")
+	}
+	return nextOperatorBatch(ctx, c.mainQuery, maxRows)
 }
 
 // materializeCTE 物化CTE查询
@@ -199,14 +228,24 @@ func NewRecursiveCTEOperator(
 
 // Open 初始化递归CTE算子
 func (r *RecursiveCTEOperator) Open(ctx context.Context) error {
-	if err := r.BaseOperator.Open(ctx); err != nil {
-		return err
+	if r.opened {
+		return fmt.Errorf("operator already opened")
+	}
+	// Anchor and recursive members are scope-sensitive. The anchor must be
+	// opened before the recursive member and body so the first materialized
+	// batch is visible to their CTEScanOperator children.
+	if err := r.anchorQuery.Open(ctx); err != nil {
+		return fmt.Errorf("failed to open recursive CTE anchor: %w", err)
 	}
 
 	// 执行递归CTE
 	if err := r.executeRecursiveCTE(ctx); err != nil {
 		return fmt.Errorf("failed to execute recursive CTE: %w", err)
 	}
+	if err := r.mainQuery.Open(ctx); err != nil {
+		return fmt.Errorf("failed to open recursive CTE body: %w", err)
+	}
+	r.opened = true
 
 	// 设置schema为主查询的schema
 	r.schema = r.mainQuery.Schema()
@@ -225,6 +264,13 @@ func (r *RecursiveCTEOperator) Next(ctx context.Context) (Record, error) {
 	return r.mainQuery.Next(ctx)
 }
 
+func (r *RecursiveCTEOperator) NextBatch(ctx context.Context, maxRows int) ([]Record, error) {
+	if !r.opened {
+		return nil, fmt.Errorf("operator not opened")
+	}
+	return nextOperatorBatch(ctx, r.mainQuery, maxRows)
+}
+
 // executeRecursiveCTE 执行递归CTE
 func (r *RecursiveCTEOperator) executeRecursiveCTE(ctx context.Context) error {
 	// 1. 执行锚点查询（非递归部分）
@@ -239,6 +285,14 @@ func (r *RecursiveCTEOperator) executeRecursiveCTE(ctx context.Context) error {
 
 	// 当前迭代的结果（用于下一次递归）
 	currentResults := anchorResults
+	// Publish the anchor before opening the recursive member; its scan needs a
+	// valid initial scope during Open.
+	r.cteContext.Materialize(r.cteName, currentResults)
+	// Open the recursive member only after the anchor scope exists. Its
+	// CTEScanOperator will refresh its batch whenever the generation changes.
+	if err := r.recursiveQuery.Open(ctx); err != nil {
+		return fmt.Errorf("failed to open recursive CTE member: %w", err)
+	}
 
 	// 2. 递归执行
 	r.currentDepth = 0
@@ -373,6 +427,7 @@ type CTEScanOperator struct {
 	// 执行状态
 	records      []Record
 	currentIndex int
+	generation   uint64
 }
 
 // NewCTEScanOperator 创建CTE扫描算子
@@ -406,6 +461,7 @@ func (c *CTEScanOperator) Open(ctx context.Context) error {
 
 	c.records = records
 	c.currentIndex = 0
+	c.generation = c.cteContext.generation(c.cteName)
 
 	logger.Debugf("CTEScanOperator opened for CTE: %s with %d rows", c.cteName, len(c.records))
 	return nil
@@ -416,6 +472,15 @@ func (c *CTEScanOperator) Next(ctx context.Context) (Record, error) {
 	if !c.opened {
 		return nil, fmt.Errorf("operator not opened")
 	}
+	if generation := c.cteContext.generation(c.cteName); generation != c.generation {
+		records, ok := c.cteContext.GetMaterialized(c.cteName)
+		if !ok {
+			return nil, fmt.Errorf("CTE %s not materialized", c.cteName)
+		}
+		c.records = records
+		c.currentIndex = 0
+		c.generation = generation
+	}
 
 	if c.currentIndex >= len(c.records) {
 		return nil, nil // EOF
@@ -424,6 +489,40 @@ func (c *CTEScanOperator) Next(ctx context.Context) (Record, error) {
 	record := c.records[c.currentIndex]
 	c.currentIndex++
 	return record, nil
+}
+
+func (c *CTEScanOperator) NextBatch(ctx context.Context, maxRows int) ([]Record, error) {
+	if !c.opened {
+		return nil, fmt.Errorf("operator not opened")
+	}
+	if maxRows <= 0 {
+		return nil, fmt.Errorf("batch size must be positive")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if generation := c.cteContext.generation(c.cteName); generation != c.generation {
+		records, ok := c.cteContext.GetMaterialized(c.cteName)
+		if !ok {
+			return nil, fmt.Errorf("CTE %s not materialized", c.cteName)
+		}
+		c.records = records
+		c.currentIndex = 0
+		c.generation = generation
+	}
+	if c.currentIndex >= len(c.records) {
+		return nil, io.EOF
+	}
+	end := c.currentIndex + maxRows
+	if end > len(c.records) {
+		end = len(c.records)
+	}
+	batch := c.records[c.currentIndex:end]
+	c.currentIndex = end
+	if c.currentIndex >= len(c.records) {
+		return batch, io.EOF
+	}
+	return batch, nil
 }
 
 // ========================================
@@ -506,8 +605,11 @@ func ValidateCTEDefinition(def *CTEDefinition) error {
 			return fmt.Errorf("recursive CTE %s must use UNION ALL", def.Name)
 		}
 
-		if strings.ToLower(unionStmt.Type) != strings.ToLower(sqlparser.UnionAllStr) {
-			return fmt.Errorf("recursive CTE %s requires UNION ALL", def.Name)
+		unionType := strings.ToLower(unionStmt.Type)
+		if unionType != strings.ToLower(sqlparser.UnionAllStr) &&
+			unionType != strings.ToLower(sqlparser.UnionStr) &&
+			unionType != strings.ToLower(sqlparser.UnionDistinctStr) {
+			return fmt.Errorf("recursive CTE %s requires UNION ALL or UNION DISTINCT", def.Name)
 		}
 
 		_ = collectCTETableRefs(unionStmt.Left)
@@ -537,13 +639,56 @@ func ValidateCTEDefinition(def *CTEDefinition) error {
 // BuildCTEContext 从CTE定义列表构建CTE上下文
 func BuildCTEContext(definitions []*CTEDefinition) (*CTEContext, error) {
 	ctx := NewCTEContext()
+	seen := make(map[string]struct{}, len(definitions))
 
-	for _, def := range definitions {
+	for index, def := range definitions {
+		if def == nil {
+			return nil, fmt.Errorf("invalid CTE definition at position %d: definition is nil", index)
+		}
 		if err := ValidateCTEDefinition(def); err != nil {
 			return nil, fmt.Errorf("invalid CTE definition %s: %w", def.Name, err)
 		}
+		name := normalizeCTEName(def.Name)
+		if _, exists := seen[name]; exists {
+			return nil, fmt.Errorf("duplicate CTE definition: %s", def.Name)
+		}
+		seen[name] = struct{}{}
+		columnNames := make(map[string]struct{}, len(def.Columns))
+		for _, column := range def.Columns {
+			columnName := normalizeCTEName(column)
+			if columnName == "" {
+				return nil, fmt.Errorf("CTE %s has an empty column name", def.Name)
+			}
+			if _, exists := columnNames[columnName]; exists {
+				return nil, fmt.Errorf("CTE %s has duplicate column name: %s", def.Name, column)
+			}
+			columnNames[columnName] = struct{}{}
+		}
 
 		ctx.AddDefinition(def)
+	}
+	if err := DetectCTECycle(definitions); err != nil {
+		return nil, err
+	}
+	// A non-recursive CTE may only reference CTEs declared before it. Base
+	// tables are intentionally ignored here; their existence belongs to the
+	// catalog validator, while CTE names are resolved by this scope validator.
+	for index, def := range definitions {
+		prior := make(map[string]struct{}, index+1)
+		for _, previous := range definitions[:index] {
+			prior[normalizeCTEName(previous.Name)] = struct{}{}
+		}
+		prior[normalizeCTEName(def.Name)] = struct{}{}
+		for _, ref := range collectCTETableRefs(def.Query) {
+			refName := normalizeCTEName(ref)
+			if _, isCTE := seen[refName]; !isCTE {
+				continue
+			}
+			if _, inScope := prior[refName]; inScope {
+				continue
+			}
+			return nil, fmt.Errorf("CTE %s references later CTE %s", def.Name, ref)
+		}
 	}
 
 	return ctx, nil

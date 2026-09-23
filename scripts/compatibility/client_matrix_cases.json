@@ -1,0 +1,10 @@
+[
+  {"name":"connection-auth","kind":"sql","sql":"SELECT 1"},
+  {"name":"database-ddl-dml","kind":"sql","sql":"CREATE DATABASE IF NOT EXISTS client_matrix; CREATE TABLE IF NOT EXISTS client_matrix.matrix_rows(id INT PRIMARY KEY, label VARCHAR(32)); INSERT INTO client_matrix.matrix_rows(id, label) VALUES (1, 'one') ON DUPLICATE KEY UPDATE label=VALUES(label); SELECT id, label FROM client_matrix.matrix_rows ORDER BY id"},
+  {"name":"prepared-statements","kind":"prepared"},
+  {"name":"transactions","kind":"transaction"},
+  {"name":"null-and-types","kind":"sql","sql":"SELECT NULL AS nullable_value, CAST(42 AS SIGNED) AS integer_value, _utf8mb4'兼容' AS utf8mb4_value"},
+  {"name":"metadata","kind":"sql","sql":"SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='client_matrix' ORDER BY TABLE_NAME, ORDINAL_POSITION"},
+  {"name":"multi-result-and-error","kind":"error"},
+  {"name":"reconnect","kind":"reconnect"}
+]

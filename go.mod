@@ -26,6 +26,7 @@ require (
 require (
 	github.com/go-sql-driver/mysql v1.4.0
 	github.com/pierrec/lz4/v4 v4.1.22
+	golang.org/x/text v0.3.3
 )
 
 require (
@@ -34,6 +35,7 @@ require (
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/k0kubun/pp v3.0.1+incompatible // indirect
+	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/mailru/easyjson v0.7.1 // indirect
 	github.com/mattn/go-colorable v0.1.7 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
@@ -41,7 +43,6 @@ require (
 	github.com/shirou/gopsutil v3.20.11+incompatible // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8 // indirect
-	golang.org/x/text v0.3.3 // indirect
 	google.golang.org/appengine v1.6.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

@@ -352,7 +352,20 @@ func (sm *SegmentManager) allocatePageFromExtent(seg *SegmentImpl) (uint32, erro
 	sm.stats.TotalExtents++
 
 	// 分配页面
-	return ext.AllocatePage()
+	pageNo, err := ext.AllocatePage()
+	if err != nil {
+		return 0, err
+	}
+
+	// The extent itself contributes capacity, while the first page is consumed
+	// by this allocation. Keep segment and manager statistics in sync with the
+	// existing-extent allocation paths above.
+	seg.PageCount++
+	seg.FreeSpace += uint64((PagesPerExtent - 1) * PageSize)
+	sm.stats.TotalPages++
+	sm.stats.FreeSpace += uint64((PagesPerExtent - 1) * PageSize)
+
+	return pageNo, nil
 }
 
 // getExtentType 根据段类型获取Extent类型
@@ -557,9 +570,24 @@ func (sm *SegmentManager) tryFreeExtent(seg *SegmentImpl, ext basic.Extent) {
 		}
 
 		// 释放Extent
-		sm.extentManager.FreeExtent(ext.GetID())
+		if err := sm.extentManager.FreeExtent(ext.GetID()); err != nil {
+			return
+		}
+		const extentBytes = uint64(PagesPerExtent * PageSize)
+		if seg.FreeSpace >= extentBytes {
+			seg.FreeSpace -= extentBytes
+		} else {
+			seg.FreeSpace = 0
+		}
+		if sm.stats.FreeSpace >= extentBytes {
+			sm.stats.FreeSpace -= extentBytes
+		} else {
+			sm.stats.FreeSpace = 0
+		}
 		seg.ExtentCount--
-		sm.stats.TotalExtents--
+		if sm.stats.TotalExtents > 0 {
+			sm.stats.TotalExtents--
+		}
 	}
 }
 

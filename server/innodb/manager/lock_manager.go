@@ -2,6 +2,7 @@ package manager
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 )
@@ -38,15 +39,28 @@ type LockInfo struct {
 	Requests   []*LockRequest // 锁请求队列
 }
 
+type WaitEdge struct {
+	WaitingTxID  uint64
+	BlockingTxID uint64
+	ResourceID   string
+	Since        time.Time
+	LockType     LockType
+	Mode         LockMode
+	WaitDuration time.Duration
+}
+
 // LockManager 锁管理器
 type LockManager struct {
-	mu        sync.RWMutex
-	lockTable map[string]*LockInfo // 锁表
-	waitGraph map[uint64][]uint64  // 等待图
-	txnLocks  map[uint64][]string  // 事务持有的锁
-	stopChan  chan struct{}        // 停止信号
+	mu          sync.RWMutex
+	closeOnce   sync.Once
+	lockTable   map[string]*LockInfo // 锁表
+	waitGraph   map[uint64][]uint64  // 等待图
+	waitHistory []WaitEdge           // recently completed lock waits
+	txnLocks    map[uint64][]string  // 事务持有的锁
+	stopChan    chan struct{}        // 停止信号
 	// 回滚回调：用于在死锁检测中通知事务管理器回滚事务
 	onAbortTransaction func(uint64)
+	lastDeadlock       *DeadlockInfo
 
 	// TXN-012: Gap锁和Next-Key锁支持
 	gapLocks        map[string][]*GapLockInfo             // Gap锁表 (key: tableID_indexID)
@@ -59,10 +73,11 @@ type LockManager struct {
 // NewLockManager 创建锁管理器
 func NewLockManager() *LockManager {
 	lm := &LockManager{
-		lockTable: make(map[string]*LockInfo),
-		waitGraph: make(map[uint64][]uint64),
-		txnLocks:  make(map[uint64][]string),
-		stopChan:  make(chan struct{}),
+		lockTable:   make(map[string]*LockInfo),
+		waitGraph:   make(map[uint64][]uint64),
+		waitHistory: make([]WaitEdge, 0, 128),
+		txnLocks:    make(map[uint64][]string),
+		stopChan:    make(chan struct{}),
 		// TXN-012: 初始化Gap锁和Next-Key锁相关映射
 		gapLocks:        make(map[string][]*GapLockInfo),
 		nextKeyLocks:    make(map[string][]*NextKeyLockInfo),
@@ -77,7 +92,12 @@ func NewLockManager() *LockManager {
 
 // Close 关闭锁管理器
 func (lm *LockManager) Close() {
-	close(lm.stopChan)
+	if lm == nil {
+		return
+	}
+	lm.closeOnce.Do(func() {
+		close(lm.stopChan)
+	})
 }
 
 // SetAbortTransactionHandler 设置死锁回滚回调
@@ -85,6 +105,82 @@ func (lm *LockManager) SetAbortTransactionHandler(handler func(uint64)) {
 	lm.mu.Lock()
 	defer lm.mu.Unlock()
 	lm.onAbortTransaction = handler
+}
+
+// WaitGraphSnapshot exposes a read-only diagnostic view for PROCESSLIST and
+// PERFORMANCE_SCHEMA compatibility queries without exposing mutable lock state.
+func (lm *LockManager) WaitGraphSnapshot() []WaitEdge {
+	lm.mu.RLock()
+	defer lm.mu.RUnlock()
+	result := make([]WaitEdge, 0)
+	for waiting, blockers := range lm.waitGraph {
+		for _, blocking := range blockers {
+			edge := WaitEdge{WaitingTxID: waiting, BlockingTxID: blocking}
+			for resourceID, info := range lm.lockTable {
+				if info == nil {
+					continue
+				}
+				waitingFound, blockingFound := false, false
+				var waitingRequest *LockRequest
+				for _, request := range info.Requests {
+					if request.TxID == waiting && !request.Granted {
+						waitingFound = true
+						waitingRequest = request
+					}
+					if request.TxID == blocking && request.Granted {
+						blockingFound = true
+					}
+				}
+				if waitingFound && blockingFound {
+					edge.ResourceID = resourceID
+					edge.Since = waitingRequest.Created
+					edge.LockType = waitingRequest.LockType
+					edge.Mode = waitingRequest.Mode
+					edge.WaitDuration = time.Since(waitingRequest.Created)
+					if edge.WaitDuration < 0 {
+						edge.WaitDuration = 0
+					}
+					break
+				}
+			}
+			result = append(result, edge)
+		}
+	}
+	sort.Slice(result, func(left, right int) bool {
+		if result[left].WaitingTxID != result[right].WaitingTxID {
+			return result[left].WaitingTxID < result[right].WaitingTxID
+		}
+		if result[left].BlockingTxID != result[right].BlockingTxID {
+			return result[left].BlockingTxID < result[right].BlockingTxID
+		}
+		return result[left].ResourceID < result[right].ResourceID
+	})
+	return result
+}
+
+// WaitHistorySnapshot returns completed record-lock waits retained for the
+// bounded Performance Schema history views. The live wait graph remains the
+// source for events_waits_current.
+func (lm *LockManager) WaitHistorySnapshot() []WaitEdge {
+	lm.mu.RLock()
+	defer lm.mu.RUnlock()
+	result := make([]WaitEdge, len(lm.waitHistory))
+	copy(result, lm.waitHistory)
+	return result
+}
+
+// LastDeadlockSnapshot returns a detached copy of the most recently detected
+// deadlock, including its cycle, selected victim, and maximum wait duration.
+func (lm *LockManager) LastDeadlockSnapshot() *DeadlockInfo {
+	lm.mu.RLock()
+	defer lm.mu.RUnlock()
+	if lm.lastDeadlock == nil {
+		return nil
+	}
+	snapshot := *lm.lastDeadlock
+	snapshot.WaitingTxns = append([]uint64(nil), lm.lastDeadlock.WaitingTxns...)
+	snapshot.Cycle = append([]uint64(nil), lm.lastDeadlock.Cycle...)
+	return &snapshot
 }
 
 // makeResourceID 生成资源ID
@@ -149,16 +245,7 @@ func (lm *LockManager) deadlockDetection() {
 		select {
 		case <-ticker.C:
 			lm.mu.Lock()
-			var victimTxID uint64
-			// 检查每个事务是否存在死锁
-			for txID := range lm.waitGraph {
-				visited := make(map[uint64]bool)
-				if lm.checkDeadlock(txID, visited) {
-					// 找到最老的等待事务进行回滚
-					victimTxID = lm.findOldestWaitingTx()
-					break
-				}
-			}
+			victimTxID := lm.detectDeadlockLocked()
 			lm.mu.Unlock()
 
 			if victimTxID != 0 {
@@ -170,6 +257,70 @@ func (lm *LockManager) deadlockDetection() {
 	}
 }
 
+func (lm *LockManager) detectDeadlockLocked() uint64 {
+	starts := make([]uint64, 0, len(lm.waitGraph))
+	for txID := range lm.waitGraph {
+		starts = append(starts, txID)
+	}
+	sort.Slice(starts, func(left, right int) bool { return starts[left] < starts[right] })
+	for _, txID := range starts {
+		cycle := lm.findDeadlockCycleLocked(txID)
+		if len(cycle) == 0 {
+			continue
+		}
+		victimTxID := lm.findOldestWaitingTxInCycle(cycle)
+		waitDuration := time.Duration(0)
+		waiting := make([]uint64, 0, len(cycle))
+		for _, cycleTxID := range cycle {
+			waiting = append(waiting, cycleTxID)
+			for _, info := range lm.lockTable {
+				if info == nil {
+					continue
+				}
+				for _, request := range info.Requests {
+					if request.TxID == cycleTxID && !request.Granted {
+						age := time.Since(request.Created)
+						if age > waitDuration {
+							waitDuration = age
+						}
+					}
+				}
+			}
+		}
+		if waitDuration < 0 {
+			waitDuration = 0
+		}
+		lm.lastDeadlock = &DeadlockInfo{
+			DetectedAt:   time.Now(),
+			WaitingTxns:  waiting,
+			Cycle:        append([]uint64(nil), cycle...),
+			VictimTxID:   victimTxID,
+			WaitDuration: waitDuration,
+		}
+		return victimTxID
+	}
+	return 0
+}
+
+func (lm *LockManager) findDeadlockCycleLocked(start uint64) []uint64 {
+	var visit func(uint64, map[uint64]int, []uint64) []uint64
+	visit = func(current uint64, positions map[uint64]int, path []uint64) []uint64 {
+		if position, exists := positions[current]; exists {
+			return append(append([]uint64(nil), path[position:]...), current)
+		}
+		positions[current] = len(path)
+		path = append(path, current)
+		for _, next := range lm.waitGraph[current] {
+			if cycle := visit(next, positions, path); len(cycle) > 0 {
+				return cycle
+			}
+		}
+		delete(positions, current)
+		return nil
+	}
+	return visit(start, make(map[uint64]int), nil)
+}
+
 // findOldestWaitingTx 找到等待时间最长的事务
 func (lm *LockManager) findOldestWaitingTx() uint64 {
 	var oldestTxID uint64
@@ -177,13 +328,42 @@ func (lm *LockManager) findOldestWaitingTx() uint64 {
 
 	for _, lockInfo := range lm.lockTable {
 		for _, req := range lockInfo.Requests {
-			if !req.Granted && (oldestTime.IsZero() || req.Created.Before(oldestTime)) {
+			if !req.Granted && (oldestTime.IsZero() || req.Created.Before(oldestTime) ||
+				(req.Created.Equal(oldestTime) && (oldestTxID == 0 || req.TxID < oldestTxID))) {
 				oldestTime = req.Created
 				oldestTxID = req.TxID
 			}
 		}
 	}
 
+	return oldestTxID
+}
+
+func (lm *LockManager) findOldestWaitingTxInCycle(cycle []uint64) uint64 {
+	if len(cycle) == 0 {
+		return 0
+	}
+	cycleTxns := make(map[uint64]struct{}, len(cycle))
+	for _, txID := range cycle {
+		cycleTxns[txID] = struct{}{}
+	}
+	var oldestTxID uint64
+	var oldestTime time.Time
+	for _, lockInfo := range lm.lockTable {
+		for _, req := range lockInfo.Requests {
+			if req.Granted {
+				continue
+			}
+			if _, ok := cycleTxns[req.TxID]; !ok {
+				continue
+			}
+			if oldestTime.IsZero() || req.Created.Before(oldestTime) ||
+				(req.Created.Equal(oldestTime) && (oldestTxID == 0 || req.TxID < oldestTxID)) {
+				oldestTime = req.Created
+				oldestTxID = req.TxID
+			}
+		}
+	}
 	return oldestTxID
 }
 
@@ -385,9 +565,11 @@ func (lm *LockManager) releaseSingleLockLocked(txID uint64, resourceID string) e
 
 	found := false
 	var newRequests []*LockRequest
+	var releasedRequests []*LockRequest
 	for _, req := range info.Requests {
 		if req.TxID == txID {
 			found = true
+			releasedRequests = append(releasedRequests, req)
 			continue
 		}
 		newRequests = append(newRequests, req)
@@ -395,6 +577,17 @@ func (lm *LockManager) releaseSingleLockLocked(txID uint64, resourceID string) e
 
 	if !found {
 		return ErrLockNotFound
+	}
+	for _, released := range releasedRequests {
+		if released == nil || !released.Granted {
+			continue
+		}
+		for _, waiting := range newRequests {
+			if waiting == nil || waiting.Granted || isLockCompatible(released.LockType, waiting.LockType) {
+				continue
+			}
+			lm.recordWaitHistoryLocked(info.ResourceID, released, waiting)
+		}
 	}
 
 	// 更新或删除锁信息
@@ -448,6 +641,12 @@ func (lm *LockManager) grantWaitingLocks(info *LockInfo) {
 		}
 
 		if canGrant {
+			for _, blocking := range grantedLocks {
+				if isLockCompatible(blocking.LockType, waiting.LockType) {
+					continue
+				}
+				lm.recordWaitHistoryLocked(info.ResourceID, blocking, waiting)
+			}
 			waiting.Granted = true
 			grantedLocks = append(grantedLocks, waiting)
 			// 通知等待的事务
@@ -457,4 +656,56 @@ func (lm *LockManager) grantWaitingLocks(info *LockInfo) {
 			}
 		}
 	}
+	lm.rebuildWaitGraphLocked()
+}
+
+func (lm *LockManager) recordWaitHistoryLocked(resourceID string, blocking, waiting *LockRequest) {
+	if blocking == nil || waiting == nil {
+		return
+	}
+	duration := time.Since(waiting.Created)
+	if duration < 0 {
+		duration = 0
+	}
+	lm.waitHistory = append(lm.waitHistory, WaitEdge{
+		WaitingTxID: waiting.TxID, BlockingTxID: blocking.TxID,
+		ResourceID: resourceID, Since: waiting.Created,
+		LockType: waiting.LockType, Mode: waiting.Mode,
+		WaitDuration: duration,
+	})
+	if len(lm.waitHistory) > 128 {
+		lm.waitHistory = lm.waitHistory[len(lm.waitHistory)-128:]
+	}
+}
+
+// rebuildWaitGraphLocked derives the graph from the current lock table. A
+// waiter can become granted when another transaction releases a lock; keeping
+// the graph derived prevents stale diagnostic edges and stale deadlock cycles.
+// The caller must hold lm.mu.
+func (lm *LockManager) rebuildWaitGraphLocked() {
+	graph := make(map[uint64][]uint64)
+	for _, info := range lm.lockTable {
+		if info == nil {
+			continue
+		}
+		for _, waiting := range info.Requests {
+			if waiting == nil || waiting.Granted {
+				continue
+			}
+			seen := make(map[uint64]struct{})
+			for _, blocking := range info.Requests {
+				if blocking == nil || !blocking.Granted || blocking.TxID == waiting.TxID || isLockCompatible(blocking.LockType, waiting.LockType) {
+					continue
+				}
+				seen[blocking.TxID] = struct{}{}
+			}
+			for txID := range seen {
+				graph[waiting.TxID] = append(graph[waiting.TxID], txID)
+			}
+		}
+	}
+	for txID := range graph {
+		sort.Slice(graph[txID], func(left, right int) bool { return graph[txID][left] < graph[txID][right] })
+	}
+	lm.waitGraph = graph
 }

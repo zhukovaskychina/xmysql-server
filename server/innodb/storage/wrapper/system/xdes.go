@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync/atomic"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 var (
@@ -38,8 +40,13 @@ type XDESPage struct {
 
 // NewXDESPage 创建XDES页面
 func NewXDESPage(spaceID, pageNo uint32) *XDESPage {
+	return NewXDESPageWithStorage(spaceID, pageNo, nil)
+}
+
+// NewXDESPageWithStorage creates an XDES page backed by a durable provider.
+func NewXDESPageWithStorage(spaceID, pageNo uint32, storage basic.StorageProvider) *XDESPage {
 	xp := &XDESPage{
-		BaseSystemPage: NewBaseSystemPage(spaceID, pageNo, SystemPageTypeXDES),
+		BaseSystemPage: NewBaseSystemPageWithStorage(spaceID, pageNo, SystemPageTypeXDES, storage),
 		freeList:       make([]uint16, 0),
 		fullList:       make([]uint16, 0),
 		properties:     make(map[string]string),

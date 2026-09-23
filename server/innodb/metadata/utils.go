@@ -12,7 +12,7 @@ func ToBasicValue(value interface{}, col *Column) (basic.Value, error) {
 	}
 
 	switch col.DataType {
-	case TypeTinyInt, TypeSmallInt, TypeMediumInt, TypeInt, TypeBigInt:
+	case TypeTinyInt, TypeSmallInt, TypeMediumInt, TypeInt, TypeBigInt, TypeBit:
 		return basic.NewInt(value), nil
 	case TypeFloat, TypeDouble, TypeDecimal:
 		return basic.NewFloat(value), nil
@@ -36,7 +36,7 @@ func FromBasicValue(val basic.Value, col *Column) (interface{}, error) {
 	}
 
 	switch col.DataType {
-	case TypeTinyInt, TypeSmallInt, TypeMediumInt, TypeInt, TypeBigInt:
+	case TypeTinyInt, TypeSmallInt, TypeMediumInt, TypeInt, TypeBigInt, TypeBit:
 		return val.Int(), nil
 	case TypeFloat, TypeDouble, TypeDecimal:
 		return val.Float64(), nil

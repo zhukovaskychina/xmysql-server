@@ -715,8 +715,10 @@ func (sm *StorageManager) InitializeMySQLUserData() error {
 			IsUnique:   true,
 			IsPrimary:  true,
 			RootPageNo: allocatedPages[0],
-			SegmentID:  0, // TODO: 获取实际的段ID
-			Comment:    "Primary key index for mysql.user table",
+			// EnhancedBTreeManager allocates this index through the buffer-pool
+			// page allocator, not SegmentManager, so no segment owns this root.
+			SegmentID: 0,
+			Comment:   "Primary key index for mysql.user table",
 		}
 
 		if err := dictManager.AddIndex(1, indexDef); err != nil {
@@ -1233,8 +1235,10 @@ func (sm *StorageManager) insertUserDataDirectly(spaceID, pageNo uint32, primary
 	return nil
 }
 
-// verifyUserDataBTree 验证B+树中的用户数据
-func (sm *StorageManager) verifyUserDataBTree(ctx context.Context, btreeManager *DefaultBPlusTreeManager) error {
+// verifyUserDataBTree 验证B+树中的用户数据。
+// 接受公共接口，避免把系统表校验路径绑定到 legacy DefaultBPlusTreeManager；
+// 生产系统表和用户表都通过 EnhancedBTreeAdapter 提供该接口。
+func (sm *StorageManager) verifyUserDataBTree(ctx context.Context, btreeManager basic.BPlusTreeManager) error {
 	// 获取所有叶子页面
 	leafPages, err := btreeManager.GetAllLeafPages(ctx)
 	if err != nil {

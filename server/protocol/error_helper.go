@@ -3,6 +3,7 @@ package protocol
 import (
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"strings"
 )
 
 // ErrorHelper 错误处理辅助类
@@ -40,13 +41,8 @@ func (h *ErrorHelper) EncodeErrorFromGoError(err error) []byte {
 		return nil
 	}
 
-	// 检查是否是SQLError
-	if sqlErr, ok := err.(*common.SQLError); ok {
-		return EncodeErrorPacket(sqlErr.Code, sqlErr.State, sqlErr.Message)
-	}
-
-	// 使用通用错误码
-	return EncodeErrorPacket(common.ER_UNKNOWN_ERROR, "HY000", err.Error())
+	sqlErr := ClassifyGoError(err)
+	return EncodeErrorPacket(sqlErr.Code, sqlErr.State, sqlErr.Message)
 }
 
 // CreateErrorMessage 创建ErrorMessage对象
@@ -66,23 +62,56 @@ func (h *ErrorHelper) CreateErrorMessageFromGoError(sessionID string, err error)
 		return nil
 	}
 
-	// 检查是否是SQLError
-	if sqlErr, ok := err.(*common.SQLError); ok {
-		return &ErrorMessage{
-			BaseMessage: NewBaseMessage(MSG_ERROR, sessionID, nil),
-			Code:        sqlErr.Code,
-			State:       sqlErr.State,
-			Message:     sqlErr.Message,
-		}
-	}
-
-	// 使用通用错误码
+	sqlErr := ClassifyGoError(err)
 	return &ErrorMessage{
 		BaseMessage: NewBaseMessage(MSG_ERROR, sessionID, nil),
-		Code:        common.ER_UNKNOWN_ERROR,
-		State:       "HY000",
-		Message:     err.Error(),
+		Code:        sqlErr.Code,
+		State:       sqlErr.State,
+		Message:     sqlErr.Message,
 	}
+}
+
+// ClassifyGoError preserves a structured SQLError and maps the common errors
+// emitted by the engine to MySQL-compatible errno/SQLSTATE pairs.
+func ClassifyGoError(err error) *common.SQLError {
+	if err == nil {
+		return nil
+	}
+	if sqlErr, ok := err.(*common.SQLError); ok {
+		return sqlErr
+	}
+	message := err.Error()
+	lower := strings.ToLower(message)
+	code := uint16(common.ER_UNKNOWN_ERROR)
+	switch {
+	case strings.Contains(lower, "duplicate"):
+		code = common.ErrDupEntry
+	case strings.Contains(lower, "foreign key") && (strings.Contains(lower, "referenced") || strings.Contains(lower, "child row") || strings.Contains(lower, "cannot delete") || strings.Contains(lower, "cannot update")):
+		if strings.Contains(lower, "cannot delete") || strings.Contains(lower, "cannot update") {
+			code = common.ErrRowIsReferenced
+		} else {
+			code = common.ErrNoReferencedRow
+		}
+	case strings.Contains(lower, "check constraint"):
+		code = common.ErrCheckConstraint
+	case strings.Contains(lower, "cannot be null") || strings.Contains(lower, "not null"):
+		code = common.ErrBadNull
+	case strings.Contains(lower, "no database selected"):
+		code = common.ErrNoDB
+	case strings.Contains(lower, "does not exist") && strings.Contains(lower, "table"):
+		code = common.ErrNoSuchTable
+	case strings.Contains(lower, "access denied") || strings.Contains(lower, "permission"):
+		code = common.ErrAccessDenied
+	case strings.Contains(lower, "syntax") || strings.Contains(lower, "parse error"):
+		code = common.ErrParse
+	case strings.Contains(lower, "deadlock"):
+		code = common.ErrLockDeadlock
+	case strings.Contains(lower, "lock wait"):
+		code = common.ErrLockWaitTimeout
+	case strings.Contains(lower, "unsupported"):
+		code = common.ErrNotSupportedYet
+	}
+	return common.NewErrf(code, "%s", nil, message)
 }
 
 // 常用错误快捷方法

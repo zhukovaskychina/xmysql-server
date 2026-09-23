@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
 )
 
@@ -43,8 +44,15 @@ type BlobHeader struct {
 
 // NewBlobPage 创建BLOB页面
 func NewBlobPage(spaceID, pageNo uint32) IPageWrapper {
+	return NewBlobPageWithStorage(spaceID, pageNo, nil)
+}
+
+// NewBlobPageWithStorage creates the legacy BLOB page with an optional
+// durable provider. The original constructor remains source-compatible for
+// in-memory callers while direct legacy users can now perform real I/O.
+func NewBlobPageWithStorage(spaceID, pageNo uint32, storage basic.StorageProvider) *BlobPage {
 	bp := &BlobPage{
-		BasePageWrapper: NewBasePageWrapper(pageNo, spaceID, PageTypeBlob),
+		BasePageWrapper: NewBasePageWrapperWithStorage(pageNo, spaceID, PageTypeBlob, storage),
 	}
 
 	// 初始化BLOB页面体
@@ -91,7 +99,7 @@ func (bp *BlobPage) SetData(data []byte, tableID uint64, columnID uint32, partNu
 
 	// 序列化页面体
 	bp.serializeBlobBody(body)
-	bp.MarkDirty()
+	bp.BasePageWrapper.markDirtyLocked()
 
 	return nil
 }
@@ -121,7 +129,7 @@ func (bp *BlobPage) SetNextPartPage(pageNo uint32) {
 	body := bp.deserializeBlobBody()
 	body.NextPartPage = pageNo
 	bp.serializeBlobBody(body)
-	bp.MarkDirty()
+	bp.BasePageWrapper.markDirtyLocked()
 }
 
 // GetDataLength 获取数据长度
@@ -208,16 +216,24 @@ func (bp *BlobPage) ToBytes() ([]byte, error) {
 
 // serializeBlobBody 序列化BLOB页面体
 func (bp *BlobPage) serializeBlobBody(body *BlobPageBody) {
-	// 分配缓冲区
-	buff := make([]byte, 12+len(body.Data))
+	// Keep the legacy wrapper in the normal fixed-size page layout. The old
+	// implementation replaced the whole content with only the BLOB payload,
+	// which made BasePageWrapper serialization slice past the short buffer and
+	// prevented provider-backed persistence.
+	pageSize := int(bp.size)
+	if pageSize < pages.FileHeaderSize+pages.FileTrailerSize {
+		pageSize = common.PageSize
+	}
+	buff := make([]byte, pageSize)
+	offset := pages.FileHeaderSize
 
 	// 写入头部信息
-	binary.LittleEndian.PutUint32(buff[0:], body.PartNumber)
-	binary.LittleEndian.PutUint32(buff[4:], body.NextPartPage)
-	binary.LittleEndian.PutUint32(buff[8:], body.DataLength)
+	binary.LittleEndian.PutUint32(buff[offset:], body.PartNumber)
+	binary.LittleEndian.PutUint32(buff[offset+4:], body.NextPartPage)
+	binary.LittleEndian.PutUint32(buff[offset+8:], body.DataLength)
 
 	// 写入数据
-	copy(buff[12:], body.Data)
+	copy(buff[offset+12:], body.Data)
 
 	// 写入页面体
 	bp.content = buff
@@ -227,8 +243,9 @@ func (bp *BlobPage) serializeBlobBody(body *BlobPageBody) {
 func (bp *BlobPage) deserializeBlobBody() *BlobPageBody {
 	// 获取页面体内容
 	content := bp.content
+	offset := pages.FileHeaderSize
 
-	if len(content) < 12 {
+	if len(content) < offset+12 {
 		return &BlobPageBody{
 			PartNumber:   0,
 			NextPartPage: 0,
@@ -239,15 +256,15 @@ func (bp *BlobPage) deserializeBlobBody() *BlobPageBody {
 
 	// 解析头部信息
 	body := &BlobPageBody{
-		PartNumber:   binary.LittleEndian.Uint32(content[0:]),
-		NextPartPage: binary.LittleEndian.Uint32(content[4:]),
-		DataLength:   binary.LittleEndian.Uint32(content[8:]),
+		PartNumber:   binary.LittleEndian.Uint32(content[offset:]),
+		NextPartPage: binary.LittleEndian.Uint32(content[offset+4:]),
+		DataLength:   binary.LittleEndian.Uint32(content[offset+8:]),
 	}
 
 	// 解析数据
-	if len(content) >= 12+int(body.DataLength) {
+	if len(content) >= offset+12+int(body.DataLength) {
 		body.Data = make([]byte, body.DataLength)
-		copy(body.Data, content[12:12+body.DataLength])
+		copy(body.Data, content[offset+12:offset+12+int(body.DataLength)])
 	} else {
 		body.Data = make([]byte, 0)
 	}
@@ -257,12 +274,12 @@ func (bp *BlobPage) deserializeBlobBody() *BlobPageBody {
 
 // Read 实现Page接口
 func (bp *BlobPage) Read() error {
-	return nil // 简化实现
+	return bp.BasePageWrapper.Read()
 }
 
 // Write 实现Page接口
 func (bp *BlobPage) Write() error {
-	return nil // 简化实现
+	return bp.BasePageWrapper.Write()
 }
 
 // GetPageType 实现IPageWrapper接口

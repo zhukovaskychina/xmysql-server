@@ -59,6 +59,9 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
+
+	observabilitymetrics "github.com/zhukovaskychina/xmysql-server/server/observability/metrics"
 )
 
 // Page size constants
@@ -105,6 +108,7 @@ func (f *IBD_File) Open() error {
 	}
 
 	f.file = file
+	observabilitymetrics.DefaultRuntimeRecorder().RecordFileOpen(f.filePath)
 	return nil
 }
 
@@ -129,6 +133,7 @@ func (f *IBD_File) Create() error {
 		return fmt.Errorf("failed to create file: %v", err)
 	}
 	f.file = file
+	observabilitymetrics.DefaultRuntimeRecorder().RecordFileOpen(f.filePath)
 
 	// Initialize FSP header page (page 0)
 	header := make([]byte, PageSize)
@@ -164,7 +169,9 @@ func (f *IBD_File) writePageUnsafe(pageNo uint32, page []byte) error {
 	offset := int64(pageNo) * int64(PageSize)
 
 	// Write page data
+	startedAt := time.Now()
 	n, err := f.file.WriteAt(page, offset)
+	observabilitymetrics.DefaultRuntimeRecorder().RecordFileWrite(f.filePath, time.Since(startedAt))
 	if err != nil {
 		return fmt.Errorf("failed to write page: %v", err)
 	}
@@ -191,7 +198,9 @@ func (f *IBD_File) ReadPage(pageNo uint32) ([]byte, error) {
 	offset := int64(pageNo) * int64(PageSize)
 
 	// Read page data
+	startedAt := time.Now()
 	n, err := f.file.ReadAt(page, offset)
+	observabilitymetrics.DefaultRuntimeRecorder().RecordFileRead(f.filePath, time.Since(startedAt))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read page: %v", err)
 	}
@@ -219,7 +228,9 @@ func (f *IBD_File) WritePage(pageNo uint32, page []byte) error {
 	offset := int64(pageNo) * int64(PageSize)
 
 	// Write page data
+	startedAt := time.Now()
 	n, err := f.file.WriteAt(page, offset)
+	observabilitymetrics.DefaultRuntimeRecorder().RecordFileWrite(f.filePath, time.Since(startedAt))
 	if err != nil {
 		return fmt.Errorf("failed to write page: %v", err)
 	}
@@ -264,9 +275,14 @@ func (f *IBD_File) Delete() error {
 
 	// Close file if open
 	if f.file != nil {
-		if err := f.Close(); err != nil {
+		if err := f.file.Sync(); err != nil {
+			return fmt.Errorf("failed to sync file: %v", err)
+		}
+		if err := f.file.Close(); err != nil {
 			return fmt.Errorf("failed to close file: %v", err)
 		}
+		observabilitymetrics.DefaultRuntimeRecorder().RecordFileClose(f.filePath)
+		f.file = nil
 	}
 
 	// Delete file
@@ -292,6 +308,7 @@ func (f *IBD_File) Close() error {
 		if err := f.file.Close(); err != nil {
 			return fmt.Errorf("failed to close file: %v", err)
 		}
+		observabilitymetrics.DefaultRuntimeRecorder().RecordFileClose(f.filePath)
 
 		// Clear file handle
 		f.file = nil
@@ -321,6 +338,37 @@ func (f *IBD_File) Size() (int64, error) {
 	}
 
 	return info.Size(), nil
+}
+
+// TruncateToPages shrinks the file to an exact page boundary. It never grows
+// the file; callers are responsible for proving that no live page is above
+// the requested boundary.
+func (f *IBD_File) TruncateToPages(pageCount uint32) error {
+	f.Lock()
+	defer f.Unlock()
+
+	if f.file == nil {
+		return fmt.Errorf("file not open")
+	}
+	if pageCount == 0 {
+		return fmt.Errorf("page count must be positive")
+	}
+
+	info, err := f.file.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to get file info: %v", err)
+	}
+	targetSize := int64(pageCount) * PageSize
+	if targetSize >= info.Size() {
+		return nil
+	}
+	if err := f.file.Truncate(targetSize); err != nil {
+		return fmt.Errorf("failed to truncate file: %v", err)
+	}
+	if err := f.file.Sync(); err != nil {
+		return fmt.Errorf("failed to sync truncated file: %v", err)
+	}
+	return nil
 }
 
 // LoadPageByPageNumber reads a page from disk by its page number

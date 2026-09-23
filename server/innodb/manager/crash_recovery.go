@@ -10,6 +10,7 @@ import (
 	"time"
 
 	storepages "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
+	observabilitymetrics "github.com/zhukovaskychina/xmysql-server/server/observability/metrics"
 )
 
 const recoveryPageLSNOffset = 16
@@ -130,13 +131,19 @@ func (cr *CrashRecovery) SetStorageManager(sm StorageInterface) {
 }
 
 // Recover 执行完整的崩溃恢复流程
-func (cr *CrashRecovery) Recover() error {
+func (cr *CrashRecovery) Recover() (err error) {
 	cr.mu.Lock()
 	defer cr.mu.Unlock()
 
 	cr.recoveryStart = time.Now()
 	defer func() {
 		cr.recoveryEnd = time.Now()
+		result := "success"
+		if err != nil {
+			result = "failure"
+			observabilitymetrics.DefaultRuntimeRecorder().RecordRecoveryFailure(cr.recoveryPhase)
+		}
+		observabilitymetrics.DefaultRuntimeRecorder().RecordRecoveryRun(result)
 	}()
 
 	// 阶段1：分析（Analysis）

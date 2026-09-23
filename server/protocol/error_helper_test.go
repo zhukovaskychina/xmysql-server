@@ -229,6 +229,25 @@ func TestErrorHelper_CommonErrors(t *testing.T) {
 	}
 }
 
+func TestClassifyGoErrorUsesMySQLConstraintContracts(t *testing.T) {
+	cases := []struct {
+		message string
+		code    uint16
+		state   string
+	}{
+		{"duplicate entry '1' for key 'PRIMARY'", common.ErrDupEntry, "23000"},
+		{"check constraint 'age' is violated", common.ErrCheckConstraint, "23000"},
+		{"Cannot add or update a child row: a foreign key constraint fails", common.ErrNoReferencedRow, "23000"},
+		{"deadlock found when trying to get lock", common.ErrLockDeadlock, "40001"},
+	}
+	for _, tc := range cases {
+		got := ClassifyGoError(errors.New(tc.message))
+		if got.Code != tc.code || got.State != tc.state {
+			t.Fatalf("classify %q = (%d,%s), want (%d,%s)", tc.message, got.Code, got.State, tc.code, tc.state)
+		}
+	}
+}
+
 func TestGlobalErrorHelper(t *testing.T) {
 	t.Run("NewSQLError", func(t *testing.T) {
 		err := NewSQLError(common.ErrParse, "syntax error")

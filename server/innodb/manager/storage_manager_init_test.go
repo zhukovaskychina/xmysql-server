@@ -145,6 +145,77 @@ func TestStorageManagerSystemTablespaceInitialization(t *testing.T) {
 	}
 }
 
+func TestStorageManagerCloseStopsOptimizedBufferPool(t *testing.T) {
+	tempDir := t.TempDir()
+	sm := NewStorageManager(&conf.Cfg{
+		DataDir:              tempDir,
+		InnodbDataDir:        tempDir,
+		InnodbDataFilePath:   "ibdata1:16M:autoextend",
+		InnodbPageSize:       16384,
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+	})
+	if sm == nil || sm.bufferPoolMgr == nil {
+		t.Fatal("StorageManager did not initialize the optimized buffer pool")
+	}
+	bpm := sm.bufferPoolMgr
+
+	if err := sm.Close(); err != nil {
+		t.Fatalf("close StorageManager: %v", err)
+	}
+	if err := sm.Close(); err != nil {
+		t.Fatalf("second close StorageManager: %v", err)
+	}
+
+	select {
+	case _, ok := <-bpm.stopChan:
+		if ok {
+			t.Fatal("optimized buffer pool stop channel is still open")
+		}
+	default:
+		t.Fatal("optimized buffer pool stop channel was not closed")
+	}
+	select {
+	case _, ok := <-bpm.prefetchQueue:
+		if ok {
+			t.Fatal("optimized buffer pool prefetch queue is still open")
+		}
+	default:
+		t.Fatal("optimized buffer pool prefetch queue was not closed")
+	}
+}
+
+func TestSystemSpaceManagerDiscoversCreatedUserTablespace(t *testing.T) {
+	tempDir := t.TempDir()
+	sm := NewStorageManager(&conf.Cfg{
+		DataDir:              tempDir,
+		InnodbDataDir:        tempDir,
+		InnodbDataFilePath:   "ibdata1:16M:autoextend",
+		InnodbPageSize:       16384,
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+	})
+	if sm == nil || sm.systemSpaceMgr == nil {
+		t.Fatal("StorageManager did not initialize the system space manager")
+	}
+
+	handle, err := sm.CreateTablespace("app/orders")
+	if err != nil {
+		t.Fatalf("create user tablespace: %v", err)
+	}
+	info := sm.systemSpaceMgr.GetIndependentTablespace(handle.SpaceID)
+	if info == nil {
+		t.Fatalf("created tablespace %d was not discovered", handle.SpaceID)
+	}
+	if info.Name != "app/orders" || info.Database != "app" || info.TableType != "user" {
+		t.Fatalf("unexpected discovered metadata: %+v", *info)
+	}
+	if info.FilePath == "" || info.PageCount == 0 {
+		t.Fatalf("discovered metadata lacks physical details: %+v", *info)
+	}
+	if err := sm.Close(); err != nil {
+		t.Fatalf("close StorageManager: %v", err)
+	}
+}
+
 // TestStorageManagerConfigurationHandling 测试配置处理
 func TestStorageManagerConfigurationHandling(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "xmysql_config_test_*")

@@ -35,7 +35,7 @@ func (g *TablesGenerator) Generate() ([][]interface{}, error) {
 		row[17] = "utf8mb4_general_ci"  // TABLE_COLLATION
 		row[18] = nil                   // CHECKSUM
 		row[19] = ""                    // CREATE_OPTIONS
-		row[20] = ""                    // TABLE_COMMENT
+		row[20] = table.Comment         // TABLE_COMMENT
 		rows = append(rows, row)
 	}
 

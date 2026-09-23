@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
@@ -53,6 +54,41 @@ func TestMySQLUserToUserInfoMapsAuthFields(t *testing.T) {
 		if !containsPrivilege(userInfo.GlobalPrivileges, privilege) {
 			t.Fatalf("expected privilege %s in %#v", privilege.String(), userInfo.GlobalPrivileges)
 		}
+	}
+}
+
+func TestPersistedAccountToUserInfoIncludesStandaloneGlobalGrants(t *testing.T) {
+	var account persistedAccountForAuth
+	err := json.Unmarshal([]byte(`{"user":"backup_operator","host":"localhost","password":"secret","global_grants":["BACKUP_ADMIN"]}`), &account)
+	if err != nil {
+		t.Fatalf("unmarshal persisted account: %v", err)
+	}
+
+	info := persistedAccountToUserInfo(&account)
+	if info == nil {
+		t.Fatal("expected user info")
+	}
+	if len(info.DynamicPrivileges) != 1 || info.DynamicPrivileges[0] != "BACKUP_ADMIN" {
+		t.Fatalf("expected persisted global grant in dynamic privileges, got %#v", info.DynamicPrivileges)
+	}
+}
+
+func TestPersistedAccountToUserInfoIncludesPartialRevokeRestrictions(t *testing.T) {
+	var account persistedAccountForAuth
+	err := json.Unmarshal([]byte(`{"user":"restricted","host":"localhost","grants":{"*.*":["SELECT","INSERT"]},"restrictions":{"app":["INSERT"]}}`), &account)
+	if err != nil {
+		t.Fatalf("unmarshal persisted account: %v", err)
+	}
+
+	info := persistedAccountToUserInfo(&account)
+	if info == nil {
+		t.Fatal("expected user info")
+	}
+	if !containsPrivilege(info.GlobalPrivileges, common.InsertPriv) {
+		t.Fatalf("expected global INSERT before schema restriction filtering, got %#v", info.GlobalPrivileges)
+	}
+	if !containsPrivilege(info.Restrictions["app"], common.InsertPriv) {
+		t.Fatalf("expected app INSERT restriction, got %#v", info.Restrictions)
 	}
 }
 

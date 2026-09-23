@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/types"
@@ -34,52 +35,79 @@ type IPageWrapper = types.IPageWrapper
 
 // CreatePage 根据页面类型创建对应的页面wrapper
 func (f *PageFactory) CreatePage(pageType common.PageType, id, spaceID uint32, bufferPool *buffer_pool.BufferPool) IPageWrapper {
+	return f.CreatePageWithStorage(pageType, id, spaceID, bufferPool, nil)
+}
+
+// CreatePageWithStorage creates a page through the same factory dispatch while
+// preserving the supplied durable provider across every provider-aware wrapper.
+// The provider is intentionally optional so the legacy CreatePage behavior
+// remains source-compatible for callers that only parse or construct pages.
+func (f *PageFactory) CreatePageWithStorage(pageType common.PageType, id, spaceID uint32, bufferPool *buffer_pool.BufferPool, storage basic.StorageProvider) IPageWrapper {
 	switch pageType {
 	case common.FIL_PAGE_INDEX:
-		return NewPageIndexWithSpaceId(spaceID, id).(IPageWrapper)
+		// The legacy IndexPage exposes the index-specific API but does not
+		// implement the complete IPageWrapper contract (notably Flush). The
+		// factory contract is the unified page interface, so use the provider-
+		// backed unified wrapper here instead of returning a value that would
+		// fail the old runtime type assertion.
+		return types.NewUnifiedPageWithStorage(spaceID, id, pageType, storage)
 	case common.FIL_PAGE_FSP_HDR:
-		return CreateFSPPageWrapper(id, spaceID, bufferPool)
+		return NewFSPPageWrapperWithStorage(id, spaceID, bufferPool, storage)
 	case common.FIL_PAGE_INODE:
-		// 注意：系统页内码页历史上走兼容路径。新增场景请优先使用统一入口。
-		return newFallbackPageWrapper(pageType, id, spaceID)
+		return types.NewUnifiedPageWithStorage(spaceID, id, pageType, storage)
 	case common.FIL_PAGE_IBUF_FREE_LIST:
-		return NewIBufFreeListPageWrapper(id, spaceID)
+		return NewIBufFreeListPageWrapperWithStorage(id, spaceID, storage)
 	case common.FIL_PAGE_TYPE_SYS:
-		return CreateDataDictionaryPageWrapper(id, spaceID, bufferPool)
+		return NewDataDictionaryPageWrapperWithStorage(id, spaceID, bufferPool, storage)
 	case common.FIL_PAGE_TYPE_XDES:
-		return CreateXDESPageWrapper(id, spaceID, bufferPool)
+		return NewXDESPageWrapperWithStorage(id, spaceID, bufferPool, storage)
 	case common.FIL_PAGE_UNDO_LOG:
-		return NewUndoLogPageWrapper(id, spaceID, id, nil)
+		return NewUndoLogPageWrapperWithStorage(id, spaceID, id, bufferPool, storage)
 	case common.FIL_PAGE_TYPE_ALLOCATED:
-		return NewAllocatePageWrapper(id, spaceID)
+		return NewAllocatePageWrapperWithStorage(id, spaceID, storage)
 	case common.FIL_PAGE_TYPE_BLOB:
-		return NewBlobPageWrapper(id, spaceID, 0)
+		return NewBlobPageWrapperWithStorage(id, spaceID, 0, storage)
 	case common.FIL_PAGE_TYPE_COMPRESSED:
-		return NewCompressedPageWrapper(id, spaceID)
+		return NewCompressedPageWrapperWithStorage(id, spaceID, storage)
 	case common.FIL_PAGE_TYPE_ENCRYPTED:
-		return NewEncryptedPageWrapper(id, spaceID, id, nil)
+		return NewEncryptedPageWrapperWithStorage(id, spaceID, id, bufferPool, storage)
 	case common.FIL_PAGE_IBUF_BITMAP:
-		return CreateIBufBitmapPageWrapper(id, spaceID, bufferPool)
+		return NewIBufBitmapPageWrapperWithStorage(id, spaceID, bufferPool, storage)
 	case common.FIL_PAGE_TYPE_TRX_SYS:
-		return CreateTrxSysPageWrapper(id, spaceID, bufferPool)
+		return NewTrxSysPageWrapperWithStorage(id, spaceID, bufferPool, storage)
 	default:
-		// 返回一个基础wrapper
-		return newFallbackPageWrapper(pageType, id, spaceID)
+		return types.NewUnifiedPageWithStorage(spaceID, id, pageType, storage)
 	}
 }
 
 // CreateBlobPage 创建BLOB页面（提供段ID参数）
 func (f *PageFactory) CreateBlobPage(id, spaceID uint32, segmentID uint64) *BlobPageWrapper {
-	return NewBlobPageWrapper(id, spaceID, segmentID)
+	return f.CreateBlobPageWithStorage(id, spaceID, segmentID, nil)
+}
+
+// CreateBlobPageWithStorage creates a BLOB page with an optional durable provider.
+func (f *PageFactory) CreateBlobPageWithStorage(id, spaceID uint32, segmentID uint64, storage basic.StorageProvider) *BlobPageWrapper {
+	return NewBlobPageWrapperWithStorage(id, spaceID, segmentID, storage)
 }
 
 // CreateRollbackPage 创建回滚页面
 func (f *PageFactory) CreateRollbackPage(id, spaceID uint32) *RollbackPageWrapper {
-	return NewRollbackPageWrapper(id, spaceID)
+	return f.CreateRollbackPageWithStorage(id, spaceID, nil)
+}
+
+// CreateRollbackPageWithStorage creates a rollback page with an optional durable provider.
+func (f *PageFactory) CreateRollbackPageWithStorage(id, spaceID uint32, storage basic.StorageProvider) *RollbackPageWrapper {
+	return NewRollbackPageWrapperWithStorage(id, spaceID, storage)
 }
 
 // ParsePage 从字节数据解析页面
 func (f *PageFactory) ParsePage(data []byte) (IPageWrapper, error) {
+	return f.ParsePageWithStorage(data, nil)
+}
+
+// ParsePageWithStorage parses a page and retains the supplied provider for
+// subsequent Read/Write/Flush operations.
+func (f *PageFactory) ParsePageWithStorage(data []byte, storage basic.StorageProvider) (IPageWrapper, error) {
 	if len(data) < pages.FileHeaderSize {
 		return nil, ErrInvalidPageData
 	}
@@ -90,7 +118,7 @@ func (f *PageFactory) ParsePage(data []byte) (IPageWrapper, error) {
 	pageType := common.PageType(binary.LittleEndian.Uint16(data[24:26]))
 
 	// 创建对应类型的页面
-	page := f.CreatePage(pageType, pageID, spaceID, nil)
+	page := f.CreatePageWithStorage(pageType, pageID, spaceID, nil, storage)
 	if page == nil {
 		return nil, ErrInvalidPageType
 	}

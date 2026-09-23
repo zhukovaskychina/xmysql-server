@@ -38,6 +38,20 @@ func p0UsersSchema() *metadata.Table {
 	return schema
 }
 
+func TestUpdateOperatorDetectsChangedIndexedColumnBeyondFirstColumn(t *testing.T) {
+	schema := metadata.NewTable("indexed_users")
+	schema.AddColumn(&metadata.Column{Name: "name", DataType: metadata.TypeVarchar})
+	schema.AddColumn(&metadata.Column{Name: "id", DataType: metadata.TypeBigInt})
+	schema.Indices = append(schema.Indices, &metadata.Index{Name: "idx_id", Columns: []string{"id"}})
+
+	oldRecord := NewExecutorRecordFromValues([]basic.Value{basic.NewString("alice"), basic.NewInt64(1)}, nil)
+	newRecord := NewExecutorRecordFromValues([]basic.Value{basic.NewString("alice"), basic.NewInt64(2)}, nil)
+	operator := &UpdateOperator{}
+	if !operator.checkIndexColumnsChanged(oldRecord, newRecord, schema) {
+		t.Fatal("changing indexed id column should require index maintenance")
+	}
+}
+
 func p0UserRecord(id int64, name string) Record {
 	return NewExecutorRecordFromValues([]basic.Value{
 		basic.NewInt64Value(id),

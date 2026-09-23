@@ -66,6 +66,7 @@ type BasePage struct {
 
 	// 缓存的完整页面内容
 	content []byte
+	storage basic.StorageProvider
 }
 
 // Ensure BasePage implements IPageWrapper
@@ -75,9 +76,16 @@ var _ IPageWrapper = (*BasePage)(nil)
 //
 // Deprecated: Use types.NewUnifiedPage instead
 func NewBasePage(spaceID, pageNo uint32, pageType common.PageType) *BasePage {
+	return NewBasePageWithStorage(spaceID, pageNo, pageType, nil)
+}
+
+// NewBasePageWithStorage creates the deprecated page wrapper with an optional
+// durable provider. NewBasePage remains source-compatible for legacy callers.
+func NewBasePageWithStorage(spaceID, pageNo uint32, pageType common.PageType, storage basic.StorageProvider) *BasePage {
 	bp := &BasePage{
 		rawPage: pageTypes.NewPageHeader(common.PageSize),
 		content: make([]byte, common.PageSize),
+		storage: storage,
 	}
 
 	// 初始化文件头信息
@@ -196,10 +204,29 @@ func (bp *BasePage) Read() error {
 
 	if bp.bufferPool != nil {
 		if page, err := bp.bufferPool.GetPage(bp.GetSpaceID(), bp.GetPageNo()); err == nil && page != nil {
-			return bp.ParseFromBytes(page.GetData())
+			if err := bp.ParseFromBytes(page.GetData()); err != nil {
+				return err
+			}
+			atomic.StoreUint32(&bp.state, uint32(common.PageStateLoaded))
+			return nil
 		}
 	}
 
+	if bp.storage == nil {
+		return ErrPageStorageUnavailable
+	}
+	data, err := bp.storage.ReadPage(bp.GetSpaceID(), bp.GetPageNo())
+	if err != nil {
+		return err
+	}
+	if len(data) < common.PageSize {
+		return ErrInvalidPage
+	}
+	if err := bp.ParseFromBytes(data[:common.PageSize]); err != nil {
+		return err
+	}
+	atomic.StoreUint32(&bp.dirty, 0)
+	atomic.StoreUint32(&bp.state, uint32(common.PageStateLoaded))
 	return nil
 }
 
@@ -228,6 +255,13 @@ func (bp *BasePage) Write() error {
 			bufPage.SetDirty(true)
 		}
 	}
+	if bp.storage != nil {
+		if err := bp.storage.WritePage(bp.GetSpaceID(), bp.GetPageNo(), data); err != nil {
+			return err
+		}
+	} else if bp.bufferPool == nil {
+		return ErrPageStorageUnavailable
+	}
 
 	atomic.StoreUint32(&bp.dirty, 0)
 	return nil
@@ -248,6 +282,11 @@ func (bp *BasePage) Flush() error {
 			// 但 basic.IBufferPool 接口可能没有 Flush 方法
 			// 所以我们只是确保页面被标记为脏页
 			bufPage.SetDirty(true)
+		}
+	}
+	if bp.storage != nil {
+		if err := bp.storage.Sync(bp.GetSpaceID()); err != nil {
+			return err
 		}
 	}
 

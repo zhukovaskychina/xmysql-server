@@ -3,6 +3,7 @@ package manager
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -40,18 +41,19 @@ const (
 
 // Transaction 表示一个事务
 type Transaction struct {
-	ID             int64                 // 事务ID
-	State          uint8                 // 事务状态
-	IsolationLevel uint8                 // 隔离级别
-	StartTime      time.Time             // 开始时间
-	LastActiveTime time.Time             // 最后活跃时间
-	ReadView       *formatmvcc.ReadView  // MVCC读视图
-	UndoLogs       []UndoLogEntry        // Undo日志
-	RedoLogs       []RedoLogEntry        // Redo日志
-	IsReadOnly     bool                  // 是否只读事务
-	LockCount      int                   // 持有的锁数量
-	UndoLogSize    uint64                // Undo日志大小
-	Savepoints     map[string]*Savepoint // 保存点（新增）
+	ID                 int64                 // 事务ID
+	State              uint8                 // 事务状态
+	IsolationLevel     uint8                 // 隔离级别
+	StartTime          time.Time             // 开始时间
+	LastActiveTime     time.Time             // 最后活跃时间
+	ReadView           *formatmvcc.ReadView  // MVCC读视图
+	purgeReadViewToken uint64                // UndoPurger registration token
+	UndoLogs           []UndoLogEntry        // Undo日志
+	RedoLogs           []RedoLogEntry        // Redo日志
+	IsReadOnly         bool                  // 是否只读事务
+	LockCount          int                   // 持有的锁数量
+	UndoLogSize        uint64                // Undo日志大小
+	Savepoints         map[string]*Savepoint // 保存点（新增）
 }
 
 // Savepoint 保存点
@@ -97,6 +99,36 @@ type LongTransactionStats struct {
 	LastCheckTime      time.Time
 }
 
+// LongTransactionSnapshot is an immutable diagnostic view. Returning this
+// shape keeps SHOW/monitoring callers from mutating live transaction state or
+// racing with lock/undo counters updated by the transaction manager.
+type LongTransactionSnapshot struct {
+	ID             int64         `json:"id"`
+	State          uint8         `json:"state"`
+	IsolationLevel uint8         `json:"isolation_level"`
+	StartTime      time.Time     `json:"start_time"`
+	LastActiveTime time.Time     `json:"last_active_time"`
+	Duration       time.Duration `json:"duration"`
+	IsReadOnly     bool          `json:"is_read_only"`
+	LockCount      int           `json:"lock_count"`
+	UndoLogSize    uint64        `json:"undo_log_size"`
+}
+
+// TransactionSnapshot is a read-only view of an active transaction for
+// information_schema and operational diagnostics. It deliberately contains
+// only values owned by TransactionManager; session-specific SQL text and
+// lock-table details are not inferred here.
+type TransactionSnapshot struct {
+	ID             int64
+	State          uint8
+	IsolationLevel uint8
+	StartTime      time.Time
+	LastActiveTime time.Time
+	IsReadOnly     bool
+	LockCount      int
+	UndoLogSize    uint64
+}
+
 // TransactionManager 事务管理器
 type TransactionManager struct {
 	mu                 sync.RWMutex
@@ -106,6 +138,7 @@ type TransactionManager struct {
 	// 日志管理器
 	redoManager *RedoLogManager
 	undoManager *UndoLogManager
+	undoPurger  *UndoPurger
 
 	// 默认配置
 	defaultIsolationLevel uint8
@@ -195,6 +228,9 @@ func (tm *TransactionManager) Begin(isReadOnly bool, isolationLevel uint8) (*Tra
 	// 创建ReadView（对于RR和RC隔离级别）
 	if isolationLevel >= TRX_ISO_READ_COMMITTED {
 		trx.ReadView = tm.createReadView(trxID)
+		if tm.undoPurger != nil && trx.ReadView != nil {
+			trx.purgeReadViewToken = tm.undoPurger.RegisterActiveReadView(trx.ReadView)
+		}
 	}
 
 	// 记录活跃事务
@@ -234,6 +270,7 @@ func (tm *TransactionManager) Commit(trx *Transaction) error {
 
 	// 移除活跃事务记录
 	delete(tm.activeTransactions, trx.ID)
+	tm.unregisterPurgeReadViewLocked(trx)
 
 	return nil
 }
@@ -264,8 +301,45 @@ func (tm *TransactionManager) rollbackLocked(trx *Transaction) error {
 
 	// 清理事务记录
 	delete(tm.activeTransactions, trx.ID)
+	tm.unregisterPurgeReadViewLocked(trx)
 
 	return nil
+}
+
+// SetUndoPurger connects transaction read-view lifetime to the purge worker.
+// Existing active transactions are registered as well, so attaching the
+// purger after startup cannot leave a protection gap.
+func (tm *TransactionManager) SetUndoPurger(purger *UndoPurger) {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+	if tm.undoPurger == purger {
+		return
+	}
+	if tm.undoPurger != nil {
+		for _, trx := range tm.activeTransactions {
+			if trx != nil && trx.purgeReadViewToken != 0 {
+				tm.undoPurger.UnregisterActiveReadView(trx.purgeReadViewToken)
+				trx.purgeReadViewToken = 0
+			}
+		}
+	}
+	tm.undoPurger = purger
+	if purger == nil {
+		return
+	}
+	for _, trx := range tm.activeTransactions {
+		if trx != nil && trx.ReadView != nil && trx.purgeReadViewToken == 0 {
+			trx.purgeReadViewToken = purger.RegisterActiveReadView(trx.ReadView)
+		}
+	}
+}
+
+func (tm *TransactionManager) unregisterPurgeReadViewLocked(trx *Transaction) {
+	if tm.undoPurger == nil || trx == nil || trx.purgeReadViewToken == 0 {
+		return
+	}
+	tm.undoPurger.UnregisterActiveReadView(trx.purgeReadViewToken)
+	trx.purgeReadViewToken = 0
 }
 
 // Savepoint 创建保存点
@@ -396,6 +470,54 @@ func (tm *TransactionManager) GetTransaction(trxID int64) *Transaction {
 	return tm.activeTransactions[trxID]
 }
 
+// GetActiveTransactionIDs returns a stable, sorted snapshot for checkpoint
+// and observability consumers. The returned slice is detached from manager
+// state and safe for the caller to retain.
+func (tm *TransactionManager) GetActiveTransactionIDs() []uint64 {
+	if tm == nil {
+		return []uint64{}
+	}
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+	ids := make([]uint64, 0, len(tm.activeTransactions))
+	for id := range tm.activeTransactions {
+		if id > 0 {
+			ids = append(ids, uint64(id))
+		}
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return ids
+}
+
+// GetActiveTransactionSnapshots returns a stable copy of the current active
+// transaction set. Sorting by transaction ID keeps metadata queries and
+// diagnostics deterministic without exposing the manager's live map.
+func (tm *TransactionManager) GetActiveTransactionSnapshots() []TransactionSnapshot {
+	if tm == nil {
+		return nil
+	}
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+	snapshots := make([]TransactionSnapshot, 0, len(tm.activeTransactions))
+	for _, trx := range tm.activeTransactions {
+		if trx == nil {
+			continue
+		}
+		snapshots = append(snapshots, TransactionSnapshot{
+			ID:             trx.ID,
+			State:          trx.State,
+			IsolationLevel: trx.IsolationLevel,
+			StartTime:      trx.StartTime,
+			LastActiveTime: trx.LastActiveTime,
+			IsReadOnly:     trx.IsReadOnly,
+			LockCount:      trx.LockCount,
+			UndoLogSize:    trx.UndoLogSize,
+		})
+	}
+	sort.Slice(snapshots, func(i, j int) bool { return snapshots[i].ID < snapshots[j].ID })
+	return snapshots
+}
+
 // IsVisible 判断数据版本是否对事务可见
 func (tm *TransactionManager) IsVisible(trx *Transaction, version int64) bool {
 	// 读未提交：总是可见
@@ -479,6 +601,9 @@ func (tm *TransactionManager) StartLongTransactionMonitor() {
 	if tm.monitorRunning {
 		return
 	}
+	// StopLongTransactionMonitor closes the previous signal so a subsequent
+	// start must get a fresh channel.
+	tm.stopMonitor = make(chan struct{})
 
 	tm.monitorRunning = true
 	tm.monitorWg.Add(1)
@@ -635,6 +760,9 @@ func (tm *TransactionManager) handleLongTransaction(trx *Transaction, now time.T
 
 // SetLongTransactionConfig 设置长事务检测配置
 func (tm *TransactionManager) SetLongTransactionConfig(config *LongTransactionConfig) {
+	if config == nil {
+		return
+	}
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
@@ -703,12 +831,54 @@ func (tm *TransactionManager) GetLongTransactions(threshold time.Duration) []*Tr
 		if trx.State == TRX_STATE_ACTIVE {
 			duration := now.Sub(trx.StartTime)
 			if duration >= threshold {
-				longTxns = append(longTxns, trx)
+				longTxns = append(longTxns, cloneTransaction(trx))
 			}
 		}
 	}
+	sort.Slice(longTxns, func(i, j int) bool { return longTxns[i].ID < longTxns[j].ID })
 
 	return longTxns
+}
+
+// GetLongTransactionSnapshots returns stable, sorted diagnostics for
+// processlist/observability consumers.
+func (tm *TransactionManager) GetLongTransactionSnapshots(threshold time.Duration) []LongTransactionSnapshot {
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+	now := time.Now()
+	result := make([]LongTransactionSnapshot, 0)
+	for _, trx := range tm.activeTransactions {
+		if trx.State != TRX_STATE_ACTIVE || now.Sub(trx.StartTime) < threshold {
+			continue
+		}
+		result = append(result, transactionSnapshot(trx, now))
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
+	return result
+}
+
+func transactionSnapshot(trx *Transaction, now time.Time) LongTransactionSnapshot {
+	return LongTransactionSnapshot{
+		ID: trx.ID, State: trx.State, IsolationLevel: trx.IsolationLevel,
+		StartTime: trx.StartTime, LastActiveTime: trx.LastActiveTime,
+		Duration: now.Sub(trx.StartTime), IsReadOnly: trx.IsReadOnly,
+		LockCount: trx.LockCount, UndoLogSize: trx.UndoLogSize,
+	}
+}
+
+func cloneTransaction(trx *Transaction) *Transaction {
+	copyTrx := *trx
+	copyTrx.UndoLogs = append([]UndoLogEntry(nil), trx.UndoLogs...)
+	copyTrx.RedoLogs = append([]RedoLogEntry(nil), trx.RedoLogs...)
+	copyTrx.Savepoints = make(map[string]*Savepoint, len(trx.Savepoints))
+	for name, savepoint := range trx.Savepoints {
+		if savepoint == nil {
+			continue
+		}
+		copySavepoint := *savepoint
+		copyTrx.Savepoints[name] = &copySavepoint
+	}
+	return &copyTrx
 }
 
 // UpdateTransactionActivity 更新事务活跃时间

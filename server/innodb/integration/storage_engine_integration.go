@@ -3,11 +3,14 @@ package integration
 import (
 	"context"
 	"fmt"
+	"math"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
@@ -30,6 +33,8 @@ type StorageEngineIntegrator struct {
 	statisticsCollector *plan.StatisticsCollector
 	costEstimator       *plan.CostEstimator
 	indexOptimizer      *plan.IndexPushdownOptimizer
+	enhancedStatistics  *plan.EnhancedStatisticsCollector
+	storageAccessor     plan.StorageEngineAccessor
 
 	// 集成状态
 	isInitialized    bool
@@ -99,6 +104,11 @@ func (sei *StorageEngineIntegrator) initializeOptimizerComponents() {
 
 	// 创建索引下推优化器
 	sei.indexOptimizer = plan.NewIndexPushdownOptimizer()
+	sei.enhancedStatistics = plan.NewEnhancedStatisticsCollector(
+		statsConfig,
+		sei.spaceManager,
+		sei.btreeManager,
+	)
 }
 
 // establishIntegrationConnections 建立集成连接
@@ -124,14 +134,15 @@ func (sei *StorageEngineIntegrator) injectStorageStatistics() {
 
 // configureOptimizerStorageAccess 配置优化器存储访问
 func (sei *StorageEngineIntegrator) configureOptimizerStorageAccess() {
-	// 设置代价估算器的存储访问接口
-	_ = &StorageAccessor{
+	// 设置统计收集器和代价估算器共用的存储访问接口。
+	sei.storageAccessor = &StorageAccessor{
+		storageManager:    sei.storageManager,
 		spaceManager:      sei.spaceManager,
 		bufferPoolManager: sei.bufferPoolManager,
 		btreeManager:      sei.btreeManager,
 	}
-	// 代价估算器和索引优化器暂未实现存储访问接口，
-	// 因此此处仅创建访问器但不做进一步操作。
+	sei.enhancedStatistics.SetStorageEngineAccessor(sei.storageAccessor)
+	sei.costEstimator.SetStatisticsProvider(sei.enhancedStatistics)
 }
 
 // startBackgroundStatisticsCollection 启动后台统计信息收集
@@ -184,6 +195,9 @@ func (sei *StorageEngineIntegrator) OptimizeQuery(
 	if err != nil {
 		return nil, fmt.Errorf("收集表统计信息失败: %v", err)
 	}
+	if err := sei.refreshEnhancedStatistics(ctx, table); err != nil {
+		return nil, fmt.Errorf("刷新增强统计信息失败: %v", err)
+	}
 
 	// 2. 索引下推优化
 	indexCandidate, err := sei.optimizeIndexAccess(table, whereConditions, selectColumns)
@@ -211,6 +225,36 @@ func (sei *StorageEngineIntegrator) OptimizeQuery(
 	return optimizedPlan, nil
 }
 
+// refreshEnhancedStatistics populates the same authoritative collector used
+// by CostEstimator. Without this bridge the integration layer could collect
+// real statistics for display while the cost model continued reading an empty
+// legacy collector.
+func (sei *StorageEngineIntegrator) refreshEnhancedStatistics(ctx context.Context, table *metadata.Table) error {
+	if sei.enhancedStatistics == nil || table == nil {
+		return nil
+	}
+	if _, err := sei.enhancedStatistics.CollectTableStatistics(ctx, table); err != nil {
+		return err
+	}
+	for _, index := range table.Indices {
+		if index == nil {
+			continue
+		}
+		if _, err := sei.enhancedStatistics.CollectIndexStatistics(ctx, table, index); err != nil {
+			return err
+		}
+	}
+	for _, column := range table.Columns {
+		if column == nil {
+			continue
+		}
+		if _, err := sei.enhancedStatistics.CollectColumnStatistics(ctx, table, column); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // collectTableStatistics 收集表统计信息
 func (sei *StorageEngineIntegrator) collectTableStatistics(
 	ctx context.Context,
@@ -223,12 +267,14 @@ func (sei *StorageEngineIntegrator) collectTableStatistics(
 		return nil, fmt.Errorf("获取表空间失败: %v", err)
 	}
 
+	rowCount, dataSize, indexSize, modifyCount := sei.resolveTableStatistics(table, spaceID, space)
+
 	// 构建表统计信息
 	tableStats := &plan.TableStats{
 		TableName:       table.Name,
-		RowCount:        int64(sei.estimateRowCount(space)),
-		TotalSize:       int64(space.GetUsedSpace()),
-		ModifyCount:     0, // TODO: 从事务日志获取
+		RowCount:        rowCount,
+		TotalSize:       dataSize + indexSize,
+		ModifyCount:     modifyCount,
 		LastAnalyzeTime: time.Now().Unix(),
 	}
 
@@ -269,13 +315,16 @@ func (sei *StorageEngineIntegrator) estimateQueryCost(
 			table, indexCandidate.Index, indexCandidate.Selectivity, indexCandidate.Conditions)
 	} else {
 		// 全表扫描代价
-		selectivity := sei.estimateSelectivity(whereConditions)
+		selectivity := sei.estimateSelectivity(table, whereConditions)
 		return sei.costEstimator.EstimateTableScanCost(table, selectivity)
 	}
 }
 
 // updateOptimizerStatistics 更新优化器统计信息
 func (sei *StorageEngineIntegrator) updateOptimizerStatistics(table *metadata.Table) {
+	if table == nil || sei.indexOptimizer == nil {
+		return
+	}
 	// 收集表统计信息
 	tableStats := make(map[string]*plan.TableStats)
 	indexStats := make(map[string]*plan.IndexStats)
@@ -286,11 +335,12 @@ func (sei *StorageEngineIntegrator) updateOptimizerStatistics(table *metadata.Ta
 	space, _ := sei.spaceManager.GetSpace(spaceID)
 
 	if space != nil {
+		rowCount, dataSize, indexSize, modifyCount := sei.resolveTableStatistics(table, spaceID, space)
 		tableStats[table.Name] = &plan.TableStats{
 			TableName:       table.Name,
-			RowCount:        int64(sei.estimateRowCount(space)),
-			TotalSize:       int64(space.GetUsedSpace()),
-			ModifyCount:     0,
+			RowCount:        rowCount,
+			TotalSize:       dataSize + indexSize,
+			ModifyCount:     modifyCount,
 			LastAnalyzeTime: time.Now().Unix(),
 		}
 
@@ -320,14 +370,60 @@ func (sei *StorageEngineIntegrator) updateOptimizerStatistics(table *metadata.Ta
 		}
 	}
 
+	// The enhanced collector is the authoritative source after ANALYZE and
+	// after a persisted statistics reload. Overlay it on the compatibility
+	// estimates above so index pushdown and CostEstimator make the same choice.
+	if sei.enhancedStatistics != nil {
+		if stats, err := sei.enhancedStatistics.CollectTableStatistics(context.Background(), table); err == nil && stats != nil {
+			tableStats[table.Name] = stats
+		} else if stats, ok := sei.enhancedStatistics.GetTableStatistics(table.Name); ok && stats != nil {
+			tableStats[table.Name] = stats
+		}
+		for _, index := range table.Indices {
+			if index == nil {
+				continue
+			}
+			if stats, err := sei.enhancedStatistics.CollectIndexStatistics(context.Background(), table, index); err == nil && stats != nil {
+				indexStats[fmt.Sprintf("%s.%s", table.Name, index.Name)] = stats
+			} else if stats, ok := sei.enhancedStatistics.GetIndexStatistics(table.Name, index.Name); ok && stats != nil {
+				indexStats[fmt.Sprintf("%s.%s", table.Name, index.Name)] = stats
+			}
+		}
+		for _, column := range table.Columns {
+			if column == nil {
+				continue
+			}
+			if stats, err := sei.enhancedStatistics.CollectColumnStatistics(context.Background(), table, column); err == nil && stats != nil {
+				columnStats[fmt.Sprintf("%s.%s", table.Name, column.Name)] = stats
+			} else if stats, ok := sei.enhancedStatistics.GetColumnStatistics(table.Name, column.Name); ok && stats != nil {
+				columnStats[fmt.Sprintf("%s.%s", table.Name, column.Name)] = stats
+			}
+		}
+	}
+
 	// 设置统计信息到优化器
 	sei.indexOptimizer.SetStatistics(tableStats, indexStats, columnStats)
 }
 
 // 辅助方法
 func (sei *StorageEngineIntegrator) getTableSpaceID(table *metadata.Table) uint32 {
-	// 简化实现：通过 SpaceManager 根据表名获取表空间
 	if table == nil || sei.spaceManager == nil {
+		if table == nil || sei.storageAccessor == nil {
+			return 0
+		}
+	}
+	if resolver, ok := sei.storageAccessor.(interface {
+		GetTableSpaceID(schemaName, tableName string) (uint32, error)
+	}); ok {
+		schemaName := ""
+		if table.Schema != nil {
+			schemaName = table.Schema.Name
+		}
+		if spaceID, err := resolver.GetTableSpaceID(schemaName, table.Name); err == nil && spaceID > 0 {
+			return spaceID
+		}
+	}
+	if sei.spaceManager == nil {
 		return 0
 	}
 
@@ -346,7 +442,46 @@ func (sei *StorageEngineIntegrator) estimateRowCount(space basic.Space) uint64 {
 	return uint64(pageCount) * avgRowsPerPage
 }
 
+// resolveTableStatistics prefers the decoded storage-engine counters and
+// retains page metadata only as an explicit compatibility fallback. Keeping
+// this in one place prevents ANALYZE and index optimization from observing
+// different row/size values for the same table.
+func (sei *StorageEngineIntegrator) resolveTableStatistics(
+	table *metadata.Table,
+	spaceID uint32,
+	space basic.Space,
+) (rowCount, dataSize, indexSize, modifyCount int64) {
+	if space != nil {
+		rowCount = int64(sei.estimateRowCount(space))
+		dataSize = int64(space.GetUsedSpace())
+	}
+	if sei.storageAccessor == nil {
+		return rowCount, dataSize, indexSize, modifyCount
+	}
+	if exactRows, err := sei.storageAccessor.GetTableRowCount(spaceID); err == nil && exactRows >= 0 {
+		rowCount = exactRows
+	}
+	if exactData, exactIndex, err := sei.storageAccessor.GetTableSpaceSize(spaceID); err == nil && exactData >= 0 && exactIndex >= 0 {
+		dataSize, indexSize = exactData, exactIndex
+	}
+	if provider, ok := sei.storageAccessor.(interface {
+		GetTableModifyCount(schemaName, tableName string) (int64, error)
+	}); ok {
+		schemaName := ""
+		if table != nil && table.Schema != nil {
+			schemaName = table.Schema.Name
+		}
+		if count, err := provider.GetTableModifyCount(schemaName, table.Name); err == nil && count >= 0 {
+			modifyCount = count
+		}
+	}
+	return rowCount, dataSize, indexSize, modifyCount
+}
+
 func (sei *StorageEngineIntegrator) estimateIndexCardinality(space basic.Space, index *metadata.Index) uint64 {
+	if index != nil && index.Stats != nil && index.Stats.Cardinality > 0 {
+		return uint64(index.Stats.Cardinality)
+	}
 	// 简化实现，基于空间大小估算
 	return sei.estimateRowCount(space) / 2
 }
@@ -436,12 +571,64 @@ func (sei *StorageEngineIntegrator) getColumnMaxValue(space basic.Space, column 
 	}
 }
 
-func (sei *StorageEngineIntegrator) estimateSelectivity(whereConditions []plan.Expression) float64 {
-	// 简化实现，基于条件数量估算选择性
+func (sei *StorageEngineIntegrator) estimateSelectivity(table *metadata.Table, whereConditions []plan.Expression) float64 {
 	if len(whereConditions) == 0 {
 		return 1.0
 	}
-	return 1.0 / float64(len(whereConditions)+1)
+	selectivity := 1.0
+	for _, condition := range whereConditions {
+		selectivity *= sei.estimatePredicateSelectivity(table, condition)
+	}
+	return math.Max(0, math.Min(1, selectivity))
+}
+
+func (sei *StorageEngineIntegrator) estimatePredicateSelectivity(table *metadata.Table, expression plan.Expression) float64 {
+	binaryExpression, ok := expression.(*plan.BinaryOperation)
+	if !ok || binaryExpression == nil {
+		return 0.1
+	}
+	if binaryExpression.Op == plan.OpAnd {
+		return sei.estimatePredicateSelectivity(table, binaryExpression.Left) *
+			sei.estimatePredicateSelectivity(table, binaryExpression.Right)
+	}
+	if binaryExpression.Op == plan.OpOr {
+		left := sei.estimatePredicateSelectivity(table, binaryExpression.Left)
+		right := sei.estimatePredicateSelectivity(table, binaryExpression.Right)
+		return left + right - left*right
+	}
+	column, ok := binaryExpression.Left.(*plan.Column)
+	if !ok || column == nil || table == nil || sei.enhancedStatistics == nil {
+		return 0.1
+	}
+	columnName := column.Name
+	if dot := strings.LastIndex(columnName, "."); dot >= 0 {
+		columnName = columnName[dot+1:]
+	}
+	stats, exists := sei.enhancedStatistics.GetColumnStatistics(table.Name, columnName)
+	if !exists || stats == nil {
+		return 0.1
+	}
+	rowCount := int64(0)
+	if tableStats, ok := sei.enhancedStatistics.GetTableStatistics(table.Name); ok && tableStats != nil {
+		rowCount = tableStats.RowCount
+	}
+	notNullRatio := 1.0
+	if rowCount > 0 {
+		notNullRatio = math.Min(1, float64(stats.NotNullCount)/float64(rowCount))
+	}
+	ndv := math.Max(1, float64(stats.DistinctCount))
+	switch binaryExpression.Op {
+	case plan.OpEQ:
+		return notNullRatio / ndv
+	case plan.OpNE:
+		return notNullRatio * math.Max(0, 1-1/ndv)
+	case plan.OpLT, plan.OpLE, plan.OpGT, plan.OpGE:
+		return notNullRatio / 3
+	case plan.OpLike, plan.OpIn:
+		return math.Min(notNullRatio, 0.1)
+	default:
+		return 0.1
+	}
 }
 
 func (sei *StorageEngineIntegrator) determineAccessMethod(candidate *plan.IndexCandidate) AccessMethod {
@@ -549,9 +736,159 @@ type StorageHints struct {
 
 // StorageAccessor 存储访问器
 type StorageAccessor struct {
+	storageManager    *manager.StorageManager
 	spaceManager      basic.SpaceManager
 	bufferPoolManager *manager.OptimizedBufferPoolManager
 	btreeManager      basic.BPlusTreeManager
+}
+
+// GetTableRowCount returns the exact number of decodable clustered records
+// when the table-to-storage mapping and table metadata are available.
+func (sa *StorageAccessor) GetTableRowCount(spaceID uint32) (int64, error) {
+	records, err := sa.SampleTableRecords(spaceID, 1)
+	if err != nil {
+		return 0, err
+	}
+	return int64(len(records)), nil
+}
+
+// GetTableSpaceID resolves the canonical storage mapping used by ANALYZE and
+// the optimizer. The name-based hash fallback in the planner is retained only
+// for accessors that do not implement this optional resolver.
+func (sa *StorageAccessor) GetTableSpaceID(schemaName, tableName string) (uint32, error) {
+	if sa == nil || sa.storageManager == nil {
+		return 0, fmt.Errorf("storage manager is unavailable")
+	}
+	tableStorage := sa.storageManager.GetTableStorageManager()
+	if tableStorage == nil {
+		return 0, fmt.Errorf("table storage mapping is unavailable")
+	}
+	info, err := tableStorage.GetTableStorageInfo(schemaName, tableName)
+	if err != nil {
+		return 0, err
+	}
+	if info == nil || info.SpaceID == 0 {
+		return 0, fmt.Errorf("table storage mapping has no space id for %s.%s", schemaName, tableName)
+	}
+	return info.SpaceID, nil
+}
+
+// GetIndexID resolves a logical index name to the physical IndexManager ID.
+// It is intentionally an optional planner-side capability: older accessors
+// can continue to provide table/row statistics without implementing it.
+func (sa *StorageAccessor) GetIndexID(schemaName, tableName, indexName string) (uint32, error) {
+	if sa == nil || sa.storageManager == nil {
+		return 0, fmt.Errorf("storage manager is unavailable")
+	}
+	indexManager := sa.storageManager.GetIndexManager()
+	if indexManager == nil {
+		return 0, fmt.Errorf("index manager is unavailable")
+	}
+	tableID := manager.SecondaryIndexTableID(schemaName, tableName)
+	index := indexManager.GetIndexByName(tableID, indexName)
+	if index == nil {
+		for _, candidate := range indexManager.ListIndexes(tableID) {
+			if candidate != nil && strings.EqualFold(candidate.Name, indexName) {
+				index = candidate
+				break
+			}
+		}
+	}
+	if index == nil || index.IndexID == 0 || index.IndexID > uint64(^uint32(0)) {
+		return 0, fmt.Errorf("index %s.%s.%s is unavailable", schemaName, tableName, indexName)
+	}
+	return uint32(index.IndexID), nil
+}
+
+// SampleTableRecords scans clustered records through the same decoder used by
+// the execution engine, then applies a deterministic rate-based sample. This
+// keeps ANALYZE column values tied to persisted rows rather than generated
+// placeholders.
+func (sa *StorageAccessor) SampleTableRecords(spaceID uint32, sampleRate float64) ([][]interface{}, error) {
+	if sa == nil || sa.storageManager == nil {
+		return nil, fmt.Errorf("storage manager is unavailable")
+	}
+	if sampleRate <= 0 {
+		sampleRate = 1
+	}
+	tableStorage := sa.storageManager.GetTableStorageManager()
+	tableManager := sa.storageManager.GetTableManager()
+	if tableStorage == nil || tableManager == nil {
+		return nil, fmt.Errorf("table storage mapping or table manager is unavailable")
+	}
+	info, err := tableStorage.GetTableBySpaceID(spaceID)
+	if err != nil {
+		return nil, err
+	}
+	tableMeta, err := tableManager.GetTableMetadata(context.Background(), info.SchemaName, info.TableName)
+	if err != nil {
+		return nil, err
+	}
+	btree, err := tableStorage.CreateBTreeManagerForTable(context.Background(), info.SchemaName, info.TableName)
+	if err != nil {
+		return nil, err
+	}
+	decoded, err := engine.NewClusteredIndexScanner(btree, tableMeta).Scan(context.Background(), nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(decoded) == 0 {
+		return [][]interface{}{}, nil
+	}
+	sampleCount := int(math.Ceil(float64(len(decoded)) * sampleRate))
+	if sampleCount < 1 {
+		sampleCount = 1
+	}
+	if sampleCount > len(decoded) {
+		sampleCount = len(decoded)
+	}
+	result := make([][]interface{}, 0, sampleCount)
+	for i := 0; i < sampleCount; i++ {
+		rowIndex := i * len(decoded) / sampleCount
+		values := make([]interface{}, 0, len(tableMeta.Columns))
+		for _, column := range tableMeta.Columns {
+			if column == nil {
+				values = append(values, nil)
+				continue
+			}
+			values = append(values, decoded[rowIndex].ColumnValues[column.Name])
+		}
+		result = append(result, values)
+	}
+	return result, nil
+}
+
+func (sa *StorageAccessor) GetIndexCardinality(indexID uint32) (int64, error) {
+	if sa == nil || sa.storageManager == nil || sa.storageManager.GetIndexManager() == nil {
+		return 0, fmt.Errorf("index manager is unavailable")
+	}
+	stats, err := sa.storageManager.GetIndexManager().GetIndexStats(uint64(indexID))
+	if err != nil {
+		return 0, err
+	}
+	return int64(stats.KeyCount), nil
+}
+
+func (sa *StorageAccessor) GetTableSpaceSize(spaceID uint32) (dataSize int64, indexSize int64, err error) {
+	if sa == nil || sa.spaceManager == nil {
+		return 0, 0, fmt.Errorf("space manager is unavailable")
+	}
+	space, err := sa.spaceManager.GetSpace(spaceID)
+	if err != nil {
+		return 0, 0, err
+	}
+	return int64(space.GetUsedSpace()), 0, nil
+}
+
+func (sa *StorageAccessor) GetBTreeStatistics(indexID uint32) (treeDepth int, leafPages int64, nonLeafPages int64, err error) {
+	if sa == nil || sa.storageManager == nil || sa.storageManager.GetIndexManager() == nil {
+		return 0, 0, 0, fmt.Errorf("index manager is unavailable")
+	}
+	stats, err := sa.storageManager.GetIndexManager().GetIndexStats(uint64(indexID))
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	return int(stats.Height), int64(stats.LeafPages), int64(stats.NonLeafPages), nil
 }
 
 // GetSpaceStatistics 获取空间统计信息
@@ -572,11 +909,4 @@ func (sa *StorageAccessor) GetSpaceStatistics(spaceID uint32) (*plan.SpaceStatis
 // GetBufferPoolStatistics 获取缓冲池统计信息
 func (sa *StorageAccessor) GetBufferPoolStatistics() *manager.BufferPoolStatistics {
 	return sa.bufferPoolManager.GetStatistics()
-}
-
-// GetBTreeStatistics 获取B+树统计信息
-func (sa *StorageAccessor) GetBTreeStatistics() *basic.BTreeStatistics {
-	// The underlying B+Tree manager in this demo does not expose
-	// statistics. Return an empty struct for compilation.
-	return &basic.BTreeStatistics{}
 }

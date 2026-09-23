@@ -240,6 +240,7 @@ const (
 	ErrVarCantBeRead                                         = 1233
 	ErrCantUseOptionHere                                     = 1234
 	ErrNotSupportedYet                                       = 1235
+	ErrCheckConstraint                                       = 3819
 	ErrMasterFatalErrorReadingBinlog                         = 1236
 	ErrSlaveIgnoredTable                                     = 1237
 	ErrIncorrectGlobalLocalVar                               = 1238

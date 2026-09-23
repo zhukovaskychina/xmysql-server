@@ -24,6 +24,7 @@ type MVCCIndexPage struct {
 	pageType common.PageType
 	size     uint32
 	lsn      uint64
+	storage  basic.StorageProvider
 
 	// MVCC信息
 	version uint64
@@ -51,6 +52,15 @@ func NewMVCCIndexPage(id, spaceID uint32) *MVCCIndexPage {
 		freeSlots: make([]uint16, 0),
 		locks:     make(map[uint64]LockMode),
 	}
+}
+
+// NewMVCCIndexPageWithStorage creates an MVCC page backed by a durable page
+// provider. The original constructor intentionally remains in-memory for
+// callers that use the wrapper as a standalone MVCC unit test fixture.
+func NewMVCCIndexPageWithStorage(id, spaceID uint32, storage basic.StorageProvider) *MVCCIndexPage {
+	page := NewMVCCIndexPage(id, spaceID)
+	page.storage = storage
+	return page
 }
 
 // ID 实现Page接口
@@ -294,6 +304,21 @@ func (p *MVCCIndexPage) Unpin() {
 
 // Read 实现basic.IPage接口
 func (p *MVCCIndexPage) Read() error {
+	if p.storage != nil {
+		content, err := p.storage.ReadPage(p.spaceID, p.id)
+		if err != nil {
+			return err
+		}
+		if err := p.ParseFromBytes(content); err != nil {
+			return err
+		}
+		p.Lock()
+		p.size = uint32(len(content))
+		p.dirty = false
+		p.Unlock()
+		return nil
+	}
+
 	content := p.GetContent()
 	p.Lock()
 	p.size = uint32(len(content))
@@ -312,6 +337,16 @@ func (p *MVCCIndexPage) Write() error {
 	data, err := p.ToBytes()
 	if err != nil {
 		return err
+	}
+	if p.storage != nil {
+		if err := p.storage.WritePage(p.spaceID, p.id, data); err != nil {
+			return err
+		}
+		p.Lock()
+		p.size = uint32(len(data))
+		p.dirty = false
+		p.Unlock()
+		return nil
 	}
 
 	p.SetContent(data)

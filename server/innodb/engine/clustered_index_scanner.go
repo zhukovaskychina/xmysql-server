@@ -15,8 +15,9 @@ type clusteredIndexFullScanner interface {
 }
 
 type ClusteredIndexScanner struct {
-	btree     basic.BPlusTreeManager
-	tableMeta *metadata.TableMeta
+	btree        basic.BPlusTreeManager
+	tableMeta    *metadata.TableMeta
+	rowsExamined int64
 }
 
 type clusteredScannedRow struct {
@@ -27,6 +28,15 @@ type clusteredScannedRow struct {
 
 func NewClusteredIndexScanner(btree basic.BPlusTreeManager, tableMeta *metadata.TableMeta) *ClusteredIndexScanner {
 	return &ClusteredIndexScanner{btree: btree, tableMeta: tableMeta}
+}
+
+// RowsExamined returns the number of valid clustered records inspected during
+// the most recent scan, including records rejected by the scan predicate.
+func (s *ClusteredIndexScanner) RowsExamined() int64 {
+	if s == nil {
+		return 0
+	}
+	return s.rowsExamined
 }
 
 func (s *ClusteredIndexScanner) Scan(ctx context.Context, whereConditions []string) ([]*InsertRowData, error) {
@@ -42,12 +52,40 @@ func (s *ClusteredIndexScanner) Scan(ctx context.Context, whereConditions []stri
 	return rows, nil
 }
 
+// ScanProjected scans clustered records and returns only the requested logical
+// columns. Callers that provide WHERE conditions must include every predicate
+// dependency in requiredColumns; the predicate is evaluated on that projected
+// row before it is returned.
+func (s *ClusteredIndexScanner) ScanProjected(ctx context.Context, whereConditions, requiredColumns []string) ([]*InsertRowData, error) {
+	scannedRows, err := s.scanWithProjection(ctx, whereConditions, requiredColumns)
+	if err != nil {
+		return nil, err
+	}
+
+	rows := make([]*InsertRowData, 0, len(scannedRows))
+	for _, scannedRow := range scannedRows {
+		rows = append(rows, scannedRow.data)
+	}
+	return rows, nil
+}
+
 func (s *ClusteredIndexScanner) ScanWithStorageKeys(ctx context.Context, whereConditions []string) ([]clusteredScannedRow, error) {
+	return s.scanWithProjection(ctx, whereConditions, nil)
+}
+
+func (s *ClusteredIndexScanner) scanWithProjection(ctx context.Context, whereConditions, requiredColumns []string) ([]clusteredScannedRow, error) {
+	if s != nil {
+		s.rowsExamined = 0
+	}
 	if s == nil || s.btree == nil {
 		return nil, fmt.Errorf("clustered index scanner requires a B+Tree manager")
 	}
 	if s.tableMeta == nil {
 		return nil, fmt.Errorf("clustered index scanner requires table metadata")
+	}
+	_, err := clusteredRecordProjection(s.tableMeta, requiredColumns)
+	if err != nil {
+		return nil, err
 	}
 
 	storedRows, err := s.scanRawRows(ctx)
@@ -57,6 +95,9 @@ func (s *ClusteredIndexScanner) ScanWithStorageKeys(ctx context.Context, whereCo
 
 	rows := make([]clusteredScannedRow, 0, len(storedRows))
 	for _, storedRow := range storedRows {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if storedRow == nil {
 			continue
 		}
@@ -64,7 +105,13 @@ func (s *ClusteredIndexScanner) ScanWithStorageKeys(ctx context.Context, whereCo
 		if !strings.HasPrefix(string(payload), clusteredRecordMagic) {
 			continue
 		}
-		rowData, err := DecodeClusteredRecord(payload, s.tableMeta)
+		s.rowsExamined++
+		var rowData *InsertRowData
+		if len(requiredColumns) > 0 {
+			rowData, err = DecodeClusteredRecordProjected(payload, s.tableMeta, requiredColumns)
+		} else {
+			rowData, err = DecodeClusteredRecord(payload, s.tableMeta)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("decode clustered record: %v", err)
 		}
@@ -129,7 +176,7 @@ func clusteredPrimaryKeyColumn(tableMeta *metadata.TableMeta) *metadata.ColumnMe
 	}
 	if len(tableMeta.PrimaryKey) > 0 {
 		for _, col := range tableMeta.Columns {
-			if col != nil && col.Name == tableMeta.PrimaryKey[0] {
+			if col != nil && strings.EqualFold(strings.TrimSpace(col.Name), strings.TrimSpace(tableMeta.PrimaryKey[0])) {
 				return col
 			}
 		}

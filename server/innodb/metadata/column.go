@@ -11,17 +11,22 @@ import (
 
 // ColumnMeta contains metadata for a single column
 type ColumnMeta struct {
-	Name            string
-	Type            DataType // 使用column_def.go中定义的DataType
-	Length          int
-	IsNullable      bool
-	IsPrimary       bool
-	IsUnique        bool
-	IsAutoIncrement bool
-	DefaultValue    interface{}
-	Charset         string
-	Collation       string
-	Comment         string
+	Name                string
+	Type                DataType // 使用column_def.go中定义的DataType
+	EnumValues          []string
+	Length              int
+	Scale               int
+	IsNullable          bool
+	IsPrimary           bool
+	IsUnique            bool
+	IsAutoIncrement     bool
+	IsUnsigned          bool
+	IsGenerated         bool
+	GeneratedExpression string
+	DefaultValue        interface{}
+	Charset             string
+	Collation           string
+	Comment             string
 }
 
 // TableMeta contains metadata for a table
@@ -42,9 +47,11 @@ type TableStats struct {
 
 // IndexMeta contains metadata for an index
 type IndexMeta struct {
-	Name    string
-	Columns []string
-	Unique  bool
+	Name          string
+	Columns       []string
+	Unique        bool
+	IsVisible     bool
+	VisibilitySet bool
 }
 
 // ColumnInfo represents column information for compatibility
@@ -84,8 +91,11 @@ func NewDefaultTableRow(meta *TableMeta) *DefaultTableRow {
 
 // GetColumnDescInfo implements TableRowTuple interface
 func (d *DefaultTableRow) GetColumnDescInfo(colName string) (ColumnMeta, int) {
+	if d == nil || d.tableMeta == nil {
+		return ColumnMeta{}, -1
+	}
 	for i, col := range d.tableMeta.Columns {
-		if col.Name == colName {
+		if col != nil && strings.EqualFold(col.Name, colName) {
 			return *col, i
 		}
 	}
@@ -159,7 +169,7 @@ func (c *ColumnMeta) ConvertToBasicValue(val interface{}) (basic.Value, error) {
 	}
 
 	switch c.Type {
-	case TypeTinyInt, TypeSmallInt, TypeMediumInt, TypeInt, TypeBigInt, TypeBool, TypeBoolean:
+	case TypeTinyInt, TypeSmallInt, TypeMediumInt, TypeInt, TypeBigInt, TypeBit, TypeBool, TypeBoolean:
 		if parsed, err := parseIntValue(val); err == nil {
 			return basic.NewInt64(parsed), nil
 		}
@@ -184,6 +194,24 @@ func (c *ColumnMeta) ConvertToBasicValue(val interface{}) (basic.Value, error) {
 			}
 			return basic.NewString(s), nil
 		}
+	case TypeGeometry:
+		switch value := val.(type) {
+		case []byte:
+			return basic.NewBytes(append([]byte(nil), value...)), nil
+		case string:
+			return basic.NewString(value), nil
+		case basic.Value:
+			if value.Type().IsBinary() {
+				if raw, ok := value.Raw().([]byte); ok {
+					return basic.NewBytes(append([]byte(nil), raw...)), nil
+				}
+			}
+			return basic.NewString(value.ToString()), nil
+		default:
+			if s, ok := parseStringValue(val); ok {
+				return basic.NewString(s), nil
+			}
+		}
 	default:
 		if s, ok := parseStringValue(val); ok {
 			return basic.NewString(s), nil
@@ -204,6 +232,11 @@ func (c *ColumnMeta) ValidateValue(val interface{}) bool {
 
 	_, err := c.ConvertToBasicValue(val)
 	return err == nil
+}
+
+// IsSpatial returns true for MySQL geometry columns.
+func (c *ColumnMeta) IsSpatial() bool {
+	return c != nil && c.Type == TypeGeometry
 }
 
 func parseIntValue(val interface{}) (int64, error) {

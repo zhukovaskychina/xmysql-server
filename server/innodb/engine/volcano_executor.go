@@ -2,9 +2,14 @@ package engine
 
 import (
 	"context"
+	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
@@ -29,6 +34,14 @@ type Operator interface {
 	Schema() *metadata.QuerySchema
 }
 
+// BatchOperator is the optional batch execution contract. Operators that
+// implement it can pull bounded chunks from their child without falling back
+// to one Next call per row. The returned error may be io.EOF together with a
+// final non-empty batch.
+type BatchOperator interface {
+	NextBatch(ctx context.Context, maxRows int) ([]Record, error)
+}
+
 // BaseOperator 基础算子实现，提供公共功能
 type BaseOperator struct {
 	children []Operator
@@ -41,6 +54,7 @@ func (b *BaseOperator) Open(ctx context.Context) error {
 	if b.opened {
 		return fmt.Errorf("operator already opened")
 	}
+	b.closed = false
 	for _, child := range b.children {
 		if err := child.Open(ctx); err != nil {
 			return fmt.Errorf("failed to open child operator: %w", err)
@@ -60,11 +74,120 @@ func (b *BaseOperator) Close() error {
 		}
 	}
 	b.closed = true
+	b.opened = false
 	return nil
 }
 
 func (b *BaseOperator) Schema() *metadata.QuerySchema {
 	return b.schema
+}
+
+func nextOperatorBatch(ctx context.Context, child Operator, maxRows int) ([]Record, error) {
+	if child == nil {
+		return nil, fmt.Errorf("child operator is nil")
+	}
+	if maxRows <= 0 {
+		return nil, fmt.Errorf("batch size must be positive")
+	}
+	if batchChild, ok := child.(BatchOperator); ok {
+		return batchChild.NextBatch(ctx, maxRows)
+	}
+	rows := make([]Record, 0, maxRows)
+	for len(rows) < maxRows {
+		record, err := child.Next(ctx)
+		if err != nil {
+			if err == io.EOF && len(rows) > 0 {
+				return rows, io.EOF
+			}
+			return rows, err
+		}
+		if record == nil {
+			if len(rows) == 0 {
+				return nil, io.EOF
+			}
+			return rows, io.EOF
+		}
+		rows = append(rows, record)
+	}
+	return rows, nil
+}
+
+// ValuesOperator is the in-memory source for SELECT constants and DUAL.
+// Keeping it as an operator lets the normal plan builder execute CTE anchors
+// without inventing a catalog table named dual.
+type ValuesOperator struct {
+	BaseOperator
+	exprs   []plan.Expression
+	emitted bool
+}
+
+func NewValuesOperator(exprs []plan.Expression) *ValuesOperator {
+	return &ValuesOperator{
+		BaseOperator: BaseOperator{children: nil},
+		exprs:        exprs,
+	}
+}
+
+func (v *ValuesOperator) Open(ctx context.Context) error {
+	if err := v.BaseOperator.Open(ctx); err != nil {
+		return err
+	}
+	v.schema = metadata.NewQuerySchema()
+	for _, expr := range v.exprs {
+		v.schema.AddColumn(metadata.NewQueryColumn(expr.String(), valuesExpressionType(expr)))
+	}
+	v.emitted = false
+	return nil
+}
+
+func (v *ValuesOperator) Next(ctx context.Context) (Record, error) {
+	if !v.opened {
+		return nil, fmt.Errorf("operator not opened")
+	}
+	if v.emitted {
+		return nil, nil
+	}
+	v.emitted = true
+	values := make([]basic.Value, len(v.exprs))
+	converter := &ProjectionOperator{}
+	for i, expr := range v.exprs {
+		result, err := expr.Eval(&plan.EvalContext{Row: map[string]interface{}{}})
+		if err != nil {
+			values[i] = basic.NewNull()
+			continue
+		}
+		values[i] = converter.convertToValue(result)
+	}
+	return NewExecutorRecordFromValues(values, v.schema), nil
+}
+
+func (v *ValuesOperator) NextBatch(ctx context.Context, maxRows int) ([]Record, error) {
+	if maxRows <= 0 {
+		return nil, fmt.Errorf("batch size must be positive")
+	}
+	record, err := v.Next(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if record == nil {
+		return nil, io.EOF
+	}
+	return []Record{record}, nil
+}
+
+func valuesExpressionType(expr plan.Expression) metadata.DataType {
+	switch expr.GetType() {
+	case plan.TypeInt:
+		return metadata.TypeInt
+	case plan.TypeFloat:
+		return metadata.TypeDouble
+	case plan.TypeBoolean:
+		return metadata.TypeBoolean
+	case plan.TypeDateTime:
+		return metadata.TypeDateTime
+	default:
+		return metadata.TypeVarchar
+	}
 }
 
 // ========================================
@@ -168,20 +291,32 @@ type TableScanOperator struct {
 	// 扫描状态
 	iterator   *TablePageIterator
 	currentRow Record
+
+	// requiredColumns carries logical column pruning into the physical scan.
+	// Storage still decodes the full row, but the operator emits only the
+	// columns required by projection, predicates, joins, or aggregation.
+	requiredColumns []string
+	projectIndices  []int
 }
 
 func NewTableScanOperator(
 	schemaName, tableName string,
 	storageAdapter *StorageAdapter,
+	required ...[]string,
 ) *TableScanOperator {
+	var requiredColumns []string
+	if len(required) > 0 {
+		requiredColumns = append([]string(nil), required[0]...)
+	}
 	return &TableScanOperator{
 		BaseOperator: BaseOperator{
 			children: nil,
 			schema:   nil, // 将在Open时设置
 		},
-		schemaName:     schemaName,
-		tableName:      tableName,
-		storageAdapter: storageAdapter,
+		schemaName:      schemaName,
+		tableName:       tableName,
+		storageAdapter:  storageAdapter,
+		requiredColumns: requiredColumns,
 	}
 }
 
@@ -196,8 +331,24 @@ func (t *TableScanOperator) Open(ctx context.Context) error {
 		return fmt.Errorf("failed to get table metadata: %w", err)
 	}
 
-	// 从Table创建QuerySchema
-	t.schema = metadata.FromTable(tableMeta.Schema)
+	// 从Table创建QuerySchema，并将逻辑列裁剪传入物理输出边界。
+	fullSchema := metadata.FromTable(tableMeta.Schema)
+	t.schema = fullSchema
+	if len(t.requiredColumns) > 0 {
+		indices := make([]int, 0, len(t.requiredColumns))
+		for _, required := range t.requiredColumns {
+			for index, column := range fullSchema.Columns {
+				if strings.EqualFold(column.Name, required) {
+					indices = append(indices, index)
+					break
+				}
+			}
+		}
+		if len(indices) == len(t.requiredColumns) {
+			t.projectIndices = indices
+			t.schema = metadata.ProjectSchema(fullSchema, indices)
+		}
+	}
 
 	// 创建表页面迭代器
 	t.iterator, err = t.storageAdapter.ScanTable(ctx, tableMeta)
@@ -222,7 +373,44 @@ func (t *TableScanOperator) Next(ctx context.Context) (Record, error) {
 	}
 
 	// nil表示EOF
-	return record, nil
+	if record == nil || len(t.projectIndices) == 0 {
+		return record, nil
+	}
+	values := record.GetValues()
+	projected := make([]basic.Value, 0, len(t.projectIndices))
+	for _, index := range t.projectIndices {
+		if index >= 0 && index < len(values) {
+			projected = append(projected, values[index])
+		}
+	}
+	return NewExecutorRecordFromValues(projected, t.schema), nil
+}
+
+func (t *TableScanOperator) NextBatch(ctx context.Context, maxRows int) ([]Record, error) {
+	if !t.opened {
+		return nil, fmt.Errorf("operator not opened")
+	}
+	if maxRows <= 0 {
+		return nil, fmt.Errorf("batch size must be positive")
+	}
+	rows := make([]Record, 0, maxRows)
+	for len(rows) < maxRows {
+		record, err := t.Next(ctx)
+		if err != nil {
+			if err == io.EOF && len(rows) > 0 {
+				return rows, io.EOF
+			}
+			return rows, err
+		}
+		if record == nil {
+			if len(rows) == 0 {
+				return nil, io.EOF
+			}
+			return rows, io.EOF
+		}
+		rows = append(rows, record)
+	}
+	return rows, nil
 }
 
 // ========================================
@@ -254,7 +442,9 @@ type IndexScanOperator struct {
 
 	// 主键列表（用于回表）
 	primaryKeys [][]byte
-	keyIndex    int
+	// 原始二级索引 key 列表（覆盖索引读取使用；不能用主键替代）
+	indexKeys [][]byte
+	keyIndex  int
 }
 
 func NewIndexScanOperator(
@@ -278,6 +468,7 @@ func NewIndexScanOperator(
 		requiredColumns: requiredColumns,
 		isCoveringIndex: false,
 		primaryKeys:     [][]byte{},
+		indexKeys:       [][]byte{},
 		keyIndex:        0,
 	}
 }
@@ -292,8 +483,23 @@ func (i *IndexScanOperator) Open(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get table schema: %w", err)
 	}
-	// 从Table创建QuerySchema
-	i.schema = metadata.FromTable(tableMeta.Schema)
+	// 从Table创建QuerySchema，并保持列裁剪后的输出顺序。
+	fullSchema := metadata.FromTable(tableMeta.Schema)
+	i.schema = fullSchema
+	if len(i.requiredColumns) > 0 {
+		indices := make([]int, 0, len(i.requiredColumns))
+		for _, required := range i.requiredColumns {
+			for index, column := range fullSchema.Columns {
+				if strings.EqualFold(column.Name, required) {
+					indices = append(indices, index)
+					break
+				}
+			}
+		}
+		if len(indices) == len(i.requiredColumns) {
+			i.schema = metadata.ProjectSchema(fullSchema, indices)
+		}
+	}
 
 	// 获取索引元数据
 	i.indexMetadata, err = i.indexAdapter.GetIndexMetadata(ctx, i.schemaName, i.tableName, i.indexName)
@@ -331,6 +537,33 @@ func (i *IndexScanOperator) Next(ctx context.Context) (Record, error) {
 	return i.nextWithLookup(ctx)
 }
 
+func (i *IndexScanOperator) NextBatch(ctx context.Context, maxRows int) ([]Record, error) {
+	if !i.opened {
+		return nil, fmt.Errorf("operator not opened")
+	}
+	if maxRows <= 0 {
+		return nil, fmt.Errorf("batch size must be positive")
+	}
+	rows := make([]Record, 0, maxRows)
+	for len(rows) < maxRows {
+		record, err := i.Next(ctx)
+		if err != nil {
+			if err == io.EOF && len(rows) > 0 {
+				return rows, io.EOF
+			}
+			return rows, err
+		}
+		if record == nil {
+			if len(rows) == 0 {
+				return nil, io.EOF
+			}
+			return rows, io.EOF
+		}
+		rows = append(rows, record)
+	}
+	return rows, nil
+}
+
 // fetchPrimaryKeys 预先扫描索引获取所有主键（用于批量回表优化）
 func (i *IndexScanOperator) fetchPrimaryKeys(ctx context.Context) error {
 	// 将startKey和endKey转换为字节数组
@@ -358,15 +591,18 @@ func (i *IndexScanOperator) fetchPrimaryKeys(ctx context.Context) error {
 		return fmt.Errorf("secondary index range search failed: %w", err)
 	}
 	primaryKeys := make([][]byte, 0, len(rows))
+	indexKeys := make([][]byte, 0, len(rows))
 	for _, row := range rows {
 		primaryKey, err := manager.DecodeSecondaryIndexValue(row.ToByte())
 		if err != nil {
 			return fmt.Errorf("decode secondary index primary key: %w", err)
 		}
+		indexKeys = append(indexKeys, append([]byte(nil), row.GetPrimaryKey().Bytes()...))
 		primaryKeys = append(primaryKeys, primaryKey)
 	}
 
 	i.primaryKeys = primaryKeys
+	i.indexKeys = indexKeys
 	i.keyIndex = 0
 
 	logger.Debugf("Fetched %d primary keys from index %s", len(primaryKeys), i.indexName)
@@ -382,54 +618,129 @@ func (i *IndexScanOperator) nextFromIndex(ctx context.Context) (Record, error) {
 		return nil, nil // EOF
 	}
 
-	// 获取当前索引键
+	// 获取当前索引键。覆盖索引必须使用二级索引 key；primaryKeys 只用于
+	// 回表，二者在非唯一二级索引中明确不是同一份字节串。
 	indexKey := i.primaryKeys[i.keyIndex]
+	if i.keyIndex < len(i.indexKeys) {
+		indexKey = i.indexKeys[i.keyIndex]
+	}
 	i.keyIndex++
 
-	// 从索引直接读取记录（覆盖索引优化）
-	indexRecordData, err := i.indexAdapter.ReadIndexRecord(ctx, i.indexMetadata.IndexID, indexKey)
+	// 从索引直接读取记录（覆盖索引优化），保留 key/value 边界以便精确解码。
+	indexRecord, err := i.indexAdapter.ReadIndexEntry(ctx, i.indexMetadata.IndexID, indexKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read index record for covering index %q: %w", i.indexName, err)
 	}
+	if len(i.indexMetadata.Columns) == 0 {
+		// Legacy callers that never supplied durable index metadata cannot be
+		// decoded. Keep their byte-oriented smoke behavior, but never use it
+		// for a real covering index (which always has Columns populated).
+		return NewExecutorRecordFromValues([]basic.Value{basic.NewString(indexRecord.Key)}, i.schema), nil
+	}
 
-	// 解析索引记录数据为Record
-	// 索引记录包含：索引列的值 + 主键值
-	// 这里需要根据索引列定义解析索引记录数据
-
-	// 简化实现：将索引记录数据按列解析
-	values := make([]basic.Value, len(i.requiredColumns))
-
-	// 如果有索引记录数据，尝试解析
-	if len(indexRecordData) > 0 {
-		// 简单实现：将数据平均分配给各列
-		// 实际应该根据列类型和长度精确解析
-		chunkSize := len(indexRecordData) / len(i.requiredColumns)
-		if chunkSize == 0 {
-			chunkSize = 1
-		}
-
-		for idx := range i.requiredColumns {
-			start := idx * chunkSize
-			end := start + chunkSize
-			if end > len(indexRecordData) {
-				end = len(indexRecordData)
-			}
-
-			// 将字节数据转换为字符串值
-			if start < len(indexRecordData) {
-				values[idx] = basic.NewString(string(indexRecordData[start:end]))
-			} else {
-				values[idx] = basic.NewString("")
-			}
-		}
-	} else {
-		// 如果没有数据，使用默认值
-		for idx := range i.requiredColumns {
-			values[idx] = basic.NewString(fmt.Sprintf("index_value_%d", idx))
-		}
+	values, err := i.decodeCoveringIndexEntry(indexRecord)
+	if err != nil {
+		return nil, fmt.Errorf("decode covering index %q: %w", i.indexName, err)
 	}
 
 	return NewExecutorRecordFromValues(values, i.schema), nil
+}
+
+func (i *IndexScanOperator) decodeCoveringIndexEntry(indexRecord *manager.IndexRecord) ([]basic.Value, error) {
+	if indexRecord == nil {
+		return nil, fmt.Errorf("index entry is nil")
+	}
+	_, _, _, indexedColumns, indexedValues, err := manager.DecodeSecondaryIndexKey(indexRecord.Key)
+	if err != nil {
+		return nil, err
+	}
+	if len(indexedColumns) != len(indexedValues) {
+		return nil, fmt.Errorf("indexed column/value count mismatch: %d/%d", len(indexedColumns), len(indexedValues))
+	}
+	indexed := make(map[string]string, len(indexedColumns))
+	for index, column := range indexedColumns {
+		indexed[strings.ToLower(column)] = indexedValues[index]
+	}
+	primaryKey, err := manager.DecodeSecondaryIndexValue(indexRecord.Value)
+	if err != nil {
+		return nil, err
+	}
+	primaryValues := decodeSecondaryPrimaryKeyParts(primaryKey, len(i.indexMetadata.PrimaryKeyColumns))
+	primary := make(map[string]string, len(i.indexMetadata.PrimaryKeyColumns))
+	for index, column := range i.indexMetadata.PrimaryKeyColumns {
+		if index < len(primaryValues) {
+			primary[strings.ToLower(column)] = primaryValues[index]
+		}
+	}
+
+	values := make([]basic.Value, 0, len(i.requiredColumns))
+	for _, required := range i.requiredColumns {
+		key := strings.ToLower(required)
+		raw, ok := indexed[key]
+		if !ok {
+			raw, ok = primary[key]
+		}
+		if !ok {
+			return nil, fmt.Errorf("column %s is not present in covering index entry", required)
+		}
+		values = append(values, decodeCoveringIndexValue(raw, i.schema, required))
+	}
+	return values, nil
+}
+
+func decodeSecondaryPrimaryKeyParts(value []byte, columnCount int) []string {
+	if columnCount <= 0 {
+		return nil
+	}
+	parts := make([]string, 0, columnCount)
+	offset := 0
+	for index := 0; index < columnCount; index++ {
+		if offset+4 > len(value) {
+			if index == 0 && columnCount == 1 {
+				return []string{string(value)}
+			}
+			return nil
+		}
+		length := int(binary.BigEndian.Uint32(value[offset : offset+4]))
+		offset += 4
+		if length < 0 || offset+length > len(value) {
+			if index == 0 && columnCount == 1 {
+				return []string{string(value)}
+			}
+			return nil
+		}
+		parts = append(parts, string(value[offset:offset+length]))
+		offset += length
+	}
+	if offset != len(value) {
+		return nil
+	}
+	return parts
+}
+
+func decodeCoveringIndexValue(raw string, schema *metadata.QuerySchema, columnName string) basic.Value {
+	if raw == "<nil>" {
+		return basic.NewNull()
+	}
+	var dataType metadata.DataType
+	if schema != nil {
+		if column, ok := schema.GetColumn(columnName); ok && column != nil {
+			dataType = column.DataType
+		}
+	}
+	switch dataType {
+	case metadata.TypeTinyInt, metadata.TypeSmallInt, metadata.TypeMediumInt, metadata.TypeInt, metadata.TypeBigInt, metadata.TypeYear:
+		if value, err := strconv.ParseInt(raw, 10, 64); err == nil {
+			return basic.NewInt64(value)
+		}
+	case metadata.TypeFloat, metadata.TypeDouble, metadata.TypeDecimal:
+		if value, err := strconv.ParseFloat(raw, 64); err == nil {
+			return basic.NewFloat64(value)
+		}
+	case metadata.TypeBinary, metadata.TypeVarBinary, metadata.TypeBlob, metadata.TypeTinyBlob, metadata.TypeMediumBlob, metadata.TypeLongBlob:
+		return basic.NewBytes([]byte(raw))
+	}
+	return basic.NewString(raw)
 }
 
 // nextWithLookup 通过回表获取完整记录（非覆盖索引）
@@ -551,6 +862,36 @@ func (f *FilterOperator) Next(ctx context.Context) (Record, error) {
 	}
 }
 
+func (f *FilterOperator) NextBatch(ctx context.Context, maxRows int) ([]Record, error) {
+	if !f.opened {
+		return nil, fmt.Errorf("operator not opened")
+	}
+	if maxRows <= 0 {
+		return nil, fmt.Errorf("batch size must be positive")
+	}
+	for {
+		input, err := nextOperatorBatch(ctx, f.child, maxRows)
+		if err != nil && err != io.EOF {
+			return input, err
+		}
+		filtered := make([]Record, 0, len(input))
+		for _, record := range input {
+			if f.predicate == nil || f.predicate(record) {
+				filtered = append(filtered, record)
+			}
+		}
+		if len(filtered) > 0 {
+			if err == io.EOF {
+				return filtered, io.EOF
+			}
+			return filtered, nil
+		}
+		if err == io.EOF {
+			return nil, io.EOF
+		}
+	}
+}
+
 // ========================================
 // ProjectionOperator - 投影算子
 // ========================================
@@ -558,9 +899,11 @@ func (f *FilterOperator) Next(ctx context.Context) (Record, error) {
 // ProjectionOperator 投影算子，选择需要的列
 type ProjectionOperator struct {
 	BaseOperator
-	child       Operator
-	projections []int             // 投影列的索引
-	exprs       []plan.Expression // 投影表达式（支持计算列）
+	child         Operator
+	projections   []int             // 投影列的索引
+	exprs         []plan.Expression // 投影表达式（支持计算列）
+	compiledExprs []plan.CompiledExpression
+	evalRow       map[string]interface{}
 }
 
 func NewProjectionOperator(child Operator, projections []int) *ProjectionOperator {
@@ -601,6 +944,15 @@ func (p *ProjectionOperator) Open(ctx context.Context) error {
 		}
 	} else {
 		p.schema = metadata.NewQuerySchema()
+	}
+	if childSchema != nil {
+		p.evalRow = make(map[string]interface{}, childSchema.ColumnCount())
+	}
+	p.compiledExprs = make([]plan.CompiledExpression, len(p.exprs))
+	for index, expr := range p.exprs {
+		if compiled, ok := plan.CompileExpression(expr); ok {
+			p.compiledExprs[index] = compiled
+		}
 	}
 
 	return nil
@@ -674,6 +1026,37 @@ func (p *ProjectionOperator) Next(ctx context.Context) (Record, error) {
 		return nil, nil // EOF
 	}
 
+	return p.projectRecord(record)
+}
+
+func (p *ProjectionOperator) NextBatch(ctx context.Context, maxRows int) ([]Record, error) {
+	if !p.opened {
+		return nil, fmt.Errorf("operator not opened")
+	}
+	if maxRows <= 0 {
+		return nil, fmt.Errorf("batch size must be positive")
+	}
+
+	input, err := nextOperatorBatch(ctx, p.child, maxRows)
+	if err != nil && err != io.EOF {
+		return input, err
+	}
+	output := make([]Record, 0, len(input))
+	for _, record := range input {
+		projected, projectErr := p.projectRecord(record)
+		if projectErr != nil {
+			return output, projectErr
+		}
+		output = append(output, projected)
+	}
+	if err == io.EOF {
+		return output, io.EOF
+	}
+	return output, nil
+}
+
+func (p *ProjectionOperator) projectRecord(record Record) (Record, error) {
+
 	// 如果有表达式，计算表达式
 	if len(p.exprs) > 0 {
 		newValues := make([]basic.Value, len(p.exprs))
@@ -686,7 +1069,13 @@ func (p *ProjectionOperator) Next(ctx context.Context) (Record, error) {
 
 		// 计算每个表达式
 		for i, expr := range p.exprs {
-			result, err := expr.Eval(evalCtx)
+			var result interface{}
+			var err error
+			if i < len(p.compiledExprs) && p.compiledExprs[i] != nil {
+				result, err = p.compiledExprs[i](evalCtx)
+			} else {
+				result, err = expr.Eval(evalCtx)
+			}
 			if err != nil {
 				logger.Debugf("Failed to evaluate expression %s: %v, using NULL", expr.String(), err)
 				newValues[i] = basic.NewNull()
@@ -723,16 +1112,26 @@ func (p *ProjectionOperator) createEvalContext(record Record) (*plan.EvalContext
 		return &plan.EvalContext{Row: make(map[string]interface{})}, nil
 	}
 
-	// 创建列名到值的映射
-	row := make(map[string]interface{})
+	// Reuse the row map for this operator's row-at-a-time hot path. The
+	// operator is not shared across concurrent executions, so this avoids one
+	// map allocation per projected row without changing expression semantics.
+	row := p.evalRow
+	if row == nil {
+		row = make(map[string]interface{}, childSchema.ColumnCount())
+		p.evalRow = row
+	}
 	values := record.GetValues()
 
 	// 遍历schema中的列，建立列名到值的映射
-	for i := 0; i < childSchema.ColumnCount() && i < len(values); i++ {
+	for i := 0; i < childSchema.ColumnCount(); i++ {
 		col, ok := childSchema.GetColumnByIndex(i)
 		if ok && col != nil {
 			// 将basic.Value转换为interface{}
-			row[col.Name] = p.valueToInterface(values[i])
+			if i < len(values) {
+				row[col.Name] = p.valueToInterface(values[i])
+			} else {
+				row[col.Name] = nil
+			}
 		}
 	}
 
@@ -819,6 +1218,27 @@ type NestedLoopJoinOperator struct {
 	leftEOF       bool   // RIGHT 时右表为 outer，左表扫完标记
 	leftColCount  int    // 左表列数，用于生成 NULL 行
 	rightColCount int    // 右表列数
+
+	// Batch execution state. Nested-loop joins need to rescan one side for
+	// every row of the other side, so the batch path materializes the rescan
+	// side once and streams the outer side in bounded chunks.
+	batchInitialized    bool
+	batchDone           bool
+	batchPhase          int
+	batchLeftRows       []Record
+	batchRightRows      []Record
+	batchRightMatched   []bool
+	batchLeftBatch      []Record
+	batchLeftBatchPos   int
+	batchLeftRowPos     int
+	batchRightRowPos    int
+	batchLeftSourceEOF  bool
+	batchLeftHadMatch   bool
+	batchRightBatch     []Record
+	batchRightBatchPos  int
+	batchRightScanPos   int
+	batchRightSourceEOF bool
+	batchRightHadMatch  bool
 }
 
 func NewNestedLoopJoinOperator(
@@ -859,6 +1279,24 @@ func (n *NestedLoopJoinOperator) Open(ctx context.Context) error {
 		n.schema = metadata.NewQuerySchema()
 	}
 
+	n.batchInitialized = false
+	n.batchDone = false
+	n.batchPhase = 0
+	n.batchLeftRows = nil
+	n.batchRightRows = nil
+	n.batchRightMatched = nil
+	n.batchLeftBatch = nil
+	n.batchLeftBatchPos = 0
+	n.batchLeftRowPos = 0
+	n.batchRightRowPos = 0
+	n.batchLeftSourceEOF = false
+	n.batchLeftHadMatch = false
+	n.batchRightBatch = nil
+	n.batchRightBatchPos = 0
+	n.batchRightScanPos = 0
+	n.batchRightSourceEOF = false
+	n.batchRightHadMatch = false
+
 	return nil
 }
 
@@ -866,18 +1304,251 @@ func (n *NestedLoopJoinOperator) Next(ctx context.Context) (Record, error) {
 	if !n.opened {
 		return nil, fmt.Errorf("operator not opened")
 	}
+	if n.batchInitialized {
+		return nil, fmt.Errorf("cannot use row execution after batch execution started")
+	}
 
-	switch n.joinType {
+	switch normalizedNestedLoopJoinType(n.joinType) {
 	case "RIGHT":
 		return n.nextRight(ctx)
 	case "FULL":
 		return n.nextFull(ctx)
-	case "LEFT", "LEFT OUTER":
+	case "LEFT":
 		return n.nextLeft(ctx)
 	default:
 		// INNER 或空
 		return n.nextInner(ctx)
 	}
+}
+
+// NextBatch executes the nested-loop join with bounded result batches. The
+// side that must be rescanned is materialized through nextOperatorBatch, so a
+// batch-capable child is not silently reduced to one-row Next calls.
+func (n *NestedLoopJoinOperator) NextBatch(ctx context.Context, maxRows int) ([]Record, error) {
+	if !n.opened {
+		return nil, fmt.Errorf("operator not opened")
+	}
+	if maxRows <= 0 {
+		return nil, fmt.Errorf("batch size must be positive")
+	}
+	if !n.batchInitialized {
+		if err := n.initializeBatchJoin(ctx); err != nil {
+			return nil, err
+		}
+	}
+	if n.batchDone {
+		return nil, io.EOF
+	}
+
+	rows := make([]Record, 0, maxRows)
+	switch n.batchPhase {
+	case 1:
+		if normalizedNestedLoopJoinType(n.joinType) == "RIGHT" {
+			var err error
+			rows, err = n.nextBatchRight(ctx, maxRows)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			var err error
+			rows, err = n.nextBatchLeft(ctx, maxRows)
+			if err != nil {
+				return nil, err
+			}
+		}
+	case 2:
+		for len(rows) < maxRows && n.batchRightRowPos < len(n.batchRightRows) {
+			index := n.batchRightRowPos
+			n.batchRightRowPos++
+			if !n.batchRightMatched[index] {
+				rows = append(rows, n.mergeRecordsWithLeftNull(n.batchRightRows[index]))
+			}
+		}
+		if n.batchRightRowPos >= len(n.batchRightRows) {
+			n.batchDone = true
+		}
+	default:
+		n.batchDone = true
+	}
+	// A FULL join can finish its left phase without producing a row (for
+	// example, when the final left row matched). Continue directly into the
+	// unmatched-right phase instead of returning an empty, non-EOF batch that
+	// would make VolcanoExecutor stop early.
+	if len(rows) == 0 && n.batchPhase == 2 && !n.batchDone {
+		for len(rows) < maxRows && n.batchRightRowPos < len(n.batchRightRows) {
+			index := n.batchRightRowPos
+			n.batchRightRowPos++
+			if !n.batchRightMatched[index] {
+				rows = append(rows, n.mergeRecordsWithLeftNull(n.batchRightRows[index]))
+			}
+		}
+		if n.batchRightRowPos >= len(n.batchRightRows) {
+			n.batchDone = true
+		}
+	}
+
+	if len(rows) == 0 && n.batchDone {
+		return nil, io.EOF
+	}
+	return rows, nil
+}
+
+func (n *NestedLoopJoinOperator) initializeBatchJoin(ctx context.Context) error {
+	n.batchInitialized = true
+	n.batchPhase = 1
+	joinType := normalizedNestedLoopJoinType(n.joinType)
+	switch joinType {
+	case "RIGHT":
+		rows, err := collectOperatorRowsInBatches(ctx, n.left)
+		if err != nil {
+			return err
+		}
+		n.batchLeftRows = rows
+		n.batchRightSourceEOF = false
+	case "FULL":
+		leftRows, err := collectOperatorRowsInBatches(ctx, n.left)
+		if err != nil {
+			return err
+		}
+		rightRows, err := collectOperatorRowsInBatches(ctx, n.right)
+		if err != nil {
+			return err
+		}
+		n.batchLeftRows = leftRows
+		n.batchRightRows = rightRows
+		n.batchRightMatched = make([]bool, len(rightRows))
+		n.batchLeftBatch = leftRows
+		n.batchLeftSourceEOF = true
+	default:
+		rows, err := collectOperatorRowsInBatches(ctx, n.right)
+		if err != nil {
+			return err
+		}
+		n.batchRightRows = rows
+	}
+	return nil
+}
+
+func normalizedNestedLoopJoinType(joinType string) string {
+	switch strings.ToUpper(strings.TrimSpace(joinType)) {
+	case "RIGHT", "RIGHT OUTER":
+		return "RIGHT"
+	case "LEFT", "LEFT OUTER":
+		return "LEFT"
+	case "FULL", "FULL OUTER":
+		return "FULL"
+	default:
+		return "INNER"
+	}
+}
+
+func collectOperatorRowsInBatches(ctx context.Context, operator Operator) ([]Record, error) {
+	rows := make([]Record, 0)
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		batch, err := nextOperatorBatch(ctx, operator, 256)
+		if err != nil && err != io.EOF {
+			return nil, err
+		}
+		rows = append(rows, batch...)
+		if err == io.EOF || len(batch) == 0 {
+			return rows, nil
+		}
+	}
+}
+
+func (n *NestedLoopJoinOperator) nextBatchLeft(ctx context.Context, maxRows int) ([]Record, error) {
+	rows := make([]Record, 0, maxRows)
+	for len(rows) < maxRows {
+		if n.batchLeftBatchPos >= len(n.batchLeftBatch) {
+			if n.batchLeftSourceEOF {
+				if normalizedNestedLoopJoinType(n.joinType) == "FULL" {
+					n.batchPhase = 2
+					n.batchRightRowPos = 0
+					return rows, nil
+				}
+				n.batchDone = true
+				return rows, nil
+			}
+			batch, err := nextOperatorBatch(ctx, n.left, 256)
+			if err != nil && err != io.EOF {
+				return rows, err
+			}
+			n.batchLeftBatch = batch
+			n.batchLeftBatchPos = 0
+			n.batchLeftSourceEOF = err == io.EOF
+			if len(batch) == 0 {
+				continue
+			}
+		}
+
+		leftRow := n.batchLeftBatch[n.batchLeftBatchPos]
+		if n.batchRightRowPos < len(n.batchRightRows) {
+			index := n.batchRightRowPos
+			n.batchRightRowPos++
+			rightRow := n.batchRightRows[index]
+			if n.condition == nil || n.condition(leftRow, rightRow) {
+				n.batchLeftHadMatch = true
+				if len(n.batchRightMatched) > index {
+					n.batchRightMatched[index] = true
+				}
+				rows = append(rows, n.mergeRecords(leftRow, rightRow))
+			}
+			continue
+		}
+
+		joinType := normalizedNestedLoopJoinType(n.joinType)
+		if (joinType == "LEFT" || joinType == "FULL") && !n.batchLeftHadMatch {
+			rows = append(rows, n.mergeRecordsWithRightNull(leftRow))
+		}
+		n.batchLeftBatchPos++
+		n.batchRightRowPos = 0
+		n.batchLeftHadMatch = false
+	}
+	return rows, nil
+}
+
+func (n *NestedLoopJoinOperator) nextBatchRight(ctx context.Context, maxRows int) ([]Record, error) {
+	rows := make([]Record, 0, maxRows)
+	for len(rows) < maxRows {
+		if n.batchRightBatchPos >= len(n.batchRightBatch) {
+			if n.batchRightSourceEOF {
+				n.batchDone = true
+				return rows, nil
+			}
+			batch, err := nextOperatorBatch(ctx, n.right, 256)
+			if err != nil && err != io.EOF {
+				return rows, err
+			}
+			n.batchRightBatch = batch
+			n.batchRightBatchPos = 0
+			n.batchRightSourceEOF = err == io.EOF
+			if len(batch) == 0 {
+				continue
+			}
+		}
+
+		rightRow := n.batchRightBatch[n.batchRightBatchPos]
+		if n.batchLeftRowPos < len(n.batchLeftRows) {
+			leftRow := n.batchLeftRows[n.batchLeftRowPos]
+			n.batchLeftRowPos++
+			if n.condition == nil || n.condition(leftRow, rightRow) {
+				n.batchRightHadMatch = true
+				rows = append(rows, n.mergeRecords(leftRow, rightRow))
+			}
+			continue
+		}
+
+		if !n.batchRightHadMatch {
+			rows = append(rows, n.mergeRecordsWithLeftNull(rightRow))
+		}
+		n.batchRightBatchPos++
+		n.batchLeftRowPos = 0
+		n.batchRightHadMatch = false
+	}
+	return rows, nil
 }
 
 // nextInner 内连接：仅输出有匹配的行
@@ -1101,10 +1772,13 @@ type HashJoinOperator struct {
 	buildRowsList []Record
 
 	// 探测状态
-	built       bool
-	probeRow    Record
-	matchedRows []int // 当前 probe 匹配的 build 行下标
-	matchedIdx  int
+	built          bool
+	probeRow       Record
+	matchedRows    []int // 当前 probe 匹配的 build 行下标
+	matchedIdx     int
+	batchProbeRows []Record
+	batchProbePos  int
+	batchProbeEOF  bool
 
 	// 外连接：输出顺序及补 NULL
 	outputProbeFirst bool // true=LEFT 时输出 (probe, build)
@@ -1159,6 +1833,18 @@ func (h *HashJoinOperator) Open(ctx context.Context) error {
 	// LEFT/FULL 时 build=右表、probe=左表，输出顺序为 (probe, build) = (左, 右)
 	h.outputProbeFirst = (h.joinType == "LEFT" || h.joinType == "LEFT OUTER" ||
 		h.joinType == "FULL" || h.joinType == "FULL OUTER")
+	h.built = false
+	h.hashTable = make(map[string][]int)
+	h.buildRowsList = nil
+	h.probeRow = nil
+	h.matchedRows = nil
+	h.matchedIdx = 0
+	h.batchProbeRows = nil
+	h.batchProbePos = 0
+	h.batchProbeEOF = false
+	h.fullPhase = 0
+	h.fullUnmatchedIdx = 0
+	h.matchedBuild = nil
 
 	return nil
 }
@@ -1242,21 +1928,115 @@ func (h *HashJoinOperator) Next(ctx context.Context) (Record, error) {
 	}
 }
 
+func (h *HashJoinOperator) NextBatch(ctx context.Context, maxRows int) ([]Record, error) {
+	if !h.opened {
+		return nil, fmt.Errorf("operator not opened")
+	}
+	if maxRows <= 0 {
+		return nil, fmt.Errorf("batch size must be positive")
+	}
+	if !h.built {
+		if err := h.buildHashTable(ctx); err != nil {
+			return nil, fmt.Errorf("failed to build hash table: %w", err)
+		}
+		h.built = true
+		h.fullPhase = 1
+		if h.joinType == "FULL" || h.joinType == "FULL OUTER" {
+			h.fullUnmatchedIdx = 0
+		}
+	}
+
+	rows := make([]Record, 0, maxRows)
+	for len(rows) < maxRows {
+		if (h.joinType == "FULL" || h.joinType == "FULL OUTER") && h.fullPhase == 2 {
+			for len(rows) < maxRows && h.fullUnmatchedIdx < len(h.buildRowsList) {
+				if !h.matchedBuild[h.fullUnmatchedIdx] {
+					rows = append(rows, h.mergeRecordsWithLeftNull(h.probeColCount, h.buildRowsList[h.fullUnmatchedIdx]))
+				}
+				h.fullUnmatchedIdx++
+			}
+			if h.fullUnmatchedIdx >= len(h.buildRowsList) {
+				if len(rows) == 0 {
+					return nil, io.EOF
+				}
+				return rows, io.EOF
+			}
+			continue
+		}
+
+		if h.matchedIdx < len(h.matchedRows) {
+			buildIdx := h.matchedRows[h.matchedIdx]
+			h.matchedIdx++
+			buildRow := h.buildRowsList[buildIdx]
+			if h.joinType == "FULL" || h.joinType == "FULL OUTER" {
+				h.matchedBuild[buildIdx] = true
+			}
+			if h.outputProbeFirst {
+				rows = append(rows, h.mergeRecords(h.probeRow, buildRow))
+			} else {
+				rows = append(rows, h.mergeRecords(buildRow, h.probeRow))
+			}
+			continue
+		}
+		h.matchedRows = nil
+		h.matchedIdx = 0
+		h.probeRow = nil
+
+		if h.batchProbePos >= len(h.batchProbeRows) {
+			if h.batchProbeEOF {
+				if h.joinType == "FULL" || h.joinType == "FULL OUTER" {
+					h.fullPhase = 2
+					continue
+				}
+				if len(rows) == 0 {
+					return nil, io.EOF
+				}
+				return rows, io.EOF
+			}
+			batch, err := nextOperatorBatch(ctx, h.probeSide, 256)
+			if err != nil && err != io.EOF {
+				return nil, err
+			}
+			h.batchProbeRows = batch
+			h.batchProbePos = 0
+			h.batchProbeEOF = err == io.EOF
+			if len(batch) == 0 {
+				continue
+			}
+		}
+
+		h.probeRow = h.batchProbeRows[h.batchProbePos]
+		h.batchProbePos++
+		h.matchedRows = h.hashTable[h.probeKey(h.probeRow)]
+		if len(h.matchedRows) == 0 {
+			switch h.joinType {
+			case "LEFT", "LEFT OUTER", "FULL", "FULL OUTER":
+				rows = append(rows, h.mergeRecordsWithRightNull(h.probeRow))
+			case "RIGHT", "RIGHT OUTER":
+				rows = append(rows, h.mergeRecordsWithLeftNull(h.buildColCount, h.probeRow))
+			}
+			h.probeRow = nil
+		}
+	}
+	return rows, nil
+}
+
 func (h *HashJoinOperator) buildHashTable(ctx context.Context) error {
 	h.buildRowsList = make([]Record, 0)
 	for {
-		record, err := h.buildSide.Next(ctx)
-		if err != nil {
+		batch, err := nextOperatorBatch(ctx, h.buildSide, 256)
+		if err != nil && err != io.EOF {
 			return err
 		}
-		if record == nil {
+		for _, record := range batch {
+			idx := len(h.buildRowsList)
+			h.buildRowsList = append(h.buildRowsList, record)
+			key := h.buildKey(record)
+			h.hashTable[key] = append(h.hashTable[key], idx)
+		}
+		if err == io.EOF {
 			break
 		}
-
-		idx := len(h.buildRowsList)
-		h.buildRowsList = append(h.buildRowsList, record)
-		key := h.buildKey(record)
-		h.hashTable[key] = append(h.hashTable[key], idx)
 	}
 	if h.joinType == "FULL" || h.joinType == "FULL OUTER" {
 		h.matchedBuild = make([]bool, len(h.buildRowsList))
@@ -1310,25 +2090,94 @@ type AggregateFunc interface {
 	ResultType() metadata.DataType // 结果类型
 }
 
-// CountAgg COUNT聚合
-type CountAgg struct {
-	count int64
+type MultiInputAggregateFunc interface {
+	AggregateFunc
+	UpdateValues(values []basic.Value)
 }
 
-func (c *CountAgg) Init()                         { c.count = 0 }
-func (c *CountAgg) Update(value basic.Value)      { c.count++ }
+func aggregateDistinctKey(value basic.Value) string {
+	if value == nil || value.IsNull() {
+		return "<NULL>"
+	}
+	return fmt.Sprintf("%s:%s", value.Type(), value.String())
+}
+
+func aggregateDistinctValuesKey(values []basic.Value) string {
+	parts := make([]string, len(values))
+	for index, value := range values {
+		parts[index] = aggregateDistinctKey(value)
+	}
+	return strings.Join(parts, "\x00")
+}
+
+// CountAgg COUNT聚合
+type CountAgg struct {
+	count       int64
+	distinct    bool
+	countColumn bool
+	seen        map[string]struct{}
+}
+
+func (c *CountAgg) Init() {
+	c.count = 0
+	if c.distinct {
+		c.seen = make(map[string]struct{})
+	} else {
+		c.seen = nil
+	}
+}
+func (c *CountAgg) Update(value basic.Value) {
+	c.UpdateValues([]basic.Value{value})
+}
+func (c *CountAgg) UpdateValues(values []basic.Value) {
+	if len(values) == 0 {
+		c.count++
+		return
+	}
+	if c.countColumn {
+		for _, value := range values {
+			if value == nil || value.IsNull() {
+				return
+			}
+		}
+	}
+	if c.distinct {
+		key := aggregateDistinctValuesKey(values)
+		if _, exists := c.seen[key]; exists {
+			return
+		}
+		c.seen[key] = struct{}{}
+	}
+	c.count++
+}
 func (c *CountAgg) Result() basic.Value           { return basic.NewInt64Value(c.count) }
 func (c *CountAgg) Name() string                  { return "COUNT" }
 func (c *CountAgg) ResultType() metadata.DataType { return metadata.TypeBigInt }
 
 // SumAgg SUM聚合
 type SumAgg struct {
-	sum float64
+	sum      float64
+	distinct bool
+	seen     map[string]struct{}
 }
 
-func (s *SumAgg) Init() { s.sum = 0 }
+func (s *SumAgg) Init() {
+	s.sum = 0
+	if s.distinct {
+		s.seen = make(map[string]struct{})
+	} else {
+		s.seen = nil
+	}
+}
 func (s *SumAgg) Update(value basic.Value) {
-	if !value.IsNull() {
+	if value != nil && !value.IsNull() {
+		if s.distinct {
+			key := aggregateDistinctKey(value)
+			if _, exists := s.seen[key]; exists {
+				return
+			}
+			s.seen[key] = struct{}{}
+		}
 		s.sum += value.Float64()
 	}
 }
@@ -1338,17 +2187,31 @@ func (s *SumAgg) ResultType() metadata.DataType { return metadata.TypeDouble }
 
 // AvgAgg AVG聚合
 type AvgAgg struct {
-	sum   float64
-	count int64
+	sum      float64
+	count    int64
+	distinct bool
+	seen     map[string]struct{}
 }
 
 func (a *AvgAgg) Init() {
 	a.sum = 0
 	a.count = 0
+	if a.distinct {
+		a.seen = make(map[string]struct{})
+	} else {
+		a.seen = nil
+	}
 }
 
 func (a *AvgAgg) Update(value basic.Value) {
-	if !value.IsNull() {
+	if value != nil && !value.IsNull() {
+		if a.distinct {
+			key := aggregateDistinctKey(value)
+			if _, exists := a.seen[key]; exists {
+				return
+			}
+			a.seen[key] = struct{}{}
+		}
 		a.sum += value.Float64()
 		a.count++
 	}
@@ -1368,16 +2231,30 @@ func (a *AvgAgg) ResultType() metadata.DataType { return metadata.TypeDouble }
 type MinAgg struct {
 	min         basic.Value
 	initialized bool
+	distinct    bool
+	seen        map[string]struct{}
 }
 
 func (m *MinAgg) Init() {
 	m.initialized = false
 	m.min = basic.NewNull()
+	if m.distinct {
+		m.seen = make(map[string]struct{})
+	} else {
+		m.seen = nil
+	}
 }
 
 func (m *MinAgg) Update(value basic.Value) {
-	if value.IsNull() {
+	if value == nil || value.IsNull() {
 		return
+	}
+	if m.distinct {
+		key := aggregateDistinctKey(value)
+		if _, exists := m.seen[key]; exists {
+			return
+		}
+		m.seen[key] = struct{}{}
 	}
 	if !m.initialized {
 		m.min = value
@@ -1401,16 +2278,30 @@ func (m *MinAgg) ResultType() metadata.DataType { return metadata.TypeDouble }
 type MaxAgg struct {
 	max         basic.Value
 	initialized bool
+	distinct    bool
+	seen        map[string]struct{}
 }
 
 func (m *MaxAgg) Init() {
 	m.initialized = false
 	m.max = basic.NewNull()
+	if m.distinct {
+		m.seen = make(map[string]struct{})
+	} else {
+		m.seen = nil
+	}
 }
 
 func (m *MaxAgg) Update(value basic.Value) {
-	if value.IsNull() {
+	if value == nil || value.IsNull() {
 		return
+	}
+	if m.distinct {
+		key := aggregateDistinctKey(value)
+		if _, exists := m.seen[key]; exists {
+			return
+		}
+		m.seen[key] = struct{}{}
 	}
 	if !m.initialized {
 		m.max = value
@@ -1430,6 +2321,258 @@ func (m *MaxAgg) Result() basic.Value {
 func (m *MaxAgg) Name() string                  { return "MAX" }
 func (m *MaxAgg) ResultType() metadata.DataType { return metadata.TypeDouble }
 
+// GroupConcatAgg implements the common Volcano GROUP_CONCAT form. Ordering
+// is handled by the query's sort plan; this state owns NULL filtering,
+// DISTINCT elimination and separator application.
+type GroupConcatAgg struct {
+	values    []string
+	seen      map[string]struct{}
+	separator string
+	distinct  bool
+}
+
+func (g *GroupConcatAgg) Init() {
+	g.values = nil
+	if g.distinct {
+		g.seen = make(map[string]struct{})
+	} else {
+		g.seen = nil
+	}
+}
+
+func (g *GroupConcatAgg) Update(value basic.Value) {
+	if value == nil || value.IsNull() {
+		return
+	}
+	text := value.String()
+	if g.distinct {
+		if _, exists := g.seen[text]; exists {
+			return
+		}
+		g.seen[text] = struct{}{}
+	}
+	g.values = append(g.values, text)
+}
+
+func (g *GroupConcatAgg) Result() basic.Value {
+	if len(g.values) == 0 {
+		return basic.NewNull()
+	}
+	separator := g.separator
+	if separator == "" {
+		separator = ","
+	}
+	return basic.NewString(strings.Join(g.values, separator))
+}
+
+func (g *GroupConcatAgg) Name() string                  { return "GROUP_CONCAT" }
+func (g *GroupConcatAgg) ResultType() metadata.DataType { return metadata.TypeText }
+
+type JSONArrayAgg struct {
+	values []interface{}
+}
+
+func (j *JSONArrayAgg) Init() { j.values = nil }
+
+func (j *JSONArrayAgg) Update(value basic.Value) {
+	if value == nil || value.IsNull() {
+		j.values = append(j.values, nil)
+		return
+	}
+	j.values = append(j.values, jsonAggregateValue(value))
+}
+
+func jsonAggregateValue(value basic.Value) interface{} {
+	switch value.Type() {
+	case basic.ValueTypeTinyInt, basic.ValueTypeSmallInt, basic.ValueTypeMediumInt, basic.ValueTypeInt, basic.ValueTypeBigInt:
+		return value.Int()
+	case basic.ValueTypeFloat, basic.ValueTypeDouble, basic.ValueTypeDecimal:
+		return value.Float64()
+	case basic.ValueTypeBool, basic.ValueTypeBoolean:
+		return value.Bool()
+	case basic.ValueTypeJSON:
+		text := value.String()
+		if json.Valid([]byte(text)) {
+			return json.RawMessage(text)
+		}
+	}
+	return value.String()
+}
+
+func (j *JSONArrayAgg) Result() basic.Value {
+	encoded, err := json.Marshal(j.values)
+	if err != nil {
+		return basic.NewNull()
+	}
+	return basic.NewString(string(encoded))
+}
+
+func (j *JSONArrayAgg) Name() string                  { return "JSON_ARRAYAGG" }
+func (j *JSONArrayAgg) ResultType() metadata.DataType { return metadata.TypeJSON }
+
+type JSONObjectAgg struct {
+	keys   []string
+	values []interface{}
+}
+
+func (j *JSONObjectAgg) Init() {
+	j.keys = nil
+	j.values = nil
+}
+
+func (j *JSONObjectAgg) Update(value basic.Value) {}
+
+func (j *JSONObjectAgg) UpdateValues(values []basic.Value) {
+	if len(values) != 2 || values[0] == nil || values[0].IsNull() {
+		return
+	}
+	key := values[0].String()
+	var converted interface{}
+	if values[1] != nil && !values[1].IsNull() {
+		converted = jsonAggregateValue(values[1])
+	}
+	for index, existing := range j.keys {
+		if existing == key {
+			j.values[index] = converted
+			return
+		}
+	}
+	j.keys = append(j.keys, key)
+	j.values = append(j.values, converted)
+}
+
+func (j *JSONObjectAgg) Result() basic.Value {
+	object := make(map[string]interface{}, len(j.keys))
+	for index, key := range j.keys {
+		object[key] = j.values[index]
+	}
+	encoded, err := json.Marshal(object)
+	if err != nil {
+		return basic.NewNull()
+	}
+	return basic.NewString(string(encoded))
+}
+
+func (j *JSONObjectAgg) Name() string                  { return "JSON_OBJECTAGG" }
+func (j *JSONObjectAgg) ResultType() metadata.DataType { return metadata.TypeJSON }
+
+type AnyValueAgg struct {
+	value basic.Value
+	set   bool
+}
+
+func (a *AnyValueAgg) Init() {
+	a.value = basic.NewNull()
+	a.set = false
+}
+
+func (a *AnyValueAgg) Update(value basic.Value) {
+	if !a.set {
+		if value == nil {
+			a.value = basic.NewNull()
+		} else {
+			a.value = value
+		}
+		a.set = true
+	}
+}
+
+func (a *AnyValueAgg) Result() basic.Value {
+	if !a.set || a.value == nil {
+		return basic.NewNull()
+	}
+	return a.value
+}
+
+func (a *AnyValueAgg) Name() string                  { return "ANY_VALUE" }
+func (a *AnyValueAgg) ResultType() metadata.DataType { return metadata.TypeVarchar }
+
+type BitAgg struct {
+	name        string
+	value       uint64
+	initialized bool
+}
+
+func (b *BitAgg) Init() {
+	b.initialized = false
+	if b.name == "BIT_AND" {
+		b.value = ^uint64(0)
+	} else {
+		b.value = 0
+	}
+}
+
+func (b *BitAgg) Update(value basic.Value) {
+	if value == nil || value.IsNull() {
+		return
+	}
+	unsigned := uint64(value.Int())
+	switch b.name {
+	case "BIT_AND":
+		b.value &= unsigned
+	case "BIT_OR":
+		b.value |= unsigned
+	case "BIT_XOR":
+		b.value ^= unsigned
+	}
+	b.initialized = true
+}
+
+func (b *BitAgg) Result() basic.Value {
+	if !b.initialized && b.name != "BIT_AND" {
+		return basic.NewInt64Value(0)
+	}
+	return basic.NewInt64Value(int64(b.value))
+}
+
+func (b *BitAgg) Name() string                  { return b.name }
+func (b *BitAgg) ResultType() metadata.DataType { return metadata.TypeBigInt }
+
+type VarianceAgg struct {
+	name  string
+	count int64
+	sum   float64
+	mean  float64
+	m2    float64
+}
+
+func (v *VarianceAgg) Init() {
+	v.count = 0
+	v.sum = 0
+	v.mean = 0
+	v.m2 = 0
+}
+
+func (v *VarianceAgg) Update(value basic.Value) {
+	if value == nil || value.IsNull() {
+		return
+	}
+	x := value.Float64()
+	v.count++
+	v.sum += x
+	delta := x - v.mean
+	v.mean += delta / float64(v.count)
+	v.m2 += delta * (x - v.mean)
+}
+
+func (v *VarianceAgg) Result() basic.Value {
+	if v.count == 0 || (strings.HasSuffix(v.name, "_SAMP") && v.count < 2) {
+		return basic.NewNull()
+	}
+	denominator := float64(v.count)
+	if strings.HasSuffix(v.name, "_SAMP") {
+		denominator = float64(v.count - 1)
+	}
+	variance := v.m2 / denominator
+	if strings.HasPrefix(v.name, "STD") || v.name == "STD" {
+		return basic.NewFloatValue(math.Sqrt(variance))
+	}
+	return basic.NewFloatValue(variance)
+}
+
+func (v *VarianceAgg) Name() string                  { return v.name }
+func (v *VarianceAgg) ResultType() metadata.DataType { return metadata.TypeDouble }
+
 // HashAggregateOperator 哈希聚合算子
 type HashAggregateOperator struct {
 	BaseOperator
@@ -1438,10 +2581,11 @@ type HashAggregateOperator struct {
 	aggFuncs     []AggregateFunc
 
 	// 聚合状态
-	hashTable map[string][]AggregateFunc
-	computed  bool
-	results   []Record
-	resultIdx int
+	hashTable       map[string][]AggregateFunc
+	computed        bool
+	results         []Record
+	resultIdx       int
+	aggregateInputs [][]int
 }
 
 func NewHashAggregateOperator(
@@ -1460,10 +2604,56 @@ func NewHashAggregateOperator(
 	}
 }
 
+func NewHashAggregateOperatorWithExpressions(
+	child Operator,
+	groupByExprs []int,
+	aggFuncs []AggregateFunc,
+	planAggFuncs []plan.AggregateFunc,
+) *HashAggregateOperator {
+	operator := NewHashAggregateOperator(child, groupByExprs, aggFuncs)
+	operator.aggregateInputs = make([][]int, len(planAggFuncs))
+	if child == nil || child.Schema() == nil {
+		return operator
+	}
+	for index, aggregate := range planAggFuncs {
+		function, ok := aggregate.(*plan.Function)
+		if !ok {
+			continue
+		}
+		operator.aggregateInputs[index] = make([]int, len(function.FuncArgs))
+		for argIndex, expression := range function.FuncArgs {
+			column, ok := expression.(*plan.Column)
+			if !ok || column == nil {
+				operator.aggregateInputs[index][argIndex] = -1
+				continue
+			}
+			operator.aggregateInputs[index][argIndex] = aggregateColumnIndex(child.Schema(), column.Name)
+		}
+	}
+	return operator
+}
+
+func aggregateColumnIndex(schema *metadata.QuerySchema, name string) int {
+	if schema == nil {
+		return -1
+	}
+	for index := 0; index < schema.ColumnCount(); index++ {
+		column, ok := schema.GetColumnByIndex(index)
+		if ok && column != nil && strings.EqualFold(column.Name, name) {
+			return index
+		}
+	}
+	return -1
+}
+
 func (h *HashAggregateOperator) Open(ctx context.Context) error {
 	if err := h.BaseOperator.Open(ctx); err != nil {
 		return err
 	}
+	h.hashTable = make(map[string][]AggregateFunc)
+	h.computed = false
+	h.results = nil
+	h.resultIdx = 0
 
 	// 构建聚合后的schema
 	// 包含GROUP BY列和聚合函数列
@@ -1503,11 +2693,8 @@ func (h *HashAggregateOperator) Next(ctx context.Context) (Record, error) {
 	}
 
 	// 惰性计算：第一次调用时才开始聚合
-	if !h.computed {
-		if err := h.computeAggregates(ctx); err != nil {
-			return nil, fmt.Errorf("failed to compute aggregates: %w", err)
-		}
-		h.computed = true
+	if err := h.ensureComputed(ctx); err != nil {
+		return nil, err
 	}
 
 	// 返回下一个聚合结果
@@ -1520,47 +2707,113 @@ func (h *HashAggregateOperator) Next(ctx context.Context) (Record, error) {
 	return result, nil
 }
 
+func (h *HashAggregateOperator) NextBatch(ctx context.Context, maxRows int) ([]Record, error) {
+	if !h.opened {
+		return nil, fmt.Errorf("operator not opened")
+	}
+	if maxRows <= 0 {
+		return nil, fmt.Errorf("batch size must be positive")
+	}
+	if err := h.ensureComputed(ctx); err != nil {
+		return nil, err
+	}
+	if h.resultIdx >= len(h.results) {
+		return nil, io.EOF
+	}
+
+	end := h.resultIdx + maxRows
+	if end > len(h.results) {
+		end = len(h.results)
+	}
+	batch := h.results[h.resultIdx:end]
+	h.resultIdx = end
+	if h.resultIdx >= len(h.results) {
+		return batch, io.EOF
+	}
+	return batch, nil
+}
+
+func (h *HashAggregateOperator) ensureComputed(ctx context.Context) error {
+	if h.computed {
+		return nil
+	}
+	if err := h.computeAggregates(ctx); err != nil {
+		return fmt.Errorf("failed to compute aggregates: %w", err)
+	}
+	h.computed = true
+	return nil
+}
+
 func (h *HashAggregateOperator) computeAggregates(ctx context.Context) error {
 	// 遍历所有输入行
 	for {
-		record, err := h.child.Next(ctx)
-		if err != nil {
+		rows, err := nextOperatorBatch(ctx, h.child, 256)
+		if err != nil && err != io.EOF {
 			return err
 		}
-		if record == nil {
-			break
-		}
+		for _, record := range rows {
+			// 计算分组键
+			groupKey := h.computeGroupKey(record)
 
-		// 计算分组键
-		groupKey := h.computeGroupKey(record)
-
-		// 获取或创建聚合状态
-		aggStates, exists := h.hashTable[groupKey]
-		if !exists {
-			aggStates = make([]AggregateFunc, len(h.aggFuncs))
-			for i, fn := range h.aggFuncs {
-				// 复制聚合函数
-				switch fn.(type) {
-				case *CountAgg:
-					aggStates[i] = &CountAgg{}
-				case *SumAgg:
-					aggStates[i] = &SumAgg{}
-				case *AvgAgg:
-					aggStates[i] = &AvgAgg{}
-				case *MinAgg:
-					aggStates[i] = &MinAgg{}
-				case *MaxAgg:
-					aggStates[i] = &MaxAgg{}
+			// 获取或创建聚合状态
+			aggStates, exists := h.hashTable[groupKey]
+			if !exists {
+				aggStates = make([]AggregateFunc, len(h.aggFuncs))
+				for i, fn := range h.aggFuncs {
+					// 复制聚合函数
+					switch fn.(type) {
+					case *CountAgg:
+						countAgg := *fn.(*CountAgg)
+						aggStates[i] = &countAgg
+					case *SumAgg:
+						sumAgg := *fn.(*SumAgg)
+						aggStates[i] = &sumAgg
+					case *AvgAgg:
+						avgAgg := *fn.(*AvgAgg)
+						aggStates[i] = &avgAgg
+					case *MinAgg:
+						minAgg := *fn.(*MinAgg)
+						aggStates[i] = &minAgg
+					case *MaxAgg:
+						maxAgg := *fn.(*MaxAgg)
+						aggStates[i] = &maxAgg
+					case *GroupConcatAgg:
+						groupConcat := *fn.(*GroupConcatAgg)
+						aggStates[i] = &groupConcat
+					case *JSONArrayAgg:
+						jsonArray := *fn.(*JSONArrayAgg)
+						aggStates[i] = &jsonArray
+					case *JSONObjectAgg:
+						jsonObject := *fn.(*JSONObjectAgg)
+						aggStates[i] = &jsonObject
+					case *AnyValueAgg:
+						anyValue := *fn.(*AnyValueAgg)
+						aggStates[i] = &anyValue
+					case *BitAgg:
+						bitAgg := *fn.(*BitAgg)
+						aggStates[i] = &bitAgg
+					case *VarianceAgg:
+						varianceAgg := *fn.(*VarianceAgg)
+						aggStates[i] = &varianceAgg
+					}
+					aggStates[i].Init()
 				}
-				aggStates[i].Init()
+				h.hashTable[groupKey] = aggStates
 			}
-			h.hashTable[groupKey] = aggStates
-		}
 
-		// 更新聚合状态
-		values := record.GetValues()
-		for i, aggState := range aggStates {
-			aggState.Update(h.getAggregateInputValue(values, i))
+			// 更新聚合状态
+			values := record.GetValues()
+			for i, aggState := range aggStates {
+				inputs := h.getAggregateInputValues(values, i)
+				if multiInput, ok := aggState.(MultiInputAggregateFunc); ok {
+					multiInput.UpdateValues(inputs)
+				} else if len(inputs) > 0 {
+					aggState.Update(inputs[0])
+				}
+			}
+		}
+		if err == io.EOF {
+			break
 		}
 	}
 
@@ -1579,22 +2832,41 @@ func (h *HashAggregateOperator) computeAggregates(ctx context.Context) error {
 }
 
 func (h *HashAggregateOperator) getAggregateInputValue(values []basic.Value, aggIndex int) basic.Value {
+	inputs := h.getAggregateInputValues(values, aggIndex)
+	if len(inputs) > 0 {
+		return inputs[0]
+	}
+	return basic.NewNull()
+}
+
+func (h *HashAggregateOperator) getAggregateInputValues(values []basic.Value, aggIndex int) []basic.Value {
+	if aggIndex >= 0 && aggIndex < len(h.aggregateInputs) && len(h.aggregateInputs[aggIndex]) > 0 {
+		inputs := make([]basic.Value, len(h.aggregateInputs[aggIndex]))
+		for index, inputIndex := range h.aggregateInputs[aggIndex] {
+			if inputIndex >= 0 && inputIndex < len(values) {
+				inputs[index] = values[inputIndex]
+			} else {
+				inputs[index] = basic.NewNull()
+			}
+		}
+		return inputs
+	}
 	if len(values) == 0 {
-		return basic.NewNull()
+		return []basic.Value{basic.NewNull()}
 	}
 
 	firstAggColumn := len(h.groupByExprs)
 	if firstAggColumn < len(values) {
 		candidateIdx := firstAggColumn + aggIndex
 		if candidateIdx < len(values) {
-			return values[candidateIdx]
+			return []basic.Value{values[candidateIdx]}
 		}
 	}
 
 	// Fallback for the current simplified aggregate API: if aggregate expressions
 	// are not explicitly tracked, apply non-grouped aggregates to the last input
 	// column so multiple aggregate functions can still consume the same measure.
-	return values[len(values)-1]
+	return []basic.Value{values[len(values)-1]}
 }
 
 func (h *HashAggregateOperator) computeGroupKey(record Record) string {
@@ -1649,6 +2921,9 @@ func (s *SortOperator) Open(ctx context.Context) error {
 		return err
 	}
 	s.schema = s.child.Schema()
+	s.sorted = false
+	s.results = nil
+	s.resultIdx = 0
 	return nil
 }
 
@@ -1675,18 +2950,47 @@ func (s *SortOperator) Next(ctx context.Context) (Record, error) {
 	return result, nil
 }
 
+func (s *SortOperator) NextBatch(ctx context.Context, maxRows int) ([]Record, error) {
+	if !s.opened {
+		return nil, fmt.Errorf("operator not opened")
+	}
+	if maxRows <= 0 {
+		return nil, fmt.Errorf("batch size must be positive")
+	}
+	if !s.sorted {
+		if err := s.sortRecords(ctx); err != nil {
+			return nil, fmt.Errorf("failed to sort records: %w", err)
+		}
+		s.sorted = true
+	}
+	if s.resultIdx >= len(s.results) {
+		return nil, io.EOF
+	}
+
+	end := s.resultIdx + maxRows
+	if end > len(s.results) {
+		end = len(s.results)
+	}
+	batch := s.results[s.resultIdx:end]
+	s.resultIdx = end
+	if s.resultIdx >= len(s.results) {
+		return batch, io.EOF
+	}
+	return batch, nil
+}
+
 func (s *SortOperator) sortRecords(ctx context.Context) error {
-	// 读取所有记录
+	// Read all records through bounded batches when the child supports them.
 	s.results = make([]Record, 0)
 	for {
-		record, err := s.child.Next(ctx)
-		if err != nil {
+		batch, err := nextOperatorBatch(ctx, s.child, 256)
+		if err != nil && err != io.EOF {
 			return err
 		}
-		if record == nil {
+		s.results = append(s.results, batch...)
+		if err == io.EOF {
 			break
 		}
-		s.results = append(s.results, record)
 	}
 
 	// 排序
@@ -1810,6 +3114,44 @@ func (l *LimitOperator) Next(ctx context.Context) (Record, error) {
 	return record, nil
 }
 
+func (l *LimitOperator) NextBatch(ctx context.Context, maxRows int) ([]Record, error) {
+	if !l.opened {
+		return nil, fmt.Errorf("operator not opened")
+	}
+	if maxRows <= 0 {
+		return nil, fmt.Errorf("batch size must be positive")
+	}
+
+	if l.currentRow < l.offset {
+		toSkip := l.offset - l.currentRow
+		if toSkip > int64(maxRows) {
+			toSkip = int64(maxRows)
+		}
+		batch, err := nextOperatorBatch(ctx, l.child, int(toSkip))
+		l.currentRow += int64(len(batch))
+		if err != nil {
+			return nil, err
+		}
+		if l.currentRow < l.offset {
+			return nil, nil
+		}
+	}
+
+	if l.limit > 0 && l.currentRow >= l.offset+l.limit {
+		return nil, io.EOF
+	}
+	batchSize := maxRows
+	if l.limit > 0 {
+		remaining := l.offset + l.limit - l.currentRow
+		if remaining < int64(batchSize) {
+			batchSize = int(remaining)
+		}
+	}
+	batch, err := nextOperatorBatch(ctx, l.child, batchSize)
+	l.currentRow += int64(len(batch))
+	return batch, err
+}
+
 // ========================================
 // SubqueryOperator - 子查询算子
 // ========================================
@@ -1824,6 +3166,7 @@ type SubqueryOperator struct {
 	outerRow     Record      // 外层记录（用于关联子查询）
 	result       interface{} // 子查询结果（标量子查询）
 	resultSet    []Record    // 子查询结果集（IN/EXISTS子查询）
+	executed     bool        // 非关联子查询是否已经物化
 }
 
 // NewSubqueryOperator 创建子查询算子
@@ -1840,10 +3183,19 @@ func (s *SubqueryOperator) Open(ctx context.Context) error {
 	if err := s.BaseOperator.Open(ctx); err != nil {
 		return err
 	}
+	s.result = nil
+	s.resultSet = nil
+	s.executed = false
+	if s.subplan == nil {
+		return fmt.Errorf("subquery plan is nil")
+	}
 
 	// 如果是非关联子查询，可以在Open阶段执行
 	if !s.correlated {
-		return s.executeSubquery(ctx, nil)
+		if err := s.executeSubquery(ctx, nil); err != nil {
+			return err
+		}
+		s.executed = true
 	}
 
 	return nil
@@ -1861,14 +3213,20 @@ func (s *SubqueryOperator) Next(ctx context.Context) (Record, error) {
 
 // ExecuteForRow 为指定的外层记录执行子查询（关联子查询）
 func (s *SubqueryOperator) ExecuteForRow(ctx context.Context, outerRow Record) error {
-	if !s.correlated {
-		// 非关联子查询只需执行一次
-		if s.result != nil || s.resultSet != nil {
-			return nil
-		}
+	if !s.opened {
+		return fmt.Errorf("operator not opened")
 	}
-
-	return s.executeSubquery(ctx, outerRow)
+	if !s.correlated && s.executed {
+		// 非关联子查询只需执行一次；NULL 也是一个有效的已物化结果。
+		return nil
+	}
+	if err := s.executeSubquery(ctx, outerRow); err != nil {
+		return err
+	}
+	if !s.correlated {
+		s.executed = true
+	}
+	return nil
 }
 
 // executeSubquery 执行子查询
@@ -1933,18 +3291,18 @@ func (s *SubqueryOperator) executeScalarSubquery(ctx context.Context) error {
 
 // executeInSubquery 执行IN子查询
 func (s *SubqueryOperator) executeInSubquery(ctx context.Context) error {
-	// 收集所有结果
+	// 收集所有结果。优先走批量接口，避免 IN 子查询在物化边界退化为逐行拉取。
 	s.resultSet = make([]Record, 0)
 
 	for {
-		record, err := s.subplan.Next(ctx)
-		if err != nil {
+		records, err := nextOperatorBatch(ctx, s.subplan, 256)
+		if err != nil && err != io.EOF {
 			return fmt.Errorf("IN subquery error: %w", err)
 		}
-		if record == nil {
-			break // EOF
+		s.resultSet = append(s.resultSet, records...)
+		if err == io.EOF {
+			break
 		}
-		s.resultSet = append(s.resultSet, record)
 	}
 
 	return nil
@@ -1970,18 +3328,18 @@ func (s *SubqueryOperator) executeExistsSubquery(ctx context.Context) error {
 
 // executeQuantifiedSubquery 执行量化子查询（ANY/ALL）
 func (s *SubqueryOperator) executeQuantifiedSubquery(ctx context.Context) error {
-	// 收集所有结果
+	// 收集所有结果。ANY/ALL 与 IN 共用批量物化路径。
 	s.resultSet = make([]Record, 0)
 
 	for {
-		record, err := s.subplan.Next(ctx)
-		if err != nil {
+		records, err := nextOperatorBatch(ctx, s.subplan, 256)
+		if err != nil && err != io.EOF {
 			return fmt.Errorf("quantified subquery error: %w", err)
 		}
-		if record == nil {
-			break // EOF
+		s.resultSet = append(s.resultSet, records...)
+		if err == io.EOF {
+			break
 		}
-		s.resultSet = append(s.resultSet, record)
 	}
 
 	return nil
@@ -2012,6 +3370,10 @@ type ApplyOperator struct {
 	outerRow   Record            // 当前外层记录
 	innerRows  []Record          // 当前内层结果
 	innerIndex int               // 内层结果索引
+
+	batchStarted   bool
+	batchOuterRows []Record
+	batchOuterPos  int
 }
 
 // NewApplyOperator 创建Apply算子
@@ -2063,6 +3425,12 @@ func (a *ApplyOperator) Open(ctx context.Context) error {
 
 		a.schema = mergedSchema
 	}
+	a.batchStarted = false
+	a.batchOuterRows = nil
+	a.batchOuterPos = 0
+	a.outerRow = nil
+	a.innerRows = nil
+	a.innerIndex = 0
 
 	return nil
 }
@@ -2070,6 +3438,9 @@ func (a *ApplyOperator) Open(ctx context.Context) error {
 func (a *ApplyOperator) Next(ctx context.Context) (Record, error) {
 	if !a.opened {
 		return nil, fmt.Errorf("operator not opened")
+	}
+	if a.batchStarted {
+		return nil, fmt.Errorf("cannot use row execution after batch execution started")
 	}
 
 	for {
@@ -2085,9 +3456,10 @@ func (a *ApplyOperator) Next(ctx context.Context) (Record, error) {
 				return a.mergeRecords(a.outerRow, innerRow), nil
 			case "SEMI":
 				// SEMI JOIN只返回外层记录（已经找到匹配）
+				matchedOuter := a.outerRow
 				a.outerRow = nil // 标记当前外层记录已处理
 				a.innerRows = nil
-				return a.outerRow, nil
+				return matchedOuter, nil
 			case "ANTI":
 				// ANTI JOIN不应该返回有匹配的记录
 				// 继续处理下一个外层记录
@@ -2129,6 +3501,8 @@ func (a *ApplyOperator) Next(ctx context.Context) (Record, error) {
 		case "SEMI":
 			// SEMI JOIN：如果有匹配，返回外层记录
 			if len(a.innerRows) > 0 {
+				a.outerRow = nil
+				a.innerRows = nil
 				return outerRow, nil
 			}
 			// 没有匹配，继续下一个外层记录
@@ -2144,6 +3518,88 @@ func (a *ApplyOperator) Next(ctx context.Context) (Record, error) {
 	}
 }
 
+// NextBatch keeps correlated Apply bounded at the result boundary while
+// pulling both the outer stream and each re-opened inner plan through the
+// optional batch contract.
+func (a *ApplyOperator) NextBatch(ctx context.Context, maxRows int) ([]Record, error) {
+	if !a.opened {
+		return nil, fmt.Errorf("operator not opened")
+	}
+	if maxRows <= 0 {
+		return nil, fmt.Errorf("batch size must be positive")
+	}
+	a.batchStarted = true
+	rows := make([]Record, 0, maxRows)
+
+	for len(rows) < maxRows {
+		if a.outerRow != nil && a.innerIndex < len(a.innerRows) {
+			innerRow := a.innerRows[a.innerIndex]
+			a.innerIndex++
+			switch strings.ToUpper(strings.TrimSpace(a.applyType)) {
+			case "INNER", "LEFT":
+				rows = append(rows, a.mergeRecords(a.outerRow, innerRow))
+			case "SEMI":
+				rows = append(rows, a.outerRow)
+				a.outerRow = nil
+				a.innerRows = nil
+			case "ANTI":
+				a.outerRow = nil
+				a.innerRows = nil
+			}
+			continue
+		}
+
+		// The current outer row has no more inner results. Move to the next
+		// outer batch before executing the inner plan again.
+		a.outerRow = nil
+		a.innerRows = nil
+		a.innerIndex = 0
+		if a.batchOuterPos >= len(a.batchOuterRows) {
+			batch, err := nextOperatorBatch(ctx, a.outer, 256)
+			if err != nil && err != io.EOF {
+				return nil, err
+			}
+			a.batchOuterRows = batch
+			a.batchOuterPos = 0
+			if len(batch) == 0 {
+				return rows, io.EOF
+			}
+		}
+
+		outerRow := a.batchOuterRows[a.batchOuterPos]
+		a.batchOuterPos++
+		a.outerRow = outerRow
+		if err := a.executeInnerForOuter(ctx, outerRow); err != nil {
+			return nil, fmt.Errorf("failed to execute inner for outer: %w", err)
+		}
+
+		switch strings.ToUpper(strings.TrimSpace(a.applyType)) {
+		case "INNER":
+			if len(a.innerRows) == 0 {
+				a.outerRow = nil
+			}
+		case "LEFT":
+			if len(a.innerRows) == 0 {
+				rows = append(rows, a.mergeRecords(outerRow, nil))
+				a.outerRow = nil
+			}
+		case "SEMI":
+			if len(a.innerRows) > 0 {
+				rows = append(rows, outerRow)
+			}
+			a.outerRow = nil
+			a.innerRows = nil
+		case "ANTI":
+			if len(a.innerRows) == 0 {
+				rows = append(rows, outerRow)
+			}
+			a.outerRow = nil
+			a.innerRows = nil
+		}
+	}
+	return rows, nil
+}
+
 // executeInnerForOuter 为外层记录执行内层子查询
 func (a *ApplyOperator) executeInnerForOuter(ctx context.Context, outerRow Record) error {
 	// 重新打开内层算子
@@ -2156,22 +3612,23 @@ func (a *ApplyOperator) executeInnerForOuter(ctx context.Context, outerRow Recor
 	a.innerRows = make([]Record, 0)
 
 	for {
-		innerRow, err := a.inner.Next(ctx)
-		if err != nil {
+		batch, err := nextOperatorBatch(ctx, a.inner, 256)
+		if err != nil && err != io.EOF {
 			return err
 		}
-		if innerRow == nil {
-			break // EOF
-		}
+		for _, innerRow := range batch {
+			// 检查关联条件
+			if a.evaluateJoinConditions(outerRow, innerRow) {
+				a.innerRows = append(a.innerRows, innerRow)
 
-		// 检查关联条件
-		if a.evaluateJoinConditions(outerRow, innerRow) {
-			a.innerRows = append(a.innerRows, innerRow)
-
-			// SEMI/ANTI JOIN只需要知道是否有匹配，不需要所有结果
-			if a.applyType == "SEMI" || a.applyType == "ANTI" {
-				break
+				// SEMI/ANTI JOIN只需要知道是否有匹配，不需要所有结果
+				if a.applyType == "SEMI" || a.applyType == "ANTI" {
+					return nil
+				}
 			}
+		}
+		if err == io.EOF || len(batch) == 0 {
+			break
 		}
 	}
 
@@ -2198,7 +3655,15 @@ func (a *ApplyOperator) evaluateJoinConditions(outerRow, innerRow Record) bool {
 	if outerSchema := a.rowSchema(outerRow, a.outerSchema); outerSchema != nil {
 		for i := 0; i < outerSchema.ColumnCount() && i < len(outerValues); i++ {
 			if col, ok := outerSchema.GetColumnByIndex(i); ok && col != nil {
-				evalCtx.Row[col.Name] = a.valueToInterfaceForJoin(outerValues[i])
+				value := a.valueToInterfaceForJoin(outerValues[i])
+				evalCtx.Row[col.Name] = value
+				tableName := col.TableName
+				if tableName == "" {
+					tableName = outerSchema.TableName
+				}
+				if tableName != "" {
+					evalCtx.Row[tableName+"."+col.Name] = value
+				}
 			}
 		}
 	}
@@ -2208,7 +3673,15 @@ func (a *ApplyOperator) evaluateJoinConditions(outerRow, innerRow Record) bool {
 	if innerSchema := a.rowSchema(innerRow, a.innerSchema); innerSchema != nil {
 		for i := 0; i < innerSchema.ColumnCount() && i < len(innerValues); i++ {
 			if col, ok := innerSchema.GetColumnByIndex(i); ok && col != nil {
-				evalCtx.Row[col.Name] = a.valueToInterfaceForJoin(innerValues[i])
+				value := a.valueToInterfaceForJoin(innerValues[i])
+				evalCtx.Row[col.Name] = value
+				tableName := col.TableName
+				if tableName == "" {
+					tableName = innerSchema.TableName
+				}
+				if tableName != "" {
+					evalCtx.Row[tableName+"."+col.Name] = value
+				}
 			}
 		}
 	}
@@ -2346,6 +3819,8 @@ type VolcanoExecutor struct {
 	bufferPoolManager *manager.OptimizedBufferPoolManager
 	storageManager    *manager.StorageManager
 	indexManager      *manager.IndexManager
+	cteContext        *CTEContext
+	cteSchemas        map[string]*metadata.QuerySchema
 }
 
 func NewVolcanoExecutor(
@@ -2359,6 +3834,8 @@ func NewVolcanoExecutor(
 		bufferPoolManager: bufferPoolManager,
 		storageManager:    storageManager,
 		indexManager:      indexManager,
+		cteContext:        NewCTEContext(),
+		cteSchemas:        make(map[string]*metadata.QuerySchema),
 	}
 }
 
@@ -2379,6 +3856,19 @@ func (v *VolcanoExecutor) buildOperatorTree(ctx context.Context, physicalPlan pl
 	}
 
 	switch p := physicalPlan.(type) {
+	case *plan.PhysicalCTEStatement:
+		return v.buildCTEStatement(ctx, p)
+
+	case *plan.PhysicalValues:
+		return v.buildValues(p)
+
+	case *plan.PhysicalCTEScan:
+		schema := v.cteSchemas[p.Name]
+		if schema == nil {
+			schema = metadata.NewQuerySchema()
+		}
+		return NewCTEScanOperator(p.Name, v.cteContext, schema), nil
+
 	case *plan.PhysicalTableScan:
 		return v.buildTableScan(p)
 
@@ -2417,6 +3907,143 @@ func (v *VolcanoExecutor) buildOperatorTree(ctx context.Context, physicalPlan pl
 	}
 }
 
+func (v *VolcanoExecutor) buildValues(p *plan.PhysicalValues) (Operator, error) {
+	return NewValuesOperator(p.Exprs), nil
+}
+
+func (v *VolcanoExecutor) buildCTEStatement(ctx context.Context, p *plan.PhysicalCTEStatement) (Operator, error) {
+	children := p.Children()
+	if len(children) <= p.DefinitionCount {
+		return nil, fmt.Errorf("PhysicalCTEStatement has no body")
+	}
+
+	// Definitions are planned and registered before the body is built, so a
+	// CTEScan can bind to the query schema and shared materialization context.
+	for i := 0; i < p.DefinitionCount; i++ {
+		switch definition := children[i].(type) {
+		case *plan.PhysicalCTE:
+			definitionChildren := definition.Children()
+			if len(definitionChildren) != 1 {
+				return nil, fmt.Errorf("PhysicalCTE %s must have one query child", definition.Name)
+			}
+			query, err := v.buildOperatorTree(ctx, definitionChildren[0])
+			if err != nil {
+				return nil, fmt.Errorf("build CTE %s query: %w", definition.Name, err)
+			}
+			querySchema := query.Schema()
+			if querySchema == nil || querySchema.ColumnCount() == 0 {
+				querySchema = inferPhysicalQuerySchema(definitionChildren[0], v.cteSchemas)
+			}
+			v.cteSchemas[definition.Name] = renameCTEQuerySchema(querySchema, definition.Columns)
+			v.cteContext.AddDefinition(&CTEDefinition{Name: definition.Name, Recursive: definition.Recursive, Operator: query})
+		case *plan.PhysicalRecursiveCTE:
+			definitionChildren := definition.Children()
+			if len(definitionChildren) != 2 {
+				return nil, fmt.Errorf("PhysicalRecursiveCTE %s must have anchor and recursive children", definition.Name)
+			}
+			anchor, err := v.buildOperatorTree(ctx, definitionChildren[0])
+			if err != nil {
+				return nil, fmt.Errorf("build recursive CTE %s anchor: %w", definition.Name, err)
+			}
+			anchorSchema := anchor.Schema()
+			if anchorSchema == nil || anchorSchema.ColumnCount() == 0 {
+				anchorSchema = inferPhysicalQuerySchema(definitionChildren[0], v.cteSchemas)
+			}
+			v.cteSchemas[definition.Name] = renameCTEQuerySchema(anchorSchema, definition.Columns)
+			recursive, err := v.buildOperatorTree(ctx, definitionChildren[1])
+			if err != nil {
+				return nil, fmt.Errorf("build recursive CTE %s member: %w", definition.Name, err)
+			}
+			v.cteContext.AddDefinition(&CTEDefinition{Name: definition.Name, Recursive: true, Operator: anchor})
+			_ = recursive
+		default:
+			return nil, fmt.Errorf("unsupported CTE definition type: %T", children[i])
+		}
+	}
+
+	body, err := v.buildOperatorTree(ctx, children[p.DefinitionCount])
+	if err != nil {
+		return nil, fmt.Errorf("build CTE statement body: %w", err)
+	}
+
+	// Wrap definitions in declaration order. CTEOperator materializes its
+	// query before opening the body, matching MySQL's statement scope.
+	for i := p.DefinitionCount - 1; i >= 0; i-- {
+		switch definition := children[i].(type) {
+		case *plan.PhysicalCTE:
+			query := v.cteContext.definitions[normalizeCTEName(definition.Name)].Operator
+			body = NewCTEOperator(definition.Name, query, body, v.cteContext)
+		case *plan.PhysicalRecursiveCTE:
+			definitionChildren := definition.Children()
+			anchor, err := v.buildOperatorTree(ctx, definitionChildren[0])
+			if err != nil {
+				return nil, err
+			}
+			recursive, err := v.buildOperatorTree(ctx, definitionChildren[1])
+			if err != nil {
+				return nil, err
+			}
+			body = NewRecursiveCTEOperator(definition.Name, anchor, recursive, body, v.cteContext, 100)
+		}
+	}
+	return body, nil
+}
+
+func renameCTEQuerySchema(schema *metadata.QuerySchema, columns []string) *metadata.QuerySchema {
+	if schema == nil {
+		schema = metadata.NewQuerySchema()
+	} else {
+		schema = schema.Clone()
+	}
+	for i, name := range columns {
+		if i >= len(schema.Columns) || strings.TrimSpace(name) == "" {
+			break
+		}
+		schema.Columns[i].Name = name
+	}
+	return schema
+}
+
+func inferPhysicalQuerySchema(physicalPlan plan.PhysicalPlan, cteSchemas map[string]*metadata.QuerySchema) *metadata.QuerySchema {
+	schema := metadata.NewQuerySchema()
+	switch p := physicalPlan.(type) {
+	case *plan.PhysicalValues:
+		for _, expr := range p.Exprs {
+			schema.AddColumn(metadata.NewQueryColumn(expr.String(), valuesExpressionType(expr)))
+		}
+	case *plan.PhysicalTableScan:
+		if p.Table != nil {
+			return metadata.FromTable(p.Table)
+		}
+	case *plan.PhysicalProjection:
+		child := inferPhysicalQuerySchema(firstPhysicalChild(p), cteSchemas)
+		for _, expr := range p.Exprs {
+			column := metadata.NewQueryColumn(expr.String(), valuesExpressionType(expr))
+			if col, ok := expr.(*plan.Column); ok {
+				if source, found := child.GetColumn(col.Name); found {
+					column = source
+				}
+			}
+			schema.AddColumn(column)
+		}
+	case *plan.PhysicalSelection:
+		return inferPhysicalQuerySchema(firstPhysicalChild(p), cteSchemas)
+	case *plan.PhysicalCTEScan:
+		if source := cteSchemas[p.Name]; source != nil {
+			return source.Clone()
+		}
+	}
+	return schema
+}
+
+func firstPhysicalChild(physicalPlan plan.PhysicalPlan) plan.PhysicalPlan {
+	children := physicalPlan.Children()
+	if len(children) == 0 {
+		return nil
+	}
+	return children[0]
+}
+
 func (v *VolcanoExecutor) buildTableScan(p *plan.PhysicalTableScan) (Operator, error) {
 	if p.Table == nil {
 		return nil, fmt.Errorf("table is nil in PhysicalTableScan")
@@ -2441,7 +4068,32 @@ func (v *VolcanoExecutor) buildTableScan(p *plan.PhysicalTableScan) (Operator, e
 		schemaName,
 		p.Table.Name,
 		storageAdapter,
+		physicalScanRequiredColumns(p),
 	), nil
+}
+
+func physicalScanRequiredColumns(p *plan.PhysicalTableScan) []string {
+	if p == nil {
+		return nil
+	}
+	return physicalRequiredColumns(p.Schema(), p.Table)
+}
+
+func physicalRequiredColumns(schema *metadata.DatabaseSchema, table *metadata.Table) []string {
+	if table == nil || schema == nil {
+		return nil
+	}
+	pruned, ok := schema.GetTable(table.Name)
+	if !ok || len(pruned.Columns) == 0 || len(pruned.Columns) >= len(table.Columns) {
+		return nil
+	}
+	columns := make([]string, 0, len(pruned.Columns))
+	for _, column := range pruned.Columns {
+		if column != nil {
+			columns = append(columns, column.Name)
+		}
+	}
+	return columns
 }
 
 func (v *VolcanoExecutor) buildIndexScan(p *plan.PhysicalIndexScan) (Operator, error) {
@@ -2477,9 +4129,9 @@ func (v *VolcanoExecutor) buildIndexScan(p *plan.PhysicalIndexScan) (Operator, e
 		p.Index.Name,
 		storageAdapter,
 		indexAdapter,
-		nil,        // startKey - 可以从p中提取
-		nil,        // endKey - 可以从p中提取
-		[]string{}, // requiredColumns - 可以从p.Schema中提取
+		nil, // startKey - 可以从p中提取
+		nil, // endKey - 可以从p中提取
+		physicalRequiredColumns(p.Schema(), p.Table),
 	), nil
 }
 
@@ -2530,6 +4182,13 @@ func (v *VolcanoExecutor) buildHashJoin(ctx context.Context, p *plan.PhysicalHas
 		return nil, err
 	}
 
+	if !physicalHashJoinUsesOnlyEquiConditions(p.Conditions) {
+		condition := func(l, r Record) bool {
+			return evaluatePhysicalJoinConditions(p.Conditions, l, r, left.Schema(), right.Schema())
+		}
+		return NewNestedLoopJoinOperator(left, right, p.JoinType, condition), nil
+	}
+
 	buildKey, probeKey := v.buildHashKeyFunctions(p.Conditions, p.LeftSchema, p.RightSchema)
 
 	// LEFT/FULL 时用右表做 build、左表做 probe，保证左表每行都输出
@@ -2540,8 +4199,26 @@ func (v *VolcanoExecutor) buildHashJoin(ctx context.Context, p *plan.PhysicalHas
 	return NewHashJoinOperator(left, right, joinType, buildKey, probeKey), nil
 }
 
+func physicalHashJoinUsesOnlyEquiConditions(conditions []plan.Expression) bool {
+	if len(conditions) == 0 {
+		return false
+	}
+	for _, condition := range conditions {
+		binary, ok := condition.(*plan.BinaryOperation)
+		if !ok || binary.Op != plan.OpEQ {
+			return false
+		}
+		if _, ok := binary.Left.(*plan.Column); !ok {
+			return false
+		}
+		if _, ok := binary.Right.(*plan.Column); !ok {
+			return false
+		}
+	}
+	return true
+}
+
 func (v *VolcanoExecutor) buildMergeJoin(ctx context.Context, p *plan.PhysicalMergeJoin) (Operator, error) {
-	// MergeJoin可以用NestedLoopJoin实现
 	children := p.Children()
 	if len(children) < 2 {
 		return nil, fmt.Errorf("PhysicalMergeJoin needs 2 children")
@@ -2557,8 +4234,82 @@ func (v *VolcanoExecutor) buildMergeJoin(ctx context.Context, p *plan.PhysicalMe
 		return nil, err
 	}
 
-	condition := func(l, r Record) bool { return true }
-	return NewNestedLoopJoinOperator(left, right, p.JoinType, condition), nil
+	leftKey, rightKey, ok := buildSortMergeKeyFunctions(p.Conditions)
+	if !ok {
+		// A merge join can only use the key when all predicates are represented
+		// by that key. Evaluate the original predicates in the fallback so
+		// non-equality and compound conditions retain their SQL meaning.
+		condition := func(l, r Record) bool {
+			return evaluatePhysicalJoinConditions(p.Conditions, l, r, left.Schema(), right.Schema())
+		}
+		return NewNestedLoopJoinOperator(left, right, p.JoinType, condition), nil
+	}
+	return NewSortMergeJoinOperator(left, right, p.JoinType, leftKey, rightKey), nil
+}
+
+func evaluatePhysicalJoinConditions(
+	conditions []plan.Expression,
+	left, right Record,
+	leftSchema, rightSchema *metadata.QuerySchema,
+) bool {
+	if len(conditions) == 0 {
+		return true
+	}
+	if left == nil || right == nil {
+		return false
+	}
+
+	row := make(map[string]interface{})
+	addPhysicalJoinRowBindings(row, left, leftSchema)
+	addPhysicalJoinRowBindings(row, right, rightSchema)
+	ctx := &plan.EvalContext{Row: row}
+	for _, condition := range conditions {
+		if condition == nil {
+			continue
+		}
+		result, err := condition.Eval(ctx)
+		if err != nil {
+			return false
+		}
+		matched, ok := result.(bool)
+		if !ok || !matched {
+			return false
+		}
+	}
+	return true
+}
+
+func addPhysicalJoinRowBindings(row map[string]interface{}, record Record, fallback *metadata.QuerySchema) {
+	if record == nil {
+		return
+	}
+	schema := fallback
+	if typed, ok := any(record).(interface{ GetSchema() *metadata.QuerySchema }); ok {
+		if recordSchema := typed.GetSchema(); recordSchema != nil {
+			schema = recordSchema
+		}
+	}
+	if schema == nil {
+		return
+	}
+
+	values := record.GetValues()
+	converter := &ApplyOperator{}
+	for index := 0; index < schema.ColumnCount() && index < len(values); index++ {
+		column, ok := schema.GetColumnByIndex(index)
+		if !ok || column == nil {
+			continue
+		}
+		value := converter.valueToInterfaceForJoin(values[index])
+		row[column.Name] = value
+		tableName := column.TableName
+		if tableName == "" {
+			tableName = schema.TableName
+		}
+		if tableName != "" {
+			row[tableName+"."+column.Name] = value
+		}
+	}
 }
 
 func (v *VolcanoExecutor) buildHashAgg(ctx context.Context, p *plan.PhysicalHashAgg) (Operator, error) {
@@ -2576,12 +4327,20 @@ func (v *VolcanoExecutor) buildHashAgg(ctx context.Context, p *plan.PhysicalHash
 	groupByExprs := v.buildGroupByExprs(p.GroupByItems, child.Schema())
 	aggFuncs := v.buildAggFuncs(p.AggFuncs)
 
-	return NewHashAggregateOperator(child, groupByExprs, aggFuncs), nil
+	return NewHashAggregateOperatorWithExpressions(child, groupByExprs, aggFuncs, p.AggFuncs), nil
 }
 
 func (v *VolcanoExecutor) buildStreamAgg(ctx context.Context, p *plan.PhysicalStreamAgg) (Operator, error) {
 	// StreamAgg可以用HashAgg实现
-	return v.buildHashAgg(ctx, (*plan.PhysicalHashAgg)(p))
+	// Keep this adapter explicit: PhysicalHashAgg has additional parallel
+	// execution metadata, so the two concrete plan structs are no longer
+	// layout-convertible.
+	hashPlan := &plan.PhysicalHashAgg{
+		BasePhysicalPlan: p.BasePhysicalPlan,
+		GroupByItems:     p.GroupByItems,
+		AggFuncs:         p.AggFuncs,
+	}
+	return v.buildHashAgg(ctx, hashPlan)
 }
 
 func (v *VolcanoExecutor) buildSort(ctx context.Context, p *plan.PhysicalSort) (Operator, error) {
@@ -2666,6 +4425,77 @@ func (v *VolcanoExecutor) Execute(ctx context.Context) ([]Record, error) {
 	return results, nil
 }
 
+// ExecuteBatches streams the result through callback-sized batches. It keeps
+// the Open/Next/Close lifecycle identical to Execute while allowing callers
+// such as protocol writers and backup jobs to cap result memory.
+func (v *VolcanoExecutor) ExecuteBatches(ctx context.Context, batchSize int, consume func([]Record) error) error {
+	if v == nil || v.root == nil {
+		return fmt.Errorf("root operator is nil")
+	}
+	if batchSize <= 0 {
+		return fmt.Errorf("batch size must be positive")
+	}
+	if consume == nil {
+		return fmt.Errorf("batch consumer is nil")
+	}
+	if err := v.root.Open(ctx); err != nil {
+		return fmt.Errorf("failed to open root operator: %w", err)
+	}
+	defer v.root.Close()
+
+	if batchRoot, ok := v.root.(BatchOperator); ok {
+		for {
+			rows, err := batchRoot.NextBatch(ctx, batchSize)
+			if err != nil && err != io.EOF {
+				return fmt.Errorf("error during batch execution: %w", err)
+			}
+			for offset := 0; offset < len(rows); {
+				end := offset + batchSize
+				if end > len(rows) {
+					end = len(rows)
+				}
+				if err := consume(rows[offset:end]); err != nil {
+					return err
+				}
+				offset = end
+			}
+			if err == io.EOF {
+				return nil
+			}
+			if len(rows) == 0 {
+				return nil
+			}
+		}
+	}
+
+	batch := make([]Record, 0, batchSize)
+	flush := func() error {
+		if len(batch) == 0 {
+			return nil
+		}
+		if err := consume(batch); err != nil {
+			return err
+		}
+		batch = make([]Record, 0, batchSize)
+		return nil
+	}
+	for {
+		record, err := v.root.Next(ctx)
+		if err != nil && err != io.EOF {
+			return fmt.Errorf("error during execution: %w", err)
+		}
+		if record == nil {
+			return flush()
+		}
+		batch = append(batch, record)
+		if len(batch) == batchSize {
+			if err := flush(); err != nil {
+				return err
+			}
+		}
+	}
+}
+
 // ========================================
 // 辅助函数：从物理计划构建算子的辅助方法
 // ========================================
@@ -2675,14 +4505,26 @@ func (v *VolcanoExecutor) buildPredicate(conditions []plan.Expression, schema *m
 	if len(conditions) == 0 {
 		return func(r Record) bool { return true }
 	}
+	compiledConditions := make([]plan.CompiledExpression, len(conditions))
+	for index, condition := range conditions {
+		if compiled, ok := plan.CompileExpression(condition); ok {
+			compiledConditions[index] = compiled
+		}
+	}
 
 	return func(record Record) bool {
 		// 创建求值上下文
 		evalCtx := v.createEvalContextFromRecord(record, schema)
 
 		// 对所有条件进行AND操作
-		for _, cond := range conditions {
-			result, err := cond.Eval(evalCtx)
+		for index, cond := range conditions {
+			var result interface{}
+			var err error
+			if compiledConditions[index] != nil {
+				result, err = compiledConditions[index](evalCtx)
+			} else {
+				result, err = cond.Eval(evalCtx)
+			}
 			if err != nil {
 				logger.Debugf("Failed to evaluate condition %s: %v, treating as false", cond.String(), err)
 				return false
@@ -2710,45 +4552,64 @@ func (v *VolcanoExecutor) buildHashKeyFunctions(
 	leftSchema *metadata.DatabaseSchema,
 	rightSchema *metadata.DatabaseSchema,
 ) (func(Record) string, func(Record) string) {
-	// 默认实现：使用第一个等值条件
-	if len(conditions) == 0 {
-		// 没有条件，使用默认实现
-		return func(r Record) string { return "" }, func(r Record) string { return "" }
-	}
-
-	// 查找第一个等值条件
+	_ = leftSchema
+	_ = rightSchema
+	leftColumns := make([]string, 0, len(conditions))
+	rightColumns := make([]string, 0, len(conditions))
 	for _, cond := range conditions {
 		if binOp, ok := cond.(*plan.BinaryOperation); ok && binOp.Op == plan.OpEQ {
-			// 提取左右列
 			leftCol, rightCol := v.extractJoinColumns(binOp)
 			if leftCol != "" && rightCol != "" {
-				// 构建build key函数（左表）
-				buildKey := func(r Record) string {
-					values := r.GetValues()
-					// 简化实现：使用第一个值
-					if len(values) > 0 {
-						return fmt.Sprintf("%v", values[0].Raw())
-					}
-					return ""
-				}
-
-				// 构建probe key函数（右表）
-				probeKey := func(r Record) string {
-					values := r.GetValues()
-					// 简化实现：使用第一个值
-					if len(values) > 0 {
-						return fmt.Sprintf("%v", values[0].Raw())
-					}
-					return ""
-				}
-
-				return buildKey, probeKey
+				leftColumns = append(leftColumns, leftCol)
+				rightColumns = append(rightColumns, rightCol)
 			}
 		}
 	}
+	if len(leftColumns) > 0 {
+		return func(r Record) string { return v.hashJoinKey(r, leftColumns) },
+			func(r Record) string { return v.hashJoinKey(r, rightColumns) }
+	}
 
-	// 没有找到等值条件，使用默认实现
 	return func(r Record) string { return "" }, func(r Record) string { return "" }
+}
+
+func (v *VolcanoExecutor) hashJoinKey(record Record, columns []string) string {
+	parts := make([]string, 0, len(columns))
+	for _, column := range columns {
+		value, ok := v.hashJoinColumnValue(record, column)
+		if !ok || value == nil || value.IsNull() {
+			parts = append(parts, "<NULL>")
+			continue
+		}
+		raw := value.Raw()
+		parts = append(parts, fmt.Sprintf("%T:%#v", raw, raw))
+	}
+	return strings.Join(parts, "\x00")
+}
+
+func (v *VolcanoExecutor) hashJoinColumnValue(record Record, column string) (basic.Value, bool) {
+	if record == nil {
+		return nil, false
+	}
+	if value, err := record.GetValueByName(column); err == nil {
+		return value, true
+	}
+	if dot := strings.LastIndex(column, "."); dot >= 0 && dot+1 < len(column) {
+		if value, err := record.GetValueByName(column[dot+1:]); err == nil {
+			return value, true
+		}
+	}
+	if typed, ok := any(record).(interface{ GetSchema() *metadata.QuerySchema }); ok {
+		if schema := typed.GetSchema(); schema != nil {
+			for index := 0; index < schema.ColumnCount(); index++ {
+				col, exists := schema.GetColumnByIndex(index)
+				if exists && col != nil && strings.EqualFold(col.Name, column) {
+					return record.GetValueByIndex(index), true
+				}
+			}
+		}
+	}
+	return nil, false
 }
 
 // extractJoinColumns 从二元操作中提取连接列
@@ -2791,18 +4652,59 @@ func (v *VolcanoExecutor) buildAggFuncs(aggFuncs []plan.AggregateFunc) []Aggrega
 
 	var funcs []AggregateFunc
 	for _, aggFunc := range aggFuncs {
-		funcName := aggFunc.Name()
+		funcName := strings.ToUpper(strings.TrimSpace(aggFunc.Name()))
+		function, _ := aggFunc.(*plan.Function)
 		switch funcName {
 		case "COUNT":
-			funcs = append(funcs, &CountAgg{})
+			countAgg := &CountAgg{}
+			if function != nil {
+				countAgg.distinct = function.Distinct
+				countAgg.countColumn = len(function.FuncArgs) > 0
+			}
+			funcs = append(funcs, countAgg)
 		case "SUM":
-			funcs = append(funcs, &SumAgg{})
+			sumAgg := &SumAgg{}
+			if function != nil {
+				sumAgg.distinct = function.Distinct
+			}
+			funcs = append(funcs, sumAgg)
 		case "AVG":
-			funcs = append(funcs, &AvgAgg{})
+			avgAgg := &AvgAgg{}
+			if function != nil {
+				avgAgg.distinct = function.Distinct
+			}
+			funcs = append(funcs, avgAgg)
 		case "MIN":
-			funcs = append(funcs, &MinAgg{})
+			minAgg := &MinAgg{}
+			if function != nil {
+				minAgg.distinct = function.Distinct
+			}
+			funcs = append(funcs, minAgg)
 		case "MAX":
-			funcs = append(funcs, &MaxAgg{})
+			maxAgg := &MaxAgg{}
+			if function != nil {
+				maxAgg.distinct = function.Distinct
+			}
+			funcs = append(funcs, maxAgg)
+		case "GROUP_CONCAT":
+			groupConcat := &GroupConcatAgg{separator: ","}
+			if function, ok := aggFunc.(*plan.Function); ok {
+				groupConcat.distinct = function.Distinct
+				if function.Separator != "" {
+					groupConcat.separator = function.Separator
+				}
+			}
+			funcs = append(funcs, groupConcat)
+		case "JSON_ARRAYAGG":
+			funcs = append(funcs, &JSONArrayAgg{})
+		case "JSON_OBJECTAGG":
+			funcs = append(funcs, &JSONObjectAgg{})
+		case "ANY_VALUE":
+			funcs = append(funcs, &AnyValueAgg{})
+		case "BIT_AND", "BIT_OR", "BIT_XOR":
+			funcs = append(funcs, &BitAgg{name: funcName})
+		case "STD", "STDDEV", "STDDEV_POP", "STDDEV_SAMP", "VAR_POP", "VAR_SAMP", "VARIANCE":
+			funcs = append(funcs, &VarianceAgg{name: funcName})
 		default:
 			// 默认使用COUNT
 			funcs = append(funcs, &CountAgg{})
@@ -2845,15 +4747,29 @@ func (v *VolcanoExecutor) findColumnIndex(columnName string, schema *metadata.Qu
 	if schema == nil {
 		return -1
 	}
+	_, requestedColumn := splitQualifiedColumnNameForEngine(columnName)
 
 	for i := 0; i < schema.ColumnCount(); i++ {
 		col, ok := schema.GetColumnByIndex(i)
-		if ok && col != nil && col.Name == columnName {
-			return i
+		if ok && col != nil {
+			_, schemaColumn := splitQualifiedColumnNameForEngine(col.Name)
+			if strings.EqualFold(schemaColumn, requestedColumn) || strings.EqualFold(col.Name, columnName) {
+				return i
+			}
 		}
 	}
 
 	return -1
+}
+
+func splitQualifiedColumnNameForEngine(name string) (qualifier, column string) {
+	name = strings.Trim(strings.TrimSpace(name), "`")
+	if dot := strings.LastIndex(name, "."); dot >= 0 {
+		qualifier = strings.Trim(strings.TrimSpace(name[:dot]), "`")
+		column = strings.Trim(strings.TrimSpace(name[dot+1:]), "`")
+		return qualifier, column
+	}
+	return "", name
 }
 
 // createEvalContextFromRecord 从Record创建求值上下文

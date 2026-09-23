@@ -10,7 +10,7 @@ type StatsEvent struct {
 	StatsEventContent []byte
 }
 
-//定义观察者接口
+// 定义观察者接口
 type StatsObserver interface {
 	Update(event *StatsEvent)
 }

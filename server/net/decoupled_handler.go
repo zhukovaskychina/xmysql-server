@@ -1,6 +1,7 @@
 package net
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/hex" // 临时注释 - 密码验证被跳过时不需要
@@ -8,6 +9,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server"
@@ -16,7 +18,9 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/dispatcher"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
+	"github.com/zhukovaskychina/xmysql-server/server/observability/metrics"
 	"github.com/zhukovaskychina/xmysql-server/server/protocol"
+	"github.com/zhukovaskychina/xmysql-server/server/replication"
 )
 
 // localMin 返回两个整数中的较小值，避免依赖 Go1.21 内置 min
@@ -71,10 +75,23 @@ type DecoupledMySQLMessageHandler struct {
 	handshakeGenerator *protocol.HandshakeGenerator
 
 	// 认证服务
-	authService auth.AuthService
+	authService  auth.AuthService
+	xmysqlEngine *engine.XMySQLEngine
 
 	// ResultSet 编码器（复用实例，避免重复创建）
-	resultSetEncoder *protocol.MySQLResultSetEncoder
+	resultSetEncoder  *protocol.MySQLResultSetEncoder
+	replicationSource *replication.Source
+	replicaRegistry   *replication.ReplicaRegistry
+}
+
+func recordAuthenticationFailure(user, host string) {
+	metrics.DefaultRuntimeRecorder().RecordAuthenticationFailure(user, host)
+}
+
+func recordAuthenticationSuccess(user, host string) {
+	recorder := metrics.DefaultRuntimeRecorder()
+	recorder.RecordAuthenticationSuccess(user, host)
+	recorder.RecordConnection(user, host)
 }
 
 // NewDecoupledMySQLMessageHandler 创建解耦的MySQL消息处理器
@@ -103,11 +120,19 @@ func NewDecoupledMySQLMessageHandlerWithEngine(cfg *conf.Cfg, xmysqlEngine *engi
 		businessHandler:    dispatcher.NewEnhancedBusinessMessageHandler(cfg, xmysqlEngine),
 		handshakeGenerator: protocol.NewHandshakeGenerator(),
 		authService:        authService,
+		xmysqlEngine:       xmysqlEngine,
 		resultSetEncoder:   protocol.NewMySQLResultSetEncoder(), // 初始化 ResultSet 编码器
+		replicationSource:  xmysqlEngine.ReplicationSource(),
+		replicaRegistry:    xmysqlEngine.ReplicaRegistry(),
 	}
 
 	// 注册业务处理器到消息总线
 	handler.registerBusinessHandlers()
+	if xmysqlEngine != nil && xmysqlEngine.QueryExecutor != nil {
+		xmysqlEngine.QueryExecutor.SetSessionKillControl(handler.killSessionByID)
+		xmysqlEngine.QueryExecutor.SetSessionQueryKillControl(handler.killQueryByID)
+		xmysqlEngine.QueryExecutor.SetProcesslistProvider(handler.snapshotSessions)
+	}
 
 	return handler
 }
@@ -133,10 +158,19 @@ func (h *DecoupledMySQLMessageHandler) registerBusinessHandlers() {
 func (h *DecoupledMySQLMessageHandler) OnOpen(session Session) error {
 	// 创建MySQL会话对象
 	mysqlSession := NewMySQLServerSession(session)
+	if mysqlSession != nil && mysqlSession.SessionContext() != nil {
+		// MySQL exposes the transport connection id as CONNECTION_ID() and
+		// uses the same id for COM_PROCESS_KILL/PROCESSLIST lookup.
+		mysqlSession.SessionContext().SetConnectionID(session.ID())
+	}
 
 	h.rwlock.Lock()
 	h.sessionMap[session] = mysqlSession
 	h.rwlock.Unlock()
+	h.recordActiveConnections()
+	if h.replicationSource != nil {
+		session.SetAttribute("replication_source", h.replicationSource)
+	}
 
 	logger.Debugf("新连接建立: %s", session.Stat())
 
@@ -173,6 +207,18 @@ func (h *DecoupledMySQLMessageHandler) sendErrorResponse(session Session, code u
 	errorPacket := protocol.EncodeErrorPacketWithSeq(code, state, message, 1)
 
 	return session.WriteBytes(errorPacket)
+}
+
+// sendGoErrorResponse keeps prepared-statement and text-protocol execution
+// errors on the same MySQL errno/SQLSTATE mapping.  Prepared statements use
+// this path directly for cursor execution failures, so hard-coding 1064 here
+// would make Connector/J observe a different contract from COM_QUERY.
+func (h *DecoupledMySQLMessageHandler) sendGoErrorResponse(session Session, err error) error {
+	sqlErr := protocol.ClassifyGoError(err)
+	if sqlErr == nil {
+		return h.sendErrorResponse(session, common.ER_UNKNOWN_ERROR, common.DefaultMySQLState, "unknown error")
+	}
+	return h.sendErrorResponse(session, sqlErr.Code, sqlErr.State, sqlErr.Message)
 }
 
 // createMySQLPacket 创建带包头的 MySQL 数据包
@@ -264,10 +310,23 @@ func (h *DecoupledMySQLMessageHandler) sendMySQLOKPacket(session Session, affect
 }
 
 func (h *DecoupledMySQLMessageHandler) sendMySQLOKPacketWithStatus(session Session, affectedRows, lastInsertId uint64, seqId byte, statusFlags uint16) error {
+	return h.sendMySQLOKPacketWithStatusAndWarnings(session, affectedRows, lastInsertId, seqId, statusFlags, 0)
+}
+
+func (h *DecoupledMySQLMessageHandler) sendMySQLOKPacketWithStatusAndWarnings(session Session, affectedRows, lastInsertId uint64, seqId byte, statusFlags uint16, warningCount uint16) error {
 	logger.Debugf("发送OK包")
 
-	okData := protocol.EncodeOKPacketWithSeq(affectedRows, lastInsertId, statusFlags, 0, seqId)
+	okData := protocol.EncodeOKPacketWithSeq(affectedRows, lastInsertId, statusFlags, warningCount, seqId)
 	return session.WriteBytes(okData)
+}
+
+func mysqlResponseStatusFlags(session Session, mysqlSession server.MySQLServerSession) uint16 {
+	status := mysqlSessionStatusFlags(mysqlSession)
+	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
+	if more, ok := session.GetAttribute("__more_results__").(bool); ok && more && capabilities&(protocol.CLIENT_MULTI_RESULTS|protocol.CLIENT_PS_MULTI_RESULTS) != 0 {
+		status |= protocol.SERVER_MORE_RESULTS_EXISTS
+	}
+	return status
 }
 
 func mysqlSessionStatusFlags(mysqlSession server.MySQLServerSession) uint16 {
@@ -310,13 +369,56 @@ func sessionAutocommitEnabled(value interface{}) bool {
 	}
 }
 
+func (h *DecoupledMySQLMessageHandler) recordActiveConnections() {
+	if h == nil {
+		return
+	}
+	h.rwlock.RLock()
+	count := len(h.sessionMap)
+	h.rwlock.RUnlock()
+	metrics.DefaultRuntimeRecorder().SetActiveConnections("mysql", count)
+}
+
+func (h *DecoupledMySQLMessageHandler) snapshotSessions() []server.MySQLServerSession {
+	if h == nil {
+		return nil
+	}
+	h.rwlock.RLock()
+	sessions := make([]server.MySQLServerSession, 0, len(h.sessionMap))
+	for _, session := range h.sessionMap {
+		if session != nil {
+			sessions = append(sessions, session)
+		}
+	}
+	h.rwlock.RUnlock()
+	return sessions
+}
+
+// removeSession atomically takes a session out of the handler registry. The
+// close and error callbacks can run concurrently for different connections,
+// so both the lookup and delete must share the same lock.
+func (h *DecoupledMySQLMessageHandler) removeSession(session Session) (server.MySQLServerSession, bool) {
+	h.rwlock.Lock()
+	mysqlSession, ok := h.sessionMap[session]
+	if ok {
+		delete(h.sessionMap, session)
+	}
+	h.rwlock.Unlock()
+	return mysqlSession, ok
+}
+
 // OnClose 连接关闭事件
 func (h *DecoupledMySQLMessageHandler) OnClose(session Session) {
 	logger.Debugf("[OnClose] 连接关闭: SessionID=%s, RemoteAddr=%s", session.Stat(), session.RemoteAddr())
+	h.unregisterReplicaSession(session)
+	mysqlSession, ok := h.removeSession(session)
+	if ok && h.xmysqlEngine != nil {
+		if err := h.xmysqlEngine.CleanupTemporaryTables(mysqlSession); err != nil {
+			logger.Errorf("temporary table cleanup failed on close: %v", err)
+		}
+	}
 
-	h.rwlock.Lock()
-	delete(h.sessionMap, session)
-	h.rwlock.Unlock()
+	h.recordActiveConnections()
 
 	logger.Debugf("[OnClose] 会话已从映射中移除")
 
@@ -328,10 +430,15 @@ func (h *DecoupledMySQLMessageHandler) OnClose(session Session) {
 func (h *DecoupledMySQLMessageHandler) OnError(session Session, err error) {
 	logger.Errorf("[OnError] 会话错误: SessionID=%s, RemoteAddr=%s, Error=%v",
 		session.Stat(), session.RemoteAddr(), err)
+	h.unregisterReplicaSession(session)
+	mysqlSession, ok := h.removeSession(session)
+	if ok && h.xmysqlEngine != nil {
+		if cleanupErr := h.xmysqlEngine.CleanupTemporaryTables(mysqlSession); cleanupErr != nil {
+			logger.Errorf("temporary table cleanup failed on error: %v", cleanupErr)
+		}
+	}
 
-	h.rwlock.Lock()
-	delete(h.sessionMap, session)
-	h.rwlock.Unlock()
+	h.recordActiveConnections()
 
 	logger.Debugf("[OnError] 会话已从映射中移除")
 
@@ -372,7 +479,9 @@ func (h *DecoupledMySQLMessageHandler) OnMessage(session Session, pkg interface{
 	logger.Debug(h.formatLog(session, "OnMessage", cmdName, cmdDetail,
 		fmt.Sprintf("包体数据: %v", recMySQLPkg.Body)))
 
+	h.rwlock.RLock()
 	currentMysqlSession, ok := h.sessionMap[session]
+	h.rwlock.RUnlock()
 	if !ok {
 		logger.Error(h.formatLog(session, "OnMessage", cmdName, cmdDetail, "找不到会话"))
 		return
@@ -389,10 +498,12 @@ func (h *DecoupledMySQLMessageHandler) OnMessage(session Session, pkg interface{
 	if shouldClose := session.GetAttribute("should_close"); shouldClose != nil {
 		if close, ok := shouldClose.(bool); ok && close {
 			logger.Debug(h.formatLog(session, "OnMessage", "COM_QUIT", "quit", "检测到关闭标记，准备关闭会话"))
+			h.unregisterReplicaSession(session)
 			// 清理会话映射
 			h.rwlock.Lock()
 			delete(h.sessionMap, session)
 			h.rwlock.Unlock()
+			h.recordActiveConnections()
 
 			// 关闭会话
 			session.Close()
@@ -425,6 +536,9 @@ func (h *DecoupledMySQLMessageHandler) handlePacket(session Session, currentMysq
 	if authStatus == nil {
 		logger.Debug(h.formatLog(session, "handlePacket", cmdName, cmdDetail, "认证状态为nil，调用handleAuthentication"))
 		return h.handleAuthentication(session, currentMysqlSession, recMySQLPkg)
+	}
+	if pending, ok := session.GetAttribute("auth_switch_pending").(*authSwitchState); ok && pending != nil {
+		return h.handleAuthSwitchResponse(session, currentMysqlSession, recMySQLPkg, pending)
 	}
 
 	logger.Debug(h.formatLog(session, "handlePacket", cmdName, cmdDetail,
@@ -491,6 +605,28 @@ func (h *DecoupledMySQLMessageHandler) handlePacket(session Session, currentMysq
 	// 预编译语句：走与 COM_QUERY 相同的执行器路径
 	if len(recMySQLPkg.Body) >= 1 {
 		switch recMySQLPkg.Body[0] {
+		case common.COM_REFRESH:
+			return h.handleRefresh(session, recMySQLPkg.Body)
+		case common.COM_FIELD_LIST:
+			return h.handleFieldList(session, currentMysqlSession, recMySQLPkg.Body)
+		case common.COM_STATISTICS:
+			return h.handleStatistics(session)
+		case common.COM_PROCESS_INFO:
+			return h.handleProcessInfo(session, currentMysqlSession)
+		case common.COM_PROCESS_KILL:
+			return h.handleProcessKill(session, currentMysqlSession, recMySQLPkg.Body, recMySQLPkg.Header.PacketId+1)
+		case common.COM_CREATE_DB:
+			return h.handleDatabaseCommand(session, currentMysqlSession, recMySQLPkg.Body, true)
+		case common.COM_DROP_DB:
+			return h.handleDatabaseCommand(session, currentMysqlSession, recMySQLPkg.Body, false)
+		case common.COM_SET_OPTION:
+			return h.handleSetOption(session, recMySQLPkg.Body)
+		case common.COM_PING:
+			return session.WriteBytes(h.createOKPacket(0, 0, recMySQLPkg.Header.PacketId+1))
+		case common.COM_CHANGE_USER:
+			return h.handleComChangeUser(session, currentMysqlSession, recMySQLPkg)
+		case common.COM_REGISTER_SLAVE:
+			return h.handleRegisterSlave(session, recMySQLPkg)
 		case common.COM_STMT_PREPARE:
 			return h.handleComStmtPrepare(session, currentMysqlSession, recMySQLPkg)
 		case common.COM_STMT_EXECUTE:
@@ -500,8 +636,15 @@ func (h *DecoupledMySQLMessageHandler) handlePacket(session Session, currentMysq
 		case common.COM_STMT_RESET:
 			return h.handleComStmtReset(session, recMySQLPkg)
 		case common.COM_STMT_SEND_LONG_DATA:
-			return h.handleUnsupportedCommand(session, recMySQLPkg.Body[0])
+			return h.handleComStmtSendLongData(session, recMySQLPkg)
+		case common.COM_STMT_FETCH:
+			return h.handleComStmtFetch(session, recMySQLPkg)
+		case common.COM_RESET_CONNECTION:
+			return h.handleComResetConnection(session, currentMysqlSession, recMySQLPkg)
 		}
+	}
+	if firstByte == common.COM_BINLOG_DUMP || firstByte == common.COM_BINLOG_DUMP_GTID {
+		return dumpBinlogEvents(session, recMySQLPkg.Body)
 	}
 
 	if !h.protocolParser.CanParse(firstByte) {
@@ -522,6 +665,344 @@ func (h *DecoupledMySQLMessageHandler) handlePacket(session Session, currentMysq
 
 	// 直接处理业务消息（同步处理避免会话关闭问题）
 	return h.handleBusinessMessageSync(session, message)
+}
+
+// handleRefresh acknowledges COM_REFRESH. The current server does not expose
+// MySQL's legacy query-cache/table-cache refresh knobs; metadata and privilege
+// state are already refreshed through their authoritative engine paths, so a
+// valid command is a protocol-level no-op rather than an unsupported error.
+func (h *DecoupledMySQLMessageHandler) handleRefresh(session Session, body []byte) error {
+	if len(body) < 2 {
+		return h.sendErrorResponse(session, 1105, "42000", "Invalid COM_REFRESH packet")
+	}
+	return session.WriteBytes(protocol.EncodeOKPacketWithSeq(0, 0, protocol.SERVER_STATUS_AUTOCOMMIT, 0, 1))
+}
+
+// handleStatistics implements the text response expected by COM_STATISTICS.
+// The command is intentionally a lightweight server-level snapshot; detailed
+// counters remain exposed through the metrics endpoint.
+func (h *DecoupledMySQLMessageHandler) handleStatistics(session Session) error {
+	stats := "Uptime: 0  Threads: 1  Questions: 0  Slow queries: 0  Opens: 0  Flush tables: 0  Open tables: 0  Queries per second avg: 0.000"
+	return session.WriteBytes(h.createMySQLPacket([]byte(stats), 1))
+}
+
+// handleProcessInfo implements COM_PROCESS_INFO by routing through the same
+// privilege-aware SHOW PROCESSLIST path used by SQL clients.
+func (h *DecoupledMySQLMessageHandler) handleProcessInfo(session Session, currentMysqlSession *server.MySQLServerSession) error {
+	if h.businessHandler == nil || currentMysqlSession == nil {
+		return h.sendErrorResponse(session, 1105, "42000", "COM_PROCESS_INFO is unavailable")
+	}
+	database := ""
+	if value, ok := (*currentMysqlSession).GetParamByName("database").(string); ok {
+		database = strings.TrimSpace(value)
+	}
+	var response protocol.Message
+	var err error
+	if enhanced, ok := h.businessHandler.(*dispatcher.EnhancedBusinessMessageHandler); ok {
+		response, err = enhanced.HandleQueryWithRealSession(*currentMysqlSession, "SHOW PROCESSLIST", database)
+	} else {
+		response, err = h.businessHandler.HandleMessage(&protocol.QueryMessage{
+			BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_REQUEST, session.Stat(), "SHOW PROCESSLIST"),
+			SQL:         "SHOW PROCESSLIST",
+			Database:    database,
+		})
+	}
+	if err != nil {
+		return h.sendErrorResponse(session, 1105, "42000", err.Error())
+	}
+	if errorResponse, ok := response.(*protocol.ErrorMessage); ok {
+		return h.sendErrorResponse(session, errorResponse.Code, errorResponse.State, errorResponse.Message)
+	}
+	queryResponse, ok := response.(*protocol.ResponseMessage)
+	if !ok || queryResponse.Result == nil {
+		return h.sendErrorResponse(session, 1105, "42000", "COM_PROCESS_INFO returned no result")
+	}
+	return h.sendQueryResultSet(session, queryResponse.Result, 1)
+}
+
+// handleProcessKill implements COM_PROCESS_KILL. A session may terminate its
+// own thread or another thread owned by the same account. Killing another
+// account requires the global PROCESS or SUPER privilege, matching the
+// administrative boundary used by the SQL process-list path.
+func (h *DecoupledMySQLMessageHandler) handleProcessKill(session Session, currentMysqlSession *server.MySQLServerSession, body []byte, sequence byte) error {
+	if len(body) != 5 {
+		return h.sendErrorResponse(session, 1105, "42000", "Invalid COM_PROCESS_KILL packet")
+	}
+	if currentMysqlSession == nil || *currentMysqlSession == nil {
+		return h.sendErrorResponse(session, 1095, "HY000", "You are not owner of this thread")
+	}
+
+	targetID := binary.LittleEndian.Uint32(body[1:5])
+	if err := h.killSessionByID(targetID, valueOrNilMySQLSession(currentMysqlSession)); err != nil {
+		code := uint16(1095)
+		if strings.HasPrefix(err.Error(), "Unknown thread id:") {
+			code = 1094
+		}
+		return h.sendErrorResponse(session, code, "HY000", err.Error())
+	}
+	return session.WriteBytes(h.createOKPacket(0, 0, sequence))
+}
+
+func valueOrNilMySQLSession(currentMysqlSession *server.MySQLServerSession) server.MySQLServerSession {
+	if currentMysqlSession == nil {
+		return nil
+	}
+	return *currentMysqlSession
+}
+
+func (h *DecoupledMySQLMessageHandler) killSessionByID(targetID uint32, currentMysqlSession server.MySQLServerSession) error {
+	if currentMysqlSession == nil {
+		return fmt.Errorf("You are not owner of thread %d", targetID)
+	}
+	targetSession, targetMysqlSession := h.findSessionByID(targetID)
+	if targetSession == nil || targetMysqlSession == nil {
+		return fmt.Errorf("Unknown thread id: %d", targetID)
+	}
+	if err := h.authorizeSessionAction(targetID, currentMysqlSession, targetMysqlSession); err != nil {
+		return err
+	}
+
+	// Close outside the registry read lock. The network callback may re-enter
+	// OnClose and remove the same session from sessionMap.
+	targetSession.Close()
+	return nil
+}
+
+func (h *DecoupledMySQLMessageHandler) killQueryByID(targetID uint32, currentMysqlSession server.MySQLServerSession) error {
+	if currentMysqlSession == nil {
+		return fmt.Errorf("You are not owner of thread %d", targetID)
+	}
+	_, targetMysqlSession := h.findSessionByID(targetID)
+	if targetMysqlSession == nil {
+		return fmt.Errorf("Unknown thread id: %d", targetID)
+	}
+	if err := h.authorizeSessionAction(targetID, currentMysqlSession, targetMysqlSession); err != nil {
+		return err
+	}
+	if h.xmysqlEngine == nil || h.xmysqlEngine.QueryExecutor == nil {
+		return fmt.Errorf("session query kill control is not configured")
+	}
+	return h.xmysqlEngine.QueryExecutor.CancelActiveQuery(targetID)
+}
+
+func (h *DecoupledMySQLMessageHandler) findSessionByID(targetID uint32) (Session, server.MySQLServerSession) {
+	var targetSession Session
+	var targetMysqlSession server.MySQLServerSession
+	h.rwlock.RLock()
+	for candidate, candidateMysqlSession := range h.sessionMap {
+		if candidateMysqlSession == nil || candidateMysqlSession.SessionContext() == nil {
+			continue
+		}
+		if candidateMysqlSession.SessionContext().GetConnectionID() == targetID {
+			targetSession = candidate
+			targetMysqlSession = candidateMysqlSession
+			break
+		}
+	}
+	h.rwlock.RUnlock()
+	return targetSession, targetMysqlSession
+}
+
+func (h *DecoupledMySQLMessageHandler) authorizeSessionAction(targetID uint32, currentMysqlSession, targetMysqlSession server.MySQLServerSession) error {
+	currentUser, _ := currentMysqlSession.GetParamByName("user").(string)
+	targetUser, _ := targetMysqlSession.GetParamByName("user").(string)
+	currentID := uint32(0)
+	if currentMysqlSession.SessionContext() != nil {
+		currentID = currentMysqlSession.SessionContext().GetConnectionID()
+	}
+	isOwner := targetID == currentID || (currentUser != "" && strings.EqualFold(currentUser, targetUser))
+	if !isOwner {
+		host, _ := currentMysqlSession.GetParamByName("host").(string)
+		processErr := error(nil)
+		if h.authService == nil || currentUser == "" {
+			processErr = fmt.Errorf("process privilege unavailable")
+		} else {
+			processErr = h.authService.CheckPrivilege(context.Background(), currentUser, host, "", "", common.ProcessPriv)
+			if processErr != nil {
+				processErr = h.authService.CheckPrivilege(context.Background(), currentUser, host, "", "", common.SuperPriv)
+			}
+		}
+		if processErr != nil {
+			return fmt.Errorf("You are not owner of thread %d", targetID)
+		}
+	}
+	return nil
+}
+
+func (h *DecoupledMySQLMessageHandler) handleDatabaseCommand(session Session, currentMysqlSession *server.MySQLServerSession, body []byte, create bool) error {
+	if len(body) < 2 || currentMysqlSession == nil || h.businessHandler == nil {
+		return h.sendErrorResponse(session, 1105, "42000", "database command is unavailable")
+	}
+	databaseName := strings.Trim(strings.TrimSpace(string(body[1:])), "`\x00")
+	if databaseName == "" || strings.ContainsAny(databaseName, " \t\r\n;'") {
+		return h.sendErrorResponse(session, 1105, "42000", "invalid database name")
+	}
+	action := "DROP"
+	if create {
+		action = "CREATE"
+	}
+	query := fmt.Sprintf("%s DATABASE `%s`", action, strings.ReplaceAll(databaseName, "`", "``"))
+	var response protocol.Message
+	var err error
+	if enhanced, ok := h.businessHandler.(*dispatcher.EnhancedBusinessMessageHandler); ok {
+		response, err = enhanced.HandleQueryWithRealSession(*currentMysqlSession, query, databaseName)
+	} else {
+		response, err = h.businessHandler.HandleMessage(&protocol.QueryMessage{
+			BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_REQUEST, session.Stat(), query),
+			SQL:         query,
+			Database:    databaseName,
+		})
+	}
+	if err != nil {
+		return h.sendErrorResponse(session, 1105, "42000", err.Error())
+	}
+	if errorResponse, ok := response.(*protocol.ErrorMessage); ok {
+		return h.sendErrorResponse(session, errorResponse.Code, errorResponse.State, errorResponse.Message)
+	}
+	queryResponse, ok := response.(*protocol.ResponseMessage)
+	if !ok || queryResponse.Result == nil {
+		return h.sendErrorResponse(session, 1105, "42000", "database command returned no result")
+	}
+	statusFlags := uint16(protocol.SERVER_STATUS_AUTOCOMMIT)
+	if currentMysqlSession != nil {
+		statusFlags = mysqlResponseStatusFlags(session, *currentMysqlSession)
+	}
+	return h.sendMySQLOKPacketWithStatus(session, queryResponse.Result.AffectedRows, queryResponse.Result.LastInsertID, 1, statusFlags)
+}
+
+func (h *DecoupledMySQLMessageHandler) handleSetOption(session Session, body []byte) error {
+	if len(body) < 3 {
+		return h.sendErrorResponse(session, 1105, "42000", "Invalid COM_SET_OPTION packet")
+	}
+	option := uint16(body[1]) | uint16(body[2])<<8
+	switch option {
+	case 0: // MYSQL_OPTION_MULTI_STATEMENTS_ON
+		session.SetAttribute("client_multi_statements", true)
+	case 1: // MYSQL_OPTION_MULTI_STATEMENTS_OFF
+		session.SetAttribute("client_multi_statements", false)
+	default:
+		return h.sendErrorResponse(session, 1105, "42000", fmt.Sprintf("unsupported COM_SET_OPTION value %d", option))
+	}
+	return session.WriteBytes(protocol.EncodeOKPacketWithSeq(0, 0, protocol.SERVER_STATUS_AUTOCOMMIT, 0, 1))
+}
+
+// handleFieldList implements COM_FIELD_LIST using the engine's authoritative
+// SHOW FULL COLUMNS metadata path. COM_FIELD_LIST is not a result set: MySQL
+// expects one ColumnDefinition packet per table column followed by EOF, with
+// no leading column-count packet.
+func (h *DecoupledMySQLMessageHandler) handleFieldList(session Session, currentMysqlSession *server.MySQLServerSession, body []byte) error {
+	if len(body) < 2 {
+		return h.sendErrorResponse(session, 1105, "42000", "Invalid COM_FIELD_LIST packet")
+	}
+	table, wildcard := parseFieldListRequest(body[1:])
+	if table == "" {
+		return h.sendErrorResponse(session, 1105, "42000", "COM_FIELD_LIST requires a table name")
+	}
+	database := ""
+	if currentMysqlSession != nil {
+		if value, ok := (*currentMysqlSession).GetParamByName("database").(string); ok {
+			database = strings.TrimSpace(value)
+		}
+	}
+	query := fieldListMetadataQuery(table, database, wildcard)
+	if h.businessHandler == nil {
+		return h.sendErrorResponse(session, 1105, "42000", "COM_FIELD_LIST is unavailable")
+	}
+
+	var response protocol.Message
+	var err error
+	if enhanced, ok := h.businessHandler.(*dispatcher.EnhancedBusinessMessageHandler); ok && currentMysqlSession != nil {
+		response, err = enhanced.HandleQueryWithRealSession(*currentMysqlSession, query, database)
+	} else {
+		response, err = h.businessHandler.HandleMessage(&protocol.QueryMessage{
+			BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_REQUEST, session.Stat(), query),
+			SQL:         query,
+			Database:    database,
+		})
+	}
+	if err != nil {
+		return h.sendErrorResponse(session, 1105, "42000", err.Error())
+	}
+	if errorResponse, ok := response.(*protocol.ErrorMessage); ok {
+		return h.sendErrorResponse(session, errorResponse.Code, errorResponse.State, errorResponse.Message)
+	}
+	queryResponse, ok := response.(*protocol.ResponseMessage)
+	if !ok || queryResponse.Result == nil {
+		return h.sendErrorResponse(session, 1105, "42000", "COM_FIELD_LIST metadata query returned no result")
+	}
+
+	encoder := h.resultSetEncoder
+	if encoder == nil {
+		encoder = protocol.NewMySQLResultSetEncoder()
+	}
+	sequenceID := byte(1)
+	for _, row := range queryResponse.Result.Rows {
+		if len(row) < 2 || strings.TrimSpace(fmt.Sprint(row[0])) == "" {
+			continue
+		}
+		definition := fieldListColumnDefinition(encoder, table, row)
+		if err := session.WriteBytes(encoder.EncodeColumnDefinitionPacket(definition, sequenceID)); err != nil {
+			return err
+		}
+		sequenceID++
+	}
+	statusFlags := uint16(protocol.SERVER_STATUS_AUTOCOMMIT)
+	if currentMysqlSession != nil {
+		statusFlags = mysqlResponseStatusFlags(session, *currentMysqlSession)
+	}
+	return session.WriteBytes(protocol.EncodeEOFPacketWithSeq(0, statusFlags, sequenceID))
+}
+
+func parseFieldListRequest(payload []byte) (table, wildcard string) {
+	parts := strings.SplitN(string(payload), "\x00", 2)
+	table = strings.Trim(strings.TrimSpace(parts[0]), "`")
+	if len(parts) == 2 {
+		wildcard = strings.Trim(strings.TrimSpace(parts[1]), "\x00")
+	}
+	return table, wildcard
+}
+
+func fieldListMetadataQuery(table, database, wildcard string) string {
+	parts := strings.Split(table, ".")
+	for index := range parts {
+		parts[index] = strings.Trim(strings.TrimSpace(parts[index]), "`")
+	}
+	var query string
+	if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
+		query = fmt.Sprintf("SHOW FULL COLUMNS FROM `%s` FROM `%s`", parts[1], parts[0])
+	} else {
+		query = fmt.Sprintf("SHOW FULL COLUMNS FROM `%s`", table)
+	}
+	if wildcard != "" {
+		query += " LIKE '" + strings.ReplaceAll(wildcard, "'", "''") + "'"
+	}
+	return query
+}
+
+func fieldListColumnDefinition(encoder *protocol.MySQLResultSetEncoder, table string, row []interface{}) *protocol.ColumnDefinition {
+	name := strings.Trim(strings.TrimSpace(fmt.Sprint(row[0])), "`")
+	typeName := fmt.Sprint(row[1])
+	definition := createColumnDefinitionForType(encoder, name, typeName)
+	definition.Table = table
+	definition.OrgTable = table
+	definition.OrgName = name
+	if len(row) > 3 && strings.EqualFold(strings.TrimSpace(fmt.Sprint(row[3])), "NO") {
+		definition.Flags |= protocol.FLAG_NOT_NULL
+	}
+	if len(row) > 4 {
+		switch strings.ToUpper(strings.TrimSpace(fmt.Sprint(row[4]))) {
+		case "PRI":
+			definition.Flags |= protocol.FLAG_PRI_KEY
+		case "UNI":
+			definition.Flags |= protocol.FLAG_UNIQUE_KEY
+		case "MUL":
+			definition.Flags |= protocol.FLAG_MULTIPLE_KEY
+		}
+	}
+	if len(row) > 6 && strings.Contains(strings.ToLower(fmt.Sprint(row[6])), "auto_increment") {
+		definition.Flags |= protocol.FLAG_AUTO_INCREMENT
+	}
+	return definition
 }
 
 func (h *DecoupledMySQLMessageHandler) handleUnsupportedCommand(session Session, cmd byte) error {
@@ -583,7 +1064,7 @@ func (h *DecoupledMySQLMessageHandler) handleBusinessMessageSync(session Session
 }
 
 // handleQueryMessageDirect 直接处理查询消息。传入 currentMysqlSession 以保证 USE/COM_INIT_DB 等能更新同一会话的 currentDB。
-func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session, currentMysqlSession *server.MySQLServerSession, message protocol.Message) error {
+func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session, currentMysqlSession *server.MySQLServerSession, message protocol.Message) (err error) {
 	logger.Debugf("[handleQueryMessageDirect] 开始处理查询消息")
 
 	if session.IsClosed() {
@@ -594,11 +1075,48 @@ func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session,
 	if !ok {
 		return h.sendErrorResponse(session, 1064, "42000", "Invalid query message")
 	}
+	statements := splitTopLevelStatements(queryMsg.SQL)
+	if len(statements) > 1 {
+		if !multiStatementsEnabled(session) {
+			session.SetAttribute("__more_results__", false)
+			return h.sendErrorResponse(session, 1064, "42000", "multiple statements are disabled")
+		}
+		for index, statement := range statements {
+			session.SetAttribute("__more_results__", index < len(statements)-1)
+			next := &protocol.QueryMessage{BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_REQUEST, message.SessionID(), statement), SQL: statement, Database: queryMsg.Database}
+			if err := h.handleQueryMessageDirect(session, currentMysqlSession, next); err != nil {
+				session.SetAttribute("__more_results__", false)
+				return err
+			}
+		}
+		session.SetAttribute("__more_results__", false)
+		return nil
+	}
 
 	query := queryMsg.SQL
 	logger.Debugf("[handleQueryMessageDirect] SQL: %s", query)
-	session.SetAttribute("__result_sent__", false)
-
+	startedAt := time.Now()
+	statementType := runtimeStatementType(query)
+	database := ""
+	defer func() {
+		status := "ok"
+		if err != nil {
+			status = "error"
+		}
+		latency := time.Since(startedAt)
+		recorder := metrics.DefaultRuntimeRecorder()
+		recorder.RecordStatementWithThreadID(0, database, query, statementType, status, latency)
+		recorder.RecordQuery(database, statementType, status, latency)
+		if err != nil {
+			recorder.RecordQueryError(database, "execution", "1064")
+		}
+		switch statementType {
+		case "COMMIT":
+			recorder.RecordTransactionCommit("session")
+		case "ROLLBACK":
+			recorder.RecordTransactionRollback("session", "client")
+		}
+	}()
 	if currentMysqlSession == nil {
 		h.rwlock.RLock()
 		ms, exists := h.sessionMap[session]
@@ -610,7 +1128,6 @@ func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session,
 	}
 
 	// 从真实 session 取当前 database，供引擎和 USE 语句更新同一会话
-	database := ""
 	if p := (*currentMysqlSession).GetParamByName("database"); p != nil {
 		if s, ok := p.(string); ok {
 			database = s
@@ -619,11 +1136,10 @@ func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session,
 	logger.Debugf("[handleQueryMessageDirect] 当前 session database: %q", database)
 
 	if h.businessHandler == nil {
-		return h.sendMySQLOKPacketWithStatus(session, 0, 0, 1, mysqlSessionStatusFlags(*currentMysqlSession))
+		return h.sendMySQLOKPacketWithStatus(session, 0, 0, 1, mysqlResponseStatusFlags(session, *currentMysqlSession))
 	}
 
 	var response protocol.Message
-	var err error
 	// 优先使用真实 session 执行，这样 USE 等语句会更新 session.currentDB
 	if enh, ok := h.businessHandler.(*dispatcher.EnhancedBusinessMessageHandler); ok {
 		response, err = enh.HandleQueryWithRealSession(*currentMysqlSession, query, database)
@@ -635,7 +1151,13 @@ func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session,
 	}
 
 	if response == nil {
-		return h.sendMySQLOKPacketWithStatus(session, 0, 0, 1, mysqlSessionStatusFlags(*currentMysqlSession))
+		return h.sendMySQLOKPacketWithStatus(session, 0, 0, 1, mysqlResponseStatusFlags(session, *currentMysqlSession))
+	}
+	// COMMIT/ROLLBACK RELEASE is completed by the engine first. Propagate its
+	// close-after-response marker to the transport so the client receives the
+	// OK packet before the connection is torn down.
+	if shouldClose, ok := (*currentMysqlSession).GetParamByName("should_close").(bool); ok && shouldClose {
+		session.SetAttribute("should_close", true)
 	}
 
 	switch resp := response.(type) {
@@ -643,20 +1165,43 @@ func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session,
 		if resp.Result != nil {
 			typeStr := strings.ToLower(resp.Result.Type)
 			if typeStr == "set" || typeStr == "ddl" || len(resp.Result.Columns) == 0 && len(resp.Result.Rows) == 0 {
-				return h.sendMySQLOKPacketWithStatus(session, resp.Result.AffectedRows, resp.Result.LastInsertID, 1, mysqlSessionStatusFlags(*currentMysqlSession))
+				return h.sendMySQLOKPacketWithStatusAndWarnings(session, resp.Result.AffectedRows, resp.Result.LastInsertID, 1, mysqlResponseStatusFlags(session, *currentMysqlSession), resp.Result.WarningCount)
 			}
 			return h.sendQueryResultSet(session, resp.Result, 1)
 		}
-		return h.sendMySQLOKPacketWithStatus(session, 0, 0, 1, mysqlSessionStatusFlags(*currentMysqlSession))
+		return h.sendMySQLOKPacketWithStatus(session, 0, 0, 1, mysqlResponseStatusFlags(session, *currentMysqlSession))
 	case *protocol.ErrorMessage:
 		return h.sendErrorResponse(session, resp.Code, resp.State, resp.Message)
 	default:
-		return h.sendMySQLOKPacketWithStatus(session, 0, 0, 1, mysqlSessionStatusFlags(*currentMysqlSession))
+		return h.sendMySQLOKPacketWithStatus(session, 0, 0, 1, mysqlResponseStatusFlags(session, *currentMysqlSession))
 	}
+}
+
+func runtimeStatementType(query string) string {
+	fields := strings.Fields(strings.TrimSpace(query))
+	if len(fields) == 0 {
+		return "UNKNOWN"
+	}
+	return strings.ToUpper(strings.Trim(fields[0], "`"))
+}
+
+// multiStatementsEnabled applies COM_SET_OPTION as an explicit per-session
+// override and otherwise falls back to the capability negotiated at handshake.
+// MySQL clients must advertise CLIENT_MULTI_STATEMENTS before COM_QUERY may
+// contain more than one top-level statement.
+func multiStatementsEnabled(session Session) bool {
+	if enabled, ok := session.GetAttribute("client_multi_statements").(bool); ok {
+		return enabled
+	}
+	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
+	return capabilities&protocol.CLIENT_MULTI_STATEMENTS != 0
 }
 
 // handleAuthentication 处理认证
 func (h *DecoupledMySQLMessageHandler) handleAuthentication(session Session, currentMysqlSession *server.MySQLServerSession, recMySQLPkg *MySQLPackage) error {
+	if pending, ok := session.GetAttribute("auth_switch_pending").(*authSwitchState); ok && pending != nil {
+		return h.handleAuthSwitchResponse(session, currentMysqlSession, recMySQLPkg, pending)
+	}
 	logger.Debugf("处理认证包，包长度: %d, 包序号: %d, Body长度: %d",
 		len(recMySQLPkg.Header.PacketLength), recMySQLPkg.Header.PacketId, len(recMySQLPkg.Body))
 
@@ -684,6 +1229,9 @@ func (h *DecoupledMySQLMessageHandler) handleAuthentication(session Session, cur
 
 	// 保存客户端能力标志到会话，后续根据 CLIENT_DEPRECATE_EOF 动态选择 EOF/OK
 	session.SetAttribute("client_capabilities", clientFlags)
+	if currentMysqlSession != nil && *currentMysqlSession != nil {
+		(*currentMysqlSession).SetParamByName("client_capabilities", clientFlags)
+	}
 
 	// 读取最大包大小 (4字节)
 	if offset+4 > len(payload) {
@@ -750,6 +1298,37 @@ func (h *DecoupledMySQLMessageHandler) handleAuthentication(session Session, cur
 		logger.Debugf("没有数据库名信息")
 	}
 
+	// The connection-attributes block follows the optional database and
+	// authentication-plugin fields. Keep the parsed map on the server session
+	// so Performance Schema consumers can observe the same handshake data that
+	// MySQL exposes through session_connect_attrs.
+	if clientFlags&protocol.CLIENT_CONNECT_ATTRS != 0 {
+		attributesOffset := offset
+		if attributesOffset < len(payload) {
+			for attributesOffset < len(payload) && payload[attributesOffset] != 0 {
+				attributesOffset++
+			}
+			if attributesOffset < len(payload) {
+				attributesOffset++
+			}
+			if clientFlags&protocol.CLIENT_PLUGIN_AUTH != 0 {
+				for attributesOffset < len(payload) && payload[attributesOffset] != 0 {
+					attributesOffset++
+				}
+				if attributesOffset < len(payload) {
+					attributesOffset++
+				}
+			}
+			if attributes, _, attributesErr := protocol.ParseConnectionAttributes(payload[attributesOffset:]); attributesErr == nil && attributes != nil {
+				attributeMap := attributes.GetAll()
+				session.SetAttribute("connection_attributes", attributeMap)
+				if currentMysqlSession != nil && *currentMysqlSession != nil {
+					(*currentMysqlSession).SetParamByName("connection_attributes", attributeMap)
+				}
+			}
+		}
+	}
+
 	// 验证用户名
 	if username == "" {
 		logger.Errorf("用户名为空")
@@ -780,6 +1359,24 @@ func (h *DecoupledMySQLMessageHandler) handleAuthentication(session Session, cur
 	if database == "" {
 		database = "mysql" // 默认数据库
 	}
+	if err := h.enforceAccountTLS(ctx, session, username, host); err != nil {
+		logger.Errorf("认证失败: %v", err)
+		recordAuthenticationFailure(username, host)
+		return h.sendErrorResponse(session, 1045, "28000", err.Error())
+	}
+
+	// The initial handshake advertises mysql_native_password for compatibility
+	// with existing users. If the selected account uses caching_sha2_password,
+	// switch the client to that plugin before validating its response. This is
+	// the normal MySQL AuthSwitchRequest flow and avoids treating a native
+	// 20-byte response as a caching_sha2 response.
+	if userInfo, lookupErr := h.authService.GetUserInfo(ctx, username, host); lookupErr == nil {
+		if plugin := authSwitchPlugin(userInfo); plugin != "" && (plugin == "sha256_password" || len(authResponse) != 32) {
+			state := &authSwitchState{Username: username, Database: database, Host: host, Challenge: append([]byte(nil), challenge...), ResponseSequence: recMySQLPkg.Header.PacketId + 1}
+			session.SetAttribute("auth_switch_pending", state)
+			return session.WriteBytes(encodeAuthSwitchRequest(plugin, challenge, recMySQLPkg.Header.PacketId+1))
+		}
+	}
 
 	// 将authResponse转换为十六进制字符串（模拟客户端发送的密码）
 	// 注意：这里需要特殊处理，因为authResponse是加密后的数据
@@ -787,47 +1384,137 @@ func (h *DecoupledMySQLMessageHandler) handleAuthentication(session Session, cur
 	authResult, err := h.authenticateWithChallenge(ctx, username, authResponse, challenge, host, database)
 	if err != nil {
 		logger.Errorf("认证失败: %v", err)
+		recordAuthenticationFailure(username, host)
 		return h.sendErrorResponse(session, 1045, "28000", fmt.Sprintf("Access denied for user '%s'@'%s'", username, host))
 	}
 
 	if !authResult.Success {
 		logger.Errorf("认证失败: %s", authResult.ErrorMessage)
+		recordAuthenticationFailure(username, host)
 		return h.sendErrorResponse(session, authResult.ErrorCode, "28000", authResult.ErrorMessage)
 	}
+	if err := h.applyProxyIdentity(ctx, authResult); err != nil {
+		recordAuthenticationFailure(username, host)
+		return h.sendErrorResponse(session, 1045, "28000", err.Error())
+	}
 
-	// 设置认证成功状态
+	if err := h.completeAuthentication(session, currentMysqlSession, authResult.User, database, authResult.Host, authResult.ActiveRoles, authResult.Privileges, authResult.DynamicPrivileges); err != nil {
+		return err
+	}
+	recordAuthenticationSuccess(authResult.User, authResult.Host)
+	return nil
+}
+
+func (h *DecoupledMySQLMessageHandler) handleAuthSwitchResponse(session Session, currentMysqlSession *server.MySQLServerSession, packet *MySQLPackage, pending *authSwitchState) error {
+	if pending == nil || len(packet.Body) == 0 {
+		if pending != nil {
+			recordAuthenticationFailure(pending.Username, pending.Host)
+		}
+		return h.sendErrorResponse(session, 1045, "28000", "Authentication switch response is empty")
+	}
+	session.SetAttribute("auth_switch_pending", nil)
+	if err := h.enforceAccountTLS(context.Background(), session, pending.Username, pending.Host); err != nil {
+		recordAuthenticationFailure(pending.Username, pending.Host)
+		return h.sendErrorResponse(session, 1045, "28000", err.Error())
+	}
+	if handled, requestErr := h.handleCachingSHA2PublicKeyRequest(session, packet); handled {
+		if requestErr != nil {
+			recordAuthenticationFailure(pending.Username, pending.Host)
+			return h.sendErrorResponse(session, 1045, "28000", requestErr.Error())
+		}
+		return nil
+	}
+	if authResult, handled, fullErr := h.authenticateSHA256PasswordFullAuth(context.Background(), session, pending, packet.Body); handled {
+		if fullErr != nil {
+			recordAuthenticationFailure(pending.Username, pending.Host)
+			return h.sendErrorResponse(session, 1045, "28000", fullErr.Error())
+		}
+		if authResult == nil || !authResult.Success {
+			recordAuthenticationFailure(pending.Username, pending.Host)
+			if authResult == nil {
+				return h.sendErrorResponse(session, 1045, "28000", "sha256_password full authentication failed")
+			}
+			return h.sendErrorResponse(session, authResult.ErrorCode, "28000", authResult.ErrorMessage)
+		}
+		return h.finishAuthSwitch(session, currentMysqlSession, pending, authResult, packet.Header.PacketId+1)
+	}
+	if authResult, handled, fullErr := h.authenticateCachingSHA2FullAuth(context.Background(), session, pending, packet.Body); handled {
+		if fullErr != nil {
+			recordAuthenticationFailure(pending.Username, pending.Host)
+			return h.sendErrorResponse(session, 1045, "28000", fullErr.Error())
+		}
+		if authResult == nil || !authResult.Success {
+			recordAuthenticationFailure(pending.Username, pending.Host)
+			if authResult == nil {
+				return h.sendErrorResponse(session, 1045, "28000", "caching_sha2_password full authentication failed")
+			}
+			return h.sendErrorResponse(session, authResult.ErrorCode, "28000", authResult.ErrorMessage)
+		}
+		return h.finishAuthSwitch(session, currentMysqlSession, pending, authResult, packet.Header.PacketId+1)
+	}
+	authResult, err := h.authenticateWithChallenge(context.Background(), pending.Username, packet.Body, pending.Challenge, pending.Host, pending.Database)
+	if err != nil || authResult == nil || !authResult.Success {
+		recordAuthenticationFailure(pending.Username, pending.Host)
+		if err != nil {
+			return h.sendErrorResponse(session, 1045, "28000", err.Error())
+		}
+		return h.sendErrorResponse(session, authResult.ErrorCode, "28000", authResult.ErrorMessage)
+	}
+	return h.finishAuthSwitch(session, currentMysqlSession, pending, authResult, packet.Header.PacketId+1)
+}
+
+func (h *DecoupledMySQLMessageHandler) finishAuthSwitch(session Session, currentMysqlSession *server.MySQLServerSession, pending *authSwitchState, authResult *auth.AuthResult, sequence byte) error {
+	if pending == nil || authResult == nil || !authResult.Success {
+		if pending != nil {
+			recordAuthenticationFailure(pending.Username, pending.Host)
+		}
+		return h.sendErrorResponse(session, 1045, "28000", "Authentication switch failed")
+	}
+	if pending.ChangeUser {
+		if err := h.resetConnectionState(session, currentMysqlSession); err != nil {
+			recordAuthenticationFailure(pending.Username, pending.Host)
+			return h.sendErrorResponse(session, 1105, "HY000", err.Error())
+		}
+	}
+	if err := h.applyProxyIdentity(context.Background(), authResult); err != nil {
+		recordAuthenticationFailure(pending.Username, pending.Host)
+		return h.sendErrorResponse(session, 1045, "28000", err.Error())
+	}
+	if err := h.completeAuthenticationWithSequence(session, currentMysqlSession, authResult.User, pending.Database, authResult.Host, authResult.ActiveRoles, authResult.Privileges, authResult.DynamicPrivileges, sequence); err != nil {
+		return err
+	}
+	if pending.ChangeUser {
+		applyChangeUserCharset(currentMysqlSession, pending.Charset, pending.Collation)
+	}
+	recordAuthenticationSuccess(authResult.User, authResult.Host)
+	return nil
+}
+
+func (h *DecoupledMySQLMessageHandler) completeAuthentication(session Session, currentMysqlSession *server.MySQLServerSession, username, database, host string, activeRoles []string, privileges []common.PrivilegeType, dynamicPrivileges []string) error {
+	return h.completeAuthenticationWithSequence(session, currentMysqlSession, username, database, host, activeRoles, privileges, dynamicPrivileges, 2)
+}
+
+func (h *DecoupledMySQLMessageHandler) completeAuthenticationWithSequence(session Session, currentMysqlSession *server.MySQLServerSession, username, database, host string, activeRoles []string, privileges []common.PrivilegeType, dynamicPrivileges []string, sequence byte) error {
 	session.SetAttribute("auth_status", "success")
-	(*currentMysqlSession).SetParamByName("user", username)
-	(*currentMysqlSession).SetParamByName("database", database)
-	(*currentMysqlSession).SetParamByName("host", host)
-
-	// 更新会话映射
-	h.rwlock.Lock()
-	h.sessionMap[session] = *currentMysqlSession
-	h.rwlock.Unlock()
-
+	if currentMysqlSession != nil && *currentMysqlSession != nil {
+		(*currentMysqlSession).SetParamByName("user", username)
+		(*currentMysqlSession).SetParamByName("database", database)
+		(*currentMysqlSession).SetParamByName("host", host)
+		(*currentMysqlSession).SetParamByName("remote_addr", session.RemoteAddr())
+		(*currentMysqlSession).SetParamByName("global_privileges", append([]common.PrivilegeType(nil), privileges...))
+		(*currentMysqlSession).SetParamByName("dynamic_privileges", append([]string(nil), dynamicPrivileges...))
+		(*currentMysqlSession).SetParamByName("active_roles", append([]string(nil), activeRoles...))
+		recordTLSConnectionState(session, currentMysqlSession)
+		h.rwlock.Lock()
+		h.sessionMap[session] = *currentMysqlSession
+		h.rwlock.Unlock()
+	}
 	logger.Debugf("认证成功，用户: %s, 数据库: %s", username, database)
-
-	// 发送认证成功响应 (OK包)
-	okData := h.createOKPacket(0, 0, 2)
-
-	logger.Debugf("准备发送认证OK包，包长度: %d, 数据: %v", len(okData), okData)
-
-	err = session.WriteBytes(okData)
-	if err != nil {
+	okData := h.createOKPacket(0, 0, sequence)
+	if err := session.WriteBytes(okData); err != nil {
 		logger.Errorf("发送认证响应失败: %v", err)
 		return err
 	}
-
-	logger.Debugf("认证成功响应发送完成")
-
-	// 检查会话状态
-	if session.IsClosed() {
-		logger.Errorf("警告：认证完成后会话已关闭")
-	} else {
-		logger.Debugf("认证完成后会话仍然活跃")
-	}
-
 	return nil
 }
 
@@ -914,7 +1601,7 @@ func (h *DecoupledMySQLMessageHandler) authenticateWithChallenge(
 
 	if userInfo.Password == "" || userInfo.Password == "*" {
 		if len(authResponse) == 0 {
-			return &auth.AuthResult{Success: true, User: username, Host: host}, nil
+			return &auth.AuthResult{Success: true, User: username, Host: host, ActiveRoles: append([]string(nil), userInfo.DefaultRoles...)}, nil
 		}
 		return denied, nil
 	}
@@ -924,14 +1611,14 @@ func (h *DecoupledMySQLMessageHandler) authenticateWithChallenge(
 
 	if strings.HasPrefix(userInfo.Password, "*") && len(userInfo.Password) == 41 {
 		if nativeV.ValidateNativeHandshakeResponse(authResponse, challenge, userInfo.Password) {
-			return &auth.AuthResult{Success: true, User: username, Host: host}, nil
+			return &auth.AuthResult{Success: true, User: username, Host: host, ActiveRoles: append([]string(nil), userInfo.DefaultRoles...)}, nil
 		}
 		return denied, nil
 	}
 
 	if len(authResponse) == 32 {
 		if sha2V.ValidateCachingSHA2FastAuth(authResponse, challenge, userInfo.Password) {
-			return &auth.AuthResult{Success: true, User: username, Host: host}, nil
+			return &auth.AuthResult{Success: true, User: username, Host: host, ActiveRoles: append([]string(nil), userInfo.DefaultRoles...)}, nil
 		}
 	}
 
@@ -949,16 +1636,31 @@ func (h *DecoupledMySQLMessageHandler) preparedStmtMgrFromSession(session Sessio
 	return v.(*protocol.PreparedStatementManager)
 }
 
-func (h *DecoupledMySQLMessageHandler) handleComStmtPrepare(session Session, _ *server.MySQLServerSession, recMySQLPkg *MySQLPackage) error {
+// bindPreparedStmtMgr exposes the protocol-owned prepared statement inventory
+// to the engine's Performance Schema views without making the network Session
+// implementation part of the engine package contract.
+func bindPreparedStmtMgr(currentMysqlSession *server.MySQLServerSession, mgr *protocol.PreparedStatementManager) {
+	if currentMysqlSession != nil && *currentMysqlSession != nil && mgr != nil {
+		(*currentMysqlSession).SetParamByName("prepared_stmt_mgr", mgr)
+	}
+}
+
+func (h *DecoupledMySQLMessageHandler) handleComStmtPrepare(session Session, currentMysqlSession *server.MySQLServerSession, recMySQLPkg *MySQLPackage) error {
 	if len(recMySQLPkg.Body) < 2 {
 		return h.sendErrorResponse(session, 1064, "42000", "Invalid COM_STMT_PREPARE")
 	}
 	sqlText := string(recMySQLPkg.Body[1:])
 	mgr := h.preparedStmtMgrFromSession(session)
+	bindPreparedStmtMgr(currentMysqlSession, mgr)
 	stmt, err := mgr.Prepare(sqlText)
 	if err != nil {
-		return h.sendErrorResponse(session, 1064, "42000", err.Error())
+		return h.sendGoErrorResponse(session, err)
 	}
+	// Connector/J decides whether it can open a server-side cursor from the
+	// result metadata returned by COM_STMT_PREPARE.  Populate that metadata for
+	// read-only statements up front; otherwise it sends a normal execute and
+	// subsequently decodes our text rows as binary rows.
+	h.populatePreparedResultMetadata(session, currentMysqlSession, stmt)
 	seq := recMySQLPkg.Header.PacketId + 1
 	for _, pkt := range protocol.EncodePrepareResponse(stmt, seq) {
 		if werr := session.WriteBytes(pkt); werr != nil {
@@ -968,6 +1670,46 @@ func (h *DecoupledMySQLMessageHandler) handleComStmtPrepare(session Session, _ *
 	return nil
 }
 
+func (h *DecoupledMySQLMessageHandler) populatePreparedResultMetadata(session Session, currentMysqlSession *server.MySQLServerSession, stmt *protocol.PreparedStatement) {
+	if stmt == nil || !looksLikePreparedResultStatement(stmt.SQL) || h.businessHandler == nil {
+		return
+	}
+	params := make([]interface{}, strings.Count(stmt.SQL, "?"))
+	metadataSQL := protocol.BindPreparedSQL(stmt.SQL, params)
+	result, err := h.executePreparedQueryResult(session, currentMysqlSession, metadataSQL)
+	if err != nil || result == nil || len(result.Columns) == 0 {
+		return
+	}
+	definitions := h.resultColumnDefinitions(result)
+	stmt.ColumnCount = uint16(len(definitions))
+	stmt.Columns = make([]*protocol.ColumnMetadata, 0, len(definitions))
+	for _, definition := range definitions {
+		stmt.Columns = append(stmt.Columns, &protocol.ColumnMetadata{
+			Catalog:  definition.Catalog,
+			Database: definition.Schema,
+			Table:    definition.Table,
+			OrgTable: definition.OrgTable,
+			Name:     definition.Name,
+			OrgName:  definition.OrgName,
+			Charset:  definition.CharacterSet,
+			Length:   definition.ColumnLength,
+			Type:     definition.ColumnType,
+			Flags:    definition.Flags,
+			Decimals: definition.Decimals,
+		})
+	}
+}
+
+func looksLikePreparedResultStatement(sqlText string) bool {
+	trimmed := strings.TrimSpace(strings.ToLower(sqlText))
+	for _, prefix := range []string{"select", "with", "show", "describe", "desc", "explain"} {
+		if strings.HasPrefix(trimmed, prefix+" ") || trimmed == prefix {
+			return true
+		}
+	}
+	return false
+}
+
 func (h *DecoupledMySQLMessageHandler) handleComStmtExecute(session Session, currentMysqlSession *server.MySQLServerSession, recMySQLPkg *MySQLPackage) error {
 	body := recMySQLPkg.Body
 	if len(body) < 10 {
@@ -975,21 +1717,363 @@ func (h *DecoupledMySQLMessageHandler) handleComStmtExecute(session Session, cur
 	}
 	stmtID := binary.LittleEndian.Uint32(body[1:5])
 	mgr := h.preparedStmtMgrFromSession(session)
+	bindPreparedStmtMgr(currentMysqlSession, mgr)
 	stmt, err := mgr.Get(stmtID)
 	if err != nil {
 		return h.sendErrorResponse(session, common.ErrUnknownStmtHandler, "HY000", err.Error())
+	}
+	if body[5]&0x01 != 0 {
+		open, cursorErr := mgr.HasOpenCursor(stmtID)
+		if cursorErr != nil {
+			return h.sendErrorResponse(session, common.ErrUnknownStmtHandler, "HY000", cursorErr.Error())
+		}
+		if open {
+			return h.sendErrorResponse(session, common.ErrExecStmtWithOpenCursor, common.MySQLState[common.ErrExecStmtWithOpenCursor], "")
+		}
 	}
 	params, typeBlock, perr := protocol.ParseBinaryStmtExecuteParams(body[10:], stmt.ParamCount, stmt.LastParamTypes)
 	if perr != nil {
 		return h.sendErrorResponse(session, 1210, "HY000", perr.Error())
 	}
+	longData, lerr := mgr.ConsumeLongData(stmtID)
+	if lerr != nil {
+		return h.sendErrorResponse(session, common.ErrUnknownStmtHandler, "HY000", lerr.Error())
+	}
+	for paramID, value := range longData {
+		if int(paramID) < len(params) {
+			params[paramID] = value
+		}
+	}
 	stmt.LastParamTypes = typeBlock
 	boundSQL := protocol.BindPreparedSQL(stmt.SQL, params)
-	queryMsg := &protocol.QueryMessage{
-		BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_REQUEST, session.Stat(), boundSQL),
-		SQL:         boundSQL,
+	if body[5]&0x01 != 0 {
+		result, err := h.executePreparedQueryResult(session, currentMysqlSession, boundSQL)
+		if err != nil {
+			return h.sendGoErrorResponse(session, err)
+		}
+		if result == nil || !strings.EqualFold(result.Type, "select") {
+			return h.sendErrorResponse(session, common.ErrNotSupportedYet, "0A000", "server-side cursors require a result set")
+		}
+		if err := mgr.SetCursorResult(stmtID, result); err != nil {
+			if open, _ := mgr.HasOpenCursor(stmtID); open {
+				return h.sendErrorResponse(session, common.ErrExecStmtWithOpenCursor, common.MySQLState[common.ErrExecStmtWithOpenCursor], "")
+			}
+			return h.sendErrorResponse(session, common.ErrUnknownStmtHandler, "HY000", err.Error())
+		}
+		// A cursor execute returns column metadata and keeps the rows on the
+		// server.  Returning a standalone OK packet here makes Connector/J
+		// treat the cursor as an ordinary update and causes the subsequent
+		// COM_STMT_FETCH response to be decoded with the wrong protocol.
+		return h.sendCursorMetadata(session, result, recMySQLPkg.Header.PacketId+1)
 	}
-	return h.handleQueryMessageDirect(session, currentMysqlSession, queryMsg)
+	result, err := h.executePreparedQueryResult(session, currentMysqlSession, boundSQL)
+	if err != nil {
+		return h.sendGoErrorResponse(session, err)
+	}
+	if result == nil || (len(result.Columns) == 0 && len(result.Rows) == 0) {
+		var affectedRows, lastInsertID uint64
+		if result != nil {
+			affectedRows = result.AffectedRows
+			lastInsertID = result.LastInsertID
+		}
+		return h.sendMySQLOKPacketWithStatus(session, affectedRows, lastInsertID, recMySQLPkg.Header.PacketId+1, mysqlResponseStatusFlags(session, *currentMysqlSession))
+	}
+	return h.sendBinaryPreparedResultSet(session, result, recMySQLPkg.Header.PacketId+1)
+}
+
+func (h *DecoupledMySQLMessageHandler) executePreparedQueryResult(session Session, currentMysqlSession *server.MySQLServerSession, query string) (*protocol.MessageQueryResult, error) {
+	if h.businessHandler == nil {
+		return nil, fmt.Errorf("business handler is not initialized")
+	}
+	database := ""
+	if currentMysqlSession != nil && *currentMysqlSession != nil {
+		if value, ok := (*currentMysqlSession).GetParamByName("database").(string); ok {
+			database = value
+		}
+	}
+	message := &protocol.QueryMessage{BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_REQUEST, session.Stat(), query), SQL: query, Database: database}
+	var response protocol.Message
+	var err error
+	if enh, ok := h.businessHandler.(*dispatcher.EnhancedBusinessMessageHandler); ok && currentMysqlSession != nil {
+		response, err = enh.HandleQueryWithRealSession(*currentMysqlSession, query, database)
+	} else {
+		response, err = h.businessHandler.HandleMessage(message)
+	}
+	if err != nil {
+		return nil, err
+	}
+	switch resp := response.(type) {
+	case *protocol.ResponseMessage:
+		if resp.Result == nil {
+			return nil, nil
+		}
+		if resp.Result.Error != nil {
+			return nil, resp.Result.Error
+		}
+		return resp.Result, nil
+	case *protocol.ErrorMessage:
+		return nil, &common.SQLError{Code: resp.Code, State: resp.State, Message: resp.Message}
+	default:
+		return nil, nil
+	}
+}
+
+func (h *DecoupledMySQLMessageHandler) handleComStmtFetch(session Session, recMySQLPkg *MySQLPackage) error {
+	if len(recMySQLPkg.Body) < 9 {
+		return h.sendErrorResponse(session, 1064, "42000", "Invalid COM_STMT_FETCH")
+	}
+	stmtID := binary.LittleEndian.Uint32(recMySQLPkg.Body[1:5])
+	rowCount := binary.LittleEndian.Uint32(recMySQLPkg.Body[5:9])
+	mgr := h.preparedStmtMgrFromSession(session)
+	result, done, err := mgr.FetchCursor(stmtID, rowCount)
+	if err != nil {
+		return h.sendErrorResponse(session, common.ErrUnknownStmtHandler, "HY000", err.Error())
+	}
+	return h.sendBinaryCursorRows(session, result, done, recMySQLPkg.Header.PacketId+1)
+}
+
+func (h *DecoupledMySQLMessageHandler) handleComStmtSendLongData(session Session, recMySQLPkg *MySQLPackage) error {
+	body := recMySQLPkg.Body
+	if len(body) < 7 {
+		return h.sendErrorResponse(session, 1064, "42000", "Invalid COM_STMT_SEND_LONG_DATA")
+	}
+	stmtID := binary.LittleEndian.Uint32(body[1:5])
+	paramID := binary.LittleEndian.Uint16(body[5:7])
+	mgr := h.preparedStmtMgrFromSession(session)
+	if err := mgr.AppendLongData(stmtID, paramID, body[7:]); err != nil {
+		return h.sendErrorResponse(session, common.ErrUnknownStmtHandler, "HY000", err.Error())
+	}
+	return nil
+}
+
+func (h *DecoupledMySQLMessageHandler) handleComResetConnection(session Session, currentMysqlSession *server.MySQLServerSession, recMySQLPkg *MySQLPackage) error {
+	if err := h.resetConnectionState(session, currentMysqlSession); err != nil {
+		return h.sendErrorResponse(session, 1105, "HY000", err.Error())
+	}
+	okData := h.createOKPacket(0, 0, recMySQLPkg.Header.PacketId+1)
+	return session.WriteBytes(okData)
+}
+
+// resetConnectionState contains the state cleanup shared by COM_RESET_CONNECTION
+// and the successful COM_CHANGE_USER path. It intentionally preserves the
+// handshake capability flags while clearing command/session-local overrides.
+func (h *DecoupledMySQLMessageHandler) resetConnectionState(session Session, currentMysqlSession *server.MySQLServerSession) error {
+	resetPreparedStmtMgr := protocol.NewPreparedStatementManager()
+	session.SetAttribute("prepared_stmt_mgr", resetPreparedStmtMgr)
+	bindPreparedStmtMgr(currentMysqlSession, resetPreparedStmtMgr)
+	// COM_SET_OPTION changes a connection-local capability.  Reset the
+	// override back to the handshake baseline so pooled connections do not
+	// retain a previous user's multi-statement setting.
+	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
+	session.SetAttribute("client_multi_statements", capabilities&protocol.CLIENT_MULTI_STATEMENTS != 0)
+	session.SetAttribute("__more_results__", false)
+	if currentMysqlSession != nil && *currentMysqlSession != nil {
+		if h.xmysqlEngine != nil {
+			if err := h.xmysqlEngine.ResetSession(*currentMysqlSession); err != nil {
+				return err
+			}
+		} else {
+			(*currentMysqlSession).SetParamByName("autocommit", "1")
+			(*currentMysqlSession).SetParamByName("in_transaction", false)
+			(*currentMysqlSession).SetParamByName("database", "")
+			(*currentMysqlSession).SetParamByName("last_insert_id", uint64(0))
+			(*currentMysqlSession).SetParamByName("row_count", int64(0))
+			(*currentMysqlSession).SetParamByName("locked_tables", map[string]string{})
+			(*currentMysqlSession).SetParamByName("warnings", []engine.Warning{})
+			(*currentMysqlSession).SetParamByName("user_variables", map[string]interface{}{})
+			(*currentMysqlSession).SetParamByName("session_variables", map[string]interface{}{})
+		}
+	}
+	return nil
+}
+
+// handleComChangeUser implements the command-phase re-authentication path
+// used by connection pools. The packet uses the negotiated secure-connection
+// one-byte auth length and carries the new user/database; optional charset and
+// plugin fields are accepted and ignored because the existing authentication
+// service selects the account policy from the server-side user record.
+func (h *DecoupledMySQLMessageHandler) handleComChangeUser(session Session, currentMysqlSession *server.MySQLServerSession, recMySQLPkg *MySQLPackage) error {
+	body := recMySQLPkg.Body
+	if len(body) < 2 {
+		return h.sendErrorResponse(session, 1045, "28000", "Invalid COM_CHANGE_USER packet")
+	}
+	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
+	offset := 1
+	username, next, ok := readNulField(body, offset)
+	if !ok || username == "" {
+		return h.sendErrorResponse(session, 1045, "28000", "Invalid COM_CHANGE_USER user")
+	}
+	offset = next
+	var authResponse []byte
+	var authErr error
+	authResponse, offset, authErr = readClientAuthResponse(body, offset, capabilities)
+	if authErr != nil {
+		return h.sendErrorResponse(session, 1045, "28000", "Invalid COM_CHANGE_USER authentication data")
+	}
+	database, next, ok := readNulField(body, offset)
+	if !ok {
+		return h.sendErrorResponse(session, 1045, "28000", "Invalid COM_CHANGE_USER database")
+	}
+	offset = next
+	requestedCharset, requestedCollation := "", ""
+	if capabilities&protocol.CLIENT_PROTOCOL_41 != 0 && offset < len(body) {
+		if offset+2 > len(body) {
+			return h.sendErrorResponse(session, 1045, "28000", "Invalid COM_CHANGE_USER character set")
+		}
+		collationID := binary.LittleEndian.Uint16(body[offset : offset+2])
+		var charsetErr error
+		requestedCharset, requestedCollation, charsetErr = changeUserCharset(collationID)
+		if charsetErr != nil {
+			sqlErr := protocol.ClassifyGoError(charsetErr)
+			return h.sendErrorResponse(session, sqlErr.Code, sqlErr.State, sqlErr.Message)
+		}
+		offset += 2
+		if offset < len(body) {
+			_, _, _ = readNulField(body, offset) // optional authentication plugin name
+		}
+	}
+
+	challengeValue := session.GetAttribute("auth_challenge")
+	challenge, ok := challengeValue.([]byte)
+	if !ok || len(challenge) == 0 {
+		return h.sendErrorResponse(session, 1045, "28000", "Authentication failed: missing challenge")
+	}
+	host := h.resolveAuthHost(session)
+	if host == "" {
+		return h.sendErrorResponse(session, 1045, "28000", "Access denied for user")
+	}
+	changeUserFailure := func(message string) error {
+		recordAuthenticationFailure(username, host)
+		return h.sendErrorResponse(session, 1045, "28000", message)
+	}
+	if err := h.enforceAccountTLS(context.Background(), session, username, host); err != nil {
+		return changeUserFailure(err.Error())
+	}
+	if h.authService != nil && (h.cfg == nil || !h.cfg.DevBypassPasswordAuth) {
+		if userInfo, lookupErr := h.authService.GetUserInfo(context.Background(), username, host); lookupErr == nil && userInfo != nil {
+			if plugin := authSwitchPlugin(userInfo); plugin != "" && (plugin == "sha256_password" || len(authResponse) != 32) {
+				pending := &authSwitchState{
+					Username:         username,
+					Database:         database,
+					Host:             host,
+					Challenge:        append([]byte(nil), challenge...),
+					ChangeUser:       true,
+					Charset:          requestedCharset,
+					Collation:        requestedCollation,
+					ResponseSequence: recMySQLPkg.Header.PacketId + 1,
+				}
+				session.SetAttribute("auth_switch_pending", pending)
+				return session.WriteBytes(encodeAuthSwitchRequest(plugin, challenge, recMySQLPkg.Header.PacketId+1))
+			}
+		}
+	}
+	authResult, err := h.authenticateWithChallenge(context.Background(), username, authResponse, challenge, host, database)
+	if err != nil {
+		return changeUserFailure(err.Error())
+	}
+	if authResult == nil || !authResult.Success {
+		if authResult == nil {
+			return changeUserFailure("Authentication failed")
+		}
+		recordAuthenticationFailure(username, host)
+		return h.sendErrorResponse(session, authResult.ErrorCode, "28000", authResult.ErrorMessage)
+	}
+	if err := h.applyProxyIdentity(context.Background(), authResult); err != nil {
+		return changeUserFailure(err.Error())
+	}
+	if err := h.resetConnectionState(session, currentMysqlSession); err != nil {
+		recordAuthenticationFailure(username, host)
+		return h.sendErrorResponse(session, 1105, "HY000", err.Error())
+	}
+	if currentMysqlSession != nil && *currentMysqlSession != nil {
+		(*currentMysqlSession).SetParamByName("user", authResult.User)
+		(*currentMysqlSession).SetParamByName("host", authResult.Host)
+		(*currentMysqlSession).SetParamByName("database", database)
+		(*currentMysqlSession).SetParamByName("global_privileges", append([]common.PrivilegeType(nil), authResult.Privileges...))
+		(*currentMysqlSession).SetParamByName("dynamic_privileges", append([]string(nil), authResult.DynamicPrivileges...))
+		(*currentMysqlSession).SetParamByName("active_roles", append([]string(nil), authResult.ActiveRoles...))
+		recordTLSConnectionState(session, currentMysqlSession)
+		applyChangeUserCharset(currentMysqlSession, requestedCharset, requestedCollation)
+		h.rwlock.Lock()
+		h.sessionMap[session] = *currentMysqlSession
+		h.rwlock.Unlock()
+	}
+	session.SetAttribute("auth_status", "success")
+	recordAuthenticationSuccess(authResult.User, authResult.Host)
+	return session.WriteBytes(h.createOKPacket(0, 0, recMySQLPkg.Header.PacketId+1))
+}
+
+func (h *DecoupledMySQLMessageHandler) applyProxyIdentity(ctx context.Context, result *auth.AuthResult) error {
+	if result == nil || !result.Success || h.authService == nil {
+		return nil
+	}
+	resolver, ok := h.authService.(interface {
+		ResolveProxyUser(context.Context, string, string) (string, string, bool, error)
+	})
+	if !ok {
+		return nil
+	}
+	originalUser, originalHost := result.User, result.Host
+	proxiedUser, proxiedHost, found, err := resolver.ResolveProxyUser(ctx, originalUser, originalHost)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return nil
+	}
+	proxiedInfo, err := h.authService.GetUserInfo(ctx, proxiedUser, proxiedHost)
+	if err != nil || proxiedInfo == nil {
+		if err == nil {
+			err = fmt.Errorf("PROXY target '%s'@'%s' does not exist", proxiedUser, proxiedHost)
+		}
+		return err
+	}
+	if proxiedInfo.AccountLocked {
+		return fmt.Errorf("PROXY target '%s'@'%s' is locked", proxiedUser, proxiedHost)
+	}
+	result.User = proxiedUser
+	result.Host = proxiedHost
+	result.Privileges = append([]common.PrivilegeType(nil), proxiedInfo.GlobalPrivileges...)
+	result.DynamicPrivileges = append([]string(nil), proxiedInfo.DynamicPrivileges...)
+	result.ActiveRoles = append([]string(nil), proxiedInfo.DefaultRoles...)
+	return nil
+}
+
+func changeUserCharset(collationID uint16) (string, string, error) {
+	collation, err := protocol.GetGlobalCharsetManager().GetCollationByID(collationID)
+	if err != nil {
+		return "", "", common.NewErrf(common.ErrUnknownCollation, "Unknown collation: '%d'", nil, collationID)
+	}
+	return collation.Charset, collation.Name, nil
+}
+
+func applyChangeUserCharset(currentMysqlSession *server.MySQLServerSession, charset, collation string) {
+	if currentMysqlSession == nil || *currentMysqlSession == nil || charset == "" {
+		return
+	}
+	(*currentMysqlSession).SetParamByName("character_set_client", charset)
+	(*currentMysqlSession).SetParamByName("character_set_connection", charset)
+	(*currentMysqlSession).SetParamByName("character_set_results", charset)
+	if collation != "" {
+		(*currentMysqlSession).SetParamByName("collation_connection", collation)
+	}
+}
+
+func readNulField(payload []byte, offset int) (string, int, bool) {
+	value, next, ok := readNulFieldBytes(payload, offset)
+	return string(value), next, ok
+}
+
+func readNulFieldBytes(payload []byte, offset int) ([]byte, int, bool) {
+	if offset < 0 || offset > len(payload) {
+		return nil, offset, false
+	}
+	end := bytes.IndexByte(payload[offset:], 0)
+	if end < 0 {
+		return nil, offset, false
+	}
+	end += offset
+	return payload[offset:end], end + 1, true
 }
 
 func (h *DecoupledMySQLMessageHandler) handleComStmtClose(session Session, recMySQLPkg *MySQLPackage) error {
@@ -1008,11 +2092,9 @@ func (h *DecoupledMySQLMessageHandler) handleComStmtReset(session Session, recMy
 	}
 	stmtID := binary.LittleEndian.Uint32(recMySQLPkg.Body[1:5])
 	mgr := h.preparedStmtMgrFromSession(session)
-	stmt, err := mgr.Peek(stmtID)
-	if err != nil {
+	if err := mgr.Reset(stmtID); err != nil {
 		return h.sendErrorResponse(session, common.ErrUnknownStmtHandler, "HY000", err.Error())
 	}
-	stmt.LastParamTypes = nil
 	okData := h.createOKPacket(0, 0, recMySQLPkg.Header.PacketId+1)
 	return session.WriteBytes(okData)
 }
@@ -1021,14 +2103,6 @@ func (h *DecoupledMySQLMessageHandler) handleComStmtReset(session Session, recMy
 // 严格按照 MySQL 协议规范实现，兼容 MySQL Connector/J 5.1.x
 func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, result *protocol.MessageQueryResult, seqID byte) error {
 	logger.Debugf("[sendQueryResultSet] 开始发送查询结果集（MySQL 协议标准实现）")
-
-	// ✅ 修复：防止重复发送 ResultSet
-	if resultSent := session.GetAttribute("__result_sent__"); resultSent != nil {
-		if sent, ok := resultSent.(bool); ok && sent {
-			logger.Errorf("❌ 协议错误：尝试重复发送 ResultSet，已忽略")
-			return fmt.Errorf("result already sent")
-		}
-	}
 
 	// 检查会话状态
 	if session.IsClosed() {
@@ -1046,9 +2120,12 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	// 使用复用的协议编码器（避免重复创建，提升性能）
 	encoder := h.resultSetEncoder
 
-	// Connector/J 8 的 loadServerVariables 路径会把当前 OK terminator 误读为 RowData。
-	// 这里保持 EOF terminator 兼容模式，避免连接初始化阶段解析错包。
-	useDeprecatedEOF := true
+	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
+	useDeprecatedEOF := capabilities&protocol.CLIENT_DEPRECATE_EOF == 0
+	statusFlags := uint16(protocol.SERVER_STATUS_AUTOCOMMIT)
+	if more, ok := session.GetAttribute("__more_results__").(bool); ok && more && capabilities&(protocol.CLIENT_MULTI_RESULTS|protocol.CLIENT_PS_MULTI_RESULTS) != 0 {
+		statusFlags |= protocol.SERVER_MORE_RESULTS_EXISTS
+	}
 
 	// ========================================================================
 	// Step 1: 发送 Column Count Packet
@@ -1068,25 +2145,12 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	// ========================================================================
 	// Step 2: 发送 Column Definition Packets
 	// ========================================================================
-	for colIdx, colName := range result.Columns {
-		var colDef *protocol.ColumnDefinition
-
-		if colIdx < len(result.ColumnTypes) && strings.TrimSpace(result.ColumnTypes[colIdx]) != "" {
-			colDef = createColumnDefinitionForType(encoder, colName, result.ColumnTypes[colIdx])
-		}
-		// 从第一行数据推断列类型
-		if colDef == nil && len(result.Rows) > 0 && colIdx < len(result.Rows[0]) {
-			colDef = encoder.CreateColumnDefinitionFromValue(colName, result.Rows[0][colIdx])
-		}
-		if colDef == nil {
-			// 没有数据行，默认为 VARCHAR
-			colDef = encoder.CreateColumnDefinition(colName, protocol.MYSQL_TYPE_VAR_STRING, 0)
-		}
-
+	columnDefinitions := h.resultColumnDefinitions(result)
+	for colIdx, colDef := range columnDefinitions {
 		columnDefPacket := encoder.EncodeColumnDefinitionPacket(colDef, seqID)
 
 		logger.Debugf("[sendQueryResultSet] 发送列定义: name=%s, type=0x%02X, length=%d",
-			colName, colDef.ColumnType, colDef.ColumnLength)
+			result.Columns[colIdx], colDef.ColumnType, colDef.ColumnLength)
 
 		err := session.WriteBytes(columnDefPacket)
 		if err != nil {
@@ -1101,7 +2165,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	// 在 CLIENT_DEPRECATE_EOF 下必须发送 OK 包（0x00）作为列定义结束标记。
 	// ========================================================================
 	if useDeprecatedEOF {
-		eofPacket1 := protocol.EncodeEOFPacketWithSeq(0, protocol.SERVER_STATUS_AUTOCOMMIT, seqID)
+		eofPacket1 := protocol.EncodeEOFPacketWithSeq(0, statusFlags, seqID)
 
 		logger.Debugf("[sendQueryResultSet] 发送第一个 EOF 包（列定义结束）")
 		err = session.WriteBytes(eofPacket1)
@@ -1111,7 +2175,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 		}
 		seqID++
 	} else {
-		okPacket1 := protocol.EncodeOKPacketWithSeq(0, 0, protocol.SERVER_STATUS_AUTOCOMMIT, 0, seqID)
+		okPacket1 := protocol.EncodeOKPacketWithSeq(0, 0, statusFlags, 0, seqID)
 
 		logger.Debugf("[sendQueryResultSet] 发送列定义结束 OK 包（CLIENT_DEPRECATE_EOF）")
 		err = session.WriteBytes(okPacket1)
@@ -1169,7 +2233,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	// 在 CLIENT_DEPRECATE_EOF 下发送 OK 包（0x00）。
 	// ========================================================================
 	if useDeprecatedEOF {
-		eofPacket2 := protocol.EncodeEOFPacketWithSeq(0, protocol.SERVER_STATUS_AUTOCOMMIT, seqID)
+		eofPacket2 := protocol.EncodeEOFPacketWithSeq(0, statusFlags, seqID)
 
 		logger.Debugf("[sendQueryResultSet] 发送第二个 EOF 包（行数据结束）")
 		err = session.WriteBytes(eofPacket2)
@@ -1178,7 +2242,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 			return err
 		}
 	} else {
-		okPacket2 := protocol.EncodeOKPacketWithSeq(0, 0, protocol.SERVER_STATUS_AUTOCOMMIT, 0, seqID)
+		okPacket2 := protocol.EncodeOKPacketWithSeq(0, 0, statusFlags, 0, seqID)
 
 		logger.Debugf("[sendQueryResultSet] 发送结果集结束 OK 包（CLIENT_DEPRECATE_EOF）")
 		err = session.WriteBytes(okPacket2)
@@ -1190,16 +2254,166 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 
 	logger.Debugf("[sendQueryResultSet] ✅ 查询结果集发送完成: %d 列, %d 行", len(result.Columns), len(result.Rows))
 
-	// ✅ 修复：标记 ResultSet 已发送
-	session.SetAttribute("__result_sent__", true)
-
 	return nil
 }
 
+// resultColumnDefinitions keeps text and binary result paths on the same
+// metadata contract.  Cursor rows must use exactly the types advertised by
+// the column definitions or Connector/J will consume the row bytes with the
+// wrong width.
+func (h *DecoupledMySQLMessageHandler) resultColumnDefinitions(result *protocol.MessageQueryResult) []*protocol.ColumnDefinition {
+	if result == nil {
+		return nil
+	}
+	encoder := h.resultSetEncoder
+	definitions := make([]*protocol.ColumnDefinition, 0, len(result.Columns))
+	for index, name := range result.Columns {
+		var definition *protocol.ColumnDefinition
+		if index < len(result.ColumnTypes) && strings.TrimSpace(result.ColumnTypes[index]) != "" {
+			definition = createColumnDefinitionForType(encoder, name, result.ColumnTypes[index])
+		}
+		if definition == nil && len(result.Rows) > 0 && index < len(result.Rows[0]) {
+			definition = encoder.CreateColumnDefinitionFromValue(name, result.Rows[0][index])
+		}
+		if definition == nil {
+			definition = encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_VAR_STRING, 0)
+		}
+		definitions = append(definitions, definition)
+	}
+	return definitions
+}
+
+func (h *DecoupledMySQLMessageHandler) sendCursorMetadata(session Session, result *protocol.MessageQueryResult, seqID byte) error {
+	if result == nil {
+		return fmt.Errorf("cursor result is nil")
+	}
+	definitions := h.resultColumnDefinitions(result)
+	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
+	statusFlags := uint16(protocol.SERVER_STATUS_AUTOCOMMIT | protocol.SERVER_STATUS_CURSOR_EXISTS)
+	if err := session.WriteBytes(h.createMySQLPacket(h.resultSetEncoder.WriteLenEncInt(uint64(len(definitions))), seqID)); err != nil {
+		return err
+	}
+	seqID++
+	for _, definition := range definitions {
+		if err := session.WriteBytes(h.resultSetEncoder.EncodeColumnDefinitionPacket(definition, seqID)); err != nil {
+			return err
+		}
+		seqID++
+	}
+	return h.sendResultTerminator(session, seqID, capabilities, statusFlags, result.WarningCount)
+}
+
+func (h *DecoupledMySQLMessageHandler) sendBinaryCursorRows(session Session, result *protocol.MessageQueryResult, done bool, seqID byte) error {
+	if result == nil {
+		return fmt.Errorf("cursor result is nil")
+	}
+	definitions := h.resultColumnDefinitions(result)
+	for _, row := range result.Rows {
+		packet := h.resultSetEncoder.EncodeBinaryRowPacket(row, definitions, seqID)
+		if err := session.WriteBytes(packet); err != nil {
+			return err
+		}
+		seqID++
+	}
+	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
+	statusFlags := uint16(protocol.SERVER_STATUS_AUTOCOMMIT)
+	if done {
+		statusFlags |= protocol.SERVER_STATUS_LAST_ROW_SENT
+	} else {
+		statusFlags |= protocol.SERVER_STATUS_CURSOR_EXISTS
+	}
+	return h.sendResultTerminator(session, seqID, capabilities, statusFlags, result.WarningCount)
+}
+
+// sendBinaryPreparedResultSet encodes COM_STMT_EXECUTE rows with MySQL's
+// binary result-set protocol. Prepared-statement clients decode rows from the
+// column metadata and binary null bitmap; text-protocol rows are not
+// interchangeable with this response.
+func (h *DecoupledMySQLMessageHandler) sendBinaryPreparedResultSet(session Session, result *protocol.MessageQueryResult, seqID byte) error {
+	if result == nil {
+		return fmt.Errorf("prepared result is nil")
+	}
+	definitions := h.resultColumnDefinitions(result)
+	if err := session.WriteBytes(h.createMySQLPacket(h.resultSetEncoder.WriteLenEncInt(uint64(len(definitions))), seqID)); err != nil {
+		return err
+	}
+	seqID++
+	for _, definition := range definitions {
+		if err := session.WriteBytes(h.resultSetEncoder.EncodeColumnDefinitionPacket(definition, seqID)); err != nil {
+			return err
+		}
+		seqID++
+	}
+	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
+	statusFlags := uint16(protocol.SERVER_STATUS_AUTOCOMMIT | protocol.SERVER_STATUS_LAST_ROW_SENT)
+	if err := h.sendResultTerminator(session, seqID, capabilities, statusFlags, result.WarningCount); err != nil {
+		return err
+	}
+	seqID++
+	for _, row := range result.Rows {
+		if err := session.WriteBytes(h.resultSetEncoder.EncodeBinaryRowPacket(row, definitions, seqID)); err != nil {
+			return err
+		}
+		seqID++
+	}
+	return h.sendResultTerminator(session, seqID, capabilities, statusFlags, result.WarningCount)
+}
+
+func (h *DecoupledMySQLMessageHandler) sendResultTerminator(session Session, seqID byte, capabilities uint32, statusFlags uint16, warnings uint16) error {
+	if capabilities&protocol.CLIENT_DEPRECATE_EOF == 0 {
+		return session.WriteBytes(protocol.EncodeEOFPacketWithSeq(warnings, statusFlags, seqID))
+	}
+	return session.WriteBytes(protocol.EncodeOKPacketWithSeq(0, 0, statusFlags, warnings, seqID))
+}
+
+// splitTopLevelStatements splits COM_QUERY multi-statements without treating
+// semicolons inside strings or nested expressions as statement boundaries.
+func splitTopLevelStatements(query string) []string {
+	statements := make([]string, 0, 2)
+	start, depth := 0, 0
+	var quote byte
+	for index := 0; index < len(query); index++ {
+		ch := query[index]
+		if quote != 0 {
+			if ch == quote && (index == 0 || query[index-1] != '\\') {
+				quote = 0
+			}
+			continue
+		}
+		if ch == '\'' || ch == '"' || ch == '`' {
+			quote = ch
+			continue
+		}
+		switch ch {
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		case ';':
+			if depth == 0 {
+				if statement := strings.TrimSpace(query[start:index]); statement != "" {
+					statements = append(statements, statement)
+				}
+				start = index + 1
+			}
+		}
+	}
+	if statement := strings.TrimSpace(query[start:]); statement != "" {
+		statements = append(statements, statement)
+	}
+	return statements
+}
+
 func createColumnDefinitionForType(encoder *protocol.MySQLResultSetEncoder, name string, columnType string) *protocol.ColumnDefinition {
-	switch strings.ToLower(strings.TrimSpace(columnType)) {
+	typeName := strings.ToLower(strings.TrimSpace(columnType))
+	if separator := strings.IndexAny(typeName, "( "); separator >= 0 {
+		typeName = typeName[:separator]
+	}
+	switch typeName {
 	case "tinyint":
-		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_SHORT, 0)
+		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_TINY, 0)
 	case "smallint":
 		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_SHORT, 0)
 	case "mediumint":

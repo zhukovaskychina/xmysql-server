@@ -2,6 +2,39 @@ package buffer_pool
 
 import "testing"
 
+func TestLRUPageKeyUsesCollisionFreeSpaceAndPageEncoding(t *testing.T) {
+	if got := makeLRUPageKey(0, 0); got != 0 {
+		t.Fatalf("zero page key = %d, want 0", got)
+	}
+	if got := makeLRUPageKey(^uint32(0), ^uint32(0)); got != ^uint64(0) {
+		t.Fatalf("max page key = %x, want %x", got, ^uint64(0))
+	}
+	if makeLRUPageKey(1, 0) == makeLRUPageKey(0, 1) {
+		t.Fatal("different space/page pairs share an LRU key")
+	}
+	cache := NewOptimizedLRUCache(8, 0.5, 0.5, 0)
+	if cache.generateKey(7, 42) != makeLRUPageKey(7, 42) {
+		t.Fatal("optimized LRU does not use the collision-free page key")
+	}
+}
+
+func TestLegacyLRUPurgeClearsEntries(t *testing.T) {
+	cache := NewLRUCacheImpl(8, 0.5, 0.5, 0)
+	if err := cache.Set(3, 4, NewBufferBlock(&BufferPage{})); err != nil {
+		t.Fatalf("Set() error = %v", err)
+	}
+	if cache.Len() != 1 {
+		t.Fatalf("Len() before Purge = %d, want 1", cache.Len())
+	}
+	cache.Purge()
+	if cache.Len() != 0 {
+		t.Fatalf("Len() after Purge = %d, want 0", cache.Len())
+	}
+	if _, err := cache.Get(3, 4); err == nil {
+		t.Fatal("purged legacy LRU entry remained readable")
+	}
+}
+
 func TestOptimizedLRUCacheEvictReturnsOriginalPageIdentity(t *testing.T) {
 	cache := NewOptimizedLRUCache(2, 0.5, 0.5, 0)
 	page := NewBufferPage(7, 42)

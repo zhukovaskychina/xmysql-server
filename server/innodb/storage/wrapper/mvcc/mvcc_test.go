@@ -1,10 +1,45 @@
 package mvcc
 
 import (
+	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	formatmvcc "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/format/mvcc"
 	"testing"
 )
+
+type mvccStorageProvider struct {
+	pages map[[2]uint32][]byte
+}
+
+func (s *mvccStorageProvider) ReadPage(spaceID, pageNo uint32) ([]byte, error) {
+	data, ok := s.pages[[2]uint32{spaceID, pageNo}]
+	if !ok {
+		return nil, fmt.Errorf("page %d/%d not found", spaceID, pageNo)
+	}
+	return append([]byte(nil), data...), nil
+}
+
+func (s *mvccStorageProvider) WritePage(spaceID, pageNo uint32, data []byte) error {
+	if s.pages == nil {
+		s.pages = make(map[[2]uint32][]byte)
+	}
+	s.pages[[2]uint32{spaceID, pageNo}] = append([]byte(nil), data...)
+	return nil
+}
+
+func (s *mvccStorageProvider) AllocatePage(uint32) (uint32, error) { return 0, nil }
+func (s *mvccStorageProvider) FreePage(uint32, uint32) error { return nil }
+func (s *mvccStorageProvider) CreateSpace(string, uint32) (uint32, error) { return 0, nil }
+func (s *mvccStorageProvider) OpenSpace(uint32) error { return nil }
+func (s *mvccStorageProvider) CloseSpace(uint32) error { return nil }
+func (s *mvccStorageProvider) DeleteSpace(uint32) error { return nil }
+func (s *mvccStorageProvider) GetSpaceInfo(uint32) (*basic.SpaceInfo, error) { return &basic.SpaceInfo{}, nil }
+func (s *mvccStorageProvider) ListSpaces() ([]basic.SpaceInfo, error) { return nil, nil }
+func (s *mvccStorageProvider) BeginTransaction() (uint64, error) { return 0, nil }
+func (s *mvccStorageProvider) CommitTransaction(uint64) error { return nil }
+func (s *mvccStorageProvider) RollbackTransaction(uint64) error { return nil }
+func (s *mvccStorageProvider) Sync(uint32) error { return nil }
+func (s *mvccStorageProvider) Close() error { return nil }
 
 func TestRecordVersion(t *testing.T) {
 	// 测试记录版本创建
@@ -146,6 +181,29 @@ func TestMVCCIndexPage(t *testing.T) {
 	err = page.AcquireLock(txID+1, LockModeExclusive)
 	if err != nil {
 		t.Errorf("AcquireLock after release failed: %v", err)
+	}
+}
+
+func TestMVCCIndexPageUsesStorageProvider(t *testing.T) {
+	provider := &mvccStorageProvider{pages: make(map[[2]uint32][]byte)}
+	page := NewMVCCIndexPageWithStorage(7, 11, provider)
+	page.SetVersion(42)
+	page.SetTxID(99)
+	page.SetRollPtr([]byte("rollback"))
+
+	if err := page.Write(); err != nil {
+		t.Fatalf("write through provider: %v", err)
+	}
+	if _, ok := provider.pages[[2]uint32{11, 7}]; !ok {
+		t.Fatal("expected MVCC page bytes to be persisted through provider")
+	}
+
+	reloaded := NewMVCCIndexPageWithStorage(7, 11, provider)
+	if err := reloaded.Read(); err != nil {
+		t.Fatalf("read through provider: %v", err)
+	}
+	if reloaded.GetVersion() != 42 || reloaded.GetTxID() != 99 || string(reloaded.GetRollPtr()) != "rollback" {
+		t.Fatalf("reloaded MVCC metadata = version %d tx %d roll %q", reloaded.GetVersion(), reloaded.GetTxID(), reloaded.GetRollPtr())
 	}
 }
 

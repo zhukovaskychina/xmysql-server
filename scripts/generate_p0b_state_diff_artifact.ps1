@@ -152,6 +152,16 @@ $ExpectedRaw = Get-Content -Raw -LiteralPath $ExpectedSnapshotJson
 $ActualRaw = Get-Content -Raw -LiteralPath $ActualSnapshotJson
 $ExpectedObject = $ExpectedRaw | ConvertFrom-Json
 $ActualObject = $ActualRaw | ConvertFrom-Json
+
+# Snapshot timestamps describe when each side was exported and are not state.
+# Normalize them before the semantic comparison so independently generated
+# expected/actual snapshots can be compared deterministically.
+foreach ($Snapshot in @($ExpectedObject, $ActualObject)) {
+    if ($Snapshot.PSObject.Properties.Name -contains "generated_at") {
+        $Snapshot.generated_at = "<normalized>"
+    }
+}
+
 $ExpectedCanonical = Get-StableJson -Value $ExpectedObject
 $ActualCanonical = Get-StableJson -Value $ActualObject
 $ExpectedLeaves = Get-JsonLeaves -Value $ExpectedObject

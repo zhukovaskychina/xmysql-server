@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
@@ -215,13 +216,21 @@ func (ia *IndexAdapter) GetIndexMetadata(ctx context.Context, schemaName, tableN
 	}
 
 	// 构建索引元数据
+	primaryKeyColumns := []string(nil)
+	if primaryIndex := ia.indexManager.GetIndexByName(tableID, "PRIMARY"); primaryIndex != nil {
+		primaryKeyColumns = make([]string, len(primaryIndex.Columns))
+		for i, column := range primaryIndex.Columns {
+			primaryKeyColumns[i] = column.Name
+		}
+	}
 	metadata := &IndexMetadata{
-		IndexID:     foundIndex.IndexID,
-		IndexName:   foundIndex.Name,
-		IsPrimary:   foundIndex.IsPrimary,
-		IsUnique:    foundIndex.IsUnique,
-		Columns:     columns,
-		IsClustered: foundIndex.IsPrimary, // 主键索引是聚簇索引
+		IndexID:           foundIndex.IndexID,
+		IndexName:         foundIndex.Name,
+		IsPrimary:         foundIndex.IsPrimary,
+		IsUnique:          foundIndex.IsUnique,
+		Columns:           columns,
+		PrimaryKeyColumns: primaryKeyColumns,
+		IsClustered:       foundIndex.IsPrimary, // 主键索引是聚簇索引
 	}
 
 	logger.Debugf("✅ Found index metadata: indexID=%d, columns=%v, unique=%v",
@@ -232,12 +241,13 @@ func (ia *IndexAdapter) GetIndexMetadata(ctx context.Context, schemaName, tableN
 
 // IndexMetadata 索引元数据
 type IndexMetadata struct {
-	IndexID     uint64
-	IndexName   string
-	IsPrimary   bool
-	IsUnique    bool
-	Columns     []string
-	IsClustered bool // 是否聚簇索引
+	IndexID           uint64
+	IndexName         string
+	IsPrimary         bool
+	IsUnique          bool
+	Columns           []string
+	PrimaryKeyColumns []string
+	IsClustered       bool // 是否聚簇索引
 }
 
 // IsCoveringIndex 判断是否为覆盖索引
@@ -257,17 +267,22 @@ func (im *IndexMetadata) IsCoveringIndex(requiredColumns []string) bool {
 	// 构建索引列的集合（包括索引列和主键列）
 	indexColumnSet := make(map[string]bool)
 	for _, col := range im.Columns {
-		indexColumnSet[col] = true
+		indexColumnSet[strings.ToLower(strings.TrimSpace(col))] = true
 	}
 
-	// 对于非聚簇索引，索引记录中总是包含主键列
-	// 这里假设主键列名为 "id" 或者在索引列中已经包含
-	// 实际实现中应该从表元数据中获取主键列名
-	indexColumnSet["id"] = true // 添加默认主键列
+	// 对于非聚簇索引，索引记录中总是包含主键列。
+	// 旧的调用方可能没有填充主键元数据，因此保留 id 作为兼容回退。
+	primaryKeyColumns := im.PrimaryKeyColumns
+	if len(primaryKeyColumns) == 0 {
+		primaryKeyColumns = []string{"id"}
+	}
+	for _, col := range primaryKeyColumns {
+		indexColumnSet[strings.ToLower(strings.TrimSpace(col))] = true
+	}
 
 	// 检查所有要求的列是否都在索引列集合中
 	for _, reqCol := range requiredColumns {
-		if !indexColumnSet[reqCol] {
+		if !indexColumnSet[strings.ToLower(strings.TrimSpace(reqCol))] {
 			logger.Debugf("❌ Column %s not in index %s, not a covering index", reqCol, im.IndexName)
 			return false
 		}
@@ -281,6 +296,27 @@ func (im *IndexMetadata) IsCoveringIndex(requiredColumns []string) bool {
 // 当索引包含所有查询需要的列时，无需回表
 func (ia *IndexAdapter) ReadIndexRecord(ctx context.Context, indexID uint64, key []byte) ([]byte, error) {
 	logger.Debugf("ReadIndexRecord: indexID=%d, key=%v", indexID, key)
+	record, err := ia.ReadIndexEntry(ctx, indexID, key)
+	if err != nil {
+		return nil, err
+	}
+
+	// Preserve the historical byte-oriented API for callers that only need the
+	// concatenated representation. Covering-index execution uses ReadIndexEntry
+	// so it can retain the key/value boundary and decode both parts exactly.
+	recordData := make([]byte, 0, len(record.Key)+len(record.Value))
+	recordData = append(recordData, record.Key...)
+	recordData = append(recordData, record.Value...)
+
+	logger.Debugf("ReadIndexRecord found record, size=%d bytes", len(recordData))
+	return recordData, nil
+}
+
+// ReadIndexEntry reads a durable secondary-index entry without flattening the
+// key and value. The key carries the indexed columns; the value carries the
+// clustered primary key.
+func (ia *IndexAdapter) ReadIndexEntry(ctx context.Context, indexID uint64, key []byte) (*manager.IndexRecord, error) {
+	logger.Debugf("ReadIndexEntry: indexID=%d, key=%v", indexID, key)
 
 	// 如果没有B+树管理器，返回错误
 	if ia.btreeManager == nil {
@@ -298,17 +334,10 @@ func (ia *IndexAdapter) ReadIndexRecord(ctx context.Context, indexID uint64, key
 	if err != nil {
 		return nil, newTxnAdapterError("index-adapter-read-record", ExecutionErrorCodeIndexOperation, 0, err, "search in index failed: %v", err)
 	}
-
-	// 2. 读取索引记录数据
-	// IndexRecord包含Key和Value
-	// 对于覆盖索引，Value包含索引列的值
-	// 这里返回完整的记录数据（Key + Value）
-	recordData := make([]byte, 0, len(record.Key)+len(record.Value))
-	recordData = append(recordData, record.Key...)
-	recordData = append(recordData, record.Value...)
-
-	logger.Debugf("ReadIndexRecord found record, size=%d bytes", len(recordData))
-	return recordData, nil
+	if record == nil {
+		return nil, newTxnAdapterError("index-adapter-read-record", ExecutionErrorCodeIndexOperation, 0, fmt.Errorf("index search returned nil record"), "index search returned nil record")
+	}
+	return record, nil
 }
 
 // TransactionAdapter 事务适配器，提供事务管理接口
@@ -357,6 +386,9 @@ func (ta *TransactionAdapter) BeginTransaction(ctx context.Context, readOnly boo
 
 // CommitTransaction 提交事务
 func (ta *TransactionAdapter) CommitTransaction(ctx context.Context, txn *Transaction) error {
+	if ta == nil {
+		return NewExecutionErrorWithCause("engine", "transaction-commit", ExecutionErrorCodeTxnContextInvalid, "", "", "", 0, fmt.Errorf("transaction adapter is nil"), "transaction adapter is nil")
+	}
 	// 验证事务对象
 	if txn == nil {
 		return NewExecutionErrorWithCause("engine", "transaction-commit", ExecutionErrorCodeTxnContextInvalid, "", "", "", 0, fmt.Errorf("transaction is nil"), "transaction is nil")
@@ -389,6 +421,9 @@ func makeResourceID(tableID, pageID uint32, rowID uint64) string {
 
 // RollbackTransaction 回滚事务
 func (ta *TransactionAdapter) RollbackTransaction(ctx context.Context, txn *Transaction) error {
+	if ta == nil {
+		return NewExecutionErrorWithCause("engine", "transaction-rollback", ExecutionErrorCodeTxnContextInvalid, "", "", "", 0, fmt.Errorf("transaction adapter is nil"), "transaction adapter is nil")
+	}
 	// 验证事务对象
 	if txn == nil {
 		return NewExecutionErrorWithCause("engine", "transaction-rollback", ExecutionErrorCodeTxnContextInvalid, "", "", "", 0, fmt.Errorf("transaction is nil"), "transaction is nil")
@@ -417,6 +452,9 @@ func (ta *TransactionAdapter) RollbackTransaction(ctx context.Context, txn *Tran
 
 // AcquireLock 获取锁
 func (ta *TransactionAdapter) AcquireLock(ctx context.Context, txn *Transaction, lockType string, resource string) error {
+	if ta == nil {
+		return newTxnAdapterError("transaction-lock", ExecutionErrorCodeTxnContextInvalid, 0, fmt.Errorf("transaction adapter is nil"), "transaction adapter is nil")
+	}
 	if txn == nil {
 		return newTxnAdapterError("transaction-lock", ExecutionErrorCodeTxnContextInvalid, 0, fmt.Errorf("transaction is nil"), "transaction is nil")
 	}
@@ -474,6 +512,9 @@ func (ta *TransactionAdapter) AcquireLock(ctx context.Context, txn *Transaction,
 // 注意：当前LockManager实现只支持释放事务的所有锁（ReleaseLocks）
 // 单个锁的释放功能需要在LockManager中实现
 func (ta *TransactionAdapter) ReleaseLock(ctx context.Context, txn *Transaction, resource string) error {
+	if ta == nil {
+		return newTxnAdapterError("transaction-unlock", ExecutionErrorCodeTxnContextInvalid, 0, fmt.Errorf("transaction adapter is nil"), "transaction adapter is nil")
+	}
 	if txn == nil {
 		return newTxnAdapterError("transaction-unlock", ExecutionErrorCodeTxnContextInvalid, 0, fmt.Errorf("transaction is nil"), "transaction is nil")
 	}

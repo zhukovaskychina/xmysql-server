@@ -44,9 +44,10 @@ scripts/verify_p0_core.sh
 ### 当前状态补充（2026-07-13 P0-03/P0-06/P0-07/P0-08/P0-09）
 
 - P0-03：
-  - `index_transaction_adapter.go` 已补 `lockManager == nil` 结构化错误，不再静默跳过；
-  - `storage_integrated_index_helper.go` 已补复合索引键构建；
-  - 仍需继续做全局 `ExecutionError` 扫描和全量索引一致性实现。
+  - `index_transaction_adapter.go` 已补 `lockManager == nil`、nil receiver 和单锁释放边界结构化错误；
+  - `storage_integrated_index_helper.go` 已补复合索引键构建、索引更新失败传播、批量插入失败回滚、批量删除部分失败上报和一致性检查边界；
+  - executor/engine/unified executor 的错误包装现在通过 `errors.As` 保留底层 `ExecutionError` 码；
+  - 仍需在真实存储故障注入和多轮恢复演练中验证全量索引重建与持久化一致性。
 - P0-06：
   - 恢复演练脚本已输出 `before.json / after.json / diff.json`；
   - 审计脚本已强制检查 redo / undo / half_commit 每轮证据；

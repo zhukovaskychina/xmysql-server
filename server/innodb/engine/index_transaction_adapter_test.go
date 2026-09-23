@@ -103,6 +103,18 @@ func TestIndexMetadataIsCoveringIndex(t *testing.T) {
 	t.Logf("✅ Index covers empty column list")
 }
 
+func TestIndexMetadataCoveringIndexMatchesColumnNamesCaseInsensitively(t *testing.T) {
+	index := &IndexMetadata{
+		IndexName:         "idx_name",
+		Columns:           []string{"Name"},
+		PrimaryKeyColumns: []string{"Tenant_ID", "ID"},
+	}
+
+	if !index.IsCoveringIndex([]string{"name", "tenant_id", "id"}) {
+		t.Fatal("covering-index detection should match column names case-insensitively")
+	}
+}
+
 // TestTransactionAdapterCommitRollback 测试事务提交和回滚
 func TestTransactionAdapterCommitRollback(t *testing.T) {
 	// 创建临时目录
@@ -296,6 +308,30 @@ func TestTransactionAdapterWithoutLockManager(t *testing.T) {
 		t.Errorf("CommitTransaction should succeed without lock manager: %v", err)
 	}
 	t.Logf("✅ CommitTransaction succeeds without lock manager")
+}
+
+func TestTransactionAdapterNilReceiverReturnsStructuredErrors(t *testing.T) {
+	ctx := context.Background()
+	txn := &Transaction{TxnID: 1}
+	var adapter *TransactionAdapter
+
+	for name, call := range map[string]func() error{
+		"commit":   func() error { return adapter.CommitTransaction(ctx, txn) },
+		"rollback": func() error { return adapter.RollbackTransaction(ctx, txn) },
+		"lock":     func() error { return adapter.AcquireLock(ctx, txn, "S", "1:1") },
+		"unlock":   func() error { return adapter.ReleaseLock(ctx, txn, "1:1") },
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := call()
+			if err == nil {
+				t.Fatal("expected nil receiver error")
+			}
+			var execErr *ExecutionError
+			if !errors.As(err, &execErr) || execErr.ErrorCode != ExecutionErrorCodeTxnContextInvalid {
+				t.Fatalf("expected structured transaction context error, got %T: %v", err, err)
+			}
+		})
+	}
 }
 
 // TestGetIndexMetadata 测试获取索引元数据

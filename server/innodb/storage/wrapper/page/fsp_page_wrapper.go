@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
 	"sync"
@@ -76,6 +77,14 @@ func NewFSPPageWrapper(id uint32, spaceID uint32, bp *buffer_pool.BufferPool) *F
 	return p
 }
 
+// NewFSPPageWrapperWithStorage creates an FSP wrapper backed by a storage
+// provider when no buffer pool is available.
+func NewFSPPageWrapperWithStorage(id, spaceID uint32, bp *buffer_pool.BufferPool, storage basic.StorageProvider) *FSPPageWrapper {
+	page := NewFSPPageWrapper(id, spaceID, bp)
+	page.storage = storage
+	return page
+}
+
 // 实现IPageWrapper接口
 
 // ParseFromBytes 从字节数据解析FSP页面
@@ -83,7 +92,7 @@ func (p *FSPPageWrapper) ParseFromBytes(data []byte) error {
 	p.Lock()
 	defer p.Unlock()
 
-	if err := p.BasePageWrapper.ParseFromBytes(data); err != nil {
+	if err := p.BasePageWrapper.parseFromBytesLocked(data); err != nil {
 		return err
 	}
 
@@ -192,6 +201,10 @@ func (p *FSPPageWrapper) GetFreeSpace() uint64 {
 
 // AllocatePages 分配页面
 func (p *FSPPageWrapper) AllocatePages(n uint32) ([]uint32, error) {
+	if n == 0 {
+		return []uint32{}, nil
+	}
+
 	p.extentLock.Lock()
 	defer p.extentLock.Unlock()
 
@@ -207,6 +220,27 @@ func (p *FSPPageWrapper) AllocatePages(n uint32) ([]uint32, error) {
 				return pages, nil
 			}
 		}
+	}
+
+	// A provider-backed FSP wrapper may not have the legacy in-memory extent
+	// descriptors populated yet. In that mode, delegate allocation to the
+	// owning storage manager instead of reporting a false no-space condition.
+	// Roll back pages already allocated by this call if a later allocation
+	// fails, preserving the all-or-nothing contract of AllocatePages.
+	if len(p.freeExtents) == 0 && p.storage != nil {
+		allocated := make([]uint32, 0, n)
+		for i := uint32(0); i < n; i++ {
+			pageNo, err := p.storage.AllocatePage(p.GetSpaceID())
+			if err != nil {
+				for _, allocatedPage := range allocated {
+					_ = p.storage.FreePage(p.GetSpaceID(), allocatedPage)
+				}
+				return nil, err
+			}
+			allocated = append(allocated, pageNo)
+		}
+		p.MarkDirty()
+		return allocated, nil
 	}
 
 	// 需要分配新的区段
@@ -352,6 +386,16 @@ func (p *FSPPageWrapper) allocatePagesFromExtent(ext *ExtentDescriptor, n uint32
 
 // 内部方法：从磁盘读取
 func (p *FSPPageWrapper) readFromDisk() ([]byte, error) {
+	if p.storage != nil {
+		content, err := p.storage.ReadPage(p.GetSpaceID(), p.GetPageID())
+		if err != nil {
+			return nil, err
+		}
+		if len(content) < common.PageSize {
+			return nil, ErrInvalidPageSize
+		}
+		return append([]byte(nil), content[:common.PageSize]...), nil
+	}
 	if p.bufferPool == nil {
 		return nil, errors.New("buffer pool not configured for FSP page")
 	}
@@ -376,8 +420,14 @@ func (p *FSPPageWrapper) readFromDisk() ([]byte, error) {
 
 // 内部方法：写入磁盘
 func (p *FSPPageWrapper) writeToDisk(content []byte) error {
+	if p.storage != nil {
+		if len(content) < common.PageSize {
+			return ErrInvalidPageSize
+		}
+		return p.storage.WritePage(p.GetSpaceID(), p.GetPageID(), content[:common.PageSize])
+	}
 	if p.bufferPool == nil {
-		return nil
+		return ErrPageStorageUnavailable
 	}
 
 	pageContent := make([]byte, common.PageSize)

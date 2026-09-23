@@ -44,7 +44,10 @@ func NewBTreeIterator(manager *DefaultBPlusTreeManager, ctx context.Context, sta
 	}
 
 	// 定位到起始键的位置
-	startPos := 0
+	// If the start key is greater than every key in the selected leaf, keep
+	// the iterator at the end of that leaf. Resetting to slot zero would make
+	// a range entirely after the tree's largest key return unrelated rows.
+	startPos := len(startNode.Keys)
 	for i, key := range startNode.Keys {
 		if manager.compareKeys(key, startKey) >= 0 {
 			startPos = i

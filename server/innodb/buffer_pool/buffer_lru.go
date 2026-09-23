@@ -3,8 +3,6 @@ package buffer_pool
 import (
 	"container/list"
 	"errors"
-	"github.com/zhukovaskychina/xmysql-server/util"
-
 	"math"
 	"sync"
 	"sync/atomic"
@@ -226,9 +224,7 @@ func (L *LRUCacheImpl) Get(spaceId uint32, pageNo uint32) (*BufferBlock, error) 
 func (L *LRUCacheImpl) Remove(spaceId uint32, pageNo uint32) bool {
 	L.mu.Lock()
 	defer L.mu.Unlock()
-	var buff = append(util.ConvertUInt4Bytes(spaceId), util.ConvertUInt4Bytes(pageNo)...)
-	hashCode := util.HashCode(buff)
-	return L.remove(hashCode)
+	return L.remove(makeLRUPageKey(spaceId, pageNo))
 }
 func (L *LRUCacheImpl) remove(key uint64) bool {
 	if ent, ok := L.youngItems[key]; ok {
@@ -259,13 +255,21 @@ func (L *LRUCacheImpl) Purge() {
 		}
 	}
 
+	// Purge is a destructive cache operation. Clear every tier and its list,
+	// otherwise a closed/reused buffer pool can still return entries that were
+	// supposedly discarded.
+	L.items = make(map[uint64]*list.Element)
+	L.youngItems = make(map[uint64]*list.Element)
+	L.oldItems = make(map[uint64]*list.Element)
+	L.evictList = list.New()
+	L.evictYoungList = list.New()
+	L.evictOldList = list.New()
 }
 
 func (L *LRUCacheImpl) Has(spaceId uint32, pageNo uint32) bool {
 	L.mu.RLock()
 	defer L.mu.RUnlock()
-	var buff = append(util.ConvertUInt4Bytes(spaceId), util.ConvertUInt4Bytes(pageNo)...)
-	hashCode := util.HashCode(buff)
+	hashCode := makeLRUPageKey(spaceId, pageNo)
 	if _, ok := L.youngItems[hashCode]; ok {
 		return true
 	}
@@ -278,12 +282,11 @@ func (L *LRUCacheImpl) Has(spaceId uint32, pageNo uint32) bool {
 	return false
 }
 
-// TODO 校验这里的hashcode的安全性
+// pageKey 使用无损的 space/page 编码，避免把 hash 碰撞当成页面身份。
 func (L *LRUCacheImpl) SetYoung(spaceId uint32, pageNo uint32, value *BufferBlock) {
 	L.mu.Lock()
 	defer L.mu.Unlock()
-	var buff = append(util.ConvertUInt4Bytes(spaceId), util.ConvertUInt4Bytes(pageNo)...)
-	hashCode := util.HashCode(buff)
+	hashCode := makeLRUPageKey(spaceId, pageNo)
 
 	var item *lruItem
 	if it, ok := L.youngItems[hashCode]; ok {
@@ -367,8 +370,7 @@ func (c *LRUCacheImpl) removeOldElement(e *list.Element) {
 func (L *LRUCacheImpl) GetYoung(spaceId uint32, pageNo uint32) (*BufferBlock, error) {
 	L.mu.Lock()
 	defer L.mu.Unlock()
-	var buff = append(util.ConvertUInt4Bytes(spaceId), util.ConvertUInt4Bytes(pageNo)...)
-	hashCode := util.HashCode(buff)
+	hashCode := makeLRUPageKey(spaceId, pageNo)
 	return L.getYoungValueLocked(hashCode, false)
 }
 
@@ -400,8 +402,7 @@ func (L *LRUCacheImpl) getYoungValue(key uint64, onLoad bool) (*BufferBlock, err
 func (L *LRUCacheImpl) SetOld(spaceId uint32, pageNo uint32, value *BufferBlock) {
 	L.mu.Lock()
 	defer L.mu.Unlock()
-	var buff = append(util.ConvertUInt4Bytes(spaceId), util.ConvertUInt4Bytes(pageNo)...)
-	hashCode := util.HashCode(buff)
+	hashCode := makeLRUPageKey(spaceId, pageNo)
 
 	var item *lruItem
 	if it, ok := L.oldItems[hashCode]; ok {
@@ -423,8 +424,7 @@ func (L *LRUCacheImpl) SetOld(spaceId uint32, pageNo uint32, value *BufferBlock)
 func (L *LRUCacheImpl) setOrdinary(spaceId uint32, pageNo uint32, value *BufferBlock) {
 	L.mu.Lock()
 	defer L.mu.Unlock()
-	var buff = append(util.ConvertUInt4Bytes(spaceId), util.ConvertUInt4Bytes(pageNo)...)
-	hashCode := util.HashCode(buff)
+	hashCode := makeLRUPageKey(spaceId, pageNo)
 
 	var item *lruItem
 	if it, ok := L.items[hashCode]; ok {
@@ -446,8 +446,7 @@ func (L *LRUCacheImpl) setOrdinary(spaceId uint32, pageNo uint32, value *BufferB
 func (L *LRUCacheImpl) getOrdinary(spaceId uint32, pageNo uint32) (*BufferBlock, error) {
 	L.mu.Lock()
 	defer L.mu.Unlock()
-	var buff = append(util.ConvertUInt4Bytes(spaceId), util.ConvertUInt4Bytes(pageNo)...)
-	hashCode := util.HashCode(buff)
+	hashCode := makeLRUPageKey(spaceId, pageNo)
 	return L.getOrdinaryValueLocked(hashCode, false)
 }
 
@@ -479,8 +478,7 @@ func (L *LRUCacheImpl) getOrdinaryValue(key uint64, onLoad bool) (*BufferBlock, 
 func (L *LRUCacheImpl) GetOld(spaceId uint32, pageNo uint32) (*BufferBlock, error) {
 	L.mu.Lock()
 	defer L.mu.Unlock()
-	var buff = append(util.ConvertUInt4Bytes(spaceId), util.ConvertUInt4Bytes(pageNo)...)
-	hashCode := util.HashCode(buff)
+	hashCode := makeLRUPageKey(spaceId, pageNo)
 	return L.getOldValueLocked(hashCode, false)
 }
 
@@ -538,4 +536,11 @@ type lruItem struct {
 
 	firstVisitTime uint64
 	lastVisitTime  uint64
+}
+
+// makeLRUPageKey packs the two uint32 coordinates into one uint64 without a
+// lossy hash. Buffer-pool identity is the pair (spaceID, pageNo); using a
+// digest as the map key could silently replace an unrelated page on collision.
+func makeLRUPageKey(spaceID, pageNo uint32) uint64 {
+	return uint64(spaceID)<<32 | uint64(pageNo)
 }

@@ -3,6 +3,16 @@ package protocol
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
+
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/encoding/ianaindex"
+	"golang.org/x/text/encoding/japanese"
+	"golang.org/x/text/encoding/korean"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/encoding/traditionalchinese"
+	unicodeencoding "golang.org/x/text/encoding/unicode"
 )
 
 // MySQL字符集和校对规则管理
@@ -294,28 +304,42 @@ func NewCharsetConverter(manager *CharsetManager) *CharsetConverter {
 	}
 }
 
-// Convert 转换字符集（简化实现，实际需要使用iconv或类似库）
+// Convert converts bytes between the supported MySQL character sets.
 func (cc *CharsetConverter) Convert(data []byte, fromCharset, toCharset uint8) ([]byte, error) {
-	// 简化实现：如果源和目标字符集相同，直接返回
-	if fromCharset == toCharset {
-		return data, nil
+	if cc == nil || cc.manager == nil {
+		return nil, fmt.Errorf("charset converter is not initialized")
 	}
-
-	// 实际实现需要使用字符集转换库
-	// 这里只做基本验证
-	_, err := cc.manager.GetCharsetByID(fromCharset)
+	if fromCharset == toCharset {
+		return append([]byte(nil), data...), nil
+	}
+	from, err := cc.manager.GetCharsetByID(fromCharset)
 	if err != nil {
 		return nil, fmt.Errorf("invalid source charset: %w", err)
 	}
-
-	_, err = cc.manager.GetCharsetByID(toCharset)
+	to, err := cc.manager.GetCharsetByID(toCharset)
 	if err != nil {
 		return nil, fmt.Errorf("invalid target charset: %w", err)
 	}
-
-	// TODO: 实现实际的字符集转换
-	// 可以使用 golang.org/x/text/encoding 包
-	return data, nil
+	if strings.EqualFold(from.Name, "binary") || strings.EqualFold(to.Name, "binary") {
+		return append([]byte(nil), data...), nil
+	}
+	fromEncoding, err := charsetEncoding(from.Name)
+	if err != nil {
+		return nil, fmt.Errorf("unsupported source charset %q: %w", from.Name, err)
+	}
+	toEncoding, err := charsetEncoding(to.Name)
+	if err != nil {
+		return nil, fmt.Errorf("unsupported target charset %q: %w", to.Name, err)
+	}
+	decoded, err := fromEncoding.NewDecoder().Bytes(data)
+	if err != nil {
+		return nil, fmt.Errorf("decode %s: %w", from.Name, err)
+	}
+	converted, err := toEncoding.NewEncoder().Bytes(decoded)
+	if err != nil {
+		return nil, fmt.Errorf("encode %s: %w", to.Name, err)
+	}
+	return converted, nil
 }
 
 // ValidateString 验证字符串是否符合指定字符集
@@ -325,13 +349,56 @@ func (cc *CharsetConverter) ValidateString(data []byte, charset uint8) error {
 		return err
 	}
 
-	// 简化实现：只检查UTF-8
-	if cs.Name == "utf8" || cs.Name == "utf8mb4" {
-		// TODO: 实现UTF-8验证
-		// 可以使用 utf8.Valid(data)
+	if strings.EqualFold(cs.Name, "binary") {
+		return nil
 	}
+	if strings.EqualFold(cs.Name, "utf8") || strings.EqualFold(cs.Name, "utf8mb4") {
+		if !utf8.Valid(data) {
+			return fmt.Errorf("invalid UTF-8 sequence")
+		}
+		return nil
+	}
+	encoder, err := charsetEncoding(cs.Name)
+	if err != nil {
+		return err
+	}
+	_, err = encoder.NewDecoder().Bytes(data)
+	return err
+}
 
-	return nil
+func charsetEncoding(name string) (encoding.Encoding, error) {
+	switch strings.ToLower(name) {
+	case "utf8", "utf8mb4":
+		return unicodeencoding.UTF8, nil
+	case "ascii":
+		return ianaindex.IANA.Encoding("US-ASCII")
+	case "latin1":
+		return charmap.ISO8859_1, nil
+	case "latin2":
+		return charmap.ISO8859_2, nil
+	case "cp1250":
+		return charmap.Windows1250, nil
+	case "cp1251":
+		return charmap.Windows1251, nil
+	case "cp1256":
+		return charmap.Windows1256, nil
+	case "cp1257":
+		return charmap.Windows1257, nil
+	case "cp850":
+		return charmap.CodePage850, nil
+	case "gbk":
+		return simplifiedchinese.GBK, nil
+	case "gb2312":
+		return simplifiedchinese.HZGB2312, nil
+	case "big5":
+		return traditionalchinese.Big5, nil
+	case "euckr":
+		return korean.EUCKR, nil
+	case "sjis", "cp932":
+		return japanese.ShiftJIS, nil
+	default:
+		return nil, fmt.Errorf("no Go encoding mapping")
+	}
 }
 
 // 全局字符集管理器实例

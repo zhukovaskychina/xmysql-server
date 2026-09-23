@@ -4,6 +4,9 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"strconv"
+	"strings"
+	"time"
 )
 
 // MySQLResultSetEncoder MySQL ResultSet 协议编码器
@@ -320,6 +323,235 @@ func WriteLenEncString(s string) []byte {
 func (e *MySQLResultSetEncoder) EncodeRowDataPacket(values []interface{}, sequenceId byte) []byte {
 	payload := e.WriteRowDataPacket(values)
 	return addPacketHeader(payload, sequenceId)
+}
+
+// EncodeBinaryRowPacket encodes one row of a COM_STMT_FETCH result.  Text
+// protocol rows use one length-encoded string per column; prepared-statement
+// cursors use the binary protocol instead.  The null bitmap starts at bit 2,
+// as required by the MySQL binary row format (bits 0 and 1 are reserved).
+func (e *MySQLResultSetEncoder) EncodeBinaryRowPacket(values []interface{}, columns []*ColumnDefinition, sequenceID byte) []byte {
+	columnCount := len(columns)
+	nullBitmapLength := (columnCount + 7 + 2) / 8
+	payload := make([]byte, 1+nullBitmapLength)
+	payload[0] = 0x00
+	for index, column := range columns {
+		var value interface{}
+		if index < len(values) {
+			value = values[index]
+		}
+		if value == nil {
+			bit := index + 2
+			payload[1+bit/8] |= 1 << (bit % 8)
+			continue
+		}
+		fieldType := MYSQL_TYPE_VAR_STRING
+		unsigned := false
+		if column != nil {
+			fieldType = column.ColumnType
+			unsigned = column.Flags&FLAG_UNSIGNED != 0
+		}
+		payload = append(payload, encodeBinaryValue(value, fieldType, unsigned)...)
+	}
+	return addPacketHeader(payload, sequenceID)
+}
+
+func encodeBinaryValue(value interface{}, fieldType byte, unsigned bool) []byte {
+	var output []byte
+	switch fieldType {
+	case MYSQL_TYPE_TINY:
+		if unsigned {
+			return []byte{byte(binaryUnsignedValue(value))}
+		}
+		return []byte{byte(int8(binarySignedValue(value)))}
+	case MYSQL_TYPE_SHORT:
+		output = make([]byte, 2)
+		if unsigned {
+			binary.LittleEndian.PutUint16(output, uint16(binaryUnsignedValue(value)))
+		} else {
+			binary.LittleEndian.PutUint16(output, uint16(binarySignedValue(value)))
+		}
+		return output
+	case MYSQL_TYPE_INT24:
+		output = make([]byte, 4)
+		if unsigned {
+			binary.LittleEndian.PutUint32(output, uint32(binaryUnsignedValue(value)))
+		} else {
+			binary.LittleEndian.PutUint32(output, uint32(binarySignedValue(value)))
+		}
+		return output[:3]
+	case MYSQL_TYPE_LONG:
+		output = make([]byte, 4)
+		if unsigned {
+			binary.LittleEndian.PutUint32(output, uint32(binaryUnsignedValue(value)))
+		} else {
+			binary.LittleEndian.PutUint32(output, uint32(binarySignedValue(value)))
+		}
+		return output
+	case MYSQL_TYPE_LONGLONG:
+		output = make([]byte, 8)
+		if unsigned {
+			binary.LittleEndian.PutUint64(output, binaryUnsignedValue(value))
+		} else {
+			binary.LittleEndian.PutUint64(output, uint64(binarySignedValue(value)))
+		}
+		return output
+	case MYSQL_TYPE_FLOAT:
+		output = make([]byte, 4)
+		binary.LittleEndian.PutUint32(output, math.Float32bits(float32(binaryFloatValue(value))))
+		return output
+	case MYSQL_TYPE_DOUBLE:
+		output = make([]byte, 8)
+		binary.LittleEndian.PutUint64(output, math.Float64bits(binaryFloatValue(value)))
+		return output
+	case MYSQL_TYPE_DATE, MYSQL_TYPE_NEWDATE:
+		return encodeBinaryDate(value)
+	case MYSQL_TYPE_DATETIME, MYSQL_TYPE_TIMESTAMP:
+		return encodeBinaryDateTime(value)
+	case MYSQL_TYPE_TIME:
+		return encodeBinaryTime(value)
+	default:
+		return WriteLenEncString(binaryStringValue(value))
+	}
+}
+
+func binaryStringValue(value interface{}) string {
+	switch typed := value.(type) {
+	case []byte:
+		return string(typed)
+	case string:
+		return typed
+	case time.Time:
+		return typed.Format("2006-01-02 15:04:05.999999")
+	default:
+		return fmt.Sprint(value)
+	}
+}
+
+func binarySignedValue(value interface{}) int64 {
+	switch typed := value.(type) {
+	case int:
+		return int64(typed)
+	case int8:
+		return int64(typed)
+	case int16:
+		return int64(typed)
+	case int32:
+		return int64(typed)
+	case int64:
+		return typed
+	case uint:
+		return int64(typed)
+	case uint8:
+		return int64(typed)
+	case uint16:
+		return int64(typed)
+	case uint32:
+		return int64(typed)
+	case uint64:
+		return int64(typed)
+	case float32:
+		return int64(typed)
+	case float64:
+		return int64(typed)
+	case bool:
+		if typed {
+			return 1
+		}
+		return 0
+	default:
+		parsed, _ := strconv.ParseInt(strings.TrimSpace(binaryStringValue(value)), 10, 64)
+		return parsed
+	}
+}
+
+func binaryUnsignedValue(value interface{}) uint64 {
+	switch typed := value.(type) {
+	case uint:
+		return uint64(typed)
+	case uint8:
+		return uint64(typed)
+	case uint16:
+		return uint64(typed)
+	case uint32:
+		return uint64(typed)
+	case uint64:
+		return typed
+	default:
+		return uint64(binarySignedValue(value))
+	}
+}
+
+func binaryFloatValue(value interface{}) float64 {
+	switch typed := value.(type) {
+	case float32:
+		return float64(typed)
+	case float64:
+		return typed
+	default:
+		parsed, _ := strconv.ParseFloat(strings.TrimSpace(binaryStringValue(value)), 64)
+		return parsed
+	}
+}
+
+func binaryTimeValue(value interface{}) (time.Time, bool) {
+	if typed, ok := value.(time.Time); ok {
+		return typed, true
+	}
+	for _, layout := range []string{
+		"2006-01-02 15:04:05.999999",
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+		"15:04:05.999999",
+		"15:04:05",
+	} {
+		if parsed, err := time.ParseInLocation(layout, binaryStringValue(value), time.UTC); err == nil {
+			return parsed, true
+		}
+	}
+	return time.Time{}, false
+}
+
+func encodeBinaryDate(value interface{}) []byte {
+	parsed, ok := binaryTimeValue(value)
+	if !ok {
+		return []byte{0}
+	}
+	return []byte{4, byte(parsed.Year()), byte(parsed.Year() >> 8), byte(parsed.Month()), byte(parsed.Day())}
+}
+
+func encodeBinaryDateTime(value interface{}) []byte {
+	parsed, ok := binaryTimeValue(value)
+	if !ok {
+		return []byte{0}
+	}
+	if parsed.Nanosecond() == 0 {
+		return []byte{7, byte(parsed.Year()), byte(parsed.Year() >> 8), byte(parsed.Month()), byte(parsed.Day()), byte(parsed.Hour()), byte(parsed.Minute()), byte(parsed.Second())}
+	}
+	microseconds := parsed.Nanosecond() / 1000
+	result := []byte{11, byte(parsed.Year()), byte(parsed.Year() >> 8), byte(parsed.Month()), byte(parsed.Day()), byte(parsed.Hour()), byte(parsed.Minute()), byte(parsed.Second()), 0, 0, 0, 0}
+	binary.LittleEndian.PutUint32(result[8:12], uint32(microseconds))
+	return result
+}
+
+func encodeBinaryTime(value interface{}) []byte {
+	parsed, ok := binaryTimeValue(value)
+	if !ok {
+		return []byte{0}
+	}
+	result := make([]byte, 9)
+	result[0] = 8
+	result[6] = byte(parsed.Hour())
+	result[7] = byte(parsed.Minute())
+	result[8] = byte(parsed.Second())
+	if parsed.Nanosecond() != 0 {
+		result = make([]byte, 13)
+		result[0] = 12
+		result[6] = byte(parsed.Hour())
+		result[7] = byte(parsed.Minute())
+		result[8] = byte(parsed.Second())
+		binary.LittleEndian.PutUint32(result[9:13], uint32(parsed.Nanosecond()/1000))
+	}
+	return result
 }
 
 // valueToString 将 interface{} 值转换为字符串（用于文本协议）

@@ -2,6 +2,7 @@ package wrapper
 
 import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/latch"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/types"
 )
@@ -33,8 +34,14 @@ type BasePage struct {
 //
 // Deprecated: Use types.NewUnifiedPage instead
 func NewBasePage(spaceID uint32, pageNo uint32, pageType common.PageType) *BasePage {
+	return NewBasePageWithStorage(spaceID, pageNo, pageType, nil)
+}
+
+// NewBasePageWithStorage creates a legacy base page backed by an optional
+// durable provider. NewBasePage remains source-compatible for in-memory users.
+func NewBasePageWithStorage(spaceID uint32, pageNo uint32, pageType common.PageType, storage basic.StorageProvider) *BasePage {
 	return &BasePage{
-		UnifiedPage: types.NewUnifiedPage(spaceID, pageNo, pageType),
+		UnifiedPage: types.NewUnifiedPageWithStorage(spaceID, pageNo, pageType, storage),
 		Latch:       latch.NewLatch(),
 	}
 }

@@ -3,6 +3,8 @@ package manager
 import (
 	"sync"
 	"time"
+
+	observabilitymetrics "github.com/zhukovaskychina/xmysql-server/server/observability/metrics"
 )
 
 // ============ LOG-008.3: 检查点性能监控和统计 ============
@@ -169,6 +171,13 @@ func (cm *CheckpointMonitor) RecordCheckpoint(record *CheckpointRecord) {
 
 	// 检查告警
 	cm.checkAlerts(record)
+	result := "failure"
+	if record.Success {
+		result = "success"
+	}
+	recorder := observabilitymetrics.DefaultRuntimeRecorder()
+	recorder.SetCheckpointDirtyPages("global", record.DirtyPages)
+	recorder.RecordCheckpointRun(result)
 }
 
 // checkAlerts 检查告警条件

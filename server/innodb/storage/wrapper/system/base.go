@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper"
 )
@@ -38,8 +39,14 @@ type BaseSystemPage struct {
 
 // NewBaseSystemPage 鍒涘缓绯荤粺椤甸潰
 func NewBaseSystemPage(spaceID, pageNo uint32, sysType SystemPageType) *BaseSystemPage {
+	return NewBaseSystemPageWithStorage(spaceID, pageNo, sysType, nil)
+}
+
+// NewBaseSystemPageWithStorage creates a system page backed by a durable page
+// provider while preserving the existing in-memory constructor behavior.
+func NewBaseSystemPageWithStorage(spaceID, pageNo uint32, sysType SystemPageType, storage basic.StorageProvider) *BaseSystemPage {
 	sp := &BaseSystemPage{
-		BasePage: wrapper.NewBasePage(spaceID, pageNo, common.FIL_PAGE_TYPE_SYS),
+		BasePage: wrapper.NewBasePageWithStorage(spaceID, pageNo, common.FIL_PAGE_TYPE_SYS, storage),
 	}
 
 	// 鍒濆鍖栭〉闈㈠ご

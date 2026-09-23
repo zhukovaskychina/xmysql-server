@@ -252,7 +252,7 @@
 
 **buffer_pool** (2个TODO)
 - [ ] LRU优化
-- [ ] Hashcode安全性验证 (buffer_lru.go:284)
+- [x] Hashcode安全性验证 (buffer_lru.go:284) —— legacy/optimized LRU 已统一使用无损 `(spaceID,pageNo)` 编码；`Purge` 同时清空索引和链表
 
 **auth/auth_service.go** (1个TODO)
 - [ ] 认证功能放开 (行258)

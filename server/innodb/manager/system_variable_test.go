@@ -2,6 +2,7 @@ package manager
 
 import (
 	"testing"
+	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 )
@@ -49,6 +50,40 @@ func TestSystemVariablesManager(t *testing.T) {
 
 	// 清理
 	mgr.DestroySession(sessionID)
+}
+
+func TestSystemVariablesManagerSupportsInnoDBLockWaitTimeout(t *testing.T) {
+	mgr := NewSystemVariablesManager()
+	mgr.CreateSession("lock-timeout")
+	value, err := mgr.GetVariable("lock-timeout", "innodb_lock_wait_timeout", SessionScope)
+	if err != nil {
+		t.Fatalf("failed to read innodb_lock_wait_timeout: %v", err)
+	}
+	if value != int64(50) {
+		t.Fatalf("expected default innodb_lock_wait_timeout=50, got %v", value)
+	}
+	if err := mgr.SetVariable("lock-timeout", "innodb_lock_wait_timeout", int64(2), SessionScope); err != nil {
+		t.Fatalf("failed to set innodb_lock_wait_timeout: %v", err)
+	}
+	value, err = mgr.GetVariable("lock-timeout", "innodb_lock_wait_timeout", SessionScope)
+	if err != nil || value != int64(2) {
+		t.Fatalf("expected session innodb_lock_wait_timeout=2, got %v (err=%v)", value, err)
+	}
+}
+
+func TestSystemVariablesManagerListVariablesDoesNotReenterReadLock(t *testing.T) {
+	mgr := NewSystemVariablesManager()
+	done := make(chan map[string]interface{}, 1)
+	go func() { done <- mgr.ListVariables("list-variables", GlobalScope) }()
+
+	select {
+	case variables := <-done:
+		if variables["read_only"] != "OFF" {
+			t.Fatalf("read_only = %v, want OFF", variables["read_only"])
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("ListVariables deadlocked while reading variable values")
+	}
 }
 
 func TestSystemVariableAnalyzer(t *testing.T) {

@@ -29,6 +29,22 @@ func NewInnoDBEngineAccess(config *conf.Cfg, xmysqlEngine *engine.XMySQLEngine) 
 	}
 }
 
+// MandatoryRoles exposes the engine-level role set to authentication without
+// widening the stable EngineAccess interface used by lightweight test doubles.
+func (ea *InnoDBEngineAccess) MandatoryRoles(context.Context) []string {
+	if ea == nil || ea.engine == nil {
+		return nil
+	}
+	return ea.engine.GetMandatoryRoles()
+}
+
+func (ea *InnoDBEngineAccess) ActivateAllRolesOnLogin(context.Context) bool {
+	if ea == nil || ea.engine == nil {
+		return false
+	}
+	return ea.engine.ActivateAllRolesOnLogin()
+}
+
 // escapeStringLiteral 对SQL字符串字面量进行最小转义处理，避免认证查询中的拼接风险
 func escapeStringLiteral(value string) string {
 	value = strings.ReplaceAll(value, `\\`, `\\\\`)
@@ -37,7 +53,7 @@ func escapeStringLiteral(value string) string {
 
 // QueryUser 查询用户信息
 func (ea *InnoDBEngineAccess) QueryUser(ctx context.Context, user, host string) (*UserInfo, error) {
-	if userInfo, err := ea.queryUserFromStorage(user, host); err == nil {
+	if userInfo, err := ea.queryUserFromStorage(ctx, user, host); err == nil {
 		return userInfo, nil
 	}
 
@@ -79,7 +95,12 @@ func (ea *InnoDBEngineAccess) QueryUser(ctx context.Context, user, host string) 
 	return userInfo, nil
 }
 
-func (ea *InnoDBEngineAccess) queryUserFromStorage(user, host string) (*UserInfo, error) {
+func (ea *InnoDBEngineAccess) queryUserFromStorage(ctx context.Context, user, host string) (*UserInfo, error) {
+	if userInfo, found, err := ea.queryPersistedUserInfo(ctx, user, host); err != nil {
+		return nil, err
+	} else if found {
+		return userInfo, nil
+	}
 	if ea.engine == nil || ea.engine.GetStorageManager() == nil {
 		return nil, fmt.Errorf("storage manager unavailable")
 	}
@@ -200,11 +221,14 @@ func (ea *InnoDBEngineAccess) queryUserWithWildcard(ctx context.Context, user, h
 		return nil, fmt.Errorf("failed to query user with wildcard: %v", err)
 	}
 
-	// 查找最佳匹配
+	// 查找最佳匹配；不能依赖 mysql.user 的返回顺序，因为 ORDER BY
+	// Host DESC 并不等价于 MySQL 的 host specificity 规则。
+	var best *UserInfo
+	bestScore := -1
 	for _, row := range result.Rows {
 		hostPattern := ea.getString(row, 1)
-		if ea.matchHost(host, hostPattern) {
-			userInfo := &UserInfo{
+		if score := authHostMatchSpecificity(ea, host, hostPattern); score > bestScore {
+			best = &UserInfo{
 				User:               user,
 				Host:               hostPattern,
 				Password:           ea.getString(row, 2),
@@ -215,8 +239,11 @@ func (ea *InnoDBEngineAccess) queryUserWithWildcard(ctx context.Context, user, h
 				DatabasePrivileges: make(map[string][]common.PrivilegeType),
 				TablePrivileges:    make(map[string]map[string][]common.PrivilegeType),
 			}
-			return userInfo, nil
+			bestScore = score
 		}
+	}
+	if best != nil {
+		return best, nil
 	}
 
 	return nil, fmt.Errorf("user '%s'@'%s' not found", user, host)
@@ -253,7 +280,7 @@ func (ea *InnoDBEngineAccess) QueryDatabase(ctx context.Context, database string
 
 // QueryUserPrivileges 查询用户全局权限
 func (ea *InnoDBEngineAccess) QueryUserPrivileges(ctx context.Context, user, host string) ([]common.PrivilegeType, error) {
-	if userInfo, err := ea.queryUserFromStorage(user, host); err == nil {
+	if userInfo, err := ea.queryUserFromStorage(ctx, user, host); err == nil {
 		return userInfo.GlobalPrivileges, nil
 	}
 
@@ -351,8 +378,38 @@ func (ea *InnoDBEngineAccess) QueryUserPrivileges(ctx context.Context, user, hos
 	return privileges, nil
 }
 
+// QueryProxyUser returns the proxied account selected by an exact PROXY grant
+// for the authenticated account.  A single deterministic target is required;
+// ambiguous grants are rejected instead of silently selecting one.
+func (ea *InnoDBEngineAccess) QueryProxyUser(ctx context.Context, user, host string) (string, string, bool, error) {
+	escapedUser := escapeStringLiteral(user)
+	escapedHost := escapeStringLiteral(host)
+	sql := fmt.Sprintf("SELECT Proxied_user, Proxied_host FROM mysql.proxies_priv WHERE User = '%s' AND Host = '%s'", escapedUser, escapedHost)
+	result, err := ea.executeQuery(ctx, sql, "mysql")
+	if err != nil {
+		return "", "", false, err
+	}
+	if len(result.Rows) == 0 {
+		return "", "", false, nil
+	}
+	if len(result.Rows) != 1 || len(result.Rows[0]) < 2 {
+		return "", "", false, fmt.Errorf("PROXY grant for '%s'@'%s' is ambiguous", user, host)
+	}
+	proxiedUser := strings.TrimSpace(ea.getString(result.Rows[0], 0))
+	proxiedHost := strings.TrimSpace(ea.getString(result.Rows[0], 1))
+	if proxiedUser == "" || proxiedHost == "" {
+		return "", "", false, fmt.Errorf("PROXY grant for '%s'@'%s' has an invalid target", user, host)
+	}
+	return proxiedUser, proxiedHost, true, nil
+}
+
 // QueryDatabasePrivileges 查询数据库权限
 func (ea *InnoDBEngineAccess) QueryDatabasePrivileges(ctx context.Context, user, host, database string) ([]common.PrivilegeType, error) {
+	if privileges, found, err := ea.queryPersistedGrantPrivileges(ctx, user, host, database, ""); err != nil {
+		return nil, err
+	} else if found {
+		return privileges, nil
+	}
 	escapedUser := escapeStringLiteral(user)
 	escapedHost := escapeStringLiteral(host)
 	escapedDatabase := escapeStringLiteral(database)
@@ -436,6 +493,11 @@ func (ea *InnoDBEngineAccess) QueryDatabasePrivileges(ctx context.Context, user,
 
 // QueryTablePrivileges 查询表权限
 func (ea *InnoDBEngineAccess) QueryTablePrivileges(ctx context.Context, user, host, database, table string) ([]common.PrivilegeType, error) {
+	if privileges, found, err := ea.queryPersistedGrantPrivileges(ctx, user, host, database, table); err != nil {
+		return nil, err
+	} else if found {
+		return privileges, nil
+	}
 	escapedUser := escapeStringLiteral(user)
 	escapedHost := escapeStringLiteral(host)
 	escapedDatabase := escapeStringLiteral(database)

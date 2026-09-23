@@ -124,13 +124,14 @@ type GapLockInfo struct {
 
 // NextKeyLockInfo Next-Key锁信息
 type NextKeyLockInfo struct {
-	TxID       uint64      // 事务ID
-	LockType   LockType    // 锁类型 (S/X)
-	RecordKey  interface{} // 记录键值
-	GapRange   *GapRange   // 间隙范围 (记录之前的gap)
-	Granted    bool        // 是否已授予
-	WaitChan   chan bool   // 等待通道
-	CreateTime time.Time   // 创建时间
+	TxID             uint64      // 事务ID
+	LockType         LockType    // 锁类型 (S/X)
+	RecordKey        interface{} // 记录键值
+	RecordResourceID string      // 可选的物理记录资源ID
+	GapRange         *GapRange   // 间隙范围 (记录之前的gap)
+	Granted          bool        // 是否已授予
+	WaitChan         chan bool   // 等待通道
+	CreateTime       time.Time   // 创建时间
 }
 
 // InsertIntentionLockInfo 插入意向锁信息

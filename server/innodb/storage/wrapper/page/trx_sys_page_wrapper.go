@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"sync"
 )
@@ -57,6 +58,14 @@ func NewTrxSysPageWrapper(id, spaceID uint32, bp *buffer_pool.BufferPool) *TrxSy
 	}
 }
 
+// NewTrxSysPageWrapperWithStorage creates a transaction-system wrapper
+// backed by a storage provider when no buffer pool is available.
+func NewTrxSysPageWrapperWithStorage(id, spaceID uint32, bp *buffer_pool.BufferPool, storage basic.StorageProvider) *TrxSysPageWrapper {
+	page := NewTrxSysPageWrapper(id, spaceID, bp)
+	page.storage = storage
+	return page
+}
+
 // 实现IPageWrapper接口
 
 // ParseFromBytes 从字节数据解析事务系统页面
@@ -64,7 +73,7 @@ func (tw *TrxSysPageWrapper) ParseFromBytes(data []byte) error {
 	tw.Lock()
 	defer tw.Unlock()
 
-	if err := tw.BasePageWrapper.ParseFromBytes(data); err != nil {
+	if err := tw.BasePageWrapper.parseFromBytesLocked(data); err != nil {
 		return err
 	}
 
@@ -350,6 +359,16 @@ func (tw *TrxSysPageWrapper) Validate() error {
 
 // 内部方法：从磁盘读取
 func (tw *TrxSysPageWrapper) readFromDisk() ([]byte, error) {
+	if tw.storage != nil {
+		content, err := tw.storage.ReadPage(tw.GetSpaceID(), tw.GetPageID())
+		if err != nil {
+			return nil, err
+		}
+		if len(content) < common.PageSize {
+			return nil, ErrInvalidPageSize
+		}
+		return append([]byte(nil), content[:common.PageSize]...), nil
+	}
 	if tw.bufferPool == nil {
 		return nil, errors.New("buffer pool not configured for trx sys page")
 	}
@@ -374,8 +393,14 @@ func (tw *TrxSysPageWrapper) readFromDisk() ([]byte, error) {
 
 // 内部方法：写入磁盘
 func (tw *TrxSysPageWrapper) writeToDisk(content []byte) error {
+	if tw.storage != nil {
+		if len(content) < common.PageSize {
+			return ErrInvalidPageSize
+		}
+		return tw.storage.WritePage(tw.GetSpaceID(), tw.GetPageID(), content[:common.PageSize])
+	}
 	if tw.bufferPool == nil {
-		return nil
+		return ErrPageStorageUnavailable
 	}
 
 	pageContent := make([]byte, common.PageSize)

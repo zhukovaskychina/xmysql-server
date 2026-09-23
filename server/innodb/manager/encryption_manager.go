@@ -1,13 +1,18 @@
 package manager
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"io"
+	"os"
+	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 )
@@ -52,15 +57,20 @@ const (
 )
 
 var (
-	ErrInvalidKey  = errors.New("invalid encryption key")
-	ErrInvalidIV   = errors.New("invalid initialization vector")
-	ErrKeyNotFound = errors.New("encryption key not found")
+	ErrInvalidKey        = errors.New("invalid encryption key")
+	ErrInvalidIV         = errors.New("invalid initialization vector")
+	ErrInvalidCiphertext = errors.New("invalid ciphertext")
+	ErrKeyNotFound       = errors.New("encryption key not found")
+	ErrInvalidKeyring    = errors.New("invalid encryption keyring")
+	ErrInvalidPageSize   = errors.New("page size must be a multiple of the AES block size")
 )
+
+var keyringMagic = []byte("XMYSQL-KEYRING-V1\x00")
 
 // NewEncryptionManager 创建加密管理器
 func NewEncryptionManager(masterKey []byte, settings EncryptionSettings) *EncryptionManager {
 	return &EncryptionManager{
-		masterKey: masterKey,
+		masterKey: append([]byte(nil), masterKey...),
 		spaceKeys: make(map[uint32]*EncryptionKey),
 		settings:  settings,
 	}
@@ -101,7 +111,27 @@ func (em *EncryptionManager) CreateKey(spaceID uint32) (*EncryptionKey, error) {
 func (em *EncryptionManager) GetKey(spaceID uint32) *EncryptionKey {
 	em.mu.RLock()
 	defer em.mu.RUnlock()
-	return em.spaceKeys[spaceID]
+	key := em.spaceKeys[spaceID]
+	if key == nil {
+		return nil
+	}
+	copyKey := *key
+	copyKey.Key = append([]byte(nil), key.Key...)
+	copyKey.IV = append([]byte(nil), key.IV...)
+	return &copyKey
+}
+
+// SpaceIDs returns the tablespaces for which this manager has a persisted or
+// in-memory key. The result is sorted for deterministic provider setup.
+func (em *EncryptionManager) SpaceIDs() []uint32 {
+	em.mu.RLock()
+	ids := make([]uint32, 0, len(em.spaceKeys))
+	for spaceID := range em.spaceKeys {
+		ids = append(ids, spaceID)
+	}
+	em.mu.RUnlock()
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return ids
 }
 
 // RotateKey 轮换表空间的加密密钥
@@ -135,6 +165,18 @@ func (em *EncryptionManager) RotateKey(spaceID uint32) error {
 	return nil
 }
 
+func (em *EncryptionManager) restoreKey(key *EncryptionKey) {
+	if key == nil {
+		return
+	}
+	copyKey := *key
+	copyKey.Key = append([]byte(nil), key.Key...)
+	copyKey.IV = append([]byte(nil), key.IV...)
+	em.mu.Lock()
+	em.spaceKeys[key.SpaceID] = &copyKey
+	em.mu.Unlock()
+}
+
 // EncryptPage 加密页面内容
 func (em *EncryptionManager) EncryptPage(spaceID uint32, pageNo uint32, data []byte) ([]byte, error) {
 	key := em.GetKey(spaceID)
@@ -163,6 +205,45 @@ func (em *EncryptionManager) DecryptPage(spaceID uint32, pageNo uint32, data []b
 	default:
 		return nil, errors.New("unsupported encryption method")
 	}
+}
+
+// EncryptPageFixed encrypts a page without changing its length. Storage
+// providers use this form because a page must occupy the same number of
+// bytes on disk before and after encryption. The caller must provide a page
+// whose size is a multiple of AES's block size.
+func (em *EncryptionManager) EncryptPageFixed(spaceID uint32, pageNo uint32, data []byte) ([]byte, error) {
+	key := em.GetKey(spaceID)
+	if key == nil {
+		return nil, ErrKeyNotFound
+	}
+	if key.Method == ENCRYPTION_METHOD_NONE {
+		return append([]byte(nil), data...), nil
+	}
+	if key.Method != ENCRYPTION_METHOD_AES {
+		return nil, errors.New("unsupported encryption method")
+	}
+	if len(data)%aes.BlockSize != 0 {
+		return nil, ErrInvalidPageSize
+	}
+	return em.encryptAESFixed(key, pageNo, data)
+}
+
+// DecryptPageFixed is the fixed-size counterpart of EncryptPageFixed.
+func (em *EncryptionManager) DecryptPageFixed(spaceID uint32, pageNo uint32, data []byte) ([]byte, error) {
+	key := em.GetKey(spaceID)
+	if key == nil {
+		return nil, ErrKeyNotFound
+	}
+	if key.Method == ENCRYPTION_METHOD_NONE {
+		return append([]byte(nil), data...), nil
+	}
+	if key.Method != ENCRYPTION_METHOD_AES {
+		return nil, errors.New("unsupported encryption method")
+	}
+	if len(data)%aes.BlockSize != 0 {
+		return nil, ErrInvalidPageSize
+	}
+	return em.decryptAESFixed(key, pageNo, data)
 }
 
 // encryptAES 使用AES-256-CBC加密数据
@@ -194,6 +275,10 @@ func (em *EncryptionManager) encryptAES(key *EncryptionKey, pageNo uint32, data 
 
 // decryptAES 使用AES-256-CBC解密数据
 func (em *EncryptionManager) decryptAES(key *EncryptionKey, pageNo uint32, data []byte) ([]byte, error) {
+	if len(data) == 0 || len(data)%aes.BlockSize != 0 {
+		return nil, ErrInvalidCiphertext
+	}
+
 	// 创建密码块
 	block, err := aes.NewCipher(key.Key)
 	if err != nil {
@@ -210,7 +295,37 @@ func (em *EncryptionManager) decryptAES(key *EncryptionKey, pageNo uint32, data 
 
 	// 去除填充
 	padding := int(plaintext[len(plaintext)-1])
+	if padding == 0 || padding > aes.BlockSize || padding > len(plaintext) {
+		return nil, ErrInvalidCiphertext
+	}
+	for _, value := range plaintext[len(plaintext)-padding:] {
+		if int(value) != padding {
+			return nil, ErrInvalidCiphertext
+		}
+	}
 	return plaintext[:len(plaintext)-padding], nil
+}
+
+func (em *EncryptionManager) encryptAESFixed(key *EncryptionKey, pageNo uint32, data []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key.Key)
+	if err != nil {
+		return nil, err
+	}
+	iv := em.deriveIV(key.IV, pageNo)
+	ciphertext := make([]byte, len(data))
+	cipher.NewCBCEncrypter(block, iv).CryptBlocks(ciphertext, data)
+	return ciphertext, nil
+}
+
+func (em *EncryptionManager) decryptAESFixed(key *EncryptionKey, pageNo uint32, data []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key.Key)
+	if err != nil {
+		return nil, err
+	}
+	iv := em.deriveIV(key.IV, pageNo)
+	plaintext := make([]byte, len(data))
+	cipher.NewCBCDecrypter(block, iv).CryptBlocks(plaintext, data)
+	return plaintext, nil
 }
 
 // deriveIV 为每个页面生成唯一的IV
@@ -242,5 +357,131 @@ func (em *EncryptionManager) Close() error {
 		em.masterKey[i] = 0
 	}
 
+	return nil
+}
+
+type persistedKeyring struct {
+	Version uint32           `json:"version"`
+	Keys    []*EncryptionKey `json:"keys"`
+}
+
+func (em *EncryptionManager) keyringAEAD() (cipher.AEAD, error) {
+	em.mu.RLock()
+	masterKey := append([]byte(nil), em.masterKey...)
+	em.mu.RUnlock()
+	if len(masterKey) == 0 {
+		return nil, ErrInvalidKey
+	}
+	derived := sha256.Sum256(masterKey)
+	block, err := aes.NewCipher(derived[:])
+	if err != nil {
+		return nil, err
+	}
+	return cipher.NewGCM(block)
+}
+
+// SaveKeyring persists the in-memory tablespace keys in an authenticated
+// envelope encrypted with the manager master key. The publication uses a
+// temporary file so a process crash cannot leave a partially written keyring.
+func (em *EncryptionManager) SaveKeyring(path string) error {
+	aead, err := em.keyringAEAD()
+	if err != nil {
+		return err
+	}
+
+	em.mu.RLock()
+	keys := make([]*EncryptionKey, 0, len(em.spaceKeys))
+	for _, key := range em.spaceKeys {
+		if key == nil {
+			continue
+		}
+		copyKey := *key
+		copyKey.Key = append([]byte(nil), key.Key...)
+		copyKey.IV = append([]byte(nil), key.IV...)
+		keys = append(keys, &copyKey)
+	}
+	em.mu.RUnlock()
+
+	payload, err := json.Marshal(persistedKeyring{Version: 1, Keys: keys})
+	if err != nil {
+		return err
+	}
+	nonce := make([]byte, aead.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return err
+	}
+	sealed := aead.Seal(nil, nonce, payload, keyringMagic)
+	encoded := append(append(append([]byte(nil), keyringMagic...), nonce...), sealed...)
+
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, ".keyring-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+	if _, err := tmp.Write(encoded); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		if removeErr := os.Remove(path); removeErr != nil {
+			return err
+		}
+		if err := os.Rename(tmpPath, path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// LoadKeyring restores tablespace keys from a keyring authenticated and
+// encrypted with this manager's master key.
+func (em *EncryptionManager) LoadKeyring(path string) error {
+	aead, err := em.keyringAEAD()
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	minimum := len(keyringMagic) + aead.NonceSize() + aead.Overhead()
+	if len(data) < minimum || !bytes.Equal(data[:len(keyringMagic)], keyringMagic) {
+		return ErrInvalidKeyring
+	}
+	nonceStart := len(keyringMagic)
+	nonceEnd := nonceStart + aead.NonceSize()
+	payload, err := aead.Open(nil, data[nonceStart:nonceEnd], data[nonceEnd:], keyringMagic)
+	if err != nil {
+		return ErrInvalidKeyring
+	}
+	var persisted persistedKeyring
+	if err := json.Unmarshal(payload, &persisted); err != nil || persisted.Version != 1 {
+		return ErrInvalidKeyring
+	}
+	keys := make(map[uint32]*EncryptionKey, len(persisted.Keys))
+	for _, key := range persisted.Keys {
+		if key == nil || (key.Method != ENCRYPTION_METHOD_NONE && key.Method != ENCRYPTION_METHOD_AES) || len(key.Key) != 32 || len(key.IV) != aes.BlockSize {
+			return ErrInvalidKeyring
+		}
+		copyKey := *key
+		copyKey.Key = append([]byte(nil), key.Key...)
+		copyKey.IV = append([]byte(nil), key.IV...)
+		keys[key.SpaceID] = &copyKey
+	}
+	em.mu.Lock()
+	em.spaceKeys = keys
+	em.mu.Unlock()
 	return nil
 }

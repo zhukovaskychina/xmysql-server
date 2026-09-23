@@ -80,11 +80,12 @@ func (h *BusinessMessageHandler) handleQueryMessage(msg protocol.Message) (proto
 	for result := range resultChan {
 		// 转换结果格式
 		queryResult := &protocol.MessageQueryResult{
-			Columns: result.Columns,
-			Rows:    result.Rows,
-			Error:   result.Err,
-			Message: result.Message,
-			Type:    result.ResultType,
+			Columns:     result.Columns,
+			ColumnTypes: result.ColumnTypes,
+			Rows:        result.Rows,
+			Error:       result.Err,
+			Message:     result.Message,
+			Type:        result.ResultType,
 		}
 
 		// 创建响应消息

@@ -72,6 +72,7 @@ func (mgr *SystemVariablesManager) initializeDefaultVariables() {
 		{Name: "net_read_timeout", DefaultValue: int64(30), Scope: BothScope, ReadOnly: false, Description: "Net read timeout"},
 		{Name: "net_write_timeout", DefaultValue: int64(60), Scope: BothScope, ReadOnly: false, Description: "Net write timeout"},
 		{Name: "wait_timeout", DefaultValue: int64(28800), Scope: BothScope, ReadOnly: false, Description: "Wait timeout"},
+		{Name: "innodb_lock_wait_timeout", DefaultValue: int64(50), Scope: BothScope, ReadOnly: false, Description: "InnoDB row lock wait timeout in seconds"},
 		{Name: "max_allowed_packet", DefaultValue: int64(67108864), Scope: BothScope, ReadOnly: false, Description: "Max allowed packet"},
 		{Name: "net_buffer_length", DefaultValue: int64(16384), Scope: BothScope, ReadOnly: false, Description: "Net buffer length"},
 
@@ -83,6 +84,8 @@ func (mgr *SystemVariablesManager) initializeDefaultVariables() {
 		{Name: "tx_read_only", DefaultValue: int64(0), Scope: BothScope, ReadOnly: false, Description: "Transaction read only"},
 		{Name: "transaction_read_only", DefaultValue: int64(0), Scope: BothScope, ReadOnly: false, Description: "Transaction read only"},
 		{Name: "autocommit", DefaultValue: "ON", Scope: BothScope, ReadOnly: false, Description: "Autocommit"},
+		{Name: "foreign_key_checks", DefaultValue: int64(1), Scope: BothScope, ReadOnly: false, Description: "Foreign key constraint checks"},
+		{Name: "check_constraint_checks", DefaultValue: int64(1), Scope: BothScope, ReadOnly: false, Description: "Check constraint checks"},
 
 		// 时区相关
 		{Name: "time_zone", DefaultValue: "SYSTEM", Scope: BothScope, ReadOnly: false, Description: "Time zone"},
@@ -127,6 +130,10 @@ func (mgr *SystemVariablesManager) initializeDefaultVariables() {
 
 		// 其他
 		{Name: "read_only", DefaultValue: "OFF", Scope: GlobalScope, ReadOnly: false, Description: "Read only mode"},
+		{Name: "super_read_only", DefaultValue: "OFF", Scope: GlobalScope, ReadOnly: false, Description: "Super read only mode"},
+		{Name: "activate_all_roles_on_login", DefaultValue: "OFF", Scope: GlobalScope, ReadOnly: false, Description: "Activate all granted roles when users log in"},
+		{Name: "mandatory_roles", DefaultValue: "", Scope: GlobalScope, ReadOnly: false, Description: "Roles granted to every account"},
+		{Name: "partial_revokes", DefaultValue: "OFF", Scope: GlobalScope, ReadOnly: false, Description: "Enable schema-level restrictions on global privileges"},
 		{Name: "log_bin", DefaultValue: "OFF", Scope: GlobalScope, ReadOnly: true, Description: "Binary logging enabled"},
 		{Name: "server_id", DefaultValue: int64(1), Scope: GlobalScope, ReadOnly: false, Description: "Server ID"},
 		{Name: "log_error", DefaultValue: "/var/log/mysql/error.log", Scope: GlobalScope, ReadOnly: false, Description: "Error log file"},
@@ -253,11 +260,14 @@ func (mgr *SystemVariablesManager) SetVariable(sessionID, varName string, value 
 // ListVariables 列出所有变量
 func (mgr *SystemVariablesManager) ListVariables(sessionID string, scope SystemVariableScope) map[string]interface{} {
 	mgr.mu.RLock()
-	defer mgr.mu.RUnlock()
-
-	result := make(map[string]interface{})
-
+	names := make([]string, 0, len(mgr.varDefinitions))
 	for varName := range mgr.varDefinitions {
+		names = append(names, varName)
+	}
+	mgr.mu.RUnlock()
+
+	result := make(map[string]interface{}, len(names))
+	for _, varName := range names {
 		if value, err := mgr.GetVariable(sessionID, varName, scope); err == nil {
 			result[varName] = value
 		}

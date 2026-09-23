@@ -41,10 +41,11 @@ type MVCCConfig struct {
 
 // MVCCTransactionInfo MVCC事务信息（避免与crash_recovery.go中的TransactionInfo冲突）
 type MVCCTransactionInfo struct {
-	ID        uint64
-	StartTime time.Time
-	ReadView  *formatmvcc.ReadView
-	State     TxState
+	ID             uint64
+	StartTime      time.Time
+	ReadView       *formatmvcc.ReadView
+	State          TxState
+	IsolationLevel uint8
 }
 
 // TxState 事务状态
@@ -68,6 +69,13 @@ func NewMVCCManager(config *MVCCConfig) *MVCCManager {
 // BeginTransaction 开始事务
 // 修复MVCC-001: 确保ReadView创建时正确捕获所有活跃事务ID
 func (m *MVCCManager) BeginTransaction() (uint64, error) {
+	return m.BeginTransactionWithIsolation(TRX_ISO_REPEATABLE_READ)
+}
+
+// BeginTransactionWithIsolation starts a transaction with MySQL-compatible
+// visibility semantics. Repeatable-read keeps its initial snapshot, while
+// read-committed refreshes the snapshot for every visibility check.
+func (m *MVCCManager) BeginTransactionWithIsolation(isolationLevel uint8) (uint64, error) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -83,10 +91,11 @@ func (m *MVCCManager) BeginTransaction() (uint64, error) {
 	// 【修复1】先将新事务加入activeTxs，确保并发事务能看到它
 	// 此时ReadView为nil，稍后创建
 	m.activeTxs[txID] = &MVCCTransactionInfo{
-		ID:        txID,
-		StartTime: time.Now(),
-		ReadView:  nil, // 稍后创建
-		State:     TxStateActive,
+		ID:             txID,
+		StartTime:      time.Now(),
+		ReadView:       nil, // 稍后创建
+		State:          TxStateActive,
+		IsolationLevel: isolationLevel,
 	}
 
 	// 【修复2】基于当前所有活跃事务创建ReadView（原子快照）
@@ -163,15 +172,29 @@ func (m *MVCCManager) GetTransactionReadView(txID uint64) (*formatmvcc.ReadView,
 
 // IsVisible 判断某个版本是否对事务可见
 func (m *MVCCManager) IsVisible(txID uint64, version uint64) (bool, error) {
-	rv, err := m.GetTransactionReadView(txID)
-	if err != nil {
-		return false, err
+	m.Lock()
+	defer m.Unlock()
+	tx, ok := m.activeTxs[txID]
+	if !ok {
+		return false, ErrTransactionNotFound
 	}
-	if rv == nil {
-		// 没有ReadView则默认为可见（例如RU或管理器尚未初始化）
+	if tx.IsolationLevel == TRX_ISO_READ_UNCOMMITTED {
 		return true, nil
 	}
-	return rv.IsVisible(version), nil
+	if tx.IsolationLevel == TRX_ISO_READ_COMMITTED {
+		// A read view is statement-scoped under RC.
+		activeIDs := make([]uint64, 0, len(m.activeTxs)-1)
+		for id, other := range m.activeTxs {
+			if id != txID && other.State == TxStateActive {
+				activeIDs = append(activeIDs, id)
+			}
+		}
+		tx.ReadView = formatmvcc.NewReadView(activeIDs, txID, m.nextTxID+1)
+	}
+	if tx.ReadView == nil {
+		return true, nil
+	}
+	return tx.ReadView.IsVisible(version), nil
 }
 
 // CleanupExpiredTransactions 清理过期事务

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
@@ -19,8 +20,10 @@ type Allocated struct {
 
 	state    basic.PageState
 	dirty    bool
+	stats    basic.PageStats
 	pinCount int32
 	mu       sync.RWMutex
+	storage  basic.StorageProvider
 }
 
 // 实现IPageWrapper接口
@@ -57,10 +60,18 @@ func (a *Allocated) ParseFromBytes(data []byte) error {
 }
 
 func (a *Allocated) ToBytes() ([]byte, error) {
-	return a.ToByte(), nil
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.toByteLocked(), nil
 }
 
 func (a *Allocated) ToByte() []byte {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.toByteLocked()
+}
+
+func (a *Allocated) toByteLocked() []byte {
 	var buffer bytes.Buffer
 	buffer.Write(a.FileHeader.GetSerialBytes())
 	buffer.Write(a.body)
@@ -95,6 +106,8 @@ func (a *Allocated) GetLSN() uint64 {
 }
 
 func (a *Allocated) SetLSN(lsn uint64) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	a.FileHeader.WritePageLSN(int64(lsn))
 }
 
@@ -120,6 +133,7 @@ func (a *Allocated) MarkDirty() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.dirty = true
+	a.stats.DirtyCount++
 	a.state = basic.PageStateDirty
 }
 
@@ -144,34 +158,100 @@ func (a *Allocated) GetPinCount() int32 {
 }
 
 func (a *Allocated) GetStats() *basic.PageStats {
-	return &basic.PageStats{}
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return &a.stats
 }
 
+// Read refreshes the in-memory allocation state. Allocated pages do not own a
+// disk provider; persistence belongs to the page allocator/storage manager.
 func (a *Allocated) Read() error {
+	if a.storage != nil {
+		data, err := a.storage.ReadPage(a.GetSpaceID(), a.GetPageID())
+		if err != nil {
+			return err
+		}
+		if err := a.ParseFromBytes(data); err != nil {
+			return err
+		}
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		now := uint64(time.Now().UnixNano())
+		a.stats.ReadCount++
+		a.stats.AccessTime = now
+		a.stats.LastAccessAt = now
+		a.stats.LastAccessed = now
+		a.state = basic.PageStateLoaded
+		return nil
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(a.body) != common.PageSize-pages.FileHeaderSize-pages.FileTrailerSize {
+		return errors.New("invalid allocated page body size")
+	}
+	now := uint64(time.Now().UnixNano())
+	a.stats.ReadCount++
+	a.stats.AccessTime = now
+	a.stats.LastAccessAt = now
+	a.stats.LastAccessed = now
+	a.state = basic.PageStateLoaded
 	return nil
 }
 
+// Write commits the current in-memory representation and clears its dirty
+// marker. The caller must use the owning storage manager to persist ToBytes().
 func (a *Allocated) Write() error {
+	if a.storage != nil {
+		data, err := a.ToBytes()
+		if err != nil {
+			return err
+		}
+		if len(data) < common.PageSize {
+			return errors.New("invalid allocated page size")
+		}
+		if err := a.storage.WritePage(a.GetSpaceID(), a.GetPageID(), data[:common.PageSize]); err != nil {
+			return err
+		}
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		now := uint64(time.Now().UnixNano())
+		a.stats.WriteCount++
+		a.stats.AccessTime = now
+		a.stats.LastAccessAt = now
+		a.stats.LastModified = now
+		a.dirty = false
+		a.state = basic.PageStateFlushed
+		return nil
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(a.body) != common.PageSize-pages.FileHeaderSize-pages.FileTrailerSize {
+		return errors.New("invalid allocated page body size")
+	}
+	now := uint64(time.Now().UnixNano())
+	a.stats.WriteCount++
+	a.stats.AccessTime = now
+	a.stats.LastAccessAt = now
+	a.stats.LastModified = now
+	a.dirty = false
+	a.state = basic.PageStateFlushed
 	return nil
 }
 
 func (a *Allocated) Flush() error {
-	return nil
+	return a.Write()
 }
 
 // 用于实现
 func NewAllocatedPage(pageNumber uint32) IPageWrapper {
-	var allocated = new(Allocated)
-	allocated.body = make([]byte, 16384-38-8)
-	allocated.FileHeader = pages.NewFileHeader()
-	allocated.FileHeader.WritePageFileType(int16(common.FIL_PAGE_TYPE_ALLOCATED))
-	allocated.FileHeader.WritePageOffset(pageNumber)
-	allocated.FileTrailer = pages.NewFileTrailer()
-	allocated.state = basic.PageStateClean
-	return allocated
+	return NewAllocatedPageWithStorage(0, pageNumber, nil)
 }
 
-func NewAllocatedPageByBytes(spaceId uint32, pageNumber uint32) IPageWrapper {
+// NewAllocatedPageWithStorage creates an allocated page with an optional
+// provider. Without a provider it retains the historical in-memory behavior.
+func NewAllocatedPageWithStorage(spaceId uint32, pageNumber uint32, storage basic.StorageProvider) IPageWrapper {
 	var allocated = new(Allocated)
 	allocated.body = make([]byte, 16384-38-8)
 	allocated.FileHeader = pages.NewFileHeader()
@@ -180,5 +260,10 @@ func NewAllocatedPageByBytes(spaceId uint32, pageNumber uint32) IPageWrapper {
 	allocated.FileHeader.WritePageArch(spaceId)
 	allocated.FileTrailer = pages.NewFileTrailer()
 	allocated.state = basic.PageStateClean
+	allocated.storage = storage
 	return allocated
+}
+
+func NewAllocatedPageByBytes(spaceId uint32, pageNumber uint32) IPageWrapper {
+	return NewAllocatedPageWithStorage(spaceId, pageNumber, nil)
 }

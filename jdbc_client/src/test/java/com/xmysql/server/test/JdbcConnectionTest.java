@@ -16,9 +16,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class JdbcConnectionTest {
 
-    private static final String BASE_URL = "jdbc:mysql://localhost:3309?useSSL=false&allowPublicKeyRetrieval=true";
-    private static final String USER = "root";
-    private static final String PASSWORD = "root@1234";
+    private static final String BASE_URL = JdbcTestConfig.url();
+    private static final String USER = JdbcTestConfig.user();
+    private static final String PASSWORD = JdbcTestConfig.password();
 
     /** 类加载时探测一次服务是否可达，避免每个用例都因 Connection refused 报错 */
     private static final boolean SERVER_AVAILABLE = checkServerAvailable();
@@ -90,7 +90,7 @@ public class JdbcConnectionTest {
     @DisplayName("URL 中带默认库时 getCatalog 应一致")
     public void testConnectionWithDefaultDatabaseInUrl() throws Exception {
         assumeTrue(SERVER_AVAILABLE, "XMySQL 未运行在 localhost:3309，跳过连接测试");
-        String urlWithDb = "jdbc:mysql://localhost:3309/mysql?useSSL=false&allowPublicKeyRetrieval=true";
+        String urlWithDb = JdbcTestConfig.url("mysql");
         try (Connection conn = DriverManager.getConnection(urlWithDb, USER, PASSWORD)) {
             String catalog = conn.getCatalog();
             // 服务端若支持 CONNECT_WITH_DB 并在握手时传库名，catalog 为 mysql；否则可能为空
@@ -175,6 +175,67 @@ public class JdbcConnectionTest {
                         // Compatibility boundary: DataGrip metadata SQL must return a valid result set.
                     }
                 }
+            }
+        }
+    }
+
+    @Test
+    @Order(10)
+    @DisplayName("server-side cursor应使用binary行协议并可分批读取")
+    public void testServerSideCursorFetchReadsAllRows() throws Exception {
+        assumeTrue(SERVER_AVAILABLE, "XMySQL 未运行在 localhost:3309，跳过连接测试");
+        String database = "jdbc_cursor_compat";
+        String cursorUrl = JdbcTestConfig.url() + "&useServerPrepStmts=true&useCursorFetch=true";
+        try (Connection conn = DriverManager.getConnection(cursorUrl, USER, PASSWORD);
+             Statement setup = conn.createStatement()) {
+            setup.executeUpdate("CREATE DATABASE IF NOT EXISTS " + database);
+            setup.executeUpdate("USE " + database);
+            setup.executeUpdate("DROP TABLE IF EXISTS cursor_rows");
+            setup.executeUpdate("CREATE TABLE cursor_rows (id INT PRIMARY KEY, name VARCHAR(32))");
+            setup.executeUpdate("INSERT INTO cursor_rows VALUES (1, 'one'), (2, 'two'), (3, 'three'), (4, 'four'), (5, 'five')");
+
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "SELECT id, name FROM cursor_rows ORDER BY id",
+                    ResultSet.TYPE_FORWARD_ONLY,
+                    ResultSet.CONCUR_READ_ONLY)) {
+                stmt.setFetchSize(2);
+                int rows = 0;
+                try (ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) {
+                        assertThat(rs.getInt(1)).isEqualTo(++rows);
+                        assertThat(rs.getString(2)).isNotBlank();
+                    }
+                }
+                assertThat(rows).isEqualTo(5);
+            }
+            setup.executeUpdate("DROP DATABASE IF EXISTS " + database);
+        }
+    }
+
+    @Test
+    @Order(11)
+    @DisplayName("失败语句后SHOW ERRORS应返回Connector/J可读的错误历史")
+    public void testShowErrorsAfterFailedStatement() throws Exception {
+        assumeTrue(SERVER_AVAILABLE, "XMySQL 未运行在 localhost:3309，跳过连接测试");
+        try (Connection conn = DriverManager.getConnection(BASE_URL, USER, PASSWORD);
+             Statement stmt = conn.createStatement()) {
+            try {
+                stmt.executeQuery("SELECT * FROM xmysql_missing_table_for_show_errors");
+                fail("missing table query should fail");
+            } catch (SQLException expected) {
+                assertThat(expected.getErrorCode()).isNotEqualTo(0);
+            }
+
+            try (ResultSet errors = stmt.executeQuery("SHOW ERRORS")) {
+                assertThat(errors.next()).isTrue();
+                assertThat(errors.getString("Level")).isEqualToIgnoringCase("Error");
+                assertThat(errors.getInt("Code")).isNotEqualTo(0);
+                assertThat(errors.getString("Message")).contains("xmysql_missing_table_for_show_errors");
+            }
+
+            try (ResultSet count = stmt.executeQuery("SHOW COUNT(*) ERRORS")) {
+                assertThat(count.next()).isTrue();
+                assertThat(count.getLong(1)).isEqualTo(1L);
             }
         }
     }

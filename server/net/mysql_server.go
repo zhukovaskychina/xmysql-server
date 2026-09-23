@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"sync"
 	"syscall"
 	"time"
 
@@ -25,10 +24,7 @@ import (
 	//"github.com/zhukovaskychina/xmysql-server/server/innodb/wrapper/store"
 )
 
-const (
-	pprofPath = "/debug/pprof/"
-)
-var metricsHTTPOnce sync.Once
+const pprofPath = "/debug/pprof/"
 
 const logBanner = `
 ******************************************************************************************
@@ -54,6 +50,7 @@ type MySQLServer struct {
 	taskPool       gxsync.GenericTaskPool
 	messageHandler *DecoupledMySQLMessageHandler // 新增：共享的消息处理器
 	xmysqlEngine   *engine.XMySQLEngine          // 新增 xmysqlEngine 字段
+	metricsServer  *http.Server
 }
 
 func NewMySQLServer(conf *conf.Cfg) *MySQLServer {
@@ -73,7 +70,7 @@ func NewMySQLServer(conf *conf.Cfg) *MySQLServer {
 }
 
 func (srv *MySQLServer) Start() {
-	initProfiling(srv.conf)
+	srv.initProfiling()
 
 	// 启动 XMySQL 引擎 (包括恢复和后台任务)
 	if srv.xmysqlEngine != nil {
@@ -98,17 +95,45 @@ func (srv *MySQLServer) Start() {
 
 }
 
-func initProfiling(conf *conf.Cfg) {
-	var (
-		addr string
-	)
-	addr = gxnet.HostAddress(conf.BindAddress, conf.ProfilePort)
-	metricsHTTPOnce.Do(func() {
-		http.Handle("/metrics", metrics.Handler(metrics.DefaultRegistry()))
+func newMetricsHTTPServer(addr string, registry *metrics.Registry) *http.Server {
+	return newMetricsHTTPServerWithReadiness(addr, registry, nil)
+}
+
+func newMetricsHTTPServerWithReadiness(addr string, registry *metrics.Registry, ready func() bool) *http.Server {
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", metrics.Handler(registry))
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.Header().Set("Allow", http.MethodGet)
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if ready != nil && !ready() {
+			http.Error(w, "not ready", http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok\n"))
 	})
+	return &http.Server{Addr: addr, Handler: mux}
+}
+
+func (srv *MySQLServer) initProfiling() {
+	if srv == nil || srv.conf == nil {
+		return
+	}
+	addr := gxnet.HostAddress(srv.conf.BindAddress, srv.conf.ProfilePort)
+	ready := func() bool {
+		return srv.xmysqlEngine != nil && srv.xmysqlEngine.IsReady()
+	}
+	server := newMetricsHTTPServerWithReadiness(addr, metrics.DefaultRegistry(), ready)
+	srv.metricsServer = server
 	log.Info("App Profiling startup on address{%v}", addr+pprofPath)
 	go func() {
-		log.Info(http.ListenAndServe(addr, nil))
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Error("App Profiling stopped with error: %v", err)
+		}
 	}()
 }
 
@@ -165,6 +190,12 @@ func (srv *MySQLServer) initServer(conf *conf.Cfg) {
 }
 
 func (srv *MySQLServer) uninitServer() {
+	if srv.metricsServer != nil {
+		if err := srv.metricsServer.Close(); err != nil && err != http.ErrServerClosed {
+			log.Warn("failed to close profiling server: %v", err)
+		}
+		srv.metricsServer = nil
+	}
 	for _, server := range srv.serverList {
 		server.Close()
 	}

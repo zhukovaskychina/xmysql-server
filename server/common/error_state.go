@@ -125,6 +125,7 @@ var MySQLState = map[uint16]string{
 	ErrWrongTypeForVar:                     "42000",
 	ErrCantUseOptionHere:                   "42000",
 	ErrNotSupportedYet:                     "42000",
+	ErrCheckConstraint:                     "23000",
 	ErrWrongFkDef:                          "42000",
 	ErrOperandColumns:                      "21000",
 	ErrSubqueryNo1Row:                      "21000",

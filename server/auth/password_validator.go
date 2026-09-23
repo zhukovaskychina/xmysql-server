@@ -230,6 +230,14 @@ func NewCachingSHA2PasswordValidator() PasswordValidator {
 
 // ValidatePassword 明文密码校验（非握手路径）；仍委托 native，因系统表默认存储 native 格式。
 func (v *CachingSHA2PasswordValidator) ValidatePassword(inputPassword, storedPassword string, challenge []byte) bool {
+	if len(strings.TrimSpace(storedPassword)) == sha256.Size*2 {
+		storedStage2, err := decodeHex32(storedPassword)
+		if err != nil {
+			return false
+		}
+		calculated := cachingSHA2Stage2(inputPassword)
+		return subtle.ConstantTimeCompare(calculated, storedStage2) == 1
+	}
 	nativeValidator := &MySQLNativePasswordValidator{}
 	return nativeValidator.ValidatePassword(inputPassword, storedPassword, challenge)
 }
@@ -274,8 +282,58 @@ func (v *CachingSHA2PasswordValidator) GenerateChallenge() ([]byte, error) {
 
 // HashPassword 对密码进行哈希
 func (v *CachingSHA2PasswordValidator) HashPassword(password string) (string, error) {
+	return hex.EncodeToString(cachingSHA2Stage2(password)), nil
+}
+
+func cachingSHA2Stage2(password string) []byte {
+	stage1 := sha256.Sum256([]byte(password))
+	stage2 := sha256.Sum256(stage1[:])
+	return stage2[:]
+}
+
+// SHA256PasswordValidator validates the sha256_password authentication
+// string, which stores SHA256(password) rather than the double SHA-256 value
+// used by caching_sha2_password. The network handler performs the protocol
+// specific cleartext/RSA exchange before delegating to this validator.
+type SHA256PasswordValidator struct{}
+
+// NewSHA256PasswordValidator creates a sha256_password validator.
+func NewSHA256PasswordValidator() PasswordValidator {
+	return &SHA256PasswordValidator{}
+}
+
+// ValidatePassword validates a cleartext password against a sha256_password
+// authentication string. A leading '*' is accepted for imported account
+// records that use the common MySQL hash marker.
+func (v *SHA256PasswordValidator) ValidatePassword(inputPassword, storedPassword string, _ []byte) bool {
+	stored := strings.TrimSpace(storedPassword)
+	if strings.HasPrefix(stored, "*") {
+		stored = stored[1:]
+	}
+	if len(stored) != sha256.Size*2 {
+		return false
+	}
+	expected, err := hex.DecodeString(stored)
+	if err != nil {
+		return false
+	}
+	digest := sha256.Sum256([]byte(inputPassword))
+	return subtle.ConstantTimeCompare(digest[:], expected) == 1
+}
+
+// GenerateChallenge keeps the challenge format compatible with the existing
+// handshake helpers. sha256_password full authentication does not use a fast
+// challenge response, but the command-phase exchange still carries the
+// server scramble for the RSA decryption mask.
+func (v *SHA256PasswordValidator) GenerateChallenge() ([]byte, error) {
 	nativeValidator := &MySQLNativePasswordValidator{}
-	return nativeValidator.HashPassword(password)
+	return nativeValidator.GenerateChallenge()
+}
+
+// HashPassword returns the SHA256(password) authentication string.
+func (v *SHA256PasswordValidator) HashPassword(password string) (string, error) {
+	digest := sha256.Sum256([]byte(password))
+	return hex.EncodeToString(digest[:]), nil
 }
 
 // PasswordValidatorFactory 密码验证器工厂
@@ -288,6 +346,8 @@ func (f *PasswordValidatorFactory) CreateValidator(authPlugin string) PasswordVa
 		return NewMySQLNativePasswordValidator()
 	case "caching_sha2_password":
 		return NewCachingSHA2PasswordValidator()
+	case "sha256_password":
+		return NewSHA256PasswordValidator()
 	default:
 		return nil
 	}

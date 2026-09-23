@@ -2,11 +2,13 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
@@ -36,7 +38,8 @@ func newUnifiedExecutorError(stage string, code ExecutionErrorCode, schema, tabl
 	if err == nil {
 		return nil
 	}
-	if _, ok := err.(*ExecutionError); ok {
+	var executionErr *ExecutionError
+	if errors.As(err, &executionErr) && executionErr != nil {
 		return err
 	}
 	if strings.TrimSpace(message) == "" {
@@ -594,23 +597,30 @@ func (ue *UnifiedExecutor) buildSelectOperatorTree(ctx context.Context, stmt *sq
 	}
 
 	tableName := tableNameExpr.Name.String()
+	tableSchema := strings.TrimSpace(schemaName)
+	if qualifier := strings.TrimSpace(tableNameExpr.Qualifier.String()); qualifier != "" {
+		tableSchema = qualifier
+	}
 
 	// 2. 创建基础扫描算子
-	var scanOp Operator = NewTableScanOperator(schemaName, tableName, ue.storageAdapter)
+	var scanOp Operator = NewTableScanOperator(tableSchema, tableName, ue.storageAdapter)
 
 	// 3. 添加WHERE过滤算子
 	if stmt.Where != nil {
-		return nil, NewExecutionErrorWithCause(
-			"engine",
-			"build-select-operator-tree",
-			ExecutionErrorCodeValidation,
-			schemaName,
-			tableNameExpr.Name.String(),
-			"",
-			0,
-			fmt.Errorf("WHERE conditions are not supported in unified executor select yet"),
-			"WHERE conditions are not supported in unified executor select yet",
-		)
+		whereExpr := stmt.Where.Expr
+		scanOp = NewFilterOperator(scanOp, func(record Record) bool {
+			values, err := unifiedPredicateValues(record, whereExpr)
+			if err != nil {
+				logger.Warnf("UnifiedExecutor: failed to resolve WHERE values: %v", err)
+				return false
+			}
+			matched, err := evalPredicate(whereExpr, values)
+			if err != nil {
+				logger.Warnf("UnifiedExecutor: failed to evaluate WHERE predicate: %v", err)
+				return false
+			}
+			return matched
+		})
 	}
 
 	// 4. 添加投影算子（SELECT子句）
@@ -636,7 +646,7 @@ func (ue *UnifiedExecutor) buildSelectOperatorTree(ctx context.Context, stmt *sq
 
 	// 5. 添加ORDER BY排序算子
 	if len(stmt.OrderBy) > 0 {
-		querySchema, err := ue.getQuerySchemaFromTable(ctx, schemaName, tableName)
+		querySchema, err := ue.getQuerySchemaFromTable(ctx, tableSchema, tableName)
 		if err != nil {
 			return nil, NewExecutionErrorWithCause(
 				"engine",
@@ -688,6 +698,58 @@ func (ue *UnifiedExecutor) buildSelectOperatorTree(ctx context.Context, stmt *sq
 	}
 
 	return scanOp, nil
+}
+
+// unifiedPredicateValues materializes only the columns referenced by a WHERE
+// expression. It keeps the unified executor on the parsed AST path and avoids
+// reparsing SQL strings for every row.
+func unifiedPredicateValues(record Record, expression sqlparser.Expr) (map[string]interface{}, error) {
+	if record == nil {
+		return nil, fmt.Errorf("record is nil")
+	}
+	values := make(map[string]interface{})
+	err := sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		column, ok := node.(*sqlparser.ColName)
+		if !ok || column == nil {
+			return true, nil
+		}
+		name := strings.Trim(column.Name.String(), "` ")
+		value, valueErr := record.GetValueByName(name)
+		if valueErr != nil {
+			return false, valueErr
+		}
+		raw := unifiedPredicateRawValue(value)
+		values[name] = raw
+		values[strings.ToLower(name)] = raw
+		if !column.Qualifier.IsEmpty() {
+			qualified := strings.Trim(sqlparser.String(column.Qualifier), "` ") + "." + name
+			values[qualified] = raw
+			values[strings.ToLower(qualified)] = raw
+		}
+		return false, nil
+	}, expression)
+	if err != nil {
+		return nil, err
+	}
+	return values, nil
+}
+
+func unifiedPredicateRawValue(value basic.Value) interface{} {
+	if value == nil || value.IsNull() {
+		return nil
+	}
+	if value.Type().IsNumeric() {
+		switch value.Type() {
+		case basic.ValueTypeFloat, basic.ValueTypeDouble, basic.ValueTypeDecimal:
+			return value.Float64()
+		default:
+			return value.Int()
+		}
+	}
+	if value.Type() == basic.ValueTypeBool || value.Type() == basic.ValueTypeBoolean {
+		return value.Bool()
+	}
+	return value.String()
 }
 
 // buildSelectOperatorTreeFromPlans 通过逻辑计划/物理计划构建选择算子树（用于WHERE等需要谓词处理的场景）
@@ -921,13 +983,15 @@ func (ue *UnifiedExecutor) findColumnIndex(querySchema *metadata.QuerySchema, co
 	if querySchema == nil {
 		return -1
 	}
+	_, requestedColumn := splitQualifiedColumnNameForEngine(columnName)
 
 	for i := 0; i < querySchema.ColumnCount(); i++ {
 		col, ok := querySchema.GetColumnByIndex(i)
 		if !ok || col == nil {
 			continue
 		}
-		if strings.EqualFold(col.Name, columnName) {
+		_, schemaColumn := splitQualifiedColumnNameForEngine(col.Name)
+		if strings.EqualFold(schemaColumn, requestedColumn) || strings.EqualFold(col.Name, columnName) {
 			return i
 		}
 	}

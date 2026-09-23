@@ -5,11 +5,50 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 )
+
+type checkpointActiveTxnProvider struct {
+	ids []uint64
+}
+
+func (p checkpointActiveTxnProvider) GetActiveTransactionIDs() []uint64 {
+	return append([]uint64(nil), p.ids...)
+}
+
+func TestCheckpointManagerCollectsAndSortsActiveTransactions(t *testing.T) {
+	cm := NewCheckpointManager(t.TempDir(), nil)
+	cm.SetActiveTransactionProvider(checkpointActiveTxnProvider{ids: []uint64{42, 3, 17}})
+
+	got := cm.collectActiveTxns()
+	want := []uint64{3, 17, 42}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("active transactions = %v, want %v", got, want)
+	}
+}
+
+func TestCheckpointChecksumCoversPayload(t *testing.T) {
+	cm := NewCheckpointManager(t.TempDir(), nil)
+	checkpoint := &CheckpointRecord{
+		LSN:        10,
+		ActiveTxns: []uint64{3, 8},
+		TableSpaces: []TableSpaceCheckpoint{{
+			SpaceID:   7,
+			PageCount: 2,
+		}},
+	}
+
+	checksum := cm.calculateChecksum(checkpoint)
+	checkpoint.Checksum = checksum
+	checkpoint.ActiveTxns[1] = 9
+	if cm.calculateChecksum(checkpoint) == checksum {
+		t.Fatal("checkpoint checksum must change when payload changes")
+	}
+}
 
 func TestCheckpointManager_WriteGateBlocksAndUnblocksWritePermits(t *testing.T) {
 	cm := NewCheckpointManager(t.TempDir(), nil)

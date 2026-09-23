@@ -28,6 +28,27 @@ func TestCBOIntegratedOptimizer(t *testing.T) {
 	}
 }
 
+func TestCBOIntegratedOptimizerPhysicalPlanConversionPreservesNonScanNodes(t *testing.T) {
+	values := &LogicalValues{
+		BaseLogicalPlan: BaseLogicalPlan{},
+		Exprs:           []Expression{&Constant{Value: int64(1)}},
+	}
+	aggregation := &LogicalAggregation{
+		BaseLogicalPlan: BaseLogicalPlan{children: []LogicalPlan{values}},
+	}
+
+	physical := (&CBOIntegratedOptimizer{}).generatePhysicalPlan(aggregation, nil)
+	if _, ok := physical.(*PhysicalHashAgg); !ok {
+		t.Fatalf("generatePhysicalPlan(LogicalAggregation) = %T, want *PhysicalHashAgg", physical)
+	}
+	if len(physical.Children()) != 1 {
+		t.Fatalf("physical aggregation children = %d, want 1", len(physical.Children()))
+	}
+	if _, ok := physical.Children()[0].(*PhysicalValues); !ok {
+		t.Fatalf("physical aggregation child = %T, want *PhysicalValues", physical.Children()[0])
+	}
+}
+
 // TestHyperLogLog 测试HyperLogLog基数估算
 func TestHyperLogLog(t *testing.T) {
 	hll := NewHyperLogLog(14)
@@ -390,14 +411,13 @@ func TestParallelHashAgg_Parallelize(t *testing.T) {
 	}
 	t.Logf("EXE-007: ParallelHashAgg partitions=%d - passed", pha.partitions)
 
-	// EXE-007: Execute(ParallelHashAgg) 不 panic（localAggregate/mergeAggregates 为 TODO 时返回 nil 可接受）
+	// EXE-007: 没有真实聚合规格时必须显式拒绝执行，不能返回占位聚合行。
 	ctx := context.Background()
 	rows, err := pe.Execute(ctx, pha)
-	if err != nil {
-		t.Errorf("Execute(ParallelHashAgg) err: %v", err)
+	if err == nil {
+		t.Fatalf("Execute(ParallelHashAgg) returned placeholder rows %v without an aggregate specification", rows)
 	}
-	_ = rows // 当前 mergeAggregates 返回 nil，仅验收不 panic
-	t.Log("EXE-007: Execute(ParallelHashAgg) no panic - passed")
+	t.Logf("EXE-007: Execute(ParallelHashAgg) rejected missing row contract: %v", err)
 }
 
 // TestParallelSort_Parallelize EXE-008: PhysicalSort 并行化为 ParallelSort
@@ -410,7 +430,7 @@ func TestParallelSort_Parallelize(t *testing.T) {
 	}
 	sortPlan := &PhysicalSort{
 		BasePhysicalPlan: BasePhysicalPlan{children: []PhysicalPlan{child}},
-		ByItems:         nil,
+		ByItems:          nil,
 	}
 	pe := NewParallelExecutor(4, 100)
 	out := pe.ParallelizePhysicalPlan(sortPlan)
@@ -429,22 +449,21 @@ func TestParallelSort_Parallelize(t *testing.T) {
 	}
 	t.Logf("EXE-008: ParallelSort chunks=%d - passed", len(ps.chunks))
 
-	// EXE-008: Execute(ParallelSort) 不 panic（sortChunk/mergeSortedChunks 为 TODO 时返回 nil 可接受）
+	// EXE-008: 没有真实扫描行源时必须显式拒绝执行，不能排序合成 row id。
 	ctx := context.Background()
 	rows, err := pe.Execute(ctx, ps)
-	if err != nil {
-		t.Errorf("Execute(ParallelSort) err: %v", err)
+	if err == nil {
+		t.Fatalf("Execute(ParallelSort) returned synthetic rows %v without a TableChunkReader", rows)
 	}
-	_ = rows
-	t.Log("EXE-008: Execute(ParallelSort) no panic - passed")
+	t.Logf("EXE-008: Execute(ParallelSort) rejected missing row contract: %v", err)
 }
 
 // TestPhysicalHashAgg_ConvertFromLogicalAggregation EXE-005: LogicalAggregation 转为 PhysicalHashAgg
 func TestPhysicalHashAgg_ConvertFromLogicalAggregation(t *testing.T) {
 	agg := &LogicalAggregation{
 		BaseLogicalPlan: BaseLogicalPlan{},
-		GroupByItems:     nil,
-		AggFuncs:         nil,
+		GroupByItems:    nil,
+		AggFuncs:        nil,
 	}
 	p := ConvertToPhysicalPlan(agg)
 	if p == nil {

@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"encoding/binary"
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/session"
@@ -75,8 +76,16 @@ func (h *MySQLProtocolHandler) HandlePacket(conn net.Conn, packet *MySQLRawPacke
 		return h.handleStmtPrepare(conn, packet)
 	case common.COM_STMT_EXECUTE:
 		return h.handleStmtExecute(conn, packet)
+	case common.COM_STMT_SEND_LONG_DATA:
+		return h.handleStmtSendLongData(conn, packet)
 	case common.COM_STMT_CLOSE:
 		return h.handleStmtClose(conn, packet)
+	case common.COM_STMT_RESET:
+		return h.handleStmtReset(conn, packet)
+	case common.COM_STMT_FETCH:
+		return h.handleStmtFetch(conn, packet)
+	case common.COM_RESET_CONNECTION:
+		return h.handleResetConnection(conn, packet)
 	default:
 		// 未知命令，返回错误而不是当作认证包处理
 		errPacket := EncodeErrorFromCode(common.ER_UNKNOWN_ERROR,
@@ -300,6 +309,18 @@ func (h *MySQLProtocolHandler) handleStmtExecute(conn net.Conn, packet *MySQLRaw
 		conn.Write(errPacket)
 		return err
 	}
+	if packet.Body[5]&0x01 != 0 {
+		open, cursorErr := h.preparedStmtMgr.HasOpenCursor(stmtID)
+		if cursorErr != nil {
+			_, _ = conn.Write(EncodeErrorFromGoError(cursorErr))
+			return cursorErr
+		}
+		if open {
+			err := NewSQLError(common.ErrExecStmtWithOpenCursor)
+			_, _ = conn.Write(EncodeError(err))
+			return err
+		}
+	}
 
 	// 解析执行标志（1字节）
 	// flags := packet.Body[5]
@@ -314,6 +335,17 @@ func (h *MySQLProtocolHandler) handleStmtExecute(conn net.Conn, packet *MySQLRaw
 		conn.Write(errPacket)
 		return err
 	}
+	longData, err := h.preparedStmtMgr.ConsumeLongData(stmtID)
+	if err != nil {
+		errPacket := EncodeErrorFromGoError(err)
+		_, _ = conn.Write(errPacket)
+		return err
+	}
+	for paramID, value := range longData {
+		if int(paramID) < len(params) {
+			params[paramID] = value
+		}
+	}
 	stmt.LastParamTypes = typeBlock
 
 	boundSQL := BindPreparedSQL(stmt.SQL, params)
@@ -327,8 +359,34 @@ func (h *MySQLProtocolHandler) handleStmtExecute(conn net.Conn, packet *MySQLRaw
 	// 更新会话活动时间
 	sess.UpdateActivity()
 
-	// 执行查询
+	// 执行查询。带 cursor flag 的执行只打开游标，数据由 COM_STMT_FETCH 分页读取。
 	resultChan := h.queryDispatcher.Dispatch(sess, boundSQL)
+	if packet.Body[5]&0x01 != 0 {
+		for result := range resultChan {
+			if result.Error != nil {
+				conn.Write(EncodeErrorFromGoError(result.Error))
+				return result.Error
+			}
+			if result.ResultType != "query" {
+				return fmt.Errorf("server-side cursors require a result set")
+			}
+			if err := h.preparedStmtMgr.SetCursorResult(stmtID, &MessageQueryResult{
+				Columns: result.Columns, ColumnTypes: nil, Rows: result.Rows, Type: "select",
+			}); err != nil {
+				if open, _ := h.preparedStmtMgr.HasOpenCursor(stmtID); open {
+					sqlErr := NewSQLError(common.ErrExecStmtWithOpenCursor)
+					conn.Write(EncodeError(sqlErr))
+					return sqlErr
+				} else {
+					conn.Write(EncodeErrorFromGoError(err))
+				}
+				return err
+			}
+			err := h.sendCursorMetadata(conn, result, packet.Header.PacketId+1)
+			return err
+		}
+		return fmt.Errorf("prepared statement returned no result")
+	}
 
 	// 处理结果（同步处理，确保顺序）
 	for result := range resultChan {
@@ -353,6 +411,106 @@ func (h *MySQLProtocolHandler) handleStmtExecute(conn net.Conn, packet *MySQLRaw
 	return nil
 }
 
+// handleStmtSendLongData buffers one chunk for a prepared-statement parameter.
+// MySQL intentionally sends no response for a successful COM_STMT_SEND_LONG_DATA.
+func (h *MySQLProtocolHandler) handleStmtSendLongData(conn net.Conn, packet *MySQLRawPacket) error {
+	if len(packet.Body) < 7 {
+		return fmt.Errorf("invalid stmt send long data packet")
+	}
+	stmtID := binary.LittleEndian.Uint32(packet.Body[1:5])
+	paramID := binary.LittleEndian.Uint16(packet.Body[5:7])
+	if err := h.preparedStmtMgr.AppendLongData(stmtID, paramID, packet.Body[7:]); err != nil {
+		_, _ = conn.Write(EncodeErrorFromGoError(err))
+		return err
+	}
+	return nil
+}
+
+func (h *MySQLProtocolHandler) handleStmtReset(conn net.Conn, packet *MySQLRawPacket) error {
+	if len(packet.Body) < 5 {
+		return fmt.Errorf("invalid stmt reset packet")
+	}
+	stmtID := binary.LittleEndian.Uint32(packet.Body[1:5])
+	if err := h.preparedStmtMgr.Reset(stmtID); err != nil {
+		_, _ = conn.Write(EncodeErrorFromGoError(err))
+		return err
+	}
+	_, err := conn.Write(EncodeOKPacket(nil, 0, 0, nil))
+	return err
+}
+
+func (h *MySQLProtocolHandler) handleStmtFetch(conn net.Conn, packet *MySQLRawPacket) error {
+	if len(packet.Body) < 9 {
+		return fmt.Errorf("invalid stmt fetch packet")
+	}
+	stmtID := binary.LittleEndian.Uint32(packet.Body[1:5])
+	rowCount := binary.LittleEndian.Uint32(packet.Body[5:9])
+	result, done, err := h.preparedStmtMgr.FetchCursor(stmtID, rowCount)
+	if err != nil {
+		_, _ = conn.Write(EncodeErrorFromGoError(err))
+		return err
+	}
+	return h.sendCursorRows(conn, result, done, packet.Header.PacketId+1)
+}
+
+func (h *MySQLProtocolHandler) cursorColumnDefinitions(result *QueryResult) []*ColumnDefinition {
+	definitions := make([]*ColumnDefinition, 0, len(result.Columns))
+	for index, name := range result.Columns {
+		var value interface{}
+		if len(result.Rows) > 0 && index < len(result.Rows[0]) {
+			value = result.Rows[0][index]
+		}
+		if value == nil {
+			definitions = append(definitions, h.encoder.CreateColumnDefinition(name, MYSQL_TYPE_VAR_STRING, 0))
+			continue
+		}
+		definitions = append(definitions, h.encoder.CreateColumnDefinitionFromValue(name, value))
+	}
+	return definitions
+}
+
+func (h *MySQLProtocolHandler) sendCursorMetadata(conn net.Conn, result *QueryResult, seqID byte) error {
+	definitions := h.cursorColumnDefinitions(result)
+	if _, err := conn.Write(h.addPacketHeader(h.encoder.WriteLenEncInt(uint64(len(definitions))), seqID)); err != nil {
+		return err
+	}
+	seqID++
+	for _, definition := range definitions {
+		if _, err := conn.Write(h.encoder.EncodeColumnDefinitionPacket(definition, seqID)); err != nil {
+			return err
+		}
+		seqID++
+	}
+	_, err := conn.Write(EncodeEOFPacketWithSeq(0, SERVER_STATUS_AUTOCOMMIT|SERVER_STATUS_CURSOR_EXISTS, seqID))
+	return err
+}
+
+func (h *MySQLProtocolHandler) sendCursorRows(conn net.Conn, result *MessageQueryResult, done bool, seqID byte) error {
+	queryResult := &QueryResult{Columns: result.Columns, Rows: result.Rows}
+	definitions := h.cursorColumnDefinitions(queryResult)
+	for _, row := range result.Rows {
+		if _, err := conn.Write(h.encoder.EncodeBinaryRowPacket(row, definitions, seqID)); err != nil {
+			return err
+		}
+		seqID++
+	}
+	status := uint16(SERVER_STATUS_AUTOCOMMIT)
+	if done {
+		status |= SERVER_STATUS_LAST_ROW_SENT
+	} else {
+		status |= SERVER_STATUS_CURSOR_EXISTS
+	}
+	_, err := conn.Write(EncodeEOFPacketWithSeq(result.WarningCount, status, seqID))
+	return err
+}
+
+func (h *MySQLProtocolHandler) handleResetConnection(conn net.Conn, packet *MySQLRawPacket) error {
+	// A connection reset closes all prepared statements and clears their buffered state.
+	h.preparedStmtMgr = NewPreparedStatementManager()
+	_, err := conn.Write(EncodeOKPacket(nil, 0, 0, nil))
+	return err
+}
+
 // handleStmtClose 处理 COM_STMT_CLOSE 命令
 func (h *MySQLProtocolHandler) handleStmtClose(conn net.Conn, packet *MySQLRawPacket) error {
 	if len(packet.Body) < 5 {
@@ -373,4 +531,3 @@ func (h *MySQLProtocolHandler) handleStmtClose(conn net.Conn, packet *MySQLRawPa
 	// COM_STMT_CLOSE 不返回响应
 	return nil
 }
-

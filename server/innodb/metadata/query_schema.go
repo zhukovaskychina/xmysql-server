@@ -1,5 +1,7 @@
 package metadata
 
+import "strings"
+
 // QuerySchema 表示查询结果的schema信息
 // 用于火山模型执行器中的算子输出schema
 type QuerySchema struct {
@@ -56,7 +58,7 @@ func (qs *QuerySchema) AddColumn(col *QueryColumn) {
 // GetColumn 根据名称获取列
 func (qs *QuerySchema) GetColumn(name string) (*QueryColumn, bool) {
 	for _, col := range qs.Columns {
-		if col.Name == name {
+		if col != nil && strings.EqualFold(col.Name, name) {
 			return col, true
 		}
 	}

@@ -2,7 +2,6 @@ package buffer_pool
 
 import (
 	"container/list"
-	"github.com/zhukovaskychina/xmysql-server/util"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -494,8 +493,22 @@ func (c *OptimizedLRUCache) Purge() {
 
 // generateKey 生成缓存键
 func (c *OptimizedLRUCache) generateKey(spaceId uint32, pageNo uint32) uint64 {
-	buff := append(util.ConvertUInt4Bytes(spaceId), util.ConvertUInt4Bytes(pageNo)...)
-	return util.HashCode(buff)
+	return makeLRUPageKey(spaceId, pageNo)
+}
+
+// PageSnapshot is a stable, read-only view of one page currently held by the
+// optimized LRU.  It deliberately contains only diagnostic state so callers
+// such as INFORMATION_SCHEMA cannot mutate cache-owned pages while reporting
+// buffer-pool contents.
+type PageSnapshot struct {
+	SpaceID        uint32
+	PageNo         uint32
+	Page           *BufferPage
+	FirstVisitTime uint64
+	LastVisitTime  uint64
+	AccessCount    uint32
+	IsOld          bool
+	LRUPosition    int
 }
 
 // 统计相关方法
@@ -646,4 +659,40 @@ func (c *OptimizedLRUCache) Range(f func(page *BufferPage) bool) {
 			return
 		}
 	}
+}
+
+// Snapshot returns the cache pages in their diagnostic LRU order.  The
+// optimized cache has three lists; report hot pages first, followed by old
+// pages and then the ordinary list, preserving each list's front-to-back
+// order.  A copy is returned so the cache lock is not held by consumers.
+func (c *OptimizedLRUCache) Snapshot() []PageSnapshot {
+	if c == nil {
+		return nil
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	pages := make([]PageSnapshot, 0, len(c.items)+len(c.youngItems)+len(c.oldItems))
+	appendList := func(list *list.List, old bool) {
+		for element := list.Front(); element != nil; element = element.Next() {
+			item, ok := element.Value.(*lruItemOptimized)
+			if !ok || item == nil || item.value == nil || item.value.BufferPage == nil {
+				continue
+			}
+			pages = append(pages, PageSnapshot{
+				SpaceID:        item.spaceID,
+				PageNo:         item.pageNo,
+				Page:           item.value.BufferPage,
+				FirstVisitTime: item.firstVisitTime,
+				LastVisitTime:  item.lastVisitTime,
+				AccessCount:    atomic.LoadUint32(&item.accessCount),
+				IsOld:          old,
+				LRUPosition:    len(pages),
+			})
+		}
+	}
+	appendList(c.evictYoungList, false)
+	appendList(c.evictOldList, true)
+	appendList(c.evictList, false)
+	return pages
 }

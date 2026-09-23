@@ -346,10 +346,7 @@ func (iflp *IBufFreeListPage) Deserialize(data []byte) error {
 
 // serializeFileHeader 序列化文件头部
 func (iflp *IBufFreeListPage) serializeFileHeader() []byte {
-	// 实现文件头部序列化逻辑
-	data := make([]byte, FileHeaderSize)
-	// 这里应该包含具体的序列化逻辑
-	return data
+	return iflp.FileHeader.GetSerialBytes()
 }
 
 // serializeIBufFreeListHeader 序列化IBuf空闲列表头部
@@ -382,16 +379,12 @@ func (iflp *IBufFreeListPage) serializePageEntries() []byte {
 
 // serializeFileTrailer 序列化文件尾部
 func (iflp *IBufFreeListPage) serializeFileTrailer() []byte {
-	// 实现文件尾部序列化逻辑
-	data := make([]byte, FileTrailerSize)
-	// 这里应该包含具体的序列化逻辑
-	return data
+	return iflp.FileTrailer.FileTrailer[:]
 }
 
 // deserializeFileHeader 反序列化文件头部
 func (iflp *IBufFreeListPage) deserializeFileHeader(data []byte) error {
-	// 实现文件头部反序列化逻辑
-	return nil
+	return iflp.FileHeader.ParseFileHeader(data)
 }
 
 // deserializeIBufFreeListHeader 反序列化IBuf空闲列表头部

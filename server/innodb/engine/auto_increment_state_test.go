@@ -3,6 +3,7 @@ package engine
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
@@ -68,6 +69,38 @@ func TestAutoIncrementStateExplicitValueAdvancesNextAllocation(t *testing.T) {
 	if nextPK != int64(42) {
 		t.Fatalf("next allocated key = %#v, want int64(42)", nextPK)
 	}
+}
+
+func TestAlterTableAutoIncrementSetsNextGeneratedValue(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table users (id int primary key auto_increment, name varchar(20))")
+	mustExecSQL(t, executor, "app", "insert into users (name) values ('before')")
+	mustExecSQL(t, executor, "app", "alter table users auto_increment=100")
+	mustExecSQL(t, executor, "app", "insert into users (name) values ('after')")
+	if got := mustQuerySQL(t, executor, "app", "select id, name from users order by id"); len(got) != 2 || got[1][0] != "100" {
+		t.Fatalf("rows after ALTER TABLE AUTO_INCREMENT = %#v, want second id 100", got)
+	}
+}
+
+func TestCreateTableAutoIncrementOptionSetsNextGeneratedValue(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table users (id int primary key auto_increment, name varchar(20)) auto_increment=100")
+	assertInformationSchemaAutoIncrement(t, executor, "app", "users", 100)
+	mustExecSQL(t, executor, "app", "insert into users (name) values ('first')")
+	assertInformationSchemaAutoIncrement(t, executor, "app", "users", 101)
+	require.Equal(t, [][]interface{}{{"100", "first"}}, mustQuerySQL(t, executor, "app", "select id, name from users"))
+}
+
+func assertInformationSchemaAutoIncrement(t *testing.T, executor *XMySQLEngine, schemaName, tableName string, expected int64) {
+	t.Helper()
+	got := <-executor.ExecuteQuery(nil, "select auto_increment from information_schema.tables where table_schema = '"+schemaName+"' and table_name = '"+tableName+"'", schemaName)
+	require.NoError(t, got.Err)
+	result, ok := got.Data.(*SelectResult)
+	require.True(t, ok)
+	require.Len(t, result.Records, 1)
+	require.Equal(t, expected, result.Records[0].GetValueByIndex(0).Int())
 }
 
 func autoIncrementTestTableMeta() *metadata.TableMeta {

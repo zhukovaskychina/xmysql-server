@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
@@ -49,7 +50,7 @@ func (r *EngineExecutorRecord) GetValueByName(columnName string) (basic.Value, e
 		return basic.NewNull(), fmt.Errorf("schema is nil")
 	}
 	for i, col := range r.schema.Columns {
-		if col.Name == columnName {
+		if col != nil && strings.EqualFold(col.Name, columnName) {
 			if i < len(r.values) {
 				return r.values[i], nil
 			}
@@ -64,7 +65,7 @@ func (r *EngineExecutorRecord) SetValueByName(columnName string, value basic.Val
 		return fmt.Errorf("schema is nil")
 	}
 	for i, col := range r.schema.Columns {
-		if col.Name == columnName {
+		if col != nil && strings.EqualFold(col.Name, columnName) {
 			if i < len(r.values) {
 				r.values[i] = value
 				return nil

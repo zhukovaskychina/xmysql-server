@@ -18,6 +18,7 @@
 package net
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	log "github.com/AlexStocks/log4go"
@@ -25,6 +26,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/dispatcher"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
 	"github.com/zhukovaskychina/xmysql-server/server/protocol"
 	"sync"
 )
@@ -72,38 +74,50 @@ func NewMySQLMessageHandler(cfg *conf.Cfg) *MySQLMessageHandler {
 }
 
 func (m *MySQLMessageHandler) OnOpen(session Session) error {
-	var (
-		err error
-	)
-
-	m.rwlock.RLock()
-
-	if m.cfg.SessionNumber <= len(m.sessionMap) {
-		err = errTooManySessions
-	}
-	m.rwlock.RUnlock()
-	if err != nil {
-		return err
-	}
 	log.Info("got session:%s", session.Stat())
 	m.rwlock.Lock()
-
+	if m.cfg.SessionNumber <= len(m.sessionMap) {
+		m.rwlock.Unlock()
+		return errTooManySessions
+	}
 	m.sessionMap[session] = NewMySQLServerSession(session)
+	session.SetAttribute("prepared_stmt_mgr", protocol.NewPreparedStatementManager())
+	mysqlSession := m.sessionMap[session]
 	m.rwlock.Unlock()
 	//主动与客户端握手
-	m.sessionMap[session].SendHandleOk()
+	mysqlSession.SendHandleOk()
 	return nil
 }
 
+func (m *MySQLMessageHandler) removeSession(session Session) (server.MySQLServerSession, bool) {
+	m.rwlock.Lock()
+	mysqlSession, ok := m.sessionMap[session]
+	if ok {
+		delete(m.sessionMap, session)
+	}
+	m.rwlock.Unlock()
+	return mysqlSession, ok
+}
+
 func (m *MySQLMessageHandler) OnClose(session Session) {
+	mysqlSession, ok := m.removeSession(session)
+	if ok && m.sqlDispatcher != nil {
+		if err := m.sqlDispatcher.CleanupTemporaryTables(mysqlSession); err != nil {
+			log.Error("temporary table cleanup failed on close: %v", err)
+		}
+	}
 	session.Close()
-	delete(m.sessionMap, session)
 }
 
 func (m *MySQLMessageHandler) OnError(session Session, err error) {
 	fmt.Println("", err)
+	mysqlSession, ok := m.removeSession(session)
+	if ok && m.sqlDispatcher != nil {
+		if cleanupErr := m.sqlDispatcher.CleanupTemporaryTables(mysqlSession); cleanupErr != nil {
+			log.Error("temporary table cleanup failed on error: %v", cleanupErr)
+		}
+	}
 	session.Close()
-	delete(m.sessionMap, session)
 }
 
 func (m *MySQLMessageHandler) OnCron(session Session) {
@@ -116,7 +130,9 @@ func (m *MySQLMessageHandler) OnMessage(session Session, pkg interface{}) {
 		return
 	}
 
+	m.rwlock.RLock()
 	currentMysqlSession, ok := m.sessionMap[session]
+	m.rwlock.RUnlock()
 	if !ok {
 		log.Error("Session not found: %v", session)
 		return
@@ -151,6 +167,12 @@ func (m *MySQLMessageHandler) handleMessage(session Session, currentMysqlSession
 		return m.handleInitDB(session, currentMysqlSession, recMySQLPkg)
 	case common.COM_PING:
 		return m.handlePing(session, currentMysqlSession, recMySQLPkg)
+	case common.COM_STMT_SEND_LONG_DATA:
+		return m.handleStmtSendLongData(session, recMySQLPkg)
+	case common.COM_RESET_CONNECTION:
+		return m.handleResetConnection(session, currentMysqlSession, recMySQLPkg)
+	case common.COM_BINLOG_DUMP, common.COM_BINLOG_DUMP_GTID:
+		return dumpBinlogEvents(session, recMySQLPkg.Body)
 	case common.COM_FIELD_LIST,
 		common.COM_CREATE_DB,
 		common.COM_DROP_DB,
@@ -164,20 +186,16 @@ func (m *MySQLMessageHandler) handleMessage(session Session, currentMysqlSession
 		common.COM_TIME,
 		common.COM_DELAYED_INSERT,
 		common.COM_CHANGE_USER,
-		common.COM_BINLOG_DUMP,
 		common.COM_TABLE_DUMP,
 		common.COM_CONNECT_OUT,
 		common.COM_REGISTER_SLAVE,
 		common.COM_STMT_PREPARE,
 		common.COM_STMT_EXECUTE,
-		common.COM_STMT_SEND_LONG_DATA,
 		common.COM_STMT_CLOSE,
 		common.COM_STMT_RESET,
 		common.COM_SET_OPTION,
 		common.COM_STMT_FETCH,
-		common.COM_DAEMON,
-		common.COM_BINLOG_DUMP_GTID,
-		common.COM_RESET_CONNECTION:
+		common.COM_DAEMON:
 		return m.handleUnsupportedCommand(session, recMySQLPkg)
 	default:
 		return m.handleUnsupportedCommand(session, recMySQLPkg)
@@ -199,7 +217,9 @@ func (m *MySQLMessageHandler) handleAuth(session Session, currentMysqlSession *s
 	session.SetAttribute("auth_status", "success")
 	(*currentMysqlSession).SetParamByName("database", authResult.Database)
 	(*currentMysqlSession).SetParamByName("user", authResult.User)
+	m.rwlock.Lock()
 	m.sessionMap[session] = *currentMysqlSession
+	m.rwlock.Unlock()
 
 	buff := protocol.EncodeOK(nil, 0, 0, nil)
 	return session.WriteBytes(buff)
@@ -220,14 +240,59 @@ func (m *MySQLMessageHandler) handleQuery(session Session, currentMysqlSession *
 	resultChan := m.sqlDispatcher.Dispatch(*currentMysqlSession, query, dbName)
 
 	// 同步处理结果，避免连接状态混乱
-	return m.handleQueryResults(session, resultChan)
+	err := m.handleQueryResults(session, resultChan)
+	if shouldClose, ok := (*currentMysqlSession).GetParamByName("should_close").(bool); ok && shouldClose {
+		// RELEASE must be acknowledged before the transport is closed.
+		session.Close()
+	}
+	return err
+}
+
+func (m *MySQLMessageHandler) handleStmtSendLongData(session Session, recMySQLPkg *MySQLPackage) error {
+	if len(recMySQLPkg.Body) < 7 {
+		return session.WriteBytes(protocol.EncodeErrorPacket(common.ErrParse, "42000", "Invalid COM_STMT_SEND_LONG_DATA"))
+	}
+	stmtID := binary.LittleEndian.Uint32(recMySQLPkg.Body[1:5])
+	paramID := binary.LittleEndian.Uint16(recMySQLPkg.Body[5:7])
+	mgr, ok := session.GetAttribute("prepared_stmt_mgr").(*protocol.PreparedStatementManager)
+	if !ok || mgr == nil {
+		mgr = protocol.NewPreparedStatementManager()
+		session.SetAttribute("prepared_stmt_mgr", mgr)
+	}
+	if err := mgr.AppendLongData(stmtID, paramID, recMySQLPkg.Body[7:]); err != nil {
+		return session.WriteBytes(protocol.EncodeErrorPacket(common.ErrUnknownStmtHandler, "HY000", err.Error()))
+	}
+	// COM_STMT_SEND_LONG_DATA has no server response on success.
+	return nil
+}
+
+func (m *MySQLMessageHandler) handleResetConnection(session Session, currentMysqlSession *server.MySQLServerSession, recMySQLPkg *MySQLPackage) error {
+	session.SetAttribute("prepared_stmt_mgr", protocol.NewPreparedStatementManager())
+	if currentMysqlSession != nil && *currentMysqlSession != nil {
+		if m.sqlDispatcher != nil {
+			if err := m.sqlDispatcher.ResetSession(*currentMysqlSession); err != nil {
+				return session.WriteBytes(protocol.EncodeErrorPacket(1105, "HY000", err.Error()))
+			}
+		} else {
+			(*currentMysqlSession).SetParamByName("autocommit", "1")
+			(*currentMysqlSession).SetParamByName("in_transaction", false)
+			(*currentMysqlSession).SetParamByName("database", "")
+			(*currentMysqlSession).SetParamByName("locked_tables", map[string]string{})
+			(*currentMysqlSession).SetParamByName("warnings", []engine.Warning{})
+			(*currentMysqlSession).SetParamByName("user_variables", map[string]interface{}{})
+			(*currentMysqlSession).SetParamByName("session_variables", map[string]interface{}{})
+		}
+	}
+	return session.WriteBytes(protocol.EncodeOK(nil, 0, 0, nil))
 }
 
 func (m *MySQLMessageHandler) handleQueryResults(session Session, resultChan <-chan *dispatcher.SQLResult) error {
 	for result := range resultChan {
 		if result.Err != nil {
-			// 发送错误响应
-			errPacket := protocol.EncodeErrorPacket(1064, "42000", result.Err.Error())
+			// Preserve the engine's common MySQL error classification so legacy
+			// result-channel clients receive the same errno/SQLSTATE as the
+			// decoupled protocol path.
+			errPacket := protocol.EncodeErrorFromGoError(result.Err)
 			return session.WriteBytes(errPacket)
 		}
 
@@ -241,7 +306,7 @@ func (m *MySQLMessageHandler) handleQueryResults(session Session, resultChan <-c
 			return session.WriteBytes(okPacket)
 		case "insert", "update", "delete":
 			// 发送DML成功响应
-			okPacket := protocol.EncodeOK(nil, 1, 0, nil) // 假设影响1行
+			okPacket := protocol.EncodeOK(nil, int64(result.AffectedRows), int64(result.LastInsertID), nil)
 			return session.WriteBytes(okPacket)
 		case "set":
 			// 发送SET成功响应

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync/atomic"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 var (
@@ -48,8 +50,13 @@ type DictPage struct {
 
 // NewDictPage 创建字典页面
 func NewDictPage(spaceID, pageNo uint32) *DictPage {
+	return NewDictPageWithStorage(spaceID, pageNo, nil)
+}
+
+// NewDictPageWithStorage creates a dictionary page backed by a durable provider.
+func NewDictPageWithStorage(spaceID, pageNo uint32, storage basic.StorageProvider) *DictPage {
 	dp := &DictPage{
-		BaseSystemPage: NewBaseSystemPage(spaceID, pageNo, SystemPageTypeDict),
+		BaseSystemPage: NewBaseSystemPageWithStorage(spaceID, pageNo, SystemPageTypeDict, storage),
 		freeList:       make([]uint16, 0),
 		dirtyList:      make([]uint16, 0),
 	}

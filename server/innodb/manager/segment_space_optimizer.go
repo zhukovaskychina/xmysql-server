@@ -55,6 +55,7 @@ type SegmentSpaceOptimizer struct {
 
 	// 停止信号
 	stopChan chan struct{}
+	stopOnce sync.Once
 
 	mu sync.RWMutex
 }
@@ -519,7 +520,7 @@ func (sso *SegmentSpaceOptimizer) performAutoReclaim() {
 
 // Stop 停止优化器
 func (sso *SegmentSpaceOptimizer) Stop() {
-	close(sso.stopChan)
+	sso.stopOnce.Do(func() { close(sso.stopChan) })
 }
 
 // GetCacheStats 获取缓存统计

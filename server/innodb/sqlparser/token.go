@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/bytes2"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/sqltypes"
@@ -392,6 +393,51 @@ var keywords = map[string]int{
 	"year":                YEAR,
 	"year_month":          UNUSED,
 	"zerofill":            ZEROFILL,
+}
+
+// KeywordInfo is the lexical keyword inventory used by the parser.  It is
+// exported so INFORMATION_SCHEMA.KEYWORDS can expose the same vocabulary the
+// server actually accepts, instead of maintaining a second drifting list.
+type KeywordInfo struct {
+	Word     string
+	Reserved bool
+}
+
+var reservedKeywordNames = map[string]struct{}{
+	"add": {}, "and": {}, "as": {}, "asc": {}, "auto_increment": {},
+	"between": {}, "binary": {}, "by": {}, "case": {}, "collate": {},
+	"convert": {}, "create": {}, "cross": {}, "current_date": {},
+	"current_time": {}, "current_timestamp": {}, "substr": {}, "substring": {},
+	"database": {}, "databases": {}, "default": {}, "delete": {}, "desc": {},
+	"describe": {}, "distinct": {}, "div": {}, "drop": {}, "else": {},
+	"end": {}, "escape": {}, "exists": {}, "explain": {}, "false": {},
+	"for": {}, "force": {}, "from": {}, "group": {}, "having": {}, "if": {},
+	"ignore": {}, "in": {}, "index": {}, "inner": {}, "insert": {},
+	"interval": {}, "into": {}, "is": {}, "join": {}, "key": {}, "left": {},
+	"like": {}, "limit": {}, "localtime": {}, "localtimestamp": {}, "lock": {},
+	"match": {}, "maxvalue": {}, "mod": {}, "natural": {}, "next": {},
+	"not": {}, "null": {}, "on": {}, "or": {}, "order": {}, "outer": {},
+	"regexp": {}, "rename": {}, "replace": {}, "right": {}, "schema": {},
+	"select": {}, "separator": {}, "set": {}, "show": {}, "straight_join": {},
+	"table": {}, "tables": {}, "then": {}, "to": {}, "true": {}, "union": {},
+	"unique": {}, "update": {}, "use": {}, "using": {}, "utc_date": {},
+	"utc_time": {}, "utc_timestamp": {}, "values": {}, "when": {}, "where": {},
+}
+
+// KeywordInfos returns a deterministic copy of the parser's keyword
+// inventory. Callers cannot mutate the parser's internal maps through it.
+func KeywordInfos() []KeywordInfo {
+	words := make([]string, 0, len(keywords))
+	for word := range keywords {
+		words = append(words, word)
+	}
+	sort.Strings(words)
+	result := make([]KeywordInfo, 0, len(words))
+	for _, word := range words {
+		_, reserved := reservedKeywordNames[word]
+		result = append(result, KeywordInfo{Word: word, Reserved: reserved})
+	}
+	return result
 }
 
 // keywordStrings contains the reverse mapping of token to keyword strings

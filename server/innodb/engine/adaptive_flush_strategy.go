@@ -222,10 +222,9 @@ func (afs *AdaptiveFlushStrategy) calculatePageScore(page *buffer_pool.BufferPag
 		score += lsnScore * 0.5
 	}
 
-	// 因素2: 访问频率（权重30%）
-	// 访问频率越低，得分越高（减少对热点页面的影响）
-	// 简化实现：使用固定得分
-	accessScore := 0.5
+	// 因素2: 访问新鲜度（权重30%）
+	// 越久未访问的页面越冷，优先刷新以减少恢复时的脏页集合。
+	accessScore := pageColdnessScore(page.GetAccessTime(), time.Minute)
 	score += accessScore * 0.3
 
 	// 因素3: 脏标记（权重20%）

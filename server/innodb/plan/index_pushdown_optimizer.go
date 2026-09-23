@@ -24,11 +24,24 @@ func NewIndexPushdownOptimizer() *IndexPushdownOptimizer {
 	}
 }
 
+func lookupCaseInsensitiveStats[T any](stats map[string]*T, key string) (*T, bool) {
+	if value, ok := stats[key]; ok {
+		return value, true
+	}
+	for candidate, value := range stats {
+		if strings.EqualFold(candidate, key) {
+			return value, true
+		}
+	}
+	return nil, false
+}
+
 // IndexCondition 索引条件
 type IndexCondition struct {
 	Column        string      // 列名
 	Operator      string      // 操作符 (=, <, >, <=, >=, IN, LIKE)
 	Value         interface{} // 值
+	Escape        interface{} // explicit LIKE escape character, when present
 	CanPush       bool        // 是否可以下推
 	Selectivity   float64     // 选择性
 	Priority      int         // 下推优先级（新增）
@@ -37,15 +50,26 @@ type IndexCondition struct {
 
 // IndexCandidate 索引候选
 type IndexCandidate struct {
-	Index       *metadata.Index
-	Conditions  []*IndexCondition
-	CoverIndex  bool    // 是否覆盖索引
-	Cost        float64 // 代价
-	Selectivity float64 // 选择性
-	KeyLength   int     // 使用的键长度
-	Score       float64 // 综合评分（新增）
-	Reason      string  // 选择原因（新增）
+	Index      *metadata.Index
+	Conditions []*IndexCondition
+	// IndexMergeBranches contains the independently scanned branches of an
+	// OR predicate. A non-empty value means this candidate is a union plan and
+	// its row identity must be de-duplicated before projection.
+	IndexMergeBranches []*IndexCandidate
+	DeduplicateRows    bool
+	MergeMode          string  // INDEX_MERGE_UNION or INDEX_MERGE_INTERSECTION
+	CoverIndex         bool    // 是否覆盖索引
+	Cost               float64 // 代价
+	Selectivity        float64 // 选择性
+	KeyLength          int     // 使用的键长度
+	Score              float64 // 综合评分（新增）
+	Reason             string  // 选择原因（新增）
 }
+
+const (
+	IndexMergeUnion        = "UNION"
+	IndexMergeIntersection = "INTERSECTION"
+)
 
 // OptimizeIndexAccess 优化索引访问
 func (opt *IndexPushdownOptimizer) OptimizeIndexAccess(
@@ -53,6 +77,9 @@ func (opt *IndexPushdownOptimizer) OptimizeIndexAccess(
 	whereConditions []Expression,
 	selectColumns []string,
 ) (*IndexCandidate, error) {
+	if branches := splitTopLevelDisjunction(whereConditions); len(branches) > 1 {
+		return opt.optimizeDisjunction(table, branches, selectColumns)
+	}
 
 	// 1. 分析WHERE条件
 	conditions, err := opt.analyzeWhereConditions(whereConditions)
@@ -71,6 +98,198 @@ func (opt *IndexPushdownOptimizer) OptimizeIndexAccess(
 	bestCandidate := opt.selectBestIndex(candidates)
 
 	return bestCandidate, nil
+}
+
+const maxIndexMergeDisjunctionBranches = 16
+
+// splitTopLevelDisjunction extracts a bounded DNF for OR predicates.  In
+// addition to A OR B, this handles a shared conjunct such as
+// common AND (A OR B) by copying the common predicate into both index-merge
+// branches.  The bound keeps pathological boolean expressions from causing
+// an optimizer-time cartesian-product explosion; callers then fall back to a
+// regular scan when the expression is too complex.
+func splitTopLevelDisjunction(expressions []Expression) [][]Expression {
+	branches := [][]Expression{{}}
+	hasDisjunction := false
+	for _, expr := range expressions {
+		alternatives, containsDisjunction, ok := expandDisjunction(expr)
+		if !ok {
+			return nil
+		}
+		hasDisjunction = hasDisjunction || containsDisjunction
+		if len(branches)*len(alternatives) > maxIndexMergeDisjunctionBranches {
+			return nil
+		}
+		combined := make([][]Expression, 0, len(branches)*len(alternatives))
+		for _, prefix := range branches {
+			for _, alternative := range alternatives {
+				branch := append([]Expression{}, prefix...)
+				branch = append(branch, alternative...)
+				combined = append(combined, branch)
+			}
+		}
+		branches = combined
+	}
+	if !hasDisjunction || len(branches) < 2 {
+		return nil
+	}
+	return branches
+}
+
+func expandDisjunction(expr Expression) ([][]Expression, bool, bool) {
+	if between, ok := expr.(*BetweenExpression); ok && between != nil && between.Not {
+		lower, lowerOK := indexConstantBound(between.LowerExpr, between.Lower)
+		upper, upperOK := indexConstantBound(between.UpperExpr, between.Upper)
+		if !lowerOK || !upperOK || between.Column == nil {
+			return [][]Expression{{expr}}, false, true
+		}
+		return [][]Expression{
+			[]Expression{&BinaryOperation{Op: OpLT, Left: between.Column, Right: lower}},
+			[]Expression{&BinaryOperation{Op: OpGT, Left: between.Column, Right: upper}},
+		}, true, true
+	}
+	op, ok := expr.(*BinaryOperation)
+	if !ok {
+		return [][]Expression{{expr}}, false, true
+	}
+	switch op.Op {
+	case OpOr:
+		left, _, ok := expandDisjunction(op.Left)
+		if !ok {
+			return nil, false, false
+		}
+		right, _, ok := expandDisjunction(op.Right)
+		if !ok {
+			return nil, false, false
+		}
+		return append(left, right...), true, true
+	case OpAnd:
+		left, leftHasDisjunction, ok := expandDisjunction(op.Left)
+		if !ok {
+			return nil, false, false
+		}
+		right, rightHasDisjunction, ok := expandDisjunction(op.Right)
+		if !ok {
+			return nil, false, false
+		}
+		if len(left)*len(right) > maxIndexMergeDisjunctionBranches {
+			return nil, false, false
+		}
+		result := make([][]Expression, 0, len(left)*len(right))
+		for _, leftBranch := range left {
+			for _, rightBranch := range right {
+				branch := append([]Expression{}, leftBranch...)
+				branch = append(branch, rightBranch...)
+				result = append(result, branch)
+			}
+		}
+		return result, leftHasDisjunction || rightHasDisjunction, true
+	default:
+		return [][]Expression{{expr}}, false, true
+	}
+}
+
+func (opt *IndexPushdownOptimizer) optimizeDisjunction(
+	table *metadata.Table,
+	branches [][]Expression,
+	selectColumns []string,
+) (*IndexCandidate, error) {
+	plans := make([]*IndexCandidate, 0, len(branches))
+	for _, branch := range branches {
+		conditions, err := opt.analyzeWhereConditions(branch)
+		if err != nil {
+			return nil, err
+		}
+		candidates := opt.generateIndexCandidates(table, conditions, selectColumns)
+		plan := opt.selectBestIndex(candidates)
+		if plan == nil {
+			// A union of index scans cannot represent an unindexed branch.
+			return nil, nil
+		}
+		plans = append(plans, plan)
+	}
+	if len(plans) < 2 {
+		return nil, nil
+	}
+
+	selectivity := 0.0
+	cost := 0.0
+	covering := true
+	for _, plan := range plans {
+		selectivity = selectivity + plan.Selectivity - selectivity*plan.Selectivity
+		cost += plan.Cost
+		covering = covering && plan.CoverIndex
+	}
+	cost += float64(len(plans)) * 0.02 * 1000 // union/dedup work estimate
+	return &IndexCandidate{
+		Index:              &metadata.Index{Name: "INDEX_MERGE_OR"},
+		IndexMergeBranches: plans,
+		DeduplicateRows:    true,
+		MergeMode:          IndexMergeUnion,
+		CoverIndex:         covering,
+		Cost:               cost,
+		Selectivity:        selectivity,
+		KeyLength:          len(plans),
+		Reason:             "OR 条件索引合并（去重）",
+	}, nil
+}
+
+// DeduplicateIndexMergeRows removes duplicate row identities produced by
+// overlapping OR branches. A NULL key is represented explicitly and is not
+// confused with an absent key.
+func DeduplicateIndexMergeRows(rows []map[string]interface{}, keyColumn string) []map[string]interface{} {
+	seen := make(map[string]struct{}, len(rows))
+	result := make([]map[string]interface{}, 0, len(rows))
+	for _, row := range rows {
+		value, ok := row[keyColumn]
+		key := "<missing>"
+		if ok {
+			key = fmt.Sprintf("%T:%v", value, value)
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, row)
+	}
+	return result
+}
+
+// IntersectIndexMergeRows returns rows whose identity is present in every
+// branch. The first branch determines output order and row payload, matching
+// the stable assembly contract used by the executor.
+func IntersectIndexMergeRows(branches [][]map[string]interface{}, keyColumn string) []map[string]interface{} {
+	if len(branches) == 0 {
+		return nil
+	}
+	counts := make(map[string]int)
+	for _, branch := range branches {
+		seen := make(map[string]struct{}, len(branch))
+		for _, row := range branch {
+			key := indexMergeRowKey(row, keyColumn)
+			if _, duplicate := seen[key]; duplicate {
+				continue
+			}
+			seen[key] = struct{}{}
+			counts[key]++
+		}
+	}
+	result := make([]map[string]interface{}, 0)
+	for _, row := range branches[0] {
+		if counts[indexMergeRowKey(row, keyColumn)] == len(branches) {
+			result = append(result, row)
+			delete(counts, indexMergeRowKey(row, keyColumn))
+		}
+	}
+	return result
+}
+
+func indexMergeRowKey(row map[string]interface{}, keyColumn string) string {
+	value, ok := row[keyColumn]
+	if !ok {
+		return "<missing>"
+	}
+	return fmt.Sprintf("%T:%v", value, value)
 }
 
 // analyzeWhereConditions 分析WHERE条件
@@ -94,6 +313,19 @@ func (opt *IndexPushdownOptimizer) extractIndexConditions(expr Expression) ([]*I
 
 	switch e := expr.(type) {
 	case *BinaryOperation:
+		if e.Op == OpAnd {
+			left, err := opt.extractIndexConditions(e.Left)
+			if err != nil {
+				return nil, err
+			}
+			right, err := opt.extractIndexConditions(e.Right)
+			if err != nil {
+				return nil, err
+			}
+			conditions = append(conditions, left...)
+			conditions = append(conditions, right...)
+			break
+		}
 		cond, err := opt.extractBinaryCondition(e)
 		if err != nil {
 			return nil, err
@@ -109,41 +341,246 @@ func (opt *IndexPushdownOptimizer) extractIndexConditions(expr Expression) ([]*I
 			return nil, err
 		}
 		conditions = append(conditions, conds...)
+
+	case *InExpression:
+		if col, ok := e.Column.(*Column); ok && len(e.Values) > 0 {
+			values := make([]Expression, 0, len(e.Values))
+			for _, value := range e.Values {
+				values = append(values, &Constant{Value: value})
+			}
+			conditions = append(conditions, &IndexCondition{
+				Column: col.Name, Operator: "IN", Value: e.Values,
+				CanPush: true, Selectivity: opt.estimateInSelectivity(col.Name, values),
+			})
+		}
+
+	case *LikeExpression:
+		if col, ok := e.Column.(*Column); ok {
+			canPush := opt.canPushLikeCondition(e.Pattern)
+			var escape interface{}
+			if e.Escape != nil {
+				if escapeConstant, escapeOK := e.Escape.(*Constant); escapeOK {
+					escape = escapeConstant.Value
+					canPush = opt.canPushLikeConditionWithEscape(e.Pattern, escape)
+				} else {
+					canPush = false
+				}
+			}
+			conditions = append(conditions, &IndexCondition{
+				Column: col.Name, Operator: "LIKE", Value: e.Pattern, Escape: escape,
+				CanPush: canPush, Selectivity: opt.estimateLikeSelectivity(col.Name, e.Pattern),
+			})
+		}
+
+	case *IsNullExpression:
+		if col, ok := e.Column.(*Column); ok {
+			operator := "is_not_null"
+			if e.IsNull {
+				operator = "is_null"
+			}
+			conditions = append(conditions, &IndexCondition{
+				Column: col.Name, Operator: operator, Value: nil,
+				CanPush: true, Selectivity: opt.estimateSelectivity(col.Name, operator, nil),
+			})
+		}
+
+	case *BetweenExpression:
+		if e.Not {
+			break
+		}
+		if col, ok := e.Column.(*Column); ok {
+			lower, lowerOK := indexConstantBound(e.LowerExpr, e.Lower)
+			upper, upperOK := indexConstantBound(e.UpperExpr, e.Upper)
+			if !lowerOK || !upperOK {
+				break
+			}
+			conditions = append(conditions,
+				&IndexCondition{Column: col.Name, Operator: ">=", Value: lower.Value, CanPush: true, Selectivity: opt.estimateSelectivity(col.Name, ">=", lower.Value)},
+				&IndexCondition{Column: col.Name, Operator: "<=", Value: upper.Value, CanPush: true, Selectivity: opt.estimateSelectivity(col.Name, "<=", upper.Value)},
+			)
+		}
 	}
 
 	return conditions, nil
 }
 
+func indexConstantBound(expression Expression, value interface{}) (*Constant, bool) {
+	if expression != nil {
+		return indexConstantExpression(expression)
+	}
+	if value == nil {
+		return nil, false
+	}
+	return &Constant{Value: value}, true
+}
+
 // extractBinaryCondition 提取二元条件
 func (opt *IndexPushdownOptimizer) extractBinaryCondition(expr *BinaryOperation) (*IndexCondition, error) {
-	// 检查左侧是否为列引用
-	leftCol, ok := expr.Left.(*Column)
-	if !ok {
-		return nil, nil
+	var column *Column
+	var constant *Constant
+	op := expr.Op
+	if leftCol, ok := expr.Left.(*Column); ok {
+		if rightConst, ok := indexConstantExpression(expr.Right); ok {
+			column, constant = leftCol, rightConst
+		}
+	} else if leftConst, ok := indexConstantExpression(expr.Left); ok {
+		if rightCol, ok := expr.Right.(*Column); ok {
+			if reversed, canReverse := reverseIndexComparison(op); canReverse {
+				column, constant, op = rightCol, leftConst, reversed
+			}
+		}
 	}
-
-	// 检查右侧是否为常量
-	rightConst, ok := expr.Right.(*Constant)
-	if !ok {
+	if column == nil || constant == nil {
 		return nil, nil
 	}
 
 	// 转换操作符
-	operator := opt.convertOperator(expr.Op)
+	operator := opt.convertOperator(op)
 	if operator == "" {
+		return nil, nil
+	}
+	if (operator == "IN" || operator == "NOT IN") && !isConstantList(constant.Value) {
 		return nil, nil
 	}
 
 	// 计算选择性
-	selectivity := opt.estimateSelectivity(leftCol.Name, operator, rightConst.Value)
+	selectivity := opt.estimateSelectivity(column.Name, operator, constant.Value)
+	canPush := opt.canPushCondition(operator)
+	var escape interface{}
+	if operator == "LIKE" || operator == "NOT LIKE" {
+		if expr.Escape == nil {
+			canPush = opt.canPushLikeCondition(constant.Value)
+		} else if escapeConstant, escapeOK := expr.Escape.(*Constant); escapeOK {
+			escape = escapeConstant.Value
+			canPush = opt.canPushLikeConditionWithEscape(constant.Value, escape)
+		} else {
+			canPush = false
+		}
+	}
 
 	return &IndexCondition{
-		Column:      leftCol.Name,
+		Column:      column.Name,
 		Operator:    operator,
-		Value:       rightConst.Value,
-		CanPush:     opt.canPushCondition(operator),
+		Value:       constant.Value,
+		Escape:      escape,
+		CanPush:     canPush,
 		Selectivity: selectivity,
 	}, nil
+}
+
+// indexConstantExpression folds only side-effect-free expressions that do not
+// reference a row column.  Runtime/session functions are excluded by the
+// scalar-function whitelist; evaluation errors (including divide-by-zero) also
+// reject the bound instead of manufacturing an index range.
+func indexConstantExpression(expr Expression) (*Constant, bool) {
+	if expr == nil {
+		return nil, false
+	}
+	if constant, ok := expr.(*Constant); ok {
+		return constant, true
+	}
+
+	switch value := expr.(type) {
+	case *UnaryOperation:
+		switch strings.TrimSpace(strings.ToLower(value.Operator)) {
+		case "+", "-", "~":
+		default:
+			return nil, false
+		}
+		if _, ok := indexConstantExpression(value.Operand); !ok {
+			return nil, false
+		}
+	case *BinaryOperation:
+		switch value.Op {
+		case OpAdd, OpSub, OpMul, OpDiv, OpIntDiv, OpMod,
+			OpBitAnd, OpBitOr, OpBitXor, OpShiftLeft, OpShiftRight,
+			OpEQ, OpNE, OpLT, OpLE, OpGT, OpGE, OpAnd, OpOr,
+			OpLike, OpNotLike, OpIn, OpNotIn, OpNullSafeEQ, OpRegexp, OpNotRegexp:
+		default:
+			return nil, false
+		}
+		if _, ok := indexConstantExpression(value.Left); !ok {
+			return nil, false
+		}
+		if _, ok := indexConstantExpression(value.Right); !ok {
+			return nil, false
+		}
+		if value.Escape != nil {
+			if _, ok := indexConstantExpression(value.Escape); !ok {
+				return nil, false
+			}
+		}
+	case *Function:
+		if value.Distinct || !isDeterministicScalarFunction(value.FuncName) || len(value.FuncArgs) == 0 {
+			return nil, false
+		}
+		for _, arg := range value.FuncArgs {
+			if _, ok := indexConstantExpression(arg); !ok {
+				return nil, false
+			}
+		}
+	case *TupleExpression:
+		if len(value.Exprs) == 0 {
+			return nil, false
+		}
+		for _, item := range value.Exprs {
+			if _, ok := indexConstantExpression(item); !ok {
+				return nil, false
+			}
+		}
+	case *CaseExpression:
+		if len(value.Whens) == 0 {
+			return nil, false
+		}
+		if value.Operand != nil {
+			if _, ok := indexConstantExpression(value.Operand); !ok {
+				return nil, false
+			}
+		}
+		for _, when := range value.Whens {
+			if _, ok := indexConstantExpression(when.Condition); !ok {
+				return nil, false
+			}
+			if _, ok := indexConstantExpression(when.Value); !ok {
+				return nil, false
+			}
+		}
+		if value.Else != nil {
+			if _, ok := indexConstantExpression(value.Else); !ok {
+				return nil, false
+			}
+		}
+	default:
+		return nil, false
+	}
+
+	result, err := expr.Eval(&EvalContext{Row: map[string]interface{}{}})
+	if err != nil {
+		return nil, false
+	}
+	return &Constant{Value: result}, true
+}
+
+func reverseIndexComparison(op BinaryOp) (BinaryOp, bool) {
+	switch op {
+	case OpEQ, OpNE, OpNullSafeEQ:
+		return op, true
+	case OpLT:
+		return OpGT, true
+	case OpLE:
+		return OpGE, true
+	case OpGT:
+		return OpLT, true
+	case OpGE:
+		return OpLE, true
+	default:
+		return op, false
+	}
+}
+
+func isConstantList(value interface{}) bool {
+	values, ok := value.([]interface{})
+	return ok && len(values) > 0
 }
 
 // extractFunctionConditions 提取函数条件
@@ -229,7 +666,7 @@ func (opt *IndexPushdownOptimizer) evaluateIndex(
 	for i, indexCol := range index.Columns {
 		found := false
 		for _, cond := range conditions {
-			if cond.Column != indexCol || !cond.CanPush {
+			if !indexColumnMatchesCondition(indexCol, cond.Column) || !cond.CanPush {
 				continue
 			}
 			// 已有范围条件时：仅禁止在「前一列」已有范围后再在本列加范围；同列可再加范围（双范围）
@@ -282,6 +719,11 @@ func (opt *IndexPushdownOptimizer) evaluateIndex(
 	return candidate
 }
 
+func indexColumnMatchesCondition(indexColumn, conditionColumn string) bool {
+	_, bareConditionColumn := splitQualifiedColumnName(conditionColumn)
+	return strings.EqualFold(strings.Trim(indexColumn, "` "), strings.Trim(bareConditionColumn, "` "))
+}
+
 // mergeCandidates 生成合并索引候选
 func (opt *IndexPushdownOptimizer) mergeCandidates(candidates []*IndexCandidate) []*IndexCandidate {
 	var merged []*IndexCandidate
@@ -308,24 +750,25 @@ func (opt *IndexPushdownOptimizer) mergeCandidates(candidates []*IndexCandidate)
 			conds := append([]*IndexCondition{}, c1.Conditions...)
 			conds = append(conds, c2.Conditions...)
 
-			// 计算合并后的选择性（OR语义）
-			// 选择性 = sel1 + sel2 - sel1 * sel2
-			mergedSel := c1.Selectivity + c2.Selectivity - c1.Selectivity*c2.Selectivity
+			// Conditions passed to this method are conjunctive. This is an
+			// index-intersection candidate, so selectivity is multiplicative;
+			// OR candidates are built separately by optimizeDisjunction.
+			mergedSel := c1.Selectivity * c2.Selectivity
 
 			// 计算合并代价
-			mergeCost := opt.calculateMergeCost(c1, c2)
+			mergeCost := opt.calculateIntersectionMergeCost(c1, c2)
 			totalCost := c1.Cost + c2.Cost + mergeCost
 
 			mergedCandidate := &IndexCandidate{
-				Index: &metadata.Index{
-					Name: c1.Index.Name + "+" + c2.Index.Name,
-				},
-				Conditions:  conds,
-				CoverIndex:  c1.CoverIndex && c2.CoverIndex,
-				Cost:        totalCost,
-				Selectivity: mergedSel,
-				KeyLength:   c1.KeyLength + c2.KeyLength,
-				Reason:      "索引合并",
+				Index:              &metadata.Index{Name: "INDEX_MERGE_AND"},
+				Conditions:         conds,
+				IndexMergeBranches: []*IndexCandidate{c1, c2},
+				MergeMode:          IndexMergeIntersection,
+				CoverIndex:         c1.CoverIndex && c2.CoverIndex,
+				Cost:               totalCost,
+				Selectivity:        mergedSel,
+				KeyLength:          c1.KeyLength + c2.KeyLength,
+				Reason:             "索引合并",
 			}
 
 			mergedCandidate.Score = opt.calculateIndexScore(mergedCandidate)
@@ -368,6 +811,15 @@ func (opt *IndexPushdownOptimizer) calculateMergeCost(c1, c2 *IndexCandidate) fl
 	mergeCost := resultSize * (sortMergeCostPerRow + deduplicationCost)
 
 	return mergeCost
+}
+
+func (opt *IndexPushdownOptimizer) calculateIntersectionMergeCost(c1, c2 *IndexCandidate) float64 {
+	const (
+		sortMergeCostPerRow = 0.05
+		intersectionCost    = 0.02
+	)
+	resultSize := (c1.Selectivity * c2.Selectivity) * 1000
+	return resultSize * (sortMergeCostPerRow + intersectionCost)
 }
 
 // isCoveringIndex 检查是否为覆盖索引，委托给包级 IsCoveringIndex；selectColumns 可为列名或表达式（如 COUNT(col)），由 extractColumnFromExpression 解析。
@@ -474,6 +926,8 @@ func (opt *IndexPushdownOptimizer) convertOperator(op BinaryOp) string {
 	switch op {
 	case OpEQ:
 		return "="
+	case OpNullSafeEQ:
+		return "<=>"
 	case OpNE:
 		return "!="
 	case OpLT:
@@ -484,6 +938,14 @@ func (opt *IndexPushdownOptimizer) convertOperator(op BinaryOp) string {
 		return ">"
 	case OpGE:
 		return ">="
+	case OpLike:
+		return "LIKE"
+	case OpNotLike:
+		return "NOT LIKE"
+	case OpIn:
+		return "IN"
+	case OpNotIn:
+		return "NOT IN"
 	default:
 		return ""
 	}
@@ -492,9 +954,11 @@ func (opt *IndexPushdownOptimizer) convertOperator(op BinaryOp) string {
 // canPushCondition 检查条件是否可以下推
 func (opt *IndexPushdownOptimizer) canPushCondition(operator string) bool {
 	switch operator {
-	case "=", "<", "<=", ">", ">=", "IN":
+	case "=", "!=", "<=>", "<", "<=", ">", ">=", "IN", "NOT IN":
 		return true
-	case "LIKE":
+	case "is_null", "is_not_null":
+		return true
+	case "LIKE", "NOT LIKE":
 		return true // 需要进一步检查模式
 	default:
 		return false
@@ -503,17 +967,78 @@ func (opt *IndexPushdownOptimizer) canPushCondition(operator string) bool {
 
 // canPushLikeCondition 检查LIKE条件是否可以下推
 func (opt *IndexPushdownOptimizer) canPushLikeCondition(pattern interface{}) bool {
-	if str, ok := pattern.(string); ok {
-		// 只有前缀匹配可以使用索引
-		return !strings.HasPrefix(str, "%") && !strings.HasPrefix(str, "_")
+	str, ok := pattern.(string)
+	if !ok {
+		return false
 	}
-	return false
+	return isSimpleLikePrefixPatternWithEscape(str, '\\')
+}
+
+func (opt *IndexPushdownOptimizer) canPushLikeConditionWithEscape(pattern, escape interface{}) bool {
+	patternString, patternOK := pattern.(string)
+	escapeString, escapeOK := escape.(string)
+	if !patternOK || !escapeOK {
+		return false
+	}
+	escapeRunes := []rune(escapeString)
+	if len(escapeRunes) != 1 {
+		return false
+	}
+	return isSimpleLikePrefixPatternWithEscape(patternString, escapeRunes[0])
+}
+
+// isSimpleLikePrefixPattern accepts only a literal prefix followed by one or
+// more unescaped '%' wildcards. A pattern such as "abc%def" must retain exact
+// residual filtering: treating it as a prefix range would admit values that
+// do not satisfy the suffix predicate and defeats the intended access-path
+// contract. Escaped wildcards are literals, not prefix markers.
+func isSimpleLikePrefixPattern(pattern string) bool {
+	return isSimpleLikePrefixPatternWithEscape(pattern, '\\')
+}
+
+func isSimpleLikePrefixPatternWithEscape(pattern string, escapeCharacter rune) bool {
+	sawWildcard := false
+	literalLength := 0
+	escaped := false
+	for _, ch := range pattern {
+		if escaped {
+			if sawWildcard {
+				return false
+			}
+			literalLength++
+			escaped = false
+			continue
+		}
+		if ch == escapeCharacter {
+			escaped = true
+			if sawWildcard {
+				return false
+			}
+			continue
+		}
+		switch ch {
+		case '_':
+			return false
+		case '%':
+			sawWildcard = true
+		default:
+			if sawWildcard {
+				return false
+			}
+			literalLength++
+		}
+	}
+	return sawWildcard && literalLength > 0 && !escaped
 }
 
 // estimateSelectivity 估算选择性
 func (opt *IndexPushdownOptimizer) estimateSelectivity(column, operator string, value interface{}) float64 {
 	// 获取列统计信息
-	colStats, exists := opt.columnStats[column]
+	colStats, exists := lookupCaseInsensitiveStats(opt.columnStats, column)
+	if !exists {
+		_, bareColumn := splitQualifiedColumnName(column)
+		colStats, exists = lookupCaseInsensitiveStats(opt.columnStats, bareColumn)
+	}
 	if !exists {
 		// 默认选择性
 		switch operator {
@@ -528,12 +1053,27 @@ func (opt *IndexPushdownOptimizer) estimateSelectivity(column, operator string, 
 
 	// 基于统计信息计算选择性
 	switch operator {
-	case "=":
+	case "=", "<=>":
 		// 等值选择性 = 1 / NDV
+		if operator == "<=>" && value == nil {
+			total := colStats.NotNullCount + colStats.NullCount
+			if total > 0 {
+				return float64(colStats.NullCount) / float64(total)
+			}
+		}
 		if colStats.DistinctCount > 0 {
 			return 1.0 / float64(colStats.DistinctCount)
 		}
 		return 0.1
+	case "is_null", "is_not_null":
+		total := colStats.NotNullCount + colStats.NullCount
+		if total > 0 {
+			if operator == "is_null" {
+				return float64(colStats.NullCount) / float64(total)
+			}
+			return float64(colStats.NotNullCount) / float64(total)
+		}
+		return 0.5
 
 	case "<", "<=", ">", ">=":
 		// 范围选择性：优先使用直方图
@@ -772,10 +1312,10 @@ func (opt *IndexPushdownOptimizer) calculateIndexCost(
 	candidate *IndexCandidate,
 ) float64 {
 	// 获取统计信息
-	indexStats, hasIndexStats := opt.indexStats[index.Name]
+	indexStats, hasIndexStats := lookupCaseInsensitiveStats(opt.indexStats, index.Name)
 	var tableStats *TableStats
 	if index.Table != nil {
-		tableStats = opt.tableStats[index.Table.Name]
+		tableStats, _ = lookupCaseInsensitiveStats(opt.tableStats, index.Table.Name)
 	}
 
 	// 基础参数
@@ -846,8 +1386,10 @@ func (opt *IndexPushdownOptimizer) isRangeCondition(operator string) bool {
 func (opt *IndexPushdownOptimizer) calculateConditionPriority(cond *IndexCondition) int {
 	// 优先级：等值 > IN > 范围 > LIKE
 	switch cond.Operator {
-	case "=":
+	case "=", "<=>":
 		return 100
+	case "is_null", "is_not_null":
+		return 90
 	case "IN":
 		return 80
 	case "<", "<=", ">", ">=":

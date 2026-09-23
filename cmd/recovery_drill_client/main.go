@@ -25,10 +25,15 @@ func runSetupRedo(db *sql.DB, dbName, tableName string) error {
 	if err := mustExec(db, fmt.Sprintf("CREATE TABLE %s (id INT PRIMARY KEY, val VARCHAR(64))", tableName)); err != nil {
 		return err
 	}
-	if err := mustExec(db, fmt.Sprintf("INSERT INTO %s (id, val) VALUES (1, 'redo_seed')", tableName)); err != nil {
+	stmt, err := db.Prepare(fmt.Sprintf("INSERT INTO %s (id, val) VALUES (?, ?)", tableName))
+	if err != nil {
 		return err
 	}
-	fmt.Printf("REDO_SETUP_OK db=%s table=%s seed_id=1\n", dbName, tableName)
+	defer stmt.Close()
+	if _, err := stmt.Exec(1, "redo_seed"); err != nil {
+		return err
+	}
+	fmt.Printf("REDO_SETUP_OK db=%s table=%s seed_id=1 prepared=true\n", dbName, tableName)
 	return nil
 }
 
@@ -84,8 +89,20 @@ func runVerifyUndo(db *sql.DB, dbName, tableName string) error {
 	if err := mustExec(db, fmt.Sprintf("USE %s", dbName)); err != nil {
 		return err
 	}
-	var cnt int
-	if err := db.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE id=2", tableName)).Scan(&cnt); err != nil {
+	rows, err := db.Query(fmt.Sprintf("SELECT id FROM %s WHERE id=2", tableName))
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	cnt := 0
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return err
+		}
+		cnt++
+	}
+	if err := rows.Err(); err != nil {
 		return err
 	}
 	if cnt != 0 {
@@ -193,6 +210,54 @@ func runVerifyShowTablesWhere(db *sql.DB, dbName, tableName string) error {
 	return nil
 }
 
+func runSetupDDLIndex(db *sql.DB, dbName, tableName string) error {
+	if err := mustExec(db, fmt.Sprintf("USE %s", dbName)); err != nil {
+		return err
+	}
+	ddlTable := tableName + "_ddl"
+	if err := mustExec(db, fmt.Sprintf("CREATE TABLE %s (id INT PRIMARY KEY, val VARCHAR(64))", ddlTable)); err != nil {
+		return err
+	}
+	if err := mustExec(db, fmt.Sprintf("INSERT INTO %s VALUES (1, 'ddl_seed')", ddlTable)); err != nil {
+		return err
+	}
+	if err := mustExec(db, fmt.Sprintf("ALTER TABLE %s ADD INDEX idx_val (val)", ddlTable)); err != nil {
+		return err
+	}
+	if err := mustExec(db, fmt.Sprintf("ALTER TABLE %s DROP INDEX idx_val", ddlTable)); err != nil {
+		return err
+	}
+	if err := mustExec(db, fmt.Sprintf("ALTER TABLE %s ADD INDEX idx_val (val)", ddlTable)); err != nil {
+		return err
+	}
+	fmt.Printf("DDL_INDEX_SETUP_OK table=%s\n", ddlTable)
+	return nil
+}
+
+func runVerifyDDLIndex(db *sql.DB, dbName, tableName string) error {
+	if err := mustExec(db, fmt.Sprintf("USE %s", dbName)); err != nil {
+		return err
+	}
+	ddlTable := tableName + "_ddl"
+	var count int
+	if err := db.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE id=1", ddlTable)).Scan(&count); err != nil {
+		return err
+	}
+	if count != 1 {
+		return fmt.Errorf("DDL verify expected one committed row, got %d", count)
+	}
+	rows, err := db.Query(fmt.Sprintf("SHOW INDEX FROM %s", ddlTable))
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return fmt.Errorf("DDL verify expected persisted index metadata")
+	}
+	fmt.Printf("DDL_INDEX_VERIFY_OK table=%s\n", ddlTable)
+	return nil
+}
+
 func main() {
 	var (
 		dsn         string
@@ -202,7 +267,7 @@ func main() {
 		tableName   string
 	)
 	flag.StringVar(&dsn, "dsn", "root:root%401234@tcp(127.0.0.1:3310)/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true", "mysql dsn")
-	flag.StringVar(&mode, "mode", "", "setup_redo|verify_redo|snapshot|hold_undo|verify_undo|race_commit|verify_half_commit|verify_show_tables_where")
+	flag.StringVar(&mode, "mode", "", "setup_redo|verify_redo|setup_ddl_index|verify_ddl_index|snapshot|hold_undo|verify_undo|race_commit|verify_half_commit|verify_show_tables_where")
 	flag.IntVar(&holdSeconds, "hold-seconds", 30, "seconds to hold uncommitted tx")
 	flag.StringVar(&dbName, "db", "drill_recovery_db", "database name for drill")
 	flag.StringVar(&tableName, "table", "drill_txn", "table name for drill")
@@ -244,6 +309,10 @@ func main() {
 		err = runSetupRedo(db, dbName, tableName)
 	case "verify_redo":
 		err = runVerifyRedo(db, dbName, tableName)
+	case "setup_ddl_index":
+		err = runSetupDDLIndex(db, dbName, tableName)
+	case "verify_ddl_index":
+		err = runVerifyDDLIndex(db, dbName, tableName)
 	case "snapshot":
 		err = runSnapshot(db, dbName, tableName)
 	case "verify_undo":

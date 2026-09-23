@@ -1,11 +1,13 @@
 package manager
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -18,6 +20,7 @@ type RedoLogManager struct {
 	logBuffer     []RedoLogEntry // 日志缓冲区
 	logDir        string         // 日志目录
 	flushInterval time.Duration  // 刷新间隔
+	logArchiver   *LogArchiver   // optional archival mirror of flushed redo
 
 	// 检查点相关
 	lastCheckpoint uint64    // 最后一次检查点LSN
@@ -29,6 +32,8 @@ type RedoLogManager struct {
 	pendingCommits    chan *CommitRequest // 待提交请求队列
 	shutdown          chan struct{}       // 关闭信号
 	closeOnce         sync.Once           // 幂等关闭标记
+	workerWg          sync.WaitGroup      // 后台 flush/group-commit worker
+	closed            atomic.Bool
 }
 
 // NewRedoLogManager 创建新的重做日志管理器
@@ -62,10 +67,17 @@ func NewRedoLogManager(logDir string, bufferSize int) (*RedoLogManager, error) {
 	manager.groupCommit = NewGroupCommit(manager.groupCommitWindow, 100)
 
 	// 启动异步刷新协程
-	go manager.backgroundFlush()
+	manager.workerWg.Add(2)
+	go func() {
+		defer manager.workerWg.Done()
+		manager.backgroundFlush()
+	}()
 
 	// 启动组提交协程
-	go manager.groupCommitWorker()
+	go func() {
+		defer manager.workerWg.Done()
+		manager.groupCommitWorker()
+	}()
 
 	return manager, nil
 }
@@ -97,11 +109,17 @@ func (r *RedoLogManager) Flush(untilLSN uint64) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	return r.flushBuffer()
+	return r.flushBuffer(untilLSN)
 }
 
 // FlushAsync 异步刷新日志（使用组提交）
 func (r *RedoLogManager) FlushAsync(untilLSN uint64, callback func(error)) {
+	if r.closed.Load() {
+		if callback != nil {
+			callback(fmt.Errorf("redo log manager is closed"))
+		}
+		return
+	}
 	req := &CommitRequest{
 		LSN:      untilLSN,
 		Callback: callback,
@@ -120,49 +138,133 @@ func (r *RedoLogManager) FlushAsync(untilLSN uint64, callback func(error)) {
 	}
 }
 
+// ConfigureGroupCommit updates the runtime batching policy used by the
+// asynchronous commit worker.  Both values are required to be positive so a
+// misconfiguration cannot silently disable batching or create a busy loop.
+func (r *RedoLogManager) ConfigureGroupCommit(window time.Duration, maxBatchSize int) error {
+	if r == nil || r.groupCommit == nil {
+		return fmt.Errorf("group commit is not initialized")
+	}
+	if window <= 0 {
+		return fmt.Errorf("group commit window must be positive")
+	}
+	if maxBatchSize <= 0 {
+		return fmt.Errorf("group commit batch size must be positive")
+	}
+	r.groupCommit.SetWindowDuration(window)
+	r.groupCommit.SetMaxBatchSize(maxBatchSize)
+	return nil
+}
+
+// GetGroupCommitStats returns a snapshot of asynchronous commit batching
+// metrics.  The returned value is detached from the manager and safe for the
+// caller to retain.
+func (r *RedoLogManager) GetGroupCommitStats() *GroupCommitStats {
+	if r == nil || r.groupCommit == nil {
+		return nil
+	}
+	return r.groupCommit.GetStats()
+}
+
+// EnableLogArchival mirrors flushed redo entries to a rotating archival
+// stream while retaining redo.log as the authoritative recovery source.
+// Archival is opt-in so existing deployments keep their current recovery
+// layout and can introduce retention independently.
+func (r *RedoLogManager) EnableLogArchival(archiveDir string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.logArchiver != nil {
+		return fmt.Errorf("redo log archival is already enabled")
+	}
+	archiver, err := NewLogArchiver(r.logDir, archiveDir)
+	if err != nil {
+		return fmt.Errorf("create redo log archiver: %w", err)
+	}
+	r.logArchiver = archiver
+	archiver.Start()
+	return nil
+}
+
 // flushBuffer 将缓冲区中的日志写入文件
-func (r *RedoLogManager) flushBuffer() error {
+func (r *RedoLogManager) flushBuffer(targetLSN ...uint64) error {
 	if len(r.logBuffer) == 0 {
 		return nil
 	}
+	limit := uint64(0)
+	if len(targetLSN) > 0 {
+		limit = targetLSN[0]
+	}
+	flushCount := len(r.logBuffer)
+	if limit != 0 {
+		flushCount = 0
+		for flushCount < len(r.logBuffer) && r.logBuffer[flushCount].LSN <= limit {
+			flushCount++
+		}
+	}
+	if flushCount == 0 {
+		return nil
+	}
+	entries := r.logBuffer[:flushCount]
 
+	var encoded bytes.Buffer
 	// 序列化日志条目
-	for _, entry := range r.logBuffer {
+	for _, entry := range entries {
 		// 写入LSN
-		if err := binary.Write(r.logFile, binary.BigEndian, entry.LSN); err != nil {
+		if err := binary.Write(&encoded, binary.BigEndian, entry.LSN); err != nil {
 			return err
 		}
 
 		// 写入事务ID
-		if err := binary.Write(r.logFile, binary.BigEndian, entry.TrxID); err != nil {
+		if err := binary.Write(&encoded, binary.BigEndian, entry.TrxID); err != nil {
 			return err
 		}
 
 		// 写入页面信息
-		if err := binary.Write(r.logFile, binary.BigEndian, entry.PageID); err != nil {
+		if err := binary.Write(&encoded, binary.BigEndian, entry.PageID); err != nil {
 			return err
 		}
 
 		// 写入操作类型
-		if err := binary.Write(r.logFile, binary.BigEndian, entry.Type); err != nil {
+		if err := binary.Write(&encoded, binary.BigEndian, entry.Type); err != nil {
 			return err
 		}
 
 		// 写入数据长度和数据
 		dataLen := uint16(len(entry.Data))
-		if err := binary.Write(r.logFile, binary.BigEndian, dataLen); err != nil {
+		if err := binary.Write(&encoded, binary.BigEndian, dataLen); err != nil {
 			return err
 		}
-		if _, err := r.logFile.Write(entry.Data); err != nil {
+		if _, err := encoded.Write(entry.Data); err != nil {
 			return err
 		}
 	}
 
-	// 清空缓冲区
-	r.logBuffer = r.logBuffer[:0]
+	data := encoded.Bytes()
+	if r.logFile != nil {
+		if _, err := r.logFile.Write(data); err != nil {
+			return err
+		}
+		if err := r.logFile.Sync(); err != nil {
+			return err
+		}
+	}
+	if r.logArchiver != nil {
+		if _, err := r.logArchiver.Write(data); err != nil {
+			return fmt.Errorf("archive redo log: %w", err)
+		}
+	}
 
-	// 同步到磁盘
-	return r.logFile.Sync()
+	// Remove only the entries covered by the requested target LSN.  Entries
+	// appended after that target remain buffered for a later commit/flush.
+	remaining := r.logBuffer[flushCount:]
+	if len(remaining) == 0 {
+		r.logBuffer = r.logBuffer[:0]
+	} else {
+		copy(r.logBuffer, remaining)
+		r.logBuffer = r.logBuffer[:len(remaining)]
+	}
+	return nil
 }
 
 // backgroundFlush 后台定期刷新
@@ -187,7 +289,11 @@ func (r *RedoLogManager) groupCommitWorker() {
 		case req := <-r.pendingCommits:
 			// 收集一批请求
 			batch := []*CommitRequest{req}
-			timeout := time.After(r.groupCommitWindow)
+			timeout := time.After(r.groupCommit.GetWindowDuration())
+			maxBatchSize := r.groupCommit.GetMaxBatchSize()
+			if maxBatchSize <= 0 {
+				maxBatchSize = 1
+			}
 
 			// 收集更多请求或超时
 			collecting := true
@@ -195,7 +301,7 @@ func (r *RedoLogManager) groupCommitWorker() {
 				select {
 				case req := <-r.pendingCommits:
 					batch = append(batch, req)
-					if len(batch) >= 100 { // 批次大小限制
+					if len(batch) >= maxBatchSize {
 						collecting = false
 					}
 				case <-timeout:
@@ -207,7 +313,17 @@ func (r *RedoLogManager) groupCommitWorker() {
 			r.executeGroupCommit(batch)
 
 		case <-r.shutdown:
-			return
+			// Close must not strand callbacks already accepted into the queue.
+			for {
+				select {
+				case req := <-r.pendingCommits:
+					if req != nil {
+						r.executeGroupCommit([]*CommitRequest{req})
+					}
+				default:
+					return
+				}
+			}
 		}
 	}
 }
@@ -226,8 +342,12 @@ func (r *RedoLogManager) executeGroupCommit(batch []*CommitRequest) {
 		}
 	}
 
+	start := time.Now()
 	// 一次性刷新到最大LSN
 	err := r.Flush(maxLSN)
+	if r.groupCommit != nil {
+		r.groupCommit.RecordCommit(len(batch), time.Since(start))
+	}
 
 	// 通知所有请求
 	for _, req := range batch {
@@ -399,25 +519,39 @@ func (r *RedoLogManager) Checkpoint() error {
 func (r *RedoLogManager) Close() error {
 	// 幂等关闭，避免重复 close 导致 panic
 	r.closeOnce.Do(func() {
+		r.closed.Store(true)
 		close(r.shutdown)
 	})
+	// Stop the workers only after the group-commit worker has drained accepted
+	// requests and delivered their callbacks.
+	r.workerWg.Wait()
 
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if r.logFile == nil {
+	if r.logFile == nil && r.logArchiver == nil {
+		r.mu.Unlock()
 		return nil
 	}
 
 	// 刷新所有缓冲的日志
 	if err := r.flushBuffer(); err != nil {
+		r.mu.Unlock()
 		return err
 	}
 
-	// 关闭文件
-	err := r.logFile.Close()
+	logFile := r.logFile
 	r.logFile = nil
-	return err
+	archiver := r.logArchiver
+	r.logArchiver = nil
+	r.mu.Unlock()
+
+	var closeErr error
+	if logFile != nil {
+		closeErr = logFile.Close()
+	}
+	if archiver != nil {
+		archiver.Stop()
+	}
+	return closeErr
 }
 
 // GetLSNManager 获取LSN管理器
@@ -437,6 +571,54 @@ func (r *RedoLogManager) GetStats() *RedoLogStats {
 		BufferedLogs:   len(r.logBuffer),
 		PendingCommits: len(r.pendingCommits),
 	}
+}
+
+// GetFileSnapshot returns the live metadata for the redo log file owned by
+// this manager. xmysql currently uses one append-only redo.log rather than
+// MySQL's circular multi-file redo log; callers should therefore treat this
+// as the single-file compatibility projection, not as a complete active-file
+// inventory.
+func (r *RedoLogManager) GetFileSnapshot() (*RedoLogFileSnapshot, error) {
+	if r == nil {
+		return nil, fmt.Errorf("redo log manager is nil")
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	fileName := filepath.Join(r.logDir, "redo.log")
+	var fileInfo os.FileInfo
+	var err error
+	if r.logFile != nil {
+		fileName = r.logFile.Name()
+		fileInfo, err = r.logFile.Stat()
+	} else {
+		fileInfo, err = os.Stat(fileName)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &RedoLogFileSnapshot{
+		FileID:        0,
+		FileName:      fileName,
+		StartLSN:      r.lastCheckpoint,
+		EndLSN:        uint64(r.lsnManager.GetCurrentLSN()),
+		SizeInBytes:   fileInfo.Size(),
+		IsFull:        false,
+		ConsumerLevel: 0,
+	}, nil
+}
+
+// RedoLogFileSnapshot is the source-backed subset used by
+// performance_schema.innodb_redo_log_files.
+type RedoLogFileSnapshot struct {
+	FileID        uint64 `json:"file_id"`
+	FileName      string `json:"file_name"`
+	StartLSN      uint64 `json:"start_lsn"`
+	EndLSN        uint64 `json:"end_lsn"`
+	SizeInBytes   int64  `json:"size_in_bytes"`
+	IsFull        bool   `json:"is_full"`
+	ConsumerLevel int64  `json:"consumer_level"`
 }
 
 // RedoLogStats Redo日志统计信息

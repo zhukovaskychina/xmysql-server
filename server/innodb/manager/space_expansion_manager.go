@@ -57,6 +57,9 @@ const (
 
 	// 限制
 	DefaultMaxSpaceSize = 64 * 1024 * 1024 * 1024 // 默认最大64GB
+
+	pagesPerExtent = 64
+	pageSizeBytes  = 16 * 1024
 )
 
 // SpaceExpansionManager 表空间扩展管理器
@@ -81,6 +84,7 @@ type SpaceExpansionManager struct {
 	// 后台扩展任务
 	expandChan chan *ExpansionRequest
 	stopChan   chan struct{}
+	stopOnce   sync.Once
 	wg         sync.WaitGroup
 
 	// 扩展锁：防止同一表空间的并发扩展
@@ -425,9 +429,18 @@ func (sem *SpaceExpansionManager) expansionWorker() {
 
 // calculateUsageRate 计算使用率
 func (sem *SpaceExpansionManager) calculateUsageRate(space basic.Space) float64 {
-	// TODO: 实现实际的使用率计算
-	// 这里需要根据space接口获取总大小和已用大小
-	return 0.0
+	if space == nil {
+		return 0
+	}
+	totalSize := sem.getSpaceSize(space)
+	if totalSize == 0 {
+		return 0
+	}
+	usedSize := space.GetUsedSpace()
+	if usedSize >= totalSize {
+		return 100
+	}
+	return float64(usedSize) * 100 / float64(totalSize)
 }
 
 // calculateExpansionSize 计算扩展大小
@@ -439,7 +452,7 @@ func (sem *SpaceExpansionManager) calculateExpansionSize(space basic.Space, usag
 	case ExpansionStrategyPercent:
 		currentSize := sem.getSpaceSize(space)
 		expandBytes := uint64(float64(currentSize) * sem.config.PercentExpand / 100.0)
-		extents := uint32(expandBytes / (64 * 16384))
+		extents := uint32(expandBytes / (pagesPerExtent * pageSizeBytes))
 		if extents < sem.config.MinExtents {
 			extents = sem.config.MinExtents
 		}
@@ -504,14 +517,14 @@ func (sem *SpaceExpansionManager) calculateGrowthRate() float64 {
 
 // calculateExtentsForGrowth 根据增长量计算需要的Extent数
 func (sem *SpaceExpansionManager) calculateExtentsForGrowth(growthBytes float64) uint32 {
-	extentSize := 64 * 16384 // 64页 * 16KB
+	extentSize := pagesPerExtent * pageSizeBytes
 	extents := uint32(math.Ceil(growthBytes / float64(extentSize)))
 	return extents
 }
 
 // checkLimits 检查扩展限制
 func (sem *SpaceExpansionManager) checkLimits(currentSize uint64, extents uint32) error {
-	expandSize := uint64(extents) * 64 * 16384
+	expandSize := uint64(extents) * pagesPerExtent * pageSizeBytes
 	newSize := currentSize + expandSize
 
 	// 检查最大表空间大小
@@ -602,9 +615,20 @@ func (sem *SpaceExpansionManager) updateStats(record *ExpansionRecord, triggered
 
 // getSpaceSize 获取表空间大小
 func (sem *SpaceExpansionManager) getSpaceSize(space basic.Space) uint64 {
-	// TODO: 从space接口获取实际大小
-	// 简化实现
-	return 0
+	if space == nil {
+		return 0
+	}
+	// Space exposes both page and extent counts. Prefer extents because an
+	// allocated extent represents the reserved capacity even when only part of
+	// its pages currently contain user data; use page count for providers that
+	// do not maintain an extent counter.
+	if extentCount := space.GetExtentCount(); extentCount > 0 {
+		return uint64(extentCount) * pagesPerExtent * pageSizeBytes
+	}
+	if pageCount := space.GetPageCount(); pageCount > 0 {
+		return uint64(pageCount) * pageSizeBytes
+	}
+	return space.GetUsedSpace()
 }
 
 // GetStats 获取统计信息
@@ -641,6 +665,6 @@ func (sem *SpaceExpansionManager) GetHistory() []*ExpansionRecord {
 
 // Stop 停止扩展管理器
 func (sem *SpaceExpansionManager) Stop() {
-	close(sem.stopChan)
+	sem.stopOnce.Do(func() { close(sem.stopChan) })
 	sem.wg.Wait()
 }

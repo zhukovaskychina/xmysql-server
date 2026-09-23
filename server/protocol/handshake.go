@@ -40,6 +40,7 @@ func NewHandshakePacket(connectionID uint32) *HandshakePacket {
 	caps |= CLIENT_SECURE_CONNECTION
 	caps |= CLIENT_MULTI_STATEMENTS
 	caps |= CLIENT_MULTI_RESULTS
+	caps |= CLIENT_PS_MULTI_RESULTS
 	caps |= CLIENT_PLUGIN_AUTH
 	caps |= CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA
 

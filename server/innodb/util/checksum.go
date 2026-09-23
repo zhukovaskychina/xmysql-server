@@ -1,8 +1,12 @@
 package util
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
 	"hash/crc32"
 	"sync"
+
+	"github.com/OneOfOne/xxhash"
 )
 
 /*
@@ -71,18 +75,15 @@ func (cc *ChecksumCalculator) calculateCRC32(data []byte) uint32 {
 	return crc32.Checksum(data, cc.crc32Table)
 }
 
-// calculateXXHash 计算xxHash（简化实现）
+// calculateXXHash 计算xxHash-32。
 func (cc *ChecksumCalculator) calculateXXHash(data []byte) uint32 {
-	// 简化实现：回退到CRC32
-	// 实际应使用github.com/OneOfOne/xxhash
-	return cc.calculateCRC32(data)
+	return xxhash.Checksum32(data)
 }
 
-// calculateSHA256 计算SHA256校验和
+// calculateSHA256 计算SHA256摘要的前32位。
 func (cc *ChecksumCalculator) calculateSHA256(data []byte) uint32 {
-	// 简化实现：回退到CRC32
-	// 实际应使用crypto/sha256
-	return cc.calculateCRC32(data)
+	digest := sha256.Sum256(data)
+	return binary.BigEndian.Uint32(digest[:4])
 }
 
 // Verify 验证校验和
@@ -101,35 +102,46 @@ func (cc *ChecksumCalculator) CalculateRange(data []byte, start, end int) uint32
 
 // ParallelCalculate 并行计算大数据的校验和
 func (cc *ChecksumCalculator) ParallelCalculate(data []byte, chunkSize int) uint32 {
-	if len(data) <= chunkSize {
+	if chunkSize <= 0 || len(data) <= chunkSize {
 		return cc.Calculate(data)
 	}
 
-	// 分块计算
-	numChunks := (len(data) + chunkSize - 1) / chunkSize
-	checksums := make([]uint32, numChunks)
-	var wg sync.WaitGroup
-
-	for i := 0; i < numChunks; i++ {
-		wg.Add(1)
-		go func(idx int) {
-			defer wg.Done()
-			start := idx * chunkSize
+	// Hashes cannot in general be combined by XORing independent chunk
+	// digests. Feed the chunks to the selected streaming implementation so
+	// this API remains equivalent to Calculate(data).
+	switch cc.algorithm {
+	case ChecksumCRC32, ChecksumCRC32C:
+		h := crc32.New(cc.crc32Table)
+		for start := 0; start < len(data); start += chunkSize {
 			end := start + chunkSize
 			if end > len(data) {
 				end = len(data)
 			}
-			checksums[idx] = cc.Calculate(data[start:end])
-		}(i)
+			_, _ = h.Write(data[start:end])
+		}
+		return h.Sum32()
+	case ChecksumXXHash:
+		h := xxhash.New32()
+		for start := 0; start < len(data); start += chunkSize {
+			end := start + chunkSize
+			if end > len(data) {
+				end = len(data)
+			}
+			_, _ = h.Write(data[start:end])
+		}
+		return h.Sum32()
+	case ChecksumSHA256:
+		h := sha256.New()
+		for start := 0; start < len(data); start += chunkSize {
+			end := start + chunkSize
+			if end > len(data) {
+				end = len(data)
+			}
+			_, _ = h.Write(data[start:end])
+		}
+		digest := h.Sum(nil)
+		return binary.BigEndian.Uint32(digest[:4])
+	default:
+		return cc.Calculate(data)
 	}
-
-	wg.Wait()
-
-	// 合并校验和（简化实现：XOR）
-	var result uint32
-	for _, cs := range checksums {
-		result ^= cs
-	}
-
-	return result
 }

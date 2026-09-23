@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -102,4 +103,55 @@ func TestJdbcLocalConfigUsesWorkspaceRelativePaths(t *testing.T) {
 	assert.Equal(t, "server/net/data", cfg.InnodbDataDir)
 	assert.Equal(t, "tmp/jdbc_logs/error.log", cfg.LogError)
 	assert.Equal(t, "tmp/jdbc_logs/mysql.log", cfg.LogInfos)
+}
+
+func TestCfg_ParseReplicationConfig(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "replication.ini")
+	content := `
+[mysqld]
+datadir = data/replica
+
+[replication]
+role = replica
+uuid = node-2
+server_id = 2
+listen_address = 127.0.0.1:4402
+source_url = http://127.0.0.1:4401
+poll_interval = 25ms
+read_only = true
+`
+	require.NoError(t, os.WriteFile(cfgPath, []byte(content), 0o644))
+
+	cfg := NewCfg()
+	cfg.Load(&CommandLineArgs{ConfigPath: cfgPath})
+
+	assert.Equal(t, "replica", cfg.ReplicationRole)
+	assert.Equal(t, "node-2", cfg.ReplicationUUID)
+	assert.Equal(t, uint32(2), cfg.ReplicationServerID)
+	assert.Equal(t, "127.0.0.1:4402", cfg.ReplicationListenAddress)
+	assert.Equal(t, "http://127.0.0.1:4401", cfg.ReplicationSourceURL)
+	assert.Equal(t, 25*time.Millisecond, cfg.ReplicationPollIntervalDuration)
+	assert.True(t, cfg.ReplicationReadOnly)
+}
+
+func TestCfg_ParseInnodbCompressionConfig(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "compression.ini")
+	content := `
+[innodb]
+compression.enabled = true
+compression.method = zlib
+compression.level = 9
+compression.min_savings = 0.25
+compression.all_spaces = false
+`
+	require.NoError(t, os.WriteFile(cfgPath, []byte(content), 0o644))
+
+	cfg := NewCfg()
+	cfg.Load(&CommandLineArgs{ConfigPath: cfgPath})
+
+	assert.True(t, cfg.InnodbCompression.Enabled)
+	assert.Equal(t, "zlib", cfg.InnodbCompression.Method)
+	assert.Equal(t, 9, cfg.InnodbCompression.Level)
+	assert.InDelta(t, 0.25, cfg.InnodbCompression.MinSavings, 0.0001)
+	assert.False(t, cfg.InnodbCompression.AllSpaces)
 }

@@ -406,6 +406,7 @@ P0E_MODE=canary bash scripts/p0_e_backup_snapshot.sh
 
 ### P1-06 页面读写 TODO 收敛
 
+- [x] `storage/io/io_optimizer.go` 已移除空模拟读写：通过 `PageIO` 注入真实页面后端，批量写入逐页提交并保留失败请求；读写缓存与预读缓存按 `spaceID+pageNo` 隔离，`Stop` 幂等。
 - [ ] `page_impl.go` 实现实际磁盘读写或明确接入 buffer pool。
 - [ ] 各 wrapper 的 `ReadFromDisk` / `WriteToDisk` 不再只是注释或空实现。
 - [ ] 文件头、文件尾序列化落地。
@@ -427,6 +428,8 @@ P0E_MODE=canary bash scripts/p0_e_backup_snapshot.sh
 
 - 页面序列化、读、写、校验能形成闭环。
 - 异常页输入返回明确错误。
+
+当前边界：页面包装器的生产读写仍以 buffer pool/具体 wrapper 的存储接入为准；本轮先关闭 IO 优化器的模拟后端和跨表空间缓存错误。
 
 ### P1-07 MVCC 页面序列化与 IO
 

@@ -184,6 +184,13 @@ func TestGetLongTransactions(t *testing.T) {
 	if len(longTxns) != 2 {
 		t.Errorf("Expected 2 long transactions, got %d", len(longTxns))
 	}
+	if len(longTxns) == 2 && (longTxns[0] == trx1 || longTxns[1] == trx2) {
+		t.Fatal("long transaction diagnostics must not expose live transaction pointers")
+	}
+	snapshots := tm.GetLongTransactionSnapshots(150 * time.Millisecond)
+	if len(snapshots) != 2 || snapshots[0].ID != trx1.ID || snapshots[1].ID != trx2.ID {
+		t.Fatalf("unexpected stable long transaction snapshots: %+v", snapshots)
+	}
 
 	t.Logf("Found %d long transactions", len(longTxns))
 	for _, trx := range longTxns {

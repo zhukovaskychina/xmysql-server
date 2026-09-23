@@ -81,6 +81,8 @@ type BufferPoolManager struct {
 	// 后台线程控制
 	stopChan    chan struct{}
 	flushTicker *time.Ticker
+	closeOnce   sync.Once
+	closeErr    error
 
 	// 自适应刷新控制
 	currentFlushInterval time.Duration // 当前刷新间隔
@@ -467,12 +469,17 @@ func (bpm *BufferPoolManager) evictPage() *buffer_pool.BufferBlock {
 
 // Close 关闭缓冲池管理器
 func (bpm *BufferPoolManager) Close() error {
-	// 停止后台线程
-	close(bpm.stopChan)
-	bpm.flushTicker.Stop()
+	bpm.closeOnce.Do(func() {
+		// 停止后台线程
+		close(bpm.stopChan)
+		if bpm.flushTicker != nil {
+			bpm.flushTicker.Stop()
+		}
 
-	// 刷新所有脏页
-	return bpm.FlushAllPages()
+		// 刷新所有脏页
+		bpm.closeErr = bpm.FlushAllPages()
+	})
+	return bpm.closeErr
 }
 
 // startBackgroundThreads 启动后台线程

@@ -59,6 +59,7 @@ type BasePageWrapper struct {
 
 	content    []byte
 	bufferPage *buffer_pool.BufferPage
+	storage    basic.StorageProvider
 	pinCount   int32
 }
 
@@ -85,6 +86,15 @@ func NewBasePageWrapper(id, spaceID uint32, typ common.PageType) *BasePageWrappe
 		content:  make([]byte, 16384),
 		state:    basic.PageStateClean,
 	}
+}
+
+// NewBasePageWrapperWithStorage creates a provider-backed legacy wrapper.
+// Existing in-memory compatibility callers may continue using
+// NewBasePageWrapper; new migration work can inject a real storage provider.
+func NewBasePageWrapperWithStorage(id, spaceID uint32, typ common.PageType, storage basic.StorageProvider) *BasePageWrapper {
+	page := NewBasePageWrapper(id, spaceID, typ)
+	page.storage = storage
+	return page
 }
 
 // 实现IPageWrapper接口
@@ -132,7 +142,13 @@ func (p *BasePageWrapper) GetFileTrailer() []byte {
 func (p *BasePageWrapper) ParseFromBytes(content []byte) error {
 	p.Lock()
 	defer p.Unlock()
+	return p.parseFromBytesLocked(content)
+}
 
+// parseFromBytesLocked parses a page while the caller holds the base wrapper
+// lock. Specialized wrappers use this helper to avoid recursively acquiring
+// the same non-reentrant mutex during their ParseFromBytes implementation.
+func (p *BasePageWrapper) parseFromBytesLocked(content []byte) error {
 	if len(content) < int(p.size) {
 		return ErrInvalidPageSize
 	}
@@ -205,6 +221,12 @@ func (p *BasePageWrapper) IsDirty() bool {
 func (p *BasePageWrapper) MarkDirty() {
 	p.Lock()
 	defer p.Unlock()
+	p.markDirtyLocked()
+}
+
+// markDirtyLocked is the non-reentrant form used by specialized wrappers
+// that already hold the BasePageWrapper write lock.
+func (p *BasePageWrapper) markDirtyLocked() {
 	p.dirty = true
 	p.state = basic.PageStateDirty
 	p.stats.DirtyCount++
@@ -363,6 +385,22 @@ func (p *BasePageWrapper) Read() error {
 	defer p.Unlock()
 
 	if p.bufferPage == nil {
+		if p.storage != nil {
+			content, err := p.storage.ReadPage(p.spaceID, p.id)
+			if err != nil {
+				return err
+			}
+			if err := p.loadContentLocked(content); err != nil {
+				return err
+			}
+			now := uint64(time.Now().UnixNano())
+			p.stats.ReadCount++
+			p.stats.AccessTime = now
+			p.stats.LastAccessAt = now
+			p.stats.LastAccessed = now
+			p.state = basic.PageStateLoaded
+			return nil
+		}
 		p.state = basic.PageStateFlushed
 		p.stats.AccessTime = uint64(time.Now().UnixNano())
 		p.stats.LastAccessAt = p.stats.AccessTime
@@ -376,25 +414,10 @@ func (p *BasePageWrapper) Read() error {
 		return ErrInvalidPageSize
 	}
 
-	p.content = make([]byte, int(p.size))
-	copy(p.content, content[:int(p.size)])
-
-	if len(p.content) < pages.FileHeaderSize+pages.FileTrailerSize {
-		p.state = common.PageStateDirty
-		return ErrInvalidPageSize
-	}
-
-	if err := p.header.ParseFileHeader(p.content[:pages.FileHeaderSize]); err != nil {
+	if err := p.loadContentLocked(content); err != nil {
 		p.state = common.PageStateDirty
 		return err
 	}
-
-	trailerOffset := len(p.content) - 8
-	copy(p.trailer.FileTrailer[:], p.content[trailerOffset:])
-	p.pageType = common.PageType(p.header.GetPageType())
-	p.spaceID = p.header.GetFilePageArch()
-	p.id = p.header.GetCurrentPageOffset()
-	p.lsn = uint64(p.header.GetPageLSN())
 
 	now := uint64(time.Now().UnixNano())
 	p.stats.ReadCount++
@@ -402,6 +425,25 @@ func (p *BasePageWrapper) Read() error {
 	p.stats.LastAccessAt = now
 	p.stats.LastAccessed = now
 	p.state = basic.PageStateLoaded
+	return nil
+}
+
+func (p *BasePageWrapper) loadContentLocked(content []byte) error {
+	if len(content) < int(p.size) || len(content) < pages.FileHeaderSize+pages.FileTrailerSize {
+		return ErrInvalidPageSize
+	}
+	p.content = make([]byte, int(p.size))
+	copy(p.content, content[:int(p.size)])
+	if err := p.header.ParseFileHeader(p.content[:pages.FileHeaderSize]); err != nil {
+		return err
+	}
+
+	trailerOffset := len(p.content) - pages.FileTrailerSize
+	copy(p.trailer.FileTrailer[:], p.content[trailerOffset:])
+	p.pageType = common.PageType(p.header.GetPageType())
+	p.spaceID = p.header.GetFilePageArch()
+	p.id = p.header.GetCurrentPageOffset()
+	p.lsn = uint64(p.header.GetPageLSN())
 	return nil
 }
 
@@ -418,6 +460,13 @@ func (p *BasePageWrapper) Write() error {
 	if p.bufferPage != nil {
 		p.bufferPage.SetContent(data)
 		p.bufferPage.SetDirty(true)
+	}
+	if p.storage != nil {
+		if err := p.storage.WritePage(p.spaceID, p.id, data); err != nil {
+			return err
+		}
+	} else if p.bufferPage == nil {
+		return ErrPageStorageUnavailable
 	}
 
 	now := uint64(time.Now().UnixNano())
@@ -443,6 +492,13 @@ func (p *BasePageWrapper) Flush() error {
 	if p.bufferPage != nil {
 		p.bufferPage.SetContent(data)
 		p.bufferPage.SetDirty(false)
+	}
+	if p.storage != nil {
+		if err := p.storage.WritePage(p.spaceID, p.id, data); err != nil {
+			return err
+		}
+	} else if p.bufferPage == nil {
+		return ErrPageStorageUnavailable
 	}
 
 	now := uint64(time.Now().UnixNano())

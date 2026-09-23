@@ -188,6 +188,19 @@ func TestMatchHost(t *testing.T) {
 	}
 }
 
+func TestAuthHostSpecificityPrefersExactAndMostSpecificWildcard(t *testing.T) {
+	ea := &InnoDBEngineAccess{}
+	if got := authHostMatchSpecificity(ea, "10.1.2.3", "%"); got < 0 {
+		t.Fatal("percent wildcard should match")
+	}
+	exact := authHostMatchSpecificity(ea, "10.1.2.3", "10.1.2.3")
+	network := authHostMatchSpecificity(ea, "10.1.2.3", "10.1.%")
+	global := authHostMatchSpecificity(ea, "10.1.2.3", "%")
+	if !(exact > network && network > global) {
+		t.Fatalf("host specificity order = exact:%d network:%d global:%d", exact, network, global)
+	}
+}
+
 func TestGetBoolWithByteArray(t *testing.T) {
 	ea := &InnoDBEngineAccess{}
 

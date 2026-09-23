@@ -29,7 +29,7 @@ scripts/verify_p0_core.sh
 
 这些不是本轮 P0 core 的剩余项，而是生产上线维度仍需要继续验收的 P0：
 
-1. P0-03 残余：`ExecutionError` 全链路统一、`index_transaction_adapter.go` 锁释放边界、`storage_integrated_index_helper.go` 复合索引/一致性检查仍需继续收敛。
+1. P0-03：本轮已继续收敛 `ExecutionError` 包装链路、事务适配器 nil/锁释放边界、索引更新失败传播、批量索引操作回滚与一致性检查的 nil/部分失败边界；仍需在真实存储故障注入和多轮恢复演练中验证全量索引重建与持久化一致性。
 2. P0-06：崩溃恢复演练闭环，包含 redo / undo / half-commit 固定场景、多轮复放和报告归档。
 3. P0-07：灰度写入与回滚链路，特别是 storage mapping、read -> write -> restore 脚本和失败日志字段。
 4. P0-08：慢查询日志配置、执行打点、样例复放与字段验收。
@@ -42,6 +42,8 @@ scripts/verify_p0_core.sh
 - P0-07：`p0_e_backup_snapshot.sh` 的 canary 阶段日志补齐表头和固定字段；新增 `selftest` 模式与 `scripts/p0_e_canary_selftest.sh`，不依赖真实服务即可验证 read / write / restore 编排与日志契约。
 - P0-08：慢查询日志 JSON 字段补齐 `schema / table / error_msg`，保留 `sql / duration_ms / rows_affected / conn_id / txn_id / error_code / status / stage`。
 - P0-09：新增 `manager.OperationalMetrics`，输出 QPS、错误率、连接数、活跃事务、P50/P95/P99、redo/undo、锁等待，并支持错误率、P99、活跃事务阈值告警与恢复验证。
+
+- 检查点元数据补强：CheckpointManager 已接入真实活跃事务 ID 快照，并按脏页聚合表空间摘要；provider 快照使用独立锁，避免检查点写锁重入。
 
 当前实现验证：
 
