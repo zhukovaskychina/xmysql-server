@@ -4,7 +4,13 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-New-Item -ItemType Directory -Force -Path $ReportDir | Out-Null
+$workspaceRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "../.."))
+$resolvedReportDir = if ([IO.Path]::IsPathRooted($ReportDir)) {
+    [IO.Path]::GetFullPath($ReportDir)
+} else {
+    [IO.Path]::GetFullPath((Join-Path $workspaceRoot $ReportDir))
+}
+New-Item -ItemType Directory -Force -Path $resolvedReportDir | Out-Null
 $runs = @()
 for ($i = 1; $i -le $Repeat; $i++) {
     $started = Get-Date
@@ -24,6 +30,6 @@ $report = [ordered]@{
     runs = $runs
     status = if (($runs | Where-Object { $_.exit_code -ne 0 }).Count -eq 0 -and $runs.Count -eq $Repeat) { "PASS" } else { "FAIL" }
 }
-$report | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $ReportDir "crash-recovery.json")
+$report | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $resolvedReportDir "crash-recovery.json")
 $report.status
 if ($report.status -ne "PASS") { exit 1 }

@@ -47,7 +47,7 @@ function Wait-Port([int]$Port, [int]$TimeoutSeconds = 30) {
 }
 
 function Invoke-Client([string]$Mode, [string[]]$Extra = @()) {
-    $args = @("-dsn", "root:root%401234@tcp(127.0.0.1:$port)/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true", "-db", $dbName, "-table", $tableName, "-mode", $Mode) + $Extra
+    $args = @("-dsn", "root:@tcp(127.0.0.1:$port)/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true", "-db", $dbName, "-table", $tableName, "-mode", $Mode) + $Extra
     $output = & $clientExe @args 2>&1
     if ($LASTEXITCODE -ne 0) { throw "client mode $Mode failed: $output" }
     return @($output)
@@ -78,12 +78,13 @@ for ($run = 1; $run -le $Repeat; $run++) {
 	$dbName = "external_crash_db_${dbStamp}_$run"
     $server = $null
     $holder = $null
+    $race = $null
     $holderLog = Join-Path (Resolve-Path $ReportDirectory).Path ("holder-$run.log")
     try {
         $server = Start-TestServer
         Invoke-Client "setup_redo" | Out-Null
         Invoke-Client "setup_ddl_index" | Out-Null
-        $holder = Start-Process -FilePath $clientExe -ArgumentList @("-dsn", "root:root%401234@tcp(127.0.0.1:$port)/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true", "-db", $dbName, "-table", $tableName, "-mode", "hold_undo", "-hold-seconds", "30") -PassThru -WindowStyle Hidden -RedirectStandardOutput $holderLog -RedirectStandardError ($holderLog + ".err")
+        $holder = Start-Process -FilePath $clientExe -ArgumentList @("-dsn", "root:@tcp(127.0.0.1:$port)/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true", "-db", $dbName, "-table", $tableName, "-mode", "hold_undo", "-hold-seconds", "30") -PassThru -WindowStyle Hidden -RedirectStandardOutput $holderLog -RedirectStandardError ($holderLog + ".err")
         $ready = $false
         for ($i = 0; $i -lt 120; $i++) {
             if (Test-Path $holderLog) {
@@ -98,11 +99,28 @@ for ($run = 1; $run -le $Repeat; $run++) {
         Invoke-Client "verify_redo" | Out-Null
         Invoke-Client "verify_undo" | Out-Null
         Invoke-Client "verify_ddl_index" | Out-Null
-        $runs += [ordered]@{ run = $run; status = "PASS"; committed = "present"; uncommitted = "rolled_back"; ddl_index_metadata = "present" }
+        $raceLog = Join-Path (Resolve-Path $ReportDirectory).Path ("race-$run.log")
+        $race = Start-Process -FilePath $clientExe -ArgumentList @("-dsn", "root:@tcp(127.0.0.1:$port)/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true", "-db", $dbName, "-table", $tableName, "-mode", "race_commit") -PassThru -WindowStyle Hidden -RedirectStandardOutput $raceLog -RedirectStandardError ($raceLog + ".err")
+        $raceReady = $false
+        for ($i = 0; $i -lt 120; $i++) {
+            if (Test-Path $raceLog) {
+                $raceOutput = Get-Content $raceLog -Raw
+                if ($null -ne $raceOutput -and $raceOutput.Contains("HALF_COMMIT_READY")) { $raceReady = $true; break }
+            }
+            Start-Sleep -Milliseconds 25
+        }
+        if (-not $raceReady) { throw "half-commit workload did not reach ready state" }
+        Start-Sleep -Milliseconds 100
+        Stop-TestServer $server
+        $server = Start-TestServer
+        Invoke-Client "verify_half_commit" | Out-Null
+        if ($null -ne $race -and -not $race.HasExited) { Stop-Process -Id $race.Id -Force }
+        $runs += [ordered]@{ run = $run; status = "PASS"; committed = "present"; uncommitted = "rolled_back"; half_commit = "at_most_once"; ddl_index_metadata = "present" }
     } catch {
         $runs += [ordered]@{ run = $run; status = "FAIL"; error = ($_ | Out-String).Trim() }
     } finally {
         if ($null -ne $holder -and -not $holder.HasExited) { Stop-Process -Id $holder.Id -Force }
+        if ($null -ne $race -and -not $race.HasExited) { Stop-Process -Id $race.Id -Force }
         Stop-TestServer $server
     }
 }
@@ -114,8 +132,8 @@ $report = [ordered]@{
     port = $port
     data_dir = $DataDir
     runtime_config = $runtimeConfigPath
-    cases = @("committed", "uncommitted", "prepared statement", "DDL", "index rebuild")
-    verification = @("committed rows present", "uncommitted rows rolled back", "DDL metadata queryable", "rebuilt index metadata queryable")
+    cases = @("committed", "uncommitted", "prepared statement", "half-commit crash", "DDL", "index rebuild")
+    verification = @("committed rows present", "uncommitted rows rolled back", "half-commit row count at most one", "DDL metadata queryable", "rebuilt index metadata queryable")
     runs = $runs
 }
 $report | ConvertTo-Json -Depth 8 | Set-Content -Encoding UTF8 $reportPath

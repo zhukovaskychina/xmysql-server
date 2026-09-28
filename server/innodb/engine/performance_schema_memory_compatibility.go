@@ -27,8 +27,11 @@ func (e *XMySQLExecutor) executePerformanceSchemaMemorySummaryByIdentitySelect(q
 		alloc, free, bytesAlloc, bytesFree, lowCount, currentCount, highCount, lowBytes, currentBytes, highBytes int64
 	}
 	byKey := make(map[string]*summary)
-	for _, row := range e.metricsRecorder.MemorySummary() {
-		user, host := e.performanceSchemaThreadIdentity(row.ThreadID)
+	for _, row := range e.metricsRecorder.MemorySummaryForDimension(dimension) {
+		user, host := row.User, row.Host
+		if user == "" && host == "" {
+			user, host = e.performanceSchemaThreadIdentity(row.ThreadID)
+		}
 		key := fmt.Sprintf("%s\x00%s\x00%s", user, host, row.EventName)
 		if dimension == "host" {
 			key = fmt.Sprintf("%s\x00%s", host, row.EventName)
@@ -119,7 +122,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaMemorySummaryByThreadSelect(que
 		seenThreads[threadID] = struct{}{}
 		if e != nil && e.metricsRecorder != nil {
 			matched := false
-			for _, summary := range e.metricsRecorder.MemorySummary() {
+			for _, summary := range e.metricsRecorder.MemorySummaryForDimension("thread") {
 				if summary.ThreadID != threadID || !performanceSchemaSummaryFilterMatches(query, "EVENT_NAME", summary.EventName) {
 					continue
 				}
@@ -149,7 +152,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaMemorySummaryByThreadSelect(que
 		memoryRows = append(memoryRows, memoryRow{threadID: threadID, values: projectInformationSchemaRow(columns, row)})
 	}
 	if e != nil && e.metricsRecorder != nil && !hasThreadFilter {
-		for _, summary := range e.metricsRecorder.MemorySummary() {
+		for _, summary := range e.metricsRecorder.MemorySummaryForDimension("thread") {
 			if _, exists := seenThreads[summary.ThreadID]; exists {
 				continue
 			}

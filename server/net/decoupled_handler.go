@@ -18,6 +18,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/dispatcher"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
+	"github.com/zhukovaskychina/xmysql-server/server/observability/compatibility"
 	"github.com/zhukovaskychina/xmysql-server/server/observability/metrics"
 	"github.com/zhukovaskychina/xmysql-server/server/protocol"
 	"github.com/zhukovaskychina/xmysql-server/server/replication"
@@ -163,10 +164,25 @@ func (h *DecoupledMySQLMessageHandler) OnOpen(session Session) error {
 		// uses the same id for COM_PROCESS_KILL/PROCESSLIST lookup.
 		mysqlSession.SessionContext().SetConnectionID(session.ID())
 	}
+	if mysqlSession != nil && h.cfg != nil {
+		// Native replication clients probe these values before issuing
+		// COM_BINLOG_DUMP. Store the configured source identity on each
+		// session so @@GLOBAL.* expression evaluation reflects the running
+		// server instead of the generic manager defaults.
+		mysqlSession.SetParamByName("server_id", int64(h.cfg.ReplicationServerID))
+		mysqlSession.SetParamByName("gtid_mode", "ON")
+		mysqlSession.SetParamByName("log_bin", "ON")
+		mysqlSession.SetParamByName("binlog_format", "ROW")
+		mysqlSession.SetParamByName("binlog_checksum", "CRC32")
+		if strings.TrimSpace(h.cfg.ReplicationUUID) != "" {
+			mysqlSession.SetParamByName("server_uuid", h.cfg.ReplicationUUID)
+		}
+	}
 
 	h.rwlock.Lock()
 	h.sessionMap[session] = mysqlSession
 	h.rwlock.Unlock()
+	session.SetAttribute(mysqlSessionAttribute, mysqlSession)
 	h.recordActiveConnections()
 	if h.replicationSource != nil {
 		session.SetAttribute("replication_source", h.replicationSource)
@@ -180,6 +196,8 @@ func (h *DecoupledMySQLMessageHandler) OnOpen(session Session) error {
 		logger.Errorf("生成握手包失败: %v", err)
 		return err
 	}
+	serverCapabilities := uint32(handshakePacket.CapabilityFlags1) | uint32(handshakePacket.CapabilityFlags2)<<16
+	session.SetAttribute("server_capabilities", serverCapabilities)
 
 	// 保存challenge到session属性（用于后续密码验证）
 	challenge := handshakePacket.GetAuthData()
@@ -1300,10 +1318,19 @@ func (h *DecoupledMySQLMessageHandler) handleAuthentication(session Session, cur
 	clientFlags := binary.LittleEndian.Uint32(payload[offset : offset+4])
 	offset += 4
 
-	// 保存客户端能力标志到会话，后续根据 CLIENT_DEPRECATE_EOF 动态选择 EOF/OK
-	session.SetAttribute("client_capabilities", clientFlags)
+	// Capabilities are negotiated as the intersection of both sides. Keep the
+	// raw flags for decoding the authentication packet, but use only negotiated
+	// flags for result-set framing and command behavior. In particular, modern
+	// MySQL 8.4 clients may advertise CLIENT_OPTIONAL_RESULTSET_METADATA even
+	// when an older server did not advertise it; treating that raw bit as
+	// enabled makes the first column-count byte look like metadata state.
+	negotiatedFlags := clientFlags
+	if serverCapabilities, ok := session.GetAttribute("server_capabilities").(uint32); ok && serverCapabilities != 0 {
+		negotiatedFlags &= serverCapabilities
+	}
+	session.SetAttribute("client_capabilities", negotiatedFlags)
 	if currentMysqlSession != nil && *currentMysqlSession != nil {
-		(*currentMysqlSession).SetParamByName("client_capabilities", clientFlags)
+		(*currentMysqlSession).SetParamByName("client_capabilities", negotiatedFlags)
 	}
 
 	// 读取最大包大小 (4字节)
@@ -1569,6 +1596,12 @@ func (h *DecoupledMySQLMessageHandler) completeAuthentication(session Session, c
 
 func (h *DecoupledMySQLMessageHandler) completeAuthenticationWithSequence(session Session, currentMysqlSession *server.MySQLServerSession, username, database, host string, activeRoles []string, privileges []common.PrivilegeType, dynamicPrivileges []string, sequence byte) error {
 	session.SetAttribute("auth_status", "success")
+	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
+	compressionEnabled := capabilities&protocol.CLIENT_COMPRESS != 0
+	session.SetAttribute("mysql_compression_enabled", compressionEnabled)
+	if compressionEnabled {
+		session.SetAttribute("mysql_compression_write_sequence", uint8(0))
+	}
 	if currentMysqlSession != nil && *currentMysqlSession != nil {
 		(*currentMysqlSession).SetParamByName("user", username)
 		(*currentMysqlSession).SetParamByName("database", database)
@@ -1783,7 +1816,7 @@ func looksLikePreparedResultStatement(sqlText string) bool {
 	return false
 }
 
-func (h *DecoupledMySQLMessageHandler) handleComStmtExecute(session Session, currentMysqlSession *server.MySQLServerSession, recMySQLPkg *MySQLPackage) error {
+func (h *DecoupledMySQLMessageHandler) handleComStmtExecute(session Session, currentMysqlSession *server.MySQLServerSession, recMySQLPkg *MySQLPackage) (err error) {
 	body := recMySQLPkg.Body
 	if len(body) < 10 {
 		return h.sendErrorResponse(session, 1064, "42000", "Invalid COM_STMT_EXECUTE")
@@ -1795,21 +1828,47 @@ func (h *DecoupledMySQLMessageHandler) handleComStmtExecute(session Session, cur
 	if err != nil {
 		return h.sendErrorResponse(session, common.ErrUnknownStmtHandler, "HY000", err.Error())
 	}
+	startedAt := time.Now()
+	executionFailed := false
+	var executionResult *protocol.MessageQueryResult
+	defer func() {
+		stats := compatibility.PreparedStatementExecutionStats{
+			Duration: startedAtSub(startedAt),
+			Failed:   executionFailed || err != nil,
+		}
+		if executionResult != nil {
+			stats.RowsAffected = executionResult.AffectedRows
+			stats.RowsSent = uint64(len(executionResult.Rows))
+			stats.Warnings = uint64(executionResult.WarningCount)
+		}
+		if currentMysqlSession != nil && *currentMysqlSession != nil {
+			if warnings, ok := (*currentMysqlSession).GetParamByName("warnings").([]engine.Warning); ok && uint64(len(warnings)) > stats.Warnings {
+				stats.Warnings = uint64(len(warnings))
+			}
+		}
+		_ = mgr.RecordExecution(stmtID, stats)
+	}()
 	if body[5]&0x01 != 0 {
 		open, cursorErr := mgr.HasOpenCursor(stmtID)
 		if cursorErr != nil {
+			executionFailed = true
 			return h.sendErrorResponse(session, common.ErrUnknownStmtHandler, "HY000", cursorErr.Error())
 		}
 		if open {
+			executionFailed = true
 			return h.sendErrorResponse(session, common.ErrExecStmtWithOpenCursor, common.MySQLState[common.ErrExecStmtWithOpenCursor], "")
 		}
 	}
 	params, typeBlock, perr := protocol.ParseBinaryStmtExecuteParams(body[10:], stmt.ParamCount, stmt.LastParamTypes)
 	if perr != nil {
+		executionFailed = true
+		err = perr
 		return h.sendErrorResponse(session, 1210, "HY000", perr.Error())
 	}
 	longData, lerr := mgr.ConsumeLongData(stmtID)
 	if lerr != nil {
+		executionFailed = true
+		err = lerr
 		return h.sendErrorResponse(session, common.ErrUnknownStmtHandler, "HY000", lerr.Error())
 	}
 	for paramID, value := range longData {
@@ -1820,29 +1879,34 @@ func (h *DecoupledMySQLMessageHandler) handleComStmtExecute(session Session, cur
 	stmt.LastParamTypes = typeBlock
 	boundSQL := protocol.BindPreparedSQL(stmt.SQL, params)
 	if body[5]&0x01 != 0 {
-		result, err := h.executePreparedQueryResult(session, currentMysqlSession, boundSQL)
-		if err != nil {
-			return h.sendGoErrorResponse(session, err)
+		result, execErr := h.executePreparedQueryResult(session, currentMysqlSession, boundSQL)
+		if execErr != nil {
+			executionFailed = true
+			err = execErr
+			return h.sendGoErrorResponse(session, execErr)
 		}
+		executionResult = result
 		if result == nil || !strings.EqualFold(result.Type, "select") {
+			executionFailed = true
+			err = fmt.Errorf("server-side cursors require a result set")
 			return h.sendErrorResponse(session, common.ErrNotSupportedYet, "0A000", "server-side cursors require a result set")
 		}
-		if err := mgr.SetCursorResult(stmtID, result); err != nil {
+		if setCursorErr := mgr.SetCursorResult(stmtID, result); setCursorErr != nil {
+			executionFailed = true
 			if open, _ := mgr.HasOpenCursor(stmtID); open {
 				return h.sendErrorResponse(session, common.ErrExecStmtWithOpenCursor, common.MySQLState[common.ErrExecStmtWithOpenCursor], "")
 			}
-			return h.sendErrorResponse(session, common.ErrUnknownStmtHandler, "HY000", err.Error())
+			return h.sendErrorResponse(session, common.ErrUnknownStmtHandler, "HY000", setCursorErr.Error())
 		}
-		// A cursor execute returns column metadata and keeps the rows on the
-		// server.  Returning a standalone OK packet here makes Connector/J
-		// treat the cursor as an ordinary update and causes the subsequent
-		// COM_STMT_FETCH response to be decoded with the wrong protocol.
 		return h.sendCursorMetadata(session, result, recMySQLPkg.Header.PacketId+1)
 	}
-	result, err := h.executePreparedQueryResult(session, currentMysqlSession, boundSQL)
-	if err != nil {
-		return h.sendGoErrorResponse(session, err)
+	result, execErr := h.executePreparedQueryResult(session, currentMysqlSession, boundSQL)
+	if execErr != nil {
+		executionFailed = true
+		err = execErr
+		return h.sendGoErrorResponse(session, execErr)
 	}
+	executionResult = result
 	if result == nil || (len(result.Columns) == 0 && len(result.Rows) == 0) {
 		var affectedRows, lastInsertID uint64
 		if result != nil {
@@ -1852,6 +1916,14 @@ func (h *DecoupledMySQLMessageHandler) handleComStmtExecute(session Session, cur
 		return h.sendMySQLOKPacketWithStatus(session, affectedRows, lastInsertID, recMySQLPkg.Header.PacketId+1, mysqlResponseStatusFlags(session, *currentMysqlSession))
 	}
 	return h.sendBinaryPreparedResultSet(session, result, recMySQLPkg.Header.PacketId+1)
+}
+
+func startedAtSub(startedAt time.Time) time.Duration {
+	duration := time.Since(startedAt)
+	if duration < 0 {
+		return 0
+	}
+	return duration
 }
 
 func (h *DecoupledMySQLMessageHandler) executePreparedQueryResult(session Session, currentMysqlSession *server.MySQLServerSession, query string) (*protocol.MessageQueryResult, error) {
@@ -1934,6 +2006,9 @@ func (h *DecoupledMySQLMessageHandler) resetConnectionState(session Session, cur
 	resetPreparedStmtMgr := protocol.NewPreparedStatementManager()
 	session.SetAttribute("prepared_stmt_mgr", resetPreparedStmtMgr)
 	bindPreparedStmtMgr(currentMysqlSession, resetPreparedStmtMgr)
+	if currentMysqlSession != nil && *currentMysqlSession != nil {
+		(*currentMysqlSession).SetParamByName("sql_prepared_stmt_mgr", nil)
+	}
 	// COM_SET_OPTION changes a connection-local capability.  Reset the
 	// override back to the handshake baseline so pooled connections do not
 	// retain a previous user's multi-statement setting.
@@ -2205,6 +2280,10 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	// ========================================================================
 	columnCount := uint64(len(result.Columns))
 	columnCountData := encoder.WriteLenEncInt(columnCount)
+	if capabilities&protocol.CLIENT_OPTIONAL_RESULTSET_METADATA != 0 {
+		// RESULTSET_METADATA_FULL: metadata follows the column count.
+		columnCountData = append([]byte{1}, columnCountData...)
+	}
 	columnCountPacket := h.createMySQLPacket(columnCountData, seqID)
 
 	logger.Debugf("[sendQueryResultSet] 发送列数包: %d 列", columnCount)
@@ -2234,8 +2313,11 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	}
 
 	// ========================================================================
-	// Step 3: 发送列定义结束标记（EOF 或 OK，取决于 CLIENT_DEPRECATE_EOF）
-	// 在 CLIENT_DEPRECATE_EOF 下必须发送 OK 包（0x00）作为列定义结束标记。
+	// Step 3: 发送列定义结束标记。
+	// With CLIENT_DEPRECATE_EOF the metadata section has no terminator at all;
+	// only the final row terminator is replaced by an OK packet. Sending an
+	// extra OK here makes MySQL 8.4 replication clients treat the marker as a
+	// malformed row and stall while reading SELECT UNIX_TIMESTAMP().
 	// ========================================================================
 	if useDeprecatedEOF {
 		eofPacket1 := protocol.EncodeEOFPacketWithSeq(0, statusFlags, seqID)
@@ -2248,15 +2330,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 		}
 		seqID++
 	} else {
-		okPacket1 := protocol.EncodeOKPacketWithSeq(0, 0, statusFlags, 0, seqID)
-
-		logger.Debugf("[sendQueryResultSet] 发送列定义结束 OK 包（CLIENT_DEPRECATE_EOF）")
-		err = session.WriteBytes(okPacket1)
-		if err != nil {
-			logger.Errorf("发送列定义结束 OK 包失败: %v", err)
-			return err
-		}
-		seqID++
+		logger.Debugf("[sendQueryResultSet] CLIENT_DEPRECATE_EOF：跳过列定义结束包")
 	}
 
 	// ========================================================================
@@ -2315,7 +2389,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 			return err
 		}
 	} else {
-		okPacket2 := protocol.EncodeOKPacketWithSeq(0, 0, statusFlags, 0, seqID)
+		okPacket2 := protocol.EncodeResultsetOKPacketWithSeq(0, 0, statusFlags, 0, seqID)
 
 		logger.Debugf("[sendQueryResultSet] 发送结果集结束 OK 包（CLIENT_DEPRECATE_EOF）")
 		err = session.WriteBytes(okPacket2)
@@ -2437,7 +2511,7 @@ func (h *DecoupledMySQLMessageHandler) sendResultTerminator(session Session, seq
 	if capabilities&protocol.CLIENT_DEPRECATE_EOF == 0 {
 		return session.WriteBytes(protocol.EncodeEOFPacketWithSeq(warnings, statusFlags, seqID))
 	}
-	return session.WriteBytes(protocol.EncodeOKPacketWithSeq(0, 0, statusFlags, warnings, seqID))
+	return session.WriteBytes(protocol.EncodeResultsetOKPacketWithSeq(0, 0, statusFlags, warnings, seqID))
 }
 
 // splitTopLevelStatements splits COM_QUERY multi-statements without treating

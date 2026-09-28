@@ -28,6 +28,19 @@ type LockStats struct {
 	ExclusiveLocks uint64        // 排他锁数
 }
 
+// LockRuntimeStats is the cumulative record-lock/deadlock source used by
+// INFORMATION_SCHEMA.INNODB_METRICS. Values are protected by LockManager's
+// mutex and returned as a detached snapshot.
+type LockRuntimeStats struct {
+	RecordLockRequests        uint64
+	RecordLockGrantAttempts   uint64
+	RecordLockReleaseAttempts uint64
+	RecordLockCreated         uint64
+	RecordLockRemoved         uint64
+	RecordLocks               uint64
+	Deadlocks                 uint64
+}
+
 // LockConfig 锁配置
 type LockConfig struct {
 	DeadlockInterval  time.Duration // 死锁检测间隔

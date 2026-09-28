@@ -206,28 +206,30 @@ func ParseGTIDIntervals(raw string) (GTIDIntervals, error) {
 			return nil, fmt.Errorf("invalid GTID group %q", group)
 		}
 		uuid := strings.TrimSpace(parts[0])
-		intervalStart := 1
-		// MySQL 8.4 tagged GTIDs use uuid:tag:interval. Internally the tag
-		// remains part of the map key so existing interval operations stay
-		// compact and exactly-once checks remain backward compatible.
-		if len(parts) >= 3 && !isGTIDIntervalToken(parts[1]) && isGTIDIntervalToken(parts[2]) {
-			uuid += ":" + strings.TrimSpace(parts[1])
-			intervalStart = 2
-		}
-		for _, interval := range parts[intervalStart:] {
-			bounds := strings.SplitN(strings.TrimSpace(interval), "-", 2)
-			start, err := strconv.ParseUint(bounds[0], 10, 64)
-			if err != nil || start == 0 {
-				return nil, fmt.Errorf("invalid GTID interval %q", interval)
-			}
-			end := start
-			if len(bounds) == 2 {
-				end, err = strconv.ParseUint(bounds[1], 10, 64)
-				if err != nil || end < start {
-					return nil, fmt.Errorf("invalid GTID interval %q", interval)
+		for index := 1; index < len(parts); {
+			key := uuid
+			if !isGTIDIntervalToken(parts[index]) {
+				tag := strings.TrimSpace(parts[index])
+				if !validGTIDTagText(tag) {
+					return nil, fmt.Errorf("invalid GTID tag %q", parts[index])
+				}
+				key += ":" + tag
+				index++
+				if index == len(parts) || !isGTIDIntervalToken(parts[index]) {
+					return nil, fmt.Errorf("invalid GTID tag interval group %q", group)
 				}
 			}
-			set.AddRange(uuid, start, end)
+			for index < len(parts) && isGTIDIntervalToken(parts[index]) {
+				interval := strings.TrimSpace(parts[index])
+				bounds := strings.SplitN(interval, "-", 2)
+				start, _ := strconv.ParseUint(bounds[0], 10, 64)
+				end := start
+				if len(bounds) == 2 {
+					end, _ = strconv.ParseUint(bounds[1], 10, 64)
+				}
+				set.AddRange(key, start, end)
+				index++
+			}
 		}
 	}
 	return set, nil
@@ -238,14 +240,34 @@ func isGTIDIntervalToken(token string) bool {
 	if len(bounds) == 0 || bounds[0] == "" {
 		return false
 	}
-	if _, err := strconv.ParseUint(bounds[0], 10, 64); err != nil {
+	start, err := strconv.ParseUint(bounds[0], 10, 64)
+	if err != nil || start == 0 {
 		return false
 	}
 	if len(bounds) == 2 {
 		if bounds[1] == "" {
 			return false
 		}
-		if _, err := strconv.ParseUint(bounds[1], 10, 64); err != nil {
+		end, err := strconv.ParseUint(bounds[1], 10, 64)
+		if err != nil || end < start {
+			return false
+		}
+	}
+	return true
+}
+
+func validGTIDTagText(tag string) bool {
+	if tag == "" || len(tag) > 32 {
+		return false
+	}
+	for index, char := range []byte(tag) {
+		if index == 0 {
+			if !(char == '_' || char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z') {
+				return false
+			}
+			continue
+		}
+		if !(char == '_' || char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || char >= '0' && char <= '9') {
 			return false
 		}
 	}

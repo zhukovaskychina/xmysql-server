@@ -41,6 +41,12 @@ func selectHasJoin(stmt *sqlparser.Select) bool {
 func (se *SelectExecutor) executeJoinSelect(ctx context.Context, stmt *sqlparser.Select, schemaName string) (*SelectResult, error) {
 	se.resetExecutionState()
 	se.schemaName = schemaName
+	// The first table in this compatibility join path is always read by a
+	// clustered full scan. MySQL counts that first-table scan separately from
+	// SELECT_FULL_JOIN, which describes the subsequent unindexed join lookup.
+	if len(stmt.From) > 0 {
+		se.selectScan = 1
+	}
 	se.distinct = strings.EqualFold(strings.TrimSpace(stmt.Distinct), strings.TrimSpace(sqlparser.DistinctStr))
 	if err := se.parseSelectExprs(stmt.SelectExprs); err != nil {
 		return nil, err
@@ -74,6 +80,11 @@ func (se *SelectExecutor) executeJoinSelect(ctx context.Context, stmt *sqlparser
 		if err != nil {
 			return nil, err
 		}
+		// This compatibility path materializes both sides and performs a
+		// Cartesian product. MySQL exposes each such unindexed join as a
+		// SELECT_FULL_JOIN event; range-join and range-check paths remain zero
+		// until the executor has a real indexed join implementation.
+		se.selectFullJoin++
 	}
 	if hasEffectiveWhereConditions(se.whereConditions) {
 		filtered := make([]joinedMapRow, 0, len(rows))
@@ -186,6 +197,12 @@ func (se *SelectExecutor) loadJoinTableSource(ctx context.Context, expr *sqlpars
 	if err != nil {
 		return nil, err
 	}
+	// JOIN reads use a separate materialization path from ordinary SELECTs.
+	// Apply the same transaction visibility fence before rows are qualified
+	// and joined, otherwise a REPEATABLE READ session can observe later
+	// committed rows through JOIN even though a single-table scan hides them.
+	rowData = applyPendingClientTransactionVisibility(ctx, tableSchema, tableName.Name.String(), rowData, meta)
+	se.rowsExamined += scanner.RowsExamined()
 	source := &joinTableSource{tableName: tableName.Name.String(), alias: alias, meta: meta}
 	if se.joinOrderTypes == nil {
 		se.joinOrderTypes = make(map[string]metadata.DataType)
@@ -241,6 +258,11 @@ func nullJoinRow(source *joinTableSource) map[string]interface{} {
 }
 
 func (se *SelectExecutor) joinRows(leftRows []joinedMapRow, right *joinTableSource, joinType string, condition sqlparser.JoinCondition) ([]joinedMapRow, error) {
+	// loadJoinTableSource always performs a clustered full scan today. Keep
+	// this counter tied to the actual join implementation rather than merely
+	// matching the SQL text, so derived/unsupported paths do not fabricate P_S
+	// counters.
+	se.selectFullJoin++
 	joined := make([]joinedMapRow, 0)
 	rightMatched := make([]bool, len(right.rows))
 	for _, left := range leftRows {
@@ -845,7 +867,13 @@ func (se *SelectExecutor) buildJoinAggregateResult(rows []joinedMapRow) *SelectR
 }
 
 func aggregateJoinedRows(rows []joinedMapRow, agg aggregateExpression) interface{} {
-	acc := aggregateAccumulator{fn: agg.funcName, separator: agg.separator, orderBy: agg.orderBy, orderDesc: agg.orderDesc}
+	acc := aggregateAccumulator{
+		fn:        agg.funcName,
+		countStar: agg.column == "*",
+		separator: agg.separator,
+		orderBy:   agg.orderBy,
+		orderDesc: agg.orderDesc,
+	}
 	if agg.distinct {
 		acc.seen = make(map[string]struct{})
 	}

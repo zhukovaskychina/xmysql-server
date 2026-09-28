@@ -25,13 +25,22 @@ type statementResultAccounting struct {
 }
 
 type statementExecutionSummary struct {
-	threadID     int64
-	user         string
-	host         string
-	status       string
-	latency      time.Duration
-	rowsExamined int64
-	selectScan   int64
+	threadID            int64
+	user                string
+	host                string
+	status              string
+	latency             time.Duration
+	rowsExamined        int64
+	selectScan          int64
+	selectRange         int64
+	selectFullJoin      int64
+	selectFullRangeJoin int64
+	selectRangeCheck    int64
+	noIndexUsed         int64
+	noGoodIndexUsed     int64
+	sortRows            int64
+	sortScan            int64
+	sortRange           int64
 }
 
 func statementResultAccountingFor(result *Result) statementResultAccounting {

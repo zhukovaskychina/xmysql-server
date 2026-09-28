@@ -22,11 +22,12 @@ import (
 
 // MockSession 模拟会话用于测试
 type MockSession struct {
-	id         string
-	attributes map[string]interface{}
-	closed     bool
-	written    [][]byte
-	remoteAddr string
+	attributeMu sync.RWMutex
+	id          string
+	attributes  map[string]interface{}
+	closed      bool
+	written     [][]byte
+	remoteAddr  string
 }
 
 func NewMockSession(id string) *MockSession {
@@ -44,10 +45,14 @@ func (s *MockSession) Stat() string {
 }
 
 func (s *MockSession) SetAttribute(key interface{}, value interface{}) {
+	s.attributeMu.Lock()
+	defer s.attributeMu.Unlock()
 	s.attributes[key.(string)] = value
 }
 
 func (s *MockSession) GetAttribute(key interface{}) interface{} {
+	s.attributeMu.RLock()
+	defer s.attributeMu.RUnlock()
 	return s.attributes[key.(string)]
 }
 
@@ -431,6 +436,45 @@ func TestHandleComStmtExecuteCursorPreservesClassifiedQueryError(t *testing.T) {
 	if got := string(packet[8:13]); got != "42S02" {
 		t.Fatalf("expected unknown-table SQLSTATE 42S02, got %s", got)
 	}
+	snapshots := mgr.Snapshot()
+	if len(snapshots) != 1 || snapshots[0].ErrorCount != 1 || snapshots[0].ExecuteCount != 1 {
+		t.Fatalf("prepared execution failure accounting = %#v, want one failed execution", snapshots)
+	}
+}
+
+func TestHandleComStmtExecuteRecordsExecutionAccounting(t *testing.T) {
+	handler := &DecoupledMySQLMessageHandler{
+		businessHandler: fixedQueryBusinessHandler{response: &protocol.ResponseMessage{
+			Result: &protocol.MessageQueryResult{
+				Columns: []string{"value"},
+				Rows:    [][]interface{}{{int64(1)}},
+				Type:    "select",
+			},
+		}},
+	}
+	session := NewMockSession("stmt_execute_accounting")
+	mgr := handler.preparedStmtMgrFromSession(session)
+	stmt, err := mgr.Prepare("select 1")
+	if err != nil {
+		t.Fatalf("prepare failed: %v", err)
+	}
+
+	body := make([]byte, 10)
+	body[0] = common.COM_STMT_EXECUTE
+	binary.LittleEndian.PutUint32(body[1:5], stmt.ID)
+	pkt := &MySQLPackage{Header: MySQLPkgHeader{PacketId: 4}, Body: body}
+
+	if err := handler.handleComStmtExecute(session, nil, pkt); err != nil {
+		t.Fatalf("COM_STMT_EXECUTE returned transport error: %v", err)
+	}
+	snapshots := mgr.Snapshot()
+	if len(snapshots) != 1 {
+		t.Fatalf("prepared statement snapshot count = %d, want 1", len(snapshots))
+	}
+	got := snapshots[0]
+	if got.ExecuteCount != 1 || got.ErrorCount != 0 || got.RowsSent != 1 || got.ExecuteTimeTotal < 0 {
+		t.Fatalf("prepared execution accounting = %#v, want one successful row-producing execution", got)
+	}
 }
 
 func TestResolveAuthHost(t *testing.T) {
@@ -662,15 +706,15 @@ func TestProtocolEncoderIntegration(t *testing.T) {
 	}
 }
 
-// TestSendQueryResultSet_ClientDeprecateEOFUsesOK verifies capability
-// negotiation for the modern CLIENT_DEPRECATE_EOF protocol.
-func TestSendQueryResultSet_ClientDeprecateEOFStillUsesEOF(t *testing.T) {
+// TestSendQueryResultSet_ClientDeprecateEOFSkipsMetadataTerminator verifies
+// the modern result-set sequence: no metadata terminator, then one final OK.
+func TestSendQueryResultSet_ClientDeprecateEOFSkipsMetadataTerminator(t *testing.T) {
 	config := conf.NewCfg()
 	// 使用真实的处理器，但通过 MockSession 捕获输出
 	handler := NewDecoupledMySQLMessageHandler(config)
 	session := NewMockSession("test_sendQueryResultSet_deprecateEOF")
 
-	// 模拟客户端能力：客户端开启 CLIENT_DEPRECATE_EOF，服务端发送 OK terminators。
+	// 模拟客户端能力：客户端开启 CLIENT_DEPRECATE_EOF。
 	session.SetAttribute("client_capabilities", common.CLIENT_DEPRECATE_EOF)
 
 	// 构造与 JDBC init 查询等价的 19 列系统变量结果集
@@ -729,10 +773,10 @@ func TestSendQueryResultSet_ClientDeprecateEOFStillUsesEOF(t *testing.T) {
 		t.Fatalf("sendQueryResultSet failed: %v", err)
 	}
 
-	// 对于 19 列、1 行的结果集，预期包数量：
-	// 1 (ColumnCount) + 19 (ColumnDefinitions) + 1 (列结束 EOF) + 1 (Row) + 1 (结果集结束 EOF) = 23
-	if len(session.written) != 23 {
-		t.Fatalf("unexpected packet count: got %d, want 23", len(session.written))
+	// 对于 19 列、1 行的结果集，CLIENT_DEPRECATE_EOF 下不发送列定义结束包：
+	// 1 (ColumnCount) + 19 (ColumnDefinitions) + 1 (Row) + 1 (结果集结束 OK) = 22
+	if len(session.written) != 22 {
+		t.Fatalf("unexpected packet count: got %d, want 22", len(session.written))
 	}
 
 	// 第一个包是列数包，检查长度和序号是否合理
@@ -750,14 +794,10 @@ func TestSendQueryResultSet_ClientDeprecateEOFStillUsesEOF(t *testing.T) {
 		t.Fatalf("column count mismatch in payload: got %d, want %d", colCountPkt[4], len(columns))
 	}
 
-	// 列定义结束包位于第 1+len(columns) 个位置
-	colTermPkt := session.written[1+len(columns)]
-	if len(colTermPkt) < 5 {
-		t.Fatalf("column terminator packet too short: %d bytes", len(colTermPkt))
-	}
-	// payload 第一个字节应该是 OK 标记 0x00。
-	if colTermPkt[4] != 0x00 {
-		t.Fatalf("expected OK packet (0x00) as column terminator, got 0x%02X", colTermPkt[4])
+	// 紧接列定义后的包就是行数据，而不是一个额外的 EOF/OK 包。
+	rowPkt := session.written[1+len(columns)]
+	if len(rowPkt) < 5 || rowPkt[4] == 0x00 {
+		t.Fatalf("expected row packet immediately after metadata, got %v", rowPkt)
 	}
 
 	// 结果集结束包是最后一个包
@@ -765,8 +805,8 @@ func TestSendQueryResultSet_ClientDeprecateEOFStillUsesEOF(t *testing.T) {
 	if len(rowTermPkt) < 5 {
 		t.Fatalf("row terminator packet too short: %d bytes", len(rowTermPkt))
 	}
-	if rowTermPkt[4] != 0x00 {
-		t.Fatalf("expected OK packet (0x00) as row terminator, got 0x%02X", rowTermPkt[4])
+	if rowTermPkt[4] != 0xFE {
+		t.Fatalf("expected result-set OK packet (0xFE) as row terminator, got 0x%02X", rowTermPkt[4])
 	}
 }
 
@@ -944,6 +984,37 @@ func TestHandlePacketUnsupportedCommandReturnsErrorPacket(t *testing.T) {
 	}
 	if len(session.written) == 0 {
 		t.Fatalf("expected error response packet to be written")
+	}
+}
+
+func TestCompleteAuthenticationNegotiatesMySQLCompression(t *testing.T) {
+	tests := []struct {
+		name       string
+		capability uint32
+		enabled    bool
+	}{
+		{name: "client advertises compression", capability: protocol.CLIENT_COMPRESS, enabled: true},
+		{name: "client does not advertise compression", capability: 0, enabled: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := NewDecoupledMySQLMessageHandler(conf.NewCfg())
+			session := NewMockSession("compression-auth")
+			session.SetAttribute("client_capabilities", tc.capability)
+
+			if err := handler.completeAuthenticationWithSequence(session, nil, "root", "", "localhost", nil, nil, nil, 2); err != nil {
+				t.Fatalf("completeAuthenticationWithSequence failed: %v", err)
+			}
+			if got := session.GetAttribute(mysqlCompressionEnabledKey); got != tc.enabled {
+				t.Fatalf("compression enabled attribute = %v, want %v", got, tc.enabled)
+			}
+			if tc.enabled {
+				if got := session.GetAttribute(mysqlCompressionWriteSeqKey); got != uint8(0) {
+					t.Fatalf("compression write sequence = %v, want 0", got)
+				}
+			}
+		})
 	}
 }
 

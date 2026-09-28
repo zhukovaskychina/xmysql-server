@@ -402,8 +402,8 @@ func TestNotEnforcedCheckConstraintIsPersistedButNotValidated(t *testing.T) {
 	mustExecSQL(t, executor, "app", "create table unenforced_checks (id int primary key, age int constraint chk_age check (age >= 0) not enforced)")
 	mustExecSQL(t, executor, "app", "insert into unenforced_checks (id, age) values (1, -1)")
 
-	rows := mustQuerySQL(t, executor, "app", "select constraint_name, check_clause, enforced from information_schema.check_constraints where constraint_schema = 'app' and table_name = 'unenforced_checks'")
-	require.Equal(t, [][]interface{}{{"chk_age", "age >= 0", "NO"}}, rows)
+	rows := mustQuerySQL(t, executor, "app", "select constraint_name, check_clause from information_schema.check_constraints where constraint_schema = 'app' and table_name = 'unenforced_checks'")
+	require.Equal(t, [][]interface{}{{"chk_age", "age >= 0"}}, rows)
 }
 
 func TestTableConstraintsIncludesCheckConstraints(t *testing.T) {
@@ -447,7 +447,7 @@ func TestAlterNotEnforcedCheckConstraintIsPersistedButNotValidated(t *testing.T)
 	mustExecSQL(t, executor, "app", "alter table alter_checks add constraint chk_age check (age >= 0) not enforced")
 	mustExecSQL(t, executor, "app", "insert into alter_checks (id, age) values (1, -1)")
 
-	rows := mustQuerySQL(t, executor, "app", "select constraint_name, enforced from information_schema.check_constraints where constraint_schema = 'app' and table_name = 'alter_checks'")
+	rows := mustQuerySQL(t, executor, "app", "select constraint_name, enforced from information_schema.table_constraints where constraint_schema = 'app' and table_name = 'alter_checks' and constraint_type = 'CHECK'")
 	require.Equal(t, [][]interface{}{{"chk_age", "NO"}}, rows)
 }
 
@@ -472,13 +472,13 @@ func TestAlterCheckEnforcementCanBeToggled(t *testing.T) {
 	mustExecSQL(t, executor, "app", "create table toggle_checks (id int primary key, age int constraint chk_age check (age >= 0))")
 	mustExecSQL(t, executor, "app", "alter table toggle_checks alter check chk_age not enforced")
 	mustExecSQL(t, executor, "app", "insert into toggle_checks (id, age) values (1, -1)")
-	require.Equal(t, [][]interface{}{{"NO"}}, mustQuerySQL(t, executor, "app", "select enforced from information_schema.check_constraints where constraint_schema = 'app' and table_name = 'toggle_checks' and constraint_name = 'chk_age'"))
+	require.Equal(t, [][]interface{}{{"NO"}}, mustQuerySQL(t, executor, "app", "select enforced from information_schema.table_constraints where constraint_schema = 'app' and table_name = 'toggle_checks' and constraint_name = 'chk_age' and constraint_type = 'CHECK'"))
 
 	require.Error(t, execSQLExpectError(t, executor, "app", "alter table toggle_checks alter check chk_age enforced"))
-	require.Equal(t, [][]interface{}{{"NO"}}, mustQuerySQL(t, executor, "app", "select enforced from information_schema.check_constraints where constraint_schema = 'app' and table_name = 'toggle_checks' and constraint_name = 'chk_age'"))
+	require.Equal(t, [][]interface{}{{"NO"}}, mustQuerySQL(t, executor, "app", "select enforced from information_schema.table_constraints where constraint_schema = 'app' and table_name = 'toggle_checks' and constraint_name = 'chk_age' and constraint_type = 'CHECK'"))
 	mustExecSQL(t, executor, "app", "delete from toggle_checks where id = 1")
 	mustExecSQL(t, executor, "app", "alter table toggle_checks alter check chk_age enforced")
-	require.Equal(t, [][]interface{}{{"YES"}}, mustQuerySQL(t, executor, "app", "select enforced from information_schema.check_constraints where constraint_schema = 'app' and table_name = 'toggle_checks' and constraint_name = 'chk_age'"))
+	require.Equal(t, [][]interface{}{{"YES"}}, mustQuerySQL(t, executor, "app", "select enforced from information_schema.table_constraints where constraint_schema = 'app' and table_name = 'toggle_checks' and constraint_name = 'chk_age' and constraint_type = 'CHECK'"))
 	require.Error(t, execSQLExpectError(t, executor, "app", "insert into toggle_checks (id, age) values (2, -2)"))
 }
 
@@ -492,7 +492,7 @@ func TestAlterCheckEnforcementValidatesExistingRowsBeforeEnabling(t *testing.T) 
 	err := execSQLExpectError(t, executor, "app", "alter table toggle_existing_checks alter check chk_age enforced")
 	require.Error(t, err)
 	require.Contains(t, strings.ToLower(err.Error()), "check")
-	require.Equal(t, [][]interface{}{{"NO"}}, mustQuerySQL(t, executor, "app", "select enforced from information_schema.check_constraints where constraint_schema = 'app' and table_name = 'toggle_existing_checks' and constraint_name = 'chk_age'"))
+	require.Equal(t, [][]interface{}{{"NO"}}, mustQuerySQL(t, executor, "app", "select enforced from information_schema.table_constraints where constraint_schema = 'app' and table_name = 'toggle_existing_checks' and constraint_name = 'chk_age' and constraint_type = 'CHECK'"))
 }
 
 func TestAlterForeignKeyValidatesExistingRowsBeforePersisting(t *testing.T) {

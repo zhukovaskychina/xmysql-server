@@ -2,6 +2,7 @@ param(
     [string]$ReportDir = "reports/compatibility/release-candidate",
     [switch]$SkipJDBC,
     [switch]$SkipClientMatrix,
+    [switch]$SkipClientClusterEndpoint,
     [string]$JdbcServerConfig = "conf/jdbc-compat-clean.ini",
     [string]$JdbcUrl = "jdbc:mysql://localhost:3311?useSSL=false&allowPublicKeyRetrieval=true",
     [string]$JdbcUser = "root",
@@ -9,21 +10,44 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$ReportDir = [IO.Path]::GetFullPath($ReportDir)
 New-Item -ItemType Directory -Force -Path $ReportDir | Out-Null
 $checks = @()
 
+# The Windows Go runtime can exhaust the commit limit when the gate keeps the
+# complete stdout/stderr of every long-running test command in a PowerShell
+# array. Keep the full output on disk and retain only a bounded tail in memory.
+if ([string]::IsNullOrWhiteSpace($env:GOMAXPROCS)) {
+    $env:GOMAXPROCS = "1"
+}
+if ([string]::IsNullOrWhiteSpace($env:GOGC)) {
+    $env:GOGC = "10"
+}
+
 function Invoke-GateCheck([string]$Name, [string]$Command, [scriptblock]$Action) {
     $started = Get-Date
-    $output = & $Action 2>&1
-    $code = $LASTEXITCODE
-    $testCount = @($output | Where-Object { $_ -match '^(ok\s|--- PASS:)' }).Count
-    $mavenCounts = @($output | ForEach-Object {
-        if ($_ -match '\[(?:INFO|WARNING)\]\s+Tests run:\s+(\d+)') {
-            [int]$Matches[1]
+    $logPath = [IO.Path]::GetFullPath((Join-Path $ReportDir ("{0}.log" -f $Name)))
+    New-Item -ItemType File -Force -Path $logPath | Out-Null
+    $tail = [System.Collections.Generic.Queue[string]]::new()
+    $testCount = 0
+    $mavenTestCount = 0
+    & $Action 2>&1 | ForEach-Object {
+        $line = [string]$_
+        Add-Content -LiteralPath $logPath -Value $line
+        if ($line -match '^(ok\s|--- PASS:)') {
+            $testCount++
         }
-    })
-    if ($mavenCounts.Count -gt 0) {
-        $testCount = $mavenCounts[-1]
+        if ($line -match '\[(?:INFO|WARNING)\]\s+Tests run:\s+(\d+)') {
+            $mavenTestCount = [int]$Matches[1]
+        }
+        if ($tail.Count -ge 60) {
+            [void]$tail.Dequeue()
+        }
+        $tail.Enqueue($line)
+    }
+    $code = $LASTEXITCODE
+    if ($mavenTestCount -gt 0) {
+        $testCount = $mavenTestCount
     }
     $script:checks += [ordered]@{
         name = $Name
@@ -31,7 +55,8 @@ function Invoke-GateCheck([string]$Name, [string]$Command, [scriptblock]$Action)
         started_at = $started.ToUniversalTime().ToString("o")
         exit_code = $code
         test_count = $testCount
-        output_tail = (($output | Select-Object -Last 60) -join "`n")
+        output_tail = ($tail -join "`n")
+        log_path = [IO.Path]::GetFullPath($logPath)
         status = if ($code -eq 0) { "PASS" } else { "FAIL" }
     }
 }
@@ -57,8 +82,20 @@ Invoke-GateCheck "unit" "go test -p 1 ./server/innodb/sqlparser ./server/innodb/
 Invoke-GateCheck "integration" "go test -p 1 ./server/innodb/engine ./server/net ./server/protocol ./server/replication -count=1" {
     go test -p 1 ./server/innodb/engine ./server/net ./server/protocol ./server/replication -count=1
 }
+Invoke-GateCheck "scope-matrix" "scripts/compatibility/compatibility_scope_matrix.ps1 -DiagnosticOnly" {
+    & "$PSScriptRoot/compatibility_scope_matrix.ps1" -OutputPath (Join-Path $ReportDir "scope-matrix.json") -DiagnosticOnly
+}
+Invoke-GateCheck "p1-schema-observability" "go test -p 1 ./server/innodb/engine -run '^(TestInformationSchema|TestPerformanceSchema|TestRole|TestApplicableRoles|TestMandatoryRoles|TestInformationSchemaPrivilege)' -count=1" {
+    go test -p 1 ./server/innodb/engine -run '^(TestInformationSchema|TestPerformanceSchema|TestRole|TestApplicableRoles|TestMandatoryRoles|TestInformationSchemaPrivilege)' -count=1 -timeout 60m
+}
+Invoke-GateCheck "p2-xmysql-replication" "go test -p 1 ./server/innodb/engine ./server/net ./server/replication -run 'Test.*(XA|Native|Replica|Replication|Binlog|Recovery)|TestClientCommitPublishesAfterStorageAndRetriesByStableTransactionKey' -count=1" {
+    go test -p 1 ./server/innodb/engine ./server/net ./server/replication -run 'Test.*(XA|Native|Replica|Replication|Binlog|Recovery)|TestClientCommitPublishesAfterStorageAndRetriesByStableTransactionKey' -count=1 -timeout 60m
+}
 Invoke-GateCheck "go-core" "go test -p 1 ./server/innodb/engine ./server/innodb/manager ./server/net ./server/protocol ./server/auth ./server/replication -count=1" {
     go test -p 1 ./server/innodb/engine ./server/innodb/manager ./server/net ./server/protocol ./server/auth ./server/replication -count=1
+}
+Invoke-GateCheck "cluster-smoke" "scripts/compatibility/cluster_smoke.ps1" {
+    & "$PSScriptRoot/cluster_smoke.ps1" -ReportDir (Join-Path $ReportDir "cluster-smoke")
 }
 Invoke-GateCheck "crash-recovery" "scripts/compatibility/crash_recovery_matrix.ps1 -Repeat 3" {
     & "$PSScriptRoot/crash_recovery_matrix.ps1" -ReportDir (Join-Path $ReportDir "crash-recovery") -Repeat 3
@@ -83,10 +120,24 @@ if (-not $SkipClientMatrix) {
         status = "FAIL"
     }
 }
+if (-not $SkipClientClusterEndpoint) {
+    Invoke-GateCheck "client-cluster-endpoint" "scripts/compatibility/client_cluster_endpoint.ps1" {
+        & "$PSScriptRoot/client_cluster_endpoint.ps1" -ReportDirectory (Join-Path $ReportDir "client-cluster-endpoint")
+    }
+} else {
+    $checks += [ordered]@{
+        name = "client-cluster-endpoint"
+        command = "scripts/compatibility/client_cluster_endpoint.ps1"
+        started_at = (Get-Date).ToUniversalTime().ToString("o")
+        exit_code = 125
+        output_tail = "client cluster endpoint check was explicitly skipped"
+        status = "FAIL"
+    }
+}
 if (-not $SkipJDBC) {
     Invoke-GateCheck "jdbc" "go build .; start isolated xmysql; XMYSQL_JDBC_URL=$JdbcUrl mvn test -Pjdbc-connectivity" {
         $workspaceRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "../.."))
-        $serverExe = Join-Path $workspaceRoot (Join-Path $ReportDir "jdbc-server/xmysql-server-jdbc.exe")
+        $serverExe = Join-Path $ReportDir "jdbc-server/xmysql-server-jdbc.exe"
         $serverLogDir = Split-Path -Parent $serverExe
 		# The JDBC gate is intentionally repeatable. Remove only the generated
 		# per-run server directory so stale .frm/.ibd mappings cannot survive a
@@ -199,7 +250,7 @@ if (-not $SkipJDBC) {
     }
 }
 
-$requiredChecks = @("clean-data", "build", "unit", "integration", "crash-recovery", "concurrency", "observability", "client-matrix", "jdbc")
+$requiredChecks = @("clean-data", "build", "unit", "integration", "scope-matrix", "p1-schema-observability", "p2-xmysql-replication", "go-core", "cluster-smoke", "crash-recovery", "concurrency", "observability", "client-matrix", "client-cluster-endpoint", "jdbc")
 $missingChecks = @($requiredChecks | Where-Object {
     $requiredName = $_
     -not ($checks | Where-Object { $_.name -eq $requiredName })
@@ -248,12 +299,13 @@ $report = [ordered]@{
         go = (go version)
         report_dir = [IO.Path]::GetFullPath($ReportDir)
         jdbc_required = (-not $SkipJDBC)
+        client_cluster_endpoint_required = (-not $SkipClientClusterEndpoint)
         jdbc_server_config = [IO.Path]::GetFullPath($JdbcServerConfig)
         jdbc_url = $JdbcUrl
     }
     checks = $checks
     status = if (($checks | Where-Object { $_.status -eq "FAIL" }).Count -eq 0) { "GO" } else { "NO-GO" }
-    note = "JDBC is mandatory by default; use -SkipJDBC only for local diagnostics, which always produces NO-GO."
+    note = "JDBC and the client cluster-endpoint scenario are mandatory by default; skip switches are for local diagnostics and always produce NO-GO."
 }
 $report | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $ReportDir "release-candidate.json")
 $report.status

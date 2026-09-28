@@ -16,10 +16,21 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 	"github.com/zhukovaskychina/xmysql-server/server/observability/compatibility"
 	metrics "github.com/zhukovaskychina/xmysql-server/server/observability/metrics"
 	"github.com/zhukovaskychina/xmysql-server/server/replication"
 )
+
+func enableAllPerformanceSchemaConsumersForTest(t *testing.T, executor *XMySQLEngine) {
+	t.Helper()
+	executor.QueryExecutor.performanceSchemaMu.Lock()
+	defer executor.QueryExecutor.performanceSchemaMu.Unlock()
+	for name, setting := range executor.QueryExecutor.performanceSchemaConsumers {
+		setting.Enabled = true
+		executor.QueryExecutor.performanceSchemaConsumers[name] = setting
+	}
+}
 
 type testPreparedStatementInventory struct {
 	statements []compatibility.PreparedStatementSnapshot
@@ -64,6 +75,67 @@ func TestPerformanceSchemaProcesslistProjectsLiveSessions(t *testing.T) {
 	require.Equal(t, int64(9), values[6].Int())
 	wrongRowsSent := mustSelectResultSQL(t, executor, "", "select id from performance_schema.processlist where user='bob' and rows_sent = 999")
 	require.Empty(t, wrongRowsSent.Records)
+}
+
+func TestPerformanceSchemaProcesslistAndThreadsHonorNativeVisibilityRules(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'alice'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant select on performance_schema.threads to 'alice'@'localhost'")
+	current := newTestMySQLSession()
+	current.ctx.SetConnectionID(911)
+	current.SetParamByName("user", "alice")
+	current.SetParamByName("host", "localhost")
+	current.SetParamByName("global_privileges", []common.PrivilegeType{})
+	sameUser := newTestMySQLSession()
+	sameUser.ctx.SetConnectionID(912)
+	sameUser.SetParamByName("user", "alice")
+	sameUser.SetParamByName("host", "same-user")
+	otherUser := newTestMySQLSession()
+	otherUser.ctx.SetConnectionID(913)
+	otherUser.SetParamByName("user", "bob")
+	otherUser.SetParamByName("host", "other-user")
+	executor.QueryExecutor.SetProcesslistProvider(func() []server.MySQLServerSession {
+		return []server.MySQLServerSession{current, sameUser, otherUser}
+	})
+
+	filteredResult := <-executor.ExecuteQuery(current, "select id, user, execution_engine from performance_schema.processlist", "")
+	require.NoError(t, filteredResult.Err)
+	filtered := filteredResult.Data.(*SelectResult)
+	require.Equal(t, []string{"ID", "USER", "EXECUTION_ENGINE"}, filtered.Columns)
+	require.Len(t, filtered.Records, 2)
+	for _, record := range filtered.Records {
+		values := record.GetValues()
+		require.Equal(t, "alice", values[1].String())
+		require.Equal(t, "PRIMARY", values[2].String())
+	}
+
+	current.SetParamByName("global_privileges", []common.PrivilegeType{common.ProcessPriv})
+	allUsersResult := <-executor.ExecuteQuery(current, "select id, user, execution_engine from performance_schema.processlist", "")
+	require.NoError(t, allUsersResult.Err)
+	allUsers := allUsersResult.Data.(*SelectResult)
+	require.Len(t, allUsers.Records, 3)
+	seen := make(map[string]bool, len(allUsers.Records))
+	for _, record := range allUsers.Records {
+		values := record.GetValues()
+		seen[values[1].String()] = true
+		require.Equal(t, "PRIMARY", values[2].String())
+	}
+	require.True(t, seen["alice"])
+	require.True(t, seen["bob"])
+
+	threadsResult := <-executor.ExecuteQuery(current, "select processlist_id, processlist_user from performance_schema.threads", "")
+	require.NoError(t, threadsResult.Err)
+	threads := threadsResult.Data.(*SelectResult)
+	require.NotEmpty(t, threads.Records)
+	seenThreadUsers := make(map[string]bool)
+	for _, record := range threads.Records {
+		values := record.GetValues()
+		if !values[1].IsNull() {
+			seenThreadUsers[values[1].String()] = true
+		}
+	}
+	require.True(t, seenThreadUsers["alice"])
+	require.True(t, seenThreadUsers["bob"])
 }
 
 func TestPerformanceSchemaStatementsExposeLiveQueryMetrics(t *testing.T) {
@@ -227,6 +299,33 @@ func TestPerformanceSchemaStatementSummaryUsesMySQL84AccountingColumns(t *testin
 	require.Equal(t, "0", summaryRow[28])
 }
 
+func TestPerformanceSchemaStatementMemoryColumnsUseRuntimeInstrument(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+	executor.QueryExecutor.metricsRecorder.RecordMemoryAllocation(173, "memory/sql/THD::main_mem_root", 96)
+	executor.QueryExecutor.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccounting(
+		173, "memory_user", "memory_host", "memory_app", "select memory_test", "SELECT", "ok", time.Millisecond, 0, 1, 0,
+	)
+	executor.QueryExecutor.metricsRecorder.RecordMemoryFree(173, "memory/sql/THD::main_mem_root", 96)
+
+	history := executor.QueryExecutor.executePerformanceSchemaStatementHistorySelect(
+		"performance_schema.events_statements_history_long", false,
+		"select max_controlled_memory, max_total_memory from performance_schema.events_statements_history_long where thread_id=173 and sql_text='select memory_test'",
+	)
+	rows := selectResultRows(history)
+	require.Len(t, rows, 1)
+	require.Equal(t, "96", rows[0][0])
+	require.Equal(t, "96", rows[0][1])
+
+	digest := executor.QueryExecutor.executePerformanceSchemaStatementsSelect(
+		"select max_controlled_memory, max_total_memory from performance_schema.events_statements_summary_by_digest where schema_name='memory_app'",
+	)
+	require.Len(t, digest.Records, 1)
+	digestRow := selectResultRows(digest)[0]
+	require.Equal(t, "96", digestRow[0])
+	require.Equal(t, "96", digestRow[1])
+}
+
 func TestPerformanceSchemaStatementSummaryRetainsLifetimeTotalsBeyondHistory(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	const executions = 300
@@ -310,7 +409,9 @@ func TestPerformanceSchemaStatementHistogramRetainsLifetimeTotalsBeyondHistory(t
 func TestPerformanceSchemaProgramSummaryTracksStoredProcedureCalls(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	mustExecSQL(t, executor, "", "create database program_app")
-	mustExecSQL(t, executor, "program_app", "create procedure report() begin select 1; end")
+	mustExecSQL(t, executor, "program_app", "create table report_rows (id int)")
+	mustExecSQL(t, executor, "program_app", "insert into report_rows values (1), (2)")
+	mustExecSQL(t, executor, "program_app", "create procedure report() begin select id from report_rows; end")
 	mustExecSQL(t, executor, "program_app", "call report()")
 
 	result := mustSelectResultSQL(t, executor, "", "select * from performance_schema.events_statements_summary_by_program where object_name='report'")
@@ -332,9 +433,12 @@ func TestPerformanceSchemaProgramSummaryTracksStoredProcedureCalls(t *testing.T)
 	require.NotEqual(t, "0", row[10])
 	require.NotEqual(t, "0", row[11])
 	require.NotEqual(t, "0", row[12])
-	// The procedure body contains SELECT 1, so the program summary must carry
+	// The procedure body contains a table scan, so the program summary must carry
 	// the child statement's real sent-row accounting as well.
 	require.NotEqual(t, "0", row[17])
+	// The same child statement also contributes its clustered rows-examined
+	// accounting to the stored-program summary.
+	require.NotEqual(t, "0", row[18])
 }
 
 func TestPerformanceSchemaProgramSummaryRetainsLifetimeTotalsBeyondHistory(t *testing.T) {
@@ -342,12 +446,12 @@ func TestPerformanceSchemaProgramSummaryRetainsLifetimeTotalsBeyondHistory(t *te
 	const executions = 1100
 	for i := 0; i < executions; i++ {
 		executor.QueryExecutor.recordPerformanceSchemaProgramExecution(
-			"PROCEDURE", "program_lifetime_app", "report", 1000, 1, 2000, 2000, 2000, 0, 1, 2, 3,
+			"PROCEDURE", "program_lifetime_app", "report", 1000, 1, 2000, 2000, 2000, 0, 1, 2, 3, 4,
 		)
 	}
 
 	result := executor.QueryExecutor.executePerformanceSchemaProgramSummarySelect(
-		"select object_type, object_schema, object_name, count_star, sum_timer_wait, sum_statements_wait, sum_warnings, sum_rows_affected, sum_rows_sent from performance_schema.events_statements_summary_by_program where object_name='report'",
+		"select object_type, object_schema, object_name, count_star, sum_timer_wait, sum_statements_wait, sum_warnings, sum_rows_affected, sum_rows_sent, sum_rows_examined from performance_schema.events_statements_summary_by_program where object_name='report'",
 	)
 	require.Len(t, result.Records, 1)
 	row := selectResultRows(result)[0]
@@ -360,6 +464,23 @@ func TestPerformanceSchemaProgramSummaryRetainsLifetimeTotalsBeyondHistory(t *te
 	require.Equal(t, fmt.Sprint(executions), row[6])
 	require.Equal(t, fmt.Sprint(int64(executions)*2), row[7])
 	require.Equal(t, fmt.Sprint(int64(executions)*3), row[8])
+	require.Equal(t, fmt.Sprint(int64(executions)*4), row[9])
+}
+
+func TestPerformanceSchemaStoredProcedureStatementStatsRetainLifetimeDeltaBeyondHistory(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	const statements = 300
+	body := strings.TrimSuffix(strings.Repeat("select 1;", statements), ";")
+	mustExecSQL(t, executor, "", "create database program_delta_app")
+	mustExecSQL(t, executor, "program_delta_app", "create procedure many_selects() begin "+body+"; end")
+	mustExecSQL(t, executor, "program_delta_app", "call many_selects()")
+
+	result := mustSelectResultSQL(t, executor, "", "select count_star, count_statements, sum_statements_wait from performance_schema.events_statements_summary_by_program where object_schema='program_delta_app' and object_name='many_selects'")
+	require.Len(t, result.Records, 1)
+	row := selectResultRows(result)[0]
+	require.Equal(t, "1", row[0])
+	require.Equal(t, fmt.Sprint(int64(statements)), row[1])
+	require.NotEqual(t, "0", row[2])
 }
 
 func TestPerformanceSchemaProgramSummaryTracksStoredFunctionCalls(t *testing.T) {
@@ -514,6 +635,407 @@ func TestPerformanceSchemaStatementHistogramsExposeStatementHistory(t *testing.T
 	require.Empty(t, wrongSchema.Records)
 }
 
+func TestPerformanceSchemaStatementHistogramTruncateResetsCounters(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccounting(
+		871, "histogram_truncate_user", "histogram-truncate.example", "histogram_truncate_app",
+		"select histogram_truncate", "SELECT", "ok", time.Millisecond, 0, 1, 0,
+	)
+	before := mustSelectResultSQL(t, executor, "", "select count_bucket from performance_schema.events_statements_histogram_global where count_bucket > 0")
+	require.NotEmpty(t, before.Records)
+
+	truncateStmt, err := sqlparser.Parse("truncate table performance_schema.events_statements_histogram_global")
+	require.NoError(t, err)
+	ddlResults := make(chan *Result, 1)
+	executor.QueryExecutor.executeDDL(truncateStmt.(*sqlparser.DDL), nil, "", ddlResults)
+	require.NoError(t, (<-ddlResults).Err)
+	after := mustSelectResultSQL(t, executor, "", "select count_bucket, count_bucket_and_lower from performance_schema.events_statements_histogram_global")
+	require.NotEmpty(t, after.Records)
+	for _, row := range selectResultRows(after) {
+		require.Equal(t, "0", fmt.Sprint(row[0]))
+		require.Equal(t, "0", fmt.Sprint(row[1]))
+	}
+
+	executor.QueryExecutor.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccounting(
+		872, "histogram_truncate_user", "histogram-truncate.example", "histogram_truncate_app",
+		"select histogram_truncate_digest", "SELECT", "ok", time.Millisecond, 0, 1, 0,
+	)
+	byDigestStmt, err := sqlparser.Parse("truncate table performance_schema.events_statements_histogram_by_digest")
+	require.NoError(t, err)
+	byDigestResults := make(chan *Result, 1)
+	executor.QueryExecutor.executeDDL(byDigestStmt.(*sqlparser.DDL), nil, "", byDigestResults)
+	require.NoError(t, (<-byDigestResults).Err)
+	byDigestAfter := mustSelectResultSQL(t, executor, "", "select count_bucket, count_bucket_and_lower from performance_schema.events_statements_histogram_by_digest where schema_name = 'histogram_truncate_app'")
+	for _, row := range selectResultRows(byDigestAfter) {
+		require.Equal(t, "0", fmt.Sprint(row[0]))
+		require.Equal(t, "0", fmt.Sprint(row[1]))
+	}
+}
+
+func TestPerformanceSchemaStatementSummaryTruncateKeepsDigestAndGlobalStateIndependent(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.metricsRecorder = metrics.NewRuntimeRecorder(metrics.NewRegistry())
+	hasNonZeroBucket := func(result *SelectResult) bool {
+		for _, row := range selectResultRows(result) {
+			if len(row) >= 2 && (fmt.Sprint(row[0]) != "0" || fmt.Sprint(row[1]) != "0") {
+				return true
+			}
+		}
+		return false
+	}
+	assertAllBucketsZero := func(result *SelectResult) {
+		require.NotEmpty(t, result.Records)
+		for _, row := range selectResultRows(result) {
+			require.Equal(t, "0", fmt.Sprint(row[0]))
+			require.Equal(t, "0", fmt.Sprint(row[1]))
+		}
+	}
+	for _, sql := range []string{
+		"select * from summary_truncate_app.docs where id = 1",
+		"select * from summary_truncate_app.docs where id = 2",
+	} {
+		executor.QueryExecutor.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccounting(
+			901, "summary_truncate_user", "summary-truncate.example", "summary_truncate_app",
+			sql, "SELECT", "ok", time.Millisecond, 0, 1, 0,
+		)
+	}
+
+	digestBefore := executor.QueryExecutor.executePerformanceSchemaStatementsSelect("select count_star from performance_schema.events_statements_summary_by_digest where schema_name='summary_truncate_app'")
+	require.Equal(t, 1, len(digestBefore.Records))
+	require.Equal(t, "2", fmt.Sprint(selectResultRows(digestBefore)[0][0]))
+	globalBefore := executor.QueryExecutor.executePerformanceSchemaStatementSummaryRegistrySelect("select count_star from performance_schema.events_statements_summary_global_by_event_name where event_name='statement/sql/select'", "global")
+	require.Equal(t, 1, len(globalBefore.Records))
+	require.Equal(t, "2", fmt.Sprint(selectResultRows(globalBefore)[0][0]))
+	histogramBefore := executor.QueryExecutor.executePerformanceSchemaStatementHistogramSelect("select count_bucket, count_bucket_and_lower from performance_schema.events_statements_histogram_global", false)
+	require.True(t, hasNonZeroBucket(histogramBefore))
+
+	truncateDigest, err := sqlparser.Parse("truncate table performance_schema.events_statements_summary_by_digest")
+	require.NoError(t, err)
+	digestResults := make(chan *Result, 1)
+	executor.QueryExecutor.executeDDL(truncateDigest.(*sqlparser.DDL), nil, "", digestResults)
+	require.NoError(t, (<-digestResults).Err)
+
+	require.Empty(t, executor.QueryExecutor.executePerformanceSchemaStatementsSelect("select * from performance_schema.events_statements_summary_by_digest where schema_name='summary_truncate_app'").Records)
+	globalAfterDigest := executor.QueryExecutor.executePerformanceSchemaStatementSummaryRegistrySelect("select count_star from performance_schema.events_statements_summary_global_by_event_name where event_name='statement/sql/select'", "global")
+	require.Equal(t, "2", fmt.Sprint(selectResultRows(globalAfterDigest)[0][0]))
+	require.Empty(t, executor.QueryExecutor.executePerformanceSchemaStatementHistogramSelect("select count_bucket, count_bucket_and_lower from performance_schema.events_statements_histogram_by_digest where schema_name='summary_truncate_app'", true).Records)
+	require.True(t, hasNonZeroBucket(executor.QueryExecutor.executePerformanceSchemaStatementHistogramSelect("select count_bucket, count_bucket_and_lower from performance_schema.events_statements_histogram_global", false)))
+
+	executor.QueryExecutor.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccounting(
+		902, "summary_truncate_user", "summary-truncate.example", "summary_truncate_app",
+		"select * from summary_truncate_app.docs where id = 3", "SELECT", "ok", time.Millisecond, 0, 1, 0,
+	)
+	truncateGlobal, err := sqlparser.Parse("truncate table performance_schema.events_statements_summary_global_by_event_name")
+	require.NoError(t, err)
+	globalResults := make(chan *Result, 1)
+	executor.QueryExecutor.executeDDL(truncateGlobal.(*sqlparser.DDL), nil, "", globalResults)
+	require.NoError(t, (<-globalResults).Err)
+
+	globalAfterGlobal := executor.QueryExecutor.executePerformanceSchemaStatementSummaryRegistrySelect("select count_star from performance_schema.events_statements_summary_global_by_event_name where event_name='statement/sql/select'", "global")
+	require.Equal(t, 1, len(globalAfterGlobal.Records))
+	require.Equal(t, "0", fmt.Sprint(selectResultRows(globalAfterGlobal)[0][0]))
+	digestAfterGlobal := executor.QueryExecutor.executePerformanceSchemaStatementsSelect("select count_star from performance_schema.events_statements_summary_by_digest where schema_name='summary_truncate_app'")
+	require.Equal(t, 1, len(digestAfterGlobal.Records))
+	require.Equal(t, "1", fmt.Sprint(selectResultRows(digestAfterGlobal)[0][0]))
+	assertAllBucketsZero(executor.QueryExecutor.executePerformanceSchemaStatementHistogramSelect("select count_bucket, count_bucket_and_lower from performance_schema.events_statements_histogram_global", false))
+	require.True(t, hasNonZeroBucket(executor.QueryExecutor.executePerformanceSchemaStatementHistogramSelect("select count_bucket, count_bucket_and_lower from performance_schema.events_statements_histogram_by_digest where schema_name='summary_truncate_app'", true)))
+}
+
+func TestPerformanceSchemaProgramSummaryTruncateResetsRows(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.recordPerformanceSchemaProgramExecution(
+		"PROCEDURE", "summary_program_app", "report", 100, 1, 100, 100, 100, 0, 0, 2, 3, 4,
+	)
+	before := executor.QueryExecutor.executePerformanceSchemaProgramSummarySelect(
+		"select object_name, count_star, sum_timer_wait, sum_rows_affected, sum_rows_sent, sum_rows_examined from performance_schema.events_statements_summary_by_program where object_schema='summary_program_app'",
+	)
+	require.Equal(t, 1, len(before.Records))
+	require.Equal(t, "1", fmt.Sprint(selectResultRows(before)[0][1]))
+
+	truncateStmt, err := sqlparser.Parse("truncate table performance_schema.events_statements_summary_by_program")
+	require.NoError(t, err)
+	ddlResults := make(chan *Result, 1)
+	executor.QueryExecutor.executeDDL(truncateStmt.(*sqlparser.DDL), nil, "", ddlResults)
+	require.NoError(t, (<-ddlResults).Err)
+
+	after := executor.QueryExecutor.executePerformanceSchemaProgramSummarySelect(
+		"select object_name, count_star, sum_timer_wait, sum_rows_affected, sum_rows_sent, sum_rows_examined from performance_schema.events_statements_summary_by_program where object_schema='summary_program_app'",
+	)
+	require.Equal(t, 1, len(after.Records))
+	require.Equal(t, []interface{}{"report", "0", "0", "0", "0", "0"}, selectResultRows(after)[0])
+}
+
+func TestPerformanceSchemaTransactionSummaryTruncateResetsRows(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	session := newTestMySQLSession()
+	session.SetParamByName("connection_id", int64(1308))
+	session.SetParamByName("user", "transaction_truncate_user")
+	session.SetParamByName("host", "transaction-truncate.example")
+	session.SetParamByName("performance_schema_transaction_started_at", time.Now().UnixNano())
+	executor.QueryExecutor.recordPerformanceSchemaTransactionHistory(session, "COMMIT")
+
+	before := executor.QueryExecutor.executePerformanceSchemaTransactionSummaryRegistrySelect(
+		"select event_name, count_star, sum_timer_wait from performance_schema.events_transactions_summary_global_by_event_name",
+		"global",
+	)
+	require.Equal(t, 1, len(before.Records))
+	require.Equal(t, []interface{}{"transaction", "1"}, []interface{}{selectResultRows(before)[0][0], selectResultRows(before)[0][1]})
+	require.NotEqual(t, "0", fmt.Sprint(selectResultRows(before)[0][2]))
+
+	truncateStmt, err := sqlparser.Parse("truncate table performance_schema.events_transactions_summary_global_by_event_name")
+	require.NoError(t, err)
+	ddlResults := make(chan *Result, 1)
+	executor.QueryExecutor.executeDDL(truncateStmt.(*sqlparser.DDL), nil, "", ddlResults)
+	require.NoError(t, (<-ddlResults).Err)
+
+	globalAfter := executor.QueryExecutor.executePerformanceSchemaTransactionSummaryRegistrySelect(
+		"select event_name, count_star, sum_timer_wait, min_timer_wait, avg_timer_wait, max_timer_wait from performance_schema.events_transactions_summary_global_by_event_name",
+		"global",
+	)
+	require.Equal(t, 1, len(globalAfter.Records))
+	require.Equal(t, []interface{}{"transaction", "0", "0", "0", "0", "0"}, selectResultRows(globalAfter)[0])
+
+	accountAfter := executor.QueryExecutor.executePerformanceSchemaTransactionSummaryRegistrySelect(
+		"select user, host, event_name, count_star, sum_timer_wait from performance_schema.events_transactions_summary_by_account_by_event_name",
+		"account",
+	)
+	require.Equal(t, [][]interface{}{{"transaction_truncate_user", "transaction-truncate.example", "transaction", "0", "0"}}, selectResultRows(accountAfter))
+}
+
+func TestPerformanceSchemaTransactionAccountSummaryTruncateIsolated(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	session := newTestMySQLSession()
+	session.SetParamByName("connection_id", int64(1313))
+	session.SetParamByName("user", "transaction_account_user")
+	session.SetParamByName("host", "transaction-account.example")
+	session.SetParamByName("performance_schema_transaction_started_at", time.Now().UnixNano())
+	executor.QueryExecutor.recordPerformanceSchemaTransactionHistory(session, "COMMIT")
+
+	globalBefore := executor.QueryExecutor.executePerformanceSchemaTransactionSummaryRegistrySelect(
+		"select event_name, count_star from performance_schema.events_transactions_summary_global_by_event_name",
+		"global",
+	)
+	require.Equal(t, [][]interface{}{{"transaction", "1"}}, selectResultRows(globalBefore))
+
+	truncateStmt, err := sqlparser.Parse("truncate table performance_schema.events_transactions_summary_by_account_by_event_name")
+	require.NoError(t, err)
+	ddlResults := make(chan *Result, 1)
+	executor.QueryExecutor.executeDDL(truncateStmt.(*sqlparser.DDL), nil, "", ddlResults)
+	require.NoError(t, (<-ddlResults).Err)
+
+	accountAfter := executor.QueryExecutor.executePerformanceSchemaTransactionSummaryRegistrySelect(
+		"select user, host, event_name, count_star from performance_schema.events_transactions_summary_by_account_by_event_name",
+		"account",
+	)
+	require.Equal(t, [][]interface{}{{"transaction_account_user", "transaction-account.example", "transaction", "0"}}, selectResultRows(accountAfter))
+
+	globalAfter := executor.QueryExecutor.executePerformanceSchemaTransactionSummaryRegistrySelect(
+		"select event_name, count_star from performance_schema.events_transactions_summary_global_by_event_name",
+		"global",
+	)
+	require.Equal(t, [][]interface{}{{"transaction", "1"}}, selectResultRows(globalAfter))
+}
+
+func TestPerformanceSchemaStatementAccountSummaryTruncateIsolated(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.metricsRecorder = metrics.NewRuntimeRecorder(metrics.NewRegistry())
+	executor.QueryExecutor.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccounting(
+		1401, "statement_truncate_alice", "statement-truncate-a.example", "statement_truncate_app",
+		"select account_a", "SELECT", "ok", time.Millisecond, 0, 1, 0,
+	)
+	executor.QueryExecutor.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccounting(
+		1402, "statement_truncate_bob", "statement-truncate-b.example", "statement_truncate_app",
+		"select account_b", "SELECT", "ok", time.Millisecond, 0, 1, 0,
+	)
+
+	globalBefore := executor.QueryExecutor.executePerformanceSchemaStatementSummaryRegistrySelect(
+		"select event_name, count_star from performance_schema.events_statements_summary_global_by_event_name where event_name='statement/sql/select'",
+		"global",
+	)
+	require.Equal(t, [][]interface{}{{"statement/sql/select", "2"}}, selectResultRows(globalBefore))
+
+	truncateStmt, err := sqlparser.Parse("truncate table performance_schema.events_statements_summary_by_account_by_event_name")
+	require.NoError(t, err)
+	ddlResults := make(chan *Result, 1)
+	executor.QueryExecutor.executeDDL(truncateStmt.(*sqlparser.DDL), nil, "", ddlResults)
+	require.NoError(t, (<-ddlResults).Err)
+
+	accountAfter := executor.QueryExecutor.executePerformanceSchemaStatementSummaryRegistrySelect(
+		"select user, host, event_name, count_star from performance_schema.events_statements_summary_by_account_by_event_name",
+		"account",
+	)
+	for _, row := range selectResultRows(accountAfter) {
+		require.Equal(t, "0", fmt.Sprint(row[3]))
+	}
+
+	globalAfter := executor.QueryExecutor.executePerformanceSchemaStatementSummaryRegistrySelect(
+		"select event_name, count_star from performance_schema.events_statements_summary_global_by_event_name where event_name='statement/sql/select'",
+		"global",
+	)
+	require.Equal(t, [][]interface{}{{"statement/sql/select", "2"}}, selectResultRows(globalAfter))
+}
+
+func TestPerformanceSchemaStageSummaryTruncateIsIndependent(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.metricsRecorder = metrics.NewRuntimeRecorder(metrics.NewRegistry())
+	executor.QueryExecutor.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccounting(
+		1310, "stage_truncate_user", "stage-truncate.example", "stage_truncate_app",
+		"select stage_truncate", "SELECT", "ok", time.Millisecond, 0, 1, 0,
+	)
+
+	before := executor.QueryExecutor.executePerformanceSchemaStageSummarySelect(
+		"select event_name, count_star, sum_timer_wait from performance_schema.events_stages_summary_global_by_event_name",
+		false,
+	)
+	require.Equal(t, 1, len(before.Records))
+	require.Equal(t, "1", fmt.Sprint(selectResultRows(before)[0][1]))
+
+	statementBefore := executor.QueryExecutor.executePerformanceSchemaStatementSummaryRegistrySelect(
+		"select count_star from performance_schema.events_statements_summary_global_by_event_name where event_name='statement/sql/select'",
+		"global",
+	)
+	require.Equal(t, "1", fmt.Sprint(selectResultRows(statementBefore)[0][0]))
+
+	truncateStmt, err := sqlparser.Parse("truncate table performance_schema.events_stages_summary_global_by_event_name")
+	require.NoError(t, err)
+	ddlResults := make(chan *Result, 1)
+	executor.QueryExecutor.executeDDL(truncateStmt.(*sqlparser.DDL), nil, "", ddlResults)
+	require.NoError(t, (<-ddlResults).Err)
+
+	after := executor.QueryExecutor.executePerformanceSchemaStageSummarySelect(
+		"select event_name, count_star, sum_timer_wait, min_timer_wait, avg_timer_wait, max_timer_wait from performance_schema.events_stages_summary_global_by_event_name",
+		false,
+	)
+	require.Equal(t, 1, len(after.Records))
+	require.Equal(t, []interface{}{"stage/sql/execute", "0", "0", "0", "0", "0"}, selectResultRows(after)[0])
+	statementAfter := executor.QueryExecutor.executePerformanceSchemaStatementSummaryRegistrySelect(
+		"select count_star from performance_schema.events_statements_summary_global_by_event_name where event_name='statement/sql/select'",
+		"global",
+	)
+	require.Equal(t, "1", fmt.Sprint(selectResultRows(statementAfter)[0][0]))
+}
+
+func TestPerformanceSchemaStageAccountSummaryTruncateIsolated(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.metricsRecorder = metrics.NewRuntimeRecorder(metrics.NewRegistry())
+	executor.QueryExecutor.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccounting(
+		1312, "stage_account_user", "stage-account.example", "stage_account_app",
+		"select stage_account", "SELECT", "ok", time.Millisecond, 0, 1, 0,
+	)
+
+	globalBefore := executor.QueryExecutor.executePerformanceSchemaStageSummarySelect(
+		"select event_name, count_star from performance_schema.events_stages_summary_global_by_event_name",
+		false,
+	)
+	require.Equal(t, [][]interface{}{{"stage/sql/execute", "1"}}, selectResultRows(globalBefore))
+
+	truncateStmt, err := sqlparser.Parse("truncate table performance_schema.events_stages_summary_by_account_by_event_name")
+	require.NoError(t, err)
+	ddlResults := make(chan *Result, 1)
+	executor.QueryExecutor.executeDDL(truncateStmt.(*sqlparser.DDL), nil, "", ddlResults)
+	require.NoError(t, (<-ddlResults).Err)
+
+	accountAfter := executor.QueryExecutor.executePerformanceSchemaStageSummaryRegistrySelect(
+		"select user, host, event_name, count_star from performance_schema.events_stages_summary_by_account_by_event_name",
+		"account",
+	)
+	for _, row := range selectResultRows(accountAfter) {
+		require.Equal(t, "0", fmt.Sprint(row[3]))
+	}
+
+	globalAfter := executor.QueryExecutor.executePerformanceSchemaStageSummarySelect(
+		"select event_name, count_star from performance_schema.events_stages_summary_global_by_event_name",
+		false,
+	)
+	require.Equal(t, [][]interface{}{{"stage/sql/execute", "1"}}, selectResultRows(globalAfter))
+}
+
+func TestPerformanceSchemaWaitSummaryTruncateResetsRows(t *testing.T) {
+	locks := manager.NewLockManager()
+	defer locks.Close()
+	require.NoError(t, locks.AcquireLock(1, 1311, 1, 1, manager.LOCK_X))
+	require.Error(t, locks.AcquireLock(2, 1311, 1, 1, manager.LOCK_X))
+	locks.ReleaseLocks(1)
+	locks.ReleaseLocks(2)
+
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+	executor.QueryExecutor.SetLockManager(locks)
+	before := executor.QueryExecutor.executePerformanceSchemaWaitSummarySelect(
+		"select event_name, count_star, sum_timer_wait from performance_schema.events_waits_summary_global_by_event_name",
+		false,
+	)
+	require.Equal(t, 1, len(before.Records))
+	require.Equal(t, "1", fmt.Sprint(selectResultRows(before)[0][1]))
+
+	truncateStmt, err := sqlparser.Parse("truncate table performance_schema.events_waits_summary_global_by_event_name")
+	require.NoError(t, err)
+	ddlResults := make(chan *Result, 1)
+	executor.QueryExecutor.executeDDL(truncateStmt.(*sqlparser.DDL), nil, "", ddlResults)
+	require.NoError(t, (<-ddlResults).Err)
+
+	after := executor.QueryExecutor.executePerformanceSchemaWaitSummarySelect(
+		"select event_name, count_star, sum_timer_wait, min_timer_wait, avg_timer_wait, max_timer_wait from performance_schema.events_waits_summary_global_by_event_name",
+		false,
+	)
+	require.Equal(t, 1, len(after.Records))
+	require.Equal(t, []interface{}{"wait/lock/table/sql/handler", "0", "0", "0", "0", "0"}, selectResultRows(after)[0])
+
+	threadAfter := executor.QueryExecutor.executePerformanceSchemaWaitSummarySelect(
+		"select thread_id, event_name, count_star, sum_timer_wait from performance_schema.events_waits_summary_by_thread_by_event_name",
+		true,
+	)
+	require.Equal(t, [][]interface{}{{"2", "wait/lock/table/sql/handler", "0", "0"}}, selectResultRows(threadAfter))
+
+	instanceAfter := executor.QueryExecutor.executePerformanceSchemaWaitSummaryByInstanceSelect(
+		"select event_name, object_instance_begin, count_star, sum_timer_wait from performance_schema.events_waits_summary_by_instance",
+	)
+	require.Equal(t, [][]interface{}{{"wait/lock/table/sql/handler", "1311_1_1", "0", "0"}}, selectResultRows(instanceAfter))
+}
+
+func TestPerformanceSchemaTableIOSummaryTruncateIsIndependent(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.metricsRecorder = metrics.NewRuntimeRecorder(metrics.NewRegistry())
+	targetTable := "table_io_truncate_target"
+	executor.QueryExecutor.metricsRecorder.RecordStatement(
+		"table_io_truncate_app", "select id from table_io_truncate_app."+targetTable,
+		"SELECT", "ok", time.Millisecond,
+	)
+
+	before := executor.QueryExecutor.executePerformanceSchemaTableIOSummarySelect(
+		"select object_schema, object_name, count_star from performance_schema.table_io_waits_summary_by_table where object_name='"+targetTable+"'",
+		false,
+	)
+	require.Equal(t, [][]interface{}{{"table_io_truncate_app", targetTable, "1"}}, selectResultRows(before))
+	statementBefore := executor.QueryExecutor.executePerformanceSchemaStatementSummaryRegistrySelect(
+		"select count_star from performance_schema.events_statements_summary_global_by_event_name where event_name='statement/sql/select'",
+		"global",
+	)
+	require.Equal(t, "1", fmt.Sprint(selectResultRows(statementBefore)[0][0]))
+
+	truncateStmt, err := sqlparser.Parse("truncate table performance_schema.table_io_waits_summary_by_table")
+	require.NoError(t, err)
+	ddlResults := make(chan *Result, 1)
+	executor.QueryExecutor.executeDDL(truncateStmt.(*sqlparser.DDL), nil, "", ddlResults)
+	require.NoError(t, (<-ddlResults).Err)
+
+	after := executor.QueryExecutor.executePerformanceSchemaTableIOSummarySelect(
+		"select object_schema, object_name, count_star, count_read from performance_schema.table_io_waits_summary_by_table where object_name='"+targetTable+"'",
+		false,
+	)
+	require.Equal(t, [][]interface{}{{"table_io_truncate_app", targetTable, "0", "0"}}, selectResultRows(after))
+	indexAfter := executor.QueryExecutor.executePerformanceSchemaTableIOSummarySelect(
+		"select object_schema, object_name, index_name, count_star from performance_schema.table_io_waits_summary_by_index_usage where object_name='"+targetTable+"'",
+		true,
+	)
+	require.Equal(t, [][]interface{}{{"table_io_truncate_app", targetTable, "", "0"}}, selectResultRows(indexAfter))
+	statementAfter := executor.QueryExecutor.executePerformanceSchemaStatementSummaryRegistrySelect(
+		"select count_star from performance_schema.events_statements_summary_global_by_event_name where event_name='statement/sql/select'",
+		"global",
+	)
+	require.Equal(t, "1", fmt.Sprint(selectResultRows(statementAfter)[0][0]))
+}
+
 func TestPerformanceSchemaStatementSummariesGroupByClientIdentity(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	session := newTestMySQLSession()
@@ -557,6 +1079,7 @@ func TestInformationSchemaVariableViewsExposeCompatibilityRows(t *testing.T) {
 
 func TestPerformanceSchemaStatementHistoryExposesCompletedQueries(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
 	result := <-executor.ExecuteQuery(nil, "select 1", "app")
 	require.NoError(t, result.Err)
 	rows := mustQuerySQL(t, executor, "", "select sql_text, current_schema, sql_command from performance_schema.events_statements_history_long")
@@ -571,8 +1094,67 @@ func TestPerformanceSchemaStatementHistoryExposesCompletedQueries(t *testing.T) 
 	require.True(t, found, "completed select 1 was not present in statement history: %#v", rows)
 }
 
+func TestPerformanceSchemaHistoryTablesTruncateIndependently(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+	session := newTestMySQLSession()
+	session.ctx.SetConnectionID(1401)
+	truncatePerformanceSchema := func(table string) {
+		stmt, err := sqlparser.Parse("truncate table performance_schema." + table)
+		require.NoError(t, err)
+		results := make(chan *Result, 1)
+		executor.QueryExecutor.executeTruncateTableStatement(&ExecutionContext{Session: session, Results: results, Cfg: executor.QueryExecutor.conf}, "", stmt.(*sqlparser.DDL))
+		require.NoError(t, (<-results).Err)
+	}
+
+	require.NoError(t, (<-executor.ExecuteQuery(session, "select 1401", "app")).Err)
+	statementHistory := executor.QueryExecutor.executePerformanceSchemaStatementHistorySelect(
+		"performance_schema.events_statements_history_long", false,
+	)
+	stageHistory := executor.QueryExecutor.executePerformanceSchemaStageHistorySelect(
+		"performance_schema.events_stages_history_long", false,
+	)
+	require.NotEmpty(t, selectResultRows(statementHistory))
+	require.NotEmpty(t, selectResultRows(stageHistory))
+
+	truncatePerformanceSchema("events_statements_history_long")
+	statementHistory = executor.QueryExecutor.executePerformanceSchemaStatementHistorySelect(
+		"performance_schema.events_statements_history_long", false,
+	)
+	stageHistory = executor.QueryExecutor.executePerformanceSchemaStageHistorySelect(
+		"performance_schema.events_stages_history_long", false,
+	)
+	require.Empty(t, selectResultRows(statementHistory))
+	require.NotEmpty(t, selectResultRows(stageHistory), "statement history truncate must not clear stage history")
+
+	mustExecSessionSQL(t, executor, session, "", "begin")
+	mustExecSessionSQL(t, executor, session, "", "commit")
+	transactionHistory := <-executor.ExecuteQuery(session, "select * from performance_schema.events_transactions_history", "")
+	require.NoError(t, transactionHistory.Err)
+	require.NotEmpty(t, selectResultRows(transactionHistory.Data.(*SelectResult)))
+	truncatePerformanceSchema("events_transactions_history")
+	transactionHistoryResult := executor.QueryExecutor.executePerformanceSchemaTransactionsSelect(
+		"", session, "performance_schema.events_transactions_history",
+	)
+	require.Empty(t, selectResultRows(transactionHistoryResult))
+
+	locks := manager.NewLockManager()
+	defer locks.Close()
+	require.NoError(t, locks.AcquireLock(1401, 9, 1, 1, manager.LOCK_X))
+	require.ErrorIs(t, locks.AcquireLock(1402, 9, 1, 1, manager.LOCK_X), manager.ErrLockConflict)
+	locks.ReleaseLocks(1401)
+	locks.ReleaseLocks(1402)
+	executor.QueryExecutor.SetLockManager(locks)
+	waitHistory := executor.QueryExecutor.executePerformanceSchemaEventsWaitsSelect("select * from performance_schema.events_waits_history_long")
+	require.NotEmpty(t, selectResultRows(waitHistory))
+	truncatePerformanceSchema("events_waits_history_long")
+	waitHistory = executor.QueryExecutor.executePerformanceSchemaEventsWaitsSelect("select * from performance_schema.events_waits_history_long")
+	require.Empty(t, selectResultRows(waitHistory))
+}
+
 func TestPerformanceSchemaStatementHistoryAppliesFiltersAndProjection(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
 	first := newTestMySQLSession()
 	first.ctx.SetConnectionID(131)
 	second := newTestMySQLSession()
@@ -585,8 +1167,46 @@ func TestPerformanceSchemaStatementHistoryAppliesFiltersAndProjection(t *testing
 	require.Equal(t, [][]interface{}{{"131", "statement/sql/select", "select 7"}}, selectResultRows(result))
 }
 
+func TestPerformanceSchemaStatementHistoryIsScopedToCurrentThread(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	first := newTestMySQLSession()
+	first.ctx.SetConnectionID(201)
+	second := newTestMySQLSession()
+	second.ctx.SetConnectionID(202)
+
+	require.NoError(t, (<-executor.ExecuteQuery(first, "select 201", "app")).Err)
+	require.NoError(t, (<-executor.ExecuteQuery(second, "select 202", "app")).Err)
+
+	result := mustSelectResultSessionSQL(t, executor, first, "", "select thread_id, sql_text from performance_schema.events_statements_history")
+	rows := selectResultRows(result)
+	require.NotEmpty(t, rows)
+	for _, row := range rows {
+		require.Equal(t, "201", fmt.Sprint(row[0]), "events_statements_history must be scoped to the querying thread: %#v", rows)
+	}
+}
+
+func TestPerformanceSchemaStageHistoryIsScopedToCurrentThread(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+	first := newTestMySQLSession()
+	first.ctx.SetConnectionID(301)
+	second := newTestMySQLSession()
+	second.ctx.SetConnectionID(302)
+
+	require.NoError(t, (<-executor.ExecuteQuery(first, "select 301", "app")).Err)
+	require.NoError(t, (<-executor.ExecuteQuery(second, "select 302", "app")).Err)
+
+	result := mustSelectResultSessionSQL(t, executor, first, "", "select thread_id, event_name from performance_schema.events_stages_history")
+	rows := selectResultRows(result)
+	require.NotEmpty(t, rows)
+	for _, row := range rows {
+		require.Equal(t, "301", fmt.Sprint(row[0]), "events_stages_history must be scoped to the querying thread: %#v", rows)
+	}
+}
+
 func TestPerformanceSchemaStatementHistoryProjectsOfficialEventFields(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
 	session := newTestMySQLSession()
 	session.ctx.SetConnectionID(133)
 	require.NoError(t, (<-executor.ExecuteQuery(session, "select 17", "app")).Err)
@@ -604,6 +1224,7 @@ func TestPerformanceSchemaStatementHistoryProjectsOfficialEventFields(t *testing
 
 func TestPerformanceSchemaStatementHistoryProjectsRowsExaminedFromClusteredScan(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
 	mustExecSQL(t, executor, "", "create database scan_app")
 	mustExecSQL(t, executor, "scan_app", "create table scan_rows (id int primary key, label varchar(20))")
 	mustExecSQL(t, executor, "scan_app", "insert into scan_rows values (1, 'hit'), (2, 'miss')")
@@ -625,6 +1246,107 @@ func TestPerformanceSchemaStatementHistoryProjectsRowsExaminedFromClusteredScan(
 	require.Equal(t, [][]interface{}{{"2", "1"}}, digest)
 }
 
+func TestPerformanceSchemaStatementHistoryProjectsNoIndexUsedFromTableScan(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+	mustExecSQL(t, executor, "", "create database no_index_app")
+	mustExecSQL(t, executor, "no_index_app", "create table scan_rows (id int primary key, label varchar(20))")
+	mustExecSQL(t, executor, "no_index_app", "insert into scan_rows values (1, 'hit'), (2, 'miss')")
+	session := newTestMySQLSession()
+	session.ctx.SetConnectionID(135)
+	require.NoError(t, (<-executor.ExecuteQuery(session, "select id from scan_rows where label = 'hit'", "no_index_app")).Err)
+
+	history := selectResultRows(mustSelectResultSQL(t, executor, "", "select sql_text, no_index_used, no_good_index_used from performance_schema.events_statements_history_long where thread_id = 135"))
+	var projected []interface{}
+	for _, row := range history {
+		if len(row) == 3 && row[0] == "select id from scan_rows where label = 'hit'" {
+			projected = row[1:]
+			break
+		}
+	}
+	require.Equal(t, []interface{}{"1", "1"}, projected)
+
+	digest := selectResultRows(mustSelectResultSQL(t, executor, "", "select sum_no_index_used, sum_no_good_index_used from performance_schema.events_statements_summary_by_digest where schema_name = 'no_index_app' and digest_text = 'select id from scan_rows where label = ?'"))
+	require.Equal(t, [][]interface{}{{"1", "1"}}, digest)
+}
+
+func TestPerformanceSchemaStatementHistoryProjectsSortRowsFromOrderBy(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+	mustExecSQL(t, executor, "", "create database sort_rows_app")
+	mustExecSQL(t, executor, "sort_rows_app", "create table ordered_rows (id int primary key, label varchar(20))")
+	mustExecSQL(t, executor, "sort_rows_app", "insert into ordered_rows values (1, 'one'), (2, 'two'), (3, 'three')")
+	session := newTestMySQLSession()
+	session.ctx.SetConnectionID(136)
+	query := "select id from ordered_rows order by id desc"
+	require.NoError(t, (<-executor.ExecuteQuery(session, query, "sort_rows_app")).Err)
+
+	history := selectResultRows(mustSelectResultSQL(t, executor, "", "select sql_text, sort_rows, sort_scan from performance_schema.events_statements_history_long where thread_id = 136"))
+	var projected []interface{}
+	for _, row := range history {
+		if len(row) == 3 && row[0] == query {
+			projected = row[1:]
+			break
+		}
+	}
+	require.Equal(t, []interface{}{"3", "1"}, projected)
+
+	digest := selectResultRows(mustSelectResultSQL(t, executor, "", "select sum_sort_rows, sum_sort_scan from performance_schema.events_statements_summary_by_digest where schema_name = 'sort_rows_app' and digest_text = 'select id from ordered_rows order by id desc'"))
+	require.Equal(t, [][]interface{}{{"3", "1"}}, digest)
+}
+
+func TestPerformanceSchemaStatementHistoryProjectsRangeCounters(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+	mustExecSQL(t, executor, "", "create database sort_range_app")
+	mustExecSQL(t, executor, "sort_range_app", "create table ranged_rows (id int primary key, price int, index idx_price (price))")
+	mustExecSQL(t, executor, "sort_range_app", "insert into ranged_rows values (1, 10), (2, 20), (3, 30)")
+	session := newTestMySQLSession()
+	session.ctx.SetConnectionID(137)
+	query := "select id from ranged_rows where price >= 20 order by price desc"
+	require.NoError(t, (<-executor.ExecuteQuery(session, query, "sort_range_app")).Err)
+
+	history := selectResultRows(mustSelectResultSQL(t, executor, "", "select sql_text, select_range, sort_range, sort_rows, sort_scan from performance_schema.events_statements_history_long where thread_id = 137"))
+	var projected []interface{}
+	for _, row := range history {
+		if len(row) == 5 && row[0] == query {
+			projected = row[1:]
+			break
+		}
+	}
+	require.Equal(t, []interface{}{"1", "1", "2", "0"}, projected)
+
+	digest := selectResultRows(mustSelectResultSQL(t, executor, "", "select sum_select_range, sum_sort_range, sum_sort_rows, sum_sort_scan from performance_schema.events_statements_summary_by_digest where schema_name = 'sort_range_app' and digest_text = 'select id from ranged_rows where price >= ? order by price desc'"))
+	require.Equal(t, [][]interface{}{{"1", "1", "2", "0"}}, digest)
+}
+
+func TestPerformanceSchemaStatementHistoryProjectsJoinCounters(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+	mustExecSQL(t, executor, "", "create database join_stats_app")
+	mustExecSQL(t, executor, "join_stats_app", "create table join_left (id int primary key, label varchar(20))")
+	mustExecSQL(t, executor, "join_stats_app", "create table join_right (id int primary key, label varchar(20))")
+	mustExecSQL(t, executor, "join_stats_app", "insert into join_left values (1, 'left')")
+	mustExecSQL(t, executor, "join_stats_app", "insert into join_right values (1, 'right')")
+	session := newTestMySQLSession()
+	session.ctx.SetConnectionID(138)
+	query := "select l.id from join_left l join join_right r on l.id = r.id"
+	require.NoError(t, (<-executor.ExecuteQuery(session, query, "join_stats_app")).Err)
+
+	history := selectResultRows(mustSelectResultSQL(t, executor, "", "select sql_text, rows_examined, select_scan, select_full_join, select_full_range_join, select_range_check from performance_schema.events_statements_history_long where thread_id = 138"))
+	var projected []interface{}
+	for _, row := range history {
+		if len(row) == 6 && row[0] == query {
+			projected = row[1:]
+			break
+		}
+	}
+	require.Equal(t, []interface{}{"2", "1", "1", "0", "0"}, projected)
+
+	digest := selectResultRows(mustSelectResultSQL(t, executor, "", "select sum_rows_examined, sum_select_scan, sum_select_full_join, sum_select_full_range_join, sum_select_range_check from performance_schema.events_statements_summary_by_digest where schema_name = 'join_stats_app' and digest_text = 'select l.id from join_left as l join join_right as r on l.id = r.id'"))
+	require.Equal(t, [][]interface{}{{"2", "1", "1", "0", "0"}}, digest)
+}
+
 func indexOfColumn(columns []string, wanted string) int {
 	for index, column := range columns {
 		if strings.EqualFold(column, wanted) {
@@ -636,6 +1358,7 @@ func indexOfColumn(columns []string, wanted string) int {
 
 func TestPerformanceSchemaStatementHistoryCarriesConnectionThreadID(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
 	session := newTestMySQLSession()
 	session.ctx.SetConnectionID(123)
 	result := <-executor.ExecuteQuery(session, "select 7", "app")
@@ -681,6 +1404,38 @@ func TestPerformanceSchemaCurrentEventsDoNotReuseCompletedStatements(t *testing.
 	for _, record := range currentStages.Records {
 		require.NotEqual(t, int64(125), record.GetValues()[0].Int())
 	}
+}
+
+func TestPerformanceSchemaStatementHistoryProjectsTimerBounds(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+	executor.QueryExecutor.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccounting(
+		126, "timer_user", "timer_host", "timer_app", "select timer_bounds", "SELECT", "ok",
+		2*time.Millisecond, 0, 1, 0,
+	)
+
+	history := executor.QueryExecutor.executePerformanceSchemaStatementHistorySelect(
+		"performance_schema.events_statements_history_long", false,
+		"select thread_id, sql_text, timer_start, timer_end, timer_wait from performance_schema.events_statements_history_long",
+	)
+	sqlTextIndex := indexOfColumn(history.Columns, "SQL_TEXT")
+	timerStartIndex := indexOfColumn(history.Columns, "TIMER_START")
+	timerEndIndex := indexOfColumn(history.Columns, "TIMER_END")
+	timerWaitIndex := indexOfColumn(history.Columns, "TIMER_WAIT")
+	var timerRow []basic.Value
+	for _, record := range history.Records {
+		values := record.GetValues()
+		if sqlTextIndex >= 0 && values[sqlTextIndex].String() == "select timer_bounds" {
+			timerRow = values
+			break
+		}
+	}
+	require.NotNil(t, timerRow, "statement history did not expose timer_bounds")
+	require.False(t, timerRow[timerStartIndex].IsNull())
+	require.False(t, timerRow[timerEndIndex].IsNull())
+	require.Greater(t, timerRow[timerStartIndex].Int(), int64(0))
+	require.Greater(t, timerRow[timerEndIndex].Int(), timerRow[timerStartIndex].Int())
+	require.Equal(t, timerRow[timerEndIndex].Int()-timerRow[timerStartIndex].Int(), timerRow[timerWaitIndex].Int())
 }
 
 func TestPerformanceSchemaDirectExecutorRecordsMemoryAndStatementLifecycle(t *testing.T) {
@@ -732,6 +1487,7 @@ func TestPerformanceSchemaDirectExecutorRecordsMemoryAndStatementLifecycle(t *te
 
 func TestPerformanceSchemaStageHistoryExposesCompletedQueries(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
 	result := <-executor.ExecuteQuery(nil, "select 9", "app")
 	require.NoError(t, result.Err)
 	for _, name := range []string{
@@ -748,6 +1504,7 @@ func TestPerformanceSchemaStageHistoryExposesCompletedQueries(t *testing.T) {
 
 func TestPerformanceSchemaStageHistoryAppliesFiltersAndProjection(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
 	first := newTestMySQLSession()
 	first.ctx.SetConnectionID(141)
 	second := newTestMySQLSession()
@@ -766,6 +1523,7 @@ func TestPerformanceSchemaStageHistoryAppliesFiltersAndProjection(t *testing.T) 
 
 func TestPerformanceSchemaStageHistoryProjectsMonotonicTimerWindow(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
 	executor.QueryExecutor.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccounting(
 		151, "", "", "app", "select 13", "SELECT", "success", 8*time.Microsecond, 0, 1, 0,
 	)
@@ -789,6 +1547,7 @@ func TestPerformanceSchemaStageHistoryProjectsMonotonicTimerWindow(t *testing.T)
 
 func TestPerformanceSchemaCurrentStageLeavesCompletionTimersNull(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
 	session := newTestMySQLSession()
 	session.ctx.SetConnectionID(152)
 	stop := executor.QueryExecutor.beginActiveStatement(session, "select 14", "app")
@@ -834,23 +1593,123 @@ func TestPerformanceSchemaSetupTablesExposeInstrumentConfiguration(t *testing.T)
 	require.Equal(t, []interface{}{"statement/sql/select", "YES", "YES"}, instruments[0][:3])
 }
 
+func TestPerformanceSchemaSetupConsumersUseMySQL84Defaults(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	want := map[string]string{
+		"global_instrumentation":           "YES",
+		"thread_instrumentation":           "YES",
+		"events_statements_current":        "YES",
+		"events_statements_history":        "YES",
+		"events_statements_history_long":   "NO",
+		"events_stages_current":            "NO",
+		"events_stages_history":            "NO",
+		"events_stages_history_long":       "NO",
+		"events_waits_current":             "NO",
+		"events_waits_history":             "NO",
+		"events_waits_history_long":        "NO",
+		"events_transactions_current":      "YES",
+		"events_transactions_history":      "YES",
+		"events_transactions_history_long": "NO",
+		"statements_digest":                "YES",
+	}
+	for name, enabled := range want {
+		rows := mustQuerySQL(t, executor, "", "select name, enabled from performance_schema.setup_consumers where name='"+name+"'")
+		require.Equal(t, [][]interface{}{{name, enabled}}, rows, name)
+	}
+}
+
 func TestPerformanceSchemaSetupObjectsAndTimersExposeCompatibilityRows(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	objects := mustQuerySQL(t, executor, "", "select object_type, object_schema, object_name, enabled, timed from performance_schema.setup_objects")
 	require.Contains(t, objects, []interface{}{"TABLE", "%", "%", "YES", "YES"})
+	require.Len(t, objects, 20, "MySQL initializes four setup_objects rows for each supported object type")
+	require.Contains(t, objects, []interface{}{"TABLE", "mysql", "%", "NO", "NO"})
 	result := <-executor.ExecuteQuery(nil, "update performance_schema.setup_objects set enabled='NO', timed='NO' where object_type='TABLE'", "")
 	require.NoError(t, result.Err)
 	objects = mustQuerySQL(t, executor, "", "select object_type, enabled, timed from performance_schema.setup_objects where object_type='TABLE'")
-	require.Len(t, objects, 1)
-	require.Equal(t, "TABLE", objects[0][0])
-	require.Equal(t, "NO", objects[0][3])
-	require.Equal(t, "NO", objects[0][4])
+	require.Len(t, objects, 4)
+	for _, row := range objects {
+		require.Equal(t, "TABLE", row[0])
+		require.Equal(t, "NO", row[3])
+		require.Equal(t, "NO", row[4])
+	}
 
 	timers := mustQuerySQL(t, executor, "", "select name, timer_name, timer_frequency, timer_resolution, timer_overhead from performance_schema.setup_timers")
 	require.NotEmpty(t, timers)
 	require.Equal(t, "CYCLE", timers[0][0])
 	require.Equal(t, "CYCLE", timers[0][1])
 	require.Len(t, timers[0], 5)
+}
+
+func TestPerformanceSchemaSetupObjectsUpdateHonorsAllObjectPredicates(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+
+	result := <-executor.ExecuteQuery(nil, "update performance_schema.setup_objects set enabled='NO' where object_type='TABLE' and object_schema='app' and object_name='orders'", "")
+	require.NoError(t, result.Err)
+	require.Zero(t, result.AffectedRows, "the default TABLE/%/% row must not match a schema/name-specific predicate")
+
+	objects := mustQuerySQL(t, executor, "", "select object_type, object_schema, object_name, enabled, timed from performance_schema.setup_objects where object_type='TABLE' and object_schema='%' and object_name='%'")
+	require.Equal(t, [][]interface{}{{"TABLE", "%", "%", "YES", "YES"}}, objects)
+}
+
+func TestPerformanceSchemaSetupObjectsSupportsCustomRowsAndPrecedence(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+
+	result := <-executor.ExecuteQuery(nil, "insert into performance_schema.setup_objects (object_type, object_schema, object_name, enabled, timed) values ('TABLE', 'app', 'orders', 'NO', 'NO')", "")
+	require.NoError(t, result.Err)
+	require.Equal(t, 1, result.AffectedRows)
+
+	setting, ok := executor.QueryExecutor.performanceSchemaObjectSettingFor("TABLE", "app", "orders")
+	require.True(t, ok)
+	require.False(t, setting.Enabled)
+	require.False(t, setting.Timed)
+
+	result = <-executor.ExecuteQuery(nil, "update performance_schema.setup_objects set enabled='YES', timed='NO' where object_type='TABLE' and object_schema='app' and object_name='orders'", "")
+	require.NoError(t, result.Err)
+	require.Equal(t, 1, result.AffectedRows)
+	setting, ok = executor.QueryExecutor.performanceSchemaObjectSettingFor("TABLE", "app", "orders")
+	require.True(t, ok)
+	require.True(t, setting.Enabled)
+	require.False(t, setting.Timed)
+
+	result = <-executor.ExecuteQuery(nil, "delete from performance_schema.setup_objects where object_type='TABLE' and object_schema='app' and object_name='orders'", "")
+	require.NoError(t, result.Err)
+	require.Equal(t, 1, result.AffectedRows)
+	_, ok = executor.QueryExecutor.performanceSchemaObjectSettingFor("TABLE", "app", "orders")
+	require.True(t, ok, "deleting the specific row must reveal the default TABLE/%/% rule")
+
+	objects := mustQuerySQL(t, executor, "", "select object_type, object_schema, object_name from performance_schema.setup_objects where object_type='TABLE' and object_schema='%' and object_name='%'")
+	require.Equal(t, [][]interface{}{{"TABLE", "%", "%", "YES", "YES"}}, objects)
+
+	for _, statement := range []string{
+		"insert into performance_schema.setup_objects values ('TABLE', 'app', '%', 'NO', 'NO')",
+		"insert into performance_schema.setup_objects values ('TABLE', 'app', 'orders', 'YES', 'NO')",
+	} {
+		result = <-executor.ExecuteQuery(nil, statement, "")
+		require.NoError(t, result.Err)
+	}
+	setting, ok = executor.QueryExecutor.performanceSchemaObjectSettingFor("TABLE", "app", "orders")
+	require.True(t, ok)
+	require.True(t, setting.Enabled, "exact object rule must beat schema wildcard")
+	require.False(t, setting.Timed)
+
+	result = <-executor.ExecuteQuery(nil, "delete from performance_schema.setup_objects where object_type='TABLE' and object_schema='app' and object_name='orders'", "")
+	require.NoError(t, result.Err)
+	setting, ok = executor.QueryExecutor.performanceSchemaObjectSettingFor("TABLE", "app", "orders")
+	require.True(t, ok)
+	require.False(t, setting.Enabled, "schema wildcard must apply after exact object deletion")
+
+	result = <-executor.ExecuteQuery(nil, "delete from performance_schema.setup_objects where object_type='TABLE' and object_schema='app' and object_name='%'", "")
+	require.NoError(t, result.Err)
+	setting, ok = executor.QueryExecutor.performanceSchemaObjectSettingFor("TABLE", "app", "orders")
+	require.True(t, ok)
+	require.True(t, setting.Enabled, "global wildcard must apply after schema wildcard deletion")
+
+	mustExecSQL(t, executor, "", "truncate table performance_schema.setup_objects")
+	objects = mustQuerySQL(t, executor, "", "select object_type, object_schema, object_name from performance_schema.setup_objects")
+	require.Empty(t, objects)
+	_, ok = executor.QueryExecutor.performanceSchemaObjectSettingFor("TABLE", "app", "orders")
+	require.False(t, ok, "TRUNCATE must remove all setup_objects rules")
 }
 
 func TestPerformanceSchemaSetupObjectsControlProgramInstrumentation(t *testing.T) {
@@ -877,6 +1736,11 @@ func TestPerformanceSchemaSetupObjectsControlProgramInstrumentation(t *testing.T
 
 func TestPerformanceSchemaConnectionSummaryViewsExposeCurrentSession(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	// NewXMySQLEngine intentionally uses the process-wide recorder in
+	// production, but this assertion is about one fresh engine's connection
+	// summary. Isolate it from identities recorded by earlier package tests so
+	// the package-order regression is deterministic.
+	executor.QueryExecutor.metricsRecorder = metrics.NewRuntimeRecorder(metrics.NewRegistry())
 	session := newTestMySQLSession()
 	session.SetParamByName("user", "app")
 	session.SetParamByName("host", "client")
@@ -912,15 +1776,75 @@ func TestPerformanceSchemaConnectionSummaryRetainsHistoricalTotals(t *testing.T)
 	require.Equal(t, int64(1), accountValues[2].Int())
 	require.Equal(t, int64(2), accountValues[3].Int())
 
-	hostsResult := <-executor.ExecuteQuery(session, "select host, current_connections, total_connections, sum_connections from performance_schema.hosts where host='client'", "")
+	hostsResult := <-executor.ExecuteQuery(session, "select host, current_connections, total_connections from performance_schema.hosts where host='client'", "")
 	require.NoError(t, hostsResult.Err)
 	hostValues := hostsResult.Data.(*SelectResult).Records[0].GetValues()
 	require.Equal(t, "client", hostValues[0].String())
 	require.Equal(t, int64(1), hostValues[1].Int())
 	require.Equal(t, int64(2), hostValues[2].Int())
-	require.Equal(t, int64(2), hostValues[5].Int())
+	require.Len(t, hostValues, 5)
 	wrongTotal := mustSelectResultSQL(t, executor, "", "select user, host from performance_schema.accounts where user='app' and host='client' and total_connections=999999")
 	require.Empty(t, wrongTotal.Records)
+}
+
+func TestPerformanceSchemaConnectionSummaryProjectsMemoryHighWatermarks(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	recorder := executor.QueryExecutor.metricsRecorder
+	recorder.RecordConnection("memory_summary_user", "memory-summary.example")
+	recorder.RecordMemoryAllocationWithIdentity(1301, "memory_summary_user", "memory-summary.example", "memory/test/connection-summary", 96)
+	recorder.RecordMemoryFreeWithIdentity(1301, "memory_summary_user", "memory-summary.example", "memory/test/connection-summary", 96)
+	session := newTestMySQLSession()
+	session.ctx.SetConnectionID(1301)
+	session.SetParamByName("user", "memory_summary_user")
+	session.SetParamByName("host", "memory-summary.example")
+
+	result := executor.QueryExecutor.executePerformanceSchemaConnectionSummarySelect(
+		"select user, host, current_connections, total_connections, max_session_controlled_memory, max_session_total_memory from performance_schema.accounts where user='memory_summary_user' and host='memory-summary.example'",
+		"performance_schema.accounts", session,
+	)
+	require.Equal(t, [][]interface{}{{"memory_summary_user", "memory-summary.example", "1", "1", "96", "96"}}, selectResultRows(result))
+	hosts := executor.QueryExecutor.executePerformanceSchemaConnectionSummarySelect(
+		"select host, current_connections, total_connections, max_session_controlled_memory, max_session_total_memory from performance_schema.hosts where host='memory-summary.example'",
+		"performance_schema.hosts", session,
+	)
+	require.Equal(t, [][]interface{}{{"memory-summary.example", "1", "1", "96", "96"}}, selectResultRows(hosts))
+	users := executor.QueryExecutor.executePerformanceSchemaConnectionSummarySelect(
+		"select user, current_connections, total_connections, max_session_controlled_memory, max_session_total_memory from performance_schema.users where user='memory_summary_user'",
+		"performance_schema.users", session,
+	)
+	require.Equal(t, [][]interface{}{{"memory_summary_user", "1", "1", "96", "96"}}, selectResultRows(users))
+}
+
+func TestPerformanceSchemaConnectionSummaryTruncateResetsTotalsToCurrentConnections(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.metricsRecorder.RecordConnection("app", "client")
+	executor.QueryExecutor.metricsRecorder.RecordConnection("app", "client")
+	executor.QueryExecutor.metricsRecorder.RecordConnection("historical", "old-client")
+	executor.QueryExecutor.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccounting(
+		1201, "app", "client", "app", "select connection_summary_reset", "SELECT", "ok", time.Millisecond, 0, 1, 0,
+	)
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "app")
+	session.SetParamByName("host", "client")
+
+	stmt, err := sqlparser.Parse("truncate table performance_schema.accounts")
+	require.NoError(t, err)
+	results := make(chan *Result, 1)
+	executor.QueryExecutor.executeTruncateTableStatement(&ExecutionContext{Session: session, Results: results, Cfg: executor.QueryExecutor.conf}, "", stmt.(*sqlparser.DDL))
+	require.NoError(t, (<-results).Err)
+	statementSummary := executor.QueryExecutor.executePerformanceSchemaStatementSummaryRegistrySelect("select * from performance_schema.events_statements_summary_by_account_by_event_name where user='app' and host='client'", "account")
+	countIndex := indexOfColumn(statementSummary.Columns, "COUNT_STAR")
+	require.NotEmpty(t, statementSummary.Records)
+	require.Zero(t, statementSummary.Records[0].GetValues()[countIndex].Int(), "accounts TRUNCATE must implicitly reset account statement summaries")
+
+	accounts := executor.QueryExecutor.executePerformanceSchemaConnectionSummarySelect("select user, host, current_connections, total_connections from performance_schema.accounts where user='app' and host='client'", "performance_schema.accounts", session)
+	require.Equal(t, [][]interface{}{{"app", "client", "1", "1", "0", "0"}}, selectResultRows(accounts))
+	hosts := executor.QueryExecutor.executePerformanceSchemaConnectionSummarySelect("select host, current_connections, total_connections, sum_connections from performance_schema.hosts where host='client'", "performance_schema.hosts", session)
+	require.Equal(t, [][]interface{}{{"client", "1", "1", "0", "0"}}, selectResultRows(hosts))
+	users := executor.QueryExecutor.executePerformanceSchemaConnectionSummarySelect("select user, current_connections, total_connections, count_hosts from performance_schema.users where user='app'", "performance_schema.users", session)
+	require.Equal(t, [][]interface{}{{"app", "1", "1", "0", "0"}}, selectResultRows(users))
+	removed := executor.QueryExecutor.executePerformanceSchemaConnectionSummarySelect("select user from performance_schema.accounts where user='historical'", "performance_schema.accounts", session)
+	require.Empty(t, removed.Records)
 }
 
 func TestPerformanceSchemaSessionAccountConnectAttrsOnlyExposeCurrentSession(t *testing.T) {
@@ -937,8 +1861,11 @@ func TestPerformanceSchemaSessionAccountConnectAttrsOnlyExposeCurrentSession(t *
 	require.Equal(t, [][]interface{}{{"_client_name"}}, selectResultRows(filteredResult.Data.(*SelectResult)))
 }
 
-func TestPerformanceSchemaSetupThreadsExposeCurrentSession(t *testing.T) {
+func TestPerformanceSchemaSetupThreadsExposeThreadInstrumentation(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'app'@'client' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant select on performance_schema.setup_threads to 'app'@'client'")
+	mustExecSQL(t, executor, "", "grant update on performance_schema.setup_threads to 'app'@'client'")
 	session := newTestMySQLSession()
 	session.SetParamByName("user", "app")
 	session.SetParamByName("host", "client")
@@ -949,22 +1876,77 @@ func TestPerformanceSchemaSetupThreadsExposeCurrentSession(t *testing.T) {
 	selectResult, ok := result.Data.(*SelectResult)
 	require.True(t, ok)
 	rows := selectResultRows(selectResult)
-	require.Len(t, rows, 1)
-	require.Equal(t, "thread/sql/one_connection", rows[0][0])
-	require.Equal(t, "42", rows[0][2])
-	require.Equal(t, "app", rows[0][3])
-	require.Equal(t, "client", rows[0][4])
-	filteredResult := <-executor.ExecuteQuery(session, "select processlist_id from performance_schema.setup_threads where processlist_id=99", "app")
+	require.Len(t, rows, 4)
+	require.Equal(t, "thread/performance_schema/setup", rows[0][0])
+	require.Equal(t, "thread/sql/event_scheduler", rows[1][0])
+	require.Equal(t, "thread/sql/main", rows[2][0])
+	require.Equal(t, "thread/sql/one_connection", rows[3][0])
+	require.Equal(t, "YES", rows[3][1])
+	require.Equal(t, "YES", rows[3][2])
+	require.Equal(t, "user", rows[3][3])
+	filteredResult := <-executor.ExecuteQuery(session, "select name from performance_schema.setup_threads where name='missing'", "app")
 	require.NoError(t, filteredResult.Err)
 	require.Empty(t, filteredResult.Data.(*SelectResult).Records)
-	projectedResult := <-executor.ExecuteQuery(session, "select processlist_id from performance_schema.setup_threads where processlist_id=42", "app")
+	projectedResult := <-executor.ExecuteQuery(session, "select name, history from performance_schema.setup_threads where name='thread/sql/one_connection'", "app")
 	require.NoError(t, projectedResult.Err)
-	require.Equal(t, []string{"PROCESSLIST_ID"}, projectedResult.Data.(*SelectResult).Columns)
-	require.Equal(t, [][]interface{}{{"42"}}, selectResultRows(projectedResult.Data.(*SelectResult)))
+	require.Equal(t, []string{"NAME", "HISTORY"}, projectedResult.Data.(*SelectResult).Columns)
+	require.Equal(t, [][]interface{}{{"thread/sql/one_connection", "YES"}}, selectResultRows(projectedResult.Data.(*SelectResult)))
+	update := <-executor.ExecuteQuery(session, "update performance_schema.setup_threads set enabled='NO', history='NO' where name='thread/sql/one_connection'", "app")
+	require.NoError(t, update.Err)
+	updated := <-executor.ExecuteQuery(session, "select enabled, history from performance_schema.setup_threads where name='thread/sql/one_connection'", "app")
+	require.NoError(t, updated.Err)
+	require.Equal(t, [][]interface{}{{"NO", "NO"}}, selectResultRows(updated.Data.(*SelectResult)))
+	backgroundUpdate := <-executor.ExecuteQuery(session, "update performance_schema.setup_threads set enabled='NO' where name='thread/sql/main'", "app")
+	require.NoError(t, backgroundUpdate.Err)
+	require.Equal(t, 1, backgroundUpdate.AffectedRows)
+	background := <-executor.ExecuteQuery(session, "select name, enabled, history, properties from performance_schema.setup_threads where name='thread/sql/main'", "app")
+	require.NoError(t, background.Err)
+	require.Equal(t, [][]interface{}{{"thread/sql/main", "NO", "YES", "singleton"}}, selectResultRows(background.Data.(*SelectResult)))
+	truncate := <-executor.ExecuteQuery(session, "truncate table performance_schema.setup_threads", "app")
+	require.Error(t, truncate.Err)
+}
+
+func TestPerformanceSchemaSetupThreadsControlNewConnectionInstrumentation(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	existing := newTestMySQLSession()
+	existing.SetParamByName("user", "root")
+	existing.SetParamByName("host", "localhost")
+	existing.SetParamByName("global_privileges", []common.PrivilegeType{common.AllPriv})
+	existing.SetParamByName("connection_id", int64(142))
+	beforeUpdate := <-executor.ExecuteQuery(existing, "select thread_id, instrumented, history from performance_schema.threads", "")
+	require.NoError(t, beforeUpdate.Err)
+	require.Equal(t, [][]interface{}{{"142", "YES", "YES"}}, selectResultRows(beforeUpdate.Data.(*SelectResult)))
+
+	update := <-executor.ExecuteQuery(nil, "update performance_schema.setup_threads set enabled='NO', history='NO' where name='thread/sql/one_connection'", "")
+	require.NoError(t, update.Err)
+	require.Equal(t, 1, update.AffectedRows)
+	existingAfterUpdate := <-executor.ExecuteQuery(existing, "select thread_id, instrumented, history from performance_schema.threads", "")
+	require.NoError(t, existingAfterUpdate.Err)
+	require.Equal(t, [][]interface{}{{"142", "YES", "YES"}}, selectResultRows(existingAfterUpdate.Data.(*SelectResult)))
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "root")
+	session.SetParamByName("host", "localhost")
+	session.SetParamByName("global_privileges", []common.PrivilegeType{common.AllPriv})
+	session.SetParamByName("connection_id", int64(143))
+	result := <-executor.ExecuteQuery(session, "select thread_id, instrumented, history from performance_schema.threads", "")
+	require.NoError(t, result.Err)
+	require.Equal(t, [][]interface{}{{"143", "NO", "NO"}}, selectResultRows(result.Data.(*SelectResult)))
+}
+
+func TestPerformanceSchemaSetupConsumersAndInstrumentsRejectTruncate(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	for _, table := range []string{"setup_consumers", "setup_instruments"} {
+		result := <-executor.ExecuteQuery(nil, "truncate table performance_schema."+table, "")
+		require.Error(t, result.Err, table)
+		require.Contains(t, strings.ToLower(result.Err.Error()), "invalid performance_schema usage", table)
+	}
 }
 
 func TestPerformanceSchemaThreadsExposeMySQL84ColumnsAndLiveAttributes(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'app'@'127.0.0.1' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant select on performance_schema.threads to 'app'@'127.0.0.1'")
 	session := newTestMySQLSession()
 	session.ctx.SetConnectionID(126)
 	session.SetParamByName("user", "app")
@@ -994,6 +1976,114 @@ func TestPerformanceSchemaThreadsExposeMySQL84ColumnsAndLiveAttributes(t *testin
 	require.Empty(t, filtered.Data.(*SelectResult).Records)
 }
 
+func TestPerformanceSchemaThreadsExposeRuntimeMemoryCounters(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	session := newTestMySQLSession()
+	session.ctx.SetConnectionID(127)
+	session.SetParamByName("user", "app")
+	session.SetParamByName("host", "127.0.0.1")
+	executor.QueryExecutor.metricsRecorder.RecordMemoryAllocation(127, "memory/sql/THD::main_mem_root", 64)
+	executor.QueryExecutor.metricsRecorder.RecordMemoryFree(127, "memory/sql/THD::main_mem_root", 32)
+
+	selectResult := executor.QueryExecutor.executePerformanceSchemaThreadsSelect("select thread_id, controlled_memory, max_controlled_memory, total_memory, max_total_memory from performance_schema.threads", session)
+	rows := selectResultRows(selectResult)
+	require.Equal(t, [][]interface{}{{"127", "32", "64", "32", "64"}}, rows)
+}
+
+func TestPerformanceSchemaThreadsExposeAuthoritativeOSThreadID(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	session := newTestMySQLSession()
+	session.ctx.SetConnectionID(129)
+	session.SetParamByName("user", "app")
+	session.SetParamByName("host", "127.0.0.1")
+	session.SetParamByName("__thread_os_id", int64(4242))
+
+	selectResult := executor.QueryExecutor.executePerformanceSchemaThreadsSelect(
+		"select thread_id, thread_os_id from performance_schema.threads", session,
+	)
+	require.Len(t, selectResult.Records, 1)
+	values := selectResult.Records[0].GetValues()
+	require.Equal(t, int64(129), values[0].Int())
+	require.Equal(t, int64(4242), values[1].Int())
+}
+
+func TestPerformanceSchemaThreadsUpdateControlsCurrentThread(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'app'@'127.0.0.1' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant update on performance_schema.threads to 'app'@'127.0.0.1'")
+	session := newTestMySQLSession()
+	session.ctx.SetConnectionID(128)
+	session.SetParamByName("user", "app")
+	session.SetParamByName("host", "127.0.0.1")
+	executor.QueryExecutor.SetProcesslistProvider(func() []server.MySQLServerSession { return []server.MySQLServerSession{session} })
+
+	result := <-executor.ExecuteQuery(session, "update performance_schema.threads set instrumented='NO', history='NO' where thread_id=128", "")
+	require.NoError(t, result.Err)
+	require.Equal(t, 1, result.AffectedRows)
+	selectResult := executor.QueryExecutor.executePerformanceSchemaThreadsSelect("select thread_id, instrumented, history from performance_schema.threads", session)
+	require.Equal(t, [][]interface{}{{"128", "NO", "NO"}}, selectResultRows(selectResult))
+}
+
+func TestPerformanceSchemaThreadsUpdateRequiresUpdatePrivilege(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'p_s_threads_reader'@'localhost' identified by 'secret'")
+
+	session := newTestMySQLSession()
+	session.ctx.SetConnectionID(129)
+	session.SetParamByName("user", "p_s_threads_reader")
+	session.SetParamByName("host", "localhost")
+	executor.QueryExecutor.SetProcesslistProvider(func() []server.MySQLServerSession { return []server.MySQLServerSession{session} })
+
+	query := "update performance_schema.threads set instrumented='NO' where thread_id=129"
+	result := <-executor.ExecuteQuery(session, query, "")
+	require.Error(t, result.Err)
+	require.Contains(t, strings.ToLower(result.Err.Error()), "lacks update privilege")
+
+	mustExecSQL(t, executor, "", "grant update on performance_schema.threads to 'p_s_threads_reader'@'localhost'")
+	result = <-executor.ExecuteQuery(session, query, "")
+	require.NoError(t, result.Err)
+	require.Equal(t, 1, result.AffectedRows)
+}
+
+func TestPerformanceSchemaThreadsSelectRequiresSelectPrivilege(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'p_s_threads_reader'@'localhost' identified by 'secret'")
+
+	session := newTestMySQLSession()
+	session.ctx.SetConnectionID(130)
+	session.SetParamByName("user", "p_s_threads_reader")
+	session.SetParamByName("host", "localhost")
+	executor.QueryExecutor.SetProcesslistProvider(func() []server.MySQLServerSession { return []server.MySQLServerSession{session} })
+
+	query := "select thread_id from performance_schema.threads where thread_id=130"
+	result := <-executor.ExecuteQuery(session, query, "")
+	require.Error(t, result.Err)
+	require.Contains(t, strings.ToLower(result.Err.Error()), "lacks select privilege")
+
+	mustExecSQL(t, executor, "", "grant select on performance_schema.threads to 'p_s_threads_reader'@'localhost'")
+	result = <-executor.ExecuteQuery(session, query, "")
+	require.NoError(t, result.Err)
+	require.Equal(t, [][]interface{}{{"130"}}, selectResultRows(result.Data.(*SelectResult)))
+}
+
+func TestPerformanceSchemaSelectRequiresSelectPrivilege(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'p_s_select_reader'@'localhost' identified by 'secret'")
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "p_s_select_reader")
+	session.SetParamByName("host", "localhost")
+
+	query := "select name, enabled from performance_schema.setup_consumers where name='events_statements_history_long'"
+	result := <-executor.ExecuteQuery(session, query, "")
+	require.Error(t, result.Err)
+	require.Contains(t, strings.ToLower(result.Err.Error()), "lacks select privilege")
+
+	mustExecSQL(t, executor, "", "grant select on performance_schema.setup_consumers to 'p_s_select_reader'@'localhost'")
+	result = <-executor.ExecuteQuery(session, query, "")
+	require.NoError(t, result.Err)
+	require.Equal(t, [][]interface{}{{"events_statements_history_long", "NO"}}, selectResultRows(result.Data.(*SelectResult)))
+}
+
 func TestPerformanceSchemaSetupTablesAcceptConfigurationUpdates(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 
@@ -1011,10 +2101,82 @@ func TestPerformanceSchemaSetupTablesAcceptConfigurationUpdates(t *testing.T) {
 	result = <-executor.ExecuteQuery(nil, "update performance_schema.setup_instruments set enabled='NO', timed='NO' where name like 'statement/sql/%'", "")
 	require.NoError(t, result.Err)
 	instruments = mustQuerySQL(t, executor, "", "select name, enabled, timed from performance_schema.setup_instruments where name like 'statement/sql/%'")
-	require.Len(t, instruments, 4)
+	require.Len(t, instruments, 5)
 	for _, row := range instruments {
 		require.Equal(t, []interface{}{row[0], "NO", "NO"}, row[:3])
 	}
+}
+
+func TestPerformanceSchemaReplaceInstrumentControlsReplaceSummaries(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	setup := mustQuerySQL(t, executor, "", "select name, enabled, timed from performance_schema.setup_instruments where name='statement/sql/replace'")
+	require.Len(t, setup, 1)
+	require.Equal(t, []interface{}{"statement/sql/replace", "YES", "YES"}, setup[0][:3])
+
+	table := "p_s_replace_1556"
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table "+table+" (id int primary key, value varchar(32))")
+	mustExecSQL(t, executor, "app", "replace into "+table+" (id, value) values (1, 'first')")
+
+	result := mustSelectResultSQL(t, executor, "", "select event_name, count_star from performance_schema.events_statements_summary_global_by_event_name where event_name='statement/sql/replace'")
+	require.Len(t, result.Records, 1)
+	values := result.Records[0].GetValues()
+	initialCount := values[1].Int()
+	require.GreaterOrEqual(t, initialCount, int64(1))
+
+	mustExecSQL(t, executor, "", "update performance_schema.setup_instruments set enabled='NO' where name='statement/sql/replace'")
+	mustExecSQL(t, executor, "app", "replace into "+table+" (id, value) values (1, 'second')")
+	result = mustSelectResultSQL(t, executor, "", "select event_name, count_star from performance_schema.events_statements_summary_global_by_event_name where event_name='statement/sql/replace'")
+	require.Len(t, result.Records, 1)
+	finalCount := result.Records[0].GetValues()[1].Int()
+	require.Equal(t, initialCount, finalCount)
+}
+
+func TestPerformanceSchemaSetupUpdatesRequireUpdatePrivilege(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'p_s_setup_reader'@'localhost' identified by 'secret'")
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "p_s_setup_reader")
+	session.SetParamByName("host", "localhost")
+	query := "update performance_schema.setup_consumers set enabled='NO' where name='events_statements_history_long'"
+
+	result := <-executor.ExecuteQuery(session, query, "")
+	require.Error(t, result.Err)
+	require.Contains(t, strings.ToLower(result.Err.Error()), "lacks update privilege")
+
+	mustExecSQL(t, executor, "", "grant update on performance_schema.setup_consumers to 'p_s_setup_reader'@'localhost'")
+	result = <-executor.ExecuteQuery(session, query, "")
+	require.NoError(t, result.Err)
+	require.Equal(t, 1, result.AffectedRows)
+}
+
+func TestPerformanceSchemaSetupObjectRowMutationsRequireMatchingPrivileges(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'p_s_setup_object_reader'@'localhost' identified by 'secret'")
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "p_s_setup_object_reader")
+	session.SetParamByName("host", "localhost")
+	insert := "insert into performance_schema.setup_objects values ('TABLE', 'app', 'orders', 'NO', 'NO')"
+	result := <-executor.ExecuteQuery(session, insert, "")
+	require.Error(t, result.Err)
+	require.Contains(t, strings.ToLower(result.Err.Error()), "lacks insert privilege")
+
+	mustExecSQL(t, executor, "", "grant insert on performance_schema.setup_objects to 'p_s_setup_object_reader'@'localhost'")
+	result = <-executor.ExecuteQuery(session, insert, "")
+	require.NoError(t, result.Err)
+	require.Equal(t, 1, result.AffectedRows)
+
+	delete := "delete from performance_schema.setup_objects where object_type='TABLE' and object_schema='app' and object_name='orders'"
+	result = <-executor.ExecuteQuery(session, delete, "")
+	require.Error(t, result.Err)
+	require.Contains(t, strings.ToLower(result.Err.Error()), "lacks delete privilege")
+
+	mustExecSQL(t, executor, "", "grant delete on performance_schema.setup_objects to 'p_s_setup_object_reader'@'localhost'")
+	result = <-executor.ExecuteQuery(session, delete, "")
+	require.NoError(t, result.Err)
+	require.Equal(t, 1, result.AffectedRows)
 }
 
 func TestPerformanceSchemaSetupConfigurationControlsEventViews(t *testing.T) {
@@ -1053,6 +2215,232 @@ func TestPerformanceSchemaSetupConfigurationControlsEventViews(t *testing.T) {
 	require.NoError(t, result.Err)
 	actors := mustQuerySQL(t, executor, "", "select host, user, role, enabled, history from performance_schema.setup_actors")
 	require.Equal(t, [][]interface{}{{"%", "%", "%", "NO", "NO"}}, actors)
+}
+
+func TestPerformanceSchemaStatementInstrumentDisablesStatementSummaries(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "update performance_schema.setup_instruments set enabled='NO' where name='statement/sql/select'")
+	enabled, _ := executor.QueryExecutor.performanceSchemaInstrumentSetting("statement/sql/select")
+	require.False(t, enabled)
+
+	session := newTestMySQLSession()
+	session.SetParamByName("connection_id", int64(930))
+	session.SetParamByName("user", "statement_instrument_disabled")
+	session.SetParamByName("host", "127.0.0.1")
+	mustQuerySessionSQL(t, executor, session, "", "select 930001")
+
+	require.False(t, statementHistoryContainsSQL(executor.QueryExecutor, "select 930001"))
+	digestRows := selectResultRows(executor.QueryExecutor.executePerformanceSchemaStatementsSelect(
+		"select schema_name, digest_text, count_star from performance_schema.events_statements_summary_by_digest",
+	))
+	for _, row := range digestRows {
+		if len(row) >= 2 {
+			require.NotEqual(t, "select ?", row[1], "disabled statement instrument must not create a digest row")
+		}
+	}
+}
+
+func TestPerformanceSchemaStatementInstrumentTimedControlsStatementSummaries(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "update performance_schema.setup_instruments set timed='NO' where name='statement/sql/select'")
+	_, timed := executor.QueryExecutor.performanceSchemaInstrumentSetting("statement/sql/select")
+	require.False(t, timed)
+
+	session := newTestMySQLSession()
+	session.SetParamByName("connection_id", int64(931))
+	session.SetParamByName("user", "statement_instrument_untimed")
+	session.SetParamByName("host", "127.0.0.1")
+	mustQuerySessionSQL(t, executor, session, "", "select 931001 as untimed_931001")
+
+	rows := selectResultRows(executor.QueryExecutor.executePerformanceSchemaStatementsSelect(
+		"select digest_text, count_star, sum_timer_wait, avg_timer_wait, max_timer_wait from performance_schema.events_statements_summary_by_digest",
+	))
+	var found bool
+	for _, row := range rows {
+		if len(row) >= 5 && row[0] == "select ? as untimed_931001 from dual" {
+			found = true
+			require.NotEqual(t, "0", row[1])
+			require.Equal(t, "0", row[2])
+			require.Equal(t, "0", row[3])
+			require.Equal(t, "0", row[4])
+		}
+	}
+	require.True(t, found, "untimed statement digest row was not retained: %#v", rows)
+}
+
+func TestPerformanceSchemaStatementHistoryPreservesEventTimedSnapshot(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "update performance_schema.setup_consumers set enabled='YES' where name='events_statements_history_long'")
+	session := newTestMySQLSession()
+	session.SetParamByName("connection_id", int64(9311))
+	session.SetParamByName("user", "statement_history_timed_snapshot")
+	session.SetParamByName("host", "127.0.0.1")
+
+	mustQuerySessionSQL(t, executor, session, "", "select 155601 as timed_snapshot_yes")
+	mustExecSQL(t, executor, "", "update performance_schema.setup_instruments set timed='NO' where name='statement/sql/select'")
+	history := mustSelectResultSQL(t, executor, "", "select sql_text, timer_wait from performance_schema.events_statements_history_long where sql_text='select 155601 as timed_snapshot_yes'")
+	require.Len(t, history.Records, 1)
+	require.Greater(t, history.Records[0].GetValues()[1].Int(), int64(0), "history must retain the event-time TIMED=YES snapshot")
+
+	mustQuerySessionSQL(t, executor, session, "", "select 155602 as timed_snapshot_no")
+	mustExecSQL(t, executor, "", "update performance_schema.setup_instruments set timed='YES' where name='statement/sql/select'")
+	history = mustSelectResultSQL(t, executor, "", "select sql_text, timer_wait from performance_schema.events_statements_history_long where sql_text='select 155602 as timed_snapshot_no'")
+	require.Len(t, history.Records, 1)
+	require.Zero(t, history.Records[0].GetValues()[1].Int(), "history must not retroactively time an event captured with TIMED=NO")
+}
+
+func TestPerformanceSchemaStatementHistoryPreservesEventInstrumentSnapshot(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+	session := newTestMySQLSession()
+	session.SetParamByName("connection_id", int64(9341))
+	session.SetParamByName("user", "statement_history_instrument_snapshot")
+	session.SetParamByName("host", "127.0.0.1")
+
+	mustExecSQL(t, executor, "", "update performance_schema.setup_instruments set enabled='NO' where name='statement/sql/select'")
+	mustQuerySessionSQL(t, executor, session, "", "select 155801 as statement_instrument_disabled")
+	mustExecSQL(t, executor, "", "update performance_schema.setup_instruments set enabled='YES' where name='statement/sql/select'")
+	disabledHistory := mustSelectResultSQL(t, executor, "", "select thread_id, sql_text from performance_schema.events_statements_history_long where thread_id=9341")
+	require.Empty(t, disabledHistory.Records, "statement history must not backfill an event captured while the statement instrument was disabled")
+
+	mustQuerySessionSQL(t, executor, session, "", "select 155802 as statement_history_before_disable")
+	mustExecSQL(t, executor, "", "update performance_schema.setup_instruments set enabled='NO' where name='statement/sql/select'")
+	history := mustSelectResultSQL(t, executor, "", "select thread_id, sql_text from performance_schema.events_statements_history_long where thread_id=9341")
+	require.Len(t, history.Records, 1, "disabling an instrument must not erase already-captured statement history")
+	require.Equal(t, "select 155802 as statement_history_before_disable", history.Records[0].GetValues()[1].String())
+}
+
+func TestPerformanceSchemaStageHistoryPreservesEventInstrumentSnapshot(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+	session := newTestMySQLSession()
+	session.SetParamByName("connection_id", int64(9351))
+	session.SetParamByName("user", "stage_history_instrument_snapshot")
+	session.SetParamByName("host", "127.0.0.1")
+
+	mustExecSQL(t, executor, "", "update performance_schema.setup_instruments set enabled='NO' where name='stage/sql/execute'")
+	mustQuerySessionSQL(t, executor, session, "", "select 155701 as stage_instrument_disabled")
+	mustExecSQL(t, executor, "", "update performance_schema.setup_instruments set enabled='YES' where name='stage/sql/execute'")
+	disabledHistory := mustSelectResultSQL(t, executor, "", "select sql_text from performance_schema.events_statements_history_long where sql_text='select 155701 as stage_instrument_disabled'")
+	require.Len(t, disabledHistory.Records, 1)
+	stageHistory := mustSelectResultSQL(t, executor, "", "select thread_id, event_name from performance_schema.events_stages_history_long where thread_id=9351")
+	require.Empty(t, stageHistory.Records, "stage history must not backfill an event captured while the stage instrument was disabled")
+}
+
+func TestPerformanceSchemaStageHistoryPreservesEventTimedSnapshot(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+	session := newTestMySQLSession()
+	session.SetParamByName("connection_id", int64(9352))
+	session.SetParamByName("user", "stage_history_timed_snapshot")
+	session.SetParamByName("host", "127.0.0.1")
+
+	mustExecSQL(t, executor, "", "update performance_schema.setup_instruments set enabled='YES', timed='YES' where name='stage/sql/execute'")
+	mustQuerySessionSQL(t, executor, session, "", "select 155702 as stage_timed_yes")
+	mustExecSQL(t, executor, "", "update performance_schema.setup_instruments set timed='NO' where name='stage/sql/execute'")
+	stageHistory := mustSelectResultSQL(t, executor, "", "select sql_text, timer_wait from performance_schema.events_statements_history_long where sql_text='select 155702 as stage_timed_yes'")
+	require.Len(t, stageHistory.Records, 1)
+	history := mustSelectResultSQL(t, executor, "", "select thread_id, timer_wait from performance_schema.events_stages_history_long where thread_id=9352")
+	require.Len(t, history.Records, 1)
+	require.Greater(t, history.Records[0].GetValues()[1].Int(), int64(0), "stage history must retain the event-time TIMED=YES snapshot")
+
+	mustExecSQL(t, executor, "", "update performance_schema.setup_instruments set timed='NO' where name='stage/sql/execute'")
+	mustQuerySessionSQL(t, executor, session, "", "select 155703 as stage_timed_no")
+	mustExecSQL(t, executor, "", "update performance_schema.setup_instruments set timed='YES' where name='stage/sql/execute'")
+	history = mustSelectResultSQL(t, executor, "", "select thread_id, timer_wait from performance_schema.events_stages_history_long where thread_id=9352 and event_name='stage/sql/execute'")
+	require.Len(t, history.Records, 2)
+	require.Zero(t, history.Records[1].GetValues()[1].Int(), "stage history must not retroactively time an event captured with TIMED=NO")
+}
+
+func TestPerformanceSchemaStageHistoryRetainsEventsAfterInstrumentDisabled(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+	session := newTestMySQLSession()
+	session.SetParamByName("connection_id", int64(9353))
+	session.SetParamByName("user", "stage_history_instrument_lifetime")
+	session.SetParamByName("host", "127.0.0.1")
+
+	mustQuerySessionSQL(t, executor, session, "", "select 155704 as stage_history_before_disable")
+	mustExecSQL(t, executor, "", "update performance_schema.setup_instruments set enabled='NO' where name='stage/sql/execute'")
+	history := mustSelectResultSQL(t, executor, "", "select thread_id, event_name from performance_schema.events_stages_history_long where thread_id=9353")
+	require.Len(t, history.Records, 1, "disabling an instrument must not erase already-captured stage history")
+}
+
+func TestPerformanceSchemaStageInstrumentDoesNotBackfillDisabledEvents(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+	executor.QueryExecutor.metricsRecorder.ResetStatementStageSummary()
+
+	_, handled, err := executor.QueryExecutor.executePerformanceSchemaSetupUpdate(
+		"update performance_schema.setup_instruments set enabled='NO' where name='stage/sql/execute'",
+	)
+	require.True(t, handled)
+	require.NoError(t, err)
+
+	session := newTestMySQLSession()
+	session.SetParamByName("connection_id", int64(932))
+	session.SetParamByName("user", "stage_instrument_disabled")
+	session.SetParamByName("host", "127.0.0.1")
+	mustQuerySessionSQL(t, executor, session, "", "select 932001 as stage_disabled_932001")
+
+	_, handled, err = executor.QueryExecutor.executePerformanceSchemaSetupUpdate(
+		"update performance_schema.setup_instruments set enabled='YES' where name='stage/sql/execute'",
+	)
+	require.True(t, handled)
+	require.NoError(t, err)
+	rows := selectResultRows(executor.QueryExecutor.executePerformanceSchemaStageSummarySelect(
+		"select event_name, count_star from performance_schema.events_stages_summary_global_by_event_name where event_name='stage/sql/execute'", false,
+	))
+	require.Equal(t, [][]interface{}{{"stage/sql/execute", "0"}}, rows)
+}
+
+func TestPerformanceSchemaStageInstrumentTimedControlsStageSummaries(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+	executor.QueryExecutor.metricsRecorder.ResetStatementStageSummary()
+
+	_, handled, err := executor.QueryExecutor.executePerformanceSchemaSetupUpdate(
+		"update performance_schema.setup_instruments set enabled='YES', timed='NO' where name='stage/sql/execute'",
+	)
+	require.True(t, handled)
+	require.NoError(t, err)
+
+	session := newTestMySQLSession()
+	session.SetParamByName("connection_id", int64(933))
+	session.SetParamByName("user", "stage_instrument_untimed")
+	session.SetParamByName("host", "127.0.0.1")
+	mustQuerySessionSQL(t, executor, session, "", "select 933001 as stage_untimed_933001")
+
+	_, handled, err = executor.QueryExecutor.executePerformanceSchemaSetupUpdate(
+		"update performance_schema.setup_instruments set timed='YES' where name='stage/sql/execute'",
+	)
+	require.True(t, handled)
+	require.NoError(t, err)
+	rows := selectResultRows(executor.QueryExecutor.executePerformanceSchemaStageSummarySelect(
+		"select event_name, count_star, sum_timer_wait from performance_schema.events_stages_summary_global_by_event_name where event_name='stage/sql/execute'", false,
+	))
+	require.Equal(t, [][]interface{}{{"stage/sql/execute", "1", "0"}}, rows)
+}
+
+func TestPerformanceSchemaSetupActorsControlStageInstrumentation(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+	mustExecSQL(t, executor, "", "update performance_schema.setup_actors set enabled='NO', history='NO' where host='%' and user='%' and role='%'")
+	executor.QueryExecutor.metricsRecorder.ResetStatementStageSummary()
+	executor.QueryExecutor.metricsRecorder.ResetStageHistory()
+
+	session := newTestMySQLSession()
+	session.SetParamByName("connection_id", int64(9361))
+	session.SetParamByName("user", "stage_actor_disabled")
+	session.SetParamByName("host", "127.0.0.1")
+	mustQuerySessionSQL(t, executor, session, "", "select 155901 as stage_actor_disabled")
+
+	rows := selectResultRows(executor.QueryExecutor.executePerformanceSchemaStageSummarySelect(
+		"select event_name, count_star from performance_schema.events_stages_summary_global_by_event_name where event_name='stage/sql/execute'", false,
+	))
+	require.Equal(t, [][]interface{}{{"stage/sql/execute", "0"}}, rows)
+	history := mustSelectResultSQL(t, executor, "", "select thread_id from performance_schema.events_stages_history_long where thread_id=9361")
+	require.Empty(t, history.Records, "actor-disabled statements must not create stage history")
 }
 
 func TestPerformanceSchemaSetupActorsControlNewForegroundThreads(t *testing.T) {
@@ -1112,6 +2500,36 @@ func TestPerformanceSchemaSetupActorsControlNewForegroundThreads(t *testing.T) {
 		}
 	}
 	require.True(t, digestFound, "history-disabled statement was not retained in digest summary: %#v", digestRows)
+}
+
+func TestPerformanceSchemaSetupActorsSupportsMultipleRulesAndLifecycle(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+
+	mustExecSQL(t, executor, "", "update performance_schema.setup_actors set enabled='NO', history='NO' where host='%' and user='%' and role='%'")
+	mustExecSQL(t, executor, "", "insert into performance_schema.setup_actors (host, user, role, enabled, history) values ('127.0.0.1', 'actor_specific', '%', 'YES', 'YES')")
+
+	actors := mustQuerySQL(t, executor, "", "select host, user, role, enabled, history from performance_schema.setup_actors")
+	require.Equal(t, [][]interface{}{
+		[]interface{}{"%", "%", "%", "NO", "NO"},
+		[]interface{}{"127.0.0.1", "actor_specific", "%", "YES", "YES"},
+	}, actors)
+
+	specific := newTestMySQLSession()
+	specific.SetParamByName("connection_id", int64(991))
+	specific.SetParamByName("user", "actor_specific")
+	specific.SetParamByName("host", "127.0.0.1")
+	mustQuerySessionSQL(t, executor, specific, "", "select 991001")
+	threadRows := selectResultRows(executor.QueryExecutor.executePerformanceSchemaThreadsSelect(
+		"select thread_id, instrumented, history from performance_schema.threads", specific,
+	))
+	require.Equal(t, [][]interface{}{{"991", "YES", "YES"}}, threadRows)
+
+	mustExecSQL(t, executor, "", "delete from performance_schema.setup_actors where host='127.0.0.1' and user='actor_specific'")
+	remaining := mustQuerySQL(t, executor, "", "select host, user, role from performance_schema.setup_actors")
+	require.Equal(t, [][]interface{}{{"%", "%", "%", "NO", "NO"}}, remaining)
+
+	mustExecSQL(t, executor, "", "truncate table performance_schema.setup_actors")
+	require.Empty(t, mustQuerySQL(t, executor, "", "select host, user, role from performance_schema.setup_actors"))
 }
 
 func TestPerformanceSchemaSetupConsumersControlStatementInstrumentation(t *testing.T) {
@@ -1174,6 +2592,7 @@ func TestPerformanceSchemaSetupConsumersGateWaitAndTransactionInstrumentation(t 
 	require.Error(t, locks.AcquireLock(2, 920, 1, 1, manager.LOCK_X))
 
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
 	executor.QueryExecutor.SetLockManager(locks)
 	_, handled, err := executor.QueryExecutor.executePerformanceSchemaSetupUpdate(
 		"update performance_schema.setup_consumers set enabled='NO' where name='global_instrumentation'",
@@ -1268,6 +2687,7 @@ func TestPerformanceSchemaWaitInstrumentSettingsControlWaitViews(t *testing.T) {
 	require.Error(t, locks.AcquireLock(2, 77, 1, 13, manager.LOCK_X))
 
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
 	executor.QueryExecutor.SetLockManager(locks)
 	setup := mustQuerySQL(t, executor, "", "select name, enabled, timed from performance_schema.setup_instruments where name like 'wait/lock/%'")
 	var handlerSetup, metadataSetup bool
@@ -1330,6 +2750,7 @@ func TestPerformanceSchemaWaitEventsProjectLifecycleTimers(t *testing.T) {
 	require.Error(t, locks.AcquireLock(2, 79, 1, 15, manager.LOCK_X))
 
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
 	executor.QueryExecutor.SetLockManager(locks)
 	current := mustSelectResultSQL(t, executor, "", "select thread_id, event_id, end_event_id, timer_start, timer_end, timer_wait from performance_schema.events_waits_current")
 	require.Len(t, current.Records, 1)
@@ -1355,6 +2776,76 @@ func TestPerformanceSchemaWaitEventsProjectLifecycleTimers(t *testing.T) {
 	require.Greater(t, historyStart, int64(0))
 	require.Greater(t, historyEnd, historyStart)
 	require.Equal(t, historyEnd-historyStart, historyWait)
+}
+
+func TestPerformanceSchemaWaitHistoryPreservesEventInstrumentSnapshot(t *testing.T) {
+	locks := manager.NewLockManager()
+	defer locks.Close()
+	require.NoError(t, locks.AcquireLock(1, 795, 1, 15, manager.LOCK_X))
+	require.Error(t, locks.AcquireLock(2, 795, 1, 15, manager.LOCK_X))
+	time.Sleep(2 * time.Millisecond)
+	locks.ReleaseLocks(1)
+	locks.ReleaseLocks(2)
+
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+	executor.QueryExecutor.SetLockManager(locks)
+
+	mustExecSQL(t, executor, "", "update performance_schema.setup_instruments set timed='NO' where name='wait/lock/table/sql/handler'")
+	history := mustSelectResultSQL(t, executor, "", "select event_name, timer_wait from performance_schema.events_waits_history_long where event_name='wait/lock/table/sql/handler'")
+	require.Len(t, history.Records, 1)
+	require.Greater(t, history.Records[0].GetValues()[1].Int(), int64(0), "wait history must retain the event-time TIMED=YES snapshot")
+	summary := mustSelectResultSQL(t, executor, "", "select event_name, count_star, sum_timer_wait from performance_schema.events_waits_summary_global_by_event_name where event_name='wait/lock/table/sql/handler'")
+	require.Len(t, summary.Records, 1)
+	require.Greater(t, summary.Records[0].GetValues()[2].Int(), int64(0), "wait summary must retain the event-time TIMED=YES snapshot")
+	tableSummary := mustSelectResultSQL(t, executor, "", "select object_name, count_star, sum_timer_wait from performance_schema.table_lock_waits_summary_by_table where object_name='795_1_15'")
+	require.Len(t, tableSummary.Records, 1)
+	require.Equal(t, "795_1_15", tableSummary.Records[0].GetValues()[0].String())
+	require.Equal(t, int64(1), tableSummary.Records[0].GetValues()[1].Int())
+	require.Greater(t, tableSummary.Records[0].GetValues()[2].Int(), int64(0), "table-lock summary must retain the event-time TIMED=YES snapshot")
+
+	mustExecSQL(t, executor, "", "update performance_schema.setup_instruments set enabled='NO' where name='wait/lock/table/sql/handler'")
+	history = mustSelectResultSQL(t, executor, "", "select event_name, timer_wait from performance_schema.events_waits_history_long where event_name='wait/lock/table/sql/handler'")
+	require.Len(t, history.Records, 1, "disabling an instrument must not erase already-captured wait history")
+	summary = mustSelectResultSQL(t, executor, "", "select event_name, count_star from performance_schema.events_waits_summary_global_by_event_name where event_name='wait/lock/table/sql/handler'")
+	require.Equal(t, [][]interface{}{{"wait/lock/table/sql/handler", "1"}}, selectResultRows(summary), "disabling an instrument must not erase its completed wait summary")
+	tableSummary = mustSelectResultSQL(t, executor, "", "select object_name, count_star from performance_schema.table_lock_waits_summary_by_table where object_name='795_1_15'")
+	require.Equal(t, [][]interface{}{{"795_1_15", "1"}}, selectResultRows(tableSummary), "disabling an instrument must not erase its completed table-lock summary")
+}
+
+func TestPerformanceSchemaWaitHistoryIsScopedToCurrentThread(t *testing.T) {
+	locks := manager.NewLockManager()
+	defer locks.Close()
+	require.NoError(t, locks.AcquireLock(1, 80, 1, 16, manager.LOCK_X))
+	require.Error(t, locks.AcquireLock(402, 80, 1, 16, manager.LOCK_X))
+	require.NoError(t, locks.AcquireLock(3, 81, 1, 17, manager.LOCK_X))
+	require.Error(t, locks.AcquireLock(404, 81, 1, 17, manager.LOCK_X))
+	locks.ReleaseLocks(1)
+	locks.ReleaseLocks(3)
+	defer locks.ReleaseLocks(402)
+	defer locks.ReleaseLocks(404)
+
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+	executor.QueryExecutor.SetLockManager(locks)
+	first := newTestMySQLSession()
+	first.ctx.SetConnectionID(402)
+	second := newTestMySQLSession()
+	second.ctx.SetConnectionID(404)
+
+	result := mustSelectResultSessionSQL(t, executor, first, "", "select thread_id, event_name from performance_schema.events_waits_history")
+	rows := selectResultRows(result)
+	require.NotEmpty(t, rows)
+	for _, row := range rows {
+		require.Equal(t, "402", row[0], "events_waits_history must be scoped to the current thread")
+	}
+
+	other := mustSelectResultSessionSQL(t, executor, second, "", "select thread_id, event_name from performance_schema.events_waits_history")
+	otherRows := selectResultRows(other)
+	require.NotEmpty(t, otherRows)
+	for _, row := range otherRows {
+		require.Equal(t, "404", row[0], "events_waits_history must be scoped to the current thread")
+	}
 }
 
 func TestPerformanceSchemaTransactionCurrentReflectsSessionState(t *testing.T) {
@@ -1386,6 +2877,70 @@ func TestPerformanceSchemaTransactionCurrentAppliesProjection(t *testing.T) {
 	selectResult := result.Data.(*SelectResult)
 	require.Equal(t, []string{"THREAD_ID", "STATE"}, selectResult.Columns)
 	require.Equal(t, [][]interface{}{{"716", "ACTIVE"}}, selectResultRows(selectResult))
+}
+
+func TestPerformanceSchemaTransactionCurrentProjectsSessionTransactionID(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	session := newTestMySQLSession()
+	session.SetParamByName("connection_id", int64(718))
+	session.SetParamByName("transaction_id", int64(991))
+	mustExecSessionSQL(t, executor, session, "app", "begin")
+
+	result := executor.QueryExecutor.executePerformanceSchemaTransactionsSelect(
+		"select thread_id, trx_id, state from performance_schema.events_transactions_current where thread_id=718",
+		session,
+		"performance_schema.events_transactions_current",
+	)
+	require.Len(t, result.Records, 1)
+	values := result.Records[0].GetValues()
+	require.Equal(t, int64(718), values[0].Int())
+	require.Equal(t, int64(991), values[1].Int())
+	require.Equal(t, "ACTIVE", values[2].String())
+
+	mustExecSessionSQL(t, executor, session, "app", "commit")
+	history := executor.QueryExecutor.executePerformanceSchemaTransactionsSelect(
+		"select thread_id, trx_id, state from performance_schema.events_transactions_history where thread_id=718",
+		session,
+		"performance_schema.events_transactions_history",
+	)
+	require.Len(t, history.Records, 1)
+	historyValues := history.Records[0].GetValues()
+	require.Equal(t, int64(718), historyValues[0].Int())
+	require.Equal(t, int64(991), historyValues[1].Int())
+	require.Equal(t, "COMMITTED", historyValues[2].String())
+}
+
+func TestPerformanceSchemaTransactionProjectsXAIdentity(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	session := newTestMySQLSession()
+	session.SetParamByName("connection_id", int64(719))
+
+	mustExecSessionSQL(t, executor, session, "app", "XA START 'global-xid','branch-xid',17")
+	current := executor.QueryExecutor.executePerformanceSchemaTransactionsSelect(
+		"select xid_format, xid_gtrid, xid_bqual, timer_start from performance_schema.events_transactions_current where thread_id=719",
+		session,
+		"performance_schema.events_transactions_current",
+	)
+	require.Len(t, current.Records, 1)
+	currentValues := current.Records[0].GetValues()
+	require.Equal(t, int64(17), currentValues[0].Int())
+	require.Equal(t, []byte("global-xid"), currentValues[1].Raw())
+	require.Equal(t, []byte("branch-xid"), currentValues[2].Raw())
+	require.Greater(t, currentValues[3].Int(), int64(0))
+
+	mustExecSessionSQL(t, executor, session, "app", "XA END 'global-xid','branch-xid',17")
+	mustExecSessionSQL(t, executor, session, "app", "XA PREPARE 'global-xid','branch-xid',17")
+	mustExecSessionSQL(t, executor, session, "app", "XA COMMIT 'global-xid','branch-xid',17")
+	history := executor.QueryExecutor.executePerformanceSchemaTransactionsSelect(
+		"select xid_format, xid_gtrid, xid_bqual from performance_schema.events_transactions_history where thread_id=719",
+		session,
+		"performance_schema.events_transactions_history",
+	)
+	require.Len(t, history.Records, 1)
+	historyValues := history.Records[0].GetValues()
+	require.Equal(t, int64(17), historyValues[0].Int())
+	require.Equal(t, []byte("global-xid"), historyValues[1].Raw())
+	require.Equal(t, []byte("branch-xid"), historyValues[2].Raw())
 }
 
 func TestPerformanceSchemaTransactionEventsProjectLifecycleTimers(t *testing.T) {
@@ -1432,14 +2987,14 @@ func TestPerformanceSchemaTransactionAccessModeReflectsReadOnlyState(t *testing.
 	require.NoError(t, current.Err)
 	currentRows := selectResultRows(current.Data.(*SelectResult))
 	require.Len(t, currentRows, 1)
-	require.Equal(t, "READ ONLY", currentRows[0][13])
+	require.Equal(t, "READ ONLY", currentRows[0][15])
 
 	mustExecSessionSQL(t, executor, session, "app", "commit")
 	history := <-executor.ExecuteQuery(session, "select * from performance_schema.events_transactions_history", "app")
 	require.NoError(t, history.Err)
 	historyRows := selectResultRows(history.Data.(*SelectResult))
 	require.Len(t, historyRows, 1)
-	require.Equal(t, "READ ONLY", historyRows[0][13])
+	require.Equal(t, "READ ONLY", historyRows[0][15])
 }
 
 func TestPerformanceSchemaTransactionHistoryReflectsCommitAndRollback(t *testing.T) {
@@ -1458,14 +3013,15 @@ func TestPerformanceSchemaTransactionHistoryReflectsCommitAndRollback(t *testing
 	require.Len(t, rows, 2)
 	require.Equal(t, "COMMITTED", rows[0][4])
 	require.Equal(t, "transaction", rows[0][3])
-	require.Equal(t, "REPEATABLE READ", rows[0][14])
+	require.Equal(t, "REPEATABLE READ", rows[0][16])
 	require.Equal(t, "ROLLED BACK", rows[1][4])
 	require.Equal(t, "transaction", rows[1][3])
-	require.Equal(t, "REPEATABLE READ", rows[1][14])
+	require.Equal(t, "REPEATABLE READ", rows[1][16])
 }
 
 func TestPerformanceSchemaTransactionHistoryLongAggregatesSessions(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
 	first := newTestMySQLSession()
 	first.SetParamByName("connection_id", int64(701))
 	second := newTestMySQLSession()
@@ -1484,6 +3040,50 @@ func TestPerformanceSchemaTransactionHistoryLongAggregatesSessions(t *testing.T)
 	globalResult := <-executor.ExecuteQuery(nil, "select thread_id, state from performance_schema.events_transactions_history_long", "")
 	require.NoError(t, globalResult.Err)
 	require.Equal(t, rows, selectResultRows(globalResult.Data.(*SelectResult)))
+}
+
+func TestPerformanceSchemaTransactionInstrumentIsRegisteredAndGatesHistory(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+
+	setup := mustQuerySQL(t, executor, "", "select name, enabled, timed from performance_schema.setup_instruments where name='transaction'")
+	require.Len(t, setup, 1)
+	require.Equal(t, []interface{}{"transaction", "YES", "YES"}, setup[0][:3])
+	enabled, timed := executor.QueryExecutor.performanceSchemaInstrumentSetting("transaction")
+	require.True(t, enabled)
+	require.True(t, timed)
+	require.True(t, executor.QueryExecutor.performanceSchemaConsumerEnabled("events_transactions_history_long"))
+
+	first := newTestMySQLSession()
+	first.SetParamByName("connection_id", int64(721))
+	mustExecSessionSQL(t, executor, first, "app", "begin")
+	mustExecSessionSQL(t, executor, first, "app", "commit")
+	before := mustQuerySQL(t, executor, "", "select thread_id, state from performance_schema.events_transactions_history_long")
+	require.NotEmpty(t, before)
+
+	update := <-executor.ExecuteQuery(nil, "update performance_schema.setup_instruments set enabled='NO' where name='transaction'", "")
+	require.NoError(t, update.Err)
+	require.Equal(t, 1, update.AffectedRows)
+	second := newTestMySQLSession()
+	second.SetParamByName("connection_id", int64(722))
+	mustExecSessionSQL(t, executor, second, "app", "begin")
+	mustExecSessionSQL(t, executor, second, "app", "commit")
+	after := mustQuerySQL(t, executor, "", "select thread_id, state from performance_schema.events_transactions_history_long")
+	require.Equal(t, before, after)
+
+	update = <-executor.ExecuteQuery(nil, "update performance_schema.setup_instruments set enabled='YES', timed='NO' where name='transaction'", "")
+	require.NoError(t, update.Err)
+	require.Equal(t, 1, update.AffectedRows)
+	third := newTestMySQLSession()
+	third.SetParamByName("connection_id", int64(723))
+	mustExecSessionSQL(t, executor, third, "app", "begin")
+	mustExecSessionSQL(t, executor, third, "app", "commit")
+	timedOff := mustQuerySQL(t, executor, "", "select thread_id, state, timer_start, timer_end, timer_wait from performance_schema.events_transactions_history_long where thread_id=723")
+	require.Len(t, timedOff, 1)
+	require.Equal(t, "COMMITTED", timedOff[0][1])
+	require.Nil(t, timedOff[0][2])
+	require.Nil(t, timedOff[0][3])
+	require.Nil(t, timedOff[0][4])
 }
 
 func TestPerformanceSchemaTransactionHistoryTracksSavepointCounters(t *testing.T) {
@@ -1515,12 +3115,15 @@ func TestPerformanceSchemaLockWaitViewsExposeWaitGraph(t *testing.T) {
 	require.True(t, waiting)
 
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
 	executor.QueryExecutor.SetLockManager(locks)
 	waitResult := <-executor.ExecuteQuery(nil, "select requesting_engine_transaction_id, blocking_engine_transaction_id, requesting_lock_id, blocking_lock_id from performance_schema.data_lock_waits", "")
 	require.NoError(t, waitResult.Err)
 	waits, ok := waitResult.Data.(*SelectResult)
 	require.True(t, ok)
-	require.Equal(t, [][]interface{}{{"2", "1", "7_1_9", "7_1_9"}}, selectResultRows(waits))
+	require.Equal(t, [][]interface{}{{"2", "1", "7_1_9:2", "7_1_9:1"}}, selectResultRows(waits))
+	qualifiedIDs := mustSelectResultSQL(t, executor, "", "select requesting_engine_lock_id, blocking_engine_lock_id from performance_schema.data_lock_waits")
+	require.Equal(t, [][]interface{}{{"7_1_9:2", "7_1_9:1"}}, selectResultRows(qualifiedIDs))
 	current := mustQuerySQL(t, executor, "", "select thread_id, event_name, object_name, operation from performance_schema.events_waits_current")
 	require.NotEmpty(t, current)
 	require.Contains(t, current[0][1], "wait/lock")
@@ -1532,6 +3135,17 @@ func TestPerformanceSchemaLockWaitViewsExposeWaitGraph(t *testing.T) {
 	history = mustQuerySQL(t, executor, "", "select thread_id, event_name, object_name, operation from performance_schema.events_waits_history")
 	require.NotEmpty(t, history)
 	require.Contains(t, history[0][1], "wait/lock")
+}
+
+func TestPerformanceSchemaDataLocksExposeGrantedRecordLocks(t *testing.T) {
+	locks := manager.NewLockManager()
+	defer locks.Close()
+	require.NoError(t, locks.AcquireLock(1, 8, 1, 10, manager.LOCK_X))
+
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.SetLockManager(locks)
+	result := mustSelectResultSQL(t, executor, "", "select engine_lock_id, engine_transaction_id, lock_type, lock_mode, lock_status from performance_schema.data_locks")
+	require.Equal(t, [][]interface{}{{"8_1_10:1", "1", "RECORD", "X", "GRANTED"}}, selectResultRows(result))
 }
 
 func TestPerformanceSchemaWaitSummariesAggregateCurrentWaits(t *testing.T) {
@@ -1554,6 +3168,48 @@ func TestPerformanceSchemaWaitSummariesAggregateCurrentWaits(t *testing.T) {
 	locks.ReleaseLocks(2)
 	historySummary := mustSelectResultSQL(t, executor, "", "select event_name, count_star from performance_schema.events_waits_summary_global_by_event_name")
 	require.Equal(t, [][]interface{}{{"wait/lock/table/sql/handler", "1"}}, selectResultRows(historySummary))
+}
+
+func TestPerformanceSchemaWaitAccountSummaryTruncateIsolated(t *testing.T) {
+	locks := manager.NewLockManager()
+	defer locks.Close()
+	require.NoError(t, locks.AcquireLock(1, 1313, 1, 1, manager.LOCK_X))
+	require.Error(t, locks.AcquireLock(2, 1313, 1, 1, manager.LOCK_X))
+	locks.ReleaseLocks(1)
+	locks.ReleaseLocks(2)
+
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	waitingSession := newTestMySQLSession()
+	waitingSession.SetParamByName("connection_id", int64(2))
+	waitingSession.SetParamByName("user", "wait_account_user")
+	waitingSession.SetParamByName("host", "wait-account.example")
+	executor.QueryExecutor.SetProcesslistProvider(func() []server.MySQLServerSession {
+		return []server.MySQLServerSession{waitingSession}
+	})
+	executor.QueryExecutor.SetLockManager(locks)
+
+	accountBefore := executor.QueryExecutor.executePerformanceSchemaWaitSummaryRegistrySelect(
+		"select user, host, event_name, count_star from performance_schema.events_waits_summary_by_account_by_event_name",
+		"account",
+	)
+	require.Equal(t, [][]interface{}{{"wait_account_user", "wait-account.example", "wait/lock/table/sql/handler", "1"}}, selectResultRows(accountBefore))
+
+	truncateStmt, err := sqlparser.Parse("truncate table performance_schema.events_waits_summary_by_account_by_event_name")
+	require.NoError(t, err)
+	ddlResults := make(chan *Result, 1)
+	executor.QueryExecutor.executeDDL(truncateStmt.(*sqlparser.DDL), nil, "", ddlResults)
+	require.NoError(t, (<-ddlResults).Err)
+
+	accountAfter := executor.QueryExecutor.executePerformanceSchemaWaitSummaryRegistrySelect(
+		"select user, host, event_name, count_star from performance_schema.events_waits_summary_by_account_by_event_name",
+		"account",
+	)
+	require.Equal(t, [][]interface{}{{"wait_account_user", "wait-account.example", "wait/lock/table/sql/handler", "0"}}, selectResultRows(accountAfter))
+	globalAfter := executor.QueryExecutor.executePerformanceSchemaWaitSummarySelect(
+		"select event_name, count_star from performance_schema.events_waits_summary_global_by_event_name",
+		false,
+	)
+	require.Equal(t, [][]interface{}{{"wait/lock/table/sql/handler", "1"}}, selectResultRows(globalAfter))
 }
 
 func TestPerformanceSchemaWaitSummaryRetainsLifetimeTotalsBeyondHistory(t *testing.T) {
@@ -1646,6 +3302,178 @@ func TestPerformanceSchemaTableLockSummaryAggregatesCurrentWaits(t *testing.T) {
 	locks.ReleaseLocks(2)
 }
 
+func TestPerformanceSchemaTableLockSummaryTruncateIsIndependent(t *testing.T) {
+	locks := manager.NewLockManager()
+	defer locks.Close()
+	require.NoError(t, locks.AcquireLock(1, 9, 1, 11, manager.LOCK_X))
+	require.Error(t, locks.AcquireLock(2, 9, 1, 11, manager.LOCK_X))
+
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.SetLockManager(locks)
+
+	before := selectResultRows(mustSelectResultSQL(t, executor, "", "select object_name, count_star from performance_schema.table_lock_waits_summary_by_table"))
+	require.Len(t, before, 1)
+	require.Equal(t, "9_1_11", before[0][0])
+	require.Equal(t, "1", before[0][1])
+
+	waitsBefore := selectResultRows(mustSelectResultSQL(t, executor, "", "select object_name, count_star from performance_schema.events_waits_summary_global_by_event_name where event_name='wait/lock/table/sql/handler'"))
+	require.Len(t, waitsBefore, 1)
+	require.Equal(t, "1", waitsBefore[0][1])
+	locks.ReleaseLocks(1)
+	locks.ReleaseLocks(2)
+
+	mustExecSQL(t, executor, "", "truncate table performance_schema.table_lock_waits_summary_by_table")
+
+	after := selectResultRows(mustSelectResultSQL(t, executor, "", "select object_name, count_star from performance_schema.table_lock_waits_summary_by_table"))
+	require.Len(t, after, 1)
+	require.Equal(t, "9_1_11", after[0][0])
+	require.Equal(t, "0", after[0][1])
+
+	waitsAfter := selectResultRows(mustSelectResultSQL(t, executor, "", "select object_name, count_star from performance_schema.events_waits_summary_global_by_event_name where event_name='wait/lock/table/sql/handler'"))
+	require.Len(t, waitsAfter, 1)
+	require.Equal(t, "1", waitsAfter[0][1])
+}
+
+func TestPerformanceSchemaMemorySummaryTruncateResetsBaseline(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	recorder := executor.QueryExecutor.metricsRecorder
+	recorder.RecordMemoryAllocation(777, "memory/test/truncate", 64)
+	recorder.RecordMemoryFree(777, "memory/test/truncate", 64)
+
+	before := recorder.MemorySummary()
+	var found bool
+	for _, row := range before {
+		if row.ThreadID == 777 && row.EventName == "memory/test/truncate" {
+			require.Equal(t, int64(1), row.CountAlloc)
+			require.Equal(t, int64(1), row.CountFree)
+			require.Equal(t, int64(0), row.CurrentCountUsed)
+			require.Equal(t, int64(1), row.HighCountUsed)
+			found = true
+		}
+	}
+	require.True(t, found)
+
+	mustExecSQL(t, executor, "", "truncate table performance_schema.memory_summary_global_by_event_name")
+
+	after := recorder.MemorySummary()
+	for _, row := range after {
+		if row.ThreadID == 777 && row.EventName == "memory/test/truncate" {
+			require.Equal(t, int64(0), row.CountAlloc)
+			require.Equal(t, int64(0), row.CountFree)
+			require.Equal(t, int64(0), row.CurrentCountUsed)
+			require.Equal(t, int64(0), row.HighCountUsed)
+			require.Equal(t, int64(0), row.LowCountUsed)
+			return
+		}
+	}
+	t.Fatal("memory summary row disappeared after truncate")
+}
+
+func TestPerformanceSchemaMemorySummaryConnectionTruncateResetsDependentDimensions(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	current := newTestMySQLSession()
+	current.SetParamByName("connection_id", int64(991))
+	current.SessionContext().SetConnectionID(991)
+	current.SetParamByName("user", "memory_current_user")
+	current.SetParamByName("host", "memory-current.example")
+	executor.QueryExecutor.SetProcesslistProvider(func() []server.MySQLServerSession {
+		return []server.MySQLServerSession{current}
+	})
+	recorder := executor.QueryExecutor.metricsRecorder
+	recorder.RecordMemoryAllocationWithIdentity(991, "memory_current_user", "memory-current.example", "memory/test/connection-truncate", 64)
+	recorder.RecordMemoryAllocationWithIdentity(991, "memory_current_user", "memory-current.example", "memory/test/connection-truncate", 32)
+	recorder.RecordMemoryFreeWithIdentity(991, "memory_current_user", "memory-current.example", "memory/test/connection-truncate", 32)
+	recorder.RecordMemoryAllocationWithIdentity(992, "memory_historical_user", "memory-historical.example", "memory/test/connection-truncate", 128)
+
+	mustExecSessionSQL(t, executor, current, "", "truncate table performance_schema.accounts")
+
+	rows := recorder.MemorySummary()
+	seen := map[int64]bool{}
+	for _, row := range rows {
+		if row.EventName != "memory/test/connection-truncate" {
+			continue
+		}
+		seen[row.ThreadID] = true
+		require.Equal(t, int64(0), row.CountAlloc, "thread %d allocation baseline", row.ThreadID)
+		require.Equal(t, int64(0), row.CountFree, "thread %d free baseline", row.ThreadID)
+		require.Equal(t, int64(1), row.CurrentCountUsed, "thread %d current allocation", row.ThreadID)
+	}
+	require.True(t, seen[991])
+	require.True(t, seen[992])
+
+	accountRows := selectResultRows(mustSelectResultSessionSQL(t, executor, current, "", "select user, host, event_name, count_alloc, current_count_used from performance_schema.memory_summary_by_account_by_event_name where user='memory_current_user' and host='memory-current.example' and event_name='memory/test/connection-truncate'"))
+	require.Equal(t, [][]interface{}{{"memory_current_user", "memory-current.example", "memory/test/connection-truncate", "0", "1"}}, accountRows)
+	hostRows := selectResultRows(mustSelectResultSessionSQL(t, executor, current, "", "select host, event_name, count_alloc, current_count_used from performance_schema.memory_summary_by_host_by_event_name where host='memory-historical.example' and event_name='memory/test/connection-truncate'"))
+	require.Equal(t, [][]interface{}{{"memory-historical.example", "memory/test/connection-truncate", "1", "1"}}, hostRows)
+	userRows := selectResultRows(mustSelectResultSessionSQL(t, executor, current, "", "select user, event_name, count_alloc, current_count_used from performance_schema.memory_summary_by_user_by_event_name where user='memory_historical_user' and event_name='memory/test/connection-truncate'"))
+	require.Equal(t, [][]interface{}{{"memory_historical_user", "memory/test/connection-truncate", "1", "1"}}, userRows)
+}
+
+func TestPerformanceSchemaFileSummaryTruncateResetsRows(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	recorder := executor.QueryExecutor.metricsRecorder
+	fileName := "data/ps-file-truncate.ibd"
+	recorder.RecordFileOpen(fileName)
+	recorder.RecordFileRead(fileName, 2*time.Millisecond)
+
+	before := recorder.FileSummary()
+	var found bool
+	for _, row := range before {
+		if row.FileName == filepath.Clean(fileName) {
+			require.Equal(t, int64(1), row.CountRead)
+			require.Equal(t, int64(1), row.OpenCount)
+			found = true
+		}
+	}
+	require.True(t, found)
+
+	mustExecSQL(t, executor, "", "truncate table performance_schema.file_summary_by_event_name")
+
+	after := recorder.FileSummary()
+	for _, row := range after {
+		if row.FileName == filepath.Clean(fileName) {
+			require.Equal(t, int64(0), row.CountRead)
+			require.Equal(t, int64(0), row.SumTimerRead)
+			require.Equal(t, int64(1), row.OpenCount)
+			return
+		}
+	}
+	t.Fatal("file summary row disappeared after truncate")
+}
+
+func TestPerformanceSchemaSocketSummaryTruncateResetsRows(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	previousRecorder := executor.QueryExecutor.metricsRecorder
+	executor.QueryExecutor.metricsRecorder = metrics.NewRuntimeRecorder(metrics.NewRegistry())
+	t.Cleanup(func() { executor.QueryExecutor.metricsRecorder = previousRecorder })
+	recorder := executor.QueryExecutor.metricsRecorder
+	session := newTestMySQLSession()
+	session.SetParamByName("connection_id", int64(778))
+	recorder.RecordSocketRead(778, 128, 3*time.Millisecond)
+	recorder.RecordSocketWrite(778, 256, 5*time.Millisecond)
+
+	before := recorder.SocketSummary()
+	require.Len(t, before, 1)
+	require.Equal(t, int64(1), before[0].CountRead)
+	require.Equal(t, int64(1), before[0].CountWrite)
+	require.Equal(t, int64(128), before[0].BytesRead)
+	require.Equal(t, int64(256), before[0].BytesWrite)
+
+	mustExecSQL(t, executor, "", "truncate table performance_schema.socket_summary_by_event_name")
+
+	after := recorder.SocketSummary()
+	require.Len(t, after, 1)
+	require.Equal(t, int64(778), after[0].ThreadID)
+	require.Equal(t, int64(0), after[0].CountRead)
+	require.Equal(t, int64(0), after[0].CountWrite)
+	require.Equal(t, int64(0), after[0].BytesRead)
+	require.Equal(t, int64(0), after[0].BytesWrite)
+
+	result := <-executor.ExecuteQuery(session, "select event_name, count_star, count_read, count_write from performance_schema.socket_summary_by_event_name", "")
+	require.NoError(t, result.Err)
+	require.Equal(t, [][]interface{}{{"wait/io/socket/sql/client_connection", "0", "0", "0"}}, selectResultRows(result.Data.(*SelectResult)))
+}
+
 func TestPerformanceSchemaTableHandlesExposeExplicitTableLocks(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	owner := newTestMySQLSession()
@@ -1715,6 +3543,30 @@ func TestPerformanceSchemaObjectsSummaryFiltersCurrentWaitObjects(t *testing.T) 
 	locks.ReleaseLocks(2)
 }
 
+func TestPerformanceSchemaObjectsSummaryUsesCompletedWaitsAndTruncateResetsCounters(t *testing.T) {
+	locks := manager.NewLockManager()
+	defer locks.Close()
+	require.NoError(t, locks.AcquireLock(1, 91, 1, 14, manager.LOCK_X))
+	require.Error(t, locks.AcquireLock(2, 91, 1, 14, manager.LOCK_X))
+	locks.ReleaseLocks(1)
+	locks.ReleaseLocks(2)
+	require.NoError(t, locks.AcquireLock(3, 91, 1, 14, manager.LOCK_X))
+	require.Error(t, locks.AcquireLock(4, 91, 1, 14, manager.LOCK_X))
+	locks.ReleaseLocks(3)
+
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.SetLockManager(locks)
+	before := selectResultRows(mustSelectResultSQL(t, executor, "", "select object_type, object_name, count_star, sum_timer_wait from performance_schema.objects_summary_global_by_type where object_name = '91_1_14'"))
+	require.Len(t, before, 1)
+	require.Equal(t, "2", before[0][2])
+
+	mustExecSQL(t, executor, "", "truncate table performance_schema.objects_summary_global_by_type")
+	after := selectResultRows(mustSelectResultSQL(t, executor, "", "select object_name, count_star, sum_timer_wait from performance_schema.objects_summary_global_by_type where object_name = '91_1_14'"))
+	require.Len(t, after, 1)
+	require.Equal(t, "0", after[0][1])
+	require.Equal(t, "0", after[0][2])
+}
+
 func TestPerformanceSchemaTableIOSummaryProjectsRecentTableAccess(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	targetTable := fmt.Sprintf("ps_io_%d", time.Now().UnixNano())
@@ -1737,6 +3589,44 @@ func TestPerformanceSchemaTableIOSummaryProjectsRecentTableAccess(t *testing.T) 
 	require.Empty(t, wrongCount.Records)
 	wrongReadCount := mustSelectResultSQL(t, executor, "", "select object_name from performance_schema.table_io_waits_summary_by_table where object_name = '"+targetTable+"' and count_read = 999")
 	require.Empty(t, wrongReadCount.Records)
+}
+
+func TestPerformanceSchemaSetupObjectsControlsTableIOSummaryProjection(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	targetTable := fmt.Sprintf("ps_setup_object_io_%d", time.Now().UnixNano())
+
+	result := <-executor.ExecuteQuery(nil, "insert into performance_schema.setup_objects (object_type, object_schema, object_name, enabled, timed) values ('TABLE', 'app', '"+targetTable+"', 'NO', 'NO')", "")
+	require.NoError(t, result.Err)
+	executor.QueryExecutor.metricsRecorder.RecordStatement("app", "select id from app."+targetTable, "SELECT", "ok", 2*time.Millisecond)
+	rows := mustSelectResultSQL(t, executor, "", "select object_name from performance_schema.table_io_waits_summary_by_table where object_name='"+targetTable+"'")
+	require.Empty(t, rows.Records, "disabled setup_objects rows must not be exposed in table I/O summaries")
+
+	result = <-executor.ExecuteQuery(nil, "update performance_schema.setup_objects set enabled='YES', timed='NO' where object_type='TABLE' and object_schema='app' and object_name='"+targetTable+"'", "")
+	require.NoError(t, result.Err)
+	executor.QueryExecutor.metricsRecorder.RecordStatement("app", "select id from app."+targetTable, "SELECT", "ok", 3*time.Millisecond)
+	rows = mustSelectResultSQL(t, executor, "", "select object_name, count_star, sum_timer_wait from performance_schema.table_io_waits_summary_by_table where object_name='"+targetTable+"'")
+	require.Len(t, rows.Records, 1)
+	values := rows.Records[0].GetValues()
+	require.Equal(t, targetTable, values[0].String())
+	require.Equal(t, int64(2), values[1].Int())
+	require.Zero(t, values[2].Int(), "TIMED=NO must preserve table I/O counts but omit timer values")
+}
+
+func TestPerformanceSchemaTableIOSummaryRetainsLifetimeTotalsBeyondHistory(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	targetTable := fmt.Sprintf("ps_io_lifetime_%d", time.Now().UnixNano())
+	const executions = 300
+	for i := 0; i < executions; i++ {
+		executor.QueryExecutor.metricsRecorder.RecordStatement(
+			"app", "select id from app."+targetTable, "SELECT", "ok", time.Millisecond,
+		)
+	}
+	rows := selectResultRows(mustSelectResultSQL(t, executor, "", "select object_name, count_star, count_read, count_fetch from performance_schema.table_io_waits_summary_by_table where object_name = '"+targetTable+"'"))
+	require.Len(t, rows, 1)
+	require.Equal(t, targetTable, rows[0][0])
+	require.Equal(t, fmt.Sprint(executions), rows[0][1])
+	require.Equal(t, fmt.Sprint(executions), rows[0][2])
+	require.Equal(t, fmt.Sprint(executions), rows[0][3])
 }
 
 func TestPerformanceSchemaThreadMemoryAndTimerViewsExposeCompatibilityRows(t *testing.T) {
@@ -1817,8 +3707,14 @@ func TestPerformanceSchemaAuxiliaryInstanceAndHostViewsAreQueryable(t *testing.T
 	hostRows := selectResultRows(hostSelect)
 	require.NotEmpty(t, hostRows)
 	require.Equal(t, "YES", hostRows[0][2])
-	counts := mustSelectResultSQL(t, executor, "", "select ip, host, sum_connect_errors, count_authentication_errors from performance_schema.host_cache where ip = '127.0.0.1'")
-	require.Equal(t, [][]interface{}{{"127.0.0.1", "127.0.0.1", "2", "2"}}, selectResultRows(counts))
+	counts := mustSelectResultSQL(t, executor, "", "select ip, host, sum_connect_errors, count_authentication_errors, first_error_seen, last_error_seen from performance_schema.host_cache where ip = '127.0.0.1'")
+	require.Len(t, counts.Records, 1)
+	require.Equal(t, "127.0.0.1", counts.Records[0].GetValues()[0].String())
+	require.Equal(t, "127.0.0.1", counts.Records[0].GetValues()[1].String())
+	require.Equal(t, int64(2), counts.Records[0].GetValues()[2].Int())
+	require.Equal(t, int64(2), counts.Records[0].GetValues()[3].Int())
+	require.NotEmpty(t, counts.Records[0].GetValues()[4].String())
+	require.NotEmpty(t, counts.Records[0].GetValues()[5].String())
 	wrongCount := mustSelectResultSQL(t, executor, "", "select ip from performance_schema.host_cache where ip = '127.0.0.1' and sum_connect_errors = 999999")
 	require.Empty(t, wrongCount.Records)
 	for _, view := range []string{"mutex_instances", "rwlock_instances", "objects_summary_global_by_type"} {
@@ -1868,9 +3764,32 @@ func TestPerformanceSchemaRegistryCoversMySQL84VirtualTables(t *testing.T) {
 		require.NotNil(t, result, tableName)
 		require.NotEmpty(t, result.Columns, tableName)
 	}
+	compression := mustSelectResultSQL(t, executor, "", "select * from performance_schema.binary_log_transaction_compression_stats")
+	require.Equal(t, []string{
+		"LOG_TYPE", "COMPRESSION_TYPE", "TRANSACTION_COUNTER", "COMPRESSED_BYTES_COUNTER", "UNCOMPRESSED_BYTES_COUNTER",
+		"COMPRESSION_PERCENTAGE", "FIRST_TRANSACTION_ID", "FIRST_TRANSACTION_COMPRESSED_BYTES", "FIRST_TRANSACTION_UNCOMPRESSED_BYTES", "FIRST_TRANSACTION_TIMESTAMP",
+		"LAST_TRANSACTION_ID", "LAST_TRANSACTION_COMPRESSED_BYTES", "LAST_TRANSACTION_UNCOMPRESSED_BYTES", "LAST_TRANSACTION_TIMESTAMP",
+	}, compression.Columns)
 
 	attrs := mustSelectResultSQL(t, executor, "", "select processlist_id, attr_name, attr_value, ordinal_position from performance_schema.session_account_connect_attrs")
 	require.Equal(t, []string{"PROCESSLIST_ID", "ATTR_NAME", "ATTR_VALUE", "ORDINAL_POSITION"}, attrs.Columns)
+	scheduler := mustSelectResultSQL(t, executor, "", "select * from performance_schema.component_scheduler_tasks")
+	require.Equal(t, []string{"NAME", "STATUS", "COMMENT", "INTERVAL_SECONDS", "TIMES_RUN", "TIMES_FAILED"}, scheduler.Columns)
+	require.Empty(t, scheduler.Records, "the Enterprise scheduler component is not present in this server")
+	cloneStatus := mustSelectResultSQL(t, executor, "", "select * from performance_schema.clone_status")
+	require.Equal(t, []string{
+		"ID", "PID", "STATE", "BEGIN_TIME", "END_TIME", "SOURCE", "DESTINATION",
+		"ERROR_NO", "ERROR_MESSAGE", "BINLOG_FILE", "BINLOG_POSITION", "GTID_EXECUTED",
+	}, cloneStatus.Columns)
+	require.Empty(t, cloneStatus.Records, "the Clone plugin is not present in this server")
+	cloneProgress := mustSelectResultSQL(t, executor, "", "select * from performance_schema.clone_progress")
+	require.Equal(t, []string{
+		"ID", "STAGE", "STATE", "BEGIN_TIME", "END_TIME", "THREADS", "ESTIMATE", "DATA",
+		"NETWORK", "DATA_SPEED", "NETWORK_SPEED",
+	}, cloneProgress.Columns)
+	require.Empty(t, cloneProgress.Records, "the Clone plugin is not present in this server")
+	errors := mustSelectResultSQL(t, executor, "", "select * from performance_schema.events_errors_summary_global_by_error")
+	require.Equal(t, []string{"ERROR_NUMBER", "ERROR_NAME", "SQL_STATE", "SUM_ERROR_RAISED", "SUM_ERROR_HANDLED", "FIRST_SEEN", "LAST_SEEN"}, errors.Columns)
 	statements := mustSelectResultSQL(t, executor, "", "select thread_id, event_name, count_star from performance_schema.events_statements_summary_by_thread_by_event_name")
 	require.Equal(t, []string{"THREAD_ID", "EVENT_NAME", "COUNT_STAR"}, statements.Columns)
 }
@@ -1897,19 +3816,49 @@ func TestPerformanceSchemaRegistryUsesMySQL84SummaryAndInstanceShapes(t *testing
 		"OBJECT_TYPE", "OBJECT_SCHEMA", "OBJECT_NAME", "COUNT_STAR", "SUM_TIMER_WAIT", "MIN_TIMER_WAIT", "AVG_TIMER_WAIT", "MAX_TIMER_WAIT",
 		"COUNT_READ", "SUM_TIMER_READ", "MIN_TIMER_READ", "AVG_TIMER_READ", "MAX_TIMER_READ",
 		"COUNT_WRITE", "SUM_TIMER_WRITE", "MIN_TIMER_WRITE", "AVG_TIMER_WRITE", "MAX_TIMER_WRITE",
-		"COUNT_MISC", "SUM_TIMER_MISC", "MIN_TIMER_MISC", "AVG_TIMER_MISC", "MAX_TIMER_MISC",
+		"COUNT_READ_NORMAL", "SUM_TIMER_READ_NORMAL", "MIN_TIMER_READ_NORMAL", "AVG_TIMER_READ_NORMAL", "MAX_TIMER_READ_NORMAL",
+		"COUNT_READ_WITH_SHARED_LOCKS", "SUM_TIMER_READ_WITH_SHARED_LOCKS", "MIN_TIMER_READ_WITH_SHARED_LOCKS", "AVG_TIMER_READ_WITH_SHARED_LOCKS", "MAX_TIMER_READ_WITH_SHARED_LOCKS",
+		"COUNT_READ_HIGH_PRIORITY", "SUM_TIMER_READ_HIGH_PRIORITY", "MIN_TIMER_READ_HIGH_PRIORITY", "AVG_TIMER_READ_HIGH_PRIORITY", "MAX_TIMER_READ_HIGH_PRIORITY",
+		"COUNT_READ_NO_INSERT", "SUM_TIMER_READ_NO_INSERT", "MIN_TIMER_READ_NO_INSERT", "AVG_TIMER_READ_NO_INSERT", "MAX_TIMER_READ_NO_INSERT",
+		"COUNT_READ_EXTERNAL", "SUM_TIMER_READ_EXTERNAL", "MIN_TIMER_READ_EXTERNAL", "AVG_TIMER_READ_EXTERNAL", "MAX_TIMER_READ_EXTERNAL",
+		"COUNT_WRITE_ALLOW_WRITE", "SUM_TIMER_WRITE_ALLOW_WRITE", "MIN_TIMER_WRITE_ALLOW_WRITE", "AVG_TIMER_WRITE_ALLOW_WRITE", "MAX_TIMER_WRITE_ALLOW_WRITE",
+		"COUNT_WRITE_CONCURRENT_INSERT", "SUM_TIMER_WRITE_CONCURRENT_INSERT", "MIN_TIMER_WRITE_CONCURRENT_INSERT", "AVG_TIMER_WRITE_CONCURRENT_INSERT", "MAX_TIMER_WRITE_CONCURRENT_INSERT",
+		"COUNT_WRITE_LOW_PRIORITY", "SUM_TIMER_WRITE_LOW_PRIORITY", "MIN_TIMER_WRITE_LOW_PRIORITY", "AVG_TIMER_WRITE_LOW_PRIORITY", "MAX_TIMER_WRITE_LOW_PRIORITY",
+		"COUNT_WRITE_NORMAL", "SUM_TIMER_WRITE_NORMAL", "MIN_TIMER_WRITE_NORMAL", "AVG_TIMER_WRITE_NORMAL", "MAX_TIMER_WRITE_NORMAL",
+		"COUNT_WRITE_EXTERNAL", "SUM_TIMER_WRITE_EXTERNAL", "MIN_TIMER_WRITE_EXTERNAL", "AVG_TIMER_WRITE_EXTERNAL", "MAX_TIMER_WRITE_EXTERNAL",
 	}, lock.Columns)
+
+	for _, table := range []string{"events_waits_current", "events_waits_history", "events_waits_history_long"} {
+		waits := mustSelectResultSQL(t, executor, "", "select * from performance_schema."+table)
+		require.Equal(t, []string{
+			"THREAD_ID", "EVENT_ID", "END_EVENT_ID", "EVENT_NAME", "SOURCE", "TIMER_START", "TIMER_END", "TIMER_WAIT", "SPINS",
+			"OBJECT_SCHEMA", "OBJECT_NAME", "INDEX_NAME", "OBJECT_TYPE", "OBJECT_INSTANCE_BEGIN", "NESTING_EVENT_ID", "NESTING_EVENT_TYPE",
+			"OPERATION", "NUMBER_OF_BYTES", "FLAGS",
+		}, waits.Columns, table)
+	}
 
 	mutex := mustSelectResultSQL(t, executor, "", "select * from performance_schema.mutex_instances")
 	require.Equal(t, []string{"NAME", "OBJECT_INSTANCE_BEGIN", "LOCKED_BY_THREAD_ID"}, mutex.Columns)
 	hosts := mustSelectResultSQL(t, executor, "", "select * from performance_schema.hosts")
-	require.Equal(t, []string{"HOST", "CURRENT_CONNECTIONS", "TOTAL_CONNECTIONS", "MAX_SESSION_CONTROLLED_MEMORY", "MAX_SESSION_TOTAL_MEMORY", "SUM_CONNECTIONS"}, hosts.Columns)
+	require.Equal(t, []string{"HOST", "CURRENT_CONNECTIONS", "TOTAL_CONNECTIONS", "MAX_SESSION_CONTROLLED_MEMORY", "MAX_SESSION_TOTAL_MEMORY"}, hosts.Columns)
 }
 
 func TestPerformanceSchemaTLSChannelStatusUsesMySQL84Shape(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	result := mustSelectResultSQL(t, executor, "", "select * from performance_schema.tls_channel_status")
 	require.Equal(t, []string{"CHANNEL", "PROPERTY", "VALUE"}, result.Columns)
+}
+
+func TestPerformanceSchemaThreadPoolConnectionsUsesMySQL84Shape(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	result := mustSelectResultSQL(t, executor, "", "select * from performance_schema.tp_connections")
+	require.Equal(t, []string{
+		"CONNECTION_ID", "TP_GROUP_ID", "TP_PROCESSING_THREAD_NUMBER", "THREAD_ID", "STATE",
+		"ACTIVE_FLAG", "KILLED_STATE", "CLEANUP_STATE", "TIME_OF_LAST_EVENT_COMPLETION",
+		"TIME_OF_EXPIRY", "TIME_OF_ADD", "TIME_OF_POP", "TIME_OF_ARM", "CONNECT_HANDLER_INDEX",
+		"TYPE", "DIRECT_QUERY_EVENTS", "QUEUED_QUERY_EVENTS", "TIME_OF_EVENT_ARRIVAL", "MANAGEMENT_TIME",
+	}, result.Columns)
+	require.Empty(t, result.Records, "the Enterprise Thread Pool runtime is not present in this server")
 }
 
 func TestPerformanceSchemaTLSChannelStatusProjectsSessionTLSProperties(t *testing.T) {
@@ -1998,6 +3947,27 @@ func TestPerformanceSchemaTelemetrySetupTablesExposeMySQL84Shapes(t *testing.T) 
 	require.Equal(t, [][]interface{}{{"debug"}}, selectResultRows(updatedLogger))
 }
 
+func TestPerformanceSchemaStatementsDigestConsumerIsRegisteredAndGatesSummary(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+
+	consumer := mustQuerySQL(t, executor, "", "select name, enabled from performance_schema.setup_consumers where name='statements_digest'")
+	require.Equal(t, [][]interface{}{{"statements_digest", "YES"}}, consumer)
+
+	result := <-executor.ExecuteQuery(nil, "select 7", "digest_consumer_app")
+	require.NoError(t, result.Err)
+	before := mustQuerySQL(t, executor, "", "select schema_name, count_star from performance_schema.events_statements_summary_by_digest where schema_name='digest_consumer_app'")
+	require.NotEmpty(t, before)
+
+	update := <-executor.ExecuteQuery(nil, "update performance_schema.setup_consumers set enabled='NO' where name='statements_digest'", "")
+	require.NoError(t, update.Err)
+	result = <-executor.ExecuteQuery(nil, "select 8", "digest_consumer_app")
+	require.NoError(t, result.Err)
+	after := mustQuerySQL(t, executor, "", "select schema_name, count_star from performance_schema.events_statements_summary_by_digest where schema_name='digest_consumer_app'")
+	require.Empty(t, after)
+	consumer = mustQuerySQL(t, executor, "", "select name, enabled from performance_schema.setup_consumers where name='statements_digest'")
+	require.Equal(t, [][]interface{}{{"statements_digest", "NO"}}, consumer)
+}
+
 func TestPerformanceSchemaStageSummaryAggregatesCompletedStatements(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	result := <-executor.ExecuteQuery(nil, "select 11", "app")
@@ -2056,29 +4026,83 @@ func TestPerformanceSchemaReplicationViewsExposeRuntimeState(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	executor.QueryExecutor.SetReplicationStatusProvider(func() replication.StatusSnapshot {
 		return replication.StatusSnapshot{
-			Role:           replication.RoleReplica,
-			SourceURL:      "http://source:8080",
-			ExecutedGTIDs:  "source-1:1-4",
-			ReplicaRunning: true,
+			Role:               replication.RoleReplica,
+			SourceURL:          "http://source:8080",
+			SourceUUID:         "00112233-4455-6677-8899-aabbccddeeff",
+			ExecutedGTIDs:      "source-1:1-4",
+			ReplicaRunning:     true,
+			ReceivedHeartbeats: 2,
+			LastHeartbeatAt:    time.Date(2026, 9, 27, 12, 34, 56, 0, time.UTC),
+			LastError:          "ERROR 1236 (HY000): source stopped",
+			LastErrorNumber:    1236,
+			LastErrorAt:        time.Date(2026, 9, 27, 12, 35, 7, 0, time.UTC),
 		}
 	})
-	status := mustSelectResultSQL(t, executor, "", "select channel_name, service_state, received_transaction_set, applied_transaction_set from performance_schema.replication_applier_status")
+	status := mustSelectResultSQL(t, executor, "", "select channel_name, service_state, remaining_delay, count_transactions_retries from performance_schema.replication_applier_status")
 	require.Len(t, status.Records, 1)
-	require.Equal(t, []string{"CHANNEL_NAME", "SERVICE_STATE", "RECEIVED_TRANSACTION_SET", "APPLIED_TRANSACTION_SET"}, status.Columns)
+	require.Equal(t, []string{"CHANNEL_NAME", "SERVICE_STATE", "REMAINING_DELAY", "COUNT_TRANSACTIONS_RETRIES"}, status.Columns)
 	require.Equal(t, "ON", status.Records[0].GetValues()[1].String())
-	require.Equal(t, "source-1:1-4", status.Records[0].GetValues()[2].String())
+	require.Nil(t, status.Records[0].GetValues()[2].Raw())
+	require.Equal(t, int64(0), status.Records[0].GetValues()[3].Int())
+	applierConfig := mustSelectResultSQL(t, executor, "", "select channel_name, desired_delay, privilege_checks_user, require_row_format, require_table_primary_key_check, assign_gtids_to_anonymous_transactions_type, assign_gtids_to_anonymous_transactions_value from performance_schema.replication_applier_configuration")
+	require.Equal(t, [][]interface{}{{"", "0", "", "NO", "STREAM", "OFF", ""}}, selectResultRows(applierConfig))
 	filteredStatus := mustSelectResultSQL(t, executor, "", "select channel_name, service_state from performance_schema.replication_applier_status where channel_name = 'missing-channel'")
 	require.Empty(t, filteredStatus.Records)
 	configuration := mustSelectResultSQL(t, executor, "", "select channel_name, host, auto_position from performance_schema.replication_connection_configuration")
 	require.Len(t, configuration.Records, 1)
 	require.Equal(t, "http://source:8080", configuration.Records[0].GetValues()[1].String())
-	require.Equal(t, "ON", configuration.Records[0].GetValues()[2].String())
+	require.Equal(t, "1", configuration.Records[0].GetValues()[2].String())
+	connection := mustSelectResultSQL(t, executor, "", "select source_uuid, count_received_heartbeats, last_heartbeat_timestamp, last_error_number, last_error_message, last_error_timestamp from performance_schema.replication_connection_status")
+	require.Equal(t, "00112233-4455-6677-8899-aabbccddeeff", connection.Records[0].GetValues()[0].String())
+	require.Equal(t, int64(2), connection.Records[0].GetValues()[1].Int())
+	require.Equal(t, "2026-09-27 12:34:56", connection.Records[0].GetValues()[2].String())
+	require.Equal(t, int64(1236), connection.Records[0].GetValues()[3].Int())
+	require.Equal(t, "ERROR 1236 (HY000): source stopped", connection.Records[0].GetValues()[4].String())
+	require.Equal(t, "2026-09-27 12:35:07", connection.Records[0].GetValues()[5].String())
 	filteredConfiguration := mustSelectResultSQL(t, executor, "", "select channel_name, host from performance_schema.replication_connection_configuration where host = 'other-source'")
 	require.Empty(t, filteredConfiguration.Records)
 }
 
+func TestPerformanceSchemaNativeConnectionConfigurationProjectsMySQLFields(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.SetReplicationStatusProvider(func() replication.StatusSnapshot {
+		return replication.StatusSnapshot{
+			Role:               replication.RoleReplica,
+			SourceURL:          "mysql://source.example:3307/mysql",
+			SourceUser:         "repl",
+			SourceAutoPosition: true,
+			ReplicaRunning:     true,
+		}
+	})
+
+	result := mustSelectResultSQL(t, executor, "", "select host, port, user, auto_position, ssl_allowed from performance_schema.replication_connection_configuration")
+	require.Equal(t, []string{"HOST", "PORT", "USER", "AUTO_POSITION", "SSL_ALLOWED"}, result.Columns)
+	require.Equal(t, [][]interface{}{{"source.example", "3307", "repl", "1", "NO"}}, selectResultRows(result))
+}
+
+func TestPerformanceSchemaNativeConnectionConfigurationProjectsTLSAllowed(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.SetReplicationStatusProvider(func() replication.StatusSnapshot {
+		return replication.StatusSnapshot{
+			Role:               replication.RoleReplica,
+			SourceURL:          "mysql://source.example:3307/?ssl=true&ssl_verify_server_cert=true&ssl_ca=ca.pem&ssl_cert=client.pem&ssl_key=client.key&connect_retry=7&connect_retry_count=3&heartbeat_interval=30.5&compression_algorithm=zstd&zstd_compression_level=3",
+			SourceUser:         "repl",
+			SourceAutoPosition: true,
+			ReplicaRunning:     true,
+		}
+	})
+
+	result := mustSelectResultSQL(t, executor, "", "select host, ssl_allowed, ssl_verify_server_certificate, ssl_ca_file, ssl_certificate, ssl_key, connection_retry_interval, connection_retry_count, heartbeat_interval, compression_algorithm, zstd_compression_level from performance_schema.replication_connection_configuration")
+	require.Equal(t, [][]interface{}{{"source.example", "YES", "1", "ca.pem", "client.pem", "client.key", "7", "3", "30.5", "zstd", "3"}}, selectResultRows(result))
+}
+
 func TestPerformanceSchemaReplicationExtendedViewsProjectRuntimeState(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	source, err := replication.NewSource(t.TempDir(), "log-status", 17)
+	require.NoError(t, err)
+	_, err = source.AppendCommitted([]replication.Statement{{Database: "app", SQL: "insert into docs values (1)"}})
+	require.NoError(t, err)
+	executor.QueryExecutor.SetReplicationSourceProvider(func() *replication.Source { return source })
 	executor.QueryExecutor.SetReplicationStatusProvider(func() replication.StatusSnapshot {
 		return replication.StatusSnapshot{
 			Role:           replication.RoleReplica,
@@ -2090,18 +4114,55 @@ func TestPerformanceSchemaReplicationExtendedViewsProjectRuntimeState(t *testing
 		}
 	})
 
-	failover := mustSelectResultSQL(t, executor, "", "select channel_name, host, port, managed from performance_schema.replication_asynchronous_connection_failover")
+	failover := mustSelectResultSQL(t, executor, "", "select channel_name, host, port, managed_name from performance_schema.replication_asynchronous_connection_failover")
 	require.Len(t, failover.Records, 1)
 	require.Equal(t, "source.example", failover.Records[0].GetValues()[1].String())
 	require.Equal(t, "8080", failover.Records[0].GetValues()[2].String())
-	require.Equal(t, "OFF", failover.Records[0].GetValues()[3].String())
+	require.Equal(t, "", failover.Records[0].GetValues()[3].String())
 	filteredFailover := mustSelectResultSQL(t, executor, "", "select channel_name, host from performance_schema.replication_asynchronous_connection_failover where host = 'other-source'")
 	require.Empty(t, filteredFailover.Records)
+	managedFailover := mustSelectResultSQL(t, executor, "", "select * from performance_schema.replication_asynchronous_connection_failover_managed")
+	require.Empty(t, managedFailover.Records)
 
-	logStatus := mustSelectResultSQL(t, executor, "", "select server_uuid, local, relay_log, binlog_summary from performance_schema.log_status")
+	admin := newTestMySQLSession()
+	admin.SetParamByName("global_privileges", []common.PrivilegeType{})
+	admin.SetParamByName("dynamic_privileges", []string{"BACKUP_ADMIN"})
+	logStatusResult := <-executor.ExecuteQuery(admin, "select server_uuid, local, replication, storage_engines from performance_schema.log_status", "")
+	require.NoError(t, logStatusResult.Err)
+	logStatus, ok := logStatusResult.Data.(*SelectResult)
+	require.True(t, ok)
+	require.Equal(t, []string{"SERVER_UUID", "LOCAL", "REPLICATION", "STORAGE_ENGINES"}, logStatus.Columns)
 	require.Len(t, logStatus.Records, 1)
 	require.Equal(t, "replica-uuid", logStatus.Records[0].GetValues()[0].String())
+	localFile, localPosition := source.NativeCurrentFilePosition()
+	localJSON := logStatus.Records[0].GetValues()[1].String()
+	require.Contains(t, localJSON, localFile)
+	require.Contains(t, localJSON, fmt.Sprintf("%d", localPosition))
 	require.Contains(t, logStatus.Records[0].GetValues()[1].String(), "source-uuid:1-4")
+	require.Equal(t, `{"channels":[]}`, logStatus.Records[0].GetValues()[2].String())
+	require.Equal(t, "{}", logStatus.Records[0].GetValues()[3].String())
+	deniedLogStatus := <-executor.ExecuteQuery(newTestMySQLSession(), "select * from performance_schema.log_status", "")
+	require.ErrorContains(t, deniedLogStatus.Err, "BACKUP_ADMIN")
+	truncated := <-executor.ExecuteQuery(nil, "truncate table performance_schema.binary_log_transaction_compression_stats", "")
+	require.NoError(t, truncated.Err, truncated.Message)
+	deniedTruncate := <-executor.ExecuteQuery(nil, "truncate table performance_schema.log_status", "")
+	require.ErrorContains(t, deniedTruncate.Err, "not permitted", deniedTruncate.Message)
+}
+
+func TestPerformanceSchemaGroupReplicationViewsExposeNativeShapesWithoutRuntime(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	expected := map[string][]string{
+		"replication_group_communication_information": {"WRITE_CONCURRENCY", "PROTOCOL_VERSION", "WRITE_CONSENSUS_LEADERS_PREFERRED", "WRITE_CONSENSUS_LEADERS_ACTUAL", "WRITE_CONSENSUS_SINGLE_LEADER_CAPABLE", "MEMBER_FAILURE_SUSPICIONS_COUNT"},
+		"replication_group_configuration_version":     {"NAME", "VERSION"},
+		"replication_group_member_actions":            {"NAME", "EVENT", "ENABLED", "TYPE", "PRIORITY", "ERROR_HANDLING"},
+		"replication_group_member_stats":              {"CHANNEL_NAME", "VIEW_ID", "MEMBER_ID", "COUNT_TRANSACTIONS_IN_QUEUE", "COUNT_TRANSACTIONS_CHECKED", "COUNT_CONFLICTS_DETECTED", "COUNT_TRANSACTIONS_ROWS_VALIDATING", "TRANSACTIONS_COMMITTED_ALL_MEMBERS", "LAST_CONFLICT_FREE_TRANSACTION", "COUNT_TRANSACTIONS_REMOTE_IN_APPLIER_QUEUE", "COUNT_TRANSACTIONS_REMOTE_APPLIED", "COUNT_TRANSACTIONS_LOCAL_PROPOSED", "COUNT_TRANSACTIONS_LOCAL_ROLLBACK"},
+		"replication_group_members":                   {"CHANNEL_NAME", "MEMBER_ID", "MEMBER_HOST", "MEMBER_PORT", "MEMBER_STATE", "MEMBER_ROLE", "MEMBER_VERSION", "MEMBER_COMMUNICATION_STACK"},
+	}
+	for table, columns := range expected {
+		result := mustSelectResultSQL(t, executor, "", "select * from performance_schema."+table)
+		require.Equal(t, columns, result.Columns, table)
+		require.Empty(t, result.Records, table)
+	}
 }
 
 func TestPerformanceSchemaReplicationApplierWorkerViewsProjectSingleThreadedRuntime(t *testing.T) {
@@ -2126,6 +4187,10 @@ func TestPerformanceSchemaReplicationApplierWorkerViewsProjectSingleThreadedRunt
 
 func TestPerformanceSchemaSessionRuntimeViewsExposeVariablesAndUserVariables(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	// This test asserts the fresh session's status dimensions. Keep the
+	// process-wide production recorder from leaking identities from earlier
+	// package tests into the fixture.
+	executor.QueryExecutor.metricsRecorder = metrics.NewRuntimeRecorder(metrics.NewRegistry())
 	session := newTestMySQLSession()
 	session.SetParamByName("connection_id", int64(812))
 	session.SetParamByName("user", "alice")
@@ -2211,6 +4276,44 @@ func TestPerformanceSchemaSessionStatusRetainsLifetimeCommandTotalsBeyondHistory
 		"performance_schema.session_status", "select variable_name, variable_value from performance_schema.session_status where variable_name='Queries'", session,
 	)
 	require.Equal(t, [][]interface{}{{"Queries", fmt.Sprint(executions)}}, selectResultRows(sessionStatus))
+}
+
+func TestPerformanceSchemaStatusRegistryRetainsDisconnectedIdentitySummaries(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.metricsRecorder = metrics.NewRuntimeRecorder(metrics.NewRegistry())
+	recorder := executor.QueryExecutor.metricsRecorder
+	const user = "disconnected_status_user"
+	const host = "disconnected_status_host"
+	recorder.RecordConnection(user, host)
+	for i := 0; i < 3; i++ {
+		recorder.RecordStatementWithThreadIDAndIdentityAndAccounting(
+			816, user, host, "status_lifetime_app", "select disconnected_status_test", "SELECT", "ok", time.Millisecond, 0, 0, 0,
+		)
+	}
+
+	// No process-list provider and no current session means the client has
+	// disconnected. The lifetime summary must still be visible, while the
+	// live connection gauge must be zero.
+	result := executor.QueryExecutor.executePerformanceSchemaSessionRuntimeRegistrySelect(
+		"select user, host, variable_name, variable_value from performance_schema.status_by_account where user='disconnected_status_user' and host='disconnected_status_host' and variable_name in ('Threads_connected', 'Queries', 'Com_select')",
+		"status_by_account", nil,
+	)
+	rows := selectResultRows(result)
+	require.Contains(t, rows, []interface{}{user, host, "Queries", "3"})
+	require.Contains(t, rows, []interface{}{user, host, "Com_select", "3"})
+	require.Contains(t, rows, []interface{}{user, host, "Threads_connected", "0"})
+
+	hostResult := executor.QueryExecutor.executePerformanceSchemaSessionRuntimeRegistrySelect(
+		"select host, variable_name, variable_value from performance_schema.status_by_host where host='disconnected_status_host' and variable_name='Queries'",
+		"status_by_host", nil,
+	)
+	require.Equal(t, [][]interface{}{{host, "Queries", "3"}}, selectResultRows(hostResult))
+
+	userResult := executor.QueryExecutor.executePerformanceSchemaSessionRuntimeRegistrySelect(
+		"select user, variable_name, variable_value from performance_schema.status_by_user where user='disconnected_status_user' and variable_name='Com_select'",
+		"status_by_user", nil,
+	)
+	require.Equal(t, [][]interface{}{{user, "Com_select", "3"}}, selectResultRows(userResult))
 }
 
 func TestPerformanceSchemaVariablesInfoProjectsSystemVariableDefinitions(t *testing.T) {
@@ -2337,6 +4440,56 @@ func TestPerformanceSchemaPreparedStatementsExposeLiveSessionInventory(t *testin
 	require.Empty(t, selectResultRows(result.Data.(*SelectResult)))
 }
 
+func TestSQLPreparedStatementsExecuteAndAppearInPerformanceSchema(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	session := newTestMySQLSession()
+	session.SetParamByName("connection_id", int64(815))
+
+	setSQL := <-executor.QueryExecutor.ExecuteWithQuery(session, "set @prepared_sql = 'select ?'", "")
+	require.NoError(t, setSQL.Err)
+	prepared := <-executor.QueryExecutor.ExecuteWithQuery(session, "prepare named_stmt from @prepared_sql", "")
+	require.NoError(t, prepared.Err)
+	setValue := <-executor.QueryExecutor.ExecuteWithQuery(session, "set @prepared_value = 7", "")
+	require.NoError(t, setValue.Err)
+
+	executed := <-executor.QueryExecutor.ExecuteWithQuery(session, "execute named_stmt using @prepared_value", "")
+	require.NoError(t, executed.Err)
+	selectResult, ok := executed.Data.(*SelectResult)
+	require.True(t, ok)
+	require.Equal(t, [][]interface{}{{"7"}}, selectResultRows(selectResult))
+
+	observed := mustSelectResultSessionSQL(t, executor, session, "", "select statement_name, sql_text, count_execute from performance_schema.prepared_statements_instances where statement_name = 'named_stmt'")
+	require.Equal(t, [][]interface{}{{"named_stmt", "select ?", "1"}}, selectResultRows(observed))
+
+	deallocated := <-executor.QueryExecutor.ExecuteWithQuery(session, "deallocate prepare named_stmt", "")
+	require.NoError(t, deallocated.Err)
+	observed = mustSelectResultSessionSQL(t, executor, session, "", "select statement_name from performance_schema.prepared_statements_instances where statement_name = 'named_stmt'")
+	require.Empty(t, selectResultRows(observed))
+	prepared = <-executor.QueryExecutor.ExecuteWithQuery(session, "prepare named_stmt from 'select 1'", "")
+	require.NoError(t, prepared.Err)
+	require.NoError(t, executor.QueryExecutor.ResetSession(session))
+	observed = mustSelectResultSessionSQL(t, executor, session, "", "select statement_name from performance_schema.prepared_statements_instances where statement_name = 'named_stmt'")
+	require.Empty(t, selectResultRows(observed))
+}
+
+func TestPerformanceSchemaPreparedStatementsExposeExecutionAccounting(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	session := newTestMySQLSession()
+	session.SetParamByName("connection_id", int64(814))
+	created := time.Now().Add(-time.Second)
+	inventory := &testPreparedStatementInventory{statements: []compatibility.PreparedStatementSnapshot{{
+		ID: 43, SQL: "insert into t values (?)", CreatedAt: created, LastUsedAt: time.Now(), ExecuteCount: 2,
+		ExecuteTimeTotal: 7 * time.Millisecond, ExecuteTimeMin: 2 * time.Millisecond, ExecuteTimeMax: 5 * time.Millisecond,
+		ErrorCount: 1, WarningCount: 3, RowsAffected: 4, RowsSent: 5, RowsExamined: 6,
+	}}}
+	session.SetParamByName("prepared_stmt_mgr", inventory)
+
+	query := "select statement_id, execution_engine, count_execute, sum_timer_execute, min_timer_execute, avg_timer_execute, max_timer_execute, sum_errors, sum_warnings, sum_rows_affected, sum_rows_sent, sum_rows_examined, sum_cpu_time, max_controlled_memory, max_total_memory, count_secondary from performance_schema.prepared_statements_instances where statement_id = 43"
+	result := <-executor.ExecuteQuery(session, query, "")
+	require.NoError(t, result.Err)
+	require.Equal(t, [][]interface{}{{"43", "PRIMARY", "2", "7000000000", "2000000000", "3500000000", "5000000000", "1", "3", "4", "5", "6", "0", "0", "0", "0"}}, selectResultRows(result.Data.(*SelectResult)))
+}
+
 func TestPerformanceSchemaGlobalErrorSummaryExposesExecutionErrors(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	session := newTestMySQLSession()
@@ -2346,19 +4499,19 @@ func TestPerformanceSchemaGlobalErrorSummaryExposesExecutionErrors(t *testing.T)
 	failed := <-executor.ExecuteQuery(session, "select * from missing_error_summary_table", "app")
 	require.Error(t, failed.Err)
 
-	result := mustSelectResultSQL(t, executor, "", "select error_name, error_count, sql_state from performance_schema.events_errors_summary_global_by_error")
+	result := mustSelectResultSQL(t, executor, "", "select error_number, error_name, sum_error_raised, sql_state from performance_schema.events_errors_summary_global_by_error where error_number=0")
 	rows := selectResultRows(result)
 	require.NotEmpty(t, rows)
 	found := false
 	for _, row := range rows {
-		if len(row) == 3 && row[1] != "0" && row[2] == "HY000" {
+		if len(row) == 4 && row[0] == "0" && row[1] == "" && row[2] != "0" && row[3] == "" {
 			found = true
 			break
 		}
 	}
 	require.True(t, found, "global error summary did not expose the failed statement: %#v", rows)
 
-	account := mustSelectResultSQL(t, executor, "", "select user, host, error_name, error_count from performance_schema.events_errors_summary_by_account_by_error where user='alice' and host='client.example'")
+	account := mustSelectResultSQL(t, executor, "", "select user, host, error_name, sum_error_raised from performance_schema.events_errors_summary_by_account_by_error where user='alice' and host='client.example'")
 	accountRows := selectResultRows(account)
 	require.NotEmpty(t, accountRows)
 	require.Equal(t, "alice", accountRows[0][0])
@@ -2482,10 +4635,205 @@ func TestPerformanceSchemaErrorSummaryProjectsMySQLErrorMetadata(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	executor.QueryExecutor.metricsRecorder.RecordQueryError("app", "execution", string(ExecutionErrorCodeSchemaOrTableNotFound))
 
-	result := mustSelectResultSQL(t, executor, "", "select error_name, error_number, sql_state, error_count from performance_schema.events_errors_summary_global_by_error where error_number=1146 and sql_state='42S02'")
-	require.Equal(t, [][]interface{}{{string(ExecutionErrorCodeSchemaOrTableNotFound), "1146", "42S02", "1"}}, selectResultRows(result))
-	wrongCount := mustSelectResultSQL(t, executor, "", "select error_name from performance_schema.events_errors_summary_global_by_error where error_name='"+string(ExecutionErrorCodeSchemaOrTableNotFound)+"' and error_count=999")
+	result := mustSelectResultSQL(t, executor, "", "select error_name, error_number, sql_state, sum_error_raised from performance_schema.events_errors_summary_global_by_error where error_number=1146 and sql_state='42S02'")
+	require.Equal(t, [][]interface{}{{"ER_NO_SUCH_TABLE", "1146", "42S02", "1"}}, selectResultRows(result))
+	wrongCount := mustSelectResultSQL(t, executor, "", "select error_name from performance_schema.events_errors_summary_global_by_error where error_name='"+string(ExecutionErrorCodeSchemaOrTableNotFound)+"' and sum_error_raised=999")
 	require.Empty(t, wrongCount.Records)
+}
+
+func TestPerformanceSchemaUnknownErrorsAggregateIntoNullErrorRow(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.metricsRecorder = metrics.NewRuntimeRecorder(metrics.NewRegistry())
+	recorder := executor.QueryExecutor.metricsRecorder
+	recorder.RecordQueryError("app", "execution", "E_UNMAPPED_ONE")
+	recorder.RecordQueryError("app", "execution", "E_UNMAPPED_TWO")
+
+	result := mustSelectResultSQL(t, executor, "", "select error_number, error_name, sql_state, sum_error_raised from performance_schema.events_errors_summary_global_by_error where error_number=0")
+	rows := selectResultRows(result)
+	require.Len(t, rows, 1)
+	require.Equal(t, "0", rows[0][0])
+	// The result helper exposes SQL NULL as an empty string; the registry keeps
+	// the underlying values nil for MySQL's unknown-error row semantics.
+	require.Empty(t, rows[0][1])
+	require.Empty(t, rows[0][2])
+	require.Equal(t, "2", rows[0][3])
+}
+
+func TestPerformanceSchemaErrorSummaryCountsSQLHandlerAsHandled(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.metricsRecorder = metrics.NewRuntimeRecorder(metrics.NewRegistry())
+	session := newTestMySQLSession()
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSessionSQL(t, executor, session, "app", "create table handled_errors (id int primary key)")
+	mustExecSessionSQL(t, executor, session, "app", "insert into handled_errors values (1)")
+	mustExecSessionSQL(t, executor, session, "app", "create procedure catch_duplicate() begin declare continue handler for sqlexception set @handled = 1; insert into handled_errors values (1); end")
+
+	called := <-executor.ExecuteQuery(session, "call catch_duplicate()", "app")
+	require.NoError(t, called.Err)
+
+	result := mustSelectResultSQL(t, executor, "", "select error_number, sum_error_raised, sum_error_handled from performance_schema.events_errors_summary_global_by_error where error_number=0")
+	require.Equal(t, [][]interface{}{{"0", "1", "1"}}, selectResultRows(result))
+}
+
+func TestPerformanceSchemaErrorSummaryCountsHandledSignalAsHandled(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.metricsRecorder = metrics.NewRuntimeRecorder(metrics.NewRegistry())
+	session := newTestMySQLSession()
+	mustExecSessionSQL(t, executor, session, "", "create database app")
+	mustExecSessionSQL(t, executor, session, "app", "create procedure catch_signal() begin declare continue handler for sqlstate '45000' set @handled_signal = 1; signal sqlstate '45000' set message_text = 'boom'; end")
+
+	called := <-executor.ExecuteQuery(session, "call catch_signal()", "app")
+	require.NoError(t, called.Err)
+
+	result := mustSelectResultSQL(t, executor, "", "select error_number, sum_error_raised, sum_error_handled from performance_schema.events_errors_summary_global_by_error where error_number=0")
+	require.Equal(t, [][]interface{}{{"0", "1", "1"}}, selectResultRows(result))
+}
+
+func TestPerformanceSchemaErrorSummaryTruncateResetsRuntimeAggregates(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.metricsRecorder.RecordQueryErrorWithIdentity("app", "execution", string(ExecutionErrorCodeSchemaOrTableNotFound), 814, "alice", "client.example")
+	require.NotEmpty(t, mustSelectResultSQL(t, executor, "", "select * from performance_schema.events_errors_summary_global_by_error").Records)
+
+	truncated := <-executor.ExecuteQuery(nil, "truncate table performance_schema.events_errors_summary_global_by_error", "")
+	require.NoError(t, truncated.Err, truncated.Message)
+	global := mustSelectResultSQL(t, executor, "", "select error_name, sum_error_raised, sum_error_handled from performance_schema.events_errors_summary_global_by_error where error_name='ER_NO_SUCH_TABLE'")
+	require.Equal(t, [][]interface{}{{"ER_NO_SUCH_TABLE", "0", "0"}}, selectResultRows(global))
+	account := mustSelectResultSQL(t, executor, "", "select user, host, sum_error_raised from performance_schema.events_errors_summary_by_account_by_error where error_name='ER_NO_SUCH_TABLE'")
+	require.Equal(t, [][]interface{}{{"alice", "client.example", "0"}}, selectResultRows(account))
+}
+
+func TestPerformanceSchemaErrorSummaryDimensionTruncateIsIndependent(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.metricsRecorder = metrics.NewRuntimeRecorder(metrics.NewRegistry())
+	executor.QueryExecutor.metricsRecorder.RecordQueryErrorWithIdentity(
+		"app", "execution", string(ExecutionErrorCodeSchemaOrTableNotFound), 815, "bob", "client.example",
+	)
+
+	global := mustSelectResultSQL(t, executor, "", "select sum_error_raised from performance_schema.events_errors_summary_global_by_error where error_name='ER_NO_SUCH_TABLE'")
+	account := mustSelectResultSQL(t, executor, "", "select sum_error_raised from performance_schema.events_errors_summary_by_account_by_error where error_name='ER_NO_SUCH_TABLE' and user='bob' and host='client.example'")
+	require.Equal(t, [][]interface{}{{"1"}}, selectResultRows(global))
+	require.Equal(t, [][]interface{}{{"1"}}, selectResultRows(account))
+
+	truncated := <-executor.ExecuteQuery(nil, "truncate table performance_schema.events_errors_summary_by_account_by_error", "")
+	require.NoError(t, truncated.Err, truncated.Message)
+
+	global = mustSelectResultSQL(t, executor, "", "select sum_error_raised from performance_schema.events_errors_summary_global_by_error where error_name='ER_NO_SUCH_TABLE'")
+	account = mustSelectResultSQL(t, executor, "", "select sum_error_raised from performance_schema.events_errors_summary_by_account_by_error where error_name='ER_NO_SUCH_TABLE' and user='bob' and host='client.example'")
+	require.Equal(t, [][]interface{}{{"1"}}, selectResultRows(global), "account summary truncate must not reset the global summary")
+	require.Equal(t, [][]interface{}{{"0"}}, selectResultRows(account))
+	host := mustSelectResultSQL(t, executor, "", "select sum_error_raised from performance_schema.events_errors_summary_by_host_by_error where error_name='ER_NO_SUCH_TABLE' and host='client.example'")
+	user := mustSelectResultSQL(t, executor, "", "select sum_error_raised from performance_schema.events_errors_summary_by_user_by_error where error_name='ER_NO_SUCH_TABLE' and user='bob'")
+	thread := mustSelectResultSQL(t, executor, "", "select sum_error_raised from performance_schema.events_errors_summary_by_thread_by_error where error_name='ER_NO_SUCH_TABLE' and thread_id=815")
+	require.Equal(t, [][]interface{}{{"1"}}, selectResultRows(host))
+	require.Equal(t, [][]interface{}{{"1"}}, selectResultRows(user))
+	require.Equal(t, [][]interface{}{{"1"}}, selectResultRows(thread))
+
+	truncated = <-executor.ExecuteQuery(nil, "truncate table performance_schema.events_errors_summary_by_host_by_error", "")
+	require.NoError(t, truncated.Err, truncated.Message)
+	host = mustSelectResultSQL(t, executor, "", "select sum_error_raised from performance_schema.events_errors_summary_by_host_by_error where error_name='ER_NO_SUCH_TABLE' and host='client.example'")
+	global = mustSelectResultSQL(t, executor, "", "select sum_error_raised from performance_schema.events_errors_summary_global_by_error where error_name='ER_NO_SUCH_TABLE'")
+	require.Equal(t, [][]interface{}{{"0"}}, selectResultRows(host))
+	require.Equal(t, [][]interface{}{{"1"}}, selectResultRows(global))
+}
+
+func TestPerformanceSchemaErrorInstrumentControlsCollection(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.metricsRecorder = metrics.NewRuntimeRecorder(metrics.NewRegistry())
+
+	setup := mustSelectResultSQL(t, executor, "", "select name, enabled, timed from performance_schema.setup_instruments where name='error'")
+	require.NotEmpty(t, setup.Records)
+	setupRow := setup.Records[0].GetValues()
+	require.Equal(t, "error", setupRow[0].String())
+	require.Equal(t, "YES", setupRow[1].String())
+	require.Equal(t, "NO", setupRow[2].String())
+	updated := <-executor.ExecuteQuery(nil, "update performance_schema.setup_instruments set enabled='NO' where name='error'", "")
+	require.NoError(t, updated.Err, updated.Message)
+
+	failed := <-executor.ExecuteQuery(nil, "select * from missing_error_instrument_table", "app")
+	require.Error(t, failed.Err)
+	summary := mustSelectResultSQL(t, executor, "", "select * from performance_schema.events_errors_summary_global_by_error")
+	require.Empty(t, summary.Records, "disabled error instrument must not collect new errors")
+
+	updated = <-executor.ExecuteQuery(nil, "update performance_schema.setup_instruments set enabled='YES' where name='error'", "")
+	require.NoError(t, updated.Err, updated.Message)
+	failed = <-executor.ExecuteQuery(nil, "select * from missing_error_instrument_table", "app")
+	require.Error(t, failed.Err)
+	summary = mustSelectResultSQL(t, executor, "", "select sum_error_raised from performance_schema.events_errors_summary_global_by_error where error_number=0")
+	require.Equal(t, [][]interface{}{{"1"}}, selectResultRows(summary))
+}
+
+func TestPerformanceSchemaMemoryInstrumentControlsCollection(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.metricsRecorder = metrics.NewRuntimeRecorder(metrics.NewRegistry())
+
+	setup := mustSelectResultSQL(t, executor, "", "select name, enabled, timed from performance_schema.setup_instruments where name='memory/sql/THD::main_mem_root'")
+	require.NotEmpty(t, setup.Records)
+	setupRow := setup.Records[0].GetValues()
+	require.Equal(t, "memory/sql/THD::main_mem_root", setupRow[0].String())
+	require.Equal(t, "YES", setupRow[1].String())
+	require.True(t, setupRow[2].IsNull())
+	updated := <-executor.ExecuteQuery(nil, "update performance_schema.setup_instruments set enabled='NO' where name='memory/sql/THD::main_mem_root'", "")
+	require.NoError(t, updated.Err, updated.Message)
+	require.Equal(t, 1, updated.AffectedRows)
+	require.True(t, executor.QueryExecutor.performanceSchemaConsumerEnabled("global_instrumentation"))
+	require.True(t, executor.QueryExecutor.performanceSchemaConsumerEnabled("thread_instrumentation"))
+	require.False(t, executor.QueryExecutor.performanceSchemaMemoryInstrumentEnabled())
+	executor.QueryExecutor.metricsRecorder.ResetMemorySummary()
+
+	result := <-executor.ExecuteQuery(nil, "select 1", "app")
+	require.NoError(t, result.Err)
+	summary := mustSelectResultSQL(t, executor, "", "select count_alloc from performance_schema.memory_summary_global_by_event_name where event_name='memory/sql/THD::main_mem_root'")
+	require.Equal(t, [][]interface{}{{"0"}}, selectResultRows(summary))
+
+	updated = <-executor.ExecuteQuery(nil, "update performance_schema.setup_instruments set enabled='YES' where name='memory/sql/THD::main_mem_root'", "")
+	require.NoError(t, updated.Err, updated.Message)
+	require.Equal(t, 1, updated.AffectedRows)
+	executor.QueryExecutor.metricsRecorder.ResetMemorySummary()
+	result = <-executor.ExecuteQuery(nil, "select 1", "app")
+	require.NoError(t, result.Err)
+	summary = mustSelectResultSQL(t, executor, "", "select count_alloc from performance_schema.memory_summary_global_by_event_name where event_name='memory/sql/THD::main_mem_root'")
+	resumedRows := selectResultRows(summary)
+	require.Len(t, resumedRows, 1)
+	require.NotEqual(t, "0", resumedRows[0][0])
+}
+
+func TestPerformanceSchemaFileAndSocketInstrumentControlsCollection(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.metricsRecorder = metrics.NewRuntimeRecorder(metrics.NewRegistry())
+
+	fileSetup := mustSelectResultSQL(t, executor, "", "select name, enabled, timed from performance_schema.setup_instruments where name='wait/io/file/innodb/innodb_data_file'")
+	socketSetup := mustSelectResultSQL(t, executor, "", "select name, enabled, timed from performance_schema.setup_instruments where name='wait/io/socket/sql/client_connection'")
+	require.Len(t, fileSetup.Records, 1)
+	require.Len(t, socketSetup.Records, 1)
+
+	updated := <-executor.ExecuteQuery(nil, "update performance_schema.setup_instruments set enabled='NO' where name like 'wait/io/file/%'", "")
+	require.NoError(t, updated.Err, updated.Message)
+	require.Greater(t, updated.AffectedRows, 0)
+	executor.QueryExecutor.metricsRecorder.RecordFileOpen("users.ibd")
+	executor.QueryExecutor.metricsRecorder.RecordFileRead("users.ibd", 5*time.Millisecond)
+	require.Empty(t, executor.QueryExecutor.metricsRecorder.FileSummary(), "disabled file instruments must not collect new events")
+
+	updated = <-executor.ExecuteQuery(nil, "update performance_schema.setup_instruments set enabled='YES', timed='NO' where name='wait/io/file/innodb/innodb_data_file'", "")
+	require.NoError(t, updated.Err, updated.Message)
+	executor.QueryExecutor.metricsRecorder.RecordFileRead("users.ibd", 5*time.Millisecond)
+	fileRows := executor.QueryExecutor.metricsRecorder.FileSummary()
+	require.Len(t, fileRows, 1)
+	require.Equal(t, int64(1), fileRows[0].CountRead)
+	require.Zero(t, fileRows[0].SumTimerRead, "TIMED=NO must preserve counts but omit file wait time")
+
+	updated = <-executor.ExecuteQuery(nil, "update performance_schema.setup_instruments set enabled='NO' where name='wait/io/socket/sql/client_connection'", "")
+	require.NoError(t, updated.Err, updated.Message)
+	executor.QueryExecutor.metricsRecorder.RecordSocketRead(881, 128, 5*time.Millisecond)
+	require.Empty(t, executor.QueryExecutor.metricsRecorder.SocketSummary(), "disabled socket instruments must not collect new events")
+
+	updated = <-executor.ExecuteQuery(nil, "update performance_schema.setup_instruments set enabled='YES', timed='NO' where name='wait/io/socket/sql/client_connection'", "")
+	require.NoError(t, updated.Err, updated.Message)
+	executor.QueryExecutor.metricsRecorder.RecordSocketRead(881, 128, 5*time.Millisecond)
+	socketRows := executor.QueryExecutor.metricsRecorder.SocketSummary()
+	require.Len(t, socketRows, 1)
+	require.Equal(t, int64(1), socketRows[0].CountRead)
+	require.Equal(t, int64(128), socketRows[0].BytesRead)
+	require.Zero(t, socketRows[0].SumTimerRead, "TIMED=NO must preserve socket bytes but omit wait time")
 }
 
 func TestPerformanceSchemaErrorLogExposesExecutionErrorEvents(t *testing.T) {
@@ -2493,14 +4841,16 @@ func TestPerformanceSchemaErrorLogExposesExecutionErrorEvents(t *testing.T) {
 	failed := <-executor.ExecuteQuery(nil, "select * from missing_error_log_table", "app")
 	require.Error(t, failed.Err)
 
-	result := mustSelectResultSQL(t, executor, "", "select error_code, subsystem, data from performance_schema.error_log")
+	result := mustSelectResultSQL(t, executor, "", "select thread_id, error_code, subsystem, prio, data from performance_schema.error_log")
 	require.NotEmpty(t, result.Records)
 	row := result.Records[len(result.Records)-1].GetValues()
-	require.NotEmpty(t, row[0].String())
-	require.Equal(t, "query", row[1].String())
-	require.Contains(t, row[2].String(), "error_class")
+	require.Equal(t, int64(0), row[0].Int())
+	require.NotEmpty(t, row[1].String())
+	require.Equal(t, "query", row[2].String())
+	require.Equal(t, "Warning", row[3].String())
+	require.Contains(t, row[4].String(), "error_class")
 
-	filtered := mustSelectResultSQL(t, executor, "", "select error_code, subsystem, prio from performance_schema.error_log where error_code = 'E_UNKNOWN' and subsystem = 'query' and prio = 3")
+	filtered := mustSelectResultSQL(t, executor, "", "select error_code, subsystem, prio from performance_schema.error_log where error_code = 'E_UNKNOWN' and subsystem = 'query' and prio = 'Warning'")
 	require.NotEmpty(t, filtered.Records)
 	wrongCode := mustSelectResultSQL(t, executor, "", "select error_code from performance_schema.error_log where error_code = 'E_ACCESS_DENIED'")
 	require.Empty(t, wrongCode.Records)
@@ -2510,6 +4860,16 @@ func TestPerformanceSchemaErrorLogExposesExecutionErrorEvents(t *testing.T) {
 	require.Empty(t, wrongPriority.Records)
 	wrongData := mustSelectResultSQL(t, executor, "", "select error_code from performance_schema.error_log where data like '%not-present%'")
 	require.Empty(t, wrongData.Records)
+}
+
+func TestPerformanceSchemaErrorLogRejectsTruncate(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	failed := <-executor.ExecuteQuery(nil, "select * from missing_error_log_truncate_table", "app")
+	require.Error(t, failed.Err)
+
+	result := <-executor.ExecuteQuery(nil, "truncate table performance_schema.error_log", "")
+	require.Error(t, result.Err)
+	require.Contains(t, strings.ToLower(result.Err.Error()), "not permitted")
 }
 
 func TestPerformanceSchemaStageSummaryByThreadKeepsConnectionIdentity(t *testing.T) {
@@ -2533,6 +4893,9 @@ func TestPerformanceSchemaStageSummaryByThreadKeepsConnectionIdentity(t *testing
 
 func TestPerformanceSchemaStageSummaryByIdentityHonorsInstrumentSettings(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	// The production recorder is process-wide; isolate this lifetime-sensitive
+	// identity test so earlier engine tests cannot contribute to Alice/Bob.
+	executor.QueryExecutor.metricsRecorder = metrics.NewRuntimeRecorder(metrics.NewRegistry())
 	first := newTestMySQLSession()
 	first.ctx.SetConnectionID(781)
 	first.SetParamByName("user", "alice")
@@ -2679,6 +5042,24 @@ func TestPerformanceSchemaSocketSummariesExposeCurrentSocket(t *testing.T) {
 	require.Empty(t, selectResultRows(result.Data.(*SelectResult)))
 }
 
+func TestPerformanceSchemaSocketSummariesExposeRuntimeTraffic(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.metricsRecorder = metrics.NewRuntimeRecorder(metrics.NewRegistry())
+	session := newTestMySQLSession()
+	session.SetParamByName("connection_id", int64(67))
+	session.SetParamByName("remote_addr", "127.0.0.1:43322")
+	executor.QueryExecutor.metricsRecorder.RecordSocketRead(67, 128, 3*time.Millisecond)
+	executor.QueryExecutor.metricsRecorder.RecordSocketWrite(67, 256, 5*time.Millisecond)
+
+	result := <-executor.ExecuteQuery(session, "select thread_id, socket_id, count_star, count_read, sum_number_of_bytes_read, count_write, sum_number_of_bytes_write from performance_schema.socket_summary_by_instance", "")
+	require.NoError(t, result.Err)
+	require.Equal(t, [][]interface{}{{"67", "67", "2", "1", "128", "1", "256"}}, selectResultRows(result.Data.(*SelectResult)))
+
+	result = <-executor.ExecuteQuery(session, "select event_name, count_star, count_read, sum_number_of_bytes_read, count_write, sum_number_of_bytes_write from performance_schema.socket_summary_by_event_name", "")
+	require.NoError(t, result.Err)
+	require.Equal(t, [][]interface{}{{"wait/io/socket/sql/client_connection", "2", "1", "128", "1", "256"}}, selectResultRows(result.Data.(*SelectResult)))
+}
+
 func TestPerformanceSchemaFileInstancesExposeDataFiles(t *testing.T) {
 	dataDir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dataDir, "app"), 0755))
@@ -2769,13 +5150,13 @@ func TestPerformanceSchemaMetadataLocksExposeDDLOwnerAndWaiter(t *testing.T) {
 	lock := coordinator.lockFor("app.users")
 	require.NoError(t, lock.lockWithContextOwned(context.Background(), tableLockWrite, "thread/123"))
 
-	result := <-executor.ExecuteQuery(nil, "select object_name, lock_type, lock_status, owner_thread_id from performance_schema.metadata_locks", "")
+	result := <-executor.ExecuteQuery(nil, "select column_name, object_name, lock_type, lock_status, owner_thread_id from performance_schema.metadata_locks", "")
 	require.NoError(t, result.Err)
 	selectResult, ok := result.Data.(*SelectResult)
 	require.True(t, ok)
 	rows := selectResultRows(selectResult)
 	require.Len(t, rows, 1)
-	require.Equal(t, []interface{}{"users", "EXCLUSIVE", "GRANTED", "123"}, rows[0])
+	require.Equal(t, []interface{}{"", "users", "EXCLUSIVE", "GRANTED", "123"}, rows[0])
 	filteredSchema := <-executor.ExecuteQuery(nil, "select object_name from performance_schema.metadata_locks where object_schema = 'other'", "")
 	require.NoError(t, filteredSchema.Err)
 	require.Empty(t, selectResultRows(filteredSchema.Data.(*SelectResult)))
@@ -2814,6 +5195,7 @@ func TestPerformanceSchemaMetadataWaitsExposeMDLWaitForGraph(t *testing.T) {
 
 func TestPerformanceSchemaMetadataWaitHistoryExposesCompletedMDLWait(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
 	coordinator := newTableDDLCoordinator()
 	executor.QueryExecutor.ddlCoordinator = coordinator
 	lock := coordinator.lockFor("app.users")
@@ -2834,6 +5216,86 @@ func TestPerformanceSchemaMetadataWaitHistoryExposesCompletedMDLWait(t *testing.
 	require.Equal(t, [][]interface{}{{"app", "users", "1"}}, selectResultRows(summary.Data.(*SelectResult)))
 
 	lock.unlockOwned(tableLockRead, "thread/502")
+}
+
+func TestPerformanceSchemaMetadataWaitHistoryPreservesEventInstrumentSnapshot(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+	coordinator := newTableDDLCoordinator()
+	executor.QueryExecutor.ddlCoordinator = coordinator
+	lock := coordinator.lockFor("app.metadata_snapshot")
+	require.NoError(t, lock.lockWithContextOwned(context.Background(), tableLockWrite, "thread/701"))
+
+	waitDone := make(chan error, 1)
+	go func() { waitDone <- lock.lockWithContextOwned(context.Background(), tableLockRead, "thread/702") }()
+	require.Eventually(t, func() bool { return len(coordinator.MetadataLockWaitEdges()) == 1 }, time.Second, 5*time.Millisecond)
+	lock.unlockOwned(tableLockWrite, "thread/701")
+	require.NoError(t, <-waitDone)
+	lock.unlockOwned(tableLockRead, "thread/702")
+
+	mustExecSQL(t, executor, "", "update performance_schema.setup_instruments set timed='NO' where name='wait/lock/metadata/sql/mdl'")
+	history := mustSelectResultSQL(t, executor, "", "select event_name, timer_wait from performance_schema.events_waits_history_long where event_name='wait/lock/metadata/sql/mdl'")
+	require.Len(t, history.Records, 1)
+	require.Greater(t, history.Records[0].GetValues()[1].Int(), int64(0), "metadata wait history must retain the event-time TIMED=YES snapshot")
+	summary := mustSelectResultSQL(t, executor, "", "select event_name, count_star, sum_timer_wait from performance_schema.events_waits_summary_global_by_event_name where event_name='wait/lock/metadata/sql/mdl'")
+	require.Len(t, summary.Records, 1)
+	require.Greater(t, summary.Records[0].GetValues()[2].Int(), int64(0), "metadata wait summary must retain the event-time TIMED=YES snapshot")
+	tableSummary := mustSelectResultSQL(t, executor, "", "select object_schema, object_name, count_star, sum_timer_wait from performance_schema.table_lock_waits_summary_by_table where object_schema='app' and object_name='metadata_snapshot'")
+	require.Len(t, tableSummary.Records, 1)
+	require.Equal(t, int64(1), tableSummary.Records[0].GetValues()[2].Int())
+	require.Greater(t, tableSummary.Records[0].GetValues()[3].Int(), int64(0), "metadata table-lock summary must retain the event-time TIMED=YES snapshot")
+
+	mustExecSQL(t, executor, "", "update performance_schema.setup_instruments set enabled='NO' where name='wait/lock/metadata/sql/mdl'")
+	history = mustSelectResultSQL(t, executor, "", "select event_name, timer_wait from performance_schema.events_waits_history_long where event_name='wait/lock/metadata/sql/mdl'")
+	require.Len(t, history.Records, 1, "disabling an instrument must not erase already-captured metadata wait history")
+	summary = mustSelectResultSQL(t, executor, "", "select event_name, count_star from performance_schema.events_waits_summary_global_by_event_name where event_name='wait/lock/metadata/sql/mdl'")
+	require.Equal(t, [][]interface{}{{"wait/lock/metadata/sql/mdl", "1"}}, selectResultRows(summary), "disabling an instrument must not erase its completed metadata wait summary")
+	tableSummary = mustSelectResultSQL(t, executor, "", "select object_schema, object_name, count_star from performance_schema.table_lock_waits_summary_by_table where object_schema='app' and object_name='metadata_snapshot'")
+	require.Equal(t, [][]interface{}{{"app", "metadata_snapshot", "1"}}, selectResultRows(tableSummary), "disabling an instrument must not erase its completed metadata table-lock summary")
+}
+
+func TestPerformanceSchemaMetadataWaitHistoryLongTruncateIsIndependent(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	enableAllPerformanceSchemaConsumersForTest(t, executor)
+	coordinator := newTableDDLCoordinator()
+	executor.QueryExecutor.ddlCoordinator = coordinator
+	lock := coordinator.lockFor("app.users")
+	require.NoError(t, lock.lockWithContextOwned(context.Background(), tableLockWrite, "thread/601"))
+
+	waitDone := make(chan error, 1)
+	go func() { waitDone <- lock.lockWithContextOwned(context.Background(), tableLockRead, "thread/602") }()
+	require.Eventually(t, func() bool { return len(coordinator.MetadataLockWaitEdges()) == 1 }, time.Second, 5*time.Millisecond)
+	lock.unlockOwned(tableLockWrite, "thread/601")
+	require.NoError(t, <-waitDone)
+
+	shortHistory := executor.QueryExecutor.executePerformanceSchemaEventsWaitsSelect(
+		"select thread_id, event_name, object_name, operation from performance_schema.events_waits_history",
+	)
+	longHistory := executor.QueryExecutor.executePerformanceSchemaEventsWaitsSelect(
+		"select thread_id, event_name, object_name, operation from performance_schema.events_waits_history_long",
+	)
+	require.NotEmpty(t, selectResultRows(shortHistory))
+	require.NotEmpty(t, selectResultRows(longHistory))
+
+	stmt, err := sqlparser.Parse("truncate table performance_schema.events_waits_history_long")
+	require.NoError(t, err)
+	results := make(chan *Result, 1)
+	executor.QueryExecutor.executeTruncateTableStatement(&ExecutionContext{
+		Results: results,
+		Cfg:     executor.QueryExecutor.conf,
+	}, "", stmt.(*sqlparser.DDL))
+	require.NoError(t, (<-results).Err)
+
+	shortHistory = executor.QueryExecutor.executePerformanceSchemaEventsWaitsSelect(
+		"select thread_id, event_name, object_name, operation from performance_schema.events_waits_history",
+	)
+	longHistory = executor.QueryExecutor.executePerformanceSchemaEventsWaitsSelect(
+		"select thread_id, event_name, object_name, operation from performance_schema.events_waits_history_long",
+	)
+	require.NotEmpty(t, selectResultRows(shortHistory), "long-history truncate must not clear the short metadata wait history")
+	require.Empty(t, selectResultRows(longHistory))
+
+	lock.unlockOwned(tableLockRead, "thread/602")
 }
 
 func TestShowEngineInnoDBStatusIncludesMetadataWaits(t *testing.T) {

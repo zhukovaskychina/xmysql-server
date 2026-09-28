@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
@@ -35,6 +36,8 @@ func NewExecutorRecordFromInterface(values []interface{}, schema *metadata.Table
 			basicValues[i] = basic.NewInt64Value(val)
 		case []byte:
 			basicValues[i] = basic.NewValue(val)
+		case time.Time:
+			basicValues[i] = basic.NewTime(val)
 		case nil:
 			basicValues[i] = basic.NewNull()
 		default:

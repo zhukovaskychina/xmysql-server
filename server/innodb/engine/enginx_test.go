@@ -45,6 +45,19 @@ func TestXMySQLEngineCloseReleasesTableFiles(t *testing.T) {
 	require.NoError(t, os.RemoveAll(tmp))
 }
 
+func TestXMySQLEngineCloseStopsUtilityBackgroundManagers(t *testing.T) {
+	engine := NewXMySQLEngine(&conf.Cfg{
+		DataDir:              t.TempDir(),
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+		InnodbPageSize:       16384,
+	})
+	require.NotNil(t, engine.ibufManager)
+
+	require.NoError(t, engine.Close())
+
+	assert.False(t, engine.ibufManager.IsBackgroundMergeRunning())
+}
+
 func TestXMySQLEngine_extractTableExprSchema(t *testing.T) {
 	engine := &XMySQLEngine{}
 
@@ -75,6 +88,18 @@ func TestXMySQLEngineExecuteQueryAlterTableAddColumn(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join(dbPath, "users.frm"))
 	require.NoError(t, err)
 	require.Contains(t, string(raw), `"name": "name"`)
+}
+
+func TestXMySQLEngineExecuteQuerySQLPreparedStatement(t *testing.T) {
+	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
+	session := newTestMySQLSession()
+
+	mustExecSessionSQL(t, engine, session, "", "prepare xmysql_stmt from 'select ? + 1'")
+	mustExecSessionSQL(t, engine, session, "", "set @xmysql_value = 41")
+	result := mustSelectResultSessionSQL(t, engine, session, "", "execute xmysql_stmt using @xmysql_value")
+	require.Equal(t, [][]interface{}{{"42"}}, selectResultRows(result))
+
+	mustExecSessionSQL(t, engine, session, "", "deallocate prepare xmysql_stmt")
 }
 
 func TestXMySQLEngineReadinessLifecycle(t *testing.T) {

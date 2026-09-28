@@ -1263,6 +1263,11 @@ func (sm *StorageManager) closeResources() error {
 			return fmt.Errorf("failed to close optimized buffer pool: %v", err)
 		}
 	}
+	if sm.bufferPool != nil {
+		if err := sm.bufferPool.Close(); err != nil {
+			return fmt.Errorf("failed to close legacy buffer pool: %v", err)
+		}
+	}
 
 	// Close space manager
 	if spaceMgr == nil {

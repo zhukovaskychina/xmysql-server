@@ -231,3 +231,24 @@ func TestBufferPool(t *testing.T) {
 		t.Errorf("Hit ratio should be between 0 and 1, got %f", hitRatio)
 	}
 }
+
+func TestBufferPoolCloseReleasesPageFrames(t *testing.T) {
+	bp := NewBufferPool(&BufferPoolConfig{
+		TotalPages:     2,
+		PageSize:       16384,
+		BufferPoolSize: 2 * 16384,
+	})
+	if len(bp.freePages) != 2 || len(bp.freePages[0].content) == 0 {
+		t.Fatalf("expected initialized page frames before close")
+	}
+
+	if err := bp.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	if len(bp.freePages) != 0 {
+		t.Fatalf("expected free page slice to be released, got %d", len(bp.freePages))
+	}
+	if err := bp.Close(); err != nil {
+		t.Fatalf("second Close() error = %v", err)
+	}
+}

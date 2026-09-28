@@ -60,6 +60,10 @@ func parseShowBinlogEventsOptions(query string) (string, uint64, int, int, error
 }
 
 func (e *XMySQLExecutor) executeShowBinaryLogs(ctx *ExecutionContext) {
+	if err := e.checkReplicationPrivilege(ctx, "REPLICATION CLIENT"); err != nil {
+		ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
+		return
+	}
 	columns := []string{"Log_name", "File_size", "Encrypted"}
 	rows := [][]interface{}{}
 	if e != nil && e.replicationSource != nil {
@@ -74,6 +78,10 @@ func (e *XMySQLExecutor) executeShowBinaryLogs(ctx *ExecutionContext) {
 }
 
 func (e *XMySQLExecutor) executeShowBinlogEvents(ctx *ExecutionContext) {
+	if err := e.checkReplicationPrivilege(ctx, "REPLICATION SLAVE"); err != nil {
+		ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
+		return
+	}
 	columns := []string{"Log_name", "Pos", "Event_type", "Server_id", "End_log_pos", "Info"}
 	rows := [][]interface{}{}
 	logName, startPosition, offset, rowCount, optionsErr := parseShowBinlogEventsOptions(ctx.RawQuery)

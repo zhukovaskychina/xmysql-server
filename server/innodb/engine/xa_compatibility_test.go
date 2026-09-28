@@ -123,6 +123,7 @@ func TestXACompatibilitySupportsPrepareRecoverCommitAndRollback(t *testing.T) {
 	commitResult := <-executor.ExecuteQuery(session, "XA COMMIT 'g1','b1',1", "app")
 	require.NoError(t, commitResult.Err)
 	require.False(t, sessionBoolParam(session, "in_transaction"))
+	require.Nil(t, session.GetParamByName(clientStorageTransactionContextKey))
 
 	rows := mustQuerySQL(t, executor, "app", "SELECT id FROM xa_rows")
 	require.Equal(t, [][]interface{}{{"1"}}, rows)
@@ -137,6 +138,7 @@ func TestXACompatibilitySupportsPrepareRecoverCommitAndRollback(t *testing.T) {
 		result := <-executor.ExecuteQuery(session, query, "app")
 		require.NoError(t, result.Err, query)
 	}
+	require.Nil(t, session.GetParamByName(clientStorageTransactionContextKey))
 
 	require.Equal(t, [][]interface{}{{"1"}}, mustQuerySQL(t, executor, "app", "SELECT id FROM xa_rows"))
 	recoverResult = <-executor.ExecuteQuery(session, "XA RECOVER", "app")
@@ -205,6 +207,58 @@ func TestXACommitPublishesOneNativeBinlogTransactionAfterPrepare(t *testing.T) {
 	_, err = replica.ReplicateNativeFrom(source, "binlog.000001", 4)
 	require.NoError(t, err)
 	require.Len(t, applied, 1, "replaying the same native XA transaction must be idempotent")
+}
+
+func TestXAEngineHooksPublishNativePrepareAndTerminalBoundary(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	source, err := replication.NewSource(t.TempDir(), "xa-native-hook-source", 27)
+	require.NoError(t, err)
+	executor.QueryExecutor.SetReplicationXAPrepareHook(func(key string, xid replication.XAIdentity, changes []replication.RowChange, statements []replication.Statement) error {
+		return source.PrepareXATransaction(key, xid, changes, statements)
+	})
+	executor.QueryExecutor.SetReplicationXACommitHook(func(key string, xid replication.XAIdentity) error {
+		return source.CommitXATransaction(key, xid)
+	})
+	executor.QueryExecutor.SetReplicationXARollbackHook(func(key string, xid replication.XAIdentity) error {
+		return source.RollbackXATransaction(key, xid)
+	})
+	session := newTestMySQLSession()
+	mustExecSessionSQL(t, executor, session, "", "create database app")
+	mustExecSessionSQL(t, executor, session, "app", "create table xa_native_hook (id int primary key)")
+	for _, query := range []string{
+		"XA START 'native-hook','branch',27",
+		"INSERT INTO xa_native_hook VALUES (1)",
+		"XA END 'native-hook','branch',27",
+		"XA PREPARE 'native-hook','branch',27",
+	} {
+		mustExecSessionSQL(t, executor, session, "app", query)
+	}
+	require.Empty(t, source.Executed)
+	native, err := source.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+	require.Equal(t, byte(38), native[len(native)-1].Type)
+	mustExecSessionSQL(t, executor, session, "app", "XA COMMIT 'native-hook','branch',27")
+	require.True(t, source.Executed.Contains(replication.GTID{UUID: source.UUID, Seq: 1}))
+	require.True(t, source.Executed.Contains(replication.GTID{UUID: source.UUID, Seq: 2}))
+	native, err = source.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+	require.Equal(t, byte(2), native[len(native)-1].Type)
+
+	rollbackSession := newTestMySQLSession()
+	for _, query := range []string{
+		"XA START 'native-hook-rollback','branch',28",
+		"INSERT INTO xa_native_hook VALUES (2)",
+		"XA END 'native-hook-rollback','branch',28",
+		"XA PREPARE 'native-hook-rollback','branch',28",
+	} {
+		mustExecSessionSQL(t, executor, rollbackSession, "app", query)
+	}
+	mustExecSessionSQL(t, executor, rollbackSession, "app", "XA ROLLBACK 'native-hook-rollback','branch',28")
+	require.True(t, source.Executed.Contains(replication.GTID{UUID: source.UUID, Seq: 3}))
+	require.True(t, source.Executed.Contains(replication.GTID{UUID: source.UUID, Seq: 4}))
+	native, err = source.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+	require.Equal(t, byte(2), native[len(native)-1].Type)
 }
 
 func TestXACommitRetryAfterBinlogAppendFailureKeepsPreparedTransaction(t *testing.T) {
@@ -312,6 +366,11 @@ func TestXACompatibilityAllowsPreparedTransactionToBeCommittedByAnotherSession(t
 
 func TestXACompatibilitySupportsOnePhaseCommit(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	source, err := replication.NewSource(t.TempDir(), "one-phase-engine-source", 43)
+	require.NoError(t, err)
+	executor.QueryExecutor.SetReplicationXAOnePhaseCommitHook(func(key string, xid replication.XAIdentity, changes []replication.RowChange, statements []replication.Statement) error {
+		return source.AppendOnePhaseXATransaction(key, xid, changes, statements)
+	})
 	session := newTestMySQLSession()
 	session.SetParamByName("dynamic_privileges", []string{"XA_RECOVER_ADMIN"})
 	mustExecSessionSQL(t, executor, session, "", "create database app")
@@ -326,6 +385,14 @@ func TestXACompatibilitySupportsOnePhaseCommit(t *testing.T) {
 		require.NoError(t, (<-executor.ExecuteQuery(session, query, "app")).Err, query)
 	}
 	require.Equal(t, [][]interface{}{{"1"}}, mustQuerySQL(t, executor, "app", "SELECT id FROM xa_one_phase"))
+	require.True(t, source.Executed.Contains(replication.GTID{UUID: source.UUID, Seq: 1}))
+	native, err := source.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+	// The native writer mirrors MySQL's XA lifecycle: the one-phase commit
+	// contains the GTID/FDE prefix, XA START/END QUERY_EVENTs, and the
+	// XA_PREPARE_EVENT(one_phase=1) terminal event.
+	require.Len(t, native, 8)
+	require.Equal(t, byte(38), native[len(native)-1].Type)
 }
 
 func TestXACompatibilitySupportsSuspendAndResumeLifecycle(t *testing.T) {

@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -9,6 +11,56 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
+
+type informationSchemaVisibleView struct {
+	Schema     string
+	Name       string
+	Definition string
+}
+
+// informationSchemaVisibleViewDefinitions applies the usage-table rule that
+// a user needs some privilege on the view, not specifically SHOW VIEW. The
+// VIEWS table itself has the stricter SHOW VIEW contract and therefore cannot
+// be used as the source for VIEW_TABLE_USAGE or VIEW_ROUTINE_USAGE.
+func (e *XMySQLExecutor) informationSchemaVisibleViewDefinitions(session server.MySQLServerSession) []informationSchemaVisibleView {
+	if e == nil {
+		return nil
+	}
+	views := make([]informationSchemaVisibleView, 0)
+	entries, _ := os.ReadDir(e.getDataDir())
+	for _, schemaEntry := range entries {
+		if !schemaEntry.IsDir() {
+			continue
+		}
+		viewEntries, _ := os.ReadDir(filepath.Join(e.getDataDir(), schemaEntry.Name()))
+		for _, viewEntry := range viewEntries {
+			if viewEntry.IsDir() || !strings.HasSuffix(strings.ToLower(viewEntry.Name()), ".view.json") {
+				continue
+			}
+			name := strings.TrimSuffix(viewEntry.Name(), ".view.json")
+			if !e.tableMetadataVisibleToSession(&ExecutionContext{Session: session}, schemaEntry.Name(), name, true) {
+				continue
+			}
+			raw, err := os.ReadFile(filepath.Join(e.getDataDir(), schemaEntry.Name(), viewEntry.Name()))
+			if err != nil {
+				continue
+			}
+			var info struct {
+				Definition string `json:"definition"`
+			}
+			if json.Unmarshal(raw, &info) != nil || strings.TrimSpace(info.Definition) == "" {
+				continue
+			}
+			views = append(views, informationSchemaVisibleView{Schema: schemaEntry.Name(), Name: name, Definition: info.Definition})
+		}
+	}
+	sort.Slice(views, func(i, j int) bool {
+		left := strings.ToLower(views[i].Schema + "\x00" + views[i].Name)
+		right := strings.ToLower(views[j].Schema + "\x00" + views[j].Name)
+		return left < right
+	})
+	return views
+}
 
 var informationSchemaSpaceNameFilterPattern = regexp.MustCompile(`(?is)\b(?:tablespace_name|name)\b\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)")`)
 
@@ -50,6 +102,14 @@ func informationSchemaSpaceTableParts(name string) (string, string) {
 		return parts[0], parts[1]
 	}
 	return "", ""
+}
+
+func informationSchemaFilesStatus(state string) string {
+	status := strings.ToUpper(strings.TrimSpace(state))
+	if status == "" {
+		return "NORMAL"
+	}
+	return status
 }
 
 // executeInformationSchemaTablespacesSelect projects the durable InnoDB
@@ -125,7 +185,6 @@ func (e *XMySQLExecutor) executeInformationSchemaFilesSelect(query string) *Sele
 		"RECOVER_TIME", "TRANSACTION_COUNTER", "VERSION", "ROW_FORMAT", "TABLE_ROWS",
 		"AVG_ROW_LENGTH", "DATA_LENGTH", "MAX_DATA_LENGTH", "INDEX_LENGTH", "DATA_FREE",
 		"CREATE_TIME", "UPDATE_TIME", "CHECK_TIME", "CHECKSUM", "STATUS", "EXTRA",
-		"NODEGROUP_ID", "TABLESPACE_TYPE",
 	})
 	if e == nil || e.storageManager == nil {
 		return newInformationSchemaSelectResult("information_schema.files", columns, nil)
@@ -142,15 +201,6 @@ func (e *XMySQLExecutor) executeInformationSchemaFilesSelect(query string) *Sele
 			continue
 		}
 		path := informationSchemaSpacePath(e, space)
-		schemaName, tableName := informationSchemaSpaceTableParts(space.Name)
-		var tableRows interface{}
-		var persistedCreateTime interface{}
-		if schemaName != "" && tableName != "" {
-			tableRows = e.physicalTableRowCount(schemaName, tableName)
-			if createdAt := readFrmMetadataCreatedAt(filepath.Join(e.getDataDir(), schemaName, tableName+".frm")); createdAt != "" {
-				persistedCreateTime = createdAt
-			}
-		}
 		pageSize := space.PageSize
 		if pageSize == 0 {
 			pageSize = 16 * 1024
@@ -160,43 +210,45 @@ func (e *XMySQLExecutor) executeInformationSchemaFilesSelect(query string) *Sele
 			extentPages = 1
 		}
 		values := map[string]interface{}{
-			"FILE_ID":              int64(space.SpaceID),
-			"FILE_NAME":            path,
-			"FILE_TYPE":            "TABLESPACE",
-			"TABLESPACE_NAME":      space.Name,
-			"TABLE_CATALOG":        "def",
-			"TABLE_SCHEMA":         nullableInformationSchemaString(schemaName),
-			"TABLE_NAME":           nullableInformationSchemaString(tableName),
+			"FILE_ID":         int64(space.SpaceID),
+			"FILE_NAME":       path,
+			"FILE_TYPE":       "TABLESPACE",
+			"TABLESPACE_NAME": space.Name,
+			// MySQL 8.4 reports these table identity columns as empty/NULL for
+			// InnoDB FILES rows. The tablespace name is the supported identity.
+			"TABLE_CATALOG":        "",
+			"TABLE_SCHEMA":         nil,
+			"TABLE_NAME":           nil,
 			"LOGFILE_GROUP_NAME":   nil,
 			"LOGFILE_GROUP_NUMBER": nil,
 			"ENGINE":               "InnoDB",
-			"FULLTEXT_KEYS":        int64(0),
-			"DELETED_ROWS":         int64(0),
-			"UPDATE_COUNT":         int64(0),
+			"FULLTEXT_KEYS":        nil,
+			"DELETED_ROWS":         nil,
+			"UPDATE_COUNT":         nil,
 			"FREE_EXTENTS":         int64(space.FreePages / extentPages),
 			"TOTAL_EXTENTS":        int64(space.TotalPages / extentPages),
 			"EXTENT_SIZE":          int64(extentPages) * int64(pageSize),
 			"INITIAL_SIZE":         informationSchemaSpaceFileSize(space),
 			"MAXIMUM_SIZE":         nil,
 			"AUTOEXTEND_SIZE":      nil,
-			"CREATION_TIME":        persistedCreateTime,
+			"CREATION_TIME":        nil,
 			"LAST_UPDATE_TIME":     nil,
 			"LAST_ACCESS_TIME":     nil,
 			"RECOVER_TIME":         nil,
-			"TRANSACTION_COUNTER":  int64(0),
-			"VERSION":              int64(1),
+			"TRANSACTION_COUNTER":  nil,
+			"VERSION":              nil,
 			"ROW_FORMAT":           nil,
-			"TABLE_ROWS":           tableRows,
+			"TABLE_ROWS":           nil,
 			"AVG_ROW_LENGTH":       nil,
-			"DATA_LENGTH":          informationSchemaSpaceFileSize(space),
+			"DATA_LENGTH":          nil,
 			"MAX_DATA_LENGTH":      nil,
 			"INDEX_LENGTH":         nil,
 			"DATA_FREE":            int64(space.FreePages) * int64(pageSize),
-			"CREATE_TIME":          persistedCreateTime,
+			"CREATE_TIME":          nil,
 			"UPDATE_TIME":          nil,
 			"CHECK_TIME":           nil,
 			"CHECKSUM":             nil,
-			"STATUS":               strings.ToUpper(strings.TrimSpace(space.State)),
+			"STATUS":               informationSchemaFilesStatus(space.State),
 			"EXTRA":                nil,
 			"NODEGROUP_ID":         nil,
 			"TABLESPACE_TYPE":      innoDBSpaceType(space),
@@ -229,7 +281,7 @@ func (e *XMySQLExecutor) executeInformationSchemaInnoDBTablespacesBriefSelect(qu
 			"SPACE":      int64(space.SpaceID),
 			"NAME":       space.Name,
 			"PATH":       informationSchemaSpacePath(e, space),
-			"FLAG":       int64(0),
+			"FLAG":       e.informationSchemaInnoDBSpaceFlags(space.SpaceID),
 			"SPACE_TYPE": innoDBSpaceType(space),
 		}
 		if !performanceSchemaLockValuesMatch(query, values) {
@@ -360,7 +412,6 @@ func (e *XMySQLExecutor) executeInformationSchemaInnoDBVirtualSelect(query strin
 				"TABLE_ID": int64(storage.SpaceID),
 				"POS":      int64(position),
 				"BASE_POS": basePos,
-				"M_COLS":   int64(len(basePositions)),
 			}
 			if performanceSchemaLockValuesMatch(query, values) {
 				rows = append(rows, projectInformationSchemaRow(columns, values))
@@ -416,36 +467,40 @@ func informationSchemaRoutineCallMatches(definition string, object persistedStor
 // callable from a SELECT expression and are intentionally excluded.
 func (e *XMySQLExecutor) executeInformationSchemaViewRoutineUsageSelect(query string, session server.MySQLServerSession) *SelectResult {
 	columns := requestedInformationSchemaColumns(query, informationSchemaTableRegistry["view_routine_usage"])
-	baseResult := e.executeInformationSchemaViewsSelect("select * from information_schema.views", session)
 	filters := informationSchemaViewUsageFilters(query)
-	if baseResult == nil || len(baseResult.Records) == 0 {
+	views := e.informationSchemaVisibleViewDefinitions(session)
+	if len(views) == 0 {
 		return newInformationSchemaSelectResult("information_schema.view_routine_usage", columns, nil)
 	}
 	functions := e.scanStoredObjects("function")
-	rows := make([][]interface{}, 0)
+	type usageEntry struct {
+		viewSchema     string
+		viewName       string
+		functionSchema string
+		functionName   string
+	}
+	entries := make([]usageEntry, 0)
 	seen := make(map[string]struct{})
-	for _, record := range baseResult.Records {
-		values := make(map[string]interface{}, len(baseResult.Columns))
-		for index, column := range baseResult.Columns {
-			if index < len(record.GetValues()) {
-				values[strings.ToUpper(column)] = record.GetValues()[index].Raw()
-			}
-		}
-		viewSchema := informationSchemaRawString(values["TABLE_SCHEMA"])
-		viewName := informationSchemaRawString(values["TABLE_NAME"])
-		definition := informationSchemaRawString(values["VIEW_DEFINITION"])
-		if !informationSchemaViewUsageFilterMatches(filters, "VIEW_CATALOG", "def") ||
-			!informationSchemaViewUsageFilterMatches(filters, "VIEW_SCHEMA", viewSchema) ||
-			!informationSchemaViewUsageFilterMatches(filters, "VIEW_NAME", viewName) {
+	for _, view := range views {
+		viewSchema := view.Schema
+		viewName := view.Name
+		definition := view.Definition
+		if !informationSchemaViewUsageFilterMatches(filters, "TABLE_CATALOG", "def") ||
+			!informationSchemaViewUsageFilterMatches(filters, "TABLE_SCHEMA", viewSchema) ||
+			!informationSchemaViewUsageFilterMatches(filters, "TABLE_NAME", viewName) {
 			continue
 		}
 		for _, function := range functions {
+			functionVisible, _ := e.storedRoutineMetadataVisibility(&ExecutionContext{Session: session}, function)
+			if !functionVisible {
+				continue
+			}
 			if !informationSchemaRoutineCallMatches(definition, function, viewSchema) {
 				continue
 			}
-			if !informationSchemaViewUsageFilterMatches(filters, "TABLE_CATALOG", "def") ||
-				!informationSchemaViewUsageFilterMatches(filters, "TABLE_SCHEMA", function.Schema) ||
-				!informationSchemaViewUsageFilterMatches(filters, "TABLE_NAME", function.Name) {
+			if !informationSchemaViewUsageFilterMatches(filters, "SPECIFIC_CATALOG", "def") ||
+				!informationSchemaViewUsageFilterMatches(filters, "SPECIFIC_SCHEMA", function.Schema) ||
+				!informationSchemaViewUsageFilterMatches(filters, "SPECIFIC_NAME", function.Name) {
 				continue
 			}
 			key := strings.ToLower(viewSchema + "." + viewName + "\x00" + function.Schema + "." + function.Name)
@@ -453,25 +508,30 @@ func (e *XMySQLExecutor) executeInformationSchemaViewRoutineUsageSelect(query st
 				continue
 			}
 			seen[key] = struct{}{}
-			rows = append(rows, projectInformationSchemaRow(columns, map[string]interface{}{
-				"VIEW_CATALOG": "def", "VIEW_SCHEMA": viewSchema, "VIEW_NAME": viewName,
-				"TABLE_CATALOG": "def", "TABLE_SCHEMA": function.Schema, "TABLE_NAME": function.Name,
-			}))
+			entries = append(entries, usageEntry{viewSchema: viewSchema, viewName: viewName, functionSchema: function.Schema, functionName: function.Name})
 		}
 	}
-	sort.Slice(rows, func(i, j int) bool {
-		for _, index := range []int{1, 2, 4, 5} {
-			left, right := strings.ToLower(asString(rows[i][index])), strings.ToLower(asString(rows[j][index]))
-			if left != right {
-				return left < right
+	sort.Slice(entries, func(i, j int) bool {
+		for _, values := range [][2]string{{entries[i].viewSchema, entries[j].viewSchema}, {entries[i].viewName, entries[j].viewName}, {entries[i].functionSchema, entries[j].functionSchema}, {entries[i].functionName, entries[j].functionName}} {
+			left, right := strings.ToLower(values[0]), strings.ToLower(values[1])
+			if left == right {
+				continue
 			}
+			return left < right
 		}
 		return false
 	})
+	rows := make([][]interface{}, 0, len(entries))
+	for _, entry := range entries {
+		rows = append(rows, projectInformationSchemaRow(columns, map[string]interface{}{
+			"TABLE_CATALOG": "def", "TABLE_SCHEMA": entry.viewSchema, "TABLE_NAME": entry.viewName,
+			"SPECIFIC_CATALOG": "def", "SPECIFIC_SCHEMA": entry.functionSchema, "SPECIFIC_NAME": entry.functionName,
+		}))
+	}
 	return newInformationSchemaSelectResult("information_schema.view_routine_usage", columns, rows)
 }
 
-func (e *XMySQLExecutor) executeInformationSchemaSTGeometryColumnsSelect(query string) *SelectResult {
+func (e *XMySQLExecutor) executeInformationSchemaSTGeometryColumnsSelect(query string, session server.MySQLServerSession) *SelectResult {
 	columns := requestedInformationSchemaColumns(query, informationSchemaTableRegistry["st_geometry_columns"])
 	if e == nil {
 		return newInformationSchemaSelectResult("information_schema.st_geometry_columns", columns, nil)
@@ -480,6 +540,9 @@ func (e *XMySQLExecutor) executeInformationSchemaSTGeometryColumnsSelect(query s
 	geometryFilters := informationSchemaGeometryColumnFilters(query)
 	rows := make([][]interface{}, 0)
 	for _, table := range e.scanFrmTables() {
+		if !e.informationSchemaTableVisible(session, table.schemaName, table.tableName, false) {
+			continue
+		}
 		if !metadataPatternMatches(table.schemaName, filters["table_schema"]) || !metadataPatternMatches(table.tableName, filters["table_name"]) ||
 			!metadataPatternMatches("def", geometryFilters["TABLE_CATALOG"]) {
 			continue
@@ -489,14 +552,14 @@ func (e *XMySQLExecutor) executeInformationSchemaSTGeometryColumnsSelect(query s
 				continue
 			}
 			if !metadataPatternMatches(column.name, filters["column_name"]) ||
-				!metadataPatternMatches(strings.ToUpper(column.typeName), geometryFilters["GEOMETRY_TYPE"]) ||
+				!metadataPatternMatches(strings.ToUpper(column.typeName), geometryFilters["GEOMETRY_TYPE_NAME"]) ||
 				!metadataPatternMatches("", geometryFilters["SRS_ID"]) {
 				continue
 			}
 			rows = append(rows, projectInformationSchemaRow(columns, map[string]interface{}{
 				"TABLE_CATALOG": "def", "TABLE_SCHEMA": table.schemaName, "TABLE_NAME": table.tableName,
-				"COLUMN_NAME": column.name, "SRS_ID": nil, "GEOMETRY_TYPE": strings.ToUpper(column.typeName),
-				"MIN_X": nil, "MAX_X": nil, "MIN_Y": nil, "MAX_Y": nil,
+				"COLUMN_NAME": column.name, "SRS_NAME": nil, "SRS_ID": nil,
+				"GEOMETRY_TYPE_NAME": strings.ToUpper(column.typeName),
 			}))
 		}
 	}
@@ -508,7 +571,7 @@ func (e *XMySQLExecutor) executeInformationSchemaSTGeometryColumnsSelect(query s
 	return newInformationSchemaSelectResult("information_schema.st_geometry_columns", columns, rows)
 }
 
-var informationSchemaGeometryColumnFilterPattern = regexp.MustCompile(`(?i)\b(table_catalog|geometry_type|srs_id)\b\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)")`)
+var informationSchemaGeometryColumnFilterPattern = regexp.MustCompile(`(?i)\b(table_catalog|geometry_type_name|geometry_type|srs_id)\b\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)")`)
 
 func informationSchemaGeometryColumnFilters(query string) map[string]string {
 	filters := make(map[string]string)
@@ -517,7 +580,11 @@ func informationSchemaGeometryColumnFilters(query string) map[string]string {
 		if value == "" {
 			value = match[3]
 		}
-		filters[strings.ToUpper(match[1])] = value
+		column := strings.ToUpper(match[1])
+		if column == "GEOMETRY_TYPE" {
+			column = "GEOMETRY_TYPE_NAME"
+		}
+		filters[column] = value
 	}
 	return filters
 }
@@ -643,33 +710,74 @@ func (e *XMySQLExecutor) executeInformationSchemaInnoDBBufferPoolStatsSelect(que
 		return newInformationSchemaSelectResult("information_schema.innodb_buffer_pool_stats", columns, nil)
 	}
 	stats := provider.GetStats()
+	lruIOTotal := informationSchemaBufferPoolStatInt64(stats, "lru_io_total")
+	lruIOCurrent := informationSchemaBufferPoolStatInt64(stats, "lru_io_current")
+	if lruProvider, ok := e.bufferPoolManager.(interface {
+		GetLRUIOStatsAndResetCurrent() (uint64, uint64)
+	}); ok && lruProvider != nil {
+		total, current := lruProvider.GetLRUIOStatsAndResetCurrent()
+		lruIOTotal = int64(total)
+		lruIOCurrent = int64(current)
+	}
 	total := informationSchemaBufferPoolStatInt64(stats, "total_pages")
 	cache := informationSchemaBufferPoolStatInt64(stats, "cache_size")
 	free := total - cache
 	if free < 0 {
 		free = 0
 	}
-	hitRate := int64(informationSchemaBufferPoolStatFloat64(stats, "hit_rate") * 100)
+	// InnoDB reports buffer-pool hit rate on a per-thousand scale: a fully
+	// warm pool is 1000, not 100. The manager keeps the source ratio as 0..1,
+	// so convert it at the INFORMATION_SCHEMA boundary.
+	hitRate := int64(informationSchemaBufferPoolStatFloat64(stats, "hit_rate") * 1000)
+	pagesGet := informationSchemaBufferPoolStatInt64(stats, "hits") + informationSchemaBufferPoolStatInt64(stats, "misses")
+	pagesMadeYoung := informationSchemaBufferPoolStatInt64(stats, "pages_made_young")
+	pagesNotMadeYoung := informationSchemaBufferPoolStatInt64(stats, "pages_not_made_young")
+	uncompressTotal := int64(0)
+	uncompressCurrent := int64(0)
+	if e.storageManager != nil {
+		if compression := e.storageManager.GetCompressionManager(); compression != nil {
+			compressionStats := compression.GetStats()
+			uncompressTotal = int64(compressionStats.UncompressedPages)
+			uncompressCurrent = int64(compression.GetUncompressedCurrentAndReset())
+		}
+	}
+	pendingDecompress := int64(0)
+	if e.storageManager != nil {
+		if compression := e.storageManager.GetCompressionManager(); compression != nil {
+			pendingDecompress = int64(compression.GetPendingDecompress())
+		}
+	}
 	values := map[string]interface{}{
 		"POOL_ID": 0, "POOL_SIZE": total, "FREE_BUFFERS": free, "DATABASE_PAGES": cache,
 		"OLD_DATABASE_PAGES":      informationSchemaBufferPoolStatInt64(stats, "old_hits"),
 		"MODIFIED_DATABASE_PAGES": informationSchemaBufferPoolStatInt64(stats, "dirty_pages"),
-		"PENDING_DECOMPRESS":      0, "PENDING_READS": 0, "PENDING_FLUSH_LRU": 0, "PENDING_FLUSH_LIST": 0,
-		"PAGES_MADE_YOUNG":      informationSchemaBufferPoolStatInt64(stats, "young_hits"),
-		"PAGES_NOT_MADE_YOUNG":  informationSchemaBufferPoolStatInt64(stats, "old_hits"),
-		"PAGES_MADE_YOUNG_RATE": 0, "PAGES_MADE_NOT_YOUNG_RATE": 0,
+		"PENDING_DECOMPRESS":      pendingDecompress, "PENDING_READS": informationSchemaBufferPoolStatInt64(stats, "pending_reads"), "PENDING_FLUSH_LRU": informationSchemaBufferPoolStatInt64(stats, "pending_flush_lru"), "PENDING_FLUSH_LIST": informationSchemaBufferPoolStatInt64(stats, "pending_flush_list"),
+		"PAGES_MADE_YOUNG":      pagesMadeYoung,
+		"PAGES_NOT_MADE_YOUNG":  pagesNotMadeYoung,
+		"PAGES_MADE_YOUNG_RATE": informationSchemaBufferPoolStatFloat64(stats, "pages_made_young_rate"), "PAGES_MADE_NOT_YOUNG_RATE": informationSchemaBufferPoolStatFloat64(stats, "pages_not_made_young_rate"),
 		"NUMBER_PAGES_READ":    informationSchemaBufferPoolStatInt64(stats, "page_reads"),
-		"NUMBER_PAGES_CREATED": 0, "NUMBER_PAGES_WRITTEN": informationSchemaBufferPoolStatInt64(stats, "page_writes"),
-		"PAGES_READ_RATE": 0, "PAGES_CREATE_RATE": 0, "PAGES_WRITTEN_RATE": 0,
-		"NUMBER_PAGES_GET": informationSchemaBufferPoolStatInt64(stats, "hits") + informationSchemaBufferPoolStatInt64(stats, "misses"),
-		"HIT_RATE":         hitRate, "YOUNG_MAKE_PER_TH": 0, "NOT_YOUNG_MAKE_PER_TH": 0,
-		"NUMBER_PAGES_READ_AHEAD": 0, "NUMBER_READ_AHEAD_EVICTED": 0, "READ_AHEAD_RATE": 0, "READ_AHEAD_EVICTED_RATE": 0,
-		"LRU_IO_TOTAL": 0, "LRU_IO_CURRENT": 0, "UNCOMPRESS_TOTAL": 0, "UNCOMPRESS_CURRENT": 0,
+		"NUMBER_PAGES_CREATED": informationSchemaBufferPoolStatInt64(stats, "page_creates"), "NUMBER_PAGES_WRITTEN": informationSchemaBufferPoolStatInt64(stats, "page_writes"),
+		"PAGES_READ_RATE":   informationSchemaBufferPoolStatFloat64(stats, "page_reads_rate"),
+		"PAGES_CREATE_RATE": informationSchemaBufferPoolStatFloat64(stats, "page_creates_rate"), "PAGES_WRITTEN_RATE": informationSchemaBufferPoolStatFloat64(stats, "page_writes_rate"),
+		"NUMBER_PAGES_GET": pagesGet,
+		"HIT_RATE":         hitRate, "YOUNG_MAKE_PER_THOUSAND_GETS": informationSchemaPagesPerThousand(pagesMadeYoung, pagesGet), "NOT_YOUNG_MAKE_PER_THOUSAND_GETS": informationSchemaPagesPerThousand(pagesNotMadeYoung, pagesGet),
+		"NUMBER_PAGES_READ_AHEAD":   informationSchemaBufferPoolStatInt64(stats, "read_ahead"),
+		"NUMBER_READ_AHEAD_EVICTED": informationSchemaBufferPoolStatInt64(stats, "read_ahead_evicted"),
+		"READ_AHEAD_RATE":           informationSchemaBufferPoolStatFloat64(stats, "read_ahead_rate"),
+		"READ_AHEAD_EVICTED_RATE":   informationSchemaBufferPoolStatFloat64(stats, "read_ahead_evicted_rate"),
+		"LRU_IO_TOTAL":              lruIOTotal, "LRU_IO_CURRENT": lruIOCurrent, "UNCOMPRESS_TOTAL": uncompressTotal, "UNCOMPRESS_CURRENT": uncompressCurrent,
 	}
 	if !performanceSchemaLockValuesMatch(query, values) {
 		return newInformationSchemaSelectResult("information_schema.innodb_buffer_pool_stats", columns, nil)
 	}
 	return newInformationSchemaSelectResult("information_schema.innodb_buffer_pool_stats", columns, [][]interface{}{projectInformationSchemaRow(columns, values)})
+}
+
+func informationSchemaPagesPerThousand(pages, gets int64) int64 {
+	if pages <= 0 || gets <= 0 {
+		return 0
+	}
+	return pages * 1000 / gets
 }
 
 func asString(value interface{}) string {

@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -97,7 +99,7 @@ func TestNativeEventsReadsChecksumOffFormatDescription(t *testing.T) {
 		return withoutChecksum
 	}
 	formatBody := append([]byte(nil), buildNativeFormatDescriptionEvent(17, 4)[nativeEventHeaderLength:len(buildNativeFormatDescriptionEvent(17, 4))-nativeChecksumLength]...)
-	formatBody = append(formatBody, 0)
+	formatBody[len(formatBody)-1] = 0 // checksum algorithm: BINLOG_CHECKSUM_ALG_OFF
 	format := stripChecksum(buildNativeEvent(15, formatBody, BinlogEvent{Timestamp: time.Unix(1, 0), ServerID: 17, Position: 4}))
 	previous := stripChecksum(buildNativePreviousGTIDsEvent(17, uint64(4+len(format)), GTIDSet{}))
 	path := filepath.Join(dir, "binlog.000001")
@@ -119,6 +121,22 @@ func TestNativeEventsReadsChecksumOffFormatDescription(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, decoded, 1)
 	require.Equal(t, "insert into docs values (1)", decoded[0].Statements[0].SQL)
+}
+
+func TestNativeFormatDescriptionDeclaresMySQL84TaggedGTIDEvent(t *testing.T) {
+	raw := buildNativeFormatDescriptionEvent(17, 4)
+	require.GreaterOrEqual(t, len(raw), nativeEventHeaderLength+nativeChecksumLength)
+	body := raw[nativeEventHeaderLength : len(raw)-nativeChecksumLength]
+	const (
+		formatVersionLength = 2
+		serverVersionLength = 50
+		createdAtLength     = 4
+	)
+	postHeaderOffset := formatVersionLength + serverVersionLength + createdAtLength + 1
+	require.GreaterOrEqual(t, len(body), postHeaderOffset+42+1)
+	require.Equal(t, byte(42), body[postHeaderOffset+32])
+	require.Equal(t, byte(42), body[postHeaderOffset+33])
+	require.Equal(t, byte(1), body[postHeaderOffset+42])
 }
 
 func TestBinlogWriterPersistsSchemaAwareNativeRowEvents(t *testing.T) {
@@ -292,6 +310,7 @@ func TestNativeRowMetadataUsesTypeHints(t *testing.T) {
 	require.Equal(t, []byte{8}, nativeColumnMetadataForChange(change, "ratio", 5, float64(1.5)))
 	require.Equal(t, []byte{10, 2}, nativeColumnMetadataForChange(change, "amount", 246, "1.20"))
 	require.Equal(t, []byte{64, 0}, nativeColumnMetadataForChange(change, "name", 15, "hello"))
+	require.Equal(t, []byte{0, 1}, nativeColumnMetadataForChange(RowChange{ColumnTypes: map[string]string{"name": "VARCHAR"}}, "name", 15, "hello"))
 }
 
 func TestNativeRowMetadataCoversBitAndBlobPackLengths(t *testing.T) {
@@ -548,6 +567,10 @@ func TestNativeDecoderUsesFixedWidthForMySQLString(t *testing.T) {
 	metadata := []byte{254, 4}
 	require.Equal(t, 4, nativeFixedValueWidth(254, metadata))
 	require.Equal(t, "AB", decodeNativeFixedValue(254, metadata, false, []byte("AB  ")))
+	value, _, next, err := decodeNativeValue(254, []byte{254, 192}, false, false, []byte{2, 'A', 'B'}, 0)
+	require.NoError(t, err)
+	require.Equal(t, "AB", value)
+	require.Equal(t, 3, next)
 	// ENUM/SET continue to use their packed numeric representation; the
 	// real-type byte must not be decoded as text.
 	require.Equal(t, 1, nativeFixedValueWidth(254, []byte{247, 1}))
@@ -853,6 +876,37 @@ func TestNativeDecoderSchemaResolverPreservesBinaryFixedValues(t *testing.T) {
 	require.Len(t, decoded, 1)
 	require.Equal(t, "BINARY(4)", decoded[0].ColumnTypes["code"])
 	require.Equal(t, []byte{'A', 0, 0, 0}, decoded[0].After["code"])
+}
+
+func TestNativeDecoderDoesNotLetOlderTableMapOverrideCachedMap(t *testing.T) {
+	columns := []string{"id", "value"}
+	base := BinlogEvent{Timestamp: time.Unix(1, 0), ServerID: 7}
+	tableID := nativeTableIDForChange("app.docs")
+	oldChange := RowChange{
+		Table:       "app.docs",
+		Columns:     columns,
+		ColumnTypes: map[string]string{"id": "VARCHAR(32)", "value": "VARCHAR(32)"},
+		After:       map[string]interface{}{"id": "old", "value": "old"},
+	}
+	currentChange := RowChange{
+		Table:       "app.docs",
+		Columns:     columns,
+		ColumnTypes: map[string]string{"id": "INT", "value": "VARCHAR(32)"},
+		After:       map[string]interface{}{"id": int64(7), "value": "current"},
+	}
+	oldMap := buildNativeTableMapEventForChange(base, 100, tableID, oldChange, columns)
+	currentMap := buildNativeTableMapEventForChange(base, 200, tableID, currentChange, columns)
+	currentRows := buildNativeRowsEventForChanges(base, 200, tableID, []RowChange{currentChange}, columns)
+
+	decoded, err := NewNativeBinlogDecoder().Decode([]NativeBinlogEvent{
+		{File: "binlog.000001", Position: 200, Type: 19, Raw: currentMap},
+		{File: "binlog.000001", Position: 100, Type: 19, Raw: oldMap},
+		{File: "binlog.000001", Position: 200, Type: currentRows[4], Raw: currentRows},
+	})
+	require.NoError(t, err)
+	require.Len(t, decoded, 1)
+	require.Equal(t, int64(7), decoded[0].After["id"])
+	require.Equal(t, "current", decoded[0].After["value"])
 }
 
 func TestNativeDecoderAcceptsLegacyV1RowEvents(t *testing.T) {
@@ -1238,6 +1292,29 @@ func TestNativeDecoderReconstructsStatementBasedQueryBoundaries(t *testing.T) {
 	require.Equal(t, "insert into docs values (1)", decoded[0].Statements[0].SQL)
 }
 
+func TestNativeDecoderCommitsAutocommitQueryBeforeNextGTID(t *testing.T) {
+	base := BinlogEvent{Timestamp: time.Unix(3, 0), ServerID: 17}
+	first := GTID{UUID: "00112233-4455-6677-8899-aabbccddeeff", Seq: 1}
+	second := GTID{UUID: first.UUID, Seq: 2}
+	gtidOne := buildNativeEventForLogical(BinlogEvent{Timestamp: base.Timestamp, Type: EventBegin, ServerID: base.ServerID, GTID: first}, 4)
+	query := buildNativeQueryEventForTest(eventWithNativePosition(base, uint64(4+len(gtidOne))), "CREATE DATABASE docs")
+	gtidTwoPosition := uint64(4 + len(gtidOne) + len(query))
+	gtidTwo := buildNativeEventForLogical(BinlogEvent{Timestamp: base.Timestamp, Type: EventBegin, ServerID: base.ServerID, GTID: second}, gtidTwoPosition)
+	xid := buildNativeEventForLogical(BinlogEvent{Timestamp: base.Timestamp, Type: EventCommit, ServerID: base.ServerID, GTID: second}, gtidTwoPosition+uint64(len(gtidTwo)))
+
+	decoded, err := NewNativeBinlogDecoder().DecodeTransactions([]NativeBinlogEvent{
+		{File: "binlog.000001", Position: 4, Type: 33, Raw: gtidOne},
+		{File: "binlog.000001", Position: 4 + uint64(len(gtidOne)), Type: 2, Raw: query},
+		{File: "binlog.000001", Position: gtidTwoPosition, Type: 33, Raw: gtidTwo},
+		{File: "binlog.000001", Position: gtidTwoPosition + uint64(len(gtidTwo)), Type: 16, Raw: xid},
+	})
+	require.NoError(t, err)
+	require.Len(t, decoded, 2)
+	require.Equal(t, first, decoded[0].GTID)
+	require.Equal(t, "CREATE DATABASE docs", decoded[0].Statements[0].SQL)
+	require.Equal(t, second, decoded[1].GTID)
+}
+
 func TestNativeDecoderDropsRolledBackStatementTransaction(t *testing.T) {
 	base := BinlogEvent{Timestamp: time.Unix(3, 0), ServerID: 17}
 	frames := []NativeBinlogEvent{}
@@ -1299,6 +1376,54 @@ func TestNativeDecoderReconstructsTaggedGTIDTransaction(t *testing.T) {
 	require.Equal(t, EventCommit, decoded[0].Type)
 	require.Equal(t, uint64(3), decoded[0].GTID.Seq)
 	require.Equal(t, "00112233-4455-6677-8899-aabbccddeeff:foo", decoded[0].GTID.UUID)
+}
+
+func TestNativeEncoderEmitsTaggedGTIDEvent(t *testing.T) {
+	gtid := GTID{UUID: "00112233-4455-6677-8899-aabbccddeeff:foo", Seq: 3}
+	begin := buildNativeEventForLogical(BinlogEvent{
+		Timestamp: time.Unix(2, 0), Type: EventBegin, ServerID: 17, GTID: gtid,
+	}, 128)
+	require.Equal(t, byte(42), begin[4])
+	xid := buildNativeEvent(16, make([]byte, 8), BinlogEvent{
+		Timestamp: time.Unix(2, 0), Type: EventCommit, ServerID: 17, GTID: gtid, Position: 160,
+	})
+	decoded, err := NewNativeBinlogDecoder().DecodeTransactions([]NativeBinlogEvent{
+		{File: "binlog.000007", Position: 128, Type: 42, Raw: begin},
+		{File: "binlog.000007", Position: 160, Type: 16, Raw: xid},
+	})
+	require.NoError(t, err)
+	require.Len(t, decoded, 1)
+	require.Equal(t, gtid, decoded[0].GTID)
+}
+
+func TestNativePreviousGTIDsPreserveTaggedSet(t *testing.T) {
+	uuid := "00112233-4455-6677-8899-aabbccddeeff"
+	set := GTIDSet{
+		uuid + ":foo": {1: {}, 2: {}},
+		uuid:          {4: {}},
+	}
+	frame := buildNativePreviousGTIDsEvent(17, 4, set)
+	require.Equal(t, byte(1), nativeEventBody(NativeBinlogEvent{Type: 35, Raw: frame})[0], "tagged previous GTIDs use Binary v1")
+	decoded, err := decodeNativePreviousGTIDs(nativeEventBody(NativeBinlogEvent{Type: 35, Raw: frame}), "")
+	require.NoError(t, err)
+	require.Equal(t, []GTIDInterval{{Start: 1, End: 2}}, decoded[uuid+":foo"])
+	require.Equal(t, []GTIDInterval{{Start: 4, End: 4}}, decoded[uuid])
+}
+
+func TestNativePreviousGTIDsDecodeTaggedBinaryV2(t *testing.T) {
+	uuid := "00112233-4455-6677-8899-aabbccddeeff"
+	sid := nativeGTIDSID(uuid)
+	// Binary v2: type, 48-bit TSID count, redundant type, tag table,
+	// followed by a TSID code, UUID, and delta-encoded interval boundaries.
+	body := []byte{2, 1, 0, 0, 0, 0, 0, 2, 0x02, 0x08}
+	body = append(body, []byte("Domain_1")...)
+	body = append(body, 0x00) // tag ordinal 0, UUID is present
+	body = append(body, sid...)
+	body = append(body, 0x04, 0x00, 0x04) // boundaries 2 and 5 => [2, 5)
+
+	decoded, err := decodeNativePreviousGTIDs(body, "")
+	require.NoError(t, err)
+	require.Equal(t, []GTIDInterval{{Start: 2, End: 4}}, decoded[uuid+":Domain_1"])
 }
 
 func TestNativeDecoderRejectsMalformedTaggedGTID(t *testing.T) {
@@ -1528,6 +1653,91 @@ func TestReplicaReplicateNativeFromIsGTIDIdempotent(t *testing.T) {
 	_, err = replica.ReplicateNativeFrom(source, "binlog.000001", position)
 	require.NoError(t, err)
 	require.Equal(t, 1, applied, "replaying from the observed native position must not reapply the GTID")
+}
+
+func TestReplicaPersistsNativeSourcePositionAcrossRestart(t *testing.T) {
+	source, err := NewSource(t.TempDir(), "source", 7)
+	require.NoError(t, err)
+	_, err = source.Append(1, []RowChange{{
+		Table:       "app.docs",
+		Action:      "insert",
+		ColumnTypes: map[string]string{"id": "INT"},
+		After:       map[string]interface{}{"id": int32(1)},
+	}})
+	require.NoError(t, err)
+
+	replicaDir := t.TempDir()
+	replica, err := NewReplica(replicaDir)
+	require.NoError(t, err)
+	replica.ApplyRows = func([]RowChange) error { return nil }
+
+	nextPosition, err := replica.ReplicateNativeFrom(source, "binlog.000001", 4)
+	require.NoError(t, err)
+	require.Greater(t, nextPosition, uint64(4))
+	require.Equal(t, "binlog.000001", replica.LastSourceFile)
+	require.Equal(t, nextPosition, replica.LastSourcePosition)
+
+	restarted, err := NewReplica(replicaDir)
+	require.NoError(t, err)
+	require.Equal(t, "binlog.000001", restarted.LastSourceFile)
+	require.Equal(t, nextPosition, restarted.LastSourcePosition)
+
+	applyCount := 0
+	restarted.ApplyRows = func([]RowChange) error {
+		applyCount++
+		return nil
+	}
+	resumedPosition, err := restarted.ReplicateNativeFrom(source, restarted.LastSourceFile, restarted.LastSourcePosition)
+	require.NoError(t, err)
+	require.Equal(t, nextPosition, resumedPosition)
+	require.Zero(t, applyCount, "resuming from the durable source position must not reapply the executed GTID")
+}
+
+func TestReplicaNativeSourcePositionDoesNotAdvanceBeforeFinalStatePersist(t *testing.T) {
+	source, err := NewSource(t.TempDir(), "source", 7)
+	require.NoError(t, err)
+	_, err = source.Append(1, []RowChange{{
+		Table:       "app.docs",
+		Action:      "insert",
+		ColumnTypes: map[string]string{"id": "INT"},
+		After:       map[string]interface{}{"id": int32(1)},
+	}})
+	require.NoError(t, err)
+
+	replicaDir := t.TempDir()
+	replica, err := NewReplica(replicaDir)
+	require.NoError(t, err)
+	applyCount := 0
+	replica.ApplyRows = func([]RowChange) error {
+		applyCount++
+		return nil
+	}
+	persistCalls := 0
+	replica.statePersistHook = func() error {
+		persistCalls++
+		if persistCalls == 3 {
+			return errors.New("injected final replica-state persist failure")
+		}
+		return nil
+	}
+
+	_, err = replica.ReplicateNativeFrom(source, "binlog.000001", 4)
+	require.Error(t, err)
+	require.Equal(t, 1, applyCount)
+	require.Zero(t, replica.LastSourcePosition, "source position must not advance when final state replacement fails")
+
+	restarted, err := NewReplica(replicaDir)
+	require.NoError(t, err)
+	require.Zero(t, restarted.LastSourcePosition)
+	restartedApplyCount := 0
+	restarted.ApplyRows = func([]RowChange) error {
+		restartedApplyCount++
+		return nil
+	}
+	nextPosition, err := restarted.ReplicateNativeFrom(source, "binlog.000001", 4)
+	require.NoError(t, err)
+	require.Greater(t, nextPosition, uint64(4))
+	require.Zero(t, restartedApplyCount, "the durable applied marker must prevent a duplicate storage apply")
 }
 
 func TestNativeDumpFiltersExecutedAnonymousTransaction(t *testing.T) {
@@ -1807,6 +2017,477 @@ func TestNativeDumpFromContinuesAcrossRotatedFiles(t *testing.T) {
 	require.Equal(t, "binlog.000002", events[6].File)
 }
 
+func TestNativeDumpAtArbitraryMidTransactionPositionSkipsPartialTransaction(t *testing.T) {
+	source, err := NewSource(t.TempDir(), "native-mid-transaction-source", 17)
+	require.NoError(t, err)
+	_, err = source.AppendTransaction(1, []RowChange{{
+		Table:   "app.docs",
+		Action:  "insert",
+		Columns: []string{"id"},
+		After:   map[string]interface{}{"id": int64(1)},
+	}}, nil)
+	require.NoError(t, err)
+	events, err := source.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+	require.Len(t, events, 6)
+
+	// A replica reconnecting after the TABLE_MAP frame must not receive a
+	// partial transaction. It should resume at the next complete GTID.
+	resumed, next, err := source.NativeDumpFileWithIntervals("binlog.000001", events[2].Position+1, nil)
+	require.NoError(t, err)
+	require.Greater(t, next, events[4].EndPosition-1)
+	require.Empty(t, resumed)
+}
+
+func TestNativeDumpFromMidTransactionContinuesAtNextRotatedGTID(t *testing.T) {
+	source, err := NewSource(t.TempDir(), "native-mid-rotate-source", 17)
+	require.NoError(t, err)
+	_, err = source.AppendTransaction(1, []RowChange{{Table: "app.docs", Action: "insert", Columns: []string{"id"}, After: map[string]interface{}{"id": int64(1)}}}, nil)
+	require.NoError(t, err)
+	first, err := source.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+	_, err = source.Writer.Rotate()
+	require.NoError(t, err)
+	_, err = source.AppendTransaction(2, []RowChange{{Table: "app.docs", Action: "insert", Columns: []string{"id"}, After: map[string]interface{}{"id": int64(2)}}}, nil)
+	require.NoError(t, err)
+
+	resumed, err := source.NativeDumpFrom("binlog.000001", first[2].Position+1, nil)
+	require.NoError(t, err)
+	require.Len(t, resumed, 7)
+	require.Equal(t, byte(4), resumed[0].Type)
+	require.Equal(t, "binlog.000002", resumed[1].File)
+	require.Equal(t, byte(33), resumed[3].Type)
+	require.Equal(t, uint64(2), mustNativeGTIDSequence(t, resumed[3]))
+}
+
+func TestSourceEmitsAndRecoversNativeXAPrepareAndCommit(t *testing.T) {
+	dir := t.TempDir()
+	source, err := NewSource(dir, "native-xa-source", 17)
+	require.NoError(t, err)
+	xid := XAIdentity{GTRID: "gtrid", BQUAL: "branch", FormatID: 17}
+	changes := []RowChange{{Table: "app.docs", Action: "insert", Columns: []string{"id"}, After: map[string]interface{}{"id": int64(7)}}}
+	require.NoError(t, source.PrepareXATransaction("xa-key", xid, changes, nil))
+	require.False(t, source.Executed.Contains(GTID{UUID: source.UUID, Seq: 1}))
+
+	native, err := source.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+	// XA START/XA END are QUERY_EVENTs in the prepare transaction before the
+	// row image and XA_PREPARE_EVENT.  Keep the source-side contract aligned
+	// with the official MySQL XA lifecycle ordering.
+	require.Equal(t, []byte{15, 35, 33, 2, 19, 30, 2, 38}, nativeEventTypesFromEvents(native))
+	decoder := NewNativeBinlogDecoderForSource(source.UUID)
+	prepared, err := decoder.DecodeTransactions(native)
+	require.NoError(t, err)
+	require.Empty(t, prepared)
+	require.Contains(t, decoder.PreparedXA(), xid.Key())
+
+	reloaded, err := NewSource(dir, source.UUID, 17)
+	require.NoError(t, err)
+	require.NoError(t, reloaded.CommitXATransaction("xa-key", xid))
+	require.True(t, reloaded.Executed.Contains(GTID{UUID: source.UUID, Seq: 1}))
+
+	native, err = reloaded.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+	require.True(t, reloaded.Executed.Contains(GTID{UUID: source.UUID, Seq: 2}))
+	// XA START and XA END are QUERY_EVENTs in the same native transaction
+	// group as the row changes and XA_PREPARE_EVENT.  Official MySQL replicas
+	// need those lifecycle transitions to enter the matching XA state.
+	require.Equal(t, []byte{15, 35, 33, 2, 19, 30, 2, 38, 33, 2}, nativeEventTypesFromEvents(native))
+	decoder = NewNativeBinlogDecoderForSource(source.UUID)
+	committed, err := decoder.DecodeTransactions(native)
+	require.NoError(t, err)
+	require.Len(t, committed, 1)
+	require.Equal(t, EventXACommit, committed[0].Type)
+	require.Equal(t, GTID{UUID: source.UUID, Seq: 1}, committed[0].GTID)
+	require.NotNil(t, committed[0].TerminalGTID)
+	require.Equal(t, GTID{UUID: source.UUID, Seq: 2}, *committed[0].TerminalGTID)
+	require.Len(t, committed[0].Changes, 1)
+
+	// A retry after the terminal event is durable is idempotent and must not
+	// append another native XA COMMIT or allocate another GTID.
+	require.NoError(t, reloaded.CommitXATransaction("xa-key", xid))
+	native, err = reloaded.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+	beforeRetry := len(native)
+	require.NoError(t, reloaded.CommitXATransaction("xa-key", xid))
+	native, err = reloaded.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+	require.Equal(t, beforeRetry, len(native))
+}
+
+func TestSourceAssignsSeparateGTIDsToXAPrepareAndTerminal(t *testing.T) {
+	dir := t.TempDir()
+	source, err := NewSource(dir, "separate-xa-source", 47)
+	require.NoError(t, err)
+	xid := XAIdentity{GTRID: "separate-gtrid", BQUAL: "branch", FormatID: 29}
+	changes := []RowChange{{Table: "app.docs", Action: "insert", Columns: []string{"id"}, After: map[string]interface{}{"id": int64(9)}}}
+	require.NoError(t, source.PrepareXATransaction("separate-key", xid, changes, nil))
+	require.False(t, source.Executed.Contains(GTID{UUID: source.UUID, Seq: 1}))
+	require.NoError(t, source.CommitXATransaction("separate-key", xid))
+	require.True(t, source.Executed.Contains(GTID{UUID: source.UUID, Seq: 1}))
+	require.True(t, source.Executed.Contains(GTID{UUID: source.UUID, Seq: 2}))
+
+	logical, err := source.Dump(4)
+	require.NoError(t, err)
+	var terminal *BinlogEvent
+	for index := range logical {
+		if logical[index].Type == EventXACommit {
+			terminal = &logical[index]
+			break
+		}
+	}
+	require.NotNil(t, terminal)
+	require.Equal(t, GTID{UUID: source.UUID, Seq: 1}, terminal.GTID)
+	require.NotNil(t, terminal.TerminalGTID)
+	require.Equal(t, GTID{UUID: source.UUID, Seq: 2}, *terminal.TerminalGTID)
+
+	native, err := source.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+	// XA START and XA END are QUERY_EVENTs in the same native transaction
+	// group as the row changes and XA_PREPARE_EVENT. Official MySQL replicas
+	// need those lifecycle transitions to enter the matching XA state.
+	require.Equal(t, []byte{15, 35, 33, 2, 19, 30, 2, 38, 33, 2}, nativeEventTypesFromEvents(native))
+	decoder := NewNativeBinlogDecoderForSource(source.UUID)
+	decoded, err := decoder.DecodeTransactions(native)
+	require.NoError(t, err)
+	require.Len(t, decoded, 1)
+	require.Equal(t, GTID{UUID: source.UUID, Seq: 1}, decoded[0].GTID)
+	require.NotNil(t, decoded[0].TerminalGTID)
+	require.Equal(t, GTID{UUID: source.UUID, Seq: 2}, *decoded[0].TerminalGTID)
+}
+
+func TestSourceEmitsNativeOnePhaseXAPrepareAndCommitsImmediately(t *testing.T) {
+	source, err := NewSource(t.TempDir(), "one-phase-source", 41)
+	require.NoError(t, err)
+	xid := XAIdentity{GTRID: "one-phase-gtrid", BQUAL: "branch", FormatID: 23}
+	change := RowChange{Table: "app.docs", Action: "INSERT", Columns: []string{"id"}, After: map[string]interface{}{"id": int64(1)}}
+
+	require.NoError(t, source.AppendOnePhaseXATransaction("one-phase-key", xid, []RowChange{change}, nil))
+	require.True(t, source.Executed.Contains(GTID{UUID: source.UUID, Seq: 1}))
+
+	logical, err := source.Dump(4)
+	require.NoError(t, err)
+	var onePhase *BinlogEvent
+	for index := range logical {
+		if logical[index].Type == EventXAPrepare {
+			onePhase = &logical[index]
+			break
+		}
+	}
+	require.NotNil(t, onePhase)
+	require.True(t, onePhase.OnePhase)
+
+	native, err := source.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+	require.NotEmpty(t, native)
+	require.Equal(t, byte(38), native[len(native)-1].Type)
+	require.True(t, func() bool {
+		onePhase, decodeErr := decodeNativeXAPrepare(nativeEventBody(native[len(native)-1]))
+		return decodeErr == nil && onePhase
+	}())
+
+	decoded, err := NewNativeBinlogDecoderForSource(source.UUID).DecodeTransactions(native)
+	require.NoError(t, err)
+	require.Len(t, decoded, 1)
+	require.Equal(t, GTID{UUID: source.UUID, Seq: 1}, decoded[0].GTID)
+	require.Len(t, decoded[0].Changes, 1)
+	require.Equal(t, "1", fmt.Sprint(decoded[0].Changes[0].After["id"]))
+
+	replica, err := NewReplica(t.TempDir())
+	require.NoError(t, err)
+	var applied []RowChange
+	replica.ApplyRows = func(changes []RowChange) error {
+		applied = append(applied, changes...)
+		return nil
+	}
+	_, err = replica.ReplicateNativeFrom(source, "binlog.000001", 4)
+	require.NoError(t, err)
+	require.True(t, replica.Executed.Contains(GTID{UUID: source.UUID, Seq: 1}))
+	require.Empty(t, replica.preparedXA)
+	require.Len(t, applied, 1)
+}
+
+func TestSourcePrepareXAIsIdempotentByTransactionKey(t *testing.T) {
+	dir := t.TempDir()
+	source, err := NewSource(dir, "native-xa-key-source", 17)
+	require.NoError(t, err)
+	first := XAIdentity{GTRID: "same-key-gtrid", BQUAL: "branch-1", FormatID: 17}
+	second := XAIdentity{GTRID: "same-key-gtrid", BQUAL: "branch-2", FormatID: 17}
+
+	require.NoError(t, source.PrepareXATransaction("same-key", first, nil, nil))
+	// Retrying PREPARE after the durable boundary must not append a second
+	// PREPARE event or allocate another GTID.
+	require.NoError(t, source.PrepareXATransaction("same-key", first, nil, nil))
+	require.Equal(t, uint64(2), source.nextSeq)
+	native, err := source.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+	require.Equal(t, 1, countNativeEventType(native, 38))
+
+	reloaded, err := NewSource(dir, source.UUID, 17)
+	require.NoError(t, err)
+	require.NoError(t, reloaded.PrepareXATransaction("same-key", first, nil, nil))
+	require.Equal(t, uint64(2), reloaded.nextSeq)
+
+	// A different prepared XID cannot reuse the same transaction identity.
+	require.Error(t, reloaded.PrepareXATransaction("same-key", second, nil, nil))
+}
+
+func TestSourcePreparedXARecoversWhenStateFilesAreLost(t *testing.T) {
+	dir := t.TempDir()
+	source, err := NewSource(dir, "xa-state-loss-source", 17)
+	require.NoError(t, err)
+	xid := XAIdentity{GTRID: "state-loss-gtrid", BQUAL: "branch", FormatID: 17}
+	require.NoError(t, source.PrepareXATransaction("state-loss-key", xid, nil, nil))
+
+	for _, path := range []string{
+		filepath.Join(dir, "replication", "source_state.json"),
+		filepath.Join(dir, "replication", "source_gtid.json"),
+		filepath.Join(dir, "replication", "source_transaction_keys.json"),
+	} {
+		require.NoError(t, os.Remove(path))
+	}
+
+	reloaded, err := NewSource(dir, source.UUID, 17)
+	require.NoError(t, err)
+	require.Equal(t, GTID{UUID: source.UUID, Seq: 1}, reloaded.preparedXA[xid.Key()])
+	require.False(t, reloaded.Executed.Contains(GTID{UUID: source.UUID, Seq: 1}))
+	require.NoError(t, reloaded.CommitXATransaction("state-loss-key", xid))
+	require.True(t, reloaded.Executed.Contains(GTID{UUID: source.UUID, Seq: 1}))
+}
+
+func TestSourceCommittedXARecoversWhenStateFilesAreLost(t *testing.T) {
+	dir := t.TempDir()
+	source, err := NewSource(dir, "xa-commit-state-loss-source", 17)
+	require.NoError(t, err)
+	xid := XAIdentity{GTRID: "commit-state-loss-gtrid", BQUAL: "branch", FormatID: 17}
+	require.NoError(t, source.PrepareXATransaction("commit-state-loss-key", xid, nil, nil))
+	require.NoError(t, source.CommitXATransaction("commit-state-loss-key", xid))
+
+	for _, path := range []string{
+		filepath.Join(dir, "replication", "source_state.json"),
+		filepath.Join(dir, "replication", "source_gtid.json"),
+		filepath.Join(dir, "replication", "source_transaction_keys.json"),
+	} {
+		require.NoError(t, os.Remove(path))
+	}
+
+	reloaded, err := NewSource(dir, source.UUID, 17)
+	require.NoError(t, err)
+	require.True(t, reloaded.Executed.Contains(GTID{UUID: source.UUID, Seq: 1}))
+	require.Empty(t, reloaded.preparedXA)
+	require.NoError(t, reloaded.CommitXATransaction("commit-state-loss-key", xid))
+	events, err := reloaded.Dump(4)
+	require.NoError(t, err)
+	terminalCount := 0
+	for _, event := range events {
+		if event.Type == EventXACommit {
+			terminalCount++
+		}
+	}
+	require.Equal(t, 1, terminalCount)
+}
+
+func TestSourceXARecoversAfterPrepareStatePersistFailure(t *testing.T) {
+	dir := t.TempDir()
+	source, err := NewSource(dir, "xa-prepare-persist-failure", 17)
+	require.NoError(t, err)
+	xid := XAIdentity{GTRID: "prepare-persist-failure", BQUAL: "branch", FormatID: 17}
+	source.durableStateHook = func() error { return errors.New("injected source state failure") }
+	require.ErrorContains(t, source.PrepareXATransaction("prepare-persist-failure-key", xid, nil, nil), "injected source state failure")
+	source.durableStateHook = nil
+
+	reloaded, err := NewSource(dir, source.UUID, 17)
+	require.NoError(t, err)
+	require.Contains(t, reloaded.preparedXA, xid.Key())
+	require.NoError(t, reloaded.CommitXATransaction("prepare-persist-failure-key", xid))
+	require.True(t, reloaded.Executed.Contains(GTID{UUID: source.UUID, Seq: 1}))
+}
+
+func TestSourceXARecoversAfterCommitStatePersistFailure(t *testing.T) {
+	dir := t.TempDir()
+	source, err := NewSource(dir, "xa-commit-persist-failure", 17)
+	require.NoError(t, err)
+	xid := XAIdentity{GTRID: "commit-persist-failure", BQUAL: "branch", FormatID: 17}
+	require.NoError(t, source.PrepareXATransaction("commit-persist-failure-key", xid, nil, nil))
+	source.durableStateHook = func() error { return errors.New("injected source state failure") }
+	require.ErrorContains(t, source.CommitXATransaction("commit-persist-failure-key", xid), "injected source state failure")
+	source.durableStateHook = nil
+
+	reloaded, err := NewSource(dir, source.UUID, 17)
+	require.NoError(t, err)
+	require.True(t, reloaded.Executed.Contains(GTID{UUID: source.UUID, Seq: 1}))
+	require.Empty(t, reloaded.preparedXA)
+	require.NoError(t, reloaded.CommitXATransaction("commit-persist-failure-key", xid))
+}
+
+func TestSourceEmitsNativeXARollbackWithSeparateTerminalGTID(t *testing.T) {
+	source, err := NewSource(t.TempDir(), "native-xa-rollback-source", 17)
+	require.NoError(t, err)
+	xid := XAIdentity{GTRID: "rollback-gtrid", BQUAL: "branch", FormatID: 19}
+	require.NoError(t, source.PrepareXATransaction("rollback-key", xid, nil, []Statement{{Database: "app", SQL: "update docs set id=8"}}))
+	require.NoError(t, source.RollbackXATransaction("rollback-key", xid))
+	require.True(t, source.Executed.Contains(GTID{UUID: source.UUID, Seq: 1}))
+	require.True(t, source.Executed.Contains(GTID{UUID: source.UUID, Seq: 2}))
+	native, err := source.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+	// A statement-based XA prepare has lifecycle QUERY_EVENTs around the
+	// prepare and the separate terminal GTID group used for rollback.
+	require.Equal(t, []byte{15, 35, 33, 2, 2, 2, 38, 33, 2}, nativeEventTypesFromEvents(native))
+	decoder := NewNativeBinlogDecoderForSource(source.UUID)
+	committed, err := decoder.DecodeTransactions(native)
+	require.NoError(t, err)
+	require.Len(t, committed, 1)
+	require.Equal(t, EventXARollback, committed[0].Type)
+}
+
+func TestSourceXARollbackRetryAfterTerminalIsDurableIsIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	source, err := NewSource(dir, "xa-rollback-retry-source", 53)
+	require.NoError(t, err)
+	xid := XAIdentity{GTRID: "rollback-retry-gtrid", BQUAL: "branch", FormatID: 31}
+	require.NoError(t, source.PrepareXATransaction("rollback-retry-key", xid, nil, nil))
+	require.NoError(t, source.RollbackXATransaction("rollback-retry-key", xid))
+
+	native, err := source.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+	beforeRetry := len(native)
+	require.NoError(t, source.RollbackXATransaction("rollback-retry-key", xid))
+	native, err = source.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+	require.Equal(t, beforeRetry, len(native))
+
+	reloaded, err := NewSource(dir, source.UUID, 53)
+	require.NoError(t, err)
+	require.NoError(t, reloaded.RollbackXATransaction("rollback-retry-key", xid))
+	native, err = reloaded.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+	require.Equal(t, beforeRetry, len(native))
+}
+
+func TestReplicaAppliesLogicalXATransactionOnlyAtCommit(t *testing.T) {
+	source, err := NewSource(t.TempDir(), "logical-xa-source", 31)
+	require.NoError(t, err)
+	xid := XAIdentity{GTRID: "logical-gtrid", BQUAL: "branch", FormatID: 31}
+	change := RowChange{Table: "app.docs", Action: "insert", Columns: []string{"id"}, After: map[string]interface{}{"id": int64(9)}}
+	require.NoError(t, source.PrepareXATransaction("logical-key", xid, []RowChange{change}, nil))
+	require.NoError(t, source.CommitXATransaction("logical-key", xid))
+	events, err := source.Dump(4)
+	require.NoError(t, err)
+	replica, err := NewReplica(t.TempDir())
+	require.NoError(t, err)
+	applied := make([]RowChange, 0)
+	replica.ApplyRows = func(changes []RowChange) error {
+		applied = append(applied, changes...)
+		return nil
+	}
+	preparedEvents := make([]BinlogEvent, 0)
+	for _, event := range events {
+		preparedEvents = append(preparedEvents, event)
+		if event.Type == EventXAPrepare {
+			break
+		}
+	}
+	// The logical stream must not apply the row image at PREPARE time.
+	require.NoError(t, replica.Apply(preparedEvents))
+	require.Empty(t, applied)
+	require.Empty(t, replica.Executed)
+	require.NoError(t, replica.Apply(events))
+	require.Len(t, applied, 1)
+	require.True(t, replica.Executed.Contains(GTID{UUID: source.UUID, Seq: 1}))
+	require.NoError(t, replica.Apply(events))
+	require.Len(t, applied, 1)
+}
+
+func TestReplicaPersistsNativePreparedXAAcrossRestart(t *testing.T) {
+	source, err := NewSource(t.TempDir(), "native-xa-replica-source", 31)
+	require.NoError(t, err)
+	xid := XAIdentity{GTRID: "native-replica-gtrid", BQUAL: "branch", FormatID: 31}
+	change := RowChange{Table: "app.docs", Action: "insert", Columns: []string{"id"}, After: map[string]interface{}{"id": int64(10)}}
+	require.NoError(t, source.PrepareXATransaction("native-replica-key", xid, []RowChange{change}, nil))
+
+	replicaDir := t.TempDir()
+	replica, err := NewReplica(replicaDir)
+	require.NoError(t, err)
+	var applied []RowChange
+	replica.ApplyRows = func(changes []RowChange) error {
+		applied = append(applied, changes...)
+		return nil
+	}
+	position, err := replica.ReplicateNativeFrom(source, "binlog.000001", 4)
+	require.NoError(t, err)
+	require.Empty(t, applied)
+	require.Contains(t, replica.preparedXA, xid.Key())
+	require.NotEmpty(t, replica.nativeRelayEvents, "native pull must persist the physical relay frames")
+
+	restarted, err := NewReplica(replicaDir)
+	require.NoError(t, err)
+	restarted.ApplyRows = replica.ApplyRows
+	require.Contains(t, restarted.preparedXA, xid.Key())
+	require.NotEmpty(t, restarted.nativeRelayEvents, "native relay frames must survive restart")
+
+	require.NoError(t, source.CommitXATransaction("native-replica-key", xid))
+	position, err = restarted.ReplicateNativeFrom(source, "binlog.000001", position)
+	require.NoError(t, err)
+	require.Len(t, applied, 1)
+	require.Empty(t, restarted.preparedXA)
+	require.True(t, restarted.Executed.Contains(GTID{UUID: source.UUID, Seq: 1}))
+
+	// Replaying the physical stream after the terminal event is durable is a
+	// no-op and must not apply the row image twice.
+	_, err = restarted.ReplicateNativeFrom(source, "binlog.000001", 4)
+	require.NoError(t, err)
+	require.Len(t, applied, 1)
+}
+
+func TestMultipleReplicasApplyXATransactionExactlyOnce(t *testing.T) {
+	source, err := NewSource(t.TempDir(), "multi-replica-xa-source", 31)
+	require.NoError(t, err)
+	xid := XAIdentity{GTRID: "multi-replica-gtrid", BQUAL: "branch", FormatID: 31}
+	change := RowChange{Table: "app.docs", Action: "insert", Columns: []string{"id"}, After: map[string]interface{}{"id": int64(14)}}
+	require.NoError(t, source.PrepareXATransaction("multi-replica-key", xid, []RowChange{change}, nil))
+	require.NoError(t, source.CommitXATransaction("multi-replica-key", xid))
+	events, err := source.Dump(4)
+	require.NoError(t, err)
+
+	applyOnce := func(dir string) (*Replica, *[]RowChange) {
+		replica, replicaErr := NewReplica(dir)
+		require.NoError(t, replicaErr)
+		applied := make([]RowChange, 0)
+		replica.ApplyRows = func(changes []RowChange) error {
+			applied = append(applied, changes...)
+			return nil
+		}
+		require.NoError(t, replica.Apply(events))
+		require.NoError(t, replica.Apply(events))
+		return replica, &applied
+	}
+
+	first, firstApplied := applyOnce(t.TempDir())
+	second, secondApplied := applyOnce(t.TempDir())
+	require.Len(t, *firstApplied, 1)
+	require.Len(t, *secondApplied, 1)
+	require.True(t, first.Executed.Contains(GTID{UUID: source.UUID, Seq: 1}))
+	require.True(t, second.Executed.Contains(GTID{UUID: source.UUID, Seq: 1}))
+}
+
+func nativeEventTypesFromEvents(events []NativeBinlogEvent) []byte {
+	types := make([]byte, 0, len(events))
+	for _, event := range events {
+		types = append(types, event.Type)
+	}
+	return types
+}
+
+func countNativeEventType(events []NativeBinlogEvent, wanted byte) int {
+	count := 0
+	for _, event := range events {
+		if event.Type == wanted {
+			count++
+		}
+	}
+	return count
+}
+
 func TestBinlogWriterRebuildsMissingRotatedNativeFileAfterRestart(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "binlog.jsonl")
@@ -1855,6 +2536,22 @@ func TestGTIDIntervalsParseTaggedGTID(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, intervals.Contains(GTID{UUID: "00112233-4455-6677-8899-aabbccddeeff:foo", Seq: 2}))
 	require.Equal(t, "00112233-4455-6677-8899-aabbccddeeff:foo:1-3:7", intervals.String())
+}
+
+func TestGTIDIntervalsParseMultipleTaggedSources(t *testing.T) {
+	intervals, err := ParseGTIDIntervals("uuid:1-2:tag_a:4-5:TagB:8")
+	require.NoError(t, err)
+	require.True(t, intervals.Contains(GTID{UUID: "uuid:tag_a", Seq: 4}))
+	require.True(t, intervals.Contains(GTID{UUID: "uuid:TagB", Seq: 8}))
+	require.False(t, intervals.Contains(GTID{UUID: "uuid:tag_a", Seq: 8}))
+	require.Equal(t, "uuid:1-2,uuid:TagB:8,uuid:tag_a:4-5", intervals.String(), "tagged GTIDs must not be merged into the untagged source")
+}
+
+func TestGTIDIntervalsRejectInvalidSequenceBounds(t *testing.T) {
+	for _, raw := range []string{"uuid:0", "uuid:5-3", "uuid:tag:0", "uuid:tag:9-4"} {
+		_, err := ParseGTIDIntervals(raw)
+		require.Error(t, err, "invalid GTID interval %q must be rejected", raw)
+	}
 }
 
 func TestGTIDIntervalsMergeAndFormatWithoutExpansion(t *testing.T) {
@@ -1928,6 +2625,80 @@ func TestSourceReplicaCommitExactlyOnceAcrossRestart(t *testing.T) {
 	reloaded, err := NewReplica(dir)
 	require.NoError(t, err)
 	require.True(t, reloaded.Executed.Contains(GTID{UUID: "source-uuid", Seq: 1}))
+}
+
+func TestReplicaResumesTransactionFromDurableRelayEvents(t *testing.T) {
+	dir := t.TempDir()
+	source, err := NewSource(t.TempDir(), "relay-resume-source", 1)
+	require.NoError(t, err)
+	events, err := source.Append(1, []RowChange{{Table: "app.docs", Action: "insert", After: map[string]interface{}{"id": 1}}})
+	require.NoError(t, err)
+
+	replica, err := NewReplica(dir)
+	require.NoError(t, err)
+	var applied []RowChange
+	replica.ApplyRows = func(changes []RowChange) error {
+		applied = append(applied, changes...)
+		return nil
+	}
+	require.NoError(t, replica.Apply(events[:2]))
+	require.Empty(t, applied)
+	replica, err = NewReplica(dir)
+	require.NoError(t, err)
+	replica.ApplyRows = func(changes []RowChange) error {
+		applied = append(applied, changes...)
+		return nil
+	}
+
+	// Resume after a reconnect at the transaction boundary: only COMMIT is
+	// delivered in the second call, so rows must come from durable relay state.
+	require.NoError(t, replica.Apply(events[2:]))
+	require.Len(t, applied, 1)
+	require.True(t, replica.Executed.Contains(GTID{UUID: "relay-resume-source", Seq: 1}))
+
+	reloaded, err := NewReplica(dir)
+	require.NoError(t, err)
+	reloaded.ApplyRows = func(changes []RowChange) error {
+		t.Fatalf("replayed committed transaction must not be applied again: %#v", changes)
+		return nil
+	}
+	require.NoError(t, reloaded.Apply(events[2:]))
+}
+
+func TestReplicaResumesNativeTransactionFromDurableRelayEvents(t *testing.T) {
+	source, err := NewSource(t.TempDir(), "native-relay-resume-source", 1)
+	require.NoError(t, err)
+	_, err = source.AppendTransaction(1, nil, []Statement{{Database: "app", SQL: "insert into docs values (1)"}})
+	require.NoError(t, err)
+	native, err := source.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(native), 5)
+
+	dir := t.TempDir()
+	replica, err := NewReplica(dir)
+	require.NoError(t, err)
+	var applied []Statement
+	replica.ApplyStatements = func(statements []Statement) error {
+		applied = append(applied, statements...)
+		return nil
+	}
+	// Deliver the file through the QUERY_EVENT but disconnect before XID_EVENT.
+	require.NoError(t, replica.ApplyNative(native[:len(native)-1]))
+	require.Empty(t, applied)
+
+	replica, err = NewReplica(dir)
+	require.NoError(t, err)
+	replica.ApplyStatements = func(statements []Statement) error {
+		applied = append(applied, statements...)
+		return nil
+	}
+	require.NoError(t, replica.ApplyNative(native[len(native)-1:]))
+	require.Len(t, applied, 1)
+	require.Equal(t, "insert into docs values (1)", applied[0].SQL)
+	require.Len(t, replica.Executed, 1)
+	for _, sequences := range replica.Executed {
+		require.Contains(t, sequences, uint64(1))
+	}
 }
 
 func TestReplicaRejectsNilLogicalReplicationSourceWithoutPanic(t *testing.T) {
@@ -2008,11 +2779,227 @@ func TestReplicationCommitBoundaryAndRestartStateAreDurable(t *testing.T) {
 
 	statePath := filepath.Join(dir, "replication", "source_gtid.json")
 	require.NoError(t, os.Remove(statePath))
+	durableStatePath := filepath.Join(dir, "replication", "source_state.json")
+	require.NoError(t, os.Remove(durableStatePath))
 	restartedSource, err := NewSource(dir, "source-uuid", 1)
 	require.NoError(t, err)
 	duplicate, err := restartedSource.Append(1, []RowChange{{Table: "app.docs", Action: "insert"}})
 	require.NoError(t, err)
 	require.Empty(t, duplicate, "source must reconcile committed GTIDs from binlog after state loss")
+}
+
+func TestReplicaPassesCommittedGTIDToIdentityAwareRowApply(t *testing.T) {
+	dir := t.TempDir()
+	source, err := NewSource(dir, "source-identity", 1)
+	require.NoError(t, err)
+	events, err := source.Append(7, []RowChange{{Table: "app.docs", Action: "insert", After: map[string]interface{}{"id": 7}}})
+	require.NoError(t, err)
+
+	replica, err := NewReplica(t.TempDir())
+	require.NoError(t, err)
+	var appliedGTID string
+	var appliedRows []RowChange
+	replica.ApplyRowsWithID = func(gtid string, changes []RowChange) error {
+		appliedGTID = gtid
+		appliedRows = append(appliedRows, changes...)
+		return nil
+	}
+	replica.ApplyRows = func([]RowChange) error {
+		t.Fatal("legacy row apply must not run when identity-aware row apply is configured")
+		return nil
+	}
+	require.NoError(t, replica.Apply(events))
+	require.Equal(t, events[0].GTID.String(), appliedGTID)
+	require.Len(t, appliedRows, 1)
+}
+
+func TestReplicaPersistsRelayBeforeIdentityAwareApply(t *testing.T) {
+	dir := t.TempDir()
+	source, err := NewSource(dir, "source-relay-before-apply", 1)
+	require.NoError(t, err)
+	events, err := source.Append(9, []RowChange{{
+		Table:  "app.docs",
+		Action: "insert",
+		After:  map[string]interface{}{"id": int64(9)},
+	}})
+	require.NoError(t, err)
+
+	replica, err := NewReplica(t.TempDir())
+	require.NoError(t, err)
+	statePath := replica.statePath
+	replica.ApplyRowsWithID = func(gtid string, changes []RowChange) error {
+		raw, readErr := os.ReadFile(statePath)
+		require.NoError(t, readErr)
+		var state replicaState
+		require.NoError(t, json.Unmarshal(raw, &state))
+		require.Equal(t, events[len(events)-1].GTID.String(), gtid)
+		require.Len(t, state.RelayEvents, len(events), "relay must be durable before storage apply")
+		require.Empty(t, state.Executed, "GTID must not be marked executed before storage apply returns")
+		require.Len(t, changes, 1)
+		return nil
+	}
+
+	require.NoError(t, replica.Apply(events))
+}
+
+func TestReplicaRetriesAfterStatePersistFailureWithDurableRelay(t *testing.T) {
+	dir := t.TempDir()
+	source, err := NewSource(dir, "source-relay-crash-window", 1)
+	require.NoError(t, err)
+	events, err := source.Append(10, []RowChange{{
+		Table:  "app.docs",
+		Action: "insert",
+		After:  map[string]interface{}{"id": int64(10)},
+	}})
+	require.NoError(t, err)
+
+	replicaDir := t.TempDir()
+	replica, err := NewReplica(replicaDir)
+	require.NoError(t, err)
+	persistCalls := 0
+	applyCalls := 0
+	replica.statePersistHook = func() error {
+		persistCalls++
+		if persistCalls == 3 {
+			return errors.New("injected replica state failure")
+		}
+		return nil
+	}
+	replica.ApplyRowsWithID = func(string, []RowChange) error {
+		applyCalls++
+		return nil
+	}
+	require.ErrorContains(t, replica.Apply(events), "injected replica state failure")
+	require.Equal(t, 1, applyCalls, "storage apply must happen once before the state replacement failure")
+
+	reloaded, err := NewReplica(replicaDir)
+	require.NoError(t, err)
+	reloaded.ApplyRowsWithID = func(string, []RowChange) error {
+		applyCalls++
+		return nil
+	}
+	require.NoError(t, reloaded.Apply(events))
+	require.Equal(t, 1, applyCalls, "durable applied marker must avoid replay after state replacement failure")
+	require.True(t, reloaded.Executed.Contains(events[len(events)-1].GTID))
+}
+
+func TestReplicaRetriesPreparedXAAfterTerminalStatePersistFailure(t *testing.T) {
+	dir := t.TempDir()
+	source, err := NewSource(dir, "source-xa-relay-crash-window", 1)
+	require.NoError(t, err)
+	xid := XAIdentity{GTRID: "relay-crash-gtrid", BQUAL: "branch", FormatID: 1}
+	change := RowChange{Table: "app.docs", Action: "insert", Columns: []string{"id"}, After: map[string]interface{}{"id": int64(11)}}
+	require.NoError(t, source.PrepareXATransaction("relay-crash-key", xid, []RowChange{change}, nil))
+	require.NoError(t, source.CommitXATransaction("relay-crash-key", xid))
+	events, err := source.Dump(4)
+	require.NoError(t, err)
+
+	replicaDir := t.TempDir()
+	replica, err := NewReplica(replicaDir)
+	require.NoError(t, err)
+	persistCalls := 0
+	applyCalls := 0
+	replica.statePersistHook = func() error {
+		persistCalls++
+		if persistCalls == 3 {
+			return errors.New("injected prepared XA terminal state failure")
+		}
+		return nil
+	}
+	replica.ApplyRowsWithID = func(string, []RowChange) error {
+		applyCalls++
+		return nil
+	}
+	require.ErrorContains(t, replica.Apply(events), "injected prepared XA terminal state failure")
+	require.Equal(t, 1, applyCalls)
+
+	reloaded, err := NewReplica(replicaDir)
+	require.NoError(t, err)
+	reloaded.ApplyRowsWithID = func(string, []RowChange) error {
+		applyCalls++
+		return nil
+	}
+	require.NoError(t, reloaded.Apply(events))
+	require.Equal(t, 1, applyCalls, "durable XA applied marker must avoid replay after terminal state replacement failure")
+	require.True(t, reloaded.Executed.Contains(events[len(events)-1].GTID))
+	require.Empty(t, reloaded.preparedXA)
+}
+
+func TestReplicaStatementReplaySkipsRetryAfterStatePersistFailure(t *testing.T) {
+	dir := t.TempDir()
+	source, err := NewSource(dir, "source-statement-replay-marker", 1)
+	require.NoError(t, err)
+	events, err := source.AppendTransaction(11, nil, []Statement{{Database: "app", SQL: "insert into docs values (11)"}})
+	require.NoError(t, err)
+
+	replicaDir := t.TempDir()
+	replica, err := NewReplica(replicaDir)
+	require.NoError(t, err)
+	persistCalls := 0
+	applyCalls := 0
+	replica.statePersistHook = func() error {
+		persistCalls++
+		if persistCalls == 3 {
+			return errors.New("injected statement replay state failure")
+		}
+		return nil
+	}
+	replica.ApplyStatementsWithID = func(string, []Statement) error {
+		applyCalls++
+		return nil
+	}
+	require.ErrorContains(t, replica.Apply(events), "injected statement replay state failure")
+	require.Equal(t, 1, applyCalls)
+
+	reloaded, err := NewReplica(replicaDir)
+	require.NoError(t, err)
+	reloaded.ApplyStatementsWithID = func(string, []Statement) error {
+		applyCalls++
+		return nil
+	}
+	require.NoError(t, reloaded.Apply(events))
+	require.Equal(t, 1, applyCalls, "statement replay must not execute twice after storage apply succeeded")
+	require.True(t, reloaded.Executed.Contains(events[len(events)-1].GTID))
+}
+
+func TestReplicaStatementMarkersSurviveMultipleTransactionsInOneApply(t *testing.T) {
+	source, err := NewSource(t.TempDir(), "source-multiple-statement-markers", 1)
+	require.NoError(t, err)
+	first, err := source.AppendTransaction(12, nil, []Statement{{Database: "app", SQL: "insert into docs values (12)"}})
+	require.NoError(t, err)
+	second, err := source.AppendTransaction(13, nil, []Statement{{Database: "app", SQL: "insert into docs values (13)"}})
+	require.NoError(t, err)
+	events := append(first, second...)
+
+	replicaDir := t.TempDir()
+	replica, err := NewReplica(replicaDir)
+	require.NoError(t, err)
+	persistCalls := 0
+	applyCalls := 0
+	replica.statePersistHook = func() error {
+		persistCalls++
+		if persistCalls == 5 {
+			return errors.New("injected multi-transaction state failure")
+		}
+		return nil
+	}
+	replica.ApplyStatementsWithID = func(string, []Statement) error {
+		applyCalls++
+		return nil
+	}
+	require.ErrorContains(t, replica.Apply(events), "injected multi-transaction state failure")
+	require.Equal(t, 2, applyCalls)
+
+	reloaded, err := NewReplica(replicaDir)
+	require.NoError(t, err)
+	reloaded.ApplyStatementsWithID = func(string, []Statement) error {
+		applyCalls++
+		return nil
+	}
+	require.NoError(t, reloaded.Apply(events))
+	require.Equal(t, 2, applyCalls, "markers for earlier transactions must not be overwritten by the next relay boundary")
+	require.True(t, reloaded.Executed.Contains(first[len(first)-1].GTID))
+	require.True(t, reloaded.Executed.Contains(second[len(second)-1].GTID))
 }
 
 func TestSourceCommittedTransactionKeySurvivesRestart(t *testing.T) {
@@ -2031,6 +3018,54 @@ func TestSourceCommittedTransactionKeySurvivesRestart(t *testing.T) {
 	transactions, err := restarted.DecodeNativeDumpFrom("binlog.000001", 4, GTIDIntervals{})
 	require.NoError(t, err)
 	require.Len(t, transactions, 1)
+}
+
+func TestSourceCommittedTransactionKeySurvivesKeyStateCrashWindow(t *testing.T) {
+	dir := t.TempDir()
+	source, err := NewSource(dir, "source-keyed-crash", 1)
+	require.NoError(t, err)
+	changes := []RowChange{{Table: "app.docs", Action: "insert", After: map[string]interface{}{"id": 1}}}
+	_, err = source.AppendCommittedTransactionWithKey("xa:g:b:crash-window", changes, nil)
+	require.NoError(t, err)
+
+	// Simulate a crash after the transaction and GTID state were durable but
+	// before the legacy transaction-key mirror could be replaced.
+	keyPath := filepath.Join(dir, "replication", "source_transaction_keys.json")
+	require.NoError(t, os.Remove(keyPath))
+
+	restarted, err := NewSource(dir, "source-keyed-crash", 1)
+	require.NoError(t, err)
+	duplicate, err := restarted.AppendCommittedTransactionWithKey("xa:g:b:crash-window", changes, nil)
+	require.NoError(t, err)
+	require.Empty(t, duplicate)
+	transactions, err := restarted.DecodeNativeDumpFrom("binlog.000001", 4, GTIDIntervals{})
+	require.NoError(t, err)
+	require.Len(t, transactions, 1, "a retry after the key-state crash window must not allocate a second GTID")
+}
+
+func TestSourceCommittedTransactionKeyRecoversFromBinlogWhenStateFilesAreLost(t *testing.T) {
+	dir := t.TempDir()
+	source, err := NewSource(dir, "source-keyed-binlog-recovery", 1)
+	require.NoError(t, err)
+	changes := []RowChange{{Table: "app.docs", Action: "insert", After: map[string]interface{}{"id": 1}}}
+	_, err = source.AppendCommittedTransactionWithKey("xa:g:b:binlog-recovery", changes, nil)
+	require.NoError(t, err)
+
+	// Simulate a crash after the logical binlog append but before any source
+	// state replacement. The committed event must carry enough coordinator
+	// identity for startup to recover the idempotency mapping.
+	for _, name := range []string{"source_state.json", "source_gtid.json", "source_transaction_keys.json"} {
+		require.NoError(t, os.Remove(filepath.Join(dir, "replication", name)))
+	}
+
+	restarted, err := NewSource(dir, "source-keyed-binlog-recovery", 1)
+	require.NoError(t, err)
+	duplicate, err := restarted.AppendCommittedTransactionWithKey("xa:g:b:binlog-recovery", changes, nil)
+	require.NoError(t, err)
+	require.Empty(t, duplicate)
+	transactions, err := restarted.DecodeNativeDumpFrom("binlog.000001", 4, GTIDIntervals{})
+	require.NoError(t, err)
+	require.Len(t, transactions, 1, "binlog recovery must preserve the keyed transaction identity")
 }
 
 func TestReplicationRotateChecksumPositionAndRetryMetadata(t *testing.T) {

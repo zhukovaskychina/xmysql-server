@@ -1390,12 +1390,20 @@ func TestShowRoutineStatusRequiresShowRoutinePrivilege(t *testing.T) {
 	for _, query := range []string{
 		"show procedure status from app",
 		"show function status from app",
-		"select routine_name from information_schema.routines where routine_schema = 'app'",
-		"select specific_name from information_schema.parameters where specific_schema = 'app'",
 	} {
 		denied := <-executor.ExecuteQuery(session, query, "")
 		require.Error(t, denied.Err, query)
 		require.Contains(t, strings.ToLower(denied.Err.Error()), "show_routine", query)
+	}
+	for _, query := range []string{
+		"select routine_name from information_schema.routines where routine_schema = 'app'",
+		"select specific_name from information_schema.parameters where specific_schema = 'app'",
+	} {
+		metadata := <-executor.ExecuteQuery(session, query, "")
+		require.NoError(t, metadata.Err, query)
+		selectResult, ok := metadata.Data.(*SelectResult)
+		require.True(t, ok, query)
+		require.Empty(t, selectResult.Records, query)
 	}
 
 	mustExecSQL(t, executor, "", "grant show_routine on *.* to 'routine_status_viewer'@'localhost'")
@@ -1408,6 +1416,54 @@ func TestShowRoutineStatusRequiresShowRoutinePrivilege(t *testing.T) {
 		allowed := <-executor.ExecuteQuery(session, query, "")
 		require.NoError(t, allowed.Err, query)
 	}
+}
+
+func TestInformationSchemaRoutinesAcceptsObjectPrivilegesAndHidesDefinition(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create procedure report() begin select 1; end")
+	mustExecSQL(t, executor, "", "create user 'routine_reader'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant execute on app.report to 'routine_reader'@'localhost'")
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "routine_reader")
+	session.SetParamByName("host", "localhost")
+	result := <-executor.ExecuteQuery(session, "select routine_name, routine_definition from information_schema.routines where routine_schema = 'app' and routine_name = 'report'", "")
+	require.NoError(t, result.Err)
+	selectResult, ok := result.Data.(*SelectResult)
+	require.True(t, ok)
+	require.Len(t, selectResult.Records, 1)
+	require.Equal(t, "report", selectResult.Records[0].GetValues()[0].String())
+	require.True(t, selectResult.Records[0].GetValues()[1].IsNull())
+}
+
+func TestInformationSchemaRoutinesGlobalSelectAndCreateRoutineVisibility(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create procedure report() begin select 1; end")
+	mustExecSQL(t, executor, "", "create user 'routine_creator'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant create routine on app.* to 'routine_creator'@'localhost'")
+	mustExecSQL(t, executor, "", "create user 'routine_global_reader'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant select on *.* to 'routine_global_reader'@'localhost'")
+
+	creator := newTestMySQLSession()
+	creator.SetParamByName("user", "routine_creator")
+	creator.SetParamByName("host", "localhost")
+	creatorResult := <-executor.ExecuteQuery(creator, "select routine_name, routine_definition from information_schema.routines where routine_schema = 'app' and routine_name = 'report'", "")
+	require.NoError(t, creatorResult.Err)
+	creatorRows := creatorResult.Data.(*SelectResult)
+	require.Len(t, creatorRows.Records, 1)
+	require.True(t, creatorRows.Records[0].GetValues()[1].IsNull())
+
+	globalReader := newTestMySQLSession()
+	globalReader.SetParamByName("user", "routine_global_reader")
+	globalReader.SetParamByName("host", "localhost")
+	globalResult := <-executor.ExecuteQuery(globalReader, "select routine_name, routine_definition from information_schema.routines where routine_schema = 'app' and routine_name = 'report'", "")
+	require.NoError(t, globalResult.Err)
+	globalRows := globalResult.Data.(*SelectResult)
+	require.Len(t, globalRows.Records, 1)
+	require.Equal(t, "report", globalRows.Records[0].GetValues()[0].String())
+	require.False(t, globalRows.Records[0].GetValues()[1].IsNull())
 }
 
 func TestShowCreateStoredObjectsReturnsMySQLMetadataShape(t *testing.T) {

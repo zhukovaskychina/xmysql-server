@@ -2,8 +2,11 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/replication"
 )
 
@@ -50,6 +54,390 @@ func TestEngineSourceRejectsClientWritesWhenFenced(t *testing.T) {
 	require.ErrorContains(t, result.Err, "fenced")
 }
 
+func TestEngineSourceCapturesReplaceAndOnDuplicateKeyTransactions(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cfg := &conf.Cfg{
+		DataDir:                         t.TempDir(),
+		InnodbDataDir:                   t.TempDir(),
+		InnodbBufferPoolSize:            16 * 1024 * 1024,
+		ReplicationRole:                 "source",
+		ReplicationUUID:                 "replace-odku-source",
+		ReplicationServerID:             110,
+		ReplicationListenAddress:        reserveTCPAddress(t),
+		ReplicationPollIntervalDuration: 10 * time.Millisecond,
+	}
+	cfg.InnodbDataDir = cfg.DataDir
+	engine := NewXMySQLEngine(cfg)
+	t.Cleanup(func() { require.NoError(t, engine.Close()) })
+	mustExecSQL(t, engine, "", "create database app")
+	mustExecSQL(t, engine, "app", "create table items (id int primary key, value varchar(64))")
+	require.NoError(t, engine.Start(ctx))
+
+	session := newTestMySQLSession()
+	t.Cleanup(func() { engine.QueryExecutor.clearSessionTransactionState(session) })
+	mustExecSessionSQL(t, engine, session, "app", "insert into items values (1, 'initial')")
+	initialGTIDCount := len(engine.ReplicationSource().Executed["replace-odku-source"])
+
+	mustExecSessionSQL(t, engine, session, "app", "replace into items values (1, 'replaced')")
+	replaceGTIDCount := len(engine.ReplicationSource().Executed["replace-odku-source"])
+	require.Equal(t, initialGTIDCount+1, replaceGTIDCount,
+		"REPLACE must publish one committed native transaction")
+
+	mustExecSessionSQL(t, engine, session, "app", "insert into items values (1, 'updated') on duplicate key update value = values(value)")
+	odkuGTIDCount := len(engine.ReplicationSource().Executed["replace-odku-source"])
+	require.Equal(t, replaceGTIDCount+1, odkuGTIDCount,
+		"ON DUPLICATE KEY UPDATE must publish one committed native transaction")
+
+	rows := mustQuerySQL(t, engine, "app", "select id, value from items")
+	require.Equal(t, [][]interface{}{{"1", "updated"}}, rows)
+}
+
+func TestCommittedStorageWALPreventsOrphanJournalRollback(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cfg := &conf.Cfg{
+		DataDir:              t.TempDir(),
+		InnodbDataDir:        t.TempDir(),
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+	}
+	cfg.InnodbDataDir = cfg.DataDir
+	engine := NewXMySQLEngine(cfg)
+	mustExecSQL(t, engine, "", "create database app")
+	mustExecSQL(t, engine, "app", "create table committed_rows (id int primary key, value varchar(64))")
+	session := newTestMySQLSession()
+	mustExecSessionSQL(t, engine, session, "app", "begin")
+	mustExecSessionSQL(t, engine, session, "app", "insert into committed_rows values (1, 'durable')")
+	shared, ok := session.GetParamByName(clientStorageTransactionContextKey).(*StorageTransactionContext)
+	require.True(t, ok)
+	require.NotNil(t, shared)
+
+	// Simulate a process failure after the physical storage/WAL commit but
+	// before the higher-level replication commit journal record is appended.
+	dml, err := engine.QueryExecutor.newStorageIntegratedDMLExecutor()
+	require.NoError(t, err)
+	commitContext := transactionContextForSession(context.Background(), session)
+	commitContext = context.WithValue(commitContext, clientStorageTransactionContextKey, nil)
+	commitContext = context.WithValue(commitContext, storageTransactionSessionContextKey, nil)
+	commitContext = context.WithValue(commitContext, storageTransactionForceCommitContextKey, true)
+	require.NoError(t, dml.commitStorageTransaction(commitContext, shared))
+	require.Equal(t, "COMMITTED", shared.Status)
+	require.NoError(t, engine.Close())
+
+	restarted := NewXMySQLEngine(cfg)
+	t.Cleanup(func() { require.NoError(t, restarted.Close()) })
+	var recoveredTransactionID string
+	var recoveredChanges []replication.RowChange
+	restarted.QueryExecutor.SetReplicationCommitTransactionHookWithID(func(transactionID string, changes []replication.RowChange, statements []replication.Statement) error {
+		recoveredTransactionID = transactionID
+		recoveredChanges = append([]replication.RowChange(nil), changes...)
+		return nil
+	})
+	require.NoError(t, restarted.Start(ctx))
+	require.NotEmpty(t, recoveredTransactionID)
+	require.Len(t, recoveredChanges, 1)
+	require.Equal(t, []string{"insert"}, []string{recoveredChanges[0].Action})
+	require.Equal(t, [][]interface{}{{"1", "durable"}}, mustQuerySQL(t, restarted, "app", "select id, value from committed_rows"))
+}
+
+func TestEngineReloadsPersistedDictionaryTablesIntoStorageMappingAfterRestart(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cfg := &conf.Cfg{
+		DataDir:              t.TempDir(),
+		InnodbDataDir:        t.TempDir(),
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+	}
+	cfg.InnodbDataDir = cfg.DataDir
+	first := NewXMySQLEngine(cfg)
+	mustExecSQL(t, first, "", "create database restart_mapping")
+	mustExecSQL(t, first, "restart_mapping", "create table rows (id int primary key, value varchar(64))")
+	mustExecSQL(t, first, "restart_mapping", "insert into rows values (1, 'before-restart')")
+	require.NoError(t, first.Close())
+
+	second := NewXMySQLEngine(cfg)
+	t.Cleanup(func() { require.NoError(t, second.Close()) })
+	require.NoError(t, second.Start(ctx))
+	mustExecSQL(t, second, "restart_mapping", "insert into rows values (2, 'after-restart')")
+	require.Equal(t, [][]interface{}{{"1", "before-restart"}, {"2", "after-restart"}}, mustQuerySQL(t, second, "restart_mapping", "select id, value from rows order by id"))
+}
+
+func TestReplicationStatementApplyIsIdempotentAcrossCommitStateRecovery(t *testing.T) {
+	cfg := &conf.Cfg{
+		DataDir:              t.TempDir(),
+		InnodbDataDir:        t.TempDir(),
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+	}
+	cfg.InnodbDataDir = cfg.DataDir
+	engine := NewXMySQLEngine(cfg)
+	t.Cleanup(func() { require.NoError(t, engine.Close()) })
+	mustExecSQL(t, engine, "", "create database app")
+	mustExecSQL(t, engine, "app", "create table items (id int primary key, value varchar(64))")
+
+	statement := replication.Statement{Database: "app", SQL: "insert into items (id, value) values (1, 'replayed')"}
+	require.NoError(t, engine.applyReplicationStatementsWithID("source-a:1", []replication.Statement{statement}))
+	require.NoError(t, engine.Close())
+	engine = NewXMySQLEngine(cfg)
+	require.NoError(t, engine.applyReplicationStatementsWithID("source-a:1", []replication.Statement{statement}))
+
+	rows := mustQuerySQL(t, engine, "app", "select id, value from items")
+	require.Equal(t, [][]interface{}{{"1", "replayed"}}, rows)
+}
+
+func TestReplicationReplayUsesSharedStorageTransactionBoundary(t *testing.T) {
+	cfg := &conf.Cfg{
+		DataDir:              t.TempDir(),
+		InnodbDataDir:        t.TempDir(),
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+	}
+	cfg.InnodbDataDir = cfg.DataDir
+	engine := NewXMySQLEngine(cfg)
+	t.Cleanup(func() { require.NoError(t, engine.Close()) })
+	mustExecSQL(t, engine, "", "create database app")
+	mustExecSQL(t, engine, "app", "create table shared_replay (id int primary key, value varchar(64))")
+
+	session := newReplicationSession()
+	session.SetParamByName("replication_replay", true)
+	session.SetParamByName("autocommit", "0")
+	require.NoError(t, engine.QueryExecutor.beginReplicationStorageTransaction(session))
+	shared, ok := session.GetParamByName(replicationStorageTransactionContextKey).(*StorageTransactionContext)
+	require.True(t, ok)
+	require.NotNil(t, shared)
+	require.Nil(t, session.GetParamByName(clientStorageTransactionContextKey), "replication replay must not be registered as a client storage transaction")
+
+	require.NoError(t, executeReplicationQuery(engine, session, "begin", ""))
+	require.NoError(t, executeReplicationQuery(engine, session, "insert into shared_replay values (1, 'one')", "app"))
+	require.NoError(t, executeReplicationQuery(engine, session, "insert into shared_replay values (2, 'two')", "app"))
+	require.Same(t, shared, session.GetParamByName(replicationStorageTransactionContextKey))
+	require.Equal(t, "ACTIVE", shared.Status)
+
+	require.NoError(t, executeReplicationQuery(engine, session, "commit", ""))
+	require.Nil(t, session.GetParamByName(replicationStorageTransactionContextKey))
+	require.Equal(t, "COMMITTED", shared.Status)
+	require.Equal(t, [][]interface{}{{"1", "one"}, {"2", "two"}}, mustQuerySQL(t, engine, "app", "select id, value from shared_replay order by id"))
+}
+
+func TestReplicationCommitMarkerFailureLeavesJournalRecoverable(t *testing.T) {
+	cfg := &conf.Cfg{
+		DataDir:              t.TempDir(),
+		InnodbDataDir:        t.TempDir(),
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+	}
+	cfg.InnodbDataDir = cfg.DataDir
+	engine := NewXMySQLEngine(cfg)
+	t.Cleanup(func() { require.NoError(t, engine.Close()) })
+	mustExecSQL(t, engine, "", "create database app")
+	mustExecSQL(t, engine, "app", "create table items (id int primary key, value varchar(64))")
+
+	transactionID := "source-a:2"
+	statement := replication.Statement{Database: "app", SQL: "insert into items (id, value) values (2, 'recoverable')"}
+	engine.QueryExecutor.replicationCommitMarkerHook = func(string) error {
+		return errors.New("injected replication commit marker failure")
+	}
+	require.ErrorContains(t, engine.applyReplicationStatementsWithID(transactionID, []replication.Statement{statement}), "injected replication commit marker failure")
+
+	rows := mustQuerySQL(t, engine, "app", "select id from items where id = 2")
+	require.Len(t, rows, 1, "the storage commit happened before the marker failure")
+	require.NoError(t, engine.QueryExecutor.RecoverOrphanedTransactions())
+	rows = mustQuerySQL(t, engine, "app", "select id from items where id = 2")
+	require.Len(t, rows, 1, "the durable commit record must protect a completed storage transaction")
+
+	engine.QueryExecutor.replicationCommitMarkerHook = nil
+	require.NoError(t, engine.applyReplicationStatementsWithID(transactionID, []replication.Statement{statement}))
+	rows = mustQuerySQL(t, engine, "app", "select id from items where id = 2")
+	require.Len(t, rows, 1, "retry must be idempotent after the active journal records commit")
+
+	require.NoError(t, engine.Close())
+	engine = NewXMySQLEngine(cfg)
+	require.NoError(t, engine.QueryExecutor.RecoverOrphanedTransactions())
+	require.NoError(t, engine.applyReplicationStatementsWithID(transactionID, []replication.Statement{statement}))
+	rows = mustQuerySQL(t, engine, "app", "select id from items where id = 2")
+	require.Len(t, rows, 1, "restart must preserve the committed transaction and suppress duplicate replay")
+}
+
+func TestReplicationStorageCommitFlushFailureLeavesDurableCommitRecord(t *testing.T) {
+	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
+	session := newReplicationSession()
+	transactionID := "source-a:flush-failure"
+	session.SetParamByName("replication_replay", true)
+	session.SetParamByName("replication_transaction_id", transactionID)
+	session.SetParamByName("transaction_journal_id", replicationTransactionJournalID(transactionID))
+	session.SetParamByName("autocommit", "0")
+
+	require.NoError(t, engine.QueryExecutor.beginReplicationStorageTransaction(session))
+	shared, ok := session.GetParamByName(replicationStorageTransactionContextKey).(*StorageTransactionContext)
+	require.True(t, ok)
+	require.NotNil(t, shared)
+	// A malformed dirty page makes the post-commit flush fail after the storage
+	// transaction has already reached COMMITTED. The recovery record must be
+	// written before that error is returned.
+	bpm, ok := engine.QueryExecutor.bufferPoolManager.(*manager.OptimizedBufferPoolManager)
+	require.True(t, ok)
+	page, err := bpm.GetPage(0, 0)
+	require.NoError(t, err)
+	page.SetContent([]byte{1})
+	page.SetDirty(true)
+	shared.ModifiedPages["0:0"] = 0
+
+	err = engine.QueryExecutor.commitReplicationStorageTransaction(session)
+	require.Error(t, err)
+	_, markerErr := os.Stat(replicationCommitMarkerPath(engine.QueryExecutor.getDataDir(), transactionID))
+	require.NoError(t, markerErr, "applied GTID marker must be durable before a later dirty-page flush failure")
+	committed, checkErr := engine.QueryExecutor.replicationTransactionCommitted(transactionID)
+	require.NoError(t, checkErr)
+	require.True(t, committed, "a committed storage transaction must not be recovered as an orphan after flush failure")
+}
+
+func TestClientCommitPublishesAfterStorageAndRetriesByStableTransactionKey(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	source, err := replication.NewSource(t.TempDir(), "client-commit-source", 21)
+	require.NoError(t, err)
+
+	session := newTestMySQLSession()
+	mustExecSessionSQL(t, executor, session, "", "create database app")
+	mustExecSessionSQL(t, executor, session, "app", "create table client_commit_retry (id int primary key, value varchar(32))")
+
+	postAppendFailure := true
+	keys := make([]string, 0, 2)
+	executor.QueryExecutor.SetReplicationCommitTransactionHookWithID(func(transactionID string, changes []replication.RowChange, statements []replication.Statement) error {
+		keys = append(keys, transactionID)
+		if _, err := source.AppendCommittedTransactionWithKey(transactionID, changes, statements); err != nil {
+			return err
+		}
+		if postAppendFailure {
+			postAppendFailure = false
+			return errors.New("injected post-append commit error")
+		}
+		return nil
+	})
+
+	mustExecSessionSQL(t, executor, session, "app", "start transaction")
+	mustExecSessionSQL(t, executor, session, "app", "insert into client_commit_retry values (1, 'committed')")
+	firstCommit := <-executor.ExecuteQuery(session, "commit", "app")
+	require.ErrorContains(t, firstCommit.Err, "injected post-append commit error")
+	require.True(t, sessionBoolParam(session, "in_transaction"), "a failed publisher must leave the transaction retryable")
+	require.Nil(t, session.GetParamByName(clientStorageTransactionContextKey), "storage must already be committed before publisher failure")
+	require.Equal(t, [][]interface{}{{"1", "committed"}}, mustQuerySQL(t, executor, "app", "select id, value from client_commit_retry"))
+	require.Len(t, source.Executed["client-commit-source"], 1, "the first attempt must publish one GTID")
+
+	mustExecSessionSQL(t, executor, session, "app", "commit")
+	require.False(t, sessionBoolParam(session, "in_transaction"))
+	require.Len(t, keys, 2)
+	require.Equal(t, keys[0], keys[1], "commit retry must reuse one transaction key")
+	require.Len(t, source.Executed["client-commit-source"], 1, "retry must not allocate a second GTID")
+	events, err := source.DecodeNativeDumpFrom("binlog.000001", 4, replication.GTIDIntervals{})
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+}
+
+func TestClientCommitRecoveryPreservesStorageAfterPublisherErrorAndRestart(t *testing.T) {
+	cfg := &conf.Cfg{
+		DataDir:              t.TempDir(),
+		InnodbDataDir:        t.TempDir(),
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+	}
+	cfg.InnodbDataDir = cfg.DataDir
+
+	engine := NewXMySQLEngine(cfg)
+	mustExecSQL(t, engine, "", "create database app")
+	mustExecSQL(t, engine, "app", "create table client_restart (id int primary key, value varchar(32))")
+	source, err := replication.NewSource(t.TempDir(), "client-restart-source", 22)
+	require.NoError(t, err)
+	postAppendFailure := true
+	engine.QueryExecutor.SetReplicationCommitTransactionHookWithID(func(transactionID string, changes []replication.RowChange, statements []replication.Statement) error {
+		if _, appendErr := source.AppendCommittedTransactionWithKey(transactionID, changes, statements); appendErr != nil {
+			return appendErr
+		}
+		if postAppendFailure {
+			postAppendFailure = false
+			return errors.New("injected restart-window publisher error")
+		}
+		return nil
+	})
+
+	session := newTestMySQLSession()
+	mustExecSessionSQL(t, engine, session, "app", "start transaction")
+	mustExecSessionSQL(t, engine, session, "app", "insert into client_restart values (1, 'committed')")
+	commit := <-engine.ExecuteQuery(session, "commit", "app")
+	require.ErrorContains(t, commit.Err, "injected restart-window publisher error")
+	require.Equal(t, [][]interface{}{{"1", "committed"}}, mustQuerySQL(t, engine, "app", "select id, value from client_restart"))
+	require.NoError(t, engine.Close())
+
+	restarted := NewXMySQLEngine(cfg)
+	t.Cleanup(func() { require.NoError(t, restarted.Close()) })
+	require.NoError(t, restarted.QueryExecutor.RecoverOrphanedTransactions())
+	require.Equal(t, [][]interface{}{{"1", "committed"}}, mustQuerySQL(t, restarted, "app", "select id, value from client_restart"), "a committed storage transaction must not be rolled back after publisher failure and restart")
+}
+
+func TestClientCommitRecoveryRepublishesPendingJournalAfterRestart(t *testing.T) {
+	cfg := &conf.Cfg{
+		DataDir:              t.TempDir(),
+		InnodbDataDir:        t.TempDir(),
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+	}
+	cfg.InnodbDataDir = cfg.DataDir
+
+	engine := NewXMySQLEngine(cfg)
+	mustExecSQL(t, engine, "", "create database app")
+	mustExecSQL(t, engine, "app", "create table client_restart_publish (id int primary key, value varchar(32))")
+	source, err := replication.NewSource(t.TempDir(), "client-restart-publish-source", 23)
+	require.NoError(t, err)
+
+	engine.QueryExecutor.SetReplicationCommitTransactionHookWithID(func(string, []replication.RowChange, []replication.Statement) error {
+		return errors.New("injected publisher outage before append")
+	})
+	session := newTestMySQLSession()
+	mustExecSessionSQL(t, engine, session, "app", "start transaction")
+	mustExecSessionSQL(t, engine, session, "app", "insert into client_restart_publish values (1, 'committed')")
+	commit := <-engine.ExecuteQuery(session, "commit", "app")
+	require.ErrorContains(t, commit.Err, "injected publisher outage before append")
+	require.NoError(t, engine.Close())
+
+	restarted := NewXMySQLEngine(cfg)
+	t.Cleanup(func() { require.NoError(t, restarted.Close()) })
+	var recoveredStatements []replication.Statement
+	restarted.QueryExecutor.SetReplicationCommitTransactionHookWithID(func(transactionID string, changes []replication.RowChange, statements []replication.Statement) error {
+		recoveredStatements = append([]replication.Statement(nil), statements...)
+		_, appendErr := source.AppendCommittedTransactionWithKey(transactionID, changes, statements)
+		return appendErr
+	})
+	require.NoError(t, restarted.QueryExecutor.RecoverOrphanedTransactions())
+	require.Len(t, source.Executed["client-restart-publish-source"], 1)
+	require.Equal(t, []replication.Statement{{Database: "app", SQL: "insert into client_restart_publish values (1, 'committed')"}}, recoveredStatements)
+	require.Equal(t, [][]interface{}{{"1", "committed"}}, mustQuerySQL(t, restarted, "app", "select id, value from client_restart_publish"))
+}
+
+func TestAutocommitStatementRecoveryRepublishesPendingJournal(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	source, err := replication.NewSource(t.TempDir(), "autocommit-statement-recovery-source", 24)
+	require.NoError(t, err)
+
+	firstAttempt := true
+	executor.QueryExecutor.SetReplicationCommitTransactionHookWithID(func(transactionID string, changes []replication.RowChange, statements []replication.Statement) error {
+		require.Empty(t, changes, "statement-only commit must not invent row images")
+		if firstAttempt {
+			firstAttempt = false
+			return errors.New("injected statement publisher outage")
+		}
+		_, appendErr := source.AppendCommittedTransactionWithKey(transactionID, changes, statements)
+		return appendErr
+	})
+
+	session := newTestMySQLSession()
+	executor.QueryExecutor.recordReplicationStatement(session, replication.Statement{
+		Database: "app",
+		SQL:      "create table statement_only_recovery (id int primary key)",
+	})
+	require.Empty(t, source.Executed, "the first publisher attempt must fail before source append")
+
+	require.NoError(t, executor.QueryExecutor.RecoverOrphanedTransactions())
+	require.Len(t, source.Executed["autocommit-statement-recovery-source"], 1)
+	require.NoError(t, executor.QueryExecutor.RecoverOrphanedTransactions(), "recovery should be idempotent after journal cleanup")
+}
+
 func TestEngineSourceReplicaReplicatesCommittedDML(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -58,6 +446,8 @@ func TestEngineSourceReplicaReplicatesCommittedDML(t *testing.T) {
 	sourceCfg := &conf.Cfg{
 		DataDir:                         t.TempDir(),
 		InnodbDataDir:                   t.TempDir(),
+		InnodbRedoLogDir:                filepath.Join(t.TempDir(), "redo"),
+		InnodbUndoLogDir:                filepath.Join(t.TempDir(), "undo"),
 		InnodbBufferPoolSize:            16 * 1024 * 1024,
 		ReplicationRole:                 "source",
 		ReplicationUUID:                 "engine-source",
@@ -75,6 +465,8 @@ func TestEngineSourceReplicaReplicatesCommittedDML(t *testing.T) {
 	replicaCfg := &conf.Cfg{
 		DataDir:                         t.TempDir(),
 		InnodbDataDir:                   t.TempDir(),
+		InnodbRedoLogDir:                filepath.Join(t.TempDir(), "redo"),
+		InnodbUndoLogDir:                filepath.Join(t.TempDir(), "undo"),
 		InnodbBufferPoolSize:            16 * 1024 * 1024,
 		ReplicationRole:                 "replica",
 		ReplicationUUID:                 "engine-replica",
@@ -371,6 +763,14 @@ func TestEngineAppliesReplicationRowImagesWithoutStatementText(t *testing.T) {
 		Action: "insert",
 		After:  map[string]interface{}{"id": int64(1), "value": "first"},
 	}}))
+	// A retry after storage commit but before the replica GTID state replace
+	// must recognize the already materialized row image and avoid a duplicate
+	// insert. This is the storage-side half of the replication crash window.
+	require.NoError(t, engine.applyReplicationRows([]replication.RowChange{{
+		Table:  "app.row_apply",
+		Action: "insert",
+		After:  map[string]interface{}{"id": int64(1), "value": "first"},
+	}}))
 	require.NoError(t, engine.applyReplicationRows([]replication.RowChange{{
 		Table:  "app.row_apply",
 		Action: "update",
@@ -387,6 +787,19 @@ func TestEngineAppliesReplicationRowImagesWithoutStatementText(t *testing.T) {
 	require.Empty(t, rows)
 }
 
+func TestEngineBindsNativeSyntheticColumnNamesToPersistedTableOrder(t *testing.T) {
+	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, engine, "", "create database app")
+	mustExecSQL(t, engine, "app", "create table native_bind (id int primary key, value varchar(64))")
+
+	require.NoError(t, engine.applyReplicationRows([]replication.RowChange{{
+		Table:  "app.native_bind",
+		Action: "insert",
+		After:  map[string]interface{}{"column_1": int64(7), "column_2": "official"},
+	}}))
+	require.Equal(t, [][]interface{}{{"7", "official"}}, mustQuerySQL(t, engine, "app", "select id, value from native_bind"))
+}
+
 func TestEngineAppliesPartialJSONRowImageWithoutFullAfterValue(t *testing.T) {
 	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
 	mustExecSQL(t, engine, "", "create database app")
@@ -398,12 +811,16 @@ func TestEngineAppliesPartialJSONRowImageWithoutFullAfterValue(t *testing.T) {
 	}}))
 	updates, ok := replication.DeriveJSONPartialUpdates(`{"profile":{"name":"old"}}`, `{"profile":{"name":"new","city":"Austin"}}`)
 	require.True(t, ok)
-	require.NoError(t, engine.applyReplicationRows([]replication.RowChange{{
+	update := replication.RowChange{
 		Table:              "app.json_row_apply",
 		Action:             "update",
 		Before:             map[string]interface{}{"id": int64(1), "payload": `{"profile":{"name":"old"}}`},
 		PartialJSONUpdates: map[string][]replication.JSONPartialUpdate{"payload": updates},
-	}}))
+	}
+	require.NoError(t, engine.applyReplicationRows([]replication.RowChange{update}))
+	// The same physical row image can be retried after a replica state-file
+	// failure; the post-image check must make the retry a no-op.
+	require.NoError(t, engine.applyReplicationRows([]replication.RowChange{update}))
 	rows := mustQuerySQL(t, engine, "app", "select payload from json_row_apply")
 	require.Equal(t, [][]interface{}{{`{"profile":{"city":"Austin","name":"new"}}`}}, rows)
 }

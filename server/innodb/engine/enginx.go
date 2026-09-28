@@ -169,6 +169,12 @@ func (e *XMySQLEngine) Close() error {
 	}
 	e.ready.Store(false)
 	logger.Info("🛑 Stopping XMySQL Engine...")
+	var closeErr error
+	joinCloseErr := func(resource string, err error) {
+		if err != nil {
+			closeErr = errors.Join(closeErr, fmt.Errorf("failed to close %s: %w", resource, err))
+		}
+	}
 	if e.QueryExecutor != nil {
 		e.QueryExecutor.StopEventScheduler()
 	}
@@ -177,30 +183,47 @@ func (e *XMySQLEngine) Close() error {
 		e.checkpointManager.Stop()
 	}
 	if e.replicationRuntime != nil {
-		if err := e.replicationRuntime.Close(); err != nil {
-			return fmt.Errorf("failed to close replication runtime: %w", err)
-		}
+		joinCloseErr("replication runtime", e.replicationRuntime.Close())
 	}
 
 	if e.txManager != nil {
-		e.txManager.Close()
+		joinCloseErr("transaction manager", e.txManager.Close())
+	}
+	if e.QueryExecutor != nil {
+		e.QueryExecutor.closeTransactionJournals()
 	}
 	if e.QueryExecutor != nil && e.QueryExecutor.tableStorageManager != nil {
-		if err := e.QueryExecutor.tableStorageManager.CloseBTreeManagers(); err != nil {
-			return fmt.Errorf("failed to close table btree managers: %w", err)
-		}
+		joinCloseErr("table btree managers", e.QueryExecutor.tableStorageManager.CloseBTreeManagers())
+	}
+	if e.ibufManager != nil {
+		joinCloseErr("insert buffer manager", e.ibufManager.Close())
+	}
+	if e.indexManager != nil {
+		joinCloseErr("index manager", e.indexManager.Close())
+	}
+	if e.dictManager != nil {
+		joinCloseErr("dictionary manager", e.dictManager.Close())
+	}
+	if e.infoSchemaManager != nil {
+		joinCloseErr("information schema manager", e.infoSchemaManager.Close())
 	}
 	if e.btreeMgr != nil {
-		closeOwnedBTreeManager(e.btreeMgr)
+		if closer, ok := e.btreeMgr.(interface{ Close() error }); ok {
+			joinCloseErr("engine btree manager", closer.Close())
+		}
+	}
+	if e.encryptManager != nil {
+		joinCloseErr("encryption manager", e.encryptManager.Close())
+	}
+	if e.compressManager != nil {
+		joinCloseErr("compression manager", e.compressManager.Close())
 	}
 
 	if e.storageMgr != nil {
-		if err := e.storageMgr.Close(); err != nil {
-			return fmt.Errorf("failed to close storage manager: %w", err)
-		}
+		joinCloseErr("storage manager", e.storageMgr.Close())
 	}
 
-	return nil
+	return closeErr
 }
 
 // IsReady reports whether the engine completed its startup sequence and is
@@ -286,11 +309,21 @@ func (e *XMySQLEngine) initTxnLayer() {
 	// 处理空目录：为测试与默认配置提供安全的临时目录
 	redoDir := e.conf.GetString("innodb.redo_log_dir")
 	undoDir := e.conf.GetString("innodb.undo_log_dir")
+	// Embedded callers commonly construct Cfg directly, without populating Raw.
+	// Honor the typed paths in that case so separate engine instances never
+	// share a process-global redo/undo stream and replay pages from another
+	// data directory during recovery.
 	if redoDir == "" {
-		redoDir = filepath.Join(os.TempDir(), "xmysql-server", "redo")
+		redoDir = e.conf.InnodbRedoLogDir
 	}
 	if undoDir == "" {
-		undoDir = filepath.Join(os.TempDir(), "xmysql-server", "undo")
+		undoDir = e.conf.InnodbUndoLogDir
+	}
+	if redoDir == "" {
+		redoDir = filepath.Join(e.conf.DataDir, "redo")
+	}
+	if undoDir == "" {
+		undoDir = filepath.Join(e.conf.DataDir, "undo")
 	}
 	_ = os.MkdirAll(redoDir, 0755)
 	_ = os.MkdirAll(undoDir, 0755)
@@ -465,15 +498,17 @@ func (e *XMySQLEngine) initReplicationLayer() {
 		role = replication.RoleStandalone
 	}
 	runtime, err := replication.NewRuntime(replication.RuntimeConfig{
-		Role:         role,
-		DataDir:      e.GetDataDir(),
-		UUID:         e.conf.ReplicationUUID,
-		ServerID:     e.conf.ReplicationServerID,
-		ListenAddr:   e.conf.ReplicationListenAddress,
-		SourceURL:    e.conf.ReplicationSourceURL,
-		PollInterval: e.conf.ReplicationPollIntervalDuration,
-		ApplyRows:    e.applyReplicationRows,
-		Apply:        e.applyReplicationStatements,
+		Role:            role,
+		DataDir:         e.GetDataDir(),
+		UUID:            e.conf.ReplicationUUID,
+		ServerID:        e.conf.ReplicationServerID,
+		ListenAddr:      e.conf.ReplicationListenAddress,
+		SourceURL:       e.conf.ReplicationSourceURL,
+		PollInterval:    e.conf.ReplicationPollIntervalDuration,
+		ApplyRows:       e.applyReplicationRows,
+		ApplyRowsWithID: e.applyReplicationRowsWithID,
+		Apply:           e.applyReplicationStatements,
+		ApplyWithID:     e.applyReplicationStatementsWithID,
 	})
 	if err != nil {
 		logger.Warnf("replication runtime disabled: %v", err)
@@ -485,12 +520,20 @@ func (e *XMySQLEngine) initReplicationLayer() {
 	e.QueryExecutor.SetReplicationReplicaProvider(runtime.Replica)
 	e.QueryExecutor.SetReplicationControl(runtime.StartReplica, runtime.StopReplica)
 	e.QueryExecutor.SetReplicationSourceControl(runtime.ChangeSource)
+	e.QueryExecutor.SetReplicationFilterControl(runtime.ChangeReplicationFilter)
 	e.QueryExecutor.SetReplicationResetControl(runtime.ResetReplica)
 	e.QueryExecutor.SetReplicationResetAllControl(runtime.ResetReplicaAll)
 	e.QueryExecutor.SetReplicationSourceAdminControl(runtime.FlushBinaryLogs, runtime.ResetMaster)
+	e.QueryExecutor.SetReplicationResetBinaryLogsAndGTIDsControl(runtime.ResetMasterTo)
+	e.QueryExecutor.SetReplicationSourcePurgeControl(runtime.PurgeBinaryLogsTo)
+	e.QueryExecutor.SetReplicationSourcePurgeBeforeControl(runtime.PurgeBinaryLogsBefore)
 	if role == replication.RoleSource {
 		e.QueryExecutor.SetReplicationCommitTransactionHook(e.appendReplicationTransaction)
 		e.QueryExecutor.SetReplicationCommitTransactionHookWithID(e.appendReplicationTransactionWithID)
+		e.QueryExecutor.SetReplicationXAPrepareHook(e.appendReplicationXAPrepare)
+		e.QueryExecutor.SetReplicationXAOnePhaseCommitHook(e.appendReplicationXAOnePhaseCommit)
+		e.QueryExecutor.SetReplicationXACommitHook(e.appendReplicationXACommit)
+		e.QueryExecutor.SetReplicationXARollbackHook(e.appendReplicationXARollback)
 	}
 }
 
@@ -513,6 +556,34 @@ func (e *XMySQLEngine) appendReplicationTransactionWithID(transactionID string, 
 		return nil
 	}
 	return e.replicationRuntime.AppendCommittedTransactionWithKey(transactionID, changes, statements)
+}
+
+func (e *XMySQLEngine) appendReplicationXAPrepare(transactionID string, xid replication.XAIdentity, changes []replication.RowChange, statements []replication.Statement) error {
+	if e == nil || e.replicationRuntime == nil {
+		return nil
+	}
+	return e.replicationRuntime.PrepareXATransaction(transactionID, xid, changes, statements)
+}
+
+func (e *XMySQLEngine) appendReplicationXAOnePhaseCommit(transactionID string, xid replication.XAIdentity, changes []replication.RowChange, statements []replication.Statement) error {
+	if e == nil || e.replicationRuntime == nil {
+		return nil
+	}
+	return e.replicationRuntime.AppendOnePhaseXATransaction(transactionID, xid, changes, statements)
+}
+
+func (e *XMySQLEngine) appendReplicationXACommit(transactionID string, xid replication.XAIdentity) error {
+	if e == nil || e.replicationRuntime == nil {
+		return nil
+	}
+	return e.replicationRuntime.CommitXATransaction(transactionID, xid)
+}
+
+func (e *XMySQLEngine) appendReplicationXARollback(transactionID string, xid replication.XAIdentity) error {
+	if e == nil || e.replicationRuntime == nil {
+		return nil
+	}
+	return e.replicationRuntime.RollbackXATransaction(transactionID, xid)
 }
 
 // ReplicationStatus returns the local runtime status for operational probes.
@@ -594,6 +665,8 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			persistDirectEngineSessionState(session, result)
 			if result != nil && result.Err != nil {
 				recordSessionError(session, result.Err)
+			} else if result != nil && e.QueryExecutor != nil {
+				e.QueryExecutor.recordInnoDBDMLMetric(metricStatementType(query), result.AffectedRows)
 			}
 			resultAccounting := statementResultAccountingFor(result)
 			accounting.rowsAffected += resultAccounting.rowsAffected
@@ -604,9 +677,12 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 		summary := <-statementSummary
 		if metricsEnabled {
 			actorSetting := e.QueryExecutor.performanceSchemaStatementSettingForSession(session)
-			e.QueryExecutor.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccountingWithRowsExaminedAndScan(
+			instrumentEnabled, instrumentTimed := e.QueryExecutor.performanceSchemaInstrumentSetting("statement/sql/" + strings.ToLower(metricStatementType(query)))
+			stageInstrumented, stageTimed := e.QueryExecutor.performanceSchemaInstrumentSetting("stage/sql/execute")
+			actorSetting.Enabled = actorSetting.Enabled && instrumentEnabled
+			e.QueryExecutor.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccountingWithRowsExaminedAndScanAndIndexUsageAndSortRowsAndScanAndRangeAndJoinWithTimer(
 				summary.threadID, summary.user, summary.host, databaseName, strings.TrimSpace(query), metricStatementType(query), summary.status, summary.latency,
-				accounting.rowsAffected, accounting.rowsSent, summary.rowsExamined, summary.selectScan, accounting.warnings, actorSetting.Enabled, actorSetting.History,
+				accounting.rowsAffected, accounting.rowsSent, summary.rowsExamined, summary.selectScan, summary.selectRange, summary.selectFullJoin, summary.selectFullRangeJoin, summary.selectRangeCheck, summary.noIndexUsed, summary.noGoodIndexUsed, summary.sortRows, summary.sortScan, summary.sortRange, accounting.warnings, actorSetting.Enabled, actorSetting.History, instrumentTimed, stageInstrumented, stageTimed,
 			)
 		}
 		for _, result := range pending {
@@ -623,9 +699,15 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 		if session != nil {
 			memoryThreadID = int64(sessionConnectionID(session))
 		}
-		if metricsEnabled {
-			e.QueryExecutor.metricsRecorder.RecordMemoryAllocation(memoryThreadID, "memory/sql/THD::main_mem_root", int64(len(query)))
-			defer e.QueryExecutor.metricsRecorder.RecordMemoryFree(memoryThreadID, "memory/sql/THD::main_mem_root", int64(len(query)))
+		if metricsEnabled && e.QueryExecutor.performanceSchemaMemoryInstrumentEnabled() {
+			user := sessionStringParam(session, "user")
+			host := sessionStringParam(session, "host")
+			e.QueryExecutor.metricsRecorder.BeginStatementMemory(memoryThreadID)
+			e.QueryExecutor.metricsRecorder.RecordMemoryAllocationWithIdentity(memoryThreadID, user, host, "memory/sql/THD::main_mem_root", int64(len(query)))
+			defer func() {
+				e.QueryExecutor.metricsRecorder.RecordMemoryFreeWithIdentity(memoryThreadID, user, host, "memory/sql/THD::main_mem_root", int64(len(query)))
+				e.QueryExecutor.metricsRecorder.EndStatementMemory(memoryThreadID)
+			}()
 		}
 		rowsAffected := 0
 		txnID := uint64(0)
@@ -657,24 +739,64 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 					// Some legacy branches only set the status and put the error
 					// directly on Result.Err. Keep the runtime error counter honest
 					// even when that branch has not populated execErr yet.
-					e.QueryExecutor.metricsRecorder.RecordQueryError(databaseName, "execution", string(ExecutionErrorCodeUnknown))
+					e.QueryExecutor.recordQueryErrorCode(databaseName, string(ExecutionErrorCodeUnknown))
 				}
 				rowsExamined := int64(0)
 				selectScan := int64(0)
+				noIndexUsed := int64(0)
+				noGoodIndexUsed := int64(0)
+				sortRows := int64(0)
+				sortScan := int64(0)
 				if statementContext != nil {
 					rowsExamined = statementContext.statementRowsExamined.Load()
 					selectScan = statementContext.statementSelectScan.Load()
+					noIndexUsed = statementContext.statementNoIndexUsed.Load()
+					noGoodIndexUsed = statementContext.statementNoGoodIndexUsed.Load()
+					sortRows = statementContext.statementSortRows.Load()
+					sortScan = statementContext.statementSortScan.Load()
 				}
-				statementSummary <- statementExecutionSummary{threadID: threadID, user: user, host: host, status: status, latency: latency, rowsExamined: rowsExamined, selectScan: selectScan}
+				selectRange := int64(0)
+				sortRange := int64(0)
+				selectFullJoin := int64(0)
+				selectFullRangeJoin := int64(0)
+				selectRangeCheck := int64(0)
+				if statementContext != nil {
+					selectRange = statementContext.statementSelectRange.Load()
+					sortRange = statementContext.statementSortRange.Load()
+					selectFullJoin = statementContext.statementSelectFullJoin.Load()
+					selectFullRangeJoin = statementContext.statementSelectFullRangeJoin.Load()
+					selectRangeCheck = statementContext.statementSelectRangeCheck.Load()
+				}
+				statementSummary <- statementExecutionSummary{threadID: threadID, user: user, host: host, status: status, latency: latency, rowsExamined: rowsExamined, selectScan: selectScan, selectRange: selectRange, selectFullJoin: selectFullJoin, selectFullRangeJoin: selectFullRangeJoin, selectRangeCheck: selectRangeCheck, noIndexUsed: noIndexUsed, noGoodIndexUsed: noGoodIndexUsed, sortRows: sortRows, sortScan: sortScan, sortRange: sortRange}
 			}
 			if !metricsEnabled {
 				rowsExamined := int64(0)
 				selectScan := int64(0)
+				noIndexUsed := int64(0)
+				noGoodIndexUsed := int64(0)
+				sortRows := int64(0)
+				sortScan := int64(0)
 				if statementContext != nil {
 					rowsExamined = statementContext.statementRowsExamined.Load()
 					selectScan = statementContext.statementSelectScan.Load()
+					noIndexUsed = statementContext.statementNoIndexUsed.Load()
+					noGoodIndexUsed = statementContext.statementNoGoodIndexUsed.Load()
+					sortRows = statementContext.statementSortRows.Load()
+					sortScan = statementContext.statementSortScan.Load()
 				}
-				statementSummary <- statementExecutionSummary{status: status, latency: time.Since(start), rowsExamined: rowsExamined, selectScan: selectScan}
+				selectRange := int64(0)
+				sortRange := int64(0)
+				selectFullJoin := int64(0)
+				selectFullRangeJoin := int64(0)
+				selectRangeCheck := int64(0)
+				if statementContext != nil {
+					selectRange = statementContext.statementSelectRange.Load()
+					sortRange = statementContext.statementSortRange.Load()
+					selectFullJoin = statementContext.statementSelectFullJoin.Load()
+					selectFullRangeJoin = statementContext.statementSelectFullRangeJoin.Load()
+					selectRangeCheck = statementContext.statementSelectRangeCheck.Load()
+				}
+				statementSummary <- statementExecutionSummary{status: status, latency: time.Since(start), rowsExamined: rowsExamined, selectScan: selectScan, selectRange: selectRange, selectFullJoin: selectFullJoin, selectFullRangeJoin: selectFullRangeJoin, selectRangeCheck: selectRangeCheck, noIndexUsed: noIndexUsed, noGoodIndexUsed: noGoodIndexUsed, sortRows: sortRows, sortScan: sortScan, sortRange: sortRange}
 			}
 		}()
 
@@ -705,6 +827,23 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			queryContext, cleanup := e.QueryExecutor.beginActiveQuery(session)
 			defer cleanup()
 			ctx.Context = queryContext
+		}
+		if e.QueryExecutor != nil {
+			if result, handled, err2 := e.QueryExecutor.executeDirectSystemVariableSelect(query, session); handled {
+				stage = "system-variable-compatibility"
+				if err2 != nil {
+					execErr = err2
+					status = "failed"
+					results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_QUERY, Message: err2.Error()}
+				} else {
+					results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: result, Message: "system variable query executed successfully"}
+				}
+				return
+			}
+			if rewritten := rewriteQualifiedSystemVariables(query); rewritten != query {
+				query = rewritten
+				ctx.RawQuery = rewritten
+			}
 		}
 		if effectiveSession, viewSecurityRequired, err := e.QueryExecutor.applyViewExecutionSecurity(session, query, databaseName); err != nil {
 			execErr = err
@@ -835,6 +974,15 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			clearSessionWarnings(session)
 		}
 		if e.QueryExecutor.executeUserVariableAssignment(ctx, query, session) {
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeSQLPreparedStatementCompatibility(ctx, session, query, databaseName, results); handled {
+			stage = "sql-prepared-statement-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_QUERY, Message: err2.Error()}
+			}
 			return
 		}
 
@@ -1124,7 +1272,43 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			stage = "admin-read"
 			return
 		}
-		if result, handled, err2 := e.QueryExecutor.executePerformanceSchemaSetupUpdate(query); handled {
+		if result, handled, err2 := e.QueryExecutor.executePerformanceSchemaThreadsUpdate(query, session); handled {
+			stage = "performance-schema-threads-update"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+				return
+			}
+			rowsAffected = result.AffectedRows
+			results <- result
+			return
+		}
+		if result, handled, err2 := e.QueryExecutor.executePerformanceSchemaSetupActorsMutation(query, session); handled {
+			stage = "performance-schema-setup-actors-mutation"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+				return
+			}
+			rowsAffected = result.AffectedRows
+			results <- result
+			return
+		}
+		if result, handled, err2 := e.QueryExecutor.executePerformanceSchemaSetupObjectsMutation(query, session); handled {
+			stage = "performance-schema-setup-objects-mutation"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+				return
+			}
+			rowsAffected = result.AffectedRows
+			results <- result
+			return
+		}
+		if result, handled, err2 := e.QueryExecutor.executePerformanceSchemaSetupUpdate(query, session); handled {
 			stage = "performance-schema-setup-update"
 			if err2 != nil {
 				execErr = err2
@@ -1270,6 +1454,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 				status = "failed"
 				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("SELECT failed: %v", err2)}
 			} else {
+				e.QueryExecutor.recordInnoDBNonLockingAutocommitReadOnlyCommit(session, query, stmt)
 				rowsAffected = result.RowCount
 				results <- &Result{Data: result, ResultType: common.RESULT_TYPE_SELECT}
 			}

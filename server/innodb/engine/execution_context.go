@@ -51,11 +51,29 @@ type ExecutionContext struct {
 
 	Cfg *conf.Cfg
 
-	statementRowsAffected atomic.Int64
-	statementRowsSent     atomic.Int64
-	statementRowsExamined atomic.Int64
-	statementSelectScan   atomic.Int64
-	statementWarnings     atomic.Int64
+	statementRowsAffected        atomic.Int64
+	statementRowsSent            atomic.Int64
+	statementRowsExamined        atomic.Int64
+	statementSelectScan          atomic.Int64
+	statementSelectRange         atomic.Int64
+	statementSelectFullJoin      atomic.Int64
+	statementSelectFullRangeJoin atomic.Int64
+	statementSelectRangeCheck    atomic.Int64
+	statementNoIndexUsed         atomic.Int64
+	statementNoGoodIndexUsed     atomic.Int64
+	statementSortRows            atomic.Int64
+	statementSortScan            atomic.Int64
+	statementSortRange           atomic.Int64
+	statementWarnings            atomic.Int64
+	// statementMetricsDeferred is used by ExecuteWithQuery, whose result
+	// forwarding goroutine owns result accounting. The worker must not publish
+	// statement history before that accounting has completed.
+	statementMetricsDeferred bool
+	// errorMetricsDeferred is used by stored-routine child statements. The
+	// routine boundary records the raised/handled error with its final SQL
+	// handler outcome, while the child still publishes its statement summary.
+	errorMetricsDeferred  bool
+	statementMetricStatus string
 }
 
 func (ctx *ExecutionContext) recordStatementResult(result *Result) {
@@ -80,6 +98,69 @@ func (ctx *ExecutionContext) recordSelectScan(scans int64) {
 		return
 	}
 	ctx.statementSelectScan.Add(scans)
+}
+
+func (ctx *ExecutionContext) recordSelectRange(ranges int64) {
+	if ctx == nil || ranges <= 0 {
+		return
+	}
+	ctx.statementSelectRange.Add(ranges)
+}
+
+func (ctx *ExecutionContext) recordSelectFullJoin(joins int64) {
+	if ctx == nil || joins <= 0 {
+		return
+	}
+	ctx.statementSelectFullJoin.Add(joins)
+}
+
+func (ctx *ExecutionContext) recordSelectFullRangeJoin(joins int64) {
+	if ctx == nil || joins <= 0 {
+		return
+	}
+	ctx.statementSelectFullRangeJoin.Add(joins)
+}
+
+func (ctx *ExecutionContext) recordSelectRangeCheck(checks int64) {
+	if ctx == nil || checks <= 0 {
+		return
+	}
+	ctx.statementSelectRangeCheck.Add(checks)
+}
+
+func (ctx *ExecutionContext) recordNoIndexUsed(used bool) {
+	if ctx == nil || !used {
+		return
+	}
+	ctx.statementNoIndexUsed.Store(1)
+}
+
+func (ctx *ExecutionContext) recordNoGoodIndexUsed(used bool) {
+	if ctx == nil || !used {
+		return
+	}
+	ctx.statementNoGoodIndexUsed.Add(1)
+}
+
+func (ctx *ExecutionContext) recordSortRows(rows int64) {
+	if ctx == nil || rows <= 0 {
+		return
+	}
+	ctx.statementSortRows.Add(rows)
+}
+
+func (ctx *ExecutionContext) recordSortScan(scans int64) {
+	if ctx == nil || scans <= 0 {
+		return
+	}
+	ctx.statementSortScan.Add(scans)
+}
+
+func (ctx *ExecutionContext) recordSortRange(ranges int64) {
+	if ctx == nil || ranges <= 0 {
+		return
+	}
+	ctx.statementSortRange.Add(ranges)
 }
 
 func (ctx *ExecutionContext) watch() {

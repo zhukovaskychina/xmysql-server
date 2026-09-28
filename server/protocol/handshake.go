@@ -38,11 +38,19 @@ func NewHandshakePacket(connectionID uint32) *HandshakePacket {
 	caps |= CLIENT_PROTOCOL_41
 	caps |= CLIENT_TRANSACTIONS
 	caps |= CLIENT_SECURE_CONNECTION
+	caps |= CLIENT_COMPRESS
 	caps |= CLIENT_MULTI_STATEMENTS
 	caps |= CLIENT_MULTI_RESULTS
 	caps |= CLIENT_PS_MULTI_RESULTS
 	caps |= CLIENT_PLUGIN_AUTH
 	caps |= CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA
+	// MySQL 8.x clients, including the 8.4 replication I/O thread, use OK
+	// packets instead of EOF packets when this capability is negotiated. The
+	// result-set writer already implements both forms, so advertise the
+	// capability instead of silently interpreting a client's raw flag without
+	// negotiating it in the handshake.
+	caps |= CLIENT_DEPRECATE_EOF
+	caps |= CLIENT_OPTIONAL_RESULTSET_METADATA
 
 	capFlags1 := uint16(caps & 0xFFFF)
 	capFlags2 := uint16((caps >> 16) & 0xFFFF)

@@ -83,6 +83,37 @@ func TestRedoLogManagerFlushHonorsTargetLSN(t *testing.T) {
 	}
 }
 
+func TestRedoLogManagerRestoresLSNAfterRestart(t *testing.T) {
+	logDir := t.TempDir()
+	first, err := NewRedoLogManager(logDir, 100)
+	if err != nil {
+		t.Fatalf("create first redo manager: %v", err)
+	}
+	firstLSN, err := first.Append(&RedoLogEntry{TrxID: 1, Type: LOG_TYPE_TXN_COMMIT})
+	if err != nil {
+		t.Fatalf("append first redo entry: %v", err)
+	}
+	if err := first.Flush(0); err != nil {
+		t.Fatalf("flush first redo entry: %v", err)
+	}
+	if err := first.Close(); err != nil {
+		t.Fatalf("close first redo manager: %v", err)
+	}
+
+	second, err := NewRedoLogManager(logDir, 100)
+	if err != nil {
+		t.Fatalf("reopen redo manager: %v", err)
+	}
+	defer second.Close()
+	secondLSN, err := second.Append(&RedoLogEntry{TrxID: 2, Type: LOG_TYPE_TXN_COMMIT})
+	if err != nil {
+		t.Fatalf("append after restart: %v", err)
+	}
+	if secondLSN <= firstLSN {
+		t.Fatalf("redo LSN regressed after restart: first=%d second=%d", firstLSN, secondLSN)
+	}
+}
+
 func TestRedoLogManagerExposesGroupCommitConfigurationAndStats(t *testing.T) {
 	redo, err := NewRedoLogManager(t.TempDir(), 100)
 	if err != nil {

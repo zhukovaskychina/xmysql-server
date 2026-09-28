@@ -38,6 +38,54 @@ func TestAccountPasswordHashFollowsAuthenticationPlugin(t *testing.T) {
 	require.Equal(t, hex.EncodeToString(changedDigest[:]), changed.Password)
 }
 
+func TestMySQLUserSelectRequiresTablePrivilegeForNonRootSession(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'mysql_user_reader'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "create user 'mysql_user_other'@'localhost' identified by 'secret'")
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "mysql_user_reader")
+	session.SetParamByName("host", "localhost")
+
+	denied := <-executor.ExecuteQuery(session, "select User from mysql.user", "")
+	require.Error(t, denied.Err)
+	require.Contains(t, denied.Err.Error(), "lacks SELECT privilege on table 'mysql.user'")
+
+	mustExecSQL(t, executor, "", "grant select on mysql.user to 'mysql_user_reader'@'localhost'")
+	rows := mustQuerySessionSQL(t, executor, session, "", "select User from mysql.user")
+	require.ElementsMatch(t, [][]interface{}{{"mysql_user_reader"}, {"mysql_user_other"}}, rows)
+}
+
+func TestMySQLGrantTableMetadataDispatchRequiresTablePrivilege(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'grant_table_reader'@'localhost' identified by 'secret'")
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "grant_table_reader")
+	session.SetParamByName("host", "localhost")
+
+	tables := []struct {
+		table string
+		query string
+	}{
+		{"user", "select User from mysql.user"},
+		{"db", "select User from mysql.db"},
+		{"tables_priv", "select User from mysql.tables_priv"},
+		{"columns_priv", "select User from mysql.columns_priv"},
+		{"procs_priv", "select User from mysql.procs_priv"},
+		{"proxies_priv", "select User from mysql.proxies_priv"},
+		{"global_grants", "select User from mysql.global_grants"},
+		{"role_edges", "select To_user from mysql.role_edges"},
+		{"default_roles", "select User from mysql.default_roles"},
+	}
+	for _, table := range tables {
+		denied := <-executor.ExecuteQuery(session, table.query, "")
+		require.Error(t, denied.Err, table.table)
+		require.Contains(t, denied.Err.Error(), "lacks SELECT privilege", table.table)
+		mustExecSQL(t, executor, "", fmt.Sprintf("grant select on mysql.%s to 'grant_table_reader'@'localhost'", table.table))
+		require.NoError(t, (<-executor.ExecuteQuery(session, table.query, "")).Err, table.table)
+	}
+}
+
 func TestAccountManagementDDLImplicitlyCommitsActiveTransaction(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	session := newTestMySQLSession()
@@ -257,6 +305,17 @@ func TestInformationSchemaPrivilegeViewsHonorAccountVisibilityAndEffectiveRolePr
 	require.Contains(t, rootRows, []interface{}{"'target_grantee'@'localhost'"})
 }
 
+func TestInformationSchemaColumnPrivilegesReflectColumnGrantOption(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database column_grant_option")
+	mustExecSQL(t, executor, "", "create table column_grant_option.users (id int primary key, email varchar(64))")
+	mustExecSQL(t, executor, "", "create user 'column_grant_reader'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant select (email) on column_grant_option.users to 'column_grant_reader'@'localhost' with grant option")
+
+	rows := mustQuerySQL(t, executor, "", "select grantee, column_name, privilege_type, is_grantable from information_schema.column_privileges where grantee = '''column_grant_reader''@''localhost''' and table_schema = 'column_grant_option'")
+	require.Equal(t, [][]interface{}{{"'column_grant_reader'@'localhost'", "email", "SELECT", "YES"}}, rows)
+}
+
 func TestApplicableRolesReflectPersistedRoleGrant(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	mustExecSQL(t, executor, "", "create role 'report_reader'@'localhost'")
@@ -268,6 +327,46 @@ func TestApplicableRolesReflectPersistedRoleGrant(t *testing.T) {
 
 	rows := mustQuerySessionSQL(t, executor, session, "", "select grantee, role_name, role_host, is_grantable, default_role from information_schema.applicable_roles")
 	require.Equal(t, [][]interface{}{{"'bob'@'localhost'", "report_reader", "localhost", "NO", "NO"}}, rows)
+}
+
+func TestMySQLRoleGrantTablesProjectDurableRoleEdgesAndDefaultRoles(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create role 'report_reader'@'localhost'")
+	mustExecSQL(t, executor, "", "create user 'bob'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant 'report_reader'@'localhost' to 'bob'@'localhost' with admin option")
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "root")
+	session.SetParamByName("host", "localhost")
+	mustExecSessionSQL(t, executor, session, "", "set default role 'report_reader'@'localhost' to 'bob'@'localhost'")
+
+	roleEdges := mustQuerySQL(t, executor, "", "select from_host, from_user, to_host, to_user, with_admin_option from mysql.role_edges")
+	require.Equal(t, [][]interface{}{{"localhost", "bob", "localhost", "report_reader", "Y"}}, roleEdges)
+
+	defaultRoles := mustQuerySQL(t, executor, "", "select host, user, default_role_host, default_role_user from mysql.default_roles")
+	require.Equal(t, [][]interface{}{{"localhost", "bob", "localhost", "report_reader"}}, defaultRoles)
+
+	filtered := mustQuerySQL(t, executor, "", "select to_user from mysql.role_edges where from_user = 'bob' and with_admin_option = 'Y'")
+	require.Equal(t, [][]interface{}{{"report_reader"}}, filtered)
+}
+
+func TestRoleMetadataResolvesWildcardHostAccountLikePrivilegeChecks(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create role 'wildcard_reader'@'localhost'")
+	mustExecSQL(t, executor, "", "create user 'wildcard_bob'@'%' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant 'wildcard_reader'@'localhost' to 'wildcard_bob'@'%' with admin option")
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "wildcard_bob")
+	session.SetParamByName("host", "10.0.0.8")
+	file, err := executor.QueryExecutor.loadPersistedAccounts()
+	require.NoError(t, err)
+	require.NotNil(t, sessionAccount(file, session))
+
+	applicable := mustQuerySessionSQL(t, executor, session, "", "select user, host, role_name, role_host, is_grantable from information_schema.applicable_roles")
+	require.Equal(t, [][]interface{}{{"wildcard_bob", "%", "wildcard_reader", "localhost", "YES"}}, applicable)
+
+	admin := mustQuerySessionSQL(t, executor, session, "", "select role_name, role_host, is_grantable from information_schema.administrable_role_authorizations")
+	require.Equal(t, [][]interface{}{{"wildcard_reader", "localhost", "YES"}}, admin)
 }
 
 func TestRoleMetadataHonorsProjectionAndFilters(t *testing.T) {
@@ -338,6 +437,30 @@ func TestMandatoryRolesParticipateInRoleActivationAndEnabledRolesMetadata(t *tes
 
 	rows := mustQuerySessionSQL(t, executor, session, "", "select role_name, role_host, is_default, is_mandatory from information_schema.enabled_roles")
 	require.Equal(t, [][]interface{}{{"mandatory_reader", "localhost", "NO", "YES"}}, rows)
+}
+
+func TestMandatoryRolesRemainActiveAfterSetRoleNone(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create role 'mandatory_reader'@'localhost'")
+	mustExecSQL(t, executor, "", "create user 'mandatory_none_user'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant select on app.users to 'mandatory_reader'@'localhost'")
+
+	admin := newTestMySQLSession()
+	admin.SetParamByName("user", "root")
+	admin.SetParamByName("host", "localhost")
+	admin.SetParamByName("dynamic_privileges", []string{"SYSTEM_VARIABLES_ADMIN", "ROLE_ADMIN"})
+	mustExecSessionSQL(t, executor, admin, "", "set global mandatory_roles = 'mandatory_reader@localhost'")
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "mandatory_none_user")
+	session.SetParamByName("host", "localhost")
+	mustExecSessionSQL(t, executor, session, "", "set role none")
+
+	roles, ok := session.GetParamByName("active_roles").([]string)
+	require.True(t, ok)
+	require.Equal(t, []string{"mandatory_reader@localhost"}, roles)
+	rows := mustQuerySessionSQL(t, executor, session, "", "select role_name, role_host, is_mandatory from information_schema.enabled_roles")
+	require.Equal(t, [][]interface{}{{"mandatory_reader", "localhost", "YES"}}, rows)
 }
 
 func TestMandatoryRolesCannotBeRevokedOrDropped(t *testing.T) {
@@ -412,6 +535,58 @@ func TestAdministrableRoleAuthorizationsReflectAdminOption(t *testing.T) {
 	require.Equal(t, [][]interface{}{{"'bob'@'localhost'", "report_admin", "localhost", "YES"}}, rows)
 }
 
+func TestRoleAdminMakesApplicableRoleGrantable(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create role 'role_admin_target'@'localhost'")
+	mustExecSQL(t, executor, "", "create user 'role_admin_user'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant 'role_admin_target'@'localhost' to 'role_admin_user'@'localhost'")
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "role_admin_user")
+	session.SetParamByName("host", "localhost")
+	session.SetParamByName("dynamic_privileges", []string{"ROLE_ADMIN"})
+
+	applicable := mustQuerySessionSQL(t, executor, session, "", "select role_name, is_grantable from information_schema.applicable_roles where role_name = 'role_admin_target'")
+	require.Equal(t, [][]interface{}{{"role_admin_target", "YES"}}, applicable)
+	admin := mustQuerySessionSQL(t, executor, session, "", "select role_name, is_grantable from information_schema.administrable_role_authorizations where role_name = 'role_admin_target'")
+	require.Equal(t, [][]interface{}{{"role_admin_target", "YES"}}, admin)
+}
+
+func TestPersistedRoleAdminGrantMakesApplicableRoleGrantable(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create role 'persisted_role_admin_target'@'localhost'")
+	mustExecSQL(t, executor, "", "create user 'persisted_role_admin_user'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant 'persisted_role_admin_target'@'localhost' to 'persisted_role_admin_user'@'localhost'")
+	mustExecSQL(t, executor, "", "grant role_admin on *.* to 'persisted_role_admin_user'@'localhost'")
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "persisted_role_admin_user")
+	session.SetParamByName("host", "localhost")
+
+	applicable := mustQuerySessionSQL(t, executor, session, "", "select role_name, is_grantable from information_schema.applicable_roles where role_name = 'persisted_role_admin_target'")
+	require.Equal(t, [][]interface{}{{"persisted_role_admin_target", "YES"}}, applicable)
+	admin := mustQuerySessionSQL(t, executor, session, "", "select role_name, is_grantable from information_schema.administrable_role_authorizations where role_name = 'persisted_role_admin_target'")
+	require.Equal(t, [][]interface{}{{"persisted_role_admin_target", "YES"}}, admin)
+}
+
+func TestNestedRoleAdminOptionDoesNotOvergrantInheritedRole(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create role 'nested_role_admin_parent'@'localhost'")
+	mustExecSQL(t, executor, "", "create role 'nested_role_admin_child'@'localhost'")
+	mustExecSQL(t, executor, "", "create user 'nested_role_admin_user'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant 'nested_role_admin_child'@'localhost' to 'nested_role_admin_parent'@'localhost'")
+	mustExecSQL(t, executor, "", "grant 'nested_role_admin_parent'@'localhost' to 'nested_role_admin_user'@'localhost' with admin option")
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "nested_role_admin_user")
+	session.SetParamByName("host", "localhost")
+
+	applicable := mustQuerySessionSQL(t, executor, session, "", "select role_name, is_grantable from information_schema.applicable_roles where role_name in ('nested_role_admin_parent', 'nested_role_admin_child') order by role_name")
+	require.Equal(t, [][]interface{}{{"nested_role_admin_parent", "YES"}, {"nested_role_admin_child", "NO"}}, applicable)
+	admin := mustQuerySessionSQL(t, executor, session, "", "select role_name, is_grantable from information_schema.administrable_role_authorizations where role_name in ('nested_role_admin_parent', 'nested_role_admin_child') order by role_name")
+	require.Equal(t, [][]interface{}{{"nested_role_admin_parent", "YES"}}, admin)
+}
+
 func TestRoleTableGrantsReflectRoleAccountPrivileges(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	mustExecSQL(t, executor, "", "create role 'report_reader'@'localhost'")
@@ -424,6 +599,45 @@ func TestRoleTableGrantsReflectRoleAccountPrivileges(t *testing.T) {
 
 	rows := mustQuerySessionSQL(t, executor, session, "", "select grantee, table_schema, table_name, privilege_type, is_grantable from information_schema.role_table_grants")
 	require.Equal(t, [][]interface{}{{"'report_reader'@'localhost'", "app", "users", "SELECT", "NO"}}, rows)
+}
+
+func TestRolePrivilegeViewsExpandAllGrants(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create role 'all_privilege_role'@'localhost'")
+	mustExecSQL(t, executor, "", "create user 'all_privilege_user'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant all privileges on app.users to 'all_privilege_role'@'localhost'")
+	mustExecSQL(t, executor, "", "grant 'all_privilege_role'@'localhost' to 'all_privilege_user'@'localhost'")
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "all_privilege_user")
+	session.SetParamByName("host", "localhost")
+
+	rows := mustQuerySessionSQL(t, executor, session, "", "select privilege_type, is_grantable from information_schema.role_table_grants where table_schema = 'app' and table_name = 'users'")
+	require.Len(t, rows, 12)
+	for _, row := range rows {
+		require.NotEqual(t, "ALL", row[0])
+		require.NotEqual(t, "ALL PRIVILEGES", row[0])
+		require.NotEqual(t, "GRANT OPTION", row[0])
+	}
+}
+
+func TestRoleTableGrantsPreserveNonRootGrantor(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create role 'report_reader'@'localhost'")
+	mustExecSQL(t, executor, "", "create user 'grant_admin'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant all privileges on *.* to 'grant_admin'@'localhost' with grant option")
+
+	grantAdmin := newTestMySQLSession()
+	grantAdmin.SetParamByName("user", "grant_admin")
+	grantAdmin.SetParamByName("host", "localhost")
+	mustExecSessionSQL(t, executor, grantAdmin, "", "grant select on app.users to 'report_reader'@'localhost'")
+
+	mustExecSQL(t, executor, "", "create user 'bob'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant 'report_reader'@'localhost' to 'bob'@'localhost'")
+	bob := newTestMySQLSession()
+	bob.SetParamByName("user", "bob")
+	bob.SetParamByName("host", "localhost")
+	rows := mustQuerySessionSQL(t, executor, bob, "", "select grantor, grantor_host, table_name from information_schema.role_table_grants")
+	require.Equal(t, [][]interface{}{{"grant_admin", "localhost", "users"}}, rows)
 }
 
 func TestRoleColumnGrantsReflectRoleAccountPrivileges(t *testing.T) {
@@ -570,6 +784,35 @@ func TestGrantOptionPersistsAndAppearsInPrivilegeMetadata(t *testing.T) {
 	require.Equal(t, [][]interface{}{{"def"}}, userCatalog)
 }
 
+func TestInformationSchemaPrivilegeViewsExpandAllGrants(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'all_table_privileges'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "create user 'all_schema_privileges'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "create user 'all_global_privileges'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant all privileges on app.users to 'all_table_privileges'@'localhost'")
+	mustExecSQL(t, executor, "", "grant all privileges on app.* to 'all_schema_privileges'@'localhost'")
+	mustExecSQL(t, executor, "", "grant all privileges on *.* to 'all_global_privileges'@'localhost'")
+
+	tableRows := mustQuerySQL(t, executor, "", "select privilege_type, is_grantable from information_schema.table_privileges where grantee = \"'all_table_privileges'@'localhost'\" order by privilege_type")
+	require.ElementsMatch(t, [][]interface{}{
+		{"ALTER", "NO"}, {"CREATE", "NO"}, {"CREATE VIEW", "NO"}, {"DELETE", "NO"}, {"DROP", "NO"}, {"INDEX", "NO"},
+		{"INSERT", "NO"}, {"REFERENCES", "NO"}, {"SELECT", "NO"}, {"SHOW VIEW", "NO"}, {"TRIGGER", "NO"}, {"UPDATE", "NO"},
+	}, tableRows)
+
+	schemaRows := mustQuerySQL(t, executor, "", "select privilege_type, is_grantable from information_schema.schema_privileges where grantee = \"'all_schema_privileges'@'localhost'\"")
+	require.Len(t, schemaRows, 18)
+	require.Contains(t, schemaRows, []interface{}{"CREATE ROUTINE", "NO"})
+	require.Contains(t, schemaRows, []interface{}{"LOCK TABLES", "NO"})
+
+	globalRows := mustQuerySQL(t, executor, "", "select privilege_type, is_grantable from information_schema.user_privileges where grantee = \"'all_global_privileges'@'localhost'\"")
+	require.NotEmpty(t, globalRows)
+	for _, row := range globalRows {
+		require.NotEqual(t, "ALL", row[0])
+		require.NotEqual(t, "ALL PRIVILEGES", row[0])
+		require.NotEqual(t, "GRANT OPTION", row[0])
+	}
+}
+
 func TestRoleAdminOptionPersistsAndAppearsInShowGrants(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	mustExecSQL(t, executor, "", "create role 'analyst'@'localhost'")
@@ -585,6 +828,27 @@ func TestRoleAdminOptionPersistsAndAppearsInShowGrants(t *testing.T) {
 	require.Contains(t, account.RoleAdminOptions, "analyst@localhost")
 }
 
+func TestColumnGrantOptionRemainsColumnScopedInPrivilegeMetadata(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'column_scope_reporter'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant select (email) on app.users to 'column_scope_reporter'@'localhost' with grant option")
+	showGrants := mustQuerySQL(t, executor, "", "show grants for 'column_scope_reporter'@'localhost'")
+	require.Len(t, showGrants, 1)
+	require.Equal(t, "GRANT SELECT (email) ON app.users TO 'column_scope_reporter'@'localhost' WITH GRANT OPTION", showGrants[0][0])
+
+	// A column-only grant must not create a table-level GRANT OPTION row.
+	tableRows := mustQuerySQL(t, executor, "mysql", "select Table_priv, Grant_priv from mysql.tables_priv where User = 'column_scope_reporter' and Db = 'app' and Table_name = 'users'")
+	require.Empty(t, tableRows)
+
+	columnRows := mustQuerySQL(t, executor, "mysql", "select Column_priv from mysql.columns_priv where User = 'column_scope_reporter' and Db = 'app' and Table_name = 'users' and Column_name = 'email'")
+	require.Equal(t, [][]interface{}{{"SELECT"}}, columnRows)
+
+	metadataRows := mustQuerySQL(t, executor, "", "select privilege_type, is_grantable from information_schema.column_privileges where grantee = \"'column_scope_reporter'@'localhost'\" and table_schema = 'app' and table_name = 'users' and column_name = 'email'")
+	require.Equal(t, [][]interface{}{{"SELECT", "YES"}}, metadataRows)
+	tableMetadata := mustQuerySQL(t, executor, "", "select privilege_type from information_schema.table_privileges where grantee = \"'column_scope_reporter'@'localhost'\" and table_schema = 'app' and table_name = 'users'")
+	require.Empty(t, tableMetadata)
+}
+
 func TestRevokeGrantOptionForKeepsPrivilegeAndRemovesDelegation(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	mustExecSQL(t, executor, "", "create user 'reporter'@'localhost' identified by 'secret'")
@@ -592,6 +856,18 @@ func TestRevokeGrantOptionForKeepsPrivilegeAndRemovesDelegation(t *testing.T) {
 	mustExecSQL(t, executor, "", "revoke grant option for select on app.users from 'reporter'@'localhost'")
 	rows := mustQuerySQL(t, executor, "mysql", "select Table_priv, Grant_priv from mysql.tables_priv where User = 'reporter' and Db = 'app' and Table_name = 'users'")
 	require.Equal(t, [][]interface{}{{"SELECT", "N"}}, rows)
+}
+
+func TestRevokeColumnGrantOptionForKeepsColumnPrivilege(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'column_reporter'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant select (email) on app.users to 'column_reporter'@'localhost' with grant option")
+	mustExecSQL(t, executor, "", "revoke grant option for select (email) on app.users from 'column_reporter'@'localhost'")
+
+	rows := mustQuerySQL(t, executor, "mysql", "select Column_priv from mysql.columns_priv where User = 'column_reporter' and Db = 'app' and Table_name = 'users' and Column_name = 'email'")
+	require.Equal(t, [][]interface{}{{"SELECT"}}, rows)
+	metadata := mustQuerySQL(t, executor, "", "select privilege_type, is_grantable from information_schema.column_privileges where grantee = \"'column_reporter'@'localhost'\" and table_schema = 'app' and table_name = 'users' and column_name = 'email'")
+	require.Equal(t, [][]interface{}{{"SELECT", "NO"}}, metadata)
 }
 
 func TestRoleGrantAndRevokeSupportMultipleRoles(t *testing.T) {
@@ -1023,6 +1299,40 @@ func TestPartialRevokesPreserveGlobalGrantAndExposeRestriction(t *testing.T) {
 	require.NoError(t, err)
 	account = findPersistedAccount(file, "restricted_user", "localhost")
 	require.NotContains(t, account.Grants["*.*"], "INSERT")
+}
+
+func TestInformationSchemaMetadataHonorsPartialRevokeObjectVisibility(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	admin := newTestMySQLSession()
+	admin.SetParamByName("user", "root")
+	admin.SetParamByName("host", "localhost")
+	admin.SetParamByName("dynamic_privileges", []string{"SYSTEM_VARIABLES_ADMIN"})
+	mustExecSessionSQL(t, executor, admin, "", "set global partial_revokes = 'ON'")
+	mustExecSQL(t, executor, "", "create database restricted_metadata")
+	mustExecSQL(t, executor, "restricted_metadata", "create table hidden_table (id int primary key)")
+	mustExecSQL(t, executor, "", "create user 'metadata_restricted'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant select on *.* to 'metadata_restricted'@'localhost'")
+	mustExecSQL(t, executor, "", "revoke select on restricted_metadata.* from 'metadata_restricted'@'localhost'")
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "metadata_restricted")
+	session.SetParamByName("host", "localhost")
+	for _, query := range []string{
+		"select schema_name from information_schema.schemata where schema_name = 'restricted_metadata'",
+		"select table_name from information_schema.tables where table_schema = 'restricted_metadata' and table_name = 'hidden_table'",
+		"select column_name from information_schema.columns where table_schema = 'restricted_metadata' and table_name = 'hidden_table'",
+		"select index_name from information_schema.statistics where table_schema = 'restricted_metadata' and table_name = 'hidden_table'",
+	} {
+		require.Empty(t, mustQuerySessionSQL(t, executor, session, "", query), query)
+	}
+
+	// A direct table grant is not a global privilege restriction and must still
+	// make the table metadata visible, matching MySQL's partial-revoke rules.
+	mustExecSQL(t, executor, "", "grant select on restricted_metadata.hidden_table to 'metadata_restricted'@'localhost'")
+	require.Equal(t, [][]interface{}{{"restricted_metadata"}}, mustQuerySessionSQL(t, executor, session, "", "select schema_name from information_schema.schemata where schema_name = 'restricted_metadata'"))
+	require.Equal(t, [][]interface{}{{"hidden_table"}}, mustQuerySessionSQL(t, executor, session, "", "select table_name from information_schema.tables where table_schema = 'restricted_metadata' and table_name = 'hidden_table'"))
+	require.Equal(t, [][]interface{}{{"id"}}, mustQuerySessionSQL(t, executor, session, "", "select column_name from information_schema.columns where table_schema = 'restricted_metadata' and table_name = 'hidden_table'"))
+	require.Equal(t, [][]interface{}{{"PRIMARY"}}, mustQuerySessionSQL(t, executor, session, "", "select index_name from information_schema.statistics where table_schema = 'restricted_metadata' and table_name = 'hidden_table' and index_name = 'PRIMARY'"))
 }
 
 func TestPartialRevokesRequireEnablementForGlobalGrantRestriction(t *testing.T) {

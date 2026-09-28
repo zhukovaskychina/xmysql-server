@@ -235,6 +235,15 @@ func (s *IBDSpace) allocateExtentLocked(purpose basic.ExtentPurpose) (basic.Exte
 
 	// Update next page number (each extent has 64 pages)
 	startPage := s.nextPage
+	lastPage := startPage + PagesPerExtent - 1
+	// Allocation metadata alone is not enough for a file-backed tablespace:
+	// readers must be able to load every page that has just been allocated.
+	// Extend the file before publishing the in-memory allocation state. The new
+	// range is zero-filled by the filesystem and is valid empty InnoDB page
+	// storage for this compatibility layer.
+	if err := s.ibdFile.EnsurePageCount(lastPage + 1); err != nil {
+		return nil, fmt.Errorf("failed to extend tablespace %d to page %d: %v", s.id, lastPage, err)
+	}
 	s.nextPage += PagesPerExtent
 
 	// Mark all pages in the extent as allocated

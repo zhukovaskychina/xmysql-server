@@ -156,9 +156,11 @@ func (srv *MySQLServer) initServer(conf *conf.Cfg) {
 	server.RunEventLoop(func(session Session) error {
 		logger.Debugf("新连接建立: %s\n", session.Stat())
 
-		if conf.MySQLSessionParam.CompressEncoding {
-			session.SetCompressType(getty.CompressZip)
-		}
+		// Do not enable Getty's generic compression before MySQL capability
+		// negotiation. The handshake remains a normal MySQL packet; the
+		// MySQL transport compression flag is enabled by the message handler
+		// only after CLIENT_COMPRESS is negotiated.
+		session.SetCompressType(CompressNone)
 		tcpConn, ok := session.Conn().(*net.TCPConn)
 		if !ok {
 			return fmt.Errorf("%s, session.Conn{%#v} is not tcp connection", session.Stat(), session.Conn())

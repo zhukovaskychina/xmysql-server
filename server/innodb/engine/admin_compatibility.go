@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
@@ -18,6 +19,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
+	"github.com/zhukovaskychina/xmysql-server/server/replication"
 )
 
 func metricStatementType(query string) string {
@@ -37,6 +39,23 @@ func (e *XMySQLExecutor) executeAdminCompatibility(ctx *ExecutionContext, sessio
 	lower := strings.ToLower(q)
 	if handled, err := e.executeSessionKill(session, q, lower); handled {
 		return true, err
+	}
+	requiredPrivilege := replicationControlRequiredPrivilege(lower)
+	if requiredPrivilege == "" {
+		requiredPrivilege = sourceBinlogRequiredPrivilege(lower)
+	}
+	if requiredPrivilege != "" {
+		privilegeContext := &ExecutionContext{}
+		if ctx != nil {
+			contextCopy := *ctx
+			privilegeContext = &contextCopy
+		}
+		if session != nil {
+			privilegeContext.Session = session
+		}
+		if err := e.checkGlobalPrivilege(privilegeContext, requiredPrivilege); err != nil {
+			return true, err
+		}
 	}
 	if handled, err := e.executeReplicationControl(q, lower); handled {
 		return true, err
@@ -328,7 +347,62 @@ func (e *XMySQLExecutor) executeSessionKill(session server.MySQLServerSession, q
 	return true, e.sessionKill(uint32(targetID), session)
 }
 
+func replicationControlRequiredPrivilege(lower string) string {
+	if lower == "reset replica" || lower == "reset slave" ||
+		strings.HasPrefix(lower, "reset replica ") || strings.HasPrefix(lower, "reset slave ") {
+		return "RELOAD"
+	}
+	if strings.HasPrefix(lower, "change replication source to ") ||
+		strings.HasPrefix(lower, "change master to ") ||
+		strings.HasPrefix(lower, "change replication filter ") ||
+		lower == "start replica" || lower == "start slave" ||
+		strings.HasPrefix(lower, "start replica ") || strings.HasPrefix(lower, "start slave ") ||
+		lower == "stop replica" || lower == "stop slave" ||
+		strings.HasPrefix(lower, "stop replica ") || strings.HasPrefix(lower, "stop slave ") {
+		return "REPLICATION_SLAVE_ADMIN"
+	}
+	return ""
+}
+
+func sourceBinlogRequiredPrivilege(lower string) string {
+	if lower == "flush binary logs" || lower == "reset master" ||
+		lower == "reset binary logs and gtids" || strings.HasPrefix(lower, "reset binary logs and gtids ") {
+		return "RELOAD"
+	}
+	if strings.HasPrefix(lower, "purge binary logs to ") ||
+		strings.HasPrefix(lower, "purge master logs to ") ||
+		strings.HasPrefix(lower, "purge binary logs before ") ||
+		strings.HasPrefix(lower, "purge master logs before ") {
+		return "BINLOG_ADMIN"
+	}
+	return ""
+}
+
 func (e *XMySQLExecutor) executeReplicationControl(query, lower string) (bool, error) {
+	if strings.HasPrefix(lower, "purge binary logs before ") || strings.HasPrefix(lower, "purge master logs before ") {
+		if e == nil || e.replicationPurgeBinaryLogsBefore == nil {
+			return true, fmt.Errorf("replication source is not configured")
+		}
+		match := purgeBinaryLogsBeforePattern.FindStringSubmatch(query)
+		if len(match) != 2 || strings.TrimSpace(match[1]) == "" {
+			return true, fmt.Errorf("invalid PURGE BINARY LOGS syntax")
+		}
+		cutoff, err := parseBinlogPurgeTime(strings.TrimSpace(match[1]))
+		if err != nil {
+			return true, err
+		}
+		return true, e.replicationPurgeBinaryLogsBefore(cutoff)
+	}
+	if strings.HasPrefix(lower, "purge binary logs to ") || strings.HasPrefix(lower, "purge master logs to ") {
+		if e == nil || e.replicationPurgeBinaryLogsTo == nil {
+			return true, fmt.Errorf("replication source is not configured")
+		}
+		match := purgeBinaryLogsPattern.FindStringSubmatch(query)
+		if len(match) != 2 || strings.TrimSpace(match[1]) == "" {
+			return true, fmt.Errorf("invalid PURGE BINARY LOGS syntax")
+		}
+		return true, e.replicationPurgeBinaryLogsTo(strings.TrimSpace(match[1]))
+	}
 	if lower == "flush binary logs" {
 		if e == nil || e.replicationFlushLogs == nil {
 			return true, fmt.Errorf("replication source is not configured")
@@ -341,6 +415,24 @@ func (e *XMySQLExecutor) executeReplicationControl(query, lower string) (bool, e
 		}
 		return true, e.replicationResetMaster()
 	}
+	if lower == "reset binary logs and gtids" || strings.HasPrefix(lower, "reset binary logs and gtids ") {
+		if e == nil || e.replicationResetBinaryLogsAndGTIDs == nil {
+			return true, fmt.Errorf("replication source is not configured")
+		}
+		match := resetBinaryLogsAndGTIDsPattern.FindStringSubmatch(query)
+		if len(match) != 2 {
+			return true, fmt.Errorf("invalid RESET BINARY LOGS AND GTIDS syntax")
+		}
+		index := uint32(1)
+		if strings.TrimSpace(match[1]) != "" {
+			parsed, err := strconv.ParseUint(strings.TrimSpace(match[1]), 10, 32)
+			if err != nil || parsed == 0 {
+				return true, fmt.Errorf("invalid RESET BINARY LOGS AND GTIDS file index %q", strings.TrimSpace(match[1]))
+			}
+			index = uint32(parsed)
+		}
+		return true, e.replicationResetBinaryLogsAndGTIDs(index)
+	}
 	if strings.HasPrefix(lower, "change replication source to ") || strings.HasPrefix(lower, "change master to ") {
 		if e == nil || e.replicationChangeSource == nil {
 			return true, fmt.Errorf("replication runtime is not configured")
@@ -351,12 +443,24 @@ func (e *XMySQLExecutor) executeReplicationControl(query, lower string) (bool, e
 		}
 		return true, e.replicationChangeSource(sourceURL)
 	}
+	if strings.HasPrefix(lower, "change replication filter ") {
+		if e == nil || e.replicationChangeFilter == nil {
+			return true, fmt.Errorf("replication runtime is not configured")
+		}
+		filters, err := parseReplicationFilter(query)
+		if err != nil {
+			return true, err
+		}
+		return true, e.replicationChangeFilter(filters)
+	}
 	reset := lower == "reset replica" || lower == "reset slave" || strings.HasPrefix(lower, "reset replica ") || strings.HasPrefix(lower, "reset slave ")
 	if reset {
-		fields := strings.Fields(lower)
-		resetAll := len(fields) == 3 && fields[2] == "all"
-		if len(fields) > 2 && !resetAll {
-			return true, fmt.Errorf("replication reset options are not supported")
+		resetAll, channel, valid := parseResetReplicaStatement(query)
+		if !valid {
+			return true, fmt.Errorf("invalid RESET REPLICA syntax")
+		}
+		if channel != "" {
+			return true, fmt.Errorf("only the default replication channel is supported")
 		}
 		if resetAll {
 			if e == nil || e.replicationResetAll == nil {
@@ -374,12 +478,19 @@ func (e *XMySQLExecutor) executeReplicationControl(query, lower string) (bool, e
 	if !start && !stop {
 		return false, nil
 	}
-	fields := strings.Fields(lower)
-	if len(fields) > 2 {
-		return true, fmt.Errorf("replication thread options are not supported")
-	}
-	if len(fields) < 2 {
-		return true, fmt.Errorf("invalid replication control statement")
+	channel, channelSyntax := parseReplicationChannelControl(query)
+	if channelSyntax {
+		if channel != "" {
+			return true, fmt.Errorf("only the default replication channel is supported")
+		}
+	} else {
+		fields := strings.Fields(lower)
+		if len(fields) > 2 {
+			return true, fmt.Errorf("replication thread options are not supported")
+		}
+		if len(fields) < 2 {
+			return true, fmt.Errorf("invalid replication control statement")
+		}
 	}
 	if start {
 		if e == nil || e.replicationStart == nil {
@@ -393,9 +504,215 @@ func (e *XMySQLExecutor) executeReplicationControl(query, lower string) (bool, e
 	return true, e.replicationStop()
 }
 
-var replicationSourceOptionPattern = regexp.MustCompile(`(?is)^\s*(source_host|master_host|source_port|master_port)\s*=\s*(?:'((?:''|[^'])*)'|"((?:""|[^"])*)"|([^\s]+))\s*$`)
+var resetReplicaPattern = regexp.MustCompile(`(?is)^\s*reset\s+(?:replica|slave)(?:\s+(all))?(?:\s+for\s+channel\s+(?:"((?:""|[^"])*)"|'((?:''|[^'])*)'|([^\s]+)))?\s*$`)
+
+var replicationChannelPattern = regexp.MustCompile(`(?is)^\s*(?:start|stop)\s+(?:replica|slave)\s+for\s+channel\s+(?:"((?:""|[^"])*)"|'((?:''|[^'])*)'|([^\s]+))\s*$`)
+
+func parseReplicationChannelControl(query string) (channel string, matched bool) {
+	match := replicationChannelPattern.FindStringSubmatch(query)
+	if len(match) != 4 {
+		return "", false
+	}
+	channel = match[1]
+	if channel == "" {
+		channel = match[2]
+	}
+	if channel == "" {
+		channel = match[3]
+	}
+	channel = strings.ReplaceAll(channel, `""`, `"`)
+	channel = strings.ReplaceAll(channel, "''", "'")
+	return strings.TrimSpace(channel), true
+}
+
+func parseResetReplicaStatement(query string) (resetAll bool, channel string, valid bool) {
+	match := resetReplicaPattern.FindStringSubmatch(query)
+	if len(match) != 5 {
+		return false, "", false
+	}
+	resetAll = strings.EqualFold(strings.TrimSpace(match[1]), "all")
+	channel = match[2]
+	if channel == "" {
+		channel = match[3]
+	}
+	if channel == "" {
+		channel = match[4]
+	}
+	channel = strings.ReplaceAll(channel, `""`, `"`)
+	channel = strings.ReplaceAll(channel, "''", "'")
+	return resetAll, strings.TrimSpace(channel), true
+}
+
+var replicationFilterOptionPattern = regexp.MustCompile(`(?is)^\s*(replicate_do_db|replicate_ignore_db|replicate_do_table|replicate_ignore_table|replicate_wild_do_table|replicate_wild_ignore_table|replicate_rewrite_db)\s*=\s*\((.*)\)\s*$`)
+
+var replicationChannelSuffixPattern = regexp.MustCompile(`(?is)^(.+)\s+for\s+channel\s+(?:"((?:""|[^"])*)"|'((?:''|[^'])*)'|([^\s]+))\s*$`)
+
+func splitReplicationChannelSuffix(query string) (base, channel string, matched bool) {
+	trimmed := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(query), ";"))
+	match := replicationChannelSuffixPattern.FindStringSubmatch(trimmed)
+	if len(match) != 5 {
+		return trimmed, "", false
+	}
+	channel = match[2]
+	if channel == "" {
+		channel = match[3]
+	}
+	if channel == "" {
+		channel = match[4]
+	}
+	channel = strings.ReplaceAll(channel, `""`, `"`)
+	channel = strings.ReplaceAll(channel, "''", "'")
+	return strings.TrimSpace(match[1]), strings.TrimSpace(channel), true
+}
+
+func parseReplicationFilter(query string) (replication.ReplicationFilterConfig, error) {
+	var config replication.ReplicationFilterConfig
+	trimmed, channel, channelSyntax := splitReplicationChannelSuffix(query)
+	if channelSyntax && channel != "" {
+		return config, fmt.Errorf("only the default replication channel is supported")
+	}
+	prefix := "change replication filter"
+	if len(trimmed) <= len(prefix) || !strings.EqualFold(trimmed[:len(prefix)], prefix) {
+		return config, fmt.Errorf("invalid CHANGE REPLICATION FILTER syntax")
+	}
+	options := strings.TrimSpace(trimmed[len(prefix):])
+	if options == "" {
+		return config, fmt.Errorf("CHANGE REPLICATION FILTER requires a filter option")
+	}
+	seen := make(map[string]struct{})
+	for _, rawOption := range splitTopLevelComma(options) {
+		match := replicationFilterOptionPattern.FindStringSubmatch(rawOption)
+		if len(match) != 3 {
+			return config, fmt.Errorf("unsupported CHANGE REPLICATION FILTER option %q", strings.TrimSpace(rawOption))
+		}
+		name := strings.ToLower(match[1])
+		if _, exists := seen[name]; exists {
+			return config, fmt.Errorf("CHANGE REPLICATION FILTER option %s specified more than once", strings.ToUpper(name))
+		}
+		seen[name] = struct{}{}
+		switch name {
+		case "replicate_do_db":
+			values, err := parseReplicationFilterValues(match[2])
+			if err != nil {
+				return config, fmt.Errorf("%s: %w", strings.ToUpper(name), err)
+			}
+			config.ReplicateDoDB = values
+		case "replicate_ignore_db":
+			values, err := parseReplicationFilterValues(match[2])
+			if err != nil {
+				return config, fmt.Errorf("%s: %w", strings.ToUpper(name), err)
+			}
+			config.ReplicateIgnoreDB = values
+		case "replicate_do_table":
+			values, err := parseReplicationFilterValues(match[2])
+			if err != nil {
+				return config, fmt.Errorf("%s: %w", strings.ToUpper(name), err)
+			}
+			config.ReplicateDoTable = values
+		case "replicate_ignore_table":
+			values, err := parseReplicationFilterValues(match[2])
+			if err != nil {
+				return config, fmt.Errorf("%s: %w", strings.ToUpper(name), err)
+			}
+			config.ReplicateIgnoreTable = values
+		case "replicate_wild_do_table":
+			values, err := parseReplicationFilterValues(match[2])
+			if err != nil {
+				return config, fmt.Errorf("%s: %w", strings.ToUpper(name), err)
+			}
+			config.ReplicateWildDoTable = values
+		case "replicate_wild_ignore_table":
+			values, err := parseReplicationFilterValues(match[2])
+			if err != nil {
+				return config, fmt.Errorf("%s: %w", strings.ToUpper(name), err)
+			}
+			config.ReplicateWildIgnoreTable = values
+		case "replicate_rewrite_db":
+			rewrites, err := parseReplicationRewriteDBValues(match[2])
+			if err != nil {
+				return config, fmt.Errorf("%s: %w", strings.ToUpper(name), err)
+			}
+			config.ReplicateRewriteDB = rewrites
+		}
+	}
+	return config, nil
+}
+
+func parseReplicationRewriteDBValues(raw string) ([]replication.ReplicationDBRewrite, error) {
+	values := make([]replication.ReplicationDBRewrite, 0)
+	for _, token := range splitTopLevelComma(strings.TrimSpace(raw)) {
+		pair := strings.TrimSpace(token)
+		if len(pair) < 2 || pair[0] != '(' || pair[len(pair)-1] != ')' {
+			return nil, fmt.Errorf("rewrite rule must be a (from_db, to_db) pair")
+		}
+		parts := splitTopLevelComma(pair[1 : len(pair)-1])
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("rewrite rule must contain exactly two database names")
+		}
+		from := unquoteReplicationFilterValue(parts[0])
+		to := unquoteReplicationFilterValue(parts[1])
+		if from == "" || to == "" {
+			return nil, fmt.Errorf("rewrite database names cannot be empty")
+		}
+		values = append(values, replication.ReplicationDBRewrite{From: from, To: to})
+	}
+	if len(values) == 0 {
+		return nil, fmt.Errorf("rewrite rule list cannot be empty")
+	}
+	return values, nil
+}
+
+func unquoteReplicationFilterValue(raw string) string {
+	value := strings.TrimSpace(raw)
+	if len(value) >= 2 && ((value[0] == '\'' && value[len(value)-1] == '\'') || (value[0] == '"' && value[len(value)-1] == '"')) {
+		value = value[1 : len(value)-1]
+		value = strings.ReplaceAll(value, "''", "'")
+		value = strings.ReplaceAll(value, `""`, `"`)
+	}
+	return strings.TrimSpace(value)
+}
+
+func parseReplicationFilterValues(raw string) ([]string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return []string{}, nil
+	}
+	values := make([]string, 0)
+	for _, token := range splitTopLevelComma(raw) {
+		value := strings.TrimSpace(token)
+		if len(value) >= 2 && ((value[0] == '\'' && value[len(value)-1] == '\'') || (value[0] == '"' && value[len(value)-1] == '"')) {
+			value = value[1 : len(value)-1]
+			value = strings.ReplaceAll(value, "''", "'")
+			value = strings.ReplaceAll(value, `""`, `"`)
+		}
+		if strings.TrimSpace(value) == "" {
+			return nil, fmt.Errorf("filter rule cannot be empty")
+		}
+		values = append(values, value)
+	}
+	return values, nil
+}
+
+var purgeBinaryLogsPattern = regexp.MustCompile(`(?is)^purge\s+(?:binary|master)\s+logs\s+to\s+['"]([^'"]+)['"]$`)
+var purgeBinaryLogsBeforePattern = regexp.MustCompile(`(?is)^purge\s+(?:binary|master)\s+logs\s+before\s+['"]([^'"]+)['"]$`)
+var resetBinaryLogsAndGTIDsPattern = regexp.MustCompile(`(?is)^reset\s+binary\s+logs\s+and\s+gtids(?:\s+to\s+([0-9]+))?$`)
+
+func parseBinlogPurgeTime(value string) (time.Time, error) {
+	for _, layout := range []string{"2006-01-02 15:04:05", "2006-01-02T15:04:05", time.RFC3339} {
+		if parsed, err := time.ParseInLocation(layout, value, time.UTC); err == nil {
+			return parsed, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("invalid PURGE BINARY LOGS timestamp %q", value)
+}
+
+var replicationSourceOptionPattern = regexp.MustCompile(`(?is)^\s*(source_host|master_host|source_port|master_port|source_user|master_user|source_password|master_password|source_log_file|master_log_file|source_log_pos|master_log_pos|source_auto_position|master_auto_position|source_ssl|master_ssl|source_ssl_verify_server_cert|master_ssl_verify_server_cert|source_ssl_ca|master_ssl_ca|source_ssl_cert|master_ssl_cert|source_ssl_key|master_ssl_key|source_connect_retry|master_connect_retry|source_retry_count|master_retry_count|source_heartbeat_period|master_heartbeat_period|source_compression_algorithms|master_compression_algorithms|source_zstd_compression_level|master_zstd_compression_level)\s*=\s*(?:'((?:''|[^'])*)'|"((?:""|[^"])*)"|([^\s]+))\s*$`)
 
 func parseReplicationSourceURL(query string) (string, error) {
+	query, channel, channelSyntax := splitReplicationChannelSuffix(query)
+	if channelSyntax && channel != "" {
+		return "", fmt.Errorf("only the default replication channel is supported")
+	}
 	lower := strings.ToLower(strings.TrimSpace(query))
 	prefix := "change replication source to"
 	if strings.HasPrefix(lower, "change master to") {
@@ -407,6 +724,22 @@ func parseReplicationSourceURL(query string) (string, error) {
 	}
 	host := ""
 	port := 0
+	user := ""
+	password := ""
+	passwordSet := false
+	logFile := ""
+	logPosition := ""
+	autoPosition := ""
+	ssl := ""
+	sslVerify := ""
+	sslCA := ""
+	sslCert := ""
+	sslKey := ""
+	connectRetry := ""
+	retryCount := ""
+	heartbeatPeriod := ""
+	compressionAlgorithms := ""
+	zstdCompressionLevel := ""
 	for _, rawOption := range splitTopLevelComma(options) {
 		match := replicationSourceOptionPattern.FindStringSubmatch(rawOption)
 		if len(match) == 0 {
@@ -436,22 +769,200 @@ func parseReplicationSourceURL(query string) (string, error) {
 				return "", fmt.Errorf("invalid SOURCE_PORT %q", value)
 			}
 			port = parsed
+		case "source_user", "master_user":
+			if user != "" {
+				return "", fmt.Errorf("SOURCE_USER specified more than once")
+			}
+			user = strings.TrimSpace(value)
+		case "source_password", "master_password":
+			if passwordSet {
+				return "", fmt.Errorf("SOURCE_PASSWORD specified more than once")
+			}
+			password = value
+			passwordSet = true
+		case "source_log_file", "master_log_file":
+			if logFile != "" {
+				return "", fmt.Errorf("SOURCE_LOG_FILE specified more than once")
+			}
+			logFile = strings.TrimSpace(value)
+		case "source_log_pos", "master_log_pos":
+			if logPosition != "" {
+				return "", fmt.Errorf("SOURCE_LOG_POS specified more than once")
+			}
+			logPosition = strings.TrimSpace(value)
+		case "source_auto_position", "master_auto_position":
+			if autoPosition != "" {
+				return "", fmt.Errorf("SOURCE_AUTO_POSITION specified more than once")
+			}
+			autoPosition = strings.TrimSpace(value)
+		case "source_ssl", "master_ssl":
+			if ssl != "" {
+				return "", fmt.Errorf("SOURCE_SSL specified more than once")
+			}
+			ssl = strings.TrimSpace(value)
+		case "source_ssl_verify_server_cert", "master_ssl_verify_server_cert":
+			if sslVerify != "" {
+				return "", fmt.Errorf("SOURCE_SSL_VERIFY_SERVER_CERT specified more than once")
+			}
+			sslVerify = strings.TrimSpace(value)
+		case "source_ssl_ca", "master_ssl_ca":
+			if sslCA != "" {
+				return "", fmt.Errorf("SOURCE_SSL_CA specified more than once")
+			}
+			sslCA = strings.TrimSpace(value)
+		case "source_ssl_cert", "master_ssl_cert":
+			if sslCert != "" {
+				return "", fmt.Errorf("SOURCE_SSL_CERT specified more than once")
+			}
+			sslCert = strings.TrimSpace(value)
+		case "source_ssl_key", "master_ssl_key":
+			if sslKey != "" {
+				return "", fmt.Errorf("SOURCE_SSL_KEY specified more than once")
+			}
+			sslKey = strings.TrimSpace(value)
+		case "source_connect_retry", "master_connect_retry":
+			if connectRetry != "" {
+				return "", fmt.Errorf("SOURCE_CONNECT_RETRY specified more than once")
+			}
+			connectRetry = strings.TrimSpace(value)
+		case "source_retry_count", "master_retry_count":
+			if retryCount != "" {
+				return "", fmt.Errorf("SOURCE_RETRY_COUNT specified more than once")
+			}
+			retryCount = strings.TrimSpace(value)
+		case "source_heartbeat_period", "master_heartbeat_period":
+			if heartbeatPeriod != "" {
+				return "", fmt.Errorf("SOURCE_HEARTBEAT_PERIOD specified more than once")
+			}
+			heartbeatPeriod = strings.TrimSpace(value)
+		case "source_compression_algorithms", "master_compression_algorithms":
+			if compressionAlgorithms != "" {
+				return "", fmt.Errorf("SOURCE_COMPRESSION_ALGORITHMS specified more than once")
+			}
+			compressionAlgorithms = strings.TrimSpace(value)
+		case "source_zstd_compression_level", "master_zstd_compression_level":
+			if zstdCompressionLevel != "" {
+				return "", fmt.Errorf("SOURCE_ZSTD_COMPRESSION_LEVEL specified more than once")
+			}
+			zstdCompressionLevel = strings.TrimSpace(value)
 		}
 	}
 	if host == "" {
 		return "", fmt.Errorf("CHANGE REPLICATION SOURCE requires SOURCE_HOST")
 	}
-	if !strings.Contains(host, "://") {
+	scheme := "http"
+	if strings.Contains(host, "://") {
+		parsedScheme, err := url.ParseRequestURI(host)
+		if err != nil || parsedScheme.Host == "" {
+			return "", fmt.Errorf("invalid SOURCE_HOST %q", host)
+		}
+		scheme = strings.ToLower(parsedScheme.Scheme)
+	} else if user != "" {
+		scheme = "mysql"
+		host = scheme + "://" + host
+	} else {
 		host = "http://" + host
 	}
 	parsed, err := url.ParseRequestURI(host)
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+	if err != nil || ((scheme != "http" && scheme != "https" && scheme != "mysql") || parsed.Scheme != scheme) || parsed.Host == "" {
 		return "", fmt.Errorf("invalid SOURCE_HOST %q", host)
 	}
 	if port != 0 {
 		parsed.Host = net.JoinHostPort(parsed.Hostname(), strconv.Itoa(port))
 	}
+	if scheme == "mysql" {
+		if user == "" {
+			return "", fmt.Errorf("native MySQL SOURCE_HOST requires SOURCE_USER")
+		}
+		if passwordSet {
+			parsed.User = url.UserPassword(user, password)
+		} else {
+			parsed.User = url.User(user)
+		}
+		values := parsed.Query()
+		if logFile != "" {
+			values.Set("binlog_file", logFile)
+		}
+		if logPosition != "" {
+			position, parseErr := strconv.ParseUint(logPosition, 10, 64)
+			if parseErr != nil || position < 4 {
+				return "", fmt.Errorf("invalid SOURCE_LOG_POS %q", logPosition)
+			}
+			values.Set("binlog_pos", strconv.FormatUint(position, 10))
+		}
+		if autoPosition != "" {
+			parsedAuto, parseErr := parseReplicationBool(autoPosition)
+			if parseErr != nil {
+				return "", parseErr
+			}
+			values.Set("gtid_auto_position", strconv.FormatBool(parsedAuto))
+		} else {
+			values.Set("gtid_auto_position", "true")
+		}
+		if ssl != "" {
+			parsedSSL, parseErr := parseReplicationBool(ssl)
+			if parseErr != nil {
+				return "", fmt.Errorf("invalid SOURCE_SSL %q", ssl)
+			}
+			values.Set("ssl", strconv.FormatBool(parsedSSL))
+		}
+		if sslVerify != "" {
+			parsedVerify, parseErr := parseReplicationBool(sslVerify)
+			if parseErr != nil {
+				return "", fmt.Errorf("invalid SOURCE_SSL_VERIFY_SERVER_CERT %q", sslVerify)
+			}
+			values.Set("ssl_verify_server_cert", strconv.FormatBool(parsedVerify))
+		}
+		if sslCA != "" {
+			values.Set("ssl_ca", sslCA)
+		}
+		if sslCert != "" {
+			values.Set("ssl_cert", sslCert)
+		}
+		if sslKey != "" {
+			values.Set("ssl_key", sslKey)
+		}
+		if connectRetry != "" {
+			if _, parseErr := strconv.ParseUint(connectRetry, 10, 64); parseErr != nil {
+				return "", fmt.Errorf("invalid SOURCE_CONNECT_RETRY %q", connectRetry)
+			}
+			values.Set("connect_retry", connectRetry)
+		}
+		if retryCount != "" {
+			if _, parseErr := strconv.ParseUint(retryCount, 10, 64); parseErr != nil {
+				return "", fmt.Errorf("invalid SOURCE_RETRY_COUNT %q", retryCount)
+			}
+			values.Set("connect_retry_count", retryCount)
+		}
+		if heartbeatPeriod != "" {
+			if parsedHeartbeat, parseErr := strconv.ParseFloat(heartbeatPeriod, 64); parseErr != nil || parsedHeartbeat < 0 {
+				return "", fmt.Errorf("invalid SOURCE_HEARTBEAT_PERIOD %q", heartbeatPeriod)
+			}
+			values.Set("heartbeat_interval", heartbeatPeriod)
+		}
+		if compressionAlgorithms != "" {
+			values.Set("compression_algorithm", compressionAlgorithms)
+		}
+		if zstdCompressionLevel != "" {
+			if parsedLevel, parseErr := strconv.ParseInt(zstdCompressionLevel, 10, 64); parseErr != nil || parsedLevel < 0 {
+				return "", fmt.Errorf("invalid SOURCE_ZSTD_COMPRESSION_LEVEL %q", zstdCompressionLevel)
+			}
+			values.Set("zstd_compression_level", zstdCompressionLevel)
+		}
+		parsed.RawQuery = values.Encode()
+	}
 	return strings.TrimRight(parsed.String(), "/"), nil
+}
+
+func parseReplicationBool(value string) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "on", "true":
+		return true, nil
+	case "0", "off", "false":
+		return false, nil
+	default:
+		return false, fmt.Errorf("invalid SOURCE_AUTO_POSITION %q", value)
+	}
 }
 
 var tableMaintenancePattern = regexp.MustCompile(`(?is)^\s*(check|analyze|optimize)\s+(?:(?:no_write_to_binlog|local)\s+)?table\s+(.+?)\s*$`)

@@ -80,9 +80,10 @@ func (m *MySQLMessageHandler) OnOpen(session Session) error {
 		m.rwlock.Unlock()
 		return errTooManySessions
 	}
-	m.sessionMap[session] = NewMySQLServerSession(session)
+	mysqlSession := NewMySQLServerSession(session)
+	m.sessionMap[session] = mysqlSession
+	session.SetAttribute(mysqlSessionAttribute, mysqlSession)
 	session.SetAttribute("prepared_stmt_mgr", protocol.NewPreparedStatementManager())
-	mysqlSession := m.sessionMap[session]
 	m.rwlock.Unlock()
 	//主动与客户端握手
 	mysqlSession.SendHandleOk()
@@ -269,6 +270,7 @@ func (m *MySQLMessageHandler) handleStmtSendLongData(session Session, recMySQLPk
 func (m *MySQLMessageHandler) handleResetConnection(session Session, currentMysqlSession *server.MySQLServerSession, recMySQLPkg *MySQLPackage) error {
 	session.SetAttribute("prepared_stmt_mgr", protocol.NewPreparedStatementManager())
 	if currentMysqlSession != nil && *currentMysqlSession != nil {
+		(*currentMysqlSession).SetParamByName("sql_prepared_stmt_mgr", nil)
 		if m.sqlDispatcher != nil {
 			if err := m.sqlDispatcher.ResetSession(*currentMysqlSession); err != nil {
 				return session.WriteBytes(protocol.EncodeErrorPacket(1105, "HY000", err.Error()))

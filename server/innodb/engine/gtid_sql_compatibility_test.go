@@ -24,3 +24,11 @@ func TestGTIDFunctionsRejectInvalidSQLArguments(t *testing.T) {
 	require.Error(t, result.Err)
 	require.Contains(t, result.Err.Error(), "GTID")
 }
+
+func TestTaggedGTIDFunctionsExecuteThroughSQLProjection(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	t.Cleanup(func() { require.NoError(t, executor.Close()) })
+
+	rows := mustQuerySQL(t, executor, "", "select GTID_SUBSET('uuid:Domain_1:1-3:8', 'uuid:Domain_1:1-10') as is_subset, GTID_SUBTRACT('uuid:Domain_1:1-10', 'uuid:Domain_1:3-5') as remainder")
+	require.Equal(t, [][]interface{}{{"1", "uuid:Domain_1:1-2:6-10"}}, rows)
+}

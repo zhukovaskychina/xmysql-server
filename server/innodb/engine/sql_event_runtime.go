@@ -203,7 +203,7 @@ func (e *XMySQLExecutor) executeSQLEvent(parent context.Context, databaseName, e
 		timerWait = 1000
 	}
 	e.recordPerformanceSchemaProgramExecution("EVENT", databaseName, eventName, timerWait, 1, timerWait, timerWait, timerWait,
-		boolToInt64(eventErr != nil), accounting.warnings, accounting.rowsAffected, accounting.rowsSent,
+		boolToInt64(eventErr != nil), accounting.warnings, accounting.rowsAffected, accounting.rowsSent, 0,
 	)
 	return eventErr
 }

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
@@ -25,11 +26,8 @@ func (e *XMySQLExecutor) executeInformationSchemaColumnPrivilegesSelect(query st
 				if len(parts) != 3 || !metadataPatternMatches(parts[0], filters["table_schema"]) || !metadataPatternMatches(parts[1], filters["table_name"]) || !metadataPatternMatches(parts[2], filters["column_name"]) {
 					continue
 				}
-				for _, privilege := range privileges {
-					if strings.EqualFold(privilege, "GRANT OPTION") {
-						continue
-					}
-					values := map[string]interface{}{"GRANTEE": fmt.Sprintf("'%s'@'%s'", account.User, account.Host), "TABLE_CATALOG": "def", "TABLE_SCHEMA": parts[0], "TABLE_NAME": parts[1], "COLUMN_NAME": parts[2], "PRIVILEGE_TYPE": strings.ToUpper(privilege), "IS_GRANTABLE": informationSchemaGrantable(account.Grants[parts[0]+"."+parts[1]])}
+				for _, privilege := range informationSchemaPrivilegeRows(privileges, "column") {
+					values := map[string]interface{}{"GRANTEE": fmt.Sprintf("'%s'@'%s'", account.User, account.Host), "TABLE_CATALOG": "def", "TABLE_SCHEMA": parts[0], "TABLE_NAME": parts[1], "COLUMN_NAME": parts[2], "PRIVILEGE_TYPE": strings.ToUpper(privilege), "IS_GRANTABLE": informationSchemaGrantable(privileges)}
 					if !informationSchemaPrivilegeQueryMatches(query, values) {
 						continue
 					}
@@ -57,10 +55,7 @@ func (e *XMySQLExecutor) executeInformationSchemaTablePrivilegesSelect(query str
 				if len(parts) != 2 || parts[1] == "*" || !metadataPatternMatches(parts[0], filters["table_schema"]) || !metadataPatternMatches(parts[1], filters["table_name"]) {
 					continue
 				}
-				for _, privilege := range privileges {
-					if strings.EqualFold(privilege, "GRANT OPTION") {
-						continue
-					}
+				for _, privilege := range informationSchemaPrivilegeRows(privileges, "table") {
 					values := map[string]interface{}{"GRANTEE": fmt.Sprintf("'%s'@'%s'", account.User, account.Host), "TABLE_CATALOG": "def", "TABLE_SCHEMA": parts[0], "TABLE_NAME": parts[1], "PRIVILEGE_TYPE": strings.ToUpper(privilege), "IS_GRANTABLE": informationSchemaGrantable(privileges)}
 					if !informationSchemaPrivilegeQueryMatches(query, values) {
 						continue
@@ -89,10 +84,7 @@ func (e *XMySQLExecutor) executeInformationSchemaSchemaPrivilegesSelect(query st
 				if len(parts) != 2 || parts[1] != "*" || !metadataPatternMatches(parts[0], filters["table_schema"]) {
 					continue
 				}
-				for _, privilege := range privileges {
-					if strings.EqualFold(privilege, "GRANT OPTION") {
-						continue
-					}
+				for _, privilege := range informationSchemaPrivilegeRows(privileges, "schema") {
 					values := map[string]interface{}{"GRANTEE": fmt.Sprintf("'%s'@'%s'", account.User, account.Host), "TABLE_CATALOG": "def", "TABLE_SCHEMA": parts[0], "PRIVILEGE_TYPE": strings.ToUpper(privilege), "IS_GRANTABLE": informationSchemaGrantable(privileges)}
 					if !informationSchemaPrivilegeQueryMatches(query, values) {
 						continue
@@ -116,10 +108,7 @@ func (e *XMySQLExecutor) executeInformationSchemaUserPrivilegesSelect(query stri
 			}
 			privileges := append([]string(nil), account.Grants["*.*"]...)
 			privileges = appendUniqueStrings(privileges, account.GlobalGrants...)
-			for _, privilege := range privileges {
-				if strings.EqualFold(privilege, "GRANT OPTION") {
-					continue
-				}
+			for _, privilege := range informationSchemaPrivilegeRows(privileges, "global") {
 				values := map[string]interface{}{"GRANTEE": fmt.Sprintf("'%s'@'%s'", account.User, account.Host), "TABLE_CATALOG": "def", "PRIVILEGE_TYPE": strings.ToUpper(privilege), "IS_GRANTABLE": informationSchemaGrantable(privileges)}
 				if !informationSchemaPrivilegeQueryMatches(query, values) {
 					continue
@@ -305,6 +294,113 @@ func informationSchemaGrantable(privileges []string) string {
 	return "NO"
 }
 
+// informationSchemaPrivilegeRows expands an ALL grant into the individual
+// privileges represented by MySQL's INFORMATION_SCHEMA privilege views. The
+// views expose one row per privilege and never expose GRANT OPTION as its own
+// PRIVILEGE_TYPE row. Keeping the expansion at projection time preserves the
+// account file's compact grant representation and its independent grant-option
+// bit.
+func informationSchemaPrivilegeRows(privileges []string, scope string) []string {
+	var all []string
+	switch strings.ToLower(strings.TrimSpace(scope)) {
+	case "column":
+		all = []string{"SELECT", "INSERT", "UPDATE", "REFERENCES"}
+	case "table":
+		all = []string{
+			"SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "REFERENCES", "INDEX", "ALTER",
+			"CREATE VIEW", "SHOW VIEW", "TRIGGER",
+		}
+	case "schema":
+		all = []string{
+			"SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "REFERENCES", "INDEX", "ALTER",
+			"CREATE TEMPORARY TABLES", "LOCK TABLES", "EXECUTE", "CREATE VIEW", "SHOW VIEW", "CREATE ROUTINE",
+			"ALTER ROUTINE", "EVENT", "TRIGGER",
+		}
+	case "routine":
+		all = []string{"EXECUTE", "ALTER ROUTINE"}
+	case "global":
+		all = []string{
+			"SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "RELOAD", "SHUTDOWN", "PROCESS", "FILE",
+			"REFERENCES", "INDEX", "ALTER", "SHOW DATABASES", "SUPER", "CREATE TEMPORARY TABLES", "LOCK TABLES",
+			"EXECUTE", "REPLICATION SLAVE", "REPLICATION CLIENT", "CREATE VIEW", "SHOW VIEW", "CREATE ROLE",
+			"DROP ROLE", "CREATE USER", "CREATE TABLESPACE", "TRIGGER", "EVENT", "CREATE ROUTINE", "ALTER ROUTINE",
+			"PROXY",
+		}
+	}
+	rows := make([]string, 0, len(privileges))
+	for _, raw := range privileges {
+		privilege := strings.ToUpper(strings.TrimSpace(raw))
+		switch privilege {
+		case "", "GRANT OPTION":
+			continue
+		case "ALL", "ALL PRIVILEGES":
+			rows = appendUniqueStrings(rows, all...)
+		default:
+			rows = appendUniqueStrings(rows, privilege)
+		}
+	}
+	return rows
+}
+
+// informationSchemaColumnPrivileges projects the privileges that the current
+// account actually has on one column.  COLUMNS.PRIVILEGES is not a schema
+// shape constant: table/global grants, column grants, active roles, and
+// partial revokes all affect the value visible to the session.
+func (e *XMySQLExecutor) informationSchemaColumnPrivileges(session server.MySQLServerSession, schema, table, column string) string {
+	privilegeNames := []struct {
+		name string
+		priv string
+	}{
+		{name: "select", priv: "SELECT"},
+		{name: "insert", priv: "INSERT"},
+		{name: "update", priv: "UPDATE"},
+		{name: "references", priv: "REFERENCES"},
+	}
+	if session == nil {
+		return "select,insert,update,references"
+	}
+	user, _ := session.GetParamByName("user").(string)
+	if strings.TrimSpace(user) == "" || strings.EqualFold(strings.TrimSpace(user), "root") {
+		return "select,insert,update,references"
+	}
+	file, err := e.accountFileForSession(&ExecutionContext{Session: session})
+	if err != nil {
+		return ""
+	}
+	account := sessionAccount(file, session)
+	if account == nil {
+		return ""
+	}
+	tableScope := strings.TrimSpace(schema) + "." + strings.TrimSpace(table)
+	columnScope := tableScope + "." + strings.TrimSpace(column)
+	tableGrants := effectiveAccountGrants(file, *account, session)
+	columnGrants := effectiveAccountColumnGrants(file, *account, session)
+	result := make([]string, 0, len(privilegeNames))
+	for _, candidate := range privilegeNames {
+		granted := grantsContain(tableGrants, tableScope, candidate.priv)
+		if !granted {
+			for scope, privileges := range columnGrants {
+				if !columnScopeCovers(columnScope, scope) {
+					continue
+				}
+				for _, privilege := range privileges {
+					if strings.EqualFold(strings.TrimSpace(privilege), candidate.priv) || strings.EqualFold(strings.TrimSpace(privilege), "ALL") || strings.EqualFold(strings.TrimSpace(privilege), "ALL PRIVILEGES") {
+						granted = true
+						break
+					}
+				}
+				if granted {
+					break
+				}
+			}
+		}
+		if granted {
+			result = append(result, candidate.name)
+		}
+	}
+	return strings.Join(result, ",")
+}
+
 func (e *XMySQLExecutor) executeMySQLUserSelect(query string) *SelectResult {
 	defaults := []string{"Host", "User", "plugin", "authentication_string", "ssl_type", "account_locked", "password_expired", "Select_priv", "Insert_priv", "Update_priv", "Delete_priv", "Create_priv", "Drop_priv", "Grant_priv", "Index_priv", "Alter_priv", "Create_user_priv", "Create_role_priv", "Drop_role_priv", "user_attributes"}
 	columns := requestedInformationSchemaColumns(query, defaults)
@@ -382,6 +478,122 @@ func (e *XMySQLExecutor) executeMySQLGlobalGrantsSelect(query string) *SelectRes
 		}
 	}
 	return newInformationSchemaSelectResult("mysql.global_grants", columns, rows)
+}
+
+// executeMySQLRoleEdgesSelect projects the durable role graph maintained by
+// the account compatibility layer into MySQL's mysql.role_edges grant table.
+// The account file stores the graph on the grantee account, so each role in
+// account.Roles becomes one edge from that account to the granted role.
+func (e *XMySQLExecutor) executeMySQLRoleEdgesSelect(query string) *SelectResult {
+	defaults := []string{"FROM_HOST", "FROM_USER", "TO_HOST", "TO_USER", "WITH_ADMIN_OPTION"}
+	columns := requestedInformationSchemaColumns(query, defaults)
+	filters := mysqlRoleTableFilters(query)
+	rows := make([][]interface{}, 0)
+	file, err := e.loadPersistedAccounts()
+	if err != nil {
+		return newInformationSchemaSelectResult("mysql.role_edges", columns, nil)
+	}
+	for _, account := range file.Accounts {
+		for _, role := range account.Roles {
+			roleUser, roleHost := splitPersistedAccountReference(role)
+			withAdmin := "N"
+			if containsRole(account.RoleAdminOptions, role) {
+				withAdmin = "Y"
+			}
+			values := map[string]interface{}{
+				"FROM_HOST": account.Host, "FROM_USER": account.User,
+				"TO_HOST": roleHost, "TO_USER": roleUser,
+				"WITH_ADMIN_OPTION": withAdmin,
+			}
+			if !mysqlRoleTableValuesMatch(values, filters) {
+				continue
+			}
+			rows = append(rows, projectInformationSchemaRow(columns, values))
+		}
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		for column := range rows[i] {
+			left, right := fmt.Sprint(rows[i][column]), fmt.Sprint(rows[j][column])
+			if left == right {
+				continue
+			}
+			return left < right
+		}
+		return false
+	})
+	return newInformationSchemaSelectResult("mysql.role_edges", columns, rows)
+}
+
+// executeMySQLDefaultRolesSelect projects the durable default-role lists into
+// MySQL's mysql.default_roles grant table. A separate row is exposed for each
+// default role assigned to an account.
+func (e *XMySQLExecutor) executeMySQLDefaultRolesSelect(query string) *SelectResult {
+	defaults := []string{"HOST", "USER", "DEFAULT_ROLE_HOST", "DEFAULT_ROLE_USER"}
+	columns := requestedInformationSchemaColumns(query, defaults)
+	filters := mysqlRoleTableFilters(query)
+	rows := make([][]interface{}, 0)
+	file, err := e.loadPersistedAccounts()
+	if err != nil {
+		return newInformationSchemaSelectResult("mysql.default_roles", columns, nil)
+	}
+	for _, account := range file.Accounts {
+		for _, role := range account.DefaultRoles {
+			roleUser, roleHost := splitPersistedAccountReference(role)
+			values := map[string]interface{}{
+				"HOST": account.Host, "USER": account.User,
+				"DEFAULT_ROLE_HOST": roleHost, "DEFAULT_ROLE_USER": roleUser,
+			}
+			if !mysqlRoleTableValuesMatch(values, filters) {
+				continue
+			}
+			rows = append(rows, projectInformationSchemaRow(columns, values))
+		}
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		for column := range rows[i] {
+			left, right := fmt.Sprint(rows[i][column]), fmt.Sprint(rows[j][column])
+			if left == right {
+				continue
+			}
+			return left < right
+		}
+		return false
+	})
+	return newInformationSchemaSelectResult("mysql.default_roles", columns, rows)
+}
+
+var mysqlRoleTableFilterPattern = regexp.MustCompile(`(?i)\b(from_host|from_user|to_host|to_user|with_admin_option|host|user|default_role_host|default_role_user)\b\s*(?:=|like)\s*(?:'((?:''|[^'])*)'|"((?:""|[^"])*)")`)
+
+func mysqlRoleTableFilters(query string) map[string]string {
+	filters := make(map[string]string)
+	for _, match := range mysqlRoleTableFilterPattern.FindAllStringSubmatch(query, -1) {
+		value := match[2]
+		if value == "" {
+			value = match[3]
+		}
+		filters[strings.ToUpper(match[1])] = value
+	}
+	return filters
+}
+
+func mysqlRoleTableValuesMatch(values map[string]interface{}, filters map[string]string) bool {
+	for key, pattern := range filters {
+		if pattern == "" {
+			continue
+		}
+		if !metadataPatternMatches(fmt.Sprint(values[key]), pattern) {
+			return false
+		}
+	}
+	return true
+}
+
+func splitPersistedAccountReference(reference string) (user, host string) {
+	parts := strings.SplitN(strings.TrimSpace(reference), "@", 2)
+	if len(parts) != 2 {
+		return strings.TrimSpace(reference), "%"
+	}
+	return parts[0], parts[1]
 }
 
 func isDynamicGlobalPrivilege(privilege string) bool {
@@ -473,7 +685,7 @@ func (e *XMySQLExecutor) executeMySQLColumnsPrivSelect(query string) *SelectResu
 			}
 			values := map[string]interface{}{
 				"HOST": account.Host, "DB": parts[0], "USER": account.User, "TABLE_NAME": parts[1],
-				"COLUMN_NAME": parts[2], "TIMESTAMP": nil, "COLUMN_PRIV": strings.Join(privileges, ","),
+				"COLUMN_NAME": parts[2], "TIMESTAMP": nil, "COLUMN_PRIV": strings.Join(displayGrantPrivileges(privileges), ","),
 			}
 			rows = append(rows, projectInformationSchemaRow(columns, values))
 		}

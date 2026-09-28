@@ -30,3 +30,23 @@ func TestShowEngineInnoDBStatusReturnsNativeShape(t *testing.T) {
 	require.Equal(t, "InnoDB", selectResult.Records[0].GetValues()[1].String())
 	require.True(t, strings.Contains(selectResult.Records[0].GetValues()[2].String(), "TRANSACTIONS"))
 }
+
+func TestShowEngineInnoDBStatusRequiresProcessPrivilege(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'innodb_monitor'@'localhost' identified by 'secret'")
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "innodb_monitor")
+	session.SetParamByName("host", "localhost")
+
+	denied := <-executor.ExecuteQuery(session, "show engine innodb status", "")
+	require.Error(t, denied.Err)
+	require.Contains(t, denied.Err.Error(), "PROCESS")
+
+	mustExecSQL(t, executor, "", "grant process on *.* to 'innodb_monitor'@'localhost'")
+	allowed := <-executor.ExecuteQuery(session, "show engine innodb status", "")
+	require.NoError(t, allowed.Err)
+	selectResult, ok := allowed.Data.(*SelectResult)
+	require.True(t, ok)
+	require.Equal(t, []string{"Type", "Name", "Status"}, selectResult.Columns)
+}

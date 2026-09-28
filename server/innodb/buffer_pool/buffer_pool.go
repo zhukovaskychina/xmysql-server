@@ -11,7 +11,8 @@ import (
 
 // BufferPool represents the InnoDB buffer pool
 type BufferPool struct {
-	mu sync.RWMutex
+	mu        sync.RWMutex
+	closeOnce sync.Once
 
 	// Configuration
 	config        *BufferPoolConfig // 配置信息
@@ -52,6 +53,35 @@ type BufferPool struct {
 	flushStrategy  FlushStrategy   // 刷新策略
 
 	FreeBlockList *FreeBlockList
+}
+
+// Close releases the legacy buffer pool's page frames and cache entries.
+// The optimized buffer pool has its own lifecycle; this method covers the
+// legacy pool retained by PageManager and SegmentManager.
+func (bp *BufferPool) Close() error {
+	if bp == nil {
+		return nil
+	}
+	bp.closeOnce.Do(func() {
+		bp.mu.Lock()
+		if bp.lruCache != nil {
+			bp.lruCache.Purge()
+		}
+		for _, page := range bp.freePages {
+			if page != nil {
+				page.Release()
+			}
+		}
+		bp.freePages = nil
+		if bp.flushList != nil {
+			bp.flushList.Init()
+		}
+		bp.mu.Unlock()
+		if bp.prefetchManager != nil {
+			bp.prefetchManager.ClearQueue()
+		}
+	})
+	return nil
 }
 
 // NewBufferPool creates a new buffer pool
@@ -393,6 +423,15 @@ func (bp *BufferPool) GetDirtyPages() []*BufferPage {
 	})
 
 	return dirtyPages
+}
+
+// CachedPageCount returns the number of pages currently resident in the LRU
+// cache. It is a read-only diagnostic source for runtime metadata views.
+func (bp *BufferPool) CachedPageCount() uint32 {
+	if bp == nil || bp.lruCache == nil {
+		return 0
+	}
+	return bp.lruCache.Len()
 }
 
 // FlushPage flushes a specific page to disk

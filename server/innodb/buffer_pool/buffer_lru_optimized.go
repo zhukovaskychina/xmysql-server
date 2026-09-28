@@ -23,8 +23,10 @@ type OptimizedLRUCache struct {
 	mu sync.RWMutex
 
 	// 统计信息使用原子操作
-	hitCount  uint64
-	missCount uint64
+	hitCount     uint64
+	missCount    uint64
+	madeYoung    uint64
+	notMadeYoung uint64
 
 	// 三个不同的缓存层级
 	items      map[uint64]*list.Element // 普通缓存
@@ -93,7 +95,11 @@ func (c *OptimizedLRUCache) Get(spaceId uint32, pageNo uint32) (*BufferBlock, er
 	if result := c.getFromOld(key); result != nil {
 		atomic.AddUint64(&c.hitCount, 1)
 		// 从老年区域获取到的数据，根据访问频率决定是否提升到年轻区域
-		c.promoteToYoungIfNeeded(key, result)
+		if c.promoteToYoungIfNeeded(key, result) {
+			atomic.AddUint64(&c.madeYoung, 1)
+		} else {
+			atomic.AddUint64(&c.notMadeYoung, 1)
+		}
 		return result, nil
 	}
 
@@ -194,12 +200,12 @@ func (c *OptimizedLRUCache) getFromOrdinary(key uint64) *BufferBlock {
 }
 
 // promoteToYoungIfNeeded 根据访问频率决定是否提升到年轻区域
-func (c *OptimizedLRUCache) promoteToYoungIfNeeded(key uint64, value *BufferBlock) {
+func (c *OptimizedLRUCache) promoteToYoungIfNeeded(key uint64, value *BufferBlock) bool {
 	c.mu.RLock()
 	element, exists := c.oldItems[key]
 	if !exists {
 		c.mu.RUnlock()
-		return
+		return false
 	}
 
 	item := element.Value.(*lruItemOptimized)
@@ -232,9 +238,12 @@ func (c *OptimizedLRUCache) promoteToYoungIfNeeded(key uint64, value *BufferBloc
 				accessCount:    item.accessCount,
 			}
 			c.youngItems[key] = c.evictYoungList.PushFront(newItem)
+			c.mu.Unlock()
+			return true
 		}
 		c.mu.Unlock()
 	}
+	return false
 }
 
 // Set 设置缓存项（优化版本）
@@ -531,6 +540,12 @@ func (c *OptimizedLRUCache) HitRate() float64 {
 		return 0.0
 	}
 	return float64(hc) / float64(total)
+}
+
+// YoungPromotionStats returns cumulative old-list page accesses that were
+// promoted to the young list and accesses that remained in the old list.
+func (c *OptimizedLRUCache) YoungPromotionStats() (madeYoung, notMadeYoung uint64) {
+	return atomic.LoadUint64(&c.madeYoung), atomic.LoadUint64(&c.notMadeYoung)
 }
 
 // 以下方法用于兼容原有接口

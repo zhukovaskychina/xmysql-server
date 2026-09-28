@@ -7,7 +7,10 @@ param(
     [int]$Port = 3312,
     [string]$User = "root",
     [string]$Password = "",
-    [string]$ReportDirectory = "reports/compatibility/client-matrix"
+    [string]$ReportDirectory = "reports/compatibility/client-matrix",
+    [switch]$UseDockerMySqlCli,
+    [string]$MySqlCliDockerImage = "mysql:8.4.11",
+    [string]$MySqlCliDockerHost = "host.docker.internal"
 )
 
 $ErrorActionPreference = "Stop"
@@ -110,11 +113,30 @@ function Invoke-Client([string]$name, [string]$command, [string[]]$arguments, [h
 function Invoke-MySqlCliMatrix([string]$password) {
     $oldPassword = [Environment]::GetEnvironmentVariable("MYSQL_PWD")
     [Environment]::SetEnvironmentVariable("MYSQL_PWD", $password)
-    $commonArguments = @("--protocol=TCP", "-h", "127.0.0.1", "-P", "$Port", "-u", $User, "--batch", "--raw", "--skip-column-names")
+    $cliHost = if ($UseDockerMySqlCli) { $MySqlCliDockerHost } else { "127.0.0.1" }
+    $commonArguments = @("--protocol=TCP", "-h", $cliHost, "-P", "$Port", "-u", $User, "--batch", "--raw", "--skip-column-names")
     $cases = [ordered]@{}
     try {
+        function Invoke-MySqlCommand([string[]]$arguments) {
+            $previousErrorAction = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"
+            try {
+            if ($UseDockerMySqlCli) {
+                $dockerArguments = @(
+                    "run", "--rm", "--add-host", "$MySqlCliDockerHost`:$($MySqlCliDockerHost -replace '\..*$', '')-gateway",
+                    "-e", "MYSQL_PWD", $MySqlCliDockerImage, "mysql"
+                ) + $arguments
+                $output = & docker @dockerArguments 2>&1
+                return @($output | ForEach-Object { [string]$_ })
+            }
+            $output = & mysql @arguments 2>&1
+            return @($output | ForEach-Object { [string]$_ })
+            } finally {
+                $ErrorActionPreference = $previousErrorAction
+            }
+        }
         function Invoke-MySqlCase([string]$sql, [bool]$expectFailure = $false) {
-            $output = & mysql @commonArguments @("-e", $sql) 2>&1
+            $output = Invoke-MySqlCommand ($commonArguments + @("-e", $sql))
             $code = $LASTEXITCODE
             if ($expectFailure) {
                 if ($code -eq 0) { throw "expected mysql CLI failure but command succeeded: $sql" }
@@ -150,10 +172,30 @@ function Invoke-MySqlCliMatrix([string]$password) {
         if ($metadata -notmatch "(^|\r?\n)PASS(\r?\n|$)") { throw "metadata failed" }
         $cases["metadata"] = "PASS"
 
-        $multi = Invoke-MySqlCase "SELECT 1 AS first_value; SELECT 2 AS second_value"
+        $metadataShape = Invoke-MySqlCase "SELECT TABLE_SCHEMA AS table_schema, TABLE_NAME AS table_name, COLUMN_NAME AS column_name, ORDINAL_POSITION AS ordinal_position FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='client_matrix' ORDER BY TABLE_NAME, ORDINAL_POSITION LIMIT 1"
+        if ($metadataShape -notmatch "client_matrix") { throw "metadata-shape failed" }
+        $cases["metadata-shape"] = "PASS"
+
+        Invoke-MySqlCase "CREATE TABLE IF NOT EXISTS client_matrix.auto_rows(id INT PRIMARY KEY AUTO_INCREMENT, label VARCHAR(32))" | Out-Null
+        $autoResult = Invoke-MySqlCase "INSERT INTO client_matrix.auto_rows(label) VALUES ('mysql-cli'); SELECT LAST_INSERT_ID(), ROW_COUNT()"
+        if ($autoResult -notmatch "(?m)^\d+\s+1$") { throw "auto-increment-and-result-metadata failed: $autoResult" }
+        $cases["auto-increment-and-result-metadata"] = "PASS"
+
+        $savepoint = Invoke-MySqlCase "START TRANSACTION; INSERT INTO client_matrix.matrix_rows(id, label) VALUES (300001, 'savepoint-before'); SAVEPOINT client_matrix_sp; INSERT INTO client_matrix.matrix_rows(id, label) VALUES (300002, 'savepoint-after'); ROLLBACK TO SAVEPOINT client_matrix_sp; RELEASE SAVEPOINT client_matrix_sp; COMMIT; SELECT COUNT(*) FROM client_matrix.matrix_rows WHERE id IN (300001, 300002); DELETE FROM client_matrix.matrix_rows WHERE id IN (300001, 300002)"
+        if ($savepoint -notmatch "(?m)^1$") { throw "savepoints failed: $savepoint" }
+        $cases["savepoints"] = "PASS"
+
+        $session = Invoke-MySqlCase "SET @client_matrix_value = 41; SELECT @client_matrix_value + 1"
+        if ($session -notmatch "(?m)^42$") { throw "session-state failed: $session" }
+        $cases["session-state"] = "PASS"
+
+        $multi = Invoke-MySqlCase "SELECT 1 AS first_col; SELECT 2 AS second_col"
         if ($multi -notmatch "1" -or $multi -notmatch "2") { throw "multi-result did not return both result values" }
-        $errorOutput = Invoke-MySqlCase "SELECT * FROM table_that_does_not_exist" $true
-        if ($errorOutput -notmatch "(?i)table|doesn't exist|unknown table") { throw "multi-result-and-error returned an unexpected error: $errorOutput" }
+        $errorOutput = Invoke-MySqlCommand ($commonArguments + @("-e", "SELECT * FROM table_that_does_not_exist"))
+        $errorCode = $LASTEXITCODE
+        $errorText = (($errorOutput | Out-String).Trim())
+        if ($errorCode -eq 0) { throw "expected mysql CLI failure but command succeeded" }
+        if ($errorText -notmatch "(?i)table|doesn't exist|unknown table") { throw "multi-result-and-error returned an unexpected error: $errorText" }
         $cases["multi-result-and-error"] = "PASS"
 
         if ((Invoke-MySqlCase "SELECT 1") -notmatch "(^|\r?\n)1(\r?\n|$)") { throw "reconnect failed" }
@@ -172,6 +214,7 @@ try {
             $diagnostic = switch ($name) {
                 "mysql-cli" {
                     if (Test-CommandAvailable "mysql") { @{ ok = $true; message = "mysql executable detected" } }
+                    elseif ($UseDockerMySqlCli -and (Test-CommandAvailable "docker")) { @{ ok = $true; message = "mysql CLI will run from $MySqlCliDockerImage" } }
                     else { @{ ok = $false; message = "mysql executable not found" } }
                 }
                 "go" {
@@ -224,7 +267,7 @@ try {
         foreach ($name in $clients) {
             switch ($name) {
                 "mysql-cli" {
-                    if (-not (Test-CommandAvailable "mysql")) { Add-Result $name "SKIPPED_ENVIRONMENT" 125 "mysql executable not found"; continue }
+                    if (-not (Test-CommandAvailable "mysql") -and (-not $UseDockerMySqlCli -or -not (Test-CommandAvailable "docker"))) { Add-Result $name "SKIPPED_ENVIRONMENT" 125 "mysql executable not found and Docker CLI fallback is disabled or unavailable"; continue }
                     Invoke-MySqlCliMatrix $Password
                 }
                 "go" {

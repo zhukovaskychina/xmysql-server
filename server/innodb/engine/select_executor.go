@@ -77,6 +77,11 @@ type SelectExecutor struct {
 	candidateStorageKeys      map[string]struct{}
 	sessionValues             map[string]interface{}
 	rowsExamined              int64
+	selectScan                int64
+	sortRows                  int64
+	selectFullJoin            int64
+	selectFullRangeJoin       int64
+	selectRangeCheck          int64
 }
 
 type projectionExpressionCacheEntry struct {
@@ -186,6 +191,8 @@ func (se *SelectExecutor) resetExecutionState() {
 	se.lastAccessPath = ""
 	se.expressionError = nil
 	se.rowsExamined = 0
+	se.selectScan = 0
+	se.sortRows = 0
 }
 
 func (se *SelectExecutor) setStoredFunctionAuthorizer(authorizer func(persistedStoredObject) error) {
@@ -483,7 +490,9 @@ func (se *SelectExecutor) scanStorageRows(ctx context.Context, tableMeta *metada
 	if err := se.ensureTableStorageMapping(ctx); err != nil {
 		return err
 	}
-	if se.candidateStorageKeys == nil {
+	pendingChanges := pendingClientTransactionChangesForTable(ctx, se.schemaName, se.tableName)
+	hasPendingClientChanges := len(pendingChanges) > 0
+	if se.candidateStorageKeys == nil && !hasPendingClientChanges {
 		if used, err := se.scanSecondaryIndexRows(ctx, tableMeta); err != nil || used {
 			return err
 		}
@@ -528,13 +537,22 @@ func (se *SelectExecutor) scanStorageRows(ctx context.Context, tableMeta *metada
 
 	scanner := NewClusteredIndexScanner(btreeManager, tableMeta)
 	scanConditions := se.whereConditions
-	deferApplyWhere := se.whereRequiresRowExpressionEvaluation()
+	deferApplyWhere := se.whereRequiresRowExpressionEvaluation() || hasPendingClientChanges
+	if hasPendingClientChanges {
+		// Pending changes can remove an indexed row or move it to a different
+		// secondary-index key. Rebuild the committed view from the clustered
+		// scan, then apply the original predicate to the reconstructed rows.
+		se.candidateStorageKeys = nil
+	}
 	if deferApplyWhere {
 		scanConditions = nil
 	}
 	projectionColumns, useProjection, err := se.determineStorageProjectionColumns(tableMeta)
 	if err != nil {
 		return fmt.Errorf("determine storage projection columns failed: %v", err)
+	}
+	if hasPendingClientChanges {
+		useProjection = false
 	}
 	if useProjection {
 		// The projected row contains every identifier found in WHERE, so apply
@@ -564,6 +582,7 @@ func (se *SelectExecutor) scanStorageRows(ctx context.Context, tableMeta *metada
 	}
 	se.rowsExamined = scanner.RowsExamined()
 	rows = se.applyPartitionPruning(rows)
+	rows = applyPendingClientTransactionVisibility(ctx, se.schemaName, se.tableName, rows, tableMeta)
 
 	records := make([]Record, 0, len(rows))
 	for _, row := range rows {
@@ -4049,6 +4068,7 @@ func (se *SelectExecutor) applyOrderBy(records []Record) []Record {
 	if len(se.orderByColumns) == 0 {
 		return records
 	}
+	se.sortRows = int64(len(records))
 
 	sortedRecords := append([]Record(nil), records...)
 	sort.SliceStable(sortedRecords, func(i, j int) bool {
@@ -4071,6 +4091,39 @@ func (se *SelectExecutor) applyOrderBy(records []Record) []Record {
 		return false
 	})
 	return sortedRecords
+}
+
+// usesSecondaryIndexRangeAccess reports only range predicates that reached a
+// secondary-index access path.  MySQL's SELECT_RANGE and SORT_RANGE counters
+// describe the chosen range access, not merely the presence of a comparison
+// operator in a WHERE clause; a table-scan fallback must therefore remain
+// classified as SELECT_SCAN/SORT_SCAN.
+func (se *SelectExecutor) usesSecondaryIndexRangeAccess() bool {
+	if se == nil || (strings.HasPrefix(se.lastAccessPath, "secondary_index:") == false && strings.HasPrefix(se.lastAccessPath, "index_merge_") == false) {
+		return false
+	}
+	for _, condition := range se.whereConditions {
+		lower := strings.ToLower(strings.TrimSpace(condition))
+		if strings.Contains(lower, " between ") || strings.Contains(lower, " not between ") {
+			return true
+		}
+		for _, operator := range []string{"<=", ">=", "<>", "!=", "<", ">"} {
+			if strings.Contains(lower, operator) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// usesNoGoodIndex reports the execution-level condition behind MySQL's
+// NO_GOOD_INDEX_USED flag: a predicate-bearing statement reached a full
+// clustered scan after all available index paths declined the query.
+func (se *SelectExecutor) usesNoGoodIndex() bool {
+	if se == nil || len(se.whereConditions) == 0 {
+		return false
+	}
+	return se.lastAccessPath == "table_scan" || se.lastAccessPath == "partitioned_table_scan"
 }
 
 func parseOrderBySpec(orderSpec string) (string, bool) {

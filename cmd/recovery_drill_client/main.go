@@ -266,7 +266,7 @@ func main() {
 		dbName      string
 		tableName   string
 	)
-	flag.StringVar(&dsn, "dsn", "root:root%401234@tcp(127.0.0.1:3310)/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true", "mysql dsn")
+	flag.StringVar(&dsn, "dsn", "root:@tcp(127.0.0.1:3310)/mysql?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true", "mysql dsn")
 	flag.StringVar(&mode, "mode", "", "setup_redo|verify_redo|setup_ddl_index|verify_ddl_index|snapshot|hold_undo|verify_undo|race_commit|verify_half_commit|verify_show_tables_where")
 	flag.IntVar(&holdSeconds, "hold-seconds", 30, "seconds to hold uncommitted tx")
 	flag.StringVar(&dbName, "db", "drill_recovery_db", "database name for drill")

@@ -310,22 +310,34 @@ func (d *SimpleDatabase) loadAllTablesFromFilesystem() {
 		}
 
 		fileName := file.Name()
-		// 检查是否是表定义文件
-		if strings.HasSuffix(fileName, ".json") {
-			tableName := strings.TrimSuffix(fileName, ".json")
-
-			// 加载表定义
-			d.mu.Unlock()
-			table, err := d.loadTableFromFilesystem(tableName)
-			d.mu.Lock()
-
-			if err != nil {
-				logger.Warnf("Failed to load table %s: %v", tableName, err)
-				continue
-			}
-
-			d.tables[tableName] = table
+		// The executor persists table definitions as .frm JSON files, while
+		// the legacy SimpleDatabase writer uses .json.  Restart recovery must
+		// discover both formats; otherwise INFORMATION_SCHEMA can still list a
+		// table through another path while storage mappings are never rebuilt.
+		tableName := ""
+		switch {
+		case strings.HasSuffix(fileName, ".json"):
+			tableName = strings.TrimSuffix(fileName, ".json")
+		case strings.HasSuffix(fileName, ".frm"):
+			tableName = strings.TrimSuffix(fileName, ".frm")
+		default:
+			continue
 		}
+		if _, exists := d.tables[tableName]; exists {
+			continue
+		}
+
+		// 加载表定义
+		d.mu.Unlock()
+		table, err := d.loadTableFromFilesystem(tableName)
+		d.mu.Lock()
+
+		if err != nil {
+			logger.Warnf("Failed to load table %s: %v", tableName, err)
+			continue
+		}
+
+		d.tables[tableName] = table
 	}
 }
 

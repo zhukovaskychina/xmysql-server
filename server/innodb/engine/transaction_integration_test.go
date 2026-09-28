@@ -83,6 +83,58 @@ func TestTransactionBeginCommit(t *testing.T) {
 	t.Logf("✅ Transaction committed: TxnID=%d, Duration=%v", txnCtx.TransactionID, txnCtx.EndTime.Sub(txnCtx.StartTime))
 }
 
+func TestStorageCommitInvokesPostCommitBarrierAfterRealCommit(t *testing.T) {
+	tmpDir := t.TempDir()
+	redoDir := filepath.Join(tmpDir, "redo")
+	undoDir := filepath.Join(tmpDir, "undo")
+	if err := os.MkdirAll(redoDir, 0755); err != nil {
+		t.Fatalf("create redo dir: %v", err)
+	}
+	if err := os.MkdirAll(undoDir, 0755); err != nil {
+		t.Fatalf("create undo dir: %v", err)
+	}
+
+	txManager, err := manager.NewTransactionManager(redoDir, undoDir)
+	if err != nil {
+		t.Fatalf("create transaction manager: %v", err)
+	}
+	defer txManager.Close()
+
+	executor := &StorageIntegratedDMLExecutor{
+		txManager: txManager,
+		stats:     &DMLExecutorStats{},
+	}
+	txn, err := executor.beginStorageTransaction(context.Background())
+	if err != nil {
+		t.Fatalf("begin transaction: %v", err)
+	}
+	txnCtx := txn.(*StorageTransactionContext)
+	callbackCalled := false
+	txnCtx.AfterRealCommit = func(committed *StorageTransactionContext) error {
+		callbackCalled = true
+		if committed != txnCtx {
+			t.Fatalf("post-commit callback received a different transaction context")
+		}
+		if committed.Status != "COMMITTED" {
+			t.Fatalf("post-commit callback observed status %q, want COMMITTED", committed.Status)
+		}
+		if committed.EndTime.IsZero() {
+			t.Fatal("post-commit callback observed zero commit time")
+		}
+		return nil
+	}
+
+	if err := executor.commitStorageTransaction(context.Background(), txn); err != nil {
+		t.Fatalf("commit transaction: %v", err)
+	}
+	if !callbackCalled {
+		t.Fatal("post-commit barrier was not invoked")
+	}
+	if txnCtx.AfterRealCommit != nil {
+		t.Fatal("post-commit callback should be cleared after commit")
+	}
+}
+
 // TestTransactionRollback 测试事务回滚
 func TestTransactionRollback(t *testing.T) {
 	// 创建临时目录

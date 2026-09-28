@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
@@ -20,7 +21,7 @@ func informationSchemaAuxiliarySelect(query, table string, columns []string) *Se
 	return newInformationSchemaSelectResult("information_schema."+table, requestedInformationSchemaColumns(query, columns), nil)
 }
 
-func (e *XMySQLExecutor) executeInformationSchemaColumnStatisticsSelect(query string) *SelectResult {
+func (e *XMySQLExecutor) executeInformationSchemaColumnStatisticsSelect(query string, session server.MySQLServerSession) *SelectResult {
 	const table = "column_statistics"
 	columns := requestedInformationSchemaColumns(query, []string{
 		"SCHEMA_NAME", "TABLE_NAME", "COLUMN_NAME", "HISTOGRAM",
@@ -32,6 +33,9 @@ func (e *XMySQLExecutor) executeInformationSchemaColumnStatisticsSelect(query st
 	filters := informationSchemaMetadataFilters(query)
 	rows := make([][]interface{}, 0)
 	for _, tableMeta := range e.scanFrmTables() {
+		if !e.informationSchemaTableVisible(session, tableMeta.schemaName, tableMeta.tableName, false) {
+			continue
+		}
 		if !metadataPatternMatches(tableMeta.schemaName, filters["schema_name"]) ||
 			!metadataPatternMatches(tableMeta.tableName, filters["table_name"]) {
 			continue
@@ -169,7 +173,6 @@ func executeInformationSchemaFilesSelect(query string) *SelectResult {
 		"RECOVER_TIME", "TRANSACTION_COUNTER", "VERSION", "ROW_FORMAT", "TABLE_ROWS",
 		"AVG_ROW_LENGTH", "DATA_LENGTH", "MAX_DATA_LENGTH", "INDEX_LENGTH", "DATA_FREE",
 		"CREATE_TIME", "UPDATE_TIME", "CHECK_TIME", "CHECKSUM", "STATUS", "EXTRA",
-		"NODEGROUP_ID", "TABLESPACE_TYPE", "TABLESPACE_NAME", "FILE_NAME",
 	})
 }
 

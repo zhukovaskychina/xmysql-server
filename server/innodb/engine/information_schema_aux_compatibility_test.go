@@ -4,11 +4,40 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 )
+
+type bufferPoolStatsCompatibilityStub struct {
+	stats map[string]interface{}
+}
+
+func (s *bufferPoolStatsCompatibilityStub) GetStats() map[string]interface{} {
+	return s.stats
+}
+
+func TestInformationSchemaInnoDBBufferPoolStatsUsesPerThousandHitRate(t *testing.T) {
+	executor := &XMySQLExecutor{
+		bufferPoolManager: &bufferPoolStatsCompatibilityStub{stats: map[string]interface{}{
+			"total_pages": 8,
+			"cache_size":  3,
+			"hits":        uint64(3),
+			"misses":      uint64(1),
+			"hit_rate":    0.75,
+		}},
+	}
+
+	result := executor.executeInformationSchemaInnoDBBufferPoolStatsSelect(
+		"select hit_rate from information_schema.innodb_buffer_pool_stats",
+	)
+	require.Equal(t, []string{"HIT_RATE"}, result.Columns)
+	require.Len(t, result.Records, 1)
+	require.Equal(t, int64(750), result.Records[0].GetValues()[0].Int())
+}
 
 func TestInformationSchemaAuxiliaryTablesReturnStableMetadataShapes(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
@@ -57,10 +86,12 @@ func TestInformationSchemaAuxiliaryTablesReturnStableMetadataShapes(t *testing.T
 	wrongTablespace := mustSelectResultSQL(t, executor, "app", "select tablespace_name from information_schema.tablespaces where tablespace_name = 'other'")
 	require.Empty(t, wrongTablespace.Records)
 
-	extensions := mustSelectResultSQL(t, executor, "app", "select tablespace_name, engine_attribute, se_private_data from information_schema.tablespaces_extensions where tablespace_name like 'app/%'")
-	require.Equal(t, []string{"TABLESPACE_NAME", "ENGINE_ATTRIBUTE", "SE_PRIVATE_DATA"}, extensions.Columns)
+	extensions := mustSelectResultSQL(t, executor, "app", "select tablespace_name, engine_attribute from information_schema.tablespaces_extensions where tablespace_name like 'app/%'")
+	require.Equal(t, []string{"TABLESPACE_NAME", "ENGINE_ATTRIBUTE"}, extensions.Columns)
 	require.NotEmpty(t, extensions.Records)
 	require.Nil(t, extensions.Records[0].GetValues()[1].Raw())
+	allExtensions := mustSelectResultSQL(t, executor, "app", "select * from information_schema.tablespaces_extensions where tablespace_name like 'app/%'")
+	require.Equal(t, []string{"TABLESPACE_NAME", "ENGINE_ATTRIBUTE"}, allExtensions.Columns)
 
 	innodbTables := mustSelectResultSQL(t, executor, "app", "select table_id, name, n_cols, space from information_schema.innodb_tables")
 	require.Equal(t, []string{"TABLE_ID", "NAME", "N_COLS", "SPACE"}, innodbTables.Columns)
@@ -84,25 +115,26 @@ func TestInformationSchemaAuxiliaryTablesReturnStableMetadataShapes(t *testing.T
 	require.NoError(t, err)
 	_, err = executor.storageMgr.GetBufferPoolManager().GetPage(storage.SpaceID, storage.RootPageNo)
 	require.NoError(t, err)
-	bufferPage := mustSelectResultSQL(t, executor, "app", "select space, page_number, table_name, page_state, is_old from information_schema.innodb_buffer_page where space = '"+fmt.Sprint(storage.SpaceID)+"'")
-	require.Equal(t, []string{"SPACE", "PAGE_NUMBER", "TABLE_NAME", "PAGE_STATE", "IS_OLD"}, bufferPage.Columns)
+	bufferPage := mustSelectResultSQL(t, executor, "app", "select space, page_number, table_name, page_state, is_old, is_stale from information_schema.innodb_buffer_page where space = '"+fmt.Sprint(storage.SpaceID)+"'")
+	require.Equal(t, []string{"SPACE", "PAGE_NUMBER", "TABLE_NAME", "PAGE_STATE", "IS_OLD", "IS_STALE"}, bufferPage.Columns)
 	require.NotEmpty(t, bufferPage.Records)
 	for _, row := range bufferPage.Records {
 		require.Equal(t, int64(storage.SpaceID), row.GetValues()[0].Int())
+		require.Contains(t, []string{"YES", "NO"}, row.GetValues()[4].String())
+		require.True(t, row.GetValues()[5].IsNull())
 	}
 	wrongPage := mustSelectResultSQL(t, executor, "app", "select page_number from information_schema.innodb_buffer_page where space = '"+fmt.Sprint(storage.SpaceID)+"' and page_number = 999999999")
 	require.Empty(t, wrongPage.Records)
 
-	bufferPageLRU := mustSelectResultSQL(t, executor, "app", "select lru_position, space, page_number from information_schema.innodb_buffer_page_lru")
-	require.Equal(t, []string{"LRU_POSITION", "SPACE", "PAGE_NUMBER"}, bufferPageLRU.Columns)
+	bufferPageLRU := mustSelectResultSQL(t, executor, "app", "select lru_position, space, page_number, compressed from information_schema.innodb_buffer_page_lru")
+	require.Equal(t, []string{"LRU_POSITION", "SPACE", "PAGE_NUMBER", "COMPRESSED"}, bufferPageLRU.Columns)
 	require.NotEmpty(t, bufferPageLRU.Records)
+	require.True(t, bufferPageLRU.Records[0].GetValues()[3].IsNull())
 
-	cachedIndexes := mustSelectResultSQL(t, executor, "app", "select space_id, index_name, n_cached_pages from information_schema.innodb_cached_indexes where table_schema = 'app' and table_name = 'space_catalog'")
-	require.Equal(t, []string{"SPACE_ID", "INDEX_NAME", "N_CACHED_PAGES"}, cachedIndexes.Columns)
+	cachedIndexes := mustSelectResultSQL(t, executor, "app", "select space_id, n_cached_pages from information_schema.innodb_cached_indexes where table_schema = 'app' and table_name = 'space_catalog'")
+	require.Equal(t, []string{"SPACE_ID", "N_CACHED_PAGES"}, cachedIndexes.Columns)
 	require.NotEmpty(t, cachedIndexes.Records)
-	require.Greater(t, cachedIndexes.Records[0].GetValues()[2].Int(), int64(0))
-	wrongIndex := mustSelectResultSQL(t, executor, "app", "select index_name from information_schema.innodb_cached_indexes where table_schema = 'app' and table_name = 'space_catalog' and index_name = 'other'")
-	require.Empty(t, wrongIndex.Records)
+	require.Greater(t, cachedIndexes.Records[0].GetValues()[1].Int(), int64(0))
 }
 
 func TestInformationSchemaColumnStatisticsProjectsAnalyzeFacts(t *testing.T) {
@@ -127,18 +159,61 @@ func TestInformationSchemaColumnStatisticsProjectsAnalyzeFacts(t *testing.T) {
 	}
 	wrongHistogram := mustSelectResultSQL(t, executor, "stats_app", "select column_name from information_schema.column_statistics where schema_name='stats_app' and table_name='histogram_source' and histogram='missing'")
 	require.Empty(t, wrongHistogram.Records)
+	metadata := mustSelectResultSQL(t, executor, "stats_app", "select column_name, data_type, character_maximum_length, column_type, is_nullable from information_schema.columns where table_schema='information_schema' and table_name='column_statistics' order by ordinal_position")
+	require.Equal(t, [][]interface{}{
+		{"SCHEMA_NAME", "VARCHAR", "64", "VARCHAR(64)", "NO"},
+		{"TABLE_NAME", "VARCHAR", "64", "VARCHAR(64)", "NO"},
+		{"COLUMN_NAME", "VARCHAR", "64", "VARCHAR(64)", "NO"},
+		{"HISTOGRAM", "JSON", "", "JSON", "NO"},
+	}, selectResultRows(metadata))
+}
+
+func TestInformationSchemaColumnStatisticsHonorsTableVisibility(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database stats_visibility")
+	mustExecSQL(t, executor, "stats_visibility", "create table histogram_source (id int, label varchar(16))")
+	mustExecSQL(t, executor, "stats_visibility", "insert into histogram_source values (1, 'a'), (3, 'b'), (9, null)")
+	mustExecSQL(t, executor, "stats_visibility", "analyze table histogram_source")
+	mustExecSQL(t, executor, "", "create user 'stats_metadata_reader'@'localhost' identified by 'secret'")
+
+	reader := newTestMySQLSession()
+	reader.SetParamByName("user", "stats_metadata_reader")
+	reader.SetParamByName("host", "localhost")
+	query := "select schema_name, table_name, column_name from information_schema.column_statistics where schema_name='stats_visibility'"
+	require.Empty(t, mustQuerySessionSQL(t, executor, reader, "", query))
+
+	mustExecSQL(t, executor, "", "grant select on stats_visibility.histogram_source to 'stats_metadata_reader'@'localhost'")
+	require.Len(t, mustQuerySessionSQL(t, executor, reader, "", query), 2)
 }
 
 func TestInformationSchemaTemporaryInnoDBViewsFilterLiveSession(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	session := newTestMySQLSession()
+	session.SetParamByName("global_privileges", []common.PrivilegeType{common.ProcessPriv})
 	mustExecSessionSQL(t, executor, session, "", "create database temp_app")
 	mustExecSessionSQL(t, executor, session, "temp_app", "create temporary table temp_probe (id int)")
 
 	sessionSpaces := mustQuerySessionSQL(t, executor, session, "temp_app", "select purpose, state from information_schema.innodb_session_temp_tablespaces")
 	require.NotEmpty(t, sessionSpaces)
+	sessionSpaceDetails := mustSelectResultSessionSQL(t, executor, session, "temp_app", "select id, space, path, size, state, purpose from information_schema.innodb_session_temp_tablespaces")
+	require.Len(t, sessionSpaceDetails.Records, 1)
+	sessionSpaceRow := selectResultRows(sessionSpaceDetails)[0]
+	require.NotEmpty(t, sessionSpaceRow[0])
+	require.NotEmpty(t, sessionSpaceRow[1])
+	require.NotEmpty(t, sessionSpaceRow[2])
+	require.NotEmpty(t, sessionSpaceRow[3])
+	require.Equal(t, "ACTIVE", fmt.Sprint(sessionSpaceRow[4]))
+	require.Equal(t, "USER", fmt.Sprint(sessionSpaceRow[5]))
 	tempInfo := mustQuerySessionSQL(t, executor, session, "temp_app", "select name from information_schema.innodb_temp_table_info")
 	require.NotEmpty(t, tempInfo)
+	tempInfoDetails := mustSelectResultSessionSQL(t, executor, session, "temp_app", "select table_id, name, n_cols, space from information_schema.innodb_temp_table_info")
+	require.Len(t, tempInfoDetails.Records, 1)
+	tempInfoRow := selectResultRows(tempInfoDetails)[0]
+	require.NotEmpty(t, tempInfoRow[0])
+	require.NotEmpty(t, tempInfoRow[1])
+	require.NotEmpty(t, tempInfoRow[2])
+	require.NotEmpty(t, tempInfoRow[3])
+	require.True(t, strings.HasPrefix(fmt.Sprint(tempInfoRow[1]), "__xmysql_tmp_"))
 	wrongSessionSpace := mustQuerySessionSQL(t, executor, session, "temp_app", "select space from information_schema.innodb_session_temp_tablespaces where purpose = 'PERMANENT'")
 	require.Empty(t, wrongSessionSpace)
 	wrongTempName := mustQuerySessionSQL(t, executor, session, "temp_app", "select name from information_schema.innodb_temp_table_info where name = 'temp_app/other'")

@@ -18,6 +18,11 @@ func isShowEngineInnoDBStatus(query string) bool {
 // engine's live transaction and lock-wait state instead of fabricating a
 // static banner, while keeping the report compatible with common clients.
 func (e *XMySQLExecutor) executeShowEngineInnoDBStatus(ctx *ExecutionContext) {
+	if err := e.checkGlobalPrivilege(ctx, "PROCESS"); err != nil {
+		ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
+		return
+	}
+
 	status := e.innoDBStatusText()
 	result := newInformationSchemaSelectResult(
 		"SHOW ENGINE INNODB STATUS",

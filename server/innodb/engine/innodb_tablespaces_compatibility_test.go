@@ -2,6 +2,7 @@ package engine
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"strings"
 	"testing"
 
@@ -28,7 +29,7 @@ func TestInformationSchemaInnoDBTablespacesReflectsDurableCatalog(t *testing.T) 
 	}
 	require.True(t, found, "created tablespace was not projected: %#v", rows.Records)
 
-	physical := <-executor.ExecuteQuery(nil, "select flag, page_size, zip_page_size, row_format, space_flags from information_schema.innodb_tablespaces where name = 'ledger'", "")
+	physical := <-executor.ExecuteQuery(nil, "select flag, page_size, zip_page_size, row_format from information_schema.innodb_tablespaces where name = 'ledger'", "")
 	require.NoError(t, physical.Err)
 	physicalRows := physical.Data.(*SelectResult).Records
 	require.Len(t, physicalRows, 1)
@@ -37,7 +38,13 @@ func TestInformationSchemaInnoDBTablespacesReflectsDurableCatalog(t *testing.T) 
 	require.Equal(t, int64(16384), physicalValues[1].Int())
 	require.Equal(t, int64(0), physicalValues[2].Int())
 	require.Equal(t, "Compact or Redundant", physicalValues[3].String())
-	require.Equal(t, int64(0), physicalValues[4].Int())
+	brief := <-executor.ExecuteQuery(nil, "select space, name, path, flag, space_type from information_schema.innodb_tablespaces_brief where name = 'ledger'", "")
+	require.NoError(t, brief.Err)
+	briefRows := brief.Data.(*SelectResult).Records
+	require.Len(t, briefRows, 1)
+	briefValues := briefRows[0].GetValues()
+	require.Equal(t, physicalValues[0].Int(), briefValues[3].Int())
+	require.Equal(t, "Single", briefValues[4].String())
 
 	filtered := <-executor.ExecuteQuery(nil, "select name from information_schema.innodb_tablespaces where name like 'led%'", "")
 	require.NoError(t, filtered.Err)
@@ -51,6 +58,74 @@ func TestInformationSchemaInnoDBTablespacesReflectsDurableCatalog(t *testing.T) 
 	wrongBriefType := <-executor.ExecuteQuery(nil, "select name from information_schema.innodb_tablespaces_brief where space_type = 'General'", "")
 	require.NoError(t, wrongBriefType.Err)
 	require.Empty(t, wrongBriefType.Data.(*SelectResult).Records)
+}
+
+func TestInformationSchemaInnoDBTablespacesExposeNativeColumnMetadata(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+
+	result := mustSelectResultSQL(t, executor, "", "select column_name, data_type, character_maximum_length, numeric_precision, column_type, is_nullable from information_schema.columns where table_schema='information_schema' and table_name='innodb_tablespaces' and column_name in ('SPACE','NAME','ROW_FORMAT','SPACE_TYPE','FILE_SIZE','STATE') order by ordinal_position")
+
+	require.Equal(t, [][]interface{}{
+		{"SPACE", "INT", "", "", "INT UNSIGNED", "NO"},
+		{"NAME", "VARCHAR", "218", "", "VARCHAR(655)", "NO"},
+		{"ROW_FORMAT", "VARCHAR", "7", "", "VARCHAR(22)", "YES"},
+		{"SPACE_TYPE", "VARCHAR", "3", "", "VARCHAR(10)", "YES"},
+		{"FILE_SIZE", "BIGINT", "", "", "BIGINT UNSIGNED", "NO"},
+		{"STATE", "VARCHAR", "3", "", "VARCHAR(10)", "YES"},
+	}, selectResultRows(result))
+}
+
+func TestInformationSchemaInnoDBTablespacesExposeNativeColumnShape(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+
+	result := mustSelectResultSQL(t, executor, "", "select * from information_schema.innodb_tablespaces")
+
+	require.Equal(t, []string{
+		"SPACE", "NAME", "FLAG", "ROW_FORMAT", "PAGE_SIZE", "ZIP_PAGE_SIZE", "SPACE_TYPE",
+		"FS_BLOCK_SIZE", "FILE_SIZE", "ALLOCATED_SIZE", "AUTOEXTEND_SIZE", "SERVER_VERSION",
+		"SPACE_VERSION", "ENCRYPTION", "STATE",
+	}, result.Columns)
+}
+
+func TestInformationSchemaInnoDBTablespaceAuxiliaryTablesExposeNativeMetadata(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+
+	for _, table := range []struct {
+		name string
+		want [][]interface{}
+	}{
+		{
+			name: "innodb_tablespaces_brief",
+			want: [][]interface{}{
+				{"SPACE", "VARBINARY", "256", "", "VARBINARY(256)", "YES"},
+				{"NAME", "VARCHAR", "268", "", "VARCHAR(268)", "NO"},
+				{"PATH", "VARCHAR", "512", "", "VARCHAR(512)", "NO"},
+				{"FLAG", "VARBINARY", "256", "", "VARBINARY(256)", "YES"},
+				{"SPACE_TYPE", "VARCHAR", "7", "", "VARCHAR(7)", "NO"},
+			},
+		},
+		{
+			name: "innodb_datafiles",
+			want: [][]interface{}{
+				{"SPACE", "VARBINARY", "256", "", "VARBINARY(256)", "YES"},
+				{"PATH", "VARCHAR", "512", "", "VARCHAR(512)", "NO"},
+			},
+		},
+		{
+			name: "innodb_session_temp_tablespaces",
+			want: [][]interface{}{
+				{"ID", "INT", "", "", "INT UNSIGNED", "NO"},
+				{"SPACE", "INT", "", "", "INT UNSIGNED", "NO"},
+				{"PATH", "VARCHAR", "1333", "", "VARCHAR(4001)", "NO"},
+				{"SIZE", "BIGINT", "", "", "BIGINT UNSIGNED", "NO"},
+				{"STATE", "VARCHAR", "64", "", "VARCHAR(192)", "NO"},
+				{"PURPOSE", "VARCHAR", "64", "", "VARCHAR(192)", "NO"},
+			},
+		},
+	} {
+		result := mustSelectResultSQL(t, executor, "", "select column_name, data_type, character_maximum_length, numeric_precision, column_type, is_nullable from information_schema.columns where table_schema='information_schema' and table_name='"+table.name+"' order by ordinal_position")
+		require.Equal(t, table.want, selectResultRows(result), table.name)
+	}
 }
 
 func TestInformationSchemaInnoDBTablespacesReflectsRenameAndDrop(t *testing.T) {
@@ -127,6 +202,58 @@ func TestInformationSchemaInnoDBTableStatsReflectsMappedTable(t *testing.T) {
 	wrongTableID := <-executor.ExecuteQuery(nil, "select name from information_schema.innodb_tablestats where table_id = 999999999", "app")
 	require.NoError(t, wrongTableID.Err)
 	require.Empty(t, wrongTableID.Data.(*SelectResult).Records)
+}
+
+func TestInformationSchemaInnoDBTableStatsExposeNativeColumnMetadata(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+
+	result := mustSelectResultSQL(t, executor, "", "select column_name, data_type, character_maximum_length, numeric_precision, column_type, is_nullable from information_schema.columns where table_schema='information_schema' and table_name='innodb_tablestats' order by ordinal_position")
+
+	require.Equal(t, [][]interface{}{
+		{"TABLE_ID", "BIGINT", "", "", "BIGINT UNSIGNED", "NO"},
+		{"NAME", "VARCHAR", "64", "", "VARCHAR(193)", "NO"},
+		{"STATS_INITIALIZED", "VARCHAR", "64", "", "VARCHAR(193)", "NO"},
+		{"NUM_ROWS", "BIGINT", "", "", "BIGINT UNSIGNED", "NO"},
+		{"CLUST_INDEX_SIZE", "BIGINT", "", "", "BIGINT UNSIGNED", "NO"},
+		{"OTHER_INDEX_SIZE", "BIGINT", "", "", "BIGINT UNSIGNED", "NO"},
+		{"MODIFIED_COUNTER", "BIGINT", "", "", "BIGINT UNSIGNED", "NO"},
+		{"AUTOINC", "BIGINT", "", "", "BIGINT UNSIGNED", "NO"},
+		{"REF_COUNT", "INT", "", "", "INT", "NO"},
+	}, selectResultRows(result))
+}
+
+func TestInformationSchemaInnoDBIndexesExposeNativeColumnMetadata(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+
+	result := mustSelectResultSQL(t, executor, "", "select column_name, data_type, character_maximum_length, numeric_precision, column_type, is_nullable from information_schema.columns where table_schema='information_schema' and table_name='innodb_indexes' order by ordinal_position")
+
+	require.Equal(t, [][]interface{}{
+		{"INDEX_ID", "BIGINT", "", "", "BIGINT UNSIGNED", "NO"},
+		{"NAME", "VARCHAR", "64", "", "VARCHAR(193)", "NO"},
+		{"TABLE_ID", "BIGINT", "", "", "BIGINT UNSIGNED", "NO"},
+		{"TYPE", "INT", "", "", "INT", "NO"},
+		{"N_FIELDS", "INT", "", "", "INT", "NO"},
+		{"PAGE_NO", "INT", "", "", "INT", "NO"},
+		{"SPACE", "INT", "", "", "INT", "NO"},
+		{"MERGE_THRESHOLD", "INT", "", "", "INT", "NO"},
+	}, selectResultRows(result))
+}
+
+func TestInformationSchemaInnoDBColumnsExposeNativeColumnMetadata(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+
+	result := mustSelectResultSQL(t, executor, "", "select column_name, data_type, character_maximum_length, numeric_precision, column_type, is_nullable from information_schema.columns where table_schema='information_schema' and table_name='innodb_columns' order by ordinal_position")
+
+	require.Equal(t, [][]interface{}{
+		{"TABLE_ID", "BIGINT", "", "", "BIGINT UNSIGNED", "NO"},
+		{"NAME", "VARCHAR", "64", "", "VARCHAR(193)", "NO"},
+		{"POS", "BIGINT", "", "", "BIGINT UNSIGNED", "NO"},
+		{"MTYPE", "INT", "", "", "INT", "NO"},
+		{"PRTYPE", "INT", "", "", "INT", "NO"},
+		{"LEN", "INT", "", "", "INT", "NO"},
+		{"HAS_DEFAULT", "INT", "", "", "INT", "NO"},
+		{"DEFAULT_VALUE", "TEXT", "65535", "", "TEXT", "YES"},
+	}, selectResultRows(result))
 }
 
 func TestInformationSchemaInnoDBTableStatsProjectsSecondaryIndexPages(t *testing.T) {
@@ -336,16 +463,12 @@ func TestInformationSchemaInnoDBTableDictionaryFiltersRuntimeFields(t *testing.T
 	wrongPosition := <-executor.ExecuteQuery(nil, "select name from information_schema.innodb_fields where pos = 99", "app")
 	require.NoError(t, wrongPosition.Err)
 	require.Empty(t, wrongPosition.Data.(*SelectResult).Records)
-	virtual := <-executor.ExecuteQuery(nil, "select table_id, pos, base_pos, m_cols from information_schema.innodb_virtual", "app")
+	virtual := <-executor.ExecuteQuery(nil, "select table_id, pos, base_pos from information_schema.innodb_virtual", "app")
 	require.NoError(t, virtual.Err)
 	require.Len(t, virtual.Data.(*SelectResult).Records, 1)
 	virtualValues := virtual.Data.(*SelectResult).Records[0].GetValues()
 	require.Equal(t, int64(1), virtualValues[1].Int())
 	require.Equal(t, int64(0), virtualValues[2].Int())
-	require.Equal(t, int64(1), virtualValues[3].Int())
-	wrongVirtualCols := <-executor.ExecuteQuery(nil, "select table_id from information_schema.innodb_virtual where m_cols = 999999", "app")
-	require.NoError(t, wrongVirtualCols.Err)
-	require.Empty(t, wrongVirtualCols.Data.(*SelectResult).Records)
 }
 
 func TestInformationSchemaInnoDBColumnsReflectsDurableDefinition(t *testing.T) {
@@ -385,6 +508,52 @@ func TestInformationSchemaInnoDBColumnsReportsInstantAddIndicator(t *testing.T) 
 	require.Len(t, rows.Records, 1)
 	require.Equal(t, "note", rows.Records[0].GetValues()[0].String())
 	require.Equal(t, int64(1), rows.Records[0].GetValues()[1].Int())
+}
+
+func TestInformationSchemaInnoDBColumnsReportsInstantDefaultValue(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table ledger (id int primary key)")
+	mustExecSQL(t, executor, "app", "alter table ledger add column note varchar(20) default 'guest', add column score int not null default 7, algorithm=instant")
+
+	result := mustSelectResultSQL(t, executor, "app", "select name, default_value from information_schema.innodb_columns where table_schema='app' and table_name='ledger' and name in ('note', 'score') order by name")
+	require.Len(t, result.Records, 2)
+	note := result.Records[0].GetValues()
+	require.Equal(t, "note", note[0].String())
+	noteDefault, ok := note[1].Raw().([]byte)
+	require.True(t, ok)
+	require.Equal(t, []byte("guest"), noteDefault)
+	score := result.Records[1].GetValues()
+	require.Equal(t, "score", score[0].String())
+	raw, ok := score[1].Raw().([]byte)
+	require.True(t, ok)
+	require.Equal(t, "80000007", hex.EncodeToString(raw))
+}
+
+func TestInformationSchemaInnoDBColumnsPreservesExplicitEmptyStringDefault(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table ledger (id int primary key)")
+	mustExecSQL(t, executor, "app", "alter table ledger add column note varchar(20) default '', algorithm=instant")
+
+	result := mustSelectResultSQL(t, executor, "app", "select default_value from information_schema.innodb_columns where table_schema='app' and table_name='ledger' and name='note'")
+	require.Len(t, result.Records, 1)
+	raw, ok := result.Records[0].GetValues()[0].Raw().([]byte)
+	require.True(t, ok)
+	require.Empty(t, raw)
+}
+
+func TestInformationSchemaInnoDBColumnsPreservesSpacedStringDefault(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table ledger (id int primary key)")
+	mustExecSQL(t, executor, "app", "alter table ledger add column note varchar(20) default 'hello world', algorithm=instant")
+
+	result := mustSelectResultSQL(t, executor, "app", "select default_value from information_schema.innodb_columns where table_schema='app' and table_name='ledger' and name='note'")
+	require.Len(t, result.Records, 1)
+	raw, ok := result.Records[0].GetValues()[0].Raw().([]byte)
+	require.True(t, ok)
+	require.Equal(t, []byte("hello world"), raw)
 }
 
 func TestInformationSchemaInnoDBColumnsProjectsBinaryMainTypes(t *testing.T) {

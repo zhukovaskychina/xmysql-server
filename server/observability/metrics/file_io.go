@@ -22,10 +22,12 @@ type FileSummaryRow struct {
 	SumTimerRead        int64
 	MinTimerRead        int64
 	MaxTimerRead        int64
+	BytesRead           int64
 	CountWrite          int64
 	SumTimerWrite       int64
 	MinTimerWrite       int64
 	MaxTimerWrite       int64
+	BytesWrite          int64
 	CountMisc           int64
 	SumTimerMisc        int64
 	MinTimerMisc        int64
@@ -132,23 +134,33 @@ func updateTimer(count *int64, sum *int64, min *int64, max *int64, latency time.
 	}
 }
 
-func (r *fileSummaryRecorder) read(fileName, eventName string, latency time.Duration) {
+func updateTimerWithSetting(count *int64, sum *int64, min *int64, max *int64, latency time.Duration, timed bool) {
+	if !timed {
+		*count++
+		return
+	}
+	updateTimer(count, sum, min, max, latency)
+}
+
+func (r *fileSummaryRecorder) read(fileName, eventName string, bytes int64, latency time.Duration, timed bool) {
 	if r == nil || strings.TrimSpace(fileName) == "" {
 		return
 	}
 	r.mu.Lock()
 	row := r.rowLocked(fileName, eventName)
-	updateTimer(&row.CountRead, &row.SumTimerRead, &row.MinTimerRead, &row.MaxTimerRead, latency)
+	updateTimerWithSetting(&row.CountRead, &row.SumTimerRead, &row.MinTimerRead, &row.MaxTimerRead, latency, timed)
+	row.BytesRead += bytes
 	r.mu.Unlock()
 }
 
-func (r *fileSummaryRecorder) write(fileName, eventName string, latency time.Duration) {
+func (r *fileSummaryRecorder) write(fileName, eventName string, bytes int64, latency time.Duration, timed bool) {
 	if r == nil || strings.TrimSpace(fileName) == "" {
 		return
 	}
 	r.mu.Lock()
 	row := r.rowLocked(fileName, eventName)
-	updateTimer(&row.CountWrite, &row.SumTimerWrite, &row.MinTimerWrite, &row.MaxTimerWrite, latency)
+	updateTimerWithSetting(&row.CountWrite, &row.SumTimerWrite, &row.MinTimerWrite, &row.MaxTimerWrite, latency, timed)
+	row.BytesWrite += bytes
 	r.mu.Unlock()
 }
 
@@ -171,4 +183,31 @@ func (r *fileSummaryRecorder) snapshot() []FileSummaryRow {
 		return rows[i].EventName < rows[j].EventName
 	})
 	return rows
+}
+
+// reset clears completed I/O counters while preserving file identities,
+// object-instance values, and currently open-handle state.
+func (r *fileSummaryRecorder) reset() {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, row := range r.rows {
+		if row == nil {
+			continue
+		}
+		row.CountRead = 0
+		row.SumTimerRead = 0
+		row.MinTimerRead = 0
+		row.MaxTimerRead = 0
+		row.CountWrite = 0
+		row.SumTimerWrite = 0
+		row.MinTimerWrite = 0
+		row.MaxTimerWrite = 0
+		row.CountMisc = 0
+		row.SumTimerMisc = 0
+		row.MinTimerMisc = 0
+		row.MaxTimerMisc = 0
+	}
 }

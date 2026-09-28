@@ -44,6 +44,17 @@ func (adapter *BufferPoolManagerAdapter) GetStats() map[string]interface{} {
 	return adapter.optimized.GetStats()
 }
 
+// GetLRUIOStatsAndResetCurrent exposes the dedicated buffer-pool LRU I/O
+// counters to INFORMATION_SCHEMA without collapsing them into page totals.
+func (adapter *BufferPoolManagerAdapter) GetLRUIOStatsAndResetCurrent() (uint64, uint64) {
+	return adapter.optimized.GetLRUIOStatsAndResetCurrent()
+}
+
+// PrefetchPage schedules a background read-ahead load for the requested page.
+func (adapter *BufferPoolManagerAdapter) PrefetchPage(spaceID, pageNo uint32) {
+	adapter.optimized.PrefetchPage(spaceID, pageNo)
+}
+
 // Close 关闭缓冲池管理器
 func (adapter *BufferPoolManagerAdapter) Close() error {
 	return adapter.optimized.Close()

@@ -939,6 +939,7 @@ func (h *EnhancedBusinessMessageHandler) authenticatedSession(sessionID string) 
 type EnhancedMockMySQLServerSession struct {
 	sessionID      string
 	database       string
+	paramsMu       sync.RWMutex
 	params         map[string]interface{}
 	ctx            *server.SessionContext
 	lastActiveTime time.Time
@@ -967,10 +968,12 @@ func (s *EnhancedMockMySQLServerSession) SessionContext() *server.SessionContext
 }
 
 func (s *EnhancedMockMySQLServerSession) SetParamByName(name string, value interface{}) {
+	s.paramsMu.Lock()
 	if s.params == nil {
 		s.params = make(map[string]interface{})
 	}
 	s.params[name] = value
+	s.paramsMu.Unlock()
 	// 双写 SessionContext，与真实 session 行为一致
 	if s.ctx != nil {
 		switch name {
@@ -987,7 +990,9 @@ func (s *EnhancedMockMySQLServerSession) SetParamByName(name string, value inter
 }
 
 func (s *EnhancedMockMySQLServerSession) GetParamByName(name string) interface{} {
+	s.paramsMu.RLock()
 	if s.params == nil {
+		s.paramsMu.RUnlock()
 		if s.ctx != nil {
 			switch name {
 			case "database":
@@ -1000,7 +1005,9 @@ func (s *EnhancedMockMySQLServerSession) GetParamByName(name string) interface{}
 		}
 		return nil
 	}
-	return s.params[name]
+	value := s.params[name]
+	s.paramsMu.RUnlock()
+	return value
 }
 
 func toString(v interface{}) string {

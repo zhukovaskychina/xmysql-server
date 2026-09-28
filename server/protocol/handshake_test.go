@@ -26,3 +26,11 @@ func TestNewHandshakePacketAdvertisesPreparedMultiResults(t *testing.T) {
 		t.Fatal("handshake must advertise CLIENT_PS_MULTI_RESULTS for server-side prepared cursors")
 	}
 }
+
+func TestNewHandshakePacketAdvertisesCompression(t *testing.T) {
+	packet := NewHandshakePacket(1)
+	caps := uint32(packet.CapabilityFlags1) | uint32(packet.CapabilityFlags2)<<16
+	if caps&CLIENT_COMPRESS == 0 {
+		t.Fatal("handshake must advertise CLIENT_COMPRESS")
+	}
+}

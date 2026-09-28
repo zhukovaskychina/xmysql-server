@@ -16,6 +16,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
+	metrics "github.com/zhukovaskychina/xmysql-server/server/observability/metrics"
 )
 
 type persistedStoredObject struct {
@@ -793,12 +794,13 @@ func (e *XMySQLExecutor) executeStoredProcedureCall(ctx *ExecutionContext, query
 		state.callDepth = 1
 	}
 	statements := splitStoredObjectStatements(body)
+	statementSummaryBefore := e.performanceSchemaStoredProgramStatementSummarySnapshot(ctx.Session)
 	if err := e.executeStoredRoutineStatements(ctx, databaseName, statements, state); err != nil {
 		if signal, ok := err.(*routineControlSignal); !ok || signal.kind != "handler_exit" {
 			return err
 		}
 	}
-	statementStats := e.performanceSchemaStoredProgramStatementStats(ctx.Session, startedAt, int64(len(statements)))
+	statementStats := e.performanceSchemaStoredProgramStatementStats(ctx.Session, startedAt, int64(len(statements)), statementSummaryBefore)
 	if state.accounting != nil {
 		statementStats.rowsAffected = state.accounting.rowsAffected
 		statementStats.rowsSent = state.accounting.rowsSent
@@ -806,22 +808,80 @@ func (e *XMySQLExecutor) executeStoredProcedureCall(ctx *ExecutionContext, query
 	}
 	e.recordPerformanceSchemaProgramExecution("PROCEDURE", routineSchema, routineName, time.Since(startedAt).Nanoseconds()*1000,
 		statementStats.count, statementStats.sum, statementStats.min, statementStats.max,
-		statementStats.errors, statementStats.warnings, statementStats.rowsAffected, statementStats.rowsSent,
+		statementStats.errors, statementStats.warnings, statementStats.rowsAffected, statementStats.rowsSent, statementStats.rowsExamined,
 	)
 	return nil
 }
 
 type performanceSchemaStoredProgramStatementStats struct {
-	count, sum, min, max   int64
-	errors, warnings       int64
-	rowsAffected, rowsSent int64
+	count, sum, min, max                 int64
+	errors, warnings                     int64
+	rowsAffected, rowsSent, rowsExamined int64
 }
 
-func (e *XMySQLExecutor) performanceSchemaStoredProgramStatementStats(session server.MySQLServerSession, startedAt time.Time, fallbackCount int64) performanceSchemaStoredProgramStatementStats {
+func performanceSchemaStatementSummaryKey(row metrics.StatementSummaryRow) string {
+	return fmt.Sprintf("%d\x00%s\x00%s\x00%s\x00%s\x00%s", row.ThreadID, row.User, row.Host, row.Schema, row.StatementType, row.SQL)
+}
+
+func (e *XMySQLExecutor) performanceSchemaStoredProgramStatementSummarySnapshot(session server.MySQLServerSession) map[string]metrics.StatementSummaryRow {
+	if e == nil || e.metricsRecorder == nil {
+		return nil
+	}
+	threadID := int64(sessionConnectionID(session))
+	rows := make(map[string]metrics.StatementSummaryRow)
+	for _, row := range e.metricsRecorder.StatementSummary() {
+		if threadID != 0 && row.ThreadID != 0 && row.ThreadID != threadID {
+			continue
+		}
+		rows[performanceSchemaStatementSummaryKey(row)] = row
+	}
+	return rows
+}
+
+func (e *XMySQLExecutor) performanceSchemaStoredProgramStatementStats(session server.MySQLServerSession, startedAt time.Time, fallbackCount int64, before map[string]metrics.StatementSummaryRow) performanceSchemaStoredProgramStatementStats {
 	if e == nil || e.metricsRecorder == nil {
 		return performanceSchemaStoredProgramStatementStats{count: fallbackCount}
 	}
 	threadID := int64(sessionConnectionID(session))
+	if before != nil {
+		stats := performanceSchemaStoredProgramStatementStats{min: -1}
+		for _, row := range e.metricsRecorder.StatementSummary() {
+			if threadID != 0 && row.ThreadID != 0 && row.ThreadID != threadID {
+				continue
+			}
+			previous := before[performanceSchemaStatementSummaryKey(row)]
+			deltaCount := row.Count - previous.Count
+			if deltaCount <= 0 {
+				continue
+			}
+			stats.count += deltaCount
+			stats.sum += maxInt64(0, row.SumTimerWait-previous.SumTimerWait)
+			stats.errors += maxInt64(0, row.Errors-previous.Errors)
+			stats.warnings += maxInt64(0, row.Warnings-previous.Warnings)
+			stats.rowsAffected += maxInt64(0, row.RowsAffected-previous.RowsAffected)
+			stats.rowsSent += maxInt64(0, row.RowsSent-previous.RowsSent)
+			stats.rowsExamined += maxInt64(0, row.RowsExamined-previous.RowsExamined)
+			start := len(previous.LatencySamples)
+			if start > len(row.LatencySamples) {
+				start = len(row.LatencySamples)
+			}
+			for _, timer := range row.LatencySamples[start:] {
+				if stats.min < 0 || timer < stats.min {
+					stats.min = timer
+				}
+				if timer > stats.max {
+					stats.max = timer
+				}
+			}
+		}
+		if stats.count == 0 {
+			return performanceSchemaStoredProgramStatementStats{count: fallbackCount}
+		}
+		if stats.min < 0 {
+			stats.min = 0
+		}
+		return stats
+	}
 	stats := performanceSchemaStoredProgramStatementStats{min: -1}
 	for _, event := range e.metricsRecorder.StatementHistory() {
 		if !event.Time.IsZero() && event.Time.Before(startedAt) {
@@ -1432,6 +1492,15 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 				conditionClass = "sqlwarning"
 			}
 			if handler := findStoredRoutineHandler(state, conditionClass, conditionErr); handler != nil {
+				if conditionClass == "sqlexception" {
+					// SIGNAL is raised directly by the routine interpreter rather
+					// than through a child executeQuery call. Account for it at the
+					// handler boundary so SUM_ERROR_RAISED and SUM_ERROR_HANDLED
+					// reflect the same exception exactly once.
+					signalErr := &common.SQLError{Code: uint16(mysqlErrno), State: strings.ToUpper(signalState), Message: message}
+					e.recordQueryErrorForSession(ctx.Session, databaseName, signalErr)
+					e.recordQueryErrorHandledForSession(ctx.Session, signalErr)
+				}
 				previousCondition := state.activeCondition
 				state.activeCondition = &storedRoutineCondition{sqlState: strings.ToUpper(signalState), message: message, messageText: messageText, mysqlErrno: mysqlErrno, err: conditionErr}
 				if err := e.executeStoredRoutineStatements(ctx, databaseName, handler.statements, state); err != nil {
@@ -1498,6 +1567,11 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 			DatabaseName: databaseName,
 			RawQuery:     statement,
 			Session:      ctx.Session,
+			// The routine boundary owns error-summary accounting so a handled
+			// nested error is counted once as raised and once as handled. Keep
+			// statement metrics enabled: program summaries derive their child
+			// statement totals from these rows.
+			errorMetricsDeferred: true,
 		}
 		go e.executeQuery(nestedCtx, ctx.Session, statement, databaseName, nestedResults)
 		for result := range nestedResults {
@@ -1531,6 +1605,8 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 			}
 			if result.Err != nil {
 				if handler := findStoredRoutineHandler(state, "sqlexception", result.Err); handler != nil {
+					e.recordQueryErrorForSession(ctx.Session, databaseName, result.Err)
+					e.recordQueryErrorHandledForSession(ctx.Session, result.Err)
 					previousCondition := state.activeCondition
 					state.activeCondition = storedRoutineConditionFromError(result.Err)
 					handlerErr := e.executeStoredRoutineStatements(ctx, databaseName, handler.statements, state)
@@ -1544,6 +1620,8 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 					continue
 				}
 				if len(state.sqlException) > 0 {
+					e.recordQueryErrorForSession(ctx.Session, databaseName, result.Err)
+					e.recordQueryErrorHandledForSession(ctx.Session, result.Err)
 					previousCondition := state.activeCondition
 					state.activeCondition = storedRoutineConditionFromError(result.Err)
 					handlerErr := e.executeStoredRoutineStatements(ctx, databaseName, state.sqlException, state)
@@ -2212,7 +2290,7 @@ func (e *XMySQLExecutor) executeStoredFunctionCall(ctx *ExecutionContext, query,
 	if timerWait <= 0 {
 		timerWait = 1000
 	}
-	e.recordPerformanceSchemaProgramExecution("FUNCTION", functionSchema, functionName, timerWait, 1, timerWait, timerWait, timerWait, 0, 0, 0, 1)
+	e.recordPerformanceSchemaProgramExecution("FUNCTION", functionSchema, functionName, timerWait, 1, timerWait, timerWait, timerWait, 0, 0, 0, 1, 0)
 	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: result, Message: "stored function evaluated"}
 	return true
 }
@@ -2915,7 +2993,7 @@ func (e *XMySQLExecutor) executeInformationSchemaRoutinesSelect(query string, se
 	lowerQuery := strings.ToLower(query)
 	native := informationSchemaSelectsAllColumns(query) ||
 		(informationSchemaSelectListContainsAny(query,
-			"routine_schema", "routine_catalog", "security_type", "is_deterministic", "sql_data_access",
+			"routine_schema", "routine_catalog", "routine_definition", "security_type", "is_deterministic", "sql_data_access",
 			"external_name", "external_language", "parameter_style", "created", "last_altered", "sql_mode",
 			"character_set_client", "collation_connection", "database_collation") &&
 			!strings.Contains(lowerQuery, " as procedure_") && !strings.Contains(lowerQuery, " as function_"))
@@ -2943,6 +3021,10 @@ func (e *XMySQLExecutor) executeInformationSchemaRoutinesSelect(query string, se
 	}
 	rows := make([][]interface{}, 0)
 	for _, object := range objects {
+		visible, definitionVisible := e.storedRoutineMetadataVisibility(&ExecutionContext{Session: session}, object)
+		if !visible {
+			continue
+		}
 		if native {
 			if !metadataFilterMatches(object.Schema, nativeFilters["routine_schema"]) || !metadataFilterMatches(object.Name, nativeFilters["routine_name"]) ||
 				(strings.TrimSpace(nativeFilters["routine_type"]) != "" && !strings.EqualFold(object.ObjectType, nativeFilters["routine_type"])) {
@@ -2956,12 +3038,16 @@ func (e *XMySQLExecutor) executeInformationSchemaRoutinesSelect(query string, se
 				dataType = strings.ToUpper(object.ReturnType)
 				typeMetadata = informationSchemaRoutineTypeMetadata(object.ReturnType)
 			}
+			definition := interface{}(nil)
+			if definitionVisible {
+				definition = object.Definition
+			}
 			values := map[string]interface{}{
 				"SPECIFIC_NAME": object.Name, "ROUTINE_CATALOG": "def", "ROUTINE_SCHEMA": object.Schema, "ROUTINE_NAME": object.Name,
 				"ROUTINE_TYPE": strings.ToUpper(object.ObjectType), "DATA_TYPE": dataType,
 				"CHARACTER_MAXIMUM_LENGTH": informationSchemaCharacterLength(typeMetadata), "CHARACTER_OCTET_LENGTH": informationSchemaCharacterOctetLength(typeMetadata), "NUMERIC_PRECISION": informationSchemaNumericPrecision(typeMetadata),
 				"NUMERIC_SCALE": informationSchemaNumericScale(typeMetadata), "DATETIME_PRECISION": informationSchemaDateTimePrecision(typeMetadata), "CHARACTER_SET_NAME": informationSchemaColumnCharacterSet(typeMetadata), "COLLATION_NAME": informationSchemaColumnCollation(typeMetadata),
-				"DTD_IDENTIFIER": dataType, "ROUTINE_BODY": "SQL", "ROUTINE_DEFINITION": object.Definition,
+				"DTD_IDENTIFIER": dataType, "ROUTINE_BODY": "SQL", "ROUTINE_DEFINITION": definition,
 				"EXTERNAL_NAME": nil, "EXTERNAL_LANGUAGE": nil, "PARAMETER_STYLE": "SQL", "IS_DETERMINISTIC": boolToYesNo(routineIsDeterministic(object.Definition)),
 				"SQL_DATA_ACCESS": routineSQLDataAccess(object.Definition), "SQL_PATH": nil, "SECURITY_TYPE": routineSecurityType(object.SQLSecurity),
 				"CREATED": nil, "LAST_ALTERED": nil, "SQL_MODE": "", "ROUTINE_COMMENT": object.RoutineComment, "DEFINER": object.Definer,
@@ -2994,6 +3080,56 @@ func routineSecurityType(value string) string {
 		return "INVOKER"
 	}
 	return "DEFINER"
+}
+
+// storedRoutineMetadataVisibility follows MySQL's INFORMATION_SCHEMA.ROUTINES
+// privilege boundary. SHOW_ROUTINE and global SELECT expose the definition;
+// CREATE ROUTINE, ALTER ROUTINE, or EXECUTE expose the row but redact the
+// definition. The check is per routine because a user may be authorized for
+// only one routine in a schema.
+func (e *XMySQLExecutor) storedRoutineMetadataVisibility(ctx *ExecutionContext, object persistedStoredObject) (visible, definitionVisible bool) {
+	if ctx == nil || ctx.Session == nil {
+		return true, true
+	}
+	user, _ := ctx.Session.GetParamByName("user").(string)
+	user = strings.TrimSpace(user)
+	if user == "" || strings.EqualFold(user, "root") {
+		return true, true
+	}
+	host, _ := ctx.Session.GetParamByName("host").(string)
+	host = strings.TrimSpace(host)
+	if host == "" {
+		host = "localhost"
+	}
+	file, err := e.accountFileForSession(ctx)
+	if err != nil {
+		return false, false
+	}
+	account := sessionAccount(file, ctx.Session)
+	if account == nil {
+		return false, false
+	}
+	definer := strings.TrimSpace(object.Definer)
+	if definer == "" {
+		definer = "root@localhost"
+	}
+	definerUser, definerHost := splitPersistedAccountReference(definer)
+	definerUser = strings.Trim(definerUser, "' `")
+	definerHost = strings.Trim(definerHost, "' `")
+	if strings.EqualFold(user, definerUser) && strings.EqualFold(host, definerHost) {
+		return true, true
+	}
+	grants := effectiveAccountGrants(file, *account, ctx.Session)
+	if grantsContain(grants, "*.*", "SHOW_ROUTINE") || grantsContain(grants, "*.*", "SELECT") {
+		return true, true
+	}
+	requested := strings.TrimSpace(object.Schema) + "." + strings.TrimSpace(object.Name)
+	for _, privilege := range []string{"CREATE ROUTINE", "ALTER ROUTINE", "EXECUTE"} {
+		if grantsContain(grants, requested, privilege) {
+			return true, false
+		}
+	}
+	return false, false
 }
 
 func parseRoutineComment(definition string) string {

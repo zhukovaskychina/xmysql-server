@@ -64,3 +64,27 @@ func TestShowMasterStatusUsesRotatedNativeFileAndPosition(t *testing.T) {
 	require.Equal(t, file, reloadedFile)
 	require.Equal(t, position, reloadedPosition)
 }
+
+func TestShowBinaryLogStatusUsesTheSourceStatusContract(t *testing.T) {
+	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
+	source, err := replication.NewSource(t.TempDir(), "binary-log-status", 7)
+	require.NoError(t, err)
+	_, err = source.AppendCommitted([]replication.Statement{{Database: "app", SQL: "insert into t values (1)"}})
+	require.NoError(t, err)
+	executor := engine.QueryExecutor
+	executor.SetReplicationSourceProvider(func() *replication.Source { return source })
+	query := "show binary log status"
+	stmt, err := sqlparser.Parse(query)
+	require.NoError(t, err)
+	results := make(chan *Result, 1)
+	executor.executeShowStatementWithQuery(&ExecutionContext{Context: context.Background(), Results: results, RawQuery: query}, stmt.(*sqlparser.Show), nil, query)
+	result := <-results
+	require.NoError(t, result.Err)
+	selectResult, ok := result.Data.(*SelectResult)
+	require.True(t, ok)
+	require.Len(t, selectResult.Records, 1)
+	file, position := source.NativeCurrentFilePosition()
+	require.Equal(t, file, selectResult.Records[0].GetValues()[0].String())
+	require.Equal(t, position, uint64(selectResult.Records[0].GetValues()[1].Int()))
+	require.Equal(t, "binary-log-status:1", selectResult.Records[0].GetValues()[4].String())
+}

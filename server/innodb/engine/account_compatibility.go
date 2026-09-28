@@ -33,6 +33,9 @@ type persistedAccount struct {
 	GlobalGrants     []string            `json:"global_grants,omitempty"`
 	Grants           map[string][]string `json:"grants,omitempty"`
 	ColumnGrants     map[string][]string `json:"column_grants,omitempty"`
+	Grantors         map[string]string   `json:"grantors,omitempty"`
+	ColumnGrantors   map[string]string   `json:"column_grantors,omitempty"`
+	RoleGrantors     map[string]string   `json:"role_grantors,omitempty"`
 	Restrictions     map[string][]string `json:"restrictions,omitempty"`
 	UserAttributes   string              `json:"user_attributes,omitempty"`
 	UpdatedAt        string              `json:"updated_at"`
@@ -82,14 +85,23 @@ func (e *XMySQLExecutor) savePersistedAccounts(file persistedAccountFile) error 
 }
 
 func (e *XMySQLExecutor) accountFileForSession(ctx *ExecutionContext) (persistedAccountFile, error) {
+	var file persistedAccountFile
 	if ctx != nil && ctx.Session != nil && sessionTransactionActive(ctx.Session) {
 		if raw := ctx.Session.GetParamByName(pendingAccountFileParam); raw != nil {
 			if file, ok := raw.(*persistedAccountFile); ok && file != nil {
+				e.ensureMandatoryRolesActive(*file, ctx.Session)
 				return *file, nil
 			}
 		}
 	}
-	return e.loadPersistedAccounts()
+	file, err := e.loadPersistedAccounts()
+	if err != nil {
+		return persistedAccountFile{}, err
+	}
+	if ctx != nil {
+		e.ensureMandatoryRolesActive(file, ctx.Session)
+	}
+	return file, nil
 }
 
 func (e *XMySQLExecutor) stageOrSaveAccountFile(session server.MySQLServerSession, file persistedAccountFile) error {
@@ -228,7 +240,10 @@ func sessionAccount(file persistedAccountFile, session server.MySQLServerSession
 		return nil
 	}
 	best := (*persistedAccount)(nil)
-	bestScore := -1
+	// A '%' host pattern is intentionally scored below zero so an exact host
+	// or a more specific wildcard wins. It must still be eligible when it is
+	// the only matching account, however.
+	bestScore := -1 << 60
 	for index := range file.Accounts {
 		account := &file.Accounts[index]
 		if !strings.EqualFold(account.User, user) || !accountHostMatches(host, account.Host) {
@@ -262,6 +277,10 @@ func effectiveAccountGrants(file persistedAccountFile, account persistedAccount,
 	for scope, privileges := range account.Grants {
 		grants[scope] = append([]string(nil), privileges...)
 	}
+	// Dynamic privileges are persisted separately from mysql.user-style static
+	// grants, but they are still global (*.*) privileges for authorization and
+	// INFORMATION_SCHEMA visibility checks.
+	grants["*.*"] = appendUniqueStrings(grants["*.*"], account.GlobalGrants...)
 	addPartialRevokeRestrictions(grants, account.Restrictions)
 	roles := append([]string(nil), account.Roles...)
 	if session != nil {
@@ -287,6 +306,7 @@ func effectiveAccountGrants(file persistedAccountFile, account persistedAccount,
 			for scope, privileges := range role.Grants {
 				grants[scope] = appendUniqueStrings(grants[scope], privileges...)
 			}
+			grants["*.*"] = appendUniqueStrings(grants["*.*"], role.GlobalGrants...)
 			addPartialRevokeRestrictions(grants, role.Restrictions)
 			for _, nested := range role.Roles {
 				mergeRole(nested, depth+1)
@@ -316,9 +336,6 @@ func scopeCovers(requested, granted string) bool {
 }
 
 func grantsContain(grants map[string][]string, scope, wanted string) bool {
-	if partialRevokeDenied(grants, scope, wanted) {
-		return false
-	}
 	for grantedScope, privileges := range grants {
 		if strings.HasPrefix(grantedScope, partialRevokeScopePrefix) {
 			continue
@@ -328,11 +345,70 @@ func grantsContain(grants map[string][]string, scope, wanted string) bool {
 		}
 		for _, privilege := range privileges {
 			if strings.EqualFold(privilege, wanted) || strings.EqualFold(privilege, "ALL") || strings.EqualFold(privilege, "ALL PRIVILEGES") {
+				// A partial revoke restricts the global grant only. Explicit
+				// schema/table/column grants can still restore access inside the
+				// restricted schema, matching MySQL's privilege aggregation rules.
+				if grantedScope == "*.*" && partialRevokeDenied(grants, scope, wanted) {
+					continue
+				}
 				return true
 			}
 		}
 	}
 	return false
+}
+
+// checkGlobalPrivilege applies a global static or dynamic privilege gate to a
+// real authenticated session. Nil sessions are internal execution paths and
+// intentionally remain unrestricted, matching the other compatibility gates.
+func (e *XMySQLExecutor) checkGlobalPrivilege(ctx *ExecutionContext, required string) error {
+	if e == nil || ctx == nil || ctx.Session == nil {
+		return nil
+	}
+	user, _ := ctx.Session.GetParamByName("user").(string)
+	user = strings.TrimSpace(user)
+	if user == "" || strings.EqualFold(user, "root") {
+		return nil
+	}
+	allowSuper := strings.EqualFold(strings.TrimSpace(required), "REPLICATION_SLAVE_ADMIN")
+	if privileges, ok := ctx.Session.GetParamByName("global_privileges").([]common.PrivilegeType); ok {
+		for _, privilege := range privileges {
+			if privilege == common.AllPriv || (allowSuper && privilege == common.SuperPriv) ||
+				(strings.EqualFold(required, "RELOAD") && privilege == common.ReloadPriv) {
+				return nil
+			}
+		}
+	}
+	if dynamicPrivileges, ok := ctx.Session.GetParamByName("dynamic_privileges").([]string); ok {
+		for _, privilege := range dynamicPrivileges {
+			if strings.EqualFold(strings.TrimSpace(privilege), required) {
+				return nil
+			}
+		}
+	}
+
+	host, _ := ctx.Session.GetParamByName("host").(string)
+	host = strings.TrimSpace(host)
+	if host == "" {
+		host = "localhost"
+	}
+	file, err := e.accountFileForSession(ctx)
+	if err != nil {
+		return err
+	}
+	account := sessionAccount(file, ctx.Session)
+	if account == nil {
+		return fmt.Errorf("Access denied; user '%s'@'%s' does not exist", user, host)
+	}
+	grants := effectiveAccountGrants(file, *account, ctx.Session)
+	if grantsContain(grants, "*.*", required) ||
+		(allowSuper && grantsContain(grants, "*.*", "SUPER")) {
+		return nil
+	}
+	if allowSuper {
+		return fmt.Errorf("Access denied; you need the %s or SUPER privilege for this operation", required)
+	}
+	return fmt.Errorf("Access denied; you need the %s privilege for this operation", required)
 }
 
 const partialRevokeScopePrefix = "__xmysql_partial_revoke__:"
@@ -505,6 +581,10 @@ func (e *XMySQLExecutor) isMandatoryRole(user, host string) bool {
 
 func (e *XMySQLExecutor) allGrantedRoles(file persistedAccountFile, account persistedAccount) []string {
 	roles := append([]string(nil), account.Roles...)
+	return e.addMandatoryRoles(file, roles)
+}
+
+func (e *XMySQLExecutor) addMandatoryRoles(file persistedAccountFile, roles []string) []string {
 	for _, mandatory := range e.mandatoryRoles() {
 		for _, candidate := range file.Accounts {
 			if strings.EqualFold(candidate.User+"@"+candidate.Host, mandatory) {
@@ -514,6 +594,25 @@ func (e *XMySQLExecutor) allGrantedRoles(file persistedAccountFile, account pers
 		}
 	}
 	return normalizeRoleList(roles)
+}
+
+// ensureMandatoryRolesActive mirrors MySQL's mandatory_roles behavior: a
+// configured role is active for every session and cannot be removed by SET
+// ROLE NONE or SET ROLE ... EXCEPT. Keep the session parameter authoritative
+// so all existing privilege paths observe the same role set.
+func (e *XMySQLExecutor) ensureMandatoryRolesActive(file persistedAccountFile, session server.MySQLServerSession) {
+	if session == nil || len(e.mandatoryRoles()) == 0 {
+		return
+	}
+	account := sessionAccount(file, session)
+	if account == nil {
+		return
+	}
+	roles := append([]string(nil), account.Roles...)
+	if active, ok := session.GetParamByName("active_roles").([]string); ok {
+		roles = append([]string(nil), active...)
+	}
+	session.SetParamByName("active_roles", e.addMandatoryRoles(file, roles))
 }
 
 func (e *XMySQLExecutor) allGrantedRolesForMandatoryRoles() []string {
@@ -647,13 +746,121 @@ func (e *XMySQLExecutor) executeRoleStatement(ctx *ExecutionContext, lower, quer
 			}
 		}
 	}
-	roles = normalizeRoleList(roles)
+	roles = e.addMandatoryRoles(file, roles)
 	ctx.Session.SetParamByName("active_roles", roles)
 	accountResult(ctx, nil, nil, "Roles set")
 }
 
 func accountResult(ctx *ExecutionContext, columns []string, rows [][]interface{}, message string) {
 	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: newInformationSchemaSelectResult("account", columns, rows), Message: message}
+}
+
+func grantorIdentity(session server.MySQLServerSession) string {
+	if session == nil {
+		return "root@localhost"
+	}
+	user, _ := session.GetParamByName("user").(string)
+	host, _ := session.GetParamByName("host").(string)
+	if strings.TrimSpace(user) == "" {
+		user = "root"
+	}
+	if strings.TrimSpace(host) == "" {
+		host = "localhost"
+	}
+	return strings.TrimSpace(user) + "@" + strings.TrimSpace(host)
+}
+
+func persistedGrantorKey(scope, privilege string) string {
+	return strings.ToLower(strings.TrimSpace(scope)) + "\x00" + strings.ToUpper(strings.TrimSpace(privilege))
+}
+
+func setPersistedGrantor(account *persistedAccount, scope, privilege, grantor string) {
+	if account == nil {
+		return
+	}
+	if account.Grantors == nil {
+		account.Grantors = map[string]string{}
+	}
+	account.Grantors[persistedGrantorKey(scope, privilege)] = grantor
+}
+
+func deletePersistedGrantor(account *persistedAccount, scope, privilege string) {
+	if account == nil {
+		return
+	}
+	delete(account.Grantors, persistedGrantorKey(scope, privilege))
+}
+
+func deletePersistedGrantorsForScope(account *persistedAccount, scope string) {
+	if account == nil {
+		return
+	}
+	prefix := strings.ToLower(strings.TrimSpace(scope)) + "\x00"
+	for key := range account.Grantors {
+		if strings.HasPrefix(key, prefix) {
+			delete(account.Grantors, key)
+		}
+	}
+}
+
+func setPersistedColumnGrantor(account *persistedAccount, scope, privilege, grantor string) {
+	if account == nil {
+		return
+	}
+	if account.ColumnGrantors == nil {
+		account.ColumnGrantors = map[string]string{}
+	}
+	account.ColumnGrantors[persistedGrantorKey(scope, privilege)] = grantor
+}
+
+func deletePersistedColumnGrantor(account *persistedAccount, scope, privilege string) {
+	if account == nil {
+		return
+	}
+	delete(account.ColumnGrantors, persistedGrantorKey(scope, privilege))
+}
+
+func deletePersistedColumnGrantorsForScope(account *persistedAccount, scope string) {
+	if account == nil {
+		return
+	}
+	prefix := strings.ToLower(strings.TrimSpace(scope)) + "\x00"
+	for key := range account.ColumnGrantors {
+		if strings.HasPrefix(key, prefix) {
+			delete(account.ColumnGrantors, key)
+		}
+	}
+}
+
+func persistedGrantor(account persistedAccount, scope, privilege string) string {
+	if grantor := account.Grantors[persistedGrantorKey(scope, privilege)]; strings.TrimSpace(grantor) != "" {
+		return grantor
+	}
+	for _, fallback := range []string{"ALL", "ALL PRIVILEGES"} {
+		if grantor := account.Grantors[persistedGrantorKey(scope, fallback)]; strings.TrimSpace(grantor) != "" {
+			return grantor
+		}
+	}
+	return "root@localhost"
+}
+
+func persistedColumnGrantor(account persistedAccount, scope, privilege string) string {
+	if grantor := account.ColumnGrantors[persistedGrantorKey(scope, privilege)]; strings.TrimSpace(grantor) != "" {
+		return grantor
+	}
+	for _, fallback := range []string{"ALL", "ALL PRIVILEGES"} {
+		if grantor := account.ColumnGrantors[persistedGrantorKey(scope, fallback)]; strings.TrimSpace(grantor) != "" {
+			return grantor
+		}
+	}
+	return "root@localhost"
+}
+
+func persistedRoleGrantor(account persistedAccount, role string) string {
+	if grantor := account.RoleGrantors[strings.ToLower(strings.TrimSpace(role))]; strings.TrimSpace(grantor) != "" {
+		return grantor
+	}
+	return "root@localhost"
 }
 
 func escapeAccountSQL(value string) string {
@@ -1225,6 +1432,7 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 					account.Roles = removeStrings(account.Roles, roleName)
 					account.RoleAdminOptions = removeStrings(account.RoleAdminOptions, roleName)
 					account.DefaultRoles = removeStrings(account.DefaultRoles, roleName)
+					delete(account.RoleGrantors, strings.ToLower(roleName))
 					if account.Grants != nil {
 						delete(account.Grants, fmt.Sprintf("'%s'@'%s'", target[0], target[1]))
 					}
@@ -1273,6 +1481,7 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 				account.Roles = removeStrings(account.Roles, roleName)
 				account.RoleAdminOptions = removeStrings(account.RoleAdminOptions, roleName)
 				account.DefaultRoles = removeStrings(account.DefaultRoles, roleName)
+				delete(account.RoleGrantors, strings.ToLower(roleName))
 			}
 			filtered = append(filtered, account)
 		}
@@ -1319,6 +1528,10 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 				for _, idx := range indices {
 					if isRoleGrant {
 						file.Accounts[idx].Roles = appendUniqueStrings(file.Accounts[idx].Roles, role)
+						if file.Accounts[idx].RoleGrantors == nil {
+							file.Accounts[idx].RoleGrantors = map[string]string{}
+						}
+						file.Accounts[idx].RoleGrantors[strings.ToLower(role)] = grantorIdentity(ctx.Session)
 						if strings.Contains(lower, "with admin option") {
 							file.Accounts[idx].RoleAdminOptions = appendUniqueStrings(file.Accounts[idx].RoleAdminOptions, role)
 						}
@@ -1326,6 +1539,7 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 						file.Accounts[idx].Roles = removeStrings(file.Accounts[idx].Roles, role)
 						file.Accounts[idx].RoleAdminOptions = removeStrings(file.Accounts[idx].RoleAdminOptions, role)
 						file.Accounts[idx].DefaultRoles = removeStrings(file.Accounts[idx].DefaultRoles, role)
+						delete(file.Accounts[idx].RoleGrantors, strings.ToLower(role))
 					}
 				}
 			}
@@ -1346,9 +1560,19 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 			return true
 		}
 		key := strings.Trim(grantMatch[2], "` ")
-		privileges, columnGrants := parseGrantPrivileges(grantMatch[1], key)
+		revokeGrantOptionFor := regexp.MustCompile(`(?is)^revoke\s+grant\s+option\s+for\b`).MatchString(query)
+		privilegeSpec := grantMatch[1]
+		if revokeGrantOptionFor {
+			privilegeSpec = regexp.MustCompile(`(?is)^grant\s+option\s+for\s+`).ReplaceAllString(privilegeSpec, "")
+		}
+		privileges, columnGrants := parseGrantPrivileges(privilegeSpec, key)
 		if strings.Contains(strings.ToLower(query), "with grant option") {
-			privileges = appendUniqueStrings(privileges, "GRANT OPTION")
+			if len(privileges) > 0 {
+				privileges = appendUniqueStrings(privileges, "GRANT OPTION")
+			}
+			for column, names := range columnGrants {
+				columnGrants[column] = appendUniqueStrings(names, "GRANT OPTION")
+			}
 		}
 		if err := validateGrantPrivileges(key, privileges); err != nil {
 			ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
@@ -1392,9 +1616,17 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 				if file.Accounts[idx].ColumnGrants == nil {
 					file.Accounts[idx].ColumnGrants = map[string][]string{}
 				}
-				file.Accounts[idx].Grants[key] = appendUniqueStrings(file.Accounts[idx].Grants[key], privileges...)
+				if len(privileges) > 0 {
+					file.Accounts[idx].Grants[key] = appendUniqueStrings(file.Accounts[idx].Grants[key], privileges...)
+					for _, privilege := range privileges {
+						setPersistedGrantor(&file.Accounts[idx], key, privilege, grantorIdentity(ctx.Session))
+					}
+				}
 				for column, names := range columnGrants {
 					file.Accounts[idx].ColumnGrants[column] = appendUniqueStrings(file.Accounts[idx].ColumnGrants[column], names...)
+					for _, privilege := range names {
+						setPersistedColumnGrantor(&file.Accounts[idx], column, privilege, grantorIdentity(ctx.Session))
+					}
 				}
 				if schema, ok := partialRevokeSchema(key); ok {
 					removePartialRevoke(&file.Accounts[idx], schema, privileges)
@@ -1404,11 +1636,12 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 				syncPartialRevokeUserAttributes(&file.Accounts[idx])
 			}
 		} else {
-			if schema, ok := partialRevokeSchema(key); ok && e.partialRevokesEnabled() {
+			partialSchema, hasPartialSchema := partialRevokeSchema(key)
+			if !revokeGrantOptionFor && hasPartialSchema && e.partialRevokesEnabled() {
 				for _, idx := range indices {
-					addPartialRevoke(&file.Accounts[idx], schema, privileges)
+					addPartialRevoke(&file.Accounts[idx], partialSchema, privileges)
 				}
-			} else if _, ok := partialRevokeSchema(key); ok && !e.partialRevokesEnabled() {
+			} else if !revokeGrantOptionFor && hasPartialSchema && !e.partialRevokesEnabled() {
 				for _, idx := range indices {
 					account := &file.Accounts[idx]
 					for _, privilege := range partialRevokePrivileges(account, privileges) {
@@ -1418,26 +1651,45 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 						}
 					}
 				}
-			} else if strings.EqualFold(key, "*.*") {
+			} else if !revokeGrantOptionFor && strings.EqualFold(key, "*.*") {
 				for _, idx := range indices {
 					removePartialRevoke(&file.Accounts[idx], "", privileges)
 				}
 			}
-			if regexp.MustCompile(`(?is)\ball(?:\s+privileges)?\b`).MatchString(grantMatch[1]) {
+			if revokeGrantOptionFor {
+				for _, idx := range indices {
+					if len(privileges) > 0 {
+						file.Accounts[idx].Grants[key] = removeStrings(file.Accounts[idx].Grants[key], "GRANT OPTION")
+						deletePersistedGrantor(&file.Accounts[idx], key, "GRANT OPTION")
+					}
+					for column := range columnGrants {
+						file.Accounts[idx].ColumnGrants[column] = removeStrings(file.Accounts[idx].ColumnGrants[column], "GRANT OPTION")
+						deletePersistedColumnGrantor(&file.Accounts[idx], column, "GRANT OPTION")
+					}
+				}
+			} else if regexp.MustCompile(`(?is)\ball(?:\s+privileges)?\b`).MatchString(grantMatch[1]) {
 				for _, idx := range indices {
 					delete(file.Accounts[idx].Grants, key)
+					deletePersistedGrantorsForScope(&file.Accounts[idx], key)
 					prefix := key + "."
 					for column := range file.Accounts[idx].ColumnGrants {
 						if strings.HasPrefix(strings.ToLower(column), strings.ToLower(prefix)) {
 							delete(file.Accounts[idx].ColumnGrants, column)
+							deletePersistedColumnGrantorsForScope(&file.Accounts[idx], column)
 						}
 					}
 				}
 			} else {
 				for _, idx := range indices {
 					file.Accounts[idx].Grants[key] = removeStrings(file.Accounts[idx].Grants[key], privileges...)
+					for _, privilege := range privileges {
+						deletePersistedGrantor(&file.Accounts[idx], key, privilege)
+					}
 					for column, names := range columnGrants {
 						file.Accounts[idx].ColumnGrants[column] = removeStrings(file.Accounts[idx].ColumnGrants[column], names...)
+						for _, privilege := range names {
+							deletePersistedColumnGrantor(&file.Accounts[idx], column, privilege)
+						}
 					}
 				}
 			}
@@ -1466,7 +1718,12 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 			if len(privileges) > 0 {
 				parts := strings.Split(key, ".")
 				if len(parts) == 3 {
-					rows = append(rows, []interface{}{fmt.Sprintf("GRANT %s (%s) ON %s TO '%s'@'%s'", strings.Join(privileges, ", "), parts[2], strings.Join(parts[:2], "."), user, host)})
+					grantText := strings.Join(displayGrantPrivileges(privileges), ", ")
+					grantOptionSuffix := ""
+					if hasGrantOption(privileges) {
+						grantOptionSuffix = " WITH GRANT OPTION"
+					}
+					rows = append(rows, []interface{}{fmt.Sprintf("GRANT %s (%s) ON %s TO '%s'@'%s'%s", grantText, parts[2], strings.Join(parts[:2], "."), user, host, grantOptionSuffix)})
 				}
 			}
 		}
@@ -1644,7 +1901,17 @@ func parseGrantPrivileges(raw, scope string) ([]string, map[string][]string) {
 	})
 	privileges := splitGrantPrivileges(plain)
 	if grantOption {
-		privileges = appendUniqueStrings(privileges, "GRANT OPTION")
+		// A column grant's WITH GRANT OPTION belongs to the column
+		// privilege itself. Do not manufacture a table-level GRANT OPTION
+		// row when the statement contains only column privileges. For mixed
+		// table/column grants, retain the option at both scopes because it
+		// applies to each granted privilege.
+		if len(privileges) > 0 {
+			privileges = appendUniqueStrings(privileges, "GRANT OPTION")
+		}
+		for column, names := range columns {
+			columns[column] = appendUniqueStrings(names, "GRANT OPTION")
+		}
 	}
 	return privileges, columns
 }

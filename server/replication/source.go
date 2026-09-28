@@ -10,34 +10,85 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 type Source struct {
-	mu              sync.Mutex
-	UUID            string
-	Writer          *BinlogWriter
-	Executed        GTIDSet
-	nextSeq         uint64
-	statePath       string
-	keyPath         string
-	transactionKeys map[string]GTID
+	mu               sync.Mutex
+	UUID             string
+	Writer           *BinlogWriter
+	Executed         GTIDSet
+	nextSeq          uint64
+	statePath        string
+	durableStatePath string
+	keyPath          string
+	transactionKeys  map[string]GTID
+	preparedXA       map[string]GTID
+	preparedKeys     map[string]GTID
+	// durableStateHook is test-only fault injection for the crash window
+	// between the logical/native binlog append and source state replacement.
+	durableStateHook func() error
 }
+
+// sourceDurableState keeps the GTID execution set and keyed-transaction
+// identity map in one atomic replacement. The legacy files remain as mirrors
+// for compatibility with existing installations, but this file is the
+// recovery source of truth for the crash window between those mirrors.
+type sourceDurableState struct {
+	Executed        GTIDSet         `json:"executed"`
+	TransactionKeys map[string]GTID `json:"transaction_keys"`
+	PreparedXA      map[string]GTID `json:"prepared_xa,omitempty"`
+	PreparedKeys    map[string]GTID `json:"prepared_keys,omitempty"`
+}
+
+// replicationFileSyncHook is test-only fault injection for the durability
+// boundary between writing a replacement state file and renaming it into
+// place.
+var replicationFileSyncHook func(*os.File) error
 
 func NewSource(dataDir, uuid string, serverID uint32) (*Source, error) {
 	statePath := filepath.Join(dataDir, "replication", "source_gtid.json")
+	durableStatePath := filepath.Join(dataDir, "replication", "source_state.json")
 	writer, err := NewBinlogWriter(filepath.Join(dataDir, "replication", "binlog.jsonl"), serverID)
 	if err != nil {
 		return nil, err
 	}
-	source := &Source{UUID: uuid, Writer: writer, Executed: GTIDSet{}, nextSeq: 1, statePath: statePath, keyPath: filepath.Join(dataDir, "replication", "source_transaction_keys.json"), transactionKeys: map[string]GTID{}}
-	if raw, err := os.ReadFile(statePath); err == nil {
-		_ = json.Unmarshal(raw, &source.Executed)
+	source := &Source{UUID: uuid, Writer: writer, Executed: GTIDSet{}, nextSeq: 1, statePath: statePath, durableStatePath: durableStatePath, keyPath: filepath.Join(dataDir, "replication", "source_transaction_keys.json"), transactionKeys: map[string]GTID{}, preparedXA: map[string]GTID{}, preparedKeys: map[string]GTID{}}
+	loadedDurableState := false
+	if raw, err := os.ReadFile(source.durableStatePath); err == nil {
+		var durable sourceDurableState
+		if json.Unmarshal(raw, &durable) == nil && (durable.Executed != nil || durable.TransactionKeys != nil || durable.PreparedXA != nil || durable.PreparedKeys != nil) {
+			if durable.Executed != nil {
+				source.Executed = durable.Executed
+			}
+			if durable.TransactionKeys != nil {
+				source.transactionKeys = durable.TransactionKeys
+			}
+			if durable.PreparedXA != nil {
+				source.preparedXA = durable.PreparedXA
+			}
+			if durable.PreparedKeys != nil {
+				source.preparedKeys = durable.PreparedKeys
+			}
+			loadedDurableState = true
+		}
 	}
-	if raw, err := os.ReadFile(source.keyPath); err == nil {
-		_ = json.Unmarshal(raw, &source.transactionKeys)
+	if !loadedDurableState {
+		if raw, err := os.ReadFile(statePath); err == nil {
+			_ = json.Unmarshal(raw, &source.Executed)
+		}
+		if raw, err := os.ReadFile(source.keyPath); err == nil {
+			_ = json.Unmarshal(raw, &source.transactionKeys)
+		}
 	}
 	if source.transactionKeys == nil {
 		source.transactionKeys = map[string]GTID{}
+	}
+	if source.preparedXA == nil {
+		source.preparedXA = map[string]GTID{}
+	}
+	if source.preparedKeys == nil {
+		source.preparedKeys = map[string]GTID{}
 	}
 	// Reconcile the durable binlog on startup. This closes the crash window
 	// between a successful binlog append and GTID state-file replacement.
@@ -46,12 +97,71 @@ func NewSource(dataDir, uuid string, serverID uint32) (*Source, error) {
 		return nil, err
 	}
 	for _, event := range committed {
-		if event.Type == EventCommit {
+		switch event.Type {
+		case EventXAPrepare:
+			if event.OnePhase {
+				source.Executed.Add(event.GTID)
+				if strings.TrimSpace(event.TransactionKey) != "" {
+					source.transactionKeys[event.TransactionKey] = event.GTID
+				}
+			} else {
+				if event.XA != nil {
+					source.preparedXA[event.XA.Key()] = event.GTID
+				}
+				if strings.TrimSpace(event.TransactionKey) != "" {
+					source.preparedKeys[event.TransactionKey] = event.GTID
+				}
+			}
+			if event.GTID.UUID == uuid && event.GTID.Seq >= source.nextSeq {
+				source.nextSeq = event.GTID.Seq + 1
+			}
+		case EventXACommit:
+			if event.XA != nil {
+				delete(source.preparedXA, event.XA.Key())
+			}
+			if strings.TrimSpace(event.TransactionKey) != "" {
+				delete(source.preparedKeys, event.TransactionKey)
+			}
 			source.Executed.Add(event.GTID)
+			if event.TerminalGTID != nil {
+				source.Executed.Add(*event.TerminalGTID)
+			}
+			if strings.TrimSpace(event.TransactionKey) != "" {
+				committedGTID := event.GTID
+				if event.TerminalGTID != nil {
+					committedGTID = *event.TerminalGTID
+				}
+				source.transactionKeys[event.TransactionKey] = committedGTID
+			}
+			if event.GTID.UUID == uuid && event.GTID.Seq >= source.nextSeq {
+				source.nextSeq = event.GTID.Seq + 1
+			}
+			if event.TerminalGTID != nil && event.TerminalGTID.UUID == uuid && event.TerminalGTID.Seq >= source.nextSeq {
+				source.nextSeq = event.TerminalGTID.Seq + 1
+			}
+		case EventXARollback:
+			if event.XA != nil {
+				delete(source.preparedXA, event.XA.Key())
+			}
+			if strings.TrimSpace(event.TransactionKey) != "" {
+				delete(source.preparedKeys, event.TransactionKey)
+			}
+			source.Executed.Add(event.GTID)
+			if event.TerminalGTID != nil {
+				source.Executed.Add(*event.TerminalGTID)
+			}
+		case EventCommit:
+			source.Executed.Add(event.GTID)
+			if strings.TrimSpace(event.TransactionKey) != "" {
+				source.transactionKeys[event.TransactionKey] = event.GTID
+			}
 			if event.GTID.UUID == uuid && event.GTID.Seq >= source.nextSeq {
 				source.nextSeq = event.GTID.Seq + 1
 			}
 		}
+	}
+	if err := source.persistDurableState(); err != nil {
+		return nil, err
 	}
 	return source, nil
 }
@@ -70,6 +180,10 @@ func (source *Source) AppendTransaction(seq uint64, changes []RowChange, stateme
 }
 
 func (source *Source) appendTransactionLocked(seq uint64, changes []RowChange, statements []Statement) ([]BinlogEvent, error) {
+	return source.appendTransactionLockedWithKey(seq, changes, statements, "")
+}
+
+func (source *Source) appendTransactionLockedWithKey(seq uint64, changes []RowChange, statements []Statement, key string) ([]BinlogEvent, error) {
 	if seq == 0 {
 		seq = source.nextSeq
 	}
@@ -77,18 +191,21 @@ func (source *Source) appendTransactionLocked(seq uint64, changes []RowChange, s
 	if source.Executed.Contains(gtid) {
 		return nil, nil
 	}
-	events, err := source.Writer.AppendTransaction(gtid, changes, statements)
+	events, err := source.Writer.AppendTransactionWithKey(gtid, changes, statements, key)
 	if err != nil {
 		return nil, err
 	}
 	next := cloneGTIDSet(source.Executed)
 	next.Add(gtid)
-	if err := source.persistSet(next); err != nil {
-		return nil, err
-	}
 	source.Executed = next
 	if seq >= source.nextSeq {
 		source.nextSeq = seq + 1
+	}
+	if key != "" {
+		source.transactionKeys[key] = gtid
+	}
+	if err := source.persistDurableState(); err != nil {
+		return nil, err
 	}
 	return events, nil
 }
@@ -127,15 +244,283 @@ func (source *Source) AppendCommittedTransactionWithKey(key string, changes []Ro
 	if gtid, ok := source.transactionKeys[key]; ok && !source.Executed.Contains(gtid) {
 		delete(source.transactionKeys, key)
 	}
-	if _, err := source.appendTransactionLocked(0, changes, statements); err != nil {
+	events, err := source.appendTransactionLockedWithKey(0, changes, statements, key)
+	if err != nil {
 		return nil, err
 	}
-	gtid := GTID{UUID: source.UUID, Seq: source.nextSeq - 1}
-	source.transactionKeys[key] = gtid
-	if err := source.persistTransactionKeys(); err != nil {
-		return nil, err
+	return events, nil
+}
+
+// AppendOnePhaseXATransaction appends the native XA_PREPARE_EVENT form for
+// XA COMMIT ... ONE PHASE. The one-phase event is already committed and is
+// therefore added to Executed without entering preparedXA.
+func (source *Source) AppendOnePhaseXATransaction(key string, xid XAIdentity, changes []RowChange, statements []Statement) error {
+	if err := source.validateReady(); err != nil {
+		return err
 	}
-	return nil, nil
+	if strings.TrimSpace(xid.GTRID) == "" {
+		return fmt.Errorf("XA one-phase commit requires a non-empty gtrid")
+	}
+	key = strings.TrimSpace(key)
+	source.mu.Lock()
+	defer source.mu.Unlock()
+	if key != "" {
+		if gtid, ok := source.transactionKeys[key]; ok && source.Executed.Contains(gtid) {
+			return nil
+		}
+		if _, ok := source.transactionKeys[key]; ok {
+			delete(source.transactionKeys, key)
+		}
+	}
+	gtid := GTID{UUID: source.UUID, Seq: source.nextSeq}
+	if _, err := source.Writer.AppendOnePhaseXATransaction(gtid, changes, statements, xid, key); err != nil {
+		return err
+	}
+	source.Executed.Add(gtid)
+	if key != "" {
+		source.transactionKeys[key] = gtid
+	}
+	if source.nextSeq <= gtid.Seq {
+		source.nextSeq = gtid.Seq + 1
+	}
+	return source.persistDurableState()
+}
+
+// PrepareXATransaction appends the durable logical/native XA PREPARE
+// boundary. The allocated GTID is reserved but is not added to Executed until
+// CommitXATransaction succeeds.
+func (source *Source) PrepareXATransaction(key string, xid XAIdentity, changes []RowChange, statements []Statement) error {
+	if err := source.validateReady(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(xid.GTRID) == "" {
+		return fmt.Errorf("XA prepare requires a non-empty gtrid")
+	}
+	source.mu.Lock()
+	defer source.mu.Unlock()
+	xaKey := xid.Key()
+	key = strings.TrimSpace(key)
+	if gtid, ok := source.preparedXA[xaKey]; ok {
+		if key == "" || source.preparedKeys[key] == gtid {
+			return nil
+		}
+		return fmt.Errorf("XA transaction %s is already prepared", xaKey)
+	}
+	if key != "" {
+		if gtid, ok := source.preparedKeys[key]; ok {
+			return fmt.Errorf("transaction key %q is already prepared for GTID %s", key, gtid.String())
+		}
+		if gtid, ok := source.transactionKeys[key]; ok && source.Executed.Contains(gtid) {
+			return nil
+		}
+		if _, ok := source.transactionKeys[key]; ok {
+			return fmt.Errorf("transaction key %q is already in use", key)
+		}
+	}
+	gtid := GTID{UUID: source.UUID, Seq: source.nextSeq}
+	if _, err := source.Writer.AppendXAPrepare(gtid, changes, statements, xid, key); err != nil {
+		return err
+	}
+	source.preparedXA[xaKey] = gtid
+	if key != "" {
+		source.preparedKeys[key] = gtid
+	}
+	if source.nextSeq <= gtid.Seq {
+		source.nextSeq = gtid.Seq + 1
+	}
+	return source.persistDurableState()
+}
+
+// ImportPreparedXA carries unresolved XA branches from a replica into a new
+// source during promotion. The prepared GTID remains the upstream identity so
+// a later XA COMMIT can complete the same transaction instead of allocating a
+// new local transaction or silently losing the in-doubt branch.
+func (source *Source) ImportPreparedXA(prepared map[string]BinlogEvent) error {
+	if err := source.validateReady(); err != nil {
+		return err
+	}
+	source.mu.Lock()
+	defer source.mu.Unlock()
+	for _, event := range prepared {
+		if event.XA == nil {
+			return fmt.Errorf("prepared XA event is missing XID")
+		}
+		if event.GTID.UUID == "" || event.GTID.Seq == 0 {
+			return fmt.Errorf("prepared XA event has invalid GTID %s", event.GTID.String())
+		}
+		xaKey := event.XA.Key()
+		if existing, ok := source.preparedXA[xaKey]; ok {
+			if existing == event.GTID {
+				continue
+			}
+			return fmt.Errorf("prepared XA transaction %s conflicts with GTID %s", xaKey, existing.String())
+		}
+		if source.Executed.Contains(event.GTID) {
+			continue
+		}
+		transactionKey := strings.TrimSpace(event.TransactionKey)
+		if transactionKey != "" {
+			if existing, ok := source.preparedKeys[transactionKey]; ok && existing != event.GTID {
+				return fmt.Errorf("prepared transaction key %q conflicts with GTID %s", transactionKey, existing.String())
+			}
+		}
+		if _, err := source.Writer.AppendXAPrepare(event.GTID, event.Changes, event.Statements, *event.XA, event.TransactionKey); err != nil {
+			return err
+		}
+		source.preparedXA[xaKey] = event.GTID
+		if transactionKey != "" {
+			source.preparedKeys[transactionKey] = event.GTID
+		}
+		if event.GTID.UUID == source.UUID && event.GTID.Seq >= source.nextSeq {
+			source.nextSeq = event.GTID.Seq + 1
+		}
+	}
+	return source.persistDurableState()
+}
+
+// ImportRelayEvents restores the durable relay history on a newly promoted
+// source. The GTIDs remain upstream identities, while the native frames are
+// regenerated under the promoted server-id so both logical and native
+// consumers can continue from the recovered history.
+func (source *Source) ImportRelayEvents(events []BinlogEvent) error {
+	if err := source.validateReady(); err != nil {
+		return err
+	}
+	source.mu.Lock()
+	defer source.mu.Unlock()
+	if err := source.Writer.ImportEvents(events); err != nil {
+		return err
+	}
+	for _, event := range events {
+		switch event.Type {
+		case EventXAPrepare:
+			if event.OnePhase {
+				source.Executed.Add(event.GTID)
+				if key := strings.TrimSpace(event.TransactionKey); key != "" {
+					source.transactionKeys[key] = event.GTID
+				}
+			} else {
+				if event.XA != nil {
+					source.preparedXA[event.XA.Key()] = event.GTID
+				}
+				if key := strings.TrimSpace(event.TransactionKey); key != "" {
+					source.preparedKeys[key] = event.GTID
+				}
+			}
+		case EventXACommit:
+			if event.XA != nil {
+				delete(source.preparedXA, event.XA.Key())
+			}
+			if key := strings.TrimSpace(event.TransactionKey); key != "" {
+				delete(source.preparedKeys, key)
+				committedGTID := event.GTID
+				if event.TerminalGTID != nil {
+					committedGTID = *event.TerminalGTID
+				}
+				source.transactionKeys[key] = committedGTID
+			}
+			source.Executed.Add(event.GTID)
+			if event.TerminalGTID != nil {
+				source.Executed.Add(*event.TerminalGTID)
+			}
+		case EventXARollback:
+			if event.XA != nil {
+				delete(source.preparedXA, event.XA.Key())
+			}
+			if key := strings.TrimSpace(event.TransactionKey); key != "" {
+				delete(source.preparedKeys, key)
+			}
+			source.Executed.Add(event.GTID)
+			if event.TerminalGTID != nil {
+				source.Executed.Add(*event.TerminalGTID)
+			}
+		case EventCommit:
+			source.Executed.Add(event.GTID)
+			if key := strings.TrimSpace(event.TransactionKey); key != "" {
+				source.transactionKeys[key] = event.GTID
+			}
+		}
+		if event.GTID.UUID == source.UUID && event.GTID.Seq >= source.nextSeq {
+			source.nextSeq = event.GTID.Seq + 1
+		}
+		if event.TerminalGTID != nil && event.TerminalGTID.UUID == source.UUID && event.TerminalGTID.Seq >= source.nextSeq {
+			source.nextSeq = event.TerminalGTID.Seq + 1
+		}
+	}
+	return source.persistDurableState()
+}
+
+// CommitXATransaction appends XA COMMIT for a previously prepared XID and
+// atomically advances the source's executed GTID/key state. Repeating the
+// same commit is a no-op after the durable commit event has been observed.
+func (source *Source) CommitXATransaction(key string, xid XAIdentity) error {
+	if err := source.validateReady(); err != nil {
+		return err
+	}
+	source.mu.Lock()
+	defer source.mu.Unlock()
+	key = strings.TrimSpace(key)
+	preparedGTID, ok := source.preparedXA[xid.Key()]
+	if !ok {
+		if strings.TrimSpace(key) != "" {
+			if committed, exists := source.transactionKeys[key]; exists && source.Executed.Contains(committed) {
+				return nil
+			}
+		}
+		return fmt.Errorf("XA transaction %s is not prepared", xid.Key())
+	}
+	terminalGTID := GTID{UUID: source.UUID, Seq: source.nextSeq}
+	if _, err := source.Writer.AppendXACommitWithPreparedGTID(terminalGTID, preparedGTID, xid, key); err != nil {
+		return err
+	}
+	delete(source.preparedXA, xid.Key())
+	source.Executed.Add(preparedGTID)
+	source.Executed.Add(terminalGTID)
+	if key != "" {
+		delete(source.preparedKeys, key)
+		source.transactionKeys[key] = terminalGTID
+	}
+	if source.nextSeq <= terminalGTID.Seq {
+		source.nextSeq = terminalGTID.Seq + 1
+	}
+	return source.persistDurableState()
+}
+
+// RollbackXATransaction appends XA ROLLBACK and publishes both the reserved
+// prepare GTID and the separate terminal GTID. No row changes are applied.
+func (source *Source) RollbackXATransaction(key string, xid XAIdentity) error {
+	if err := source.validateReady(); err != nil {
+		return err
+	}
+	source.mu.Lock()
+	defer source.mu.Unlock()
+	key = strings.TrimSpace(key)
+	preparedGTID, ok := source.preparedXA[xid.Key()]
+	if !ok {
+		if key != "" {
+			if rolledBack, exists := source.transactionKeys[key]; exists && source.Executed.Contains(rolledBack) {
+				return nil
+			}
+		}
+		return fmt.Errorf("XA transaction %s is not prepared", xid.Key())
+	}
+	terminalGTID := GTID{UUID: source.UUID, Seq: source.nextSeq}
+	if _, err := source.Writer.AppendXARollbackWithPreparedGTID(terminalGTID, preparedGTID, xid, key); err != nil {
+		return err
+	}
+	delete(source.preparedXA, xid.Key())
+	if key != "" {
+		delete(source.preparedKeys, key)
+	}
+	source.Executed.Add(preparedGTID)
+	source.Executed.Add(terminalGTID)
+	if key != "" {
+		source.transactionKeys[key] = terminalGTID
+	}
+	if source.nextSeq <= terminalGTID.Seq {
+		source.nextSeq = terminalGTID.Seq + 1
+	}
+	return source.persistDurableState()
 }
 
 func (source *Source) Dump(position uint64) ([]BinlogEvent, error) {
@@ -388,6 +773,7 @@ func (source *Source) NativeDumpFileWithIntervals(logName string, position uint6
 	currentGTID := uint64(0)
 	skipTransaction := false
 	partialTransaction := false
+	skipByPosition := false
 	result := make([]NativeBinlogEvent, 0, len(events))
 	for _, event := range events {
 		if event.EndPosition > next {
@@ -407,6 +793,7 @@ func (source *Source) NativeDumpFileWithIntervals(logName string, position uint6
 			}
 			currentGTID = seq
 			partialTransaction = position > event.Position
+			skipByPosition = partialTransaction
 			skipTransaction = partialTransaction || nativeGTIDSetContainsBody(executed, body, seq)
 			if !skipTransaction {
 				result = appendNativeEventAtPosition(result, event, position)
@@ -421,6 +808,7 @@ func (source *Source) NativeDumpFileWithIntervals(logName string, position uint6
 			}
 			currentGTID = gtid.Seq
 			partialTransaction = position > event.Position
+			skipByPosition = partialTransaction
 			skipTransaction = partialTransaction || logicalGTIDSetContains(executed, gtid)
 			if !skipTransaction {
 				result = appendNativeEventAtPosition(result, event, position)
@@ -432,6 +820,7 @@ func (source *Source) NativeDumpFileWithIntervals(logName string, position uint6
 			gtid := nativeAnonymousGTID(event, event.Raw)
 			currentGTID = gtid.Seq
 			partialTransaction = position > event.Position
+			skipByPosition = partialTransaction
 			skipTransaction = partialTransaction || logicalGTIDSetContains(executed, gtid)
 			if !skipTransaction {
 				result = appendNativeEventAtPosition(result, event, position)
@@ -439,6 +828,31 @@ func (source *Source) NativeDumpFileWithIntervals(logName string, position uint6
 			if executed != nil {
 				executed.Add(gtid.UUID, gtid.Seq)
 			}
+		case 2: // QUERY_EVENT, including the terminal query of a native XA branch.
+			body := nativeEventBody(event)
+			statement, _, queryErr := decodeNativeQuery(body)
+			if queryErr != nil {
+				return nil, next, queryErr
+			}
+			if _, _, ok := nativeXAQuery(statement); ok {
+				// XA COMMIT/ROLLBACK is a terminal event after XA_PREPARE,
+				// not a second row transaction. A position immediately after
+				// PREPARE must therefore retain it even though the preceding
+				// GTID transaction began before the resume point. A GTID that
+				// is already executed still suppresses the terminal event.
+				if !(skipTransaction && !skipByPosition) || skipByPosition {
+					result = appendNativeEventAtPosition(result, event, position)
+				}
+				currentGTID = 0
+				skipTransaction = false
+				partialTransaction = false
+				skipByPosition = false
+				continue
+			}
+			if currentGTID == 0 || skipTransaction {
+				continue
+			}
+			result = appendNativeEventAtPosition(result, event, position)
 		case 16: // XID_EVENT
 			if !skipTransaction {
 				result = appendNativeEventAtPosition(result, event, position)
@@ -446,6 +860,7 @@ func (source *Source) NativeDumpFileWithIntervals(logName string, position uint6
 			currentGTID = 0
 			skipTransaction = false
 			partialTransaction = false
+			skipByPosition = false
 		default:
 			if currentGTID != 0 && skipTransaction {
 				continue
@@ -752,25 +1167,86 @@ func (source *Source) Rotate() (BinlogEvent, error) {
 // ResetMaster atomically resets the source's durable logical binlog and GTID
 // execution history to an empty stream.
 func (source *Source) ResetMaster() error {
+	return source.ResetMasterTo(1)
+}
+
+// ResetMasterTo is the source-side implementation of MySQL 8.4's RESET
+// BINARY LOGS AND GTIDS [TO n]. It resets logical/GTID state and starts the
+// native binlog sequence at the requested index.
+func (source *Source) ResetMasterTo(index uint32) error {
 	if source == nil || source.Writer == nil {
 		return nil
 	}
+	if index == 0 {
+		return fmt.Errorf("binlog reset file index must be greater than zero")
+	}
 	source.mu.Lock()
 	defer source.mu.Unlock()
-	if err := source.Writer.Reset(); err != nil {
+	if err := source.Writer.ResetTo(index); err != nil {
 		return err
 	}
 	source.Executed = GTIDSet{}
 	source.nextSeq = 1
 	source.transactionKeys = map[string]GTID{}
+	source.preparedXA = map[string]GTID{}
+	source.preparedKeys = map[string]GTID{}
+	return source.persistDurableState()
+}
+
+// PurgeBinaryLogsTo removes native binlog files older than the requested
+// target while preserving the target and the current source coordinates.
+func (source *Source) PurgeBinaryLogsTo(logName string) error {
+	if source == nil || source.Writer == nil {
+		return nil
+	}
+	source.mu.Lock()
+	defer source.mu.Unlock()
+	return source.Writer.PurgeTo(logName)
+}
+
+// PurgeBinaryLogsBefore removes source native binlog files older than the
+// requested timestamp while retaining the file that crosses the cutoff.
+func (source *Source) PurgeBinaryLogsBefore(cutoff time.Time) error {
+	if source == nil || source.Writer == nil {
+		return nil
+	}
+	source.mu.Lock()
+	defer source.mu.Unlock()
+	return source.Writer.PurgeBefore(cutoff)
+}
+
+func (source *Source) persist() error {
+	return source.persistDurableState()
+}
+
+func (source *Source) persistDurableState() error {
+	if source.durableStateHook != nil {
+		if err := source.durableStateHook(); err != nil {
+			return err
+		}
+	}
+	if err := os.MkdirAll(filepath.Dir(source.durableStatePath), 0755); err != nil {
+		return err
+	}
+	durable := sourceDurableState{
+		Executed:        cloneGTIDSet(source.Executed),
+		TransactionKeys: cloneTransactionKeys(source.transactionKeys),
+		PreparedXA:      cloneTransactionKeys(source.preparedXA),
+		PreparedKeys:    cloneTransactionKeys(source.preparedKeys),
+	}
+	raw, err := json.MarshalIndent(durable, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := writeReplicationFileAtomic(source.durableStatePath, raw); err != nil {
+		return err
+	}
+	// Preserve the pre-existing files for tools and upgrades that still read
+	// them directly. They are deliberately written after the atomic state.
 	if err := source.persistSet(source.Executed); err != nil {
 		return err
 	}
 	return source.persistTransactionKeys()
-}
-
-func (source *Source) persist() error {
-	return source.persistSet(source.Executed)
 }
 
 func (source *Source) persistSet(set GTIDSet) error {
@@ -806,9 +1282,36 @@ func cloneGTIDSet(source GTIDSet) GTIDSet {
 	return clone
 }
 
+func cloneTransactionKeys(source map[string]GTID) map[string]GTID {
+	clone := map[string]GTID{}
+	for key, gtid := range source {
+		clone[key] = gtid
+	}
+	return clone
+}
+
 func writeReplicationFileAtomic(path string, raw []byte) error {
 	temporary := path + ".tmp"
-	if err := os.WriteFile(temporary, raw, 0644); err != nil {
+	file, err := os.OpenFile(temporary, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(temporary)
+	if _, err := file.Write(raw); err != nil {
+		_ = file.Close()
+		return err
+	}
+	if err := file.Sync(); err != nil {
+		_ = file.Close()
+		return err
+	}
+	if replicationFileSyncHook != nil {
+		if err := replicationFileSyncHook(file); err != nil {
+			_ = file.Close()
+			return err
+		}
+	}
+	if err := file.Close(); err != nil {
 		return err
 	}
 	if err := os.Rename(temporary, path); err != nil {

@@ -24,3 +24,20 @@ func TestGTIDFunctionsRejectInvalidIntervals(t *testing.T) {
 		t.Fatal("GTID_SUBTRACT should reject reversed interval")
 	}
 }
+
+func TestTaggedGTIDSubsetAndSubtractKeepTags(t *testing.T) {
+	got, err := evalGTIDFunction("GTID_SUBSET", []interface{}{
+		"uuid:Domain_1:1-3:8,uuid:Domain_2:1-2",
+		"uuid:Domain_1:1-10,uuid:Domain_2:1-3",
+	})
+	if err != nil || got != int64(1) {
+		t.Fatalf("tagged GTID_SUBSET = %#v, %v; want 1", got, err)
+	}
+	got, err = evalGTIDFunction("GTID_SUBTRACT", []interface{}{
+		"uuid:Domain_1:1-10,uuid:Domain_2:4-8",
+		"uuid:Domain_1:3-5,uuid:Domain_2:6",
+	})
+	if err != nil || got != "uuid:Domain_1:1-2:6-10,uuid:Domain_2:4-5:7-8" {
+		t.Fatalf("tagged GTID_SUBTRACT = %#v, %v", got, err)
+	}
+}

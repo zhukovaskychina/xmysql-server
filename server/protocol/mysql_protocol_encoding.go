@@ -320,7 +320,19 @@ func EncodeEOFPacketWithSeq(warnings uint16, statusFlags uint16, seq byte) []byt
 
 // EncodeOKPacketWithSeq 编码 OK 包（包含 MySQL 包头）
 func EncodeOKPacketWithSeq(affectedRows, lastInsertID uint64, statusFlags, warnings uint16, seq byte) []byte {
-	payload := []byte{0x00} // OK marker
+	return encodeOKPacketWithHeader(0x00, affectedRows, lastInsertID, statusFlags, warnings, seq)
+}
+
+// EncodeResultsetOKPacketWithSeq encodes the OK marker that terminates a
+// result set when CLIENT_DEPRECATE_EOF is negotiated. MySQL deliberately uses
+// 0xFE here so clients can distinguish the terminator from a text-protocol
+// row whose first value may begin with 0x00.
+func EncodeResultsetOKPacketWithSeq(affectedRows, lastInsertID uint64, statusFlags, warnings uint16, seq byte) []byte {
+	return encodeOKPacketWithHeader(0xFE, affectedRows, lastInsertID, statusFlags, warnings, seq)
+}
+
+func encodeOKPacketWithHeader(header byte, affectedRows, lastInsertID uint64, statusFlags, warnings uint16, seq byte) []byte {
+	payload := []byte{header}
 
 	// affected_rows (lenenc-int)
 	payload = appendLenEncInt(payload, affectedRows)

@@ -21,18 +21,24 @@ import (
 // MySQL metadata-lock subsystem; it protects the in-process executor while a
 // metadata ALTER is being applied.
 type tableDDLCoordinator struct {
-	mu    sync.Mutex
-	locks map[string]*tableDDLTableLock
+	mu               sync.Mutex
+	locks            map[string]*tableDDLTableLock
+	waitInstrumented bool
+	waitTimed        bool
 }
 
 type tableDDLTableLock struct {
-	readBarrier  sync.RWMutex
-	writeBarrier sync.RWMutex
-	stateMu      sync.Mutex
-	owners       map[string]metadataLockOwner
-	waiters      map[string]metadataLockWaiter
-	history      []MetadataLockWaitEdge
-	waitSummary  []MetadataLockWaitEdge
+	readBarrier      sync.RWMutex
+	writeBarrier     sync.RWMutex
+	stateMu          sync.Mutex
+	owners           map[string]metadataLockOwner
+	waiters          map[string]metadataLockWaiter
+	history          []MetadataLockWaitEdge
+	historyLong      []MetadataLockWaitEdge
+	waitSummary      []MetadataLockWaitEdge
+	tableLockSummary []MetadataLockWaitEdge
+	waitInstrumented bool
+	waitTimed        bool
 }
 
 const metadataLockWaitHistoryLimit = 128
@@ -74,6 +80,8 @@ type MetadataLockWaitEdge struct {
 	BlockingMode  tableLockMode
 	WaitStarted   time.Time
 	WaitDuration  time.Duration
+	Instrumented  bool
+	Timed         bool
 }
 
 type tableLockMode string
@@ -131,7 +139,7 @@ func (l *sessionTableLockLease) release() {
 }
 
 func newTableDDLCoordinator() *tableDDLCoordinator {
-	return &tableDDLCoordinator{locks: make(map[string]*tableDDLTableLock)}
+	return &tableDDLCoordinator{locks: make(map[string]*tableDDLTableLock), waitInstrumented: true, waitTimed: true}
 }
 
 func (c *tableDDLCoordinator) lockFor(table string) *tableDDLTableLock {
@@ -144,9 +152,38 @@ func (c *tableDDLCoordinator) lockFor(table string) *tableDDLTableLock {
 	if lock := c.locks[key]; lock != nil {
 		return lock
 	}
-	lock := &tableDDLTableLock{owners: make(map[string]metadataLockOwner), waiters: make(map[string]metadataLockWaiter)}
+	lock := &tableDDLTableLock{
+		owners: make(map[string]metadataLockOwner), waiters: make(map[string]metadataLockWaiter),
+		waitInstrumented: c.waitInstrumented, waitTimed: c.waitTimed,
+	}
 	c.locks[key] = lock
 	return lock
+}
+
+// SetPerformanceSchemaWaitInstrumentation updates metadata-lock wait capture
+// settings for future completed waits. Existing history edges retain their
+// event-time snapshot.
+func (c *tableDDLCoordinator) SetPerformanceSchemaWaitInstrumentation(enabled, timed bool) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	c.waitInstrumented = enabled
+	c.waitTimed = timed
+	locks := make([]*tableDDLTableLock, 0, len(c.locks))
+	for _, lock := range c.locks {
+		locks = append(locks, lock)
+	}
+	c.mu.Unlock()
+	for _, lock := range locks {
+		if lock == nil {
+			continue
+		}
+		lock.stateMu.Lock()
+		lock.waitInstrumented = enabled
+		lock.waitTimed = timed
+		lock.stateMu.Unlock()
+	}
 }
 
 func (l *tableDDLTableLock) RLock()        { l.readBarrier.RLock() }
@@ -265,6 +302,9 @@ func (l *tableDDLTableLock) lockWithContextOwned(ctx context.Context, mode table
 		waited = true
 		select {
 		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				observabilitymetrics.DefaultRuntimeRecorder().RecordLockTimeout()
+			}
 			return ctx.Err()
 		case <-interval.C:
 		}
@@ -288,11 +328,17 @@ func (l *tableDDLTableLock) recordWaitHistoryLocked(waitingOwner string, waiting
 			WaitingOwner: waitingOwner, BlockingOwner: blockingOwner,
 			WaitingMode: waiting.mode, BlockingMode: waiting.blockers[blockingOwner],
 			WaitStarted: waiting.waitStarted, WaitDuration: duration,
+			Instrumented: l.waitInstrumented, Timed: l.waitTimed,
 		}
 		l.waitSummary = append(l.waitSummary, edge)
+		l.tableLockSummary = append(l.tableLockSummary, edge)
 		l.history = append(l.history, edge)
 		if len(l.history) > metadataLockWaitHistoryLimit {
 			l.history = append([]MetadataLockWaitEdge(nil), l.history[len(l.history)-metadataLockWaitHistoryLimit:]...)
+		}
+		l.historyLong = append(l.historyLong, edge)
+		if len(l.historyLong) > metadataLockWaitHistoryLimit {
+			l.historyLong = append([]MetadataLockWaitEdge(nil), l.historyLong[len(l.historyLong)-metadataLockWaitHistoryLimit:]...)
 		}
 	}
 }
@@ -502,6 +548,116 @@ func (c *tableDDLCoordinator) MetadataLockWaitHistory() []MetadataLockWaitEdge {
 	return history
 }
 
+// MetadataLockWaitHistoryLong returns the independent bounded history exposed
+// by performance_schema.events_waits_history_long. The compatibility server
+// uses the same retention bound as the short history, but keeps a separate
+// lifecycle so TRUNCATE of either view does not erase the other.
+func (c *tableDDLCoordinator) MetadataLockWaitHistoryLong() []MetadataLockWaitEdge {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	tables := make([]string, 0, len(c.locks))
+	locks := make(map[string]*tableDDLTableLock, len(c.locks))
+	for table, lock := range c.locks {
+		tables = append(tables, table)
+		locks[table] = lock
+	}
+	c.mu.Unlock()
+	sort.Strings(tables)
+	history := make([]MetadataLockWaitEdge, 0)
+	for _, table := range tables {
+		lock := locks[table]
+		if lock == nil {
+			continue
+		}
+		lock.stateMu.Lock()
+		for _, edge := range lock.historyLong {
+			edge.Table = table
+			history = append(history, edge)
+		}
+		lock.stateMu.Unlock()
+	}
+	sort.SliceStable(history, func(i, j int) bool {
+		if history[i].WaitStarted.Equal(history[j].WaitStarted) {
+			if history[i].Table == history[j].Table {
+				if history[i].WaitingOwner == history[j].WaitingOwner {
+					return history[i].BlockingOwner < history[j].BlockingOwner
+				}
+				return history[i].WaitingOwner < history[j].WaitingOwner
+			}
+			return history[i].Table < history[j].Table
+		}
+		return history[i].WaitStarted.Before(history[j].WaitStarted)
+	})
+	return history
+}
+
+// ResetMetadataLockWaitHistory removes completed metadata-lock waits exposed
+// by the Performance Schema history views while preserving live owners and
+// waiters.
+func (c *tableDDLCoordinator) ResetMetadataLockWaitHistory() []MetadataLockWaitEdge {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	tables := make([]string, 0, len(c.locks))
+	locks := make(map[string]*tableDDLTableLock, len(c.locks))
+	for table, lock := range c.locks {
+		tables = append(tables, table)
+		locks[table] = lock
+	}
+	c.mu.Unlock()
+	sort.Strings(tables)
+	history := make([]MetadataLockWaitEdge, 0)
+	for _, table := range tables {
+		lock := locks[table]
+		if lock == nil {
+			continue
+		}
+		lock.stateMu.Lock()
+		for _, edge := range lock.history {
+			edge.Table = table
+			history = append(history, edge)
+		}
+		lock.history = lock.history[:0]
+		lock.stateMu.Unlock()
+	}
+	return history
+}
+
+// ResetMetadataLockWaitHistoryLong removes only the completed metadata-lock
+// waits retained for events_waits_history_long.
+func (c *tableDDLCoordinator) ResetMetadataLockWaitHistoryLong() []MetadataLockWaitEdge {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	tables := make([]string, 0, len(c.locks))
+	locks := make(map[string]*tableDDLTableLock, len(c.locks))
+	for table, lock := range c.locks {
+		tables = append(tables, table)
+		locks[table] = lock
+	}
+	c.mu.Unlock()
+	sort.Strings(tables)
+	history := make([]MetadataLockWaitEdge, 0)
+	for _, table := range tables {
+		lock := locks[table]
+		if lock == nil {
+			continue
+		}
+		lock.stateMu.Lock()
+		for _, edge := range lock.historyLong {
+			edge.Table = table
+			history = append(history, edge)
+		}
+		lock.historyLong = lock.historyLong[:0]
+		lock.stateMu.Unlock()
+	}
+	return history
+}
+
 // MetadataLockWaitSummary returns all completed owner-aware metadata-lock
 // waits for instance-lifetime Performance Schema summaries. Unlike
 // MetadataLockWaitHistory, this source is not bounded by the history-view
@@ -547,6 +703,101 @@ func (c *tableDDLCoordinator) MetadataLockWaitSummary() []MetadataLockWaitEdge {
 	return summary
 }
 
+// ResetMetadataLockWaitSummary clears only the instance-lifetime metadata
+// lock summary and leaves bounded history intact for events_waits_history.
+func (c *tableDDLCoordinator) ResetMetadataLockWaitSummary() []MetadataLockWaitEdge {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	tables := make([]string, 0, len(c.locks))
+	locks := make(map[string]*tableDDLTableLock, len(c.locks))
+	for table, lock := range c.locks {
+		tables = append(tables, table)
+		locks[table] = lock
+	}
+	c.mu.Unlock()
+	sort.Strings(tables)
+	summary := make([]MetadataLockWaitEdge, 0)
+	for _, table := range tables {
+		lock := locks[table]
+		if lock == nil {
+			continue
+		}
+		lock.stateMu.Lock()
+		for _, edge := range lock.waitSummary {
+			edge.Table = table
+			summary = append(summary, edge)
+		}
+		lock.waitSummary = lock.waitSummary[:0]
+		lock.stateMu.Unlock()
+	}
+	return summary
+}
+
+// MetadataTableLockWaitSummary returns the independent table-lock summary
+// source. The events_waits summary has a separate lifecycle.
+func (c *tableDDLCoordinator) MetadataTableLockWaitSummary() []MetadataLockWaitEdge {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	tables := make([]string, 0, len(c.locks))
+	locks := make(map[string]*tableDDLTableLock, len(c.locks))
+	for table, lock := range c.locks {
+		tables = append(tables, table)
+		locks[table] = lock
+	}
+	c.mu.Unlock()
+	sort.Strings(tables)
+	summary := make([]MetadataLockWaitEdge, 0)
+	for _, table := range tables {
+		lock := locks[table]
+		if lock == nil {
+			continue
+		}
+		lock.stateMu.Lock()
+		for _, edge := range lock.tableLockSummary {
+			edge.Table = table
+			summary = append(summary, edge)
+		}
+		lock.stateMu.Unlock()
+	}
+	return summary
+}
+
+// ResetMetadataTableLockWaitSummary resets only the table-lock summary
+// source, preserving metadata wait summaries and bounded history.
+func (c *tableDDLCoordinator) ResetMetadataTableLockWaitSummary() []MetadataLockWaitEdge {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	tables := make([]string, 0, len(c.locks))
+	locks := make(map[string]*tableDDLTableLock, len(c.locks))
+	for table, lock := range c.locks {
+		tables = append(tables, table)
+		locks[table] = lock
+	}
+	c.mu.Unlock()
+	sort.Strings(tables)
+	summary := make([]MetadataLockWaitEdge, 0)
+	for _, table := range tables {
+		lock := locks[table]
+		if lock == nil {
+			continue
+		}
+		lock.stateMu.Lock()
+		for _, edge := range lock.tableLockSummary {
+			edge.Table = table
+			summary = append(summary, edge)
+		}
+		lock.tableLockSummary = lock.tableLockSummary[:0]
+		lock.stateMu.Unlock()
+	}
+	return summary
+}
+
 func metadataLockModesConflict(waiting, blocking tableLockMode) bool {
 	switch waiting {
 	case tableLockRead:
@@ -579,6 +830,7 @@ func (e *XMySQLExecutor) releaseSessionTableLocks(session server.MySQLServerSess
 		return
 	}
 	if lease, ok := session.GetParamByName("__table_lock_lease").(*sessionTableLockLease); ok {
+		e.recordTableHandleClose(len(lease.entries))
 		lease.release()
 	}
 	session.SetParamByName("__table_lock_lease", nil)
@@ -590,6 +842,7 @@ func (e *XMySQLExecutor) releaseSessionTransactionTableLocks(session server.MySQ
 		return
 	}
 	if lease, ok := session.GetParamByName("__transaction_table_lock_lease").(*sessionTableLockLease); ok {
+		e.recordTableHandleClose(len(lease.entries))
 		lease.release()
 	}
 	session.SetParamByName("__transaction_table_lock_lease", nil)
@@ -627,6 +880,7 @@ func (e *XMySQLExecutor) acquireSessionTableLocks(ctx context.Context, session s
 		_, table := compatibilityQualifiedTable(request.table, "")
 		legacy[strings.ToLower(table)] = request.mode
 	}
+	e.recordTableHandleOpen(len(lease.entries))
 	session.SetParamByName("locked_tables", legacy)
 	return nil
 }
@@ -709,10 +963,13 @@ func (e *XMySQLExecutor) acquireStatementTableLocks(ctx *ExecutionContext, sessi
 			session.SetParamByName("__transaction_table_lock_lease", lease)
 		}
 		lease.entries = append(lease.entries, acquired...)
+		e.recordTableHandleOpen(len(acquired))
 		cancel()
 		return func() {}, nil
 	}
+	e.recordTableHandleOpen(len(acquired))
 	return func() {
+		e.recordTableHandleClose(len(acquired))
 		for i := len(acquired) - 1; i >= 0; i-- {
 			acquired[i].lock.unlockOwned(tableLockMode(acquired[i].mode), acquired[i].owner)
 		}

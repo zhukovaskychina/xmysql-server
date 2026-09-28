@@ -310,6 +310,15 @@ func (e *SystemVariableEngine) ExecuteQuery(session server.MySQLServerSession, q
 		// 将握手阶段保存的关键会话变量同步到系统变量管理器
 		e.syncSessionVariables(session)
 
+		// Native MySQL clients issue scoped variables during connection setup,
+		// for example SELECT @@GLOBAL.SERVER_ID. The embedded parser represents
+		// GLOBAL.foo as a single identifier, so resolve the narrow no-FROM form
+		// before the generic analyzer can turn it into an unknown variable.
+		if result, handled := e.executeDirectSystemVariableSelect(session, query); handled {
+			resultChan <- result
+			return
+		}
+
 		sessionID := e.getSessionID(session)
 
 		// 1. 首先尝试解析为系统函数查询
@@ -422,6 +431,118 @@ func (e *SystemVariableEngine) ExecuteQuery(session server.MySQLServerSession, q
 	}()
 
 	return resultChan
+}
+
+var directSystemVariableSelectPattern = regexp.MustCompile(`(?is)^\s*select\s+(.+?)\s*;?\s*$`)
+var directSystemVariableTokenPattern = regexp.MustCompile(`(?is)^@@(?:(global|session|local)\s*\.\s*)?` + "`?([a-zA-Z0-9_]+)`?" + `(?:\s+(?:as\s+)?([a-zA-Z_][a-zA-Z0-9_]*))?\s*$`)
+
+// executeDirectSystemVariableSelect handles the no-FROM scoped-variable form
+// used by MySQL replication clients. It deliberately stays narrow so SELECTs
+// containing expressions, FROM clauses, or user variables keep their normal
+// routing and expression semantics.
+func (e *SystemVariableEngine) executeDirectSystemVariableSelect(session server.MySQLServerSession, query string) (*SQLResult, bool) {
+	match := directSystemVariableSelectPattern.FindStringSubmatch(strings.TrimSpace(query))
+	if len(match) != 2 || strings.Contains(strings.ToLower(match[1]), " from ") {
+		return nil, false
+	}
+
+	parts := splitDirectSystemVariableSelectList(match[1])
+	if len(parts) == 0 {
+		return nil, false
+	}
+
+	sessionID := e.getSessionID(session)
+	row := make([]interface{}, 0, len(parts))
+	columns := make([]string, 0, len(parts))
+	columnTypes := make([]string, 0, len(parts))
+	for _, part := range parts {
+		token := directSystemVariableTokenPattern.FindStringSubmatch(strings.TrimSpace(part))
+		if len(token) != 4 {
+			return nil, false
+		}
+
+		name := strings.ToLower(token[2])
+		scope := manager.SessionScope
+		if strings.EqualFold(token[1], "global") {
+			scope = manager.GlobalScope
+		}
+		if strings.EqualFold(token[1], "local") {
+			scope = manager.SessionScope
+		}
+
+		value, err := e.sysVarManager.GetVariable(sessionID, name, scope)
+		if err != nil {
+			// Replication state is attached to the live connection by the
+			// network layer. Prefer it for global probes when present.
+			if scope == manager.GlobalScope && session != nil {
+				value = session.GetParamByName(name)
+			}
+			if value == nil {
+				return nil, false
+			}
+		}
+		if scope == manager.GlobalScope && session != nil {
+			if configured := session.GetParamByName(name); configured != nil {
+				value = configured
+			}
+		}
+
+		column := strings.TrimSpace(token[3])
+		if column == "" {
+			column = strings.TrimSpace(part)
+		}
+		columns = append(columns, column)
+		row = append(row, value)
+		switch value.(type) {
+		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+			columnTypes = append(columnTypes, "BIGINT")
+		default:
+			columnTypes = append(columnTypes, "VARCHAR")
+		}
+	}
+
+	return &SQLResult{
+		ResultType:  "select",
+		Columns:     columns,
+		ColumnTypes: columnTypes,
+		Rows:        [][]interface{}{row},
+		Message:     "Query OK, 1 row in set",
+	}, true
+}
+
+func splitDirectSystemVariableSelectList(input string) []string {
+	parts := make([]string, 0, 2)
+	start := 0
+	quote := byte(0)
+	depth := 0
+	for i := 0; i < len(input); i++ {
+		ch := input[i]
+		if quote != 0 {
+			if ch == quote && (i == 0 || input[i-1] != '\\') {
+				quote = 0
+			}
+			continue
+		}
+		switch ch {
+		case '\'', '"', '`':
+			quote = ch
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 0 {
+				parts = append(parts, strings.TrimSpace(input[start:i]))
+				start = i + 1
+			}
+		}
+	}
+	if tail := strings.TrimSpace(input[start:]); tail != "" {
+		parts = append(parts, tail)
+	}
+	return parts
 }
 
 var informationSchemaTablesQueryPattern = regexp.MustCompile("(?is)^\\s*select\\b.*\\bfrom\\s+(?:`?information_schema`?\\s*\\.\\s*`?tables`?)(?:\\s|$)")

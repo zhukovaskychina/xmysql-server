@@ -14,36 +14,45 @@ require (
 	github.com/juju/errors v0.0.0-20210818161939-5560c4c073ff
 	github.com/pelletier/go-toml v1.2.0
 	github.com/piex/transcode v0.0.2
-	github.com/pingcap/errors v0.11.4
+	github.com/pingcap/errors v0.11.5-0.20240311024730-e056997136bb
 	github.com/pkg/errors v0.9.1
 	github.com/shopspring/decimal v1.2.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/smartystreets/assertions v0.0.0-20180927180507-b2de0cb4f26d
-	github.com/stretchr/testify v1.7.1
+	github.com/stretchr/testify v1.8.4
 	gopkg.in/ini.v1 v1.51.0
 )
 
 require (
-	github.com/go-sql-driver/mysql v1.4.0
+	github.com/go-mysql-org/go-mysql v1.12.0
+	github.com/go-sql-driver/mysql v1.7.1
+	github.com/klauspost/compress v1.17.11
 	github.com/pierrec/lz4/v4 v4.1.22
-	golang.org/x/text v0.3.3
+	golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8
+	golang.org/x/text v0.20.0
 )
 
 require (
+	filippo.io/edwards25519 v1.1.0 // indirect
+	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-ole/go-ole v1.2.4 // indirect
+	github.com/goccy/go-json v0.10.2 // indirect
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/k0kubun/pp v3.0.1+incompatible // indirect
-	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/mailru/easyjson v0.7.1 // indirect
 	github.com/mattn/go-colorable v0.1.7 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
+	github.com/pingcap/log v1.1.1-0.20230317032135-a0d097d16e22 // indirect
+	github.com/pingcap/tidb/pkg/parser v0.0.0-20241118164214-4f047be191be // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/shirou/gopsutil v3.20.11+incompatible // indirect
-	go.uber.org/atomic v1.7.0 // indirect
-	golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8 // indirect
-	google.golang.org/appengine v1.6.1 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap v1.27.0 // indirect
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

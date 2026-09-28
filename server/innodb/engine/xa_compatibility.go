@@ -18,13 +18,15 @@ import (
 // path already records reversible row images in that journal, so the same
 // commit/rollback boundary can be used for a two-phase transaction.
 type xaPreparedTransaction struct {
-	xid          xaIdentifier
-	session      server.MySQLServerSession
-	participants []server.MySQLServerSession
-	changes      []transactionDMLChange
-	statements   []replication.Statement
-	journalID    string
-	manifestPath string
+	xid               xaIdentifier
+	session           server.MySQLServerSession
+	participants      []server.MySQLServerSession
+	changes           []transactionDMLChange
+	statements        []replication.Statement
+	journalID         string
+	manifestPath      string
+	preparedAtPrepare bool
+	onePhase          bool
 }
 
 type xaSuspendedTransaction struct {
@@ -122,6 +124,7 @@ func (e *XMySQLExecutor) executeXACompatibility(ctx *ExecutionContext, session s
 		session.SetParamByName("in_transaction", true)
 		session.SetParamByName("transaction_journal_active", true)
 		session.SessionContext().SetInTransaction(true)
+		e.markPerformanceSchemaTransactionStart(session)
 		e.recordActiveTransactionDelta(session, 1)
 		return true, nil
 
@@ -150,12 +153,13 @@ func (e *XMySQLExecutor) executeXACompatibility(ctx *ExecutionContext, session s
 		}
 		transactionState := e.sessionTransactionState(session)
 		prepared := &xaPreparedTransaction{
-			xid:          xid,
-			session:      session,
-			participants: xaParticipantsForSession(session),
-			changes:      append([]transactionDMLChange(nil), transactionState.Changes...),
-			statements:   append([]replication.Statement(nil), transactionState.Statements...),
-			journalID:    e.transactionJournalID(session),
+			xid:               xid,
+			session:           session,
+			participants:      xaParticipantsForSession(session),
+			changes:           append([]transactionDMLChange(nil), transactionState.Changes...),
+			statements:        append([]replication.Statement(nil), transactionState.Statements...),
+			journalID:         e.transactionJournalID(session),
+			preparedAtPrepare: true,
 		}
 		e.xaMu.Lock()
 		defer e.xaMu.Unlock()
@@ -168,6 +172,15 @@ func (e *XMySQLExecutor) executeXACompatibility(ctx *ExecutionContext, session s
 		if err := e.persistPreparedXAManifest(prepared); err != nil {
 			return true, fmt.Errorf("XAER_RMFAIL: persist prepared XA transaction: %w", err)
 		}
+		if e.replicationXAPrepareHook != nil {
+			if err := e.replicationXAPrepareHook(prepared.xid.key(), replicationXAIdentity(prepared.xid), replicationRowsFromTransactionChanges(prepared.changes), prepared.statements); err != nil {
+				if e.replicationXARollbackHook != nil {
+					_ = e.replicationXARollbackHook(prepared.xid.key(), replicationXAIdentity(prepared.xid))
+				}
+				_ = e.removePreparedXAManifest(prepared)
+				return true, fmt.Errorf("XAER_RMFAIL: append native XA PREPARE: %w", err)
+			}
+		}
 		e.xaPrepared[xid.key()] = prepared
 		session.SetParamByName("xa_state", "PREPARED")
 		return true, nil
@@ -177,7 +190,7 @@ func (e *XMySQLExecutor) executeXACompatibility(ctx *ExecutionContext, session s
 			if state != "ACTIVE" && state != "IDLE" || currentKey != xid.key() {
 				return true, fmt.Errorf("XAER_NOTA: XA COMMIT ONE PHASE references an unknown XID")
 			}
-			return true, e.finishXATransaction(xid, session, false)
+			return true, e.finishXATransaction(xid, session, false, true)
 		}
 		prepared, exists := e.takePreparedXA(xid.key())
 		if !exists {
@@ -194,7 +207,7 @@ func (e *XMySQLExecutor) executeXACompatibility(ctx *ExecutionContext, session s
 			if currentKey != xid.key() {
 				return true, fmt.Errorf("XAER_NOTA: XA ROLLBACK references an unknown XID")
 			}
-			return true, e.finishXATransaction(xid, session, true)
+			return true, e.finishXATransaction(xid, session, true, false)
 		}
 		prepared, exists := e.takePreparedXA(xid.key())
 		if !exists {
@@ -259,7 +272,7 @@ func (e *XMySQLExecutor) restorePreparedXA(prepared *xaPreparedTransaction) {
 	e.xaMu.Unlock()
 }
 
-func (e *XMySQLExecutor) finishXATransaction(xid xaIdentifier, session server.MySQLServerSession, rollback bool) error {
+func (e *XMySQLExecutor) finishXATransaction(xid xaIdentifier, session server.MySQLServerSession, rollback bool, onePhase bool) error {
 	if session == nil {
 		return fmt.Errorf("XA requires a session")
 	}
@@ -271,6 +284,7 @@ func (e *XMySQLExecutor) finishXATransaction(xid xaIdentifier, session server.My
 		changes:      append([]transactionDMLChange(nil), state.Changes...),
 		statements:   append([]replication.Statement(nil), state.Statements...),
 		journalID:    e.transactionJournalID(session),
+		onePhase:     onePhase,
 	}
 	return e.finishPreparedXATransaction(prepared, rollback)
 }
@@ -306,6 +320,10 @@ func (e *XMySQLExecutor) finishPreparedXATransaction(prepared *xaPreparedTransac
 					return fmt.Errorf("rollback prepared XA transaction: %w", err)
 				}
 			}
+		} else if prepared.preparedAtPrepare && e.nativeXAReplicationEnabled() {
+			if err := e.appendPreparedXATerminal(prepared, rollback); err != nil {
+				return err
+			}
 		} else if len(prepared.statements) > 0 {
 			if e.replicationCommitTransactionHookWithID != nil {
 				if err := e.replicationCommitTransactionHookWithID(prepared.xid.key(), replicationRowsFromTransactionChanges(prepared.changes), prepared.statements); err != nil {
@@ -324,16 +342,41 @@ func (e *XMySQLExecutor) finishPreparedXATransaction(prepared *xaPreparedTransac
 		return e.removePreparedXAManifest(prepared)
 	}
 	if rollback {
-		if err := e.rollbackSessionTransaction(session, 0); err != nil {
+		if _, hasClientStorageTransaction := session.GetParamByName(clientStorageTransactionContextKey).(*StorageTransactionContext); hasClientStorageTransaction {
+			if err := e.rollbackClientStorageTransaction(session); err != nil {
+				return err
+			}
+			if err := e.rollbackSessionTransaction(session, 0); err != nil {
+				return err
+			}
+		} else if err := e.rollbackSessionTransaction(session, 0); err != nil {
 			return err
 		}
 		e.discardSessionAccountChanges(session)
+		if prepared.preparedAtPrepare && e.nativeXAReplicationEnabled() {
+			if err := e.appendPreparedXATerminal(prepared, true); err != nil {
+				return err
+			}
+		}
 	} else {
 		if err := e.commitSessionAccountChanges(session); err != nil {
 			return err
 		}
-		if err := e.commitReplicationStatementsWithID(session, prepared.xid.key()); err != nil {
+		if err := e.commitClientStorageTransaction(session); err != nil {
 			return err
+		}
+		if prepared.preparedAtPrepare && e.nativeXAReplicationEnabled() {
+			if err := e.appendPreparedXATerminal(prepared, false); err != nil {
+				return err
+			}
+		} else if prepared.onePhase && e.replicationXAOnePhaseCommitHook != nil {
+			if err := e.replicationXAOnePhaseCommitHook(prepared.xid.key(), replicationXAIdentity(prepared.xid), replicationRowsFromTransactionChanges(prepared.changes), prepared.statements); err != nil {
+				return err
+			}
+		} else {
+			if err := e.commitReplicationStatementsWithID(session, prepared.xid.key()); err != nil {
+				return err
+			}
 		}
 	}
 	if sessionBoolParam(session, "in_transaction") {
@@ -362,6 +405,31 @@ func (e *XMySQLExecutor) finishPreparedXATransaction(prepared *xaPreparedTransac
 		participant.SessionContext().SetInTransaction(false)
 	}
 	return e.removePreparedXAManifest(prepared)
+}
+
+func (e *XMySQLExecutor) appendPreparedXATerminal(prepared *xaPreparedTransaction, rollback bool) error {
+	if e == nil || prepared == nil || !prepared.preparedAtPrepare || !e.nativeXAReplicationEnabled() {
+		return nil
+	}
+	xid := replicationXAIdentity(prepared.xid)
+	if rollback {
+		if e.replicationXARollbackHook != nil {
+			return e.replicationXARollbackHook(prepared.xid.key(), xid)
+		}
+		return nil
+	}
+	if e.replicationXACommitHook != nil {
+		return e.replicationXACommitHook(prepared.xid.key(), xid)
+	}
+	return nil
+}
+
+func (e *XMySQLExecutor) nativeXAReplicationEnabled() bool {
+	return e != nil && (e.replicationXAPrepareHook != nil || e.replicationXAOnePhaseCommitHook != nil || e.replicationXACommitHook != nil || e.replicationXARollbackHook != nil)
+}
+
+func replicationXAIdentity(xid xaIdentifier) replication.XAIdentity {
+	return replication.XAIdentity{GTRID: xid.gtrid, BQUAL: xid.bqual, FormatID: xid.formatID}
 }
 
 func (e *XMySQLExecutor) rememberSuspendedXA(xid xaIdentifier, session server.MySQLServerSession) error {

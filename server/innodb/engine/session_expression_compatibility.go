@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -12,6 +13,17 @@ import (
 const sessionExpressionValuesKey = "__xmysql_session_values"
 
 const defaultServerVersion = "8.0.32"
+
+var qualifiedSystemVariablePattern = regexp.MustCompile(`(?i)@@(?:global|session|local)\s*\.\s*`)
+
+// rewriteQualifiedSystemVariables keeps MySQL's scoped @@GLOBAL.foo syntax
+// compatible with the embedded expression parser, which accepts @@foo as a
+// column-like expression but does not retain the scope token in its AST.
+// The evaluator still receives the unqualified name and resolves it against
+// the session/global value surface.
+func rewriteQualifiedSystemVariables(query string) string {
+	return qualifiedSystemVariablePattern.ReplaceAllString(query, "@@")
+}
 
 func newSessionExpressionValues(session server.MySQLServerSession) map[string]interface{} {
 	values := map[string]interface{}{
@@ -24,7 +36,17 @@ func newSessionExpressionValues(session server.MySQLServerSession) map[string]in
 		"system_user":    sessionQualifiedUser(session, false),
 		"current_role":   sessionCurrentRole(session),
 		"version":        defaultServerVersion,
-		"connection_id":  sessionConnectionIDValue(session),
+		// These server variables are consumed by native replication clients
+		// during the source-version/server-id probe. Keep them in the same
+		// expression-value surface as @@version so qualified @@GLOBAL.* names
+		// do not evaluate to NULL merely because the parser preserved scope.
+		"server_id":       int64(1),
+		"gtid_mode":       "ON",
+		"log_bin":         "ON",
+		"binlog_format":   "ROW",
+		"binlog_checksum": "CRC32",
+		"server_uuid":     "00000000-0000-0000-0000-000000000000",
+		"connection_id":   sessionConnectionIDValue(session),
 	}
 	if session == nil {
 		return values
@@ -33,6 +55,11 @@ func newSessionExpressionValues(session server.MySQLServerSession) map[string]in
 	values["row_count"] = sessionRowCount(session)
 	if version := sessionStringParam(session, "version"); version != "" {
 		values["version"] = version
+	}
+	for _, name := range []string{"server_id", "gtid_mode", "log_bin", "binlog_format", "binlog_checksum", "server_uuid"} {
+		if value := session.GetParamByName(name); value != nil {
+			values[name] = value
+		}
 	}
 	return values
 }

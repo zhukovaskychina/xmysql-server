@@ -19,7 +19,7 @@ func (e *XMySQLExecutor) executeInformationSchemaInnoDBTrxSelect(query string) *
 		"TRX_TABLES_LOCKED", "TRX_LOCK_STRUCTS", "TRX_LOCK_MEMORY_BYTES", "TRX_ROWS_LOCKED",
 		"TRX_ROWS_MODIFIED", "TRX_CONCURRENCY_TICKETS", "TRX_ISOLATION_LEVEL",
 		"TRX_UNIQUE_CHECKS", "TRX_FOREIGN_KEY_CHECKS", "TRX_LAST_FOREIGN_KEY_ERROR",
-		"TRX_IS_READ_ONLY", "TRX_AUTOCOMMIT_NON_LOCKING",
+		"TRX_ADAPTIVE_HASH_LATCHED", "TRX_ADAPTIVE_HASH_TIMEOUT", "TRX_IS_READ_ONLY", "TRX_AUTOCOMMIT_NON_LOCKING", "TRX_SCHEDULE_WEIGHT",
 	})
 	if e == nil {
 		return newInformationSchemaSelectResult("information_schema.innodb_trx", columns, nil)
@@ -29,11 +29,22 @@ func (e *XMySQLExecutor) executeInformationSchemaInnoDBTrxSelect(query string) *
 		return newInformationSchemaSelectResult("information_schema.innodb_trx", columns, nil)
 	}
 	snapshots := txManager.GetActiveTransactionSnapshots()
+	lockInventory := make(map[int64]manager.LockInventorySnapshot)
+	if e.lockManager != nil {
+		for _, inventory := range e.lockManager.HeldLockSnapshots() {
+			lockInventory[int64(inventory.TransactionID)] = inventory
+		}
+	}
 	trxFilter, hasTrxFilter := informationSchemaUint64Filter(query, "trx_id")
 	rows := make([][]interface{}, 0, len(snapshots))
 	for _, snapshot := range snapshots {
 		if hasTrxFilter && (snapshot.ID < 0 || uint64(snapshot.ID) != trxFilter) {
 			continue
+		}
+		var tablesLocked, rowsLocked interface{}
+		if inventory, ok := lockInventory[snapshot.ID]; ok {
+			tablesLocked = int64(inventory.TablesLocked)
+			rowsLocked = int64(inventory.RowsLocked)
 		}
 		values := map[string]interface{}{
 			"TRX_ID":                     snapshot.ID,
@@ -46,22 +57,27 @@ func (e *XMySQLExecutor) executeInformationSchemaInnoDBTrxSelect(query string) *
 			"TRX_QUERY":                  nil,
 			"TRX_OPERATION_STATE":        nil,
 			"TRX_TABLES_IN_USE":          nil,
-			"TRX_TABLES_LOCKED":          nil,
+			"TRX_TABLES_LOCKED":          tablesLocked,
 			"TRX_LOCK_STRUCTS":           snapshot.LockCount,
 			"TRX_LOCK_MEMORY_BYTES":      nil,
-			"TRX_ROWS_LOCKED":            nil,
+			"TRX_ROWS_LOCKED":            rowsLocked,
 			"TRX_ROWS_MODIFIED":          nil,
 			"TRX_CONCURRENCY_TICKETS":    nil,
 			"TRX_ISOLATION_LEVEL":        innodbIsolationLevel(snapshot.IsolationLevel),
 			"TRX_UNIQUE_CHECKS":          int64(1),
 			"TRX_FOREIGN_KEY_CHECKS":     int64(1),
 			"TRX_LAST_FOREIGN_KEY_ERROR": nil,
+			"TRX_ADAPTIVE_HASH_LATCHED":  int64(0),
+			"TRX_ADAPTIVE_HASH_TIMEOUT":  int64(0),
 			"TRX_IS_READ_ONLY":           boolToInt64(snapshot.IsReadOnly),
 			"TRX_AUTOCOMMIT_NON_LOCKING": int64(0),
+			"TRX_SCHEDULE_WEIGHT":        nil,
 		}
 		if !performanceSchemaSummaryFilterMatches(query, "trx_state", fmt.Sprint(values["TRX_STATE"])) ||
 			!performanceSchemaSummaryFilterMatches(query, "trx_started", fmt.Sprint(values["TRX_STARTED"])) ||
+			!performanceSchemaSummaryFilterMatches(query, "trx_tables_locked", fmt.Sprint(values["TRX_TABLES_LOCKED"])) ||
 			!performanceSchemaSummaryFilterMatches(query, "trx_lock_structs", fmt.Sprint(values["TRX_LOCK_STRUCTS"])) ||
+			!performanceSchemaSummaryFilterMatches(query, "trx_rows_locked", fmt.Sprint(values["TRX_ROWS_LOCKED"])) ||
 			!performanceSchemaSummaryFilterMatches(query, "trx_isolation_level", fmt.Sprint(values["TRX_ISOLATION_LEVEL"])) ||
 			!performanceSchemaSummaryFilterMatches(query, "trx_is_read_only", fmt.Sprint(values["TRX_IS_READ_ONLY"])) {
 			continue

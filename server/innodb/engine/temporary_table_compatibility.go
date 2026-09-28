@@ -30,6 +30,7 @@ type temporaryTableBinding struct {
 	Database string
 	Logical  string
 	Physical string
+	TableID  uint64
 }
 
 type temporaryTableSessionState struct {
@@ -85,7 +86,8 @@ func (e *XMySQLExecutor) executeRawTemporaryTableCompatibility(ctx *ExecutionCon
 			return true, fmt.Errorf("temporary table '%s.%s' already exists", targetDB, existing.Logical)
 		}
 
-		physical := fmt.Sprintf("__xmysql_tmp_%d", temporaryTableSequence.Add(1))
+		tableID := temporaryTableSequence.Add(1)
+		physical := fmt.Sprintf("__xmysql_tmp_%d", tableID)
 		createSQL := fmt.Sprintf("create table `%s` %s", physical, strings.TrimSpace(match[3]))
 		createSQL = e.rewriteTemporaryTableReferences(ctx.Session, createSQL)
 		childResults := make(chan *Result, 1)
@@ -132,7 +134,7 @@ func (e *XMySQLExecutor) executeRawTemporaryTableCompatibility(ctx *ExecutionCon
 			return true, created.Err
 		}
 		state.mu.Lock()
-		state.tables[key] = temporaryTableBinding{Database: targetDB, Logical: targetTable, Physical: physical}
+		state.tables[key] = temporaryTableBinding{Database: targetDB, Logical: targetTable, Physical: physical, TableID: tableID}
 		state.mu.Unlock()
 		ctx.Results <- &Result{ResultType: common.RESULT_TYPE_DDL, Message: fmt.Sprintf("Temporary table '%s' created successfully", targetTable)}
 		return true, nil

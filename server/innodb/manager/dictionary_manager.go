@@ -614,6 +614,37 @@ func (dm *DictionaryManager) GetTableByName(name string) *TableDef {
 	return nil
 }
 
+// loadPersistedTablesLocked hydrates the in-memory dictionary cache from the
+// durable SYS_TABLES page.  The page wrapper is the authoritative source after
+// a process restart; relying only on dm.tables makes INFORMATION_SCHEMA and
+// the storage-mapping rebuild silently miss user tables created before the
+// restart.
+func (dm *DictionaryManager) loadPersistedTablesLocked() {
+	if dm == nil || dm.dictPageWrapper == nil {
+		return
+	}
+	tableDefs, err := dm.dictPageWrapper.ListTableDefs()
+	if err != nil {
+		return
+	}
+	for _, tableDef := range tableDefs {
+		if tableDef == nil {
+			continue
+		}
+		if _, exists := dm.tables[tableDef.ID]; exists {
+			continue
+		}
+		managerTable := convertPageTableDefToManager(tableDef)
+		if managerTable == nil {
+			continue
+		}
+		dm.tables[managerTable.TableID] = managerTable
+		dm.tableSpaces[managerTable.SpaceID] = append(dm.tableSpaces[managerTable.SpaceID], managerTable.TableID)
+		dm.stats.TotalTables++
+		dm.stats.TotalIndexes += uint64(len(managerTable.Indexes))
+	}
+}
+
 // GetStats 获取统计信息
 func (dm *DictionaryManager) GetStats() *DictStats {
 	dm.mu.RLock()
@@ -660,9 +691,12 @@ func (dm *DictionaryManager) Close() error {
 	dm.mu.Lock()
 	defer dm.mu.Unlock()
 
-	// 保存根页面
-	if err := dm.saveRootPage(); err != nil {
-		return fmt.Errorf("failed to save root page: %v", err)
+	// 保存根页面。部分嵌入式/降级构造只使用字典内存结构，没有完成
+	// 根页包装器初始化；关闭这类实例仍应释放内存而不是把清理变成错误。
+	if dm.dictPageWrapper != nil {
+		if err := dm.saveRootPage(); err != nil {
+			return fmt.Errorf("failed to save root page: %v", err)
+		}
 	}
 
 	// 清理资源

@@ -3,9 +3,53 @@ package manager
 import (
 	"bytes"
 	"testing"
+	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 )
+
+func TestCompressionManagerTracksPendingDecompression(t *testing.T) {
+	compression := NewCompressionManager()
+	compression.SetCompressionSettings(7, &CompressionSettings{
+		SpaceID: 7, Method: COMPRESSION_ZLIB, Level: COMPRESSION_LEVEL_DEFAULT, MinSavings: 0,
+	})
+	compressed, err := compression.CompressPage(7, 1, bytes.Repeat([]byte("pending-decompress"), 1024))
+	requireNoError(t, err)
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	compression.decompressStartedHook = func() {
+		close(started)
+		<-release
+	}
+	decompressDone := make(chan error, 1)
+	go func() {
+		_, decompressErr := compression.DecompressPage(7, 1, compressed)
+		decompressDone <- decompressErr
+	}()
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("decompression did not start")
+	}
+	if got := compression.GetPendingDecompress(); got != 1 {
+		t.Fatalf("pending decompression count = %d, want 1", got)
+	}
+	close(release)
+	if err := <-decompressDone; err != nil {
+		t.Fatalf("DecompressPage() error = %v", err)
+	}
+	if got := compression.GetPendingDecompress(); got != 0 {
+		t.Fatalf("pending decompression count after completion = %d, want 0", got)
+	}
+}
+
+func requireNoError(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestStorageManagerPersistsCompressionPolicyAcrossRestart(t *testing.T) {
 	dataDir := t.TempDir()

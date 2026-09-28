@@ -131,9 +131,12 @@ type TransactionSnapshot struct {
 
 // TransactionManager 事务管理器
 type TransactionManager struct {
-	mu                 sync.RWMutex
-	nextTrxID          int64                  // 下一个事务ID
-	activeTransactions map[int64]*Transaction // 活跃事务
+	mu                     sync.RWMutex
+	nextTrxID              int64                  // 下一个事务ID
+	transactionAllocations uint64                 // total logical transaction objects allocated
+	activeRollbacks        atomic.Int64           // number of rollback operations currently executing
+	activeTransactions     map[int64]*Transaction // 活跃事务
+	rollbackInProgress     map[int64]bool         // transactions currently executing undo rollback
 
 	// 日志管理器
 	redoManager *RedoLogManager
@@ -178,6 +181,7 @@ func NewTransactionManager(redoDir, undoDir string) (*TransactionManager, error)
 	tm := &TransactionManager{
 		nextTrxID:             1,
 		activeTransactions:    make(map[int64]*Transaction),
+		rollbackInProgress:    make(map[int64]bool),
 		redoManager:           redoManager,
 		undoManager:           undoManager,
 		defaultIsolationLevel: TRX_ISO_REPEATABLE_READ,
@@ -224,6 +228,7 @@ func (tm *TransactionManager) Begin(isReadOnly bool, isolationLevel uint8) (*Tra
 		IsReadOnly:     isReadOnly,
 		Savepoints:     make(map[string]*Savepoint), // 初始化保存点map
 	}
+	tm.transactionAllocations++
 
 	// 创建ReadView（对于RR和RC隔离级别）
 	if isolationLevel >= TRX_ISO_READ_COMMITTED {
@@ -239,6 +244,30 @@ func (tm *TransactionManager) Begin(isReadOnly bool, isolationLevel uint8) (*Tra
 	return trx, nil
 }
 
+// GetTransactionAllocations returns the cumulative number of logical
+// transaction objects allocated by this manager. The value is used by
+// compatibility observability without exposing the active transaction map.
+func (tm *TransactionManager) GetTransactionAllocations() int64 {
+	if tm == nil {
+		return 0
+	}
+	tm.mu.RLock()
+	count := tm.transactionAllocations
+	tm.mu.RUnlock()
+	return int64(count)
+}
+
+// GetActiveRollbacks returns the number of rollback operations currently
+// executing undo work. The counter covers full transaction rollback and
+// rollback-to-savepoint operations, including rollback work invoked by the
+// long-transaction monitor.
+func (tm *TransactionManager) GetActiveRollbacks() int64 {
+	if tm == nil {
+		return 0
+	}
+	return tm.activeRollbacks.Load()
+}
+
 // Commit 提交事务
 func (tm *TransactionManager) Commit(trx *Transaction) error {
 	tm.mu.Lock()
@@ -248,6 +277,9 @@ func (tm *TransactionManager) Commit(trx *Transaction) error {
 	if trx.State != TRX_STATE_ACTIVE {
 		return ErrInvalidTrxState
 	}
+	if tm.rollbackInProgress[trx.ID] {
+		return ErrInvalidTrxState
+	}
 
 	// 写入Redo日志
 	for _, redoLog := range trx.RedoLogs {
@@ -255,7 +287,13 @@ func (tm *TransactionManager) Commit(trx *Transaction) error {
 			return err
 		}
 	}
-
+	// Keep the physical transaction outcome in the same flushed WAL stream as
+	// its data records. Recovery uses this durable marker to distinguish a
+	// storage commit that was interrupted before the higher-level replication
+	// journal/GTID publication from an actually abandoned transaction.
+	if _, err := tm.redoManager.Append(&RedoLogEntry{TrxID: trx.ID, Type: LOG_TYPE_TXN_COMMIT}); err != nil {
+		return err
+	}
 	// 确保Redo日志持久化
 	if err := tm.redoManager.Flush(0); err != nil {
 		return err
@@ -278,9 +316,29 @@ func (tm *TransactionManager) Commit(trx *Transaction) error {
 // Rollback 回滚事务
 func (tm *TransactionManager) Rollback(trx *Transaction) error {
 	tm.mu.Lock()
-	defer tm.mu.Unlock()
+	if trx.State != TRX_STATE_ACTIVE || tm.rollbackInProgress[trx.ID] {
+		tm.mu.Unlock()
+		return ErrInvalidTrxState
+	}
+	tm.rollbackInProgress[trx.ID] = true
+	tm.activeRollbacks.Add(1)
+	tm.mu.Unlock()
 
-	return tm.rollbackLocked(trx)
+	err := tm.undoManager.Rollback(trx.ID)
+
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+	delete(tm.rollbackInProgress, trx.ID)
+	tm.activeRollbacks.Add(-1)
+	if err != nil {
+		return err
+	}
+
+	trx.State = TRX_STATE_ROLLED_BACK
+	trx.LastActiveTime = time.Now()
+	delete(tm.activeTransactions, trx.ID)
+	tm.unregisterPurgeReadViewLocked(trx)
+	return nil
 }
 
 // rollbackLocked 回滚事务（调用者必须持有锁）
@@ -289,6 +347,16 @@ func (tm *TransactionManager) rollbackLocked(trx *Transaction) error {
 	if trx.State != TRX_STATE_ACTIVE {
 		return ErrInvalidTrxState
 	}
+	if tm.rollbackInProgress[trx.ID] {
+		return ErrInvalidTrxState
+	}
+	tm.rollbackInProgress[trx.ID] = true
+
+	tm.activeRollbacks.Add(1)
+	defer func() {
+		delete(tm.rollbackInProgress, trx.ID)
+		tm.activeRollbacks.Add(-1)
+	}()
 
 	// 执行回滚操作
 	if err := tm.undoManager.Rollback(trx.ID); err != nil {
@@ -381,6 +449,9 @@ func (tm *TransactionManager) RollbackToSavepoint(trx *Transaction, name string)
 	if trx.State != TRX_STATE_ACTIVE {
 		return ErrInvalidTrxState
 	}
+	if tm.rollbackInProgress[trx.ID] {
+		return ErrInvalidTrxState
+	}
 
 	// 查找保存点
 	savepoint, exists := trx.Savepoints[name]
@@ -389,6 +460,13 @@ func (tm *TransactionManager) RollbackToSavepoint(trx *Transaction, name string)
 	}
 
 	logger.Debugf("🔄 Rolling back transaction %d to savepoint '%s' (LSN %d)", trx.ID, name, savepoint.LSN)
+
+	tm.rollbackInProgress[trx.ID] = true
+	tm.activeRollbacks.Add(1)
+	defer func() {
+		delete(tm.rollbackInProgress, trx.ID)
+		tm.activeRollbacks.Add(-1)
+	}()
 
 	// 执行部分回滚
 	if err := tm.undoManager.PartialRollback(trx.ID, savepoint.LSN); err != nil {

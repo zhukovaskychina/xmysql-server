@@ -171,7 +171,7 @@ func (f *IBD_File) writePageUnsafe(pageNo uint32, page []byte) error {
 	// Write page data
 	startedAt := time.Now()
 	n, err := f.file.WriteAt(page, offset)
-	observabilitymetrics.DefaultRuntimeRecorder().RecordFileWrite(f.filePath, time.Since(startedAt))
+	observabilitymetrics.DefaultRuntimeRecorder().RecordFileWriteBytes(f.filePath, int64(n), time.Since(startedAt))
 	if err != nil {
 		return fmt.Errorf("failed to write page: %v", err)
 	}
@@ -200,7 +200,7 @@ func (f *IBD_File) ReadPage(pageNo uint32) ([]byte, error) {
 	// Read page data
 	startedAt := time.Now()
 	n, err := f.file.ReadAt(page, offset)
-	observabilitymetrics.DefaultRuntimeRecorder().RecordFileRead(f.filePath, time.Since(startedAt))
+	observabilitymetrics.DefaultRuntimeRecorder().RecordFileReadBytes(f.filePath, int64(n), time.Since(startedAt))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read page: %v", err)
 	}
@@ -230,7 +230,7 @@ func (f *IBD_File) WritePage(pageNo uint32, page []byte) error {
 	// Write page data
 	startedAt := time.Now()
 	n, err := f.file.WriteAt(page, offset)
-	observabilitymetrics.DefaultRuntimeRecorder().RecordFileWrite(f.filePath, time.Since(startedAt))
+	observabilitymetrics.DefaultRuntimeRecorder().RecordFileWriteBytes(f.filePath, int64(n), time.Since(startedAt))
 	if err != nil {
 		return fmt.Errorf("failed to write page: %v", err)
 	}
@@ -338,6 +338,37 @@ func (f *IBD_File) Size() (int64, error) {
 	}
 
 	return info.Size(), nil
+}
+
+// EnsurePageCount grows the file to contain pageCount pages. It is used when
+// a tablespace allocation becomes visible in memory so a subsequent read of
+// an allocated zero page cannot hit EOF. Existing data is preserved.
+func (f *IBD_File) EnsurePageCount(pageCount uint32) error {
+	f.Lock()
+	defer f.Unlock()
+
+	if f.file == nil {
+		return fmt.Errorf("file not open")
+	}
+	if pageCount == 0 {
+		return fmt.Errorf("page count must be positive")
+	}
+
+	info, err := f.file.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to get file info: %v", err)
+	}
+	targetSize := int64(pageCount) * PageSize
+	if targetSize <= info.Size() {
+		return nil
+	}
+	if err := f.file.Truncate(targetSize); err != nil {
+		return fmt.Errorf("failed to extend file: %v", err)
+	}
+	if err := f.file.Sync(); err != nil {
+		return fmt.Errorf("failed to sync extended file: %v", err)
+	}
+	return nil
 }
 
 // TruncateToPages shrinks the file to an exact page boundary. It never grows

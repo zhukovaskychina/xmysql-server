@@ -29,19 +29,27 @@ func NewPreparedStatementManager() *PreparedStatementManager {
 
 // PreparedStatement 预编译语句
 type PreparedStatement struct {
-	ID             uint32            // 语句ID
-	SQL            string            // 原始SQL
-	ParamCount     uint16            // 参数数量
-	ColumnCount    uint16            // 列数量
-	Params         []*ParamMetadata  // 参数元数据
-	Columns        []*ColumnMetadata // 列元数据
-	LastParamTypes []byte            // 最近一次 EXECUTE 的参数字节（每条 2 字节），供 new_params_bound_flag=0 复用
-	LongData       map[uint16][]byte
-	CreatedAt      time.Time // 创建时间
-	LastUsedAt     time.Time // 最后使用时间
-	ExecuteCount   uint64    // 执行次数
-	CursorResult   *MessageQueryResult
-	CursorOffset   int
+	ID               uint32            // 语句ID
+	SQL              string            // 原始SQL
+	ParamCount       uint16            // 参数数量
+	ColumnCount      uint16            // 列数量
+	Params           []*ParamMetadata  // 参数元数据
+	Columns          []*ColumnMetadata // 列元数据
+	LastParamTypes   []byte            // 最近一次 EXECUTE 的参数字节（每条 2 字节），供 new_params_bound_flag=0 复用
+	LongData         map[uint16][]byte
+	CreatedAt        time.Time // 创建时间
+	LastUsedAt       time.Time // 最后使用时间
+	ExecuteCount     uint64    // 执行次数
+	ExecuteTimeTotal time.Duration
+	ExecuteTimeMin   time.Duration
+	ExecuteTimeMax   time.Duration
+	ErrorCount       uint64
+	WarningCount     uint64
+	RowsAffected     uint64
+	RowsSent         uint64
+	RowsExamined     uint64
+	CursorResult     *MessageQueryResult
+	CursorOffset     int
 }
 
 // ParamMetadata 参数元数据
@@ -269,6 +277,37 @@ func (m *PreparedStatementManager) Get(stmtID uint32) (*PreparedStatement, error
 	return stmt, nil
 }
 
+// RecordExecution adds the authoritative result accounting for one prepared
+// statement execution. The manager lock makes the min/max and cumulative
+// values consistent with the statement inventory snapshot.
+func (m *PreparedStatementManager) RecordExecution(stmtID uint32, stats compatibility.PreparedStatementExecutionStats) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	stmt, exists := m.statements[stmtID]
+	if !exists {
+		return fmt.Errorf("prepared statement %d not found", stmtID)
+	}
+	duration := stats.Duration
+	if duration < 0 {
+		duration = 0
+	}
+	stmt.ExecuteTimeTotal += duration
+	if stmt.ExecuteCount == 1 || stmt.ExecuteTimeMin == 0 || duration < stmt.ExecuteTimeMin {
+		stmt.ExecuteTimeMin = duration
+	}
+	if duration > stmt.ExecuteTimeMax {
+		stmt.ExecuteTimeMax = duration
+	}
+	if stats.Failed {
+		stmt.ErrorCount++
+	}
+	stmt.WarningCount += stats.Warnings
+	stmt.RowsAffected += stats.RowsAffected
+	stmt.RowsSent += stats.RowsSent
+	stmt.RowsExamined += stats.RowsExamined
+	return nil
+}
+
 // Peek 获取预编译语句但不计入执行次数（用于 COM_STMT_RESET 等）。
 func (m *PreparedStatementManager) Peek(stmtID uint32) (*PreparedStatement, error) {
 	m.mu.RLock()
@@ -317,13 +356,21 @@ func (m *PreparedStatementManager) Snapshot() []compatibility.PreparedStatementS
 			continue
 		}
 		snapshots = append(snapshots, compatibility.PreparedStatementSnapshot{
-			ID:           stmt.ID,
-			SQL:          stmt.SQL,
-			ParamCount:   stmt.ParamCount,
-			ColumnCount:  stmt.ColumnCount,
-			CreatedAt:    stmt.CreatedAt,
-			LastUsedAt:   stmt.LastUsedAt,
-			ExecuteCount: atomic.LoadUint64(&stmt.ExecuteCount),
+			ID:               stmt.ID,
+			SQL:              stmt.SQL,
+			ParamCount:       stmt.ParamCount,
+			ColumnCount:      stmt.ColumnCount,
+			CreatedAt:        stmt.CreatedAt,
+			LastUsedAt:       stmt.LastUsedAt,
+			ExecuteCount:     atomic.LoadUint64(&stmt.ExecuteCount),
+			ExecuteTimeTotal: stmt.ExecuteTimeTotal,
+			ExecuteTimeMin:   stmt.ExecuteTimeMin,
+			ExecuteTimeMax:   stmt.ExecuteTimeMax,
+			ErrorCount:       stmt.ErrorCount,
+			WarningCount:     stmt.WarningCount,
+			RowsAffected:     stmt.RowsAffected,
+			RowsSent:         stmt.RowsSent,
+			RowsExamined:     stmt.RowsExamined,
 		})
 	}
 	sort.Slice(snapshots, func(i, j int) bool { return snapshots[i].ID < snapshots[j].ID })

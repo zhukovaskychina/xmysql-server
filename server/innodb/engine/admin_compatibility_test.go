@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,6 +36,19 @@ func TestReplicationAdminCommandsDelegateToRuntime(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, started)
 	require.Equal(t, 2, stopped)
+
+	handled, err = executor.executeAdminCompatibility(ctx, nil, "START REPLICA FOR CHANNEL ''")
+	require.True(t, handled)
+	require.NoError(t, err)
+	handled, err = executor.executeAdminCompatibility(ctx, nil, "STOP SLAVE FOR CHANNEL ''")
+	require.True(t, handled)
+	require.NoError(t, err)
+	require.Equal(t, 3, started)
+	require.Equal(t, 3, stopped)
+
+	handled, err = executor.executeAdminCompatibility(ctx, nil, "START REPLICA FOR CHANNEL 'analytics'")
+	require.True(t, handled)
+	require.ErrorContains(t, err, "only the default replication channel")
 }
 
 func TestKillConnectionDelegatesToSessionControl(t *testing.T) {
@@ -111,6 +125,95 @@ func TestChangeReplicationSourceParsesLegacyAndCurrentOptions(t *testing.T) {
 	require.True(t, handled)
 	require.NoError(t, err)
 	require.Equal(t, "https://source.example:443", sourceURL)
+
+	handled, err = executor.executeAdminCompatibility(ctx, nil, "CHANGE REPLICATION SOURCE TO SOURCE_HOST='127.0.0.1', SOURCE_PORT=3307 FOR CHANNEL ''")
+	require.True(t, handled)
+	require.NoError(t, err)
+	require.Equal(t, "http://127.0.0.1:3307", sourceURL)
+
+	handled, err = executor.executeAdminCompatibility(ctx, nil, "CHANGE REPLICATION SOURCE TO SOURCE_HOST='127.0.0.1' FOR CHANNEL 'analytics'")
+	require.True(t, handled)
+	require.ErrorContains(t, err, "only the default replication channel")
+}
+
+func TestChangeReplicationSourceBuildsNativeMySQLSourceURL(t *testing.T) {
+	executor := &XMySQLExecutor{}
+	var sourceURL string
+	executor.SetReplicationSourceControl(func(value string) error {
+		sourceURL = value
+		return nil
+	})
+	ctx := &ExecutionContext{Context: context.Background()}
+
+	handled, err := executor.executeAdminCompatibility(ctx, nil, "CHANGE REPLICATION SOURCE TO SOURCE_HOST='127.0.0.1', SOURCE_PORT=3307, SOURCE_USER='repl', SOURCE_AUTO_POSITION=1")
+	require.True(t, handled)
+	require.NoError(t, err)
+	require.Equal(t, "mysql://repl@127.0.0.1:3307?gtid_auto_position=true", sourceURL)
+}
+
+func TestChangeReplicationSourceCarriesPasswordWithoutPersistingItInTheURLContract(t *testing.T) {
+	password := t.Name()
+	executor := &XMySQLExecutor{}
+	var sourceURL string
+	executor.SetReplicationSourceControl(func(value string) error {
+		sourceURL = value
+		return nil
+	})
+	ctx := &ExecutionContext{Context: context.Background()}
+
+	query := "CHANGE REPLICATION SOURCE TO SOURCE_HOST='127.0.0.1', SOURCE_PORT=3307, SOURCE_USER='repl', SOURCE_PASSWORD='" + password + "'"
+	handled, err := executor.executeAdminCompatibility(ctx, nil, query)
+	require.True(t, handled)
+	require.NoError(t, err)
+	parsed, err := url.Parse(sourceURL)
+	require.NoError(t, err)
+	parsedPassword, passwordSet := parsed.User.Password()
+	require.True(t, passwordSet)
+	require.Equal(t, password, parsedPassword)
+}
+
+func TestChangeReplicationSourceCarriesNativeTLSOptions(t *testing.T) {
+	executor := &XMySQLExecutor{}
+	var sourceURL string
+	executor.SetReplicationSourceControl(func(value string) error {
+		sourceURL = value
+		return nil
+	})
+	ctx := &ExecutionContext{Context: context.Background()}
+
+	handled, err := executor.executeAdminCompatibility(ctx, nil, "CHANGE REPLICATION SOURCE TO SOURCE_HOST='127.0.0.1', SOURCE_PORT=3307, SOURCE_USER='repl', SOURCE_SSL=1, SOURCE_SSL_VERIFY_SERVER_CERT=0, SOURCE_SSL_CA='ca.pem', SOURCE_SSL_CERT='client.pem', SOURCE_SSL_KEY='client.key'")
+	require.True(t, handled)
+	require.NoError(t, err)
+	parsed, err := url.Parse(sourceURL)
+	require.NoError(t, err)
+	values := parsed.Query()
+	require.Equal(t, "true", values.Get("ssl"))
+	require.Equal(t, "false", values.Get("ssl_verify_server_cert"))
+	require.Equal(t, "ca.pem", values.Get("ssl_ca"))
+	require.Equal(t, "client.pem", values.Get("ssl_cert"))
+	require.Equal(t, "client.key", values.Get("ssl_key"))
+}
+
+func TestChangeReplicationSourceCarriesNativeRuntimeOptions(t *testing.T) {
+	executor := &XMySQLExecutor{}
+	var sourceURL string
+	executor.SetReplicationSourceControl(func(value string) error {
+		sourceURL = value
+		return nil
+	})
+	ctx := &ExecutionContext{Context: context.Background()}
+
+	handled, err := executor.executeAdminCompatibility(ctx, nil, "CHANGE REPLICATION SOURCE TO SOURCE_HOST='127.0.0.1', SOURCE_PORT=3307, SOURCE_USER='repl', SOURCE_CONNECT_RETRY=7, SOURCE_RETRY_COUNT=3, SOURCE_HEARTBEAT_PERIOD=30.5, SOURCE_COMPRESSION_ALGORITHMS='zstd', SOURCE_ZSTD_COMPRESSION_LEVEL=3")
+	require.True(t, handled)
+	require.NoError(t, err)
+	parsed, err := url.Parse(sourceURL)
+	require.NoError(t, err)
+	values := parsed.Query()
+	require.Equal(t, "7", values.Get("connect_retry"))
+	require.Equal(t, "3", values.Get("connect_retry_count"))
+	require.Equal(t, "30.5", values.Get("heartbeat_interval"))
+	require.Equal(t, "zstd", values.Get("compression_algorithm"))
+	require.Equal(t, "3", values.Get("zstd_compression_level"))
 }
 
 func TestChangeReplicationSourceRejectsCredentialsAndMissingHost(t *testing.T) {
@@ -153,7 +256,13 @@ func TestResetReplicationAdminAllDelegatesToRuntime(t *testing.T) {
 	handled, err := executor.executeAdminCompatibility(&ExecutionContext{}, nil, "reset replica all")
 	require.True(t, handled)
 	require.NoError(t, err)
-	require.Equal(t, 1, resetAllCount)
+	handled, err = executor.executeAdminCompatibility(&ExecutionContext{}, nil, "reset replica all for channel ''")
+	require.True(t, handled)
+	require.NoError(t, err)
+	require.Equal(t, 2, resetAllCount)
+	handled, err = executor.executeAdminCompatibility(&ExecutionContext{}, nil, "reset replica all for channel 'analytics'")
+	require.True(t, handled)
+	require.ErrorContains(t, err, "only the default replication channel")
 }
 
 func TestSourceBinlogAdminCommandsDelegateToRuntime(t *testing.T) {
@@ -177,6 +286,58 @@ func TestSourceBinlogAdminCommandsDelegateToRuntime(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, flushCount)
 	require.Equal(t, 1, resetCount)
+}
+
+func TestResetBinaryLogsAndGTIDsDelegatesOptionalFileIndex(t *testing.T) {
+	executor := &XMySQLExecutor{}
+	var resetIndex uint32
+	executor.SetReplicationResetBinaryLogsAndGTIDsControl(func(index uint32) error {
+		resetIndex = index
+		return nil
+	})
+	ctx := &ExecutionContext{Context: context.Background()}
+	for _, test := range []struct {
+		query string
+		want  uint32
+	}{
+		{query: "reset binary logs and gtids", want: 1},
+		{query: "RESET BINARY LOGS AND GTIDS TO 1234;", want: 1234},
+	} {
+		handled, err := executor.executeAdminCompatibility(ctx, nil, test.query)
+		require.True(t, handled, test.query)
+		require.NoError(t, err, test.query)
+		require.Equal(t, test.want, resetIndex, test.query)
+	}
+}
+
+func TestPurgeBinaryLogsDelegatesToRuntime(t *testing.T) {
+	executor := &XMySQLExecutor{}
+	var purgedFile string
+	executor.SetReplicationSourcePurgeControl(func(file string) error {
+		purgedFile = file
+		return nil
+	})
+	handled, err := executor.executeAdminCompatibility(&ExecutionContext{Context: context.Background()}, nil, "PURGE BINARY LOGS TO 'binlog.000003'")
+	require.True(t, handled)
+	require.NoError(t, err)
+	require.Equal(t, "binlog.000003", purgedFile)
+	handled, err = executor.executeAdminCompatibility(&ExecutionContext{Context: context.Background()}, nil, "PURGE MASTER LOGS TO 'binlog.000004'")
+	require.True(t, handled)
+	require.NoError(t, err)
+	require.Equal(t, "binlog.000004", purgedFile)
+}
+
+func TestPurgeBinaryLogsBeforeDelegatesParsedCutoff(t *testing.T) {
+	executor := &XMySQLExecutor{}
+	var cutoff time.Time
+	executor.SetReplicationSourcePurgeBeforeControl(func(value time.Time) error {
+		cutoff = value
+		return nil
+	})
+	handled, err := executor.executeAdminCompatibility(&ExecutionContext{Context: context.Background()}, nil, "PURGE BINARY LOGS BEFORE '2026-01-03 00:00:00'")
+	require.True(t, handled)
+	require.NoError(t, err)
+	require.Equal(t, time.Date(2026, time.January, 3, 0, 0, 0, 0, time.UTC), cutoff)
 }
 
 func TestLockTablesEnforcesSessionWriteModeAndUnlock(t *testing.T) {

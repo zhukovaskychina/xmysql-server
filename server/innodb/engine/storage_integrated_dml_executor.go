@@ -574,6 +574,7 @@ func (dml *StorageIntegratedDMLExecutor) executeReplaceRows(
 		return nil, fmt.Errorf("开始存储事务失败: %v", err)
 	}
 	txnID := extractTransactionIDFromStorageCtx(txn)
+	changes := make([]transactionDMLChange, 0, len(duplicateRows)+len(insertRows))
 
 	for _, rowInfo := range duplicateRows {
 		if err := dml.deleteRowFromStorage(ctx, txn, rowInfo, tableMeta, tableStorageInfo, tableBtreeManager); err != nil {
@@ -584,6 +585,14 @@ func (dml *StorageIntegratedDMLExecutor) executeReplaceRows(
 			dml.rollbackStorageTransaction(ctx, txn)
 			return nil, fmt.Errorf("REPLACE更新删除索引失败: %v", err)
 		}
+		changes = append(changes, transactionDMLChange{
+			tableName:   dml.transactionTableName(),
+			kind:        "delete",
+			rowID:       rowInfo.RowId,
+			storageKey:  rowInfo.StorageKey,
+			before:      cloneTransactionRow(rowInfo.OldValues),
+			columnTypes: cloneTransactionColumnTypes(tableMeta),
+		})
 	}
 
 	// REPLACE reports one affected row for the delete and one for the insert.
@@ -603,6 +612,12 @@ func (dml *StorageIntegratedDMLExecutor) executeReplaceRows(
 			dml.rollbackStorageTransaction(ctx, txn)
 			return nil, fmt.Errorf("REPLACE更新插入索引失败: %v", err)
 		}
+		changes = append(changes, transactionDMLChange{
+			tableName:   dml.transactionTableName(),
+			kind:        "insert",
+			after:       cloneTransactionRow(row.ColumnValues),
+			columnTypes: cloneTransactionColumnTypes(tableMeta),
+		})
 	}
 
 	if err := dml.commitStorageTransaction(ctx, txn); err != nil {
@@ -611,6 +626,7 @@ func (dml *StorageIntegratedDMLExecutor) executeReplaceRows(
 	if err := dml.refreshSpatialIndexState(ctx, tableMeta, tableStorageInfo, tableBtreeManager); err != nil {
 		logger.Warnf("refresh spatial index state after REPLACE failed: %v", err)
 	}
+	dml.recordTransactionDMLChanges(changes)
 	dml.updateInsertStats(affectedRows, time.Since(startTime))
 	result := buildInsertDMLResult(affectedRows, lastInsertId, txnID)
 	result.Warnings = append([]Warning(nil), dml.warnings...)
@@ -644,6 +660,7 @@ func (dml *StorageIntegratedDMLExecutor) executeOnDuplicateKeyUpdate(
 		return nil, fmt.Errorf("开始存储事务失败: %v", err)
 	}
 	txnID := extractTransactionIDFromStorageCtx(txn)
+	changes := make([]transactionDMLChange, 0, len(insertRows))
 
 	duplicateRows := flattenDuplicateRowsByInsert(duplicateRowsByInsert, tableMeta)
 	incomingByRow := make(map[*RowUpdateInfo]map[string]interface{})
@@ -678,6 +695,12 @@ func (dml *StorageIntegratedDMLExecutor) executeOnDuplicateKeyUpdate(
 				dml.rollbackStorageTransaction(ctx, txn)
 				return nil, fmt.Errorf("ON DUPLICATE KEY UPDATE更新插入索引失败: %v", err)
 			}
+			changes = append(changes, transactionDMLChange{
+				tableName:   dml.transactionTableName(),
+				kind:        "insert",
+				after:       cloneTransactionRow(row.ColumnValues),
+				columnTypes: cloneTransactionColumnTypes(tableMeta),
+			})
 			continue
 		}
 		for _, rowInfo := range rowDuplicates {
@@ -700,6 +723,15 @@ func (dml *StorageIntegratedDMLExecutor) executeOnDuplicateKeyUpdate(
 			}
 			if changed {
 				affectedRows += 2
+				changes = append(changes, transactionDMLChange{
+					tableName:   dml.transactionTableName(),
+					kind:        "update",
+					rowID:       rowInfo.RowId,
+					storageKey:  rowInfo.StorageKey,
+					before:      cloneTransactionRow(rowInfo.OldValues),
+					after:       cloneTransactionRow(updatedRow.ColumnValues),
+					columnTypes: cloneTransactionColumnTypes(tableMeta),
+				})
 			} else if dml.foundRows {
 				affectedRows++
 			}
@@ -712,6 +744,7 @@ func (dml *StorageIntegratedDMLExecutor) executeOnDuplicateKeyUpdate(
 	if err := dml.refreshSpatialIndexState(ctx, tableMeta, tableStorageInfo, tableBtreeManager); err != nil {
 		logger.Warnf("refresh spatial index state after ON DUPLICATE KEY UPDATE failed: %v", err)
 	}
+	dml.recordTransactionDMLChanges(changes)
 	dml.updateUpdateStats(affectedRows, time.Since(startTime))
 	result := buildInsertDMLResult(affectedRows, lastInsertId, txnID)
 	result.Warnings = append([]Warning(nil), dml.warnings...)

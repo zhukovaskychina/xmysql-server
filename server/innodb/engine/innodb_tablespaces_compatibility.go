@@ -3,10 +3,12 @@ package engine
 import (
 	"context"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
@@ -18,9 +20,8 @@ import (
 // remain NULL instead of being fabricated from unrelated metadata.
 func (e *XMySQLExecutor) executeInformationSchemaInnoDBTablespacesSelect(query string) *SelectResult {
 	columns := requestedInformationSchemaColumns(query, []string{
-		"SPACE", "NAME", "SPACE_TYPE", "FS_BLOCK_SIZE", "FILE_SIZE", "ALLOCATED_SIZE",
-		"SERVER_VERSION", "SPACE_VERSION", "ROW_FORMAT", "PAGE_SIZE", "ZIP_PAGE_SIZE", "AUTOEXTEND_SIZE", "STATE", "FLAGS", "FLAG", "SDI_VERSION",
-		"SDI_OFFSET", "SDI_LENGTH", "SDI_SPACE", "SPACE_FLAGS", "SPACE_FLAGS2",
+		"SPACE", "NAME", "FLAG", "ROW_FORMAT", "PAGE_SIZE", "ZIP_PAGE_SIZE", "SPACE_TYPE", "FS_BLOCK_SIZE", "FILE_SIZE", "ALLOCATED_SIZE",
+		"AUTOEXTEND_SIZE", "SERVER_VERSION", "SPACE_VERSION", "ENCRYPTION", "STATE",
 	})
 	if e == nil || e.storageManager == nil {
 		return newInformationSchemaSelectResult("information_schema.innodb_tablespaces", columns, nil)
@@ -60,14 +61,7 @@ func (e *XMySQLExecutor) executeInformationSchemaInnoDBTablespacesSelect(query s
 			"ZIP_PAGE_SIZE":   int64(0),
 			"AUTOEXTEND_SIZE": nil,
 			"STATE":           strings.ToUpper(space.State),
-			"FLAGS":           spaceFlags,
 			"FLAG":            spaceFlags,
-			"SDI_VERSION":     nil,
-			"SDI_OFFSET":      nil,
-			"SDI_LENGTH":      nil,
-			"SDI_SPACE":       nil,
-			"SPACE_FLAGS":     spaceFlags,
-			"SPACE_FLAGS2":    int64(0),
 		}
 		if !performanceSchemaLockValuesMatch(query, values) {
 			continue
@@ -298,14 +292,13 @@ func innodbMetadataIndexes(table frmMetadataTable) []frmMetadataIndex {
 	return indexes
 }
 
-// executeInformationSchemaInnoDBColumnsSelect exposes column dictionary data
-// that is directly available from the durable table definition. Internal
-// InnoDB type/precision encodings are left NULL/0 until a native dictionary
-// reader can prove them.
+// executeInformationSchemaInnoDBColumnsSelect exposes the MySQL 8.4
+// INNODB_COLUMNS shape from the durable table definition. Internal InnoDB
+// type/precision encodings are left NULL/0 until a native dictionary reader
+// can prove them.
 func (e *XMySQLExecutor) executeInformationSchemaInnoDBColumnsSelect(query string) *SelectResult {
 	columns := requestedInformationSchemaColumns(query, []string{
-		"TABLE_ID", "POS", "NAME", "MTYPE", "PRTYPE", "LEN", "HAS_DEFAULT",
-		"DEFAULT_VALUE", "DEFAULT_VALUE_UTF8", "VERSION", "HAS_NO_DEFAULT",
+		"TABLE_ID", "NAME", "POS", "MTYPE", "PRTYPE", "LEN", "HAS_DEFAULT", "DEFAULT_VALUE",
 	})
 	if e == nil || e.tableStorageManager == nil {
 		return newInformationSchemaSelectResult("information_schema.innodb_columns", columns, nil)
@@ -323,17 +316,14 @@ func (e *XMySQLExecutor) executeInformationSchemaInnoDBColumnsSelect(query strin
 		}
 		for pos, column := range table.columns {
 			values := map[string]interface{}{
-				"TABLE_ID":           int64(storage.SpaceID),
-				"POS":                int64(pos),
-				"NAME":               column.name,
-				"MTYPE":              innodbColumnMainType(column),
-				"PRTYPE":             nil,
-				"LEN":                int64(innodbColumnLength(column)),
-				"HAS_DEFAULT":        boolToInt64(column.instantAdded),
-				"DEFAULT_VALUE":      nil,
-				"DEFAULT_VALUE_UTF8": nil,
-				"VERSION":            int64(1),
-				"HAS_NO_DEFAULT":     nil,
+				"TABLE_ID":      int64(storage.SpaceID),
+				"NAME":          column.name,
+				"POS":           int64(pos),
+				"MTYPE":         innodbColumnMainType(column),
+				"PRTYPE":        innodbColumnPreciseType(column),
+				"LEN":           int64(innodbColumnLength(column)),
+				"HAS_DEFAULT":   boolToInt64(column.instantAdded),
+				"DEFAULT_VALUE": innodbInstantDefaultValue(column),
 			}
 			if !performanceSchemaLockValuesMatch(query, values) {
 				continue
@@ -379,9 +369,7 @@ func innodbColumnLength(column frmMetadataColumn) int {
 }
 
 // innodbColumnMainType maps the durable SQL type name to the documented
-// InnoDB main-type code.  The mapping deliberately covers only types whose
-// code is unambiguous from the persisted definition; PRTYPE still requires
-// InnoDB's internal charset/flag encoding and remains NULL.
+// InnoDB main-type code.
 func innodbColumnMainType(column frmMetadataColumn) interface{} {
 	base := strings.ToUpper(strings.TrimSpace(strings.SplitN(column.typeName, "(", 2)[0]))
 	switch base {
@@ -407,6 +395,207 @@ func innodbColumnMainType(column frmMetadataColumn) interface{} {
 		return int64(14)
 	default:
 		return nil
+	}
+}
+
+// innodbColumnPreciseType mirrors the portable part of InnoDB's precise-type
+// encoding. The low byte is the MySQL field type, 256 marks NOT NULL, 512
+// marks UNSIGNED, and 1024 marks binary storage. Character types additionally
+// carry the MySQL collation id in bits 16..23. The persisted metadata only
+// exposes collation names, so unknown collations remain NULL rather than being
+// assigned a guessed id.
+func innodbColumnPreciseType(column frmMetadataColumn) interface{} {
+	base := strings.ToUpper(strings.TrimSpace(strings.SplitN(column.typeName, "(", 2)[0]))
+	mysqlType, ok := innodbMySQLFieldTypeCode(base)
+	if !ok {
+		return nil
+	}
+	precise := mysqlType
+	if !column.nullable {
+		precise |= 256
+	}
+	if column.unsigned {
+		precise |= 512
+	}
+	if innodbColumnUsesBinaryStorage(base) {
+		precise |= 1024
+	}
+	if innodbColumnNeedsCollation(base) {
+		collation := fmt.Sprint(informationSchemaColumnCollation(column))
+		collationID, ok := innodbMySQLCollationID(collation)
+		if !ok {
+			return nil
+		}
+		precise |= collationID << 16
+	}
+	return int64(precise)
+}
+
+// innodbInstantDefaultValue converts the subset of persisted SQL defaults that
+// can be represented without a live MySQL Field implementation into the
+// InnoDB row-format bytes exposed by INNODB_COLUMNS.DEFAULT_VALUE. Integer
+// values use the same little-endian-to-big-endian conversion and signed-bit
+// flip as row_mysql_store_col_in_innobase_format; character/binary values are
+// already stored as their payload bytes. Expressions and unsupported temporal
+// encodings remain NULL instead of being returned as misleading SQL text.
+func innodbInstantDefaultValue(column frmMetadataColumn) interface{} {
+	if !column.instantAdded || column.defaultValue == nil {
+		return nil
+	}
+	text := strings.TrimSpace(fmt.Sprint(column.defaultValue))
+	if strings.EqualFold(text, "null") {
+		return nil
+	}
+	base := strings.ToUpper(strings.TrimSpace(strings.SplitN(column.typeName, "(", 2)[0]))
+	if bytes, ok := innodbInstantDefaultBytes(text); ok {
+		if base == "BINARY" || base == "VARBINARY" || base == "TINYBLOB" || base == "BLOB" || base == "MEDIUMBLOB" || base == "LONGBLOB" {
+			return bytes
+		}
+	}
+	if width, ok := innodbIntegerStorageWidth(base); ok {
+		if column.unsigned {
+			value, err := strconv.ParseUint(text, 10, 64)
+			if err != nil {
+				return nil
+			}
+			return innodbEncodeInteger(value, width, false)
+		}
+		value, err := strconv.ParseInt(text, 10, 64)
+		if err != nil {
+			return nil
+		}
+		return innodbEncodeInteger(uint64(value), width, true)
+	}
+	switch base {
+	case "CHAR", "VARCHAR", "TINYTEXT", "TEXT", "MEDIUMTEXT", "LONGTEXT":
+		return []byte(text)
+	default:
+		return nil
+	}
+}
+
+func innodbInstantDefaultBytes(text string) ([]byte, bool) {
+	if !strings.HasPrefix(strings.ToLower(text), "0x") {
+		return nil, false
+	}
+	decoded, err := hex.DecodeString(text[2:])
+	if err != nil {
+		return nil, false
+	}
+	return decoded, true
+}
+
+func innodbIntegerStorageWidth(base string) (int, bool) {
+	switch base {
+	case "TINYINT":
+		return 1, true
+	case "SMALLINT":
+		return 2, true
+	case "MEDIUMINT":
+		return 3, true
+	case "INT", "INTEGER":
+		return 4, true
+	case "BIGINT":
+		return 8, true
+	default:
+		return 0, false
+	}
+}
+
+func innodbEncodeInteger(value uint64, width int, signed bool) []byte {
+	encoded := make([]byte, 8)
+	binary.LittleEndian.PutUint64(encoded, value)
+	encoded = encoded[:width]
+	for left, right := 0, len(encoded)-1; left < right; left, right = left+1, right-1 {
+		encoded[left], encoded[right] = encoded[right], encoded[left]
+	}
+	if signed {
+		encoded[0] ^= 128
+	}
+	return encoded
+}
+
+func innodbMySQLFieldTypeCode(base string) (int64, bool) {
+	switch base {
+	case "TINYINT":
+		return 1, true
+	case "SMALLINT":
+		return 2, true
+	case "INT", "INTEGER":
+		return 3, true
+	case "FLOAT":
+		return 4, true
+	case "DOUBLE", "REAL":
+		return 5, true
+	case "TIMESTAMP":
+		return 7, true
+	case "BIGINT":
+		return 8, true
+	case "MEDIUMINT":
+		return 9, true
+	case "DATE":
+		return 10, true
+	case "TIME":
+		return 11, true
+	case "DATETIME":
+		return 12, true
+	case "YEAR":
+		return 13, true
+	case "VARCHAR", "VARBINARY":
+		return 15, true
+	case "BIT":
+		return 16, true
+	case "CHAR", "BINARY":
+		return 254, true
+	case "TINYTEXT", "TEXT", "MEDIUMTEXT", "LONGTEXT", "TINYBLOB", "BLOB", "MEDIUMBLOB", "LONGBLOB":
+		return 252, true
+	case "DECIMAL", "NUMERIC":
+		return 246, true
+	case "ENUM":
+		return 247, true
+	case "SET":
+		return 248, true
+	case "GEOMETRY", "POINT", "LINESTRING", "POLYGON", "MULTIPOINT", "MULTILINESTRING", "MULTIPOLYGON", "GEOMETRYCOLLECTION":
+		return 255, true
+	default:
+		return 0, false
+	}
+}
+
+func innodbColumnUsesBinaryStorage(base string) bool {
+	switch base {
+	case "TINYINT", "SMALLINT", "INT", "INTEGER", "MEDIUMINT", "BIGINT", "FLOAT", "DOUBLE", "REAL", "TIMESTAMP", "DATE", "TIME", "DATETIME", "YEAR", "BIT", "VARBINARY", "BINARY", "TINYBLOB", "BLOB", "MEDIUMBLOB", "LONGBLOB":
+		return true
+	default:
+		return false
+	}
+}
+
+func innodbColumnNeedsCollation(base string) bool {
+	switch base {
+	case "CHAR", "VARCHAR", "TINYTEXT", "TEXT", "MEDIUMTEXT", "LONGTEXT", "ENUM", "SET":
+		return true
+	default:
+		return false
+	}
+}
+
+func innodbMySQLCollationID(collation string) (int64, bool) {
+	switch strings.ToLower(strings.TrimSpace(collation)) {
+	case "latin1_swedish_ci":
+		return 8, true
+	case "utf8mb3_general_ci":
+		return 33, true
+	case "utf8mb4_general_ci":
+		return 45, true
+	case "utf8mb4_bin":
+		return 46, true
+	case "utf8mb4_0900_ai_ci":
+		return 255, true
+	case "binary":
+		return 63, true
+	default:
+		return 0, false
 	}
 }
 

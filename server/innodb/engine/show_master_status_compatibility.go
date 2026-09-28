@@ -8,12 +8,18 @@ import (
 
 func isShowMasterStatusQuery(query string) bool {
 	q := strings.ToLower(strings.TrimSpace(strings.TrimSuffix(query, ";")))
-	return q == "show master status" || q == "show source status"
+	return q == "show master status" || q == "show source status" || q == "show binary log status"
 }
 
 // executeShowMasterStatus exposes the local source position and executed GTID
-// set using the column contract expected by replication tooling.
+// set using the column contract expected by replication tooling. The handler
+// also serves MySQL 8.4's SHOW BINARY LOG STATUS spelling and the legacy
+// SHOW MASTER STATUS/SHOW SOURCE STATUS aliases.
 func (e *XMySQLExecutor) executeShowMasterStatus(ctx *ExecutionContext) {
+	if err := e.checkReplicationPrivilege(ctx, "REPLICATION CLIENT"); err != nil {
+		ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
+		return
+	}
 	columns := []string{"File", "Position", "Binlog_Do_DB", "Binlog_Ignore_DB", "Executed_Gtid_Set"}
 	rows := [][]interface{}{}
 	if e != nil && e.replicationSource != nil {

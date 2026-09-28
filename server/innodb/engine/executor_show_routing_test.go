@@ -198,10 +198,10 @@ func TestXMySQLExecutor_InformationSchemaFilesSelectStarUsesNativeShape(t *testi
 		"FREE_EXTENTS", "TOTAL_EXTENTS", "EXTENT_SIZE", "INITIAL_SIZE", "MAXIMUM_SIZE", "AUTOEXTEND_SIZE",
 		"CREATION_TIME", "LAST_UPDATE_TIME", "LAST_ACCESS_TIME", "RECOVER_TIME", "TRANSACTION_COUNTER", "VERSION",
 		"ROW_FORMAT", "TABLE_ROWS", "AVG_ROW_LENGTH", "DATA_LENGTH", "MAX_DATA_LENGTH", "INDEX_LENGTH", "DATA_FREE",
-		"CREATE_TIME", "UPDATE_TIME", "CHECK_TIME", "CHECKSUM", "STATUS", "EXTRA", "NODEGROUP_ID", "TABLESPACE_TYPE",
+		"CREATE_TIME", "UPDATE_TIME", "CHECK_TIME", "CHECKSUM", "STATUS", "EXTRA",
 	}, result.Columns)
 	metadata := mustSelectResultSQL(t, executor, "", "select column_name from information_schema.columns where table_schema = 'information_schema' and table_name = 'files'")
-	require.Len(t, metadata.Records, 40)
+	require.Len(t, metadata.Records, 38)
 }
 
 func TestXMySQLExecutor_InformationSchemaRegisteredShapesMatchColumnsCatalog(t *testing.T) {

@@ -1153,15 +1153,14 @@ func (im *IndexManager) FlushIndexes() error {
 
 // Close 关闭索引管理器
 func (im *IndexManager) Close() error {
-	im.mu.Lock()
-	defer im.mu.Unlock()
-
 	// 刷新所有索引
 	if err := im.FlushIndexes(); err != nil {
 		return fmt.Errorf("failed to flush indexes during close: %v", err)
 	}
 
 	// 清理资源
+	im.mu.Lock()
+	defer im.mu.Unlock()
 	im.indexes = nil
 	im.btreeManager = nil
 

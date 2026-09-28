@@ -7,12 +7,14 @@ import (
 	"time"
 )
 
-/**
+/*
+*
 这个可以理解为另外一个数据页的控制体，大部分的数据页信息存在其中，例如space_id, page_no, page state, newest_modification，
 oldest_modification，access_time以及压缩页的所有信息等。压缩页的信息包括压缩页的大小，压缩页的数据指针(真正的压缩页数据是存储在由伙伴
 系统分配的数据页上)。这里需要注意一点，如果某个压缩页被解压了，解压页的数据指针是存储在buf_block_t的frame字段里。
 
-**/
+*
+*/
 type BufferPage struct {
 	// 基本信息
 	spaceId   uint32
@@ -114,6 +116,18 @@ func (bp *BufferPage) Reset() {
 	bp.dirty = false
 	atomic.StoreInt32(&bp.pinCount, 0)
 	bp.content = make([]byte, common.UNIV_PAGE_SIZE)
+}
+
+// Release drops the page frame owned by a buffer pool that is being closed.
+// Reset intentionally allocates a reusable frame, while shutdown must make
+// the backing memory unreachable so a closed engine can be reclaimed.
+func (bp *BufferPage) Release() {
+	if bp == nil {
+		return
+	}
+	bp.mu.Lock()
+	bp.content = nil
+	bp.mu.Unlock()
 }
 
 // IsFree returns true if the page is free

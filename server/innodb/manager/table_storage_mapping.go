@@ -293,6 +293,105 @@ func (tsm *TableStorageManager) SyncFromInfoSchema(infoSchemaManager metadata.In
 		}
 	}
 
+	// The legacy SQL DDL path persists .frm definitions directly and does not
+	// necessarily populate the page-backed DictionaryManager.  On a cold
+	// process restart those tables are still authoritative on disk, so scan
+	// them as a second source for the physical mapping rebuild.
+	return tsm.syncPersistedFilesystemMappings()
+}
+
+func (tsm *TableStorageManager) syncPersistedFilesystemMappings() error {
+	if tsm == nil || tsm.storageManager == nil {
+		return nil
+	}
+	dataDir := tsm.storageManager.configDataDir()
+	schemas, err := os.ReadDir(dataDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("scan persisted table mappings: %w", err)
+	}
+	for _, schemaEntry := range schemas {
+		if !schemaEntry.IsDir() || strings.EqualFold(schemaEntry.Name(), "information_schema") ||
+			strings.EqualFold(schemaEntry.Name(), "performance_schema") || strings.EqualFold(schemaEntry.Name(), "mysql") ||
+			strings.EqualFold(schemaEntry.Name(), "sys") {
+			continue
+		}
+		schemaName := schemaEntry.Name()
+		files, readErr := os.ReadDir(filepath.Join(dataDir, schemaName))
+		if readErr != nil {
+			continue
+		}
+		seenTables := make(map[string]string)
+		for _, file := range files {
+			if file.IsDir() {
+				continue
+			}
+			name := file.Name()
+			var tableName string
+			switch {
+			case strings.HasSuffix(name, ".frm"):
+				tableName = strings.TrimSuffix(name, ".frm")
+			case strings.HasSuffix(name, ".json"):
+				tableName = strings.TrimSuffix(name, ".json")
+			default:
+				continue
+			}
+			if tableName != "" {
+				seenTables[tableName] = filepath.Join(dataDir, schemaName, name)
+			}
+		}
+		for tableName, definitionPath := range seenTables {
+			if _, lookupErr := tsm.GetTableStorageInfo(schemaName, tableName); lookupErr == nil {
+				continue
+			}
+			spaceName := fmt.Sprintf("%s/%s", schemaName, tableName)
+			rootPageNo := uint32(3)
+			ownsTablespace := true
+			if raw, readErr := os.ReadFile(definitionPath); readErr == nil {
+				var persisted struct {
+					StorageRootPage uint32 `json:"storage_root_page"`
+					TablespaceName  string `json:"tablespace_name"`
+					OwnsTablespace  *bool  `json:"owns_tablespace"`
+					Discarded       bool   `json:"tablespace_discarded"`
+				}
+				var fields map[string]json.RawMessage
+				if json.Unmarshal(raw, &persisted) == nil {
+					_ = json.Unmarshal(raw, &fields)
+					if _, hasRoot := fields["storage_root_page"]; hasRoot && persisted.StorageRootPage != 0 {
+						rootPageNo = persisted.StorageRootPage
+					}
+					if strings.TrimSpace(persisted.TablespaceName) != "" {
+						spaceName = persisted.TablespaceName
+					}
+					if persisted.OwnsTablespace != nil {
+						ownsTablespace = *persisted.OwnsTablespace
+					}
+					if persisted.Discarded {
+						continue
+					}
+				}
+			}
+			handle, lookupErr := tsm.storageManager.GetTablespace(spaceName)
+			if lookupErr != nil && ownsTablespace {
+				handle, lookupErr = tsm.storageManager.CreateTablespace(spaceName)
+			}
+			if lookupErr != nil {
+				logger.Warnf("Sync persisted table mapping skipped schema=%q table=%q space=%q: %v", schemaName, tableName, spaceName, lookupErr)
+				continue
+			}
+			info := &TableStorageInfo{
+				SchemaName: schemaName, TableName: tableName, SpaceID: handle.SpaceID,
+				RootPageNo: rootPageNo, IndexPageNo: rootPageNo, DataSegmentID: handle.DataSegmentID,
+				Type: TableTypeUser, TablespaceName: spaceName, OwnsTablespace: ownsTablespace,
+			}
+			if registerErr := tsm.RegisterTable(context.Background(), info); registerErr != nil && !errors.Is(registerErr, ErrTableStorageAlreadyRegistered) {
+				return fmt.Errorf("register persisted table mapping failed schema=%q table=%q: %w", schemaName, tableName, registerErr)
+			}
+			logger.Debugf("Recovered persisted filesystem table mapping schema=%q table=%q spaceID=%d", schemaName, tableName, handle.SpaceID)
+		}
+	}
 	return nil
 }
 

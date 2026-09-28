@@ -62,6 +62,20 @@ func (c *performanceSchemaTableIOCounters) add(timer int64) {
 	c.sum += timer
 }
 
+func (c *performanceSchemaTableIOCounters) addAggregate(count, sum, min, max int64) {
+	if count <= 0 {
+		return
+	}
+	if c.count == 0 || min < c.min {
+		c.min = min
+	}
+	if c.count == 0 || max > c.max {
+		c.max = max
+	}
+	c.count += count
+	c.sum += sum
+}
+
 func (c performanceSchemaTableIOCounters) project(prefix string) map[string]interface{} {
 	return map[string]interface{}{
 		"COUNT_" + prefix:     c.count,
@@ -87,6 +101,9 @@ func (e *XMySQLExecutor) executePerformanceSchemaTableIOSummarySelect(query stri
 		"COUNT_DELETE", "SUM_TIMER_DELETE", "MIN_TIMER_DELETE", "AVG_TIMER_DELETE", "MAX_TIMER_DELETE",
 	)
 	columns := requestedInformationSchemaColumns(query, base)
+	if e != nil && e.metricsRecorder != nil {
+		return e.executePerformanceSchemaTableIOSummaryFromRecorder(query, byIndex, columns)
+	}
 	byKey := make(map[string]*performanceSchemaTableIOSummary)
 	if e == nil || e.metricsRecorder == nil {
 		name := "performance_schema.table_io_waits_summary_by_table"
@@ -95,17 +112,13 @@ func (e *XMySQLExecutor) executePerformanceSchemaTableIOSummarySelect(query stri
 		}
 		return newInformationSchemaSelectResult(name, columns, nil)
 	}
-	for _, event := range e.metricsRecorder.StatementHistory() {
-		if strings.EqualFold(event.Status, "error") {
+	for _, event := range e.metricsRecorder.StatementSummary() {
+		if event.SuccessCount == 0 {
 			continue
 		}
 		refs := performanceSchemaTableReferences(event.SQL, event.Schema)
 		if len(refs) == 0 {
 			continue
-		}
-		timer := event.Latency.Nanoseconds() * 1000
-		if timer < 0 {
-			timer = 0
 		}
 		kind := strings.ToUpper(strings.TrimSpace(event.StatementType))
 		for _, ref := range refs {
@@ -130,24 +143,24 @@ func (e *XMySQLExecutor) executePerformanceSchemaTableIOSummarySelect(query stri
 				summary = &performanceSchemaTableIOSummary{objectType: "TABLE", objectSchema: ref[0], objectName: ref[1], indexName: indexName}
 				byKey[key] = summary
 			}
-			summary.all.add(timer)
+			summary.all.addAggregate(event.SuccessCount, event.SuccessSumTimerWait, event.SuccessMinTimerWait, event.SuccessMaxTimerWait)
 			switch kind {
 			case "SELECT", "SHOW", "EXPLAIN":
-				summary.read.add(timer)
-				summary.fetch.add(timer)
+				summary.read.addAggregate(event.SuccessCount, event.SuccessSumTimerWait, event.SuccessMinTimerWait, event.SuccessMaxTimerWait)
+				summary.fetch.addAggregate(event.SuccessCount, event.SuccessSumTimerWait, event.SuccessMinTimerWait, event.SuccessMaxTimerWait)
 			case "INSERT", "REPLACE":
-				summary.write.add(timer)
-				summary.insert.add(timer)
+				summary.write.addAggregate(event.SuccessCount, event.SuccessSumTimerWait, event.SuccessMinTimerWait, event.SuccessMaxTimerWait)
+				summary.insert.addAggregate(event.SuccessCount, event.SuccessSumTimerWait, event.SuccessMinTimerWait, event.SuccessMaxTimerWait)
 			case "UPDATE":
-				summary.read.add(timer)
-				summary.write.add(timer)
-				summary.update.add(timer)
+				summary.read.addAggregate(event.SuccessCount, event.SuccessSumTimerWait, event.SuccessMinTimerWait, event.SuccessMaxTimerWait)
+				summary.write.addAggregate(event.SuccessCount, event.SuccessSumTimerWait, event.SuccessMinTimerWait, event.SuccessMaxTimerWait)
+				summary.update.addAggregate(event.SuccessCount, event.SuccessSumTimerWait, event.SuccessMinTimerWait, event.SuccessMaxTimerWait)
 			case "DELETE":
-				summary.read.add(timer)
-				summary.write.add(timer)
-				summary.delete.add(timer)
+				summary.read.addAggregate(event.SuccessCount, event.SuccessSumTimerWait, event.SuccessMinTimerWait, event.SuccessMaxTimerWait)
+				summary.write.addAggregate(event.SuccessCount, event.SuccessSumTimerWait, event.SuccessMinTimerWait, event.SuccessMaxTimerWait)
+				summary.delete.addAggregate(event.SuccessCount, event.SuccessSumTimerWait, event.SuccessMinTimerWait, event.SuccessMaxTimerWait)
 			default:
-				summary.read.add(timer)
+				summary.read.addAggregate(event.SuccessCount, event.SuccessSumTimerWait, event.SuccessMinTimerWait, event.SuccessMaxTimerWait)
 			}
 		}
 	}
@@ -160,6 +173,132 @@ func (e *XMySQLExecutor) executePerformanceSchemaTableIOSummarySelect(query stri
 			return values[i].objectSchema < values[j].objectSchema
 		}
 		return values[i].objectName < values[j].objectName
+	})
+	rows := make([][]interface{}, 0, len(values))
+	for _, summary := range values {
+		row := map[string]interface{}{
+			"OBJECT_TYPE": summary.objectType, "OBJECT_SCHEMA": summary.objectSchema, "OBJECT_NAME": summary.objectName,
+			"COUNT_STAR": summary.all.count, "SUM_TIMER_WAIT": summary.all.sum, "MIN_TIMER_WAIT": summary.all.min,
+			"AVG_TIMER_WAIT": averagePerformanceSchemaTimer(summary.all.sum, summary.all.count), "MAX_TIMER_WAIT": summary.all.max,
+		}
+		for key, value := range summary.read.project("READ") {
+			row[key] = value
+		}
+		for key, value := range summary.write.project("WRITE") {
+			row[key] = value
+		}
+		for key, value := range summary.fetch.project("FETCH") {
+			row[key] = value
+		}
+		for key, value := range summary.insert.project("INSERT") {
+			row[key] = value
+		}
+		for key, value := range summary.update.project("UPDATE") {
+			row[key] = value
+		}
+		for key, value := range summary.delete.project("DELETE") {
+			row[key] = value
+		}
+		if byIndex {
+			row["INDEX_NAME"] = summary.indexName
+		}
+		if !performanceSchemaLockValuesMatch(query, row) {
+			continue
+		}
+		rows = append(rows, projectInformationSchemaRow(columns, row))
+	}
+	name := "performance_schema.table_io_waits_summary_by_table"
+	if byIndex {
+		name = "performance_schema.table_io_waits_summary_by_index_usage"
+	}
+	return newInformationSchemaSelectResult(name, columns, rows)
+}
+
+func (e *XMySQLExecutor) executePerformanceSchemaTableIOSummaryFromRecorder(query string, byIndex bool, columns []string) *SelectResult {
+	source := e.metricsRecorder.TableIOSummary()
+	if byIndex {
+		source = e.metricsRecorder.TableIOIndexSummary()
+	}
+	byKey := make(map[string]*performanceSchemaTableIOSummary)
+	toCounters := func(count, sum, min, max int64) performanceSchemaTableIOCounters {
+		return performanceSchemaTableIOCounters{count: count, sum: sum, min: min, max: max}
+	}
+	merge := func(target *performanceSchemaTableIOCounters, source performanceSchemaTableIOCounters) {
+		if source.count <= 0 {
+			return
+		}
+		if target.count == 0 || source.min < target.min {
+			target.min = source.min
+		}
+		if target.count == 0 || source.max > target.max {
+			target.max = source.max
+		}
+		target.count += source.count
+		target.sum += source.sum
+	}
+	for _, event := range source {
+		objectSetting, objectConfigured := e.performanceSchemaObjectSettingFor("TABLE", event.ObjectSchema, event.ObjectName)
+		if !objectConfigured || !objectSetting.Enabled {
+			continue
+		}
+		if !performanceSchemaSummaryFilterMatches(query, "OBJECT_TYPE", event.ObjectType) ||
+			!performanceSchemaSummaryFilterMatches(query, "OBJECT_SCHEMA", event.ObjectSchema) ||
+			!performanceSchemaSummaryFilterMatches(query, "OBJECT_NAME", event.ObjectName) {
+			continue
+		}
+		if byIndex && !performanceSchemaSummaryFilterMatches(query, "INDEX_NAME", event.IndexName) {
+			continue
+		}
+		current := performanceSchemaTableIOSummary{
+			objectType: event.ObjectType, objectSchema: event.ObjectSchema,
+			objectName: event.ObjectName, indexName: event.IndexName,
+			all:    toCounters(event.All.Count, event.All.SumTimerWait, event.All.MinTimerWait, event.All.MaxTimerWait),
+			read:   toCounters(event.Read.Count, event.Read.SumTimerWait, event.Read.MinTimerWait, event.Read.MaxTimerWait),
+			write:  toCounters(event.Write.Count, event.Write.SumTimerWait, event.Write.MinTimerWait, event.Write.MaxTimerWait),
+			fetch:  toCounters(event.Fetch.Count, event.Fetch.SumTimerWait, event.Fetch.MinTimerWait, event.Fetch.MaxTimerWait),
+			insert: toCounters(event.Insert.Count, event.Insert.SumTimerWait, event.Insert.MinTimerWait, event.Insert.MaxTimerWait),
+			update: toCounters(event.Update.Count, event.Update.SumTimerWait, event.Update.MinTimerWait, event.Update.MaxTimerWait),
+			delete: toCounters(event.Delete.Count, event.Delete.SumTimerWait, event.Delete.MinTimerWait, event.Delete.MaxTimerWait),
+		}
+		if !objectSetting.Timed {
+			untimed := func(c *performanceSchemaTableIOCounters) {
+				c.sum, c.min, c.max = 0, 0, 0
+			}
+			untimed(&current.all)
+			untimed(&current.read)
+			untimed(&current.write)
+			untimed(&current.fetch)
+			untimed(&current.insert)
+			untimed(&current.update)
+			untimed(&current.delete)
+		}
+		key := current.objectSchema + "\x00" + current.objectName + "\x00" + current.indexName
+		summary := byKey[key]
+		if summary == nil {
+			copy := current
+			byKey[key] = &copy
+			continue
+		}
+		merge(&summary.all, current.all)
+		merge(&summary.read, current.read)
+		merge(&summary.write, current.write)
+		merge(&summary.fetch, current.fetch)
+		merge(&summary.insert, current.insert)
+		merge(&summary.update, current.update)
+		merge(&summary.delete, current.delete)
+	}
+	values := make([]performanceSchemaTableIOSummary, 0, len(byKey))
+	for _, summary := range byKey {
+		values = append(values, *summary)
+	}
+	sort.Slice(values, func(i, j int) bool {
+		if values[i].objectSchema != values[j].objectSchema {
+			return values[i].objectSchema < values[j].objectSchema
+		}
+		if values[i].objectName != values[j].objectName {
+			return values[i].objectName < values[j].objectName
+		}
+		return values[i].indexName < values[j].indexName
 	})
 	rows := make([][]interface{}, 0, len(values))
 	for _, summary := range values {

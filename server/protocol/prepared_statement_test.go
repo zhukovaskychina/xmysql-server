@@ -4,8 +4,10 @@ import (
 	"encoding/binary"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/observability/compatibility"
 )
 
 func TestPreparedStatementManager_Prepare(t *testing.T) {
@@ -66,6 +68,42 @@ func TestPreparedStatementManager_Prepare(t *testing.T) {
 				t.Errorf("Expected %d params, got %d", tt.expectedParams, len(stmt.Params))
 			}
 		})
+	}
+}
+
+func TestPreparedStatementManagerRecordsExecutionAccounting(t *testing.T) {
+	mgr := NewPreparedStatementManager()
+	stmt, err := mgr.Prepare("select ?")
+	if err != nil {
+		t.Fatalf("Prepare() error = %v", err)
+	}
+	if _, err := mgr.Get(stmt.ID); err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if err := mgr.RecordExecution(stmt.ID, compatibility.PreparedStatementExecutionStats{
+		Duration:     2 * time.Millisecond,
+		Failed:       true,
+		Warnings:     3,
+		RowsAffected: 4,
+		RowsSent:     5,
+		RowsExamined: 6,
+	}); err != nil {
+		t.Fatalf("RecordExecution() error = %v", err)
+	}
+
+	snapshot := mgr.Snapshot()
+	if len(snapshot) != 1 {
+		t.Fatalf("Snapshot() length = %d, want 1", len(snapshot))
+	}
+	got := snapshot[0]
+	if got.ExecuteCount != 1 {
+		t.Fatalf("ExecuteCount = %d, want 1", got.ExecuteCount)
+	}
+	if got.ExecuteTimeTotal != 2*time.Millisecond || got.ExecuteTimeMin != 2*time.Millisecond || got.ExecuteTimeMax != 2*time.Millisecond {
+		t.Fatalf("execution timers = total %s min %s max %s, want 2ms", got.ExecuteTimeTotal, got.ExecuteTimeMin, got.ExecuteTimeMax)
+	}
+	if got.ErrorCount != 1 || got.WarningCount != 3 || got.RowsAffected != 4 || got.RowsSent != 5 || got.RowsExamined != 6 {
+		t.Fatalf("execution counters = errors %d warnings %d affected %d sent %d examined %d", got.ErrorCount, got.WarningCount, got.RowsAffected, got.RowsSent, got.RowsExamined)
 	}
 }
 

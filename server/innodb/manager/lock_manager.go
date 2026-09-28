@@ -3,6 +3,8 @@ package manager
 import (
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -47,18 +49,56 @@ type WaitEdge struct {
 	LockType     LockType
 	Mode         LockMode
 	WaitDuration time.Duration
+	// Performance Schema captures instrumentation state when a wait event is
+	// completed; later setup_instruments changes must not rewrite its history.
+	Instrumented bool
+	Timed        bool
+}
+
+// LockInventorySnapshot is the authoritative record-lock inventory for one
+// transaction.  TablesLocked counts distinct table IDs encoded in granted
+// record resources; RowsLocked counts granted record resources.  Table-lock
+// coordinator leases are intentionally not included because they are owned by
+// the engine's separate metadata/table-lock subsystem.
+type LockInventorySnapshot struct {
+	TransactionID uint64
+	TablesLocked  int
+	RowsLocked    int
+}
+
+// LockSnapshot is a stable view of one record-lock request. It is used by
+// observability consumers that need both granted locks and requests currently
+// waiting on a blocker, rather than only the wait-for graph.
+type LockSnapshot struct {
+	ResourceID    string
+	TransactionID uint64
+	LockType      LockType
+	Mode          LockMode
+	Granted       bool
+	Created       time.Time
 }
 
 // LockManager 锁管理器
 type LockManager struct {
-	mu          sync.RWMutex
-	closeOnce   sync.Once
-	lockTable   map[string]*LockInfo // 锁表
-	waitGraph   map[uint64][]uint64  // 等待图
-	waitHistory []WaitEdge           // recently completed lock waits
-	waitSummary []WaitEdge           // instance-lifetime completed waits for summary views
-	txnLocks    map[uint64][]string  // 事务持有的锁
-	stopChan    chan struct{}        // 停止信号
+	mu                        sync.RWMutex
+	closeOnce                 sync.Once
+	lockTable                 map[string]*LockInfo // 锁表
+	waitGraph                 map[uint64][]uint64  // 等待图
+	waitHistory               []WaitEdge           // recently completed lock waits
+	waitHistoryLong           []WaitEdge           // instance-wide completed lock waits
+	waitSummary               []WaitEdge           // instance-lifetime completed waits for summary views
+	objectSummary             []WaitEdge           // independent object-wait summary rows
+	tableLockSummary          []WaitEdge           // independent table-lock summary rows
+	waitInstrumented          bool
+	waitTimed                 bool
+	txnLocks                  map[uint64][]string // 事务持有的锁
+	recordLockRequests        uint64
+	recordLockGrantAttempts   uint64
+	recordLockReleaseAttempts uint64
+	recordLockCreated         uint64
+	recordLockRemoved         uint64
+	deadlocks                 uint64
+	stopChan                  chan struct{} // 停止信号
 	// 回滚回调：用于在死锁检测中通知事务管理器回滚事务
 	onAbortTransaction func(uint64)
 	lastDeadlock       *DeadlockInfo
@@ -74,12 +114,17 @@ type LockManager struct {
 // NewLockManager 创建锁管理器
 func NewLockManager() *LockManager {
 	lm := &LockManager{
-		lockTable:   make(map[string]*LockInfo),
-		waitGraph:   make(map[uint64][]uint64),
-		waitHistory: make([]WaitEdge, 0, 128),
-		waitSummary: make([]WaitEdge, 0, 128),
-		txnLocks:    make(map[uint64][]string),
-		stopChan:    make(chan struct{}),
+		lockTable:        make(map[string]*LockInfo),
+		waitGraph:        make(map[uint64][]uint64),
+		waitHistory:      make([]WaitEdge, 0, 128),
+		waitHistoryLong:  make([]WaitEdge, 0, 128),
+		waitSummary:      make([]WaitEdge, 0, 128),
+		objectSummary:    make([]WaitEdge, 0, 128),
+		tableLockSummary: make([]WaitEdge, 0, 128),
+		waitInstrumented: true,
+		waitTimed:        true,
+		txnLocks:         make(map[uint64][]string),
+		stopChan:         make(chan struct{}),
 		// TXN-012: 初始化Gap锁和Next-Key锁相关映射
 		gapLocks:        make(map[string][]*GapLockInfo),
 		nextKeyLocks:    make(map[string][]*NextKeyLockInfo),
@@ -90,6 +135,18 @@ func NewLockManager() *LockManager {
 	// 启动死锁检测
 	go lm.deadlockDetection()
 	return lm
+}
+
+// SetPerformanceSchemaWaitInstrumentation updates the capture settings for
+// future completed waits. Existing WaitEdge values retain their own snapshot.
+func (lm *LockManager) SetPerformanceSchemaWaitInstrumentation(enabled, timed bool) {
+	if lm == nil {
+		return
+	}
+	lm.mu.Lock()
+	lm.waitInstrumented = enabled
+	lm.waitTimed = timed
+	lm.mu.Unlock()
 }
 
 // Close 关闭锁管理器
@@ -171,6 +228,45 @@ func (lm *LockManager) WaitHistorySnapshot() []WaitEdge {
 	return result
 }
 
+// WaitHistoryLongSnapshot returns the instance-wide bounded history used by
+// events_waits_history_long.
+func (lm *LockManager) WaitHistoryLongSnapshot() []WaitEdge {
+	if lm == nil {
+		return nil
+	}
+	lm.mu.RLock()
+	defer lm.mu.RUnlock()
+	result := make([]WaitEdge, len(lm.waitHistoryLong))
+	copy(result, lm.waitHistoryLong)
+	return result
+}
+
+// ResetWaitHistory clears the per-thread-compatible wait history while
+// leaving the long history and summary counters intact.
+func (lm *LockManager) ResetWaitHistory() []WaitEdge {
+	if lm == nil {
+		return nil
+	}
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
+	result := append([]WaitEdge(nil), lm.waitHistory...)
+	lm.waitHistory = lm.waitHistory[:0]
+	return result
+}
+
+// ResetWaitHistoryLong clears the instance-wide wait history while leaving
+// the per-thread-compatible history and summary counters intact.
+func (lm *LockManager) ResetWaitHistoryLong() []WaitEdge {
+	if lm == nil {
+		return nil
+	}
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
+	result := append([]WaitEdge(nil), lm.waitHistoryLong...)
+	lm.waitHistoryLong = lm.waitHistoryLong[:0]
+	return result
+}
+
 // WaitSummarySnapshot returns all completed record-lock waits for
 // PERFORMANCE_SCHEMA summary views. Unlike WaitHistorySnapshot, it is not
 // truncated to the history window.
@@ -179,6 +275,168 @@ func (lm *LockManager) WaitSummarySnapshot() []WaitEdge {
 	defer lm.mu.RUnlock()
 	result := make([]WaitEdge, len(lm.waitSummary))
 	copy(result, lm.waitSummary)
+	return result
+}
+
+// ResetWaitSummary clears only the instance-lifetime wait summary. The
+// bounded wait history and live wait graph remain available to their
+// respective Performance Schema views.
+func (lm *LockManager) ResetWaitSummary() []WaitEdge {
+	if lm == nil {
+		return nil
+	}
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
+	result := make([]WaitEdge, len(lm.waitSummary))
+	copy(result, lm.waitSummary)
+	lm.waitSummary = lm.waitSummary[:0]
+	return result
+}
+
+// ObjectSummarySnapshot returns completed waits for
+// PERFORMANCE_SCHEMA.objects_summary_global_by_type. It is independent from
+// the events_waits summary lifecycle.
+func (lm *LockManager) ObjectSummarySnapshot() []WaitEdge {
+	if lm == nil {
+		return nil
+	}
+	lm.mu.RLock()
+	defer lm.mu.RUnlock()
+	result := make([]WaitEdge, len(lm.objectSummary))
+	copy(result, lm.objectSummary)
+	return result
+}
+
+// ResetObjectSummary clears only the object-wait summary counters and returns
+// the row identities so the SQL projection can retain zeroed summary rows.
+func (lm *LockManager) ResetObjectSummary() []WaitEdge {
+	if lm == nil {
+		return nil
+	}
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
+	result := make([]WaitEdge, len(lm.objectSummary))
+	copy(result, lm.objectSummary)
+	lm.objectSummary = lm.objectSummary[:0]
+	return result
+}
+
+// TableLockWaitSummarySnapshot returns the independent completed table-lock
+// summary source used by table_lock_waits_summary_by_table.
+func (lm *LockManager) TableLockWaitSummarySnapshot() []WaitEdge {
+	if lm == nil {
+		return nil
+	}
+	lm.mu.RLock()
+	defer lm.mu.RUnlock()
+	result := make([]WaitEdge, len(lm.tableLockSummary))
+	copy(result, lm.tableLockSummary)
+	return result
+}
+
+// ResetTableLockWaitSummary resets only table-lock summary counters. The
+// events_waits summary and bounded history remain independent.
+func (lm *LockManager) ResetTableLockWaitSummary() []WaitEdge {
+	if lm == nil {
+		return nil
+	}
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
+	result := make([]WaitEdge, len(lm.tableLockSummary))
+	copy(result, lm.tableLockSummary)
+	lm.tableLockSummary = lm.tableLockSummary[:0]
+	return result
+}
+
+// HeldLockSnapshots returns a stable per-transaction inventory of granted
+// record locks without exposing the mutable lock table to observability code.
+func (lm *LockManager) HeldLockSnapshots() []LockInventorySnapshot {
+	if lm == nil {
+		return nil
+	}
+	lm.mu.RLock()
+	defer lm.mu.RUnlock()
+
+	tablesByTransaction := make(map[uint64]map[uint32]struct{})
+	rowsByTransaction := make(map[uint64]int)
+	for resourceID, info := range lm.lockTable {
+		if info == nil {
+			continue
+		}
+		parts := strings.SplitN(resourceID, "_", 2)
+		var tableID uint32
+		if len(parts) == 2 {
+			parsed, err := strconv.ParseUint(parts[0], 10, 32)
+			if err == nil {
+				tableID = uint32(parsed)
+			}
+		}
+		for _, request := range info.Requests {
+			if request == nil || !request.Granted {
+				continue
+			}
+			rowsByTransaction[request.TxID]++
+			if _, ok := tablesByTransaction[request.TxID]; !ok {
+				tablesByTransaction[request.TxID] = make(map[uint32]struct{})
+			}
+			tablesByTransaction[request.TxID][tableID] = struct{}{}
+		}
+	}
+
+	ids := make([]uint64, 0, len(rowsByTransaction))
+	for transactionID := range rowsByTransaction {
+		ids = append(ids, transactionID)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	snapshots := make([]LockInventorySnapshot, 0, len(ids))
+	for _, transactionID := range ids {
+		snapshots = append(snapshots, LockInventorySnapshot{
+			TransactionID: transactionID,
+			TablesLocked:  len(tablesByTransaction[transactionID]),
+			RowsLocked:    rowsByTransaction[transactionID],
+		})
+	}
+	return snapshots
+}
+
+// LockSnapshots returns every record-lock request currently retained by the
+// manager, including granted and waiting requests. The returned values are
+// detached from the mutable lock table and sorted for deterministic
+// Performance Schema projections.
+func (lm *LockManager) LockSnapshots() []LockSnapshot {
+	if lm == nil {
+		return nil
+	}
+	lm.mu.RLock()
+	defer lm.mu.RUnlock()
+
+	result := make([]LockSnapshot, 0)
+	for resourceID, info := range lm.lockTable {
+		if info == nil {
+			continue
+		}
+		for _, request := range info.Requests {
+			if request == nil {
+				continue
+			}
+			result = append(result, LockSnapshot{
+				ResourceID: resourceID, TransactionID: request.TxID, LockType: request.LockType,
+				Mode: request.Mode, Granted: request.Granted, Created: request.Created,
+			})
+		}
+	}
+	sort.Slice(result, func(left, right int) bool {
+		if result[left].ResourceID != result[right].ResourceID {
+			return result[left].ResourceID < result[right].ResourceID
+		}
+		if result[left].TransactionID != result[right].TransactionID {
+			return result[left].TransactionID < result[right].TransactionID
+		}
+		if result[left].Granted != result[right].Granted {
+			return result[left].Granted
+		}
+		return result[left].Created.Before(result[right].Created)
+	})
 	return result
 }
 
@@ -194,6 +452,36 @@ func (lm *LockManager) LastDeadlockSnapshot() *DeadlockInfo {
 	snapshot.WaitingTxns = append([]uint64(nil), lm.lastDeadlock.WaitingTxns...)
 	snapshot.Cycle = append([]uint64(nil), lm.lastDeadlock.Cycle...)
 	return &snapshot
+}
+
+// LockRuntimeStatsSnapshot returns cumulative record-lock and deadlock
+// counters for compatibility views.
+func (lm *LockManager) LockRuntimeStatsSnapshot() LockRuntimeStats {
+	if lm == nil {
+		return LockRuntimeStats{}
+	}
+	lm.mu.RLock()
+	defer lm.mu.RUnlock()
+	var recordLocks uint64
+	for _, info := range lm.lockTable {
+		if info == nil {
+			continue
+		}
+		for _, request := range info.Requests {
+			if request != nil && request.Granted && request.Mode == LOCK_MODE_RECORD {
+				recordLocks++
+			}
+		}
+	}
+	return LockRuntimeStats{
+		RecordLockRequests:        lm.recordLockRequests,
+		RecordLockGrantAttempts:   lm.recordLockGrantAttempts,
+		RecordLockReleaseAttempts: lm.recordLockReleaseAttempts,
+		RecordLockCreated:         lm.recordLockCreated,
+		RecordLockRemoved:         lm.recordLockRemoved,
+		RecordLocks:               recordLocks,
+		Deadlocks:                 lm.deadlocks,
+	}
 }
 
 // makeResourceID 生成资源ID
@@ -310,6 +598,7 @@ func (lm *LockManager) detectDeadlockLocked() uint64 {
 			VictimTxID:   victimTxID,
 			WaitDuration: waitDuration,
 		}
+		lm.deadlocks++
 		return victimTxID
 	}
 	return 0
@@ -402,6 +691,7 @@ func (lm *LockManager) abortTransaction(txID uint64) {
 func (lm *LockManager) AcquireLock(txID uint64, tableID, pageID uint32, rowID uint64, lockType LockType) error {
 	lm.mu.Lock()
 	defer lm.mu.Unlock()
+	lm.recordLockRequests++
 
 	resourceID := makeResourceID(tableID, pageID, rowID)
 	info, exists := lm.lockTable[resourceID]
@@ -435,6 +725,7 @@ func (lm *LockManager) AcquireLock(txID uint64, tableID, pageID uint32, rowID ui
 					lm.updateWaitGraph(txID, holdingTxIDs)
 					visited := make(map[uint64]bool)
 					if lm.checkDeadlock(txID, visited) {
+						lm.deadlocks++
 						lm.removeFromWaitGraph(txID)
 						return ErrDeadlockDetected
 					}
@@ -455,6 +746,7 @@ func (lm *LockManager) AcquireLock(txID uint64, tableID, pageID uint32, rowID ui
 	}
 
 	// 创建新的锁请求
+	lm.recordLockGrantAttempts++
 	newReq := &LockRequest{
 		TxID:     txID,
 		LockType: lockType,
@@ -466,6 +758,7 @@ func (lm *LockManager) AcquireLock(txID uint64, tableID, pageID uint32, rowID ui
 
 	// 添加到请求队列
 	info.Requests = append(info.Requests, newReq)
+	lm.recordLockCreated++
 
 	// 如果需要等待，更新等待图
 	if len(holdingTxIDs) > 0 {
@@ -473,6 +766,7 @@ func (lm *LockManager) AcquireLock(txID uint64, tableID, pageID uint32, rowID ui
 		// 检查死锁
 		visited := make(map[uint64]bool)
 		if lm.checkDeadlock(txID, visited) {
+			lm.deadlocks++
 			// 移除请求
 			info.Requests = info.Requests[:len(info.Requests)-1]
 			lm.removeFromWaitGraph(txID)
@@ -591,10 +885,12 @@ func (lm *LockManager) releaseSingleLockLocked(txID uint64, resourceID string) e
 	if !found {
 		return ErrLockNotFound
 	}
+	lm.recordLockReleaseAttempts++
 	for _, released := range releasedRequests {
 		if released == nil || !released.Granted {
 			continue
 		}
+		lm.recordLockRemoved++
 		for _, waiting := range newRequests {
 			if waiting == nil || waiting.Granted || isLockCompatible(released.LockType, waiting.LockType) {
 				continue
@@ -660,6 +956,7 @@ func (lm *LockManager) grantWaitingLocks(info *LockInfo) {
 				}
 				lm.recordWaitHistoryLocked(info.ResourceID, blocking, waiting)
 			}
+			lm.recordLockGrantAttempts++
 			waiting.Granted = true
 			grantedLocks = append(grantedLocks, waiting)
 			// 通知等待的事务
@@ -685,11 +982,19 @@ func (lm *LockManager) recordWaitHistoryLocked(resourceID string, blocking, wait
 		ResourceID: resourceID, Since: waiting.Created,
 		LockType: waiting.LockType, Mode: waiting.Mode,
 		WaitDuration: duration,
+		Instrumented: lm.waitInstrumented,
+		Timed:        lm.waitTimed,
 	}
 	lm.waitSummary = append(lm.waitSummary, edge)
+	lm.objectSummary = append(lm.objectSummary, edge)
+	lm.tableLockSummary = append(lm.tableLockSummary, edge)
 	lm.waitHistory = append(lm.waitHistory, edge)
 	if len(lm.waitHistory) > 128 {
 		lm.waitHistory = lm.waitHistory[len(lm.waitHistory)-128:]
+	}
+	lm.waitHistoryLong = append(lm.waitHistoryLong, edge)
+	if len(lm.waitHistoryLong) > 128 {
+		lm.waitHistoryLong = lm.waitHistoryLong[len(lm.waitHistoryLong)-128:]
 	}
 }
 

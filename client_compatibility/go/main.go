@@ -30,6 +30,7 @@ func main() {
 		fail(err)
 	}
 	out := result{Client: "go-mysql-driver", Cases: map[string]string{}}
+	var rows *sql.Rows
 	check := func(name, query string) {
 		if _, err := db.Exec(query); err != nil {
 			fail(fmt.Errorf("%s: %w", name, err))
@@ -78,11 +79,86 @@ func main() {
 		fail(fmt.Errorf("metadata: count=%d err=%v", count, err))
 	}
 	out.Cases["metadata"] = "PASS"
-	rows, err := db.Query("SELECT 1 AS first_value; SELECT 2 AS second_value")
+	rows, err = db.Query("SELECT TABLE_SCHEMA AS table_schema, TABLE_NAME AS table_name, COLUMN_NAME AS column_name, ORDINAL_POSITION AS ordinal_position FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='client_matrix' ORDER BY TABLE_NAME, ORDINAL_POSITION")
+	if err != nil {
+		fail(fmt.Errorf("metadata-shape: query failed: %w", err))
+	}
+	columns, err := rows.Columns()
+	if err != nil || len(columns) != 4 || strings.ToLower(columns[0]) != "table_schema" || strings.ToLower(columns[1]) != "table_name" || strings.ToLower(columns[2]) != "column_name" || strings.ToLower(columns[3]) != "ordinal_position" {
+		rows.Close()
+		fail(fmt.Errorf("metadata-shape: columns=%v err=%v", columns, err))
+	}
+	if !rows.Next() {
+		rows.Close()
+		fail(fmt.Errorf("metadata-shape: no rows returned"))
+	}
+	var schema, table, column string
+	var ordinal int64
+	if err = rows.Scan(&schema, &table, &column, &ordinal); err != nil || schema != "client_matrix" || table == "" || column == "" || ordinal < 1 {
+		rows.Close()
+		fail(fmt.Errorf("metadata-shape: row=%q.%q.%q ordinal=%d err=%v", schema, table, column, ordinal, err))
+	}
+	if err = rows.Close(); err != nil {
+		fail(fmt.Errorf("metadata-shape: close failed: %w", err))
+	}
+	out.Cases["metadata-shape"] = "PASS"
+	check("auto-increment-and-result-metadata", "CREATE TABLE IF NOT EXISTS client_matrix.auto_rows(id INT PRIMARY KEY AUTO_INCREMENT, label VARCHAR(32))")
+	insertResult, err := db.Exec("INSERT INTO client_matrix.auto_rows(label) VALUES ('go-client')")
+	if err != nil {
+		fail(fmt.Errorf("auto-increment-and-result-metadata: insert failed: %w", err))
+	}
+	insertID, err := insertResult.LastInsertId()
+	if err != nil || insertID <= 0 {
+		fail(fmt.Errorf("auto-increment-and-result-metadata: last insert id=%d err=%v", insertID, err))
+	}
+	affected, err := insertResult.RowsAffected()
+	if err != nil || affected != 1 {
+		fail(fmt.Errorf("auto-increment-and-result-metadata: affected=%d err=%v", affected, err))
+	}
+	out.Cases["auto-increment-and-result-metadata"] = "PASS"
+	tx, err = db.Begin()
+	if err != nil {
+		fail(fmt.Errorf("savepoints: begin failed: %w", err))
+	}
+	if _, err = tx.Exec("INSERT INTO client_matrix.matrix_rows(id, label) VALUES (300001, 'savepoint-before')"); err != nil {
+		fail(fmt.Errorf("savepoints: first insert failed: %w", err))
+	}
+	if _, err = tx.Exec("SAVEPOINT client_matrix_sp"); err != nil {
+		fail(fmt.Errorf("savepoints: create failed: %w", err))
+	}
+	if _, err = tx.Exec("INSERT INTO client_matrix.matrix_rows(id, label) VALUES (300002, 'savepoint-after')"); err != nil {
+		fail(fmt.Errorf("savepoints: second insert failed: %w", err))
+	}
+	if _, err = tx.Exec("ROLLBACK TO SAVEPOINT client_matrix_sp"); err != nil {
+		fail(fmt.Errorf("savepoints: rollback failed: %w", err))
+	}
+	if _, err = tx.Exec("RELEASE SAVEPOINT client_matrix_sp"); err != nil {
+		fail(fmt.Errorf("savepoints: release failed: %w", err))
+	}
+	if err = tx.Commit(); err != nil {
+		fail(fmt.Errorf("savepoints: commit failed: %w", err))
+	}
+	var savepointCount int
+	if err = db.QueryRow("SELECT COUNT(*) FROM client_matrix.matrix_rows WHERE id IN (300001, 300002)").Scan(&savepointCount); err != nil || savepointCount != 1 {
+		fail(fmt.Errorf("savepoints: count=%d err=%v", savepointCount, err))
+	}
+	if _, err = db.Exec("DELETE FROM client_matrix.matrix_rows WHERE id IN (300001, 300002)"); err != nil {
+		fail(fmt.Errorf("savepoints: cleanup failed: %w", err))
+	}
+	out.Cases["savepoints"] = "PASS"
+	if _, err = db.Exec("SET @client_matrix_value = 41"); err != nil {
+		fail(fmt.Errorf("session-state: set failed: %w", err))
+	}
+	var sessionValue int64
+	if err = db.QueryRow("SELECT @client_matrix_value + 1").Scan(&sessionValue); err != nil || sessionValue != 42 {
+		fail(fmt.Errorf("session-state: value=%d err=%v", sessionValue, err))
+	}
+	out.Cases["session-state"] = "PASS"
+	rows, err = db.Query("SELECT 1 AS first_col; SELECT 2 AS second_col")
 	if err != nil {
 		fail(fmt.Errorf("multi-result-and-error: query failed: %w", err))
 	}
-	if columns, err := rows.Columns(); err != nil || len(columns) != 1 || columns[0] != "first_value" {
+	if columns, err := rows.Columns(); err != nil || len(columns) != 1 || columns[0] != "first_col" {
 		rows.Close()
 		fail(fmt.Errorf("multi-result-and-error: first columns=%v err=%v", columns, err))
 	}
@@ -96,7 +172,7 @@ func main() {
 		rows.Close()
 		fail(fmt.Errorf("multi-result-and-error: second result set unavailable: %v", err))
 	}
-	if columns, err := rows.Columns(); err != nil || len(columns) != 1 || columns[0] != "second_value" {
+	if columns, err := rows.Columns(); err != nil || len(columns) != 1 || columns[0] != "second_col" {
 		rows.Close()
 		fail(fmt.Errorf("multi-result-and-error: second columns=%v err=%v", columns, err))
 	}

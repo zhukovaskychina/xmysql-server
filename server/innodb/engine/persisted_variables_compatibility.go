@@ -100,8 +100,11 @@ func (e *XMySQLExecutor) applyPersistedSystemVariables() {
 		value := values[name].VariableValue
 		if err := sysVars.SetVariable("", name, value, manager.GlobalScope); err != nil {
 			logger.Warnf("unable to apply persisted system variable %s: %v", name, err)
+			continue
 		}
+		e.syncCompressionMonitorVariable(name, value)
 	}
+	e.syncCompressionPerIndexEnabled("innodb_cmp_per_index_enabled")
 }
 
 func (e *XMySQLExecutor) executePersistedVariableStatement(ctx *ExecutionContext, session server.MySQLServerSession, query string) (bool, error) {

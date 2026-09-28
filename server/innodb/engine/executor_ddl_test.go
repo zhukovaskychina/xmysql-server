@@ -1437,6 +1437,18 @@ func TestInformationSchemaTablesSelectReturnsJDBCMetadataColumns(t *testing.T) {
 	require.Equal(t, "", values[4].ToString())
 }
 
+func TestInformationSchemaJDBCProjectionExpressionsAreNotRowFilters(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table users (id int primary key, name varchar(50))")
+
+	tables := mustSelectResultSQL(t, executor, "app", "select TABLE_SCHEMA AS TABLE_CAT, NULL AS TABLE_SCHEM, TABLE_NAME, CASE WHEN TABLE_TYPE='BASE TABLE' THEN 'TABLE' ELSE TABLE_TYPE END AS TABLE_TYPE, TABLE_COMMENT AS REMARKS from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA = 'app' and TABLE_NAME LIKE 'users' HAVING TABLE_TYPE IN ('TABLE',null,null,null,null)")
+	require.Len(t, tables.Records, 1)
+
+	columns := mustSelectResultSQL(t, executor, "app", "select TABLE_SCHEMA, NULL, TABLE_NAME, COLUMN_NAME, CASE WHEN UPPER(DATA_TYPE)='INT' THEN 4 ELSE 12 END AS DATA_TYPE from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = 'app' and TABLE_NAME = 'users' and COLUMN_NAME LIKE '%'")
+	require.Len(t, columns.Records, 2)
+}
+
 func TestInformationSchemaTablesSelectReturnsRequestedNativeColumnsAndRowCount(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	mustExecSQL(t, executor, "", "create database app")
@@ -1462,18 +1474,16 @@ func TestInformationSchemaCheckConstraintsReturnsPersistedDefinitions(t *testing
 	mustExecSQL(t, executor, "app", "create table checks (id int primary key, amount int)")
 	mustExecSQL(t, executor, "app", "alter table checks add constraint chk_amount check (amount > 0)")
 
-	got := <-executor.ExecuteQuery(nil, "select constraint_schema, constraint_name, table_name, check_clause, enforced from information_schema.check_constraints where constraint_schema = 'app' and table_name = 'checks' and constraint_name = 'chk_amount'", "app")
+	got := <-executor.ExecuteQuery(nil, "select constraint_schema, constraint_name, check_clause from information_schema.check_constraints where constraint_schema = 'app' and table_name = 'checks' and constraint_name = 'chk_amount'", "app")
 	require.NoError(t, got.Err)
 	result, ok := got.Data.(*SelectResult)
 	require.True(t, ok)
-	require.Equal(t, []string{"CONSTRAINT_SCHEMA", "CONSTRAINT_NAME", "TABLE_NAME", "CHECK_CLAUSE", "ENFORCED"}, result.Columns)
+	require.Equal(t, []string{"CONSTRAINT_SCHEMA", "CONSTRAINT_NAME", "CHECK_CLAUSE"}, result.Columns)
 	require.Len(t, result.Records, 1)
 	values := result.Records[0].GetValues()
 	require.Equal(t, "app", values[0].ToString())
 	require.Equal(t, "chk_amount", values[1].ToString())
-	require.Equal(t, "checks", values[2].ToString())
-	require.Equal(t, "amount > 0", values[3].ToString())
-	require.Equal(t, "YES", values[4].ToString())
+	require.Equal(t, "amount > 0", values[2].ToString())
 }
 
 func TestInformationSchemaJDBCProbeTablesReturnEmptyMetadataResults(t *testing.T) {
@@ -1724,6 +1734,15 @@ func mustQuerySQL(t *testing.T, executor *XMySQLEngine, databaseName, sql string
 func mustSelectResultSQL(t *testing.T, executor *XMySQLEngine, databaseName, sql string) *SelectResult {
 	t.Helper()
 	got := <-executor.ExecuteQuery(nil, sql, databaseName)
+	require.NoError(t, got.Err)
+	result, ok := got.Data.(*SelectResult)
+	require.True(t, ok, "expected SelectResult, got %T", got.Data)
+	return result
+}
+
+func mustSelectResultSessionSQL(t *testing.T, executor *XMySQLEngine, session server.MySQLServerSession, databaseName, sql string) *SelectResult {
+	t.Helper()
+	got := <-executor.ExecuteQuery(session, sql, databaseName)
 	require.NoError(t, got.Err)
 	result, ok := got.Data.(*SelectResult)
 	require.True(t, ok, "expected SelectResult, got %T", got.Data)

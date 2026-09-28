@@ -3,7 +3,9 @@ package replication
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -11,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,39 +35,69 @@ type RuntimeConfig struct {
 	SourceURL  string
 	// Peers contains the control-plane URLs of the other members in the
 	// replication group. It is only used by the guarded auto-failover path.
-	Peers          []string
-	AutoFailover   bool
-	FailureTimeout time.Duration
-	PollInterval   time.Duration
-	ApplyRows      func([]RowChange) error
-	Apply          func([]Statement) error
+	Peers           []string
+	AutoFailover    bool
+	FailureTimeout  time.Duration
+	PollInterval    time.Duration
+	ApplyRows       func([]RowChange) error
+	ApplyRowsWithID func(string, []RowChange) error
+	Apply           func([]Statement) error
+	ApplyWithID     func(string, []Statement) error
+	// NativeSource is an optional injected native source for tests and
+	// embedders. Production callers normally leave it nil and provide a
+	// mysql:// SourceURL so the runtime constructs MySQLBinlogSource.
+	NativeSource NativeBinlogSource
 }
 
 type Runtime struct {
-	mu                sync.RWMutex
-	promotionMu       sync.Mutex
-	cfg               RuntimeConfig
-	role              string
-	source            *Source
-	replica           *Replica
-	server            *http.Server
-	listener          net.Listener
-	cancel            context.CancelFunc
-	baseCtx           context.Context
-	pollCancel        context.CancelFunc
-	pollDone          chan struct{}
-	lastErr           string
-	lastSourceFailure time.Time
-	membersPath       string
-	sourcePath        string
-	fencingPath       string
-	fencingEpoch      uint64
-	fenced            bool
-	fencedBy          string
+	mu                    sync.RWMutex
+	promotionMu           sync.Mutex
+	cfg                   RuntimeConfig
+	role                  string
+	source                *Source
+	replica               *Replica
+	server                *http.Server
+	listener              net.Listener
+	cancel                context.CancelFunc
+	baseCtx               context.Context
+	pollCancel            context.CancelFunc
+	pollDone              chan struct{}
+	lastErr               string
+	lastErrorNumber       int64
+	lastErrorAt           time.Time
+	lastIOError           string
+	lastIOErrorNumber     int64
+	lastIOErrorAt         time.Time
+	lastSQLError          string
+	lastSQLErrorNumber    int64
+	lastSQLErrorAt        time.Time
+	lastSourceFailure     time.Time
+	nativeSource          NativeBinlogSource
+	nativeConfig          MySQLBinlogSourceConfig
+	nativeSourceUUID      string
+	nativeHeartbeatCount  uint64
+	nativeLastHeartbeatAt time.Time
+	nativeReplayFromFile  bool
+	membersPath           string
+	sourcePath            string
+	sourceIdentityPath    string
+	fencingPath           string
+	rolePath              string
+	fencingEpoch          uint64
+	fenced                bool
+	fencedBy              string
 }
 
 type persistedSourceConfig struct {
 	SourceURL string `json:"source_url"`
+}
+
+type persistedSourceIdentity struct {
+	SourceUUID string `json:"source_uuid,omitempty"`
+}
+
+type persistedRuntimeRole struct {
+	Role string `json:"role"`
 }
 
 type persistedFencingState struct {
@@ -81,25 +114,41 @@ type fenceRequest struct {
 type binlogResponse struct {
 	Events       []BinlogEvent `json:"events"`
 	NextPosition uint64        `json:"next_position"`
+	LogName      string        `json:"log_name,omitempty"`
 }
 
 // StatusSnapshot is the stable operational view exposed through the HTTP and
 // SQL replication status surfaces.
 type StatusSnapshot struct {
-	Role                string  `json:"role"`
-	UUID                string  `json:"uuid,omitempty"`
-	ServerID            uint32  `json:"server_id,omitempty"`
-	ExecutedGTIDs       string  `json:"executed_gtids,omitempty"`
-	SourceURL           string  `json:"source_url,omitempty"`
-	SourcePosition      uint64  `json:"source_position,omitempty"`
-	ReplicationLagSec   float64 `json:"replication_lag_seconds"`
-	LastError           string  `json:"last_error,omitempty"`
-	Promotable          bool    `json:"promotable"`
-	FencingEpoch        uint64  `json:"fencing_epoch,omitempty"`
-	Fenced              bool    `json:"fenced"`
-	FencedBy            string  `json:"fenced_by,omitempty"`
-	ReplicaRunning      bool    `json:"replica_running"`
-	ReplicaRunningKnown bool    `json:"-"`
+	Role                string                    `json:"role"`
+	UUID                string                    `json:"uuid,omitempty"`
+	ServerID            uint32                    `json:"server_id,omitempty"`
+	ExecutedGTIDs       string                    `json:"executed_gtids,omitempty"`
+	SourceURL           string                    `json:"source_url,omitempty"`
+	SourceUser          string                    `json:"-"`
+	SourceUUID          string                    `json:"source_uuid,omitempty"`
+	SourceFile          string                    `json:"source_file,omitempty"`
+	SourcePosition      uint64                    `json:"source_position,omitempty"`
+	SourceAutoPosition  bool                      `json:"source_auto_position,omitempty"`
+	ReceivedHeartbeats  uint64                    `json:"-"`
+	LastHeartbeatAt     time.Time                 `json:"-"`
+	ReplicationLagSec   float64                   `json:"replication_lag_seconds"`
+	LastError           string                    `json:"last_error,omitempty"`
+	LastErrorNumber     int64                     `json:"-"`
+	LastErrorAt         time.Time                 `json:"-"`
+	LastIOError         string                    `json:"-"`
+	LastIOErrorNumber   int64                     `json:"-"`
+	LastIOErrorAt       time.Time                 `json:"-"`
+	LastSQLError        string                    `json:"-"`
+	LastSQLErrorNumber  int64                     `json:"-"`
+	LastSQLErrorAt      time.Time                 `json:"-"`
+	ReplicationFilters  []ReplicationFilterStatus `json:"-"`
+	Promotable          bool                      `json:"promotable"`
+	FencingEpoch        uint64                    `json:"fencing_epoch,omitempty"`
+	Fenced              bool                      `json:"fenced"`
+	FencedBy            string                    `json:"fenced_by,omitempty"`
+	ReplicaRunning      bool                      `json:"replica_running"`
+	ReplicaRunningKnown bool                      `json:"-"`
 }
 
 type statusResponse = StatusSnapshot
@@ -127,6 +176,15 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	if cfg.Role == "" {
 		cfg.Role = RoleStandalone
 	}
+	rolePath := filepath.Join(cfg.DataDir, "replication", "role.json")
+	if persistedRole, err := loadPersistedRuntimeRole(rolePath); err != nil {
+		return nil, err
+	} else if persistedRole != "" {
+		// A durable promotion is authoritative on restart. This lets a node
+		// recover as the promoted source even when its original process
+		// configuration still says RoleReplica.
+		cfg.Role = persistedRole
+	}
 	if cfg.Role != RoleStandalone && cfg.Role != RoleSource && cfg.Role != RoleReplica {
 		return nil, fmt.Errorf("unsupported replication role %q", cfg.Role)
 	}
@@ -148,11 +206,18 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	}
 	cfg.Peers = peers
 	r := &Runtime{
-		cfg:         cfg,
-		role:        cfg.Role,
-		membersPath: filepath.Join(cfg.DataDir, "replication", "members.json"),
-		sourcePath:  filepath.Join(cfg.DataDir, "replication", "source.json"),
-		fencingPath: filepath.Join(cfg.DataDir, "replication", "fencing.json"),
+		cfg:                cfg,
+		role:               cfg.Role,
+		membersPath:        filepath.Join(cfg.DataDir, "replication", "members.json"),
+		sourcePath:         filepath.Join(cfg.DataDir, "replication", "source.json"),
+		sourceIdentityPath: filepath.Join(cfg.DataDir, "replication", "source_identity.json"),
+		rolePath:           rolePath,
+		fencingPath:        filepath.Join(cfg.DataDir, "replication", "fencing.json"),
+	}
+	if sourceUUID, err := loadPersistedSourceIdentity(r.sourceIdentityPath); err != nil {
+		return nil, err
+	} else {
+		r.nativeSourceUUID = sourceUUID
 	}
 	if fencing, err := loadPersistedFencing(r.fencingPath); err != nil {
 		return nil, err
@@ -187,9 +252,53 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 		}
 		replica.ApplyStatements = cfg.Apply
 		replica.ApplyRows = cfg.ApplyRows
+		replica.ApplyRowsWithID = cfg.ApplyRowsWithID
+		replica.ApplyStatementsWithID = cfg.ApplyWithID
 		r.replica = replica
-		if _, err := url.ParseRequestURI(r.cfg.SourceURL); err != nil || strings.TrimSpace(r.cfg.SourceURL) == "" {
+		if strings.TrimSpace(r.cfg.SourceURL) == "" {
 			return nil, fmt.Errorf("replica source_url must be a valid URL: %q", r.cfg.SourceURL)
+		}
+		parsed, err := url.Parse(r.cfg.SourceURL)
+		if err != nil || parsed.Host == "" {
+			return nil, fmt.Errorf("replica source_url must be a valid URL: %q", r.cfg.SourceURL)
+		}
+		switch strings.ToLower(parsed.Scheme) {
+		case "http", "https":
+			// The existing JSON binlog source remains unchanged.
+		case "mysql":
+			nativeSourceURL := nativeSourceURLWithEnvironmentPassword(r.cfg.SourceURL)
+			nativeConfig, parseErr := ParseMySQLBinlogSourceURL(nativeSourceURL, cfg.ServerID)
+			if parseErr != nil {
+				return nil, parseErr
+			}
+			r.cfg.SourceURL = redactNativeSourcePassword(r.cfg.SourceURL)
+			if persistedGTIDs := nativeMySQLGTIDSet(replica.Executed); persistedGTIDs != "" && nativeConfig.GTIDAutoPosition {
+				// The durable replica GTID set is authoritative after a restart;
+				// it must drive COM_BINLOG_DUMP_GTID instead of restarting from a
+				// stale file/position pair.
+				nativeConfig.GTIDSet = persistedGTIDs
+			}
+			if replica.LastSourceFile != "" {
+				nativeConfig.BinlogFile = replica.LastSourceFile
+				if replica.LastSourcePosition >= 4 {
+					nativeConfig.BinlogPosition = replica.LastSourcePosition
+				}
+			}
+			if cfg.NativeSource != nil {
+				r.nativeSource = cfg.NativeSource
+			} else {
+				if strings.TrimSpace(nativeConfig.BinlogFile) == "" && !nativeConfig.GTIDAutoPosition {
+					return nil, fmt.Errorf("mysql replica source_url requires binlog_file on first start")
+				}
+				nativeSource, sourceErr := NewMySQLBinlogSource(nativeConfig)
+				if sourceErr != nil {
+					return nil, sourceErr
+				}
+				r.nativeSource = nativeSource
+			}
+			r.nativeConfig = nativeConfig
+		default:
+			return nil, fmt.Errorf("replica source_url must use http, https, or mysql scheme: %q", r.cfg.SourceURL)
 		}
 	}
 	return r, nil
@@ -285,40 +394,102 @@ func (r *Runtime) StopReplica() error {
 	}
 }
 
-// ChangeSource updates the HTTP source endpoint used by a replica and makes
-// the setting survive a runtime restart. Credentials are deliberately not
-// accepted here; the internal replication control plane uses the existing
-// authenticated deployment boundary rather than persisting secrets.
+// ChangeSource updates the source endpoint used by a replica and makes the
+// setting survive a runtime restart. HTTP URLs use the internal JSON source;
+// mysql:// URLs use the native COM_BINLOG_DUMP source. The change must be made
+// while the replica thread is stopped, matching MySQL's CHANGE REPLICATION
+// SOURCE lifecycle.
 func (r *Runtime) ChangeSource(sourceURL string) error {
 	if r == nil {
 		return fmt.Errorf("replication runtime is nil")
 	}
 	sourceURL = strings.TrimRight(strings.TrimSpace(sourceURL), "/")
 	parsed, err := url.ParseRequestURI(sourceURL)
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-		return fmt.Errorf("source must be an absolute http URL: %q", sourceURL)
+	if err != nil || parsed.Host == "" {
+		return fmt.Errorf("source must be an absolute HTTP or MySQL URL: %q", sourceURL)
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	var native NativeBinlogSource
+	var nativeConfig MySQLBinlogSourceConfig
+	if scheme == "mysql" {
+		nativeConfig, err = ParseMySQLBinlogSourceURL(sourceURL, r.cfg.ServerID)
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(nativeConfig.BinlogFile) == "" && !nativeConfig.GTIDAutoPosition {
+			return fmt.Errorf("mysql replica source_url requires binlog_file on first start")
+		}
+		native, err = NewMySQLBinlogSource(nativeConfig)
+		if err != nil {
+			return err
+		}
+	} else if scheme != "http" && scheme != "https" {
+		return fmt.Errorf("source must be an absolute HTTP or MySQL URL: %q", sourceURL)
 	}
 	r.mu.Lock()
 	if r.role != RoleReplica || r.replica == nil {
 		r.mu.Unlock()
 		return fmt.Errorf("only a replica runtime can change source")
 	}
-	r.cfg.SourceURL = sourceURL
+	if r.pollCancel != nil {
+		r.mu.Unlock()
+		return fmt.Errorf("stop replica before changing replication source")
+	}
+	persistedSourceURL := redactNativeSourcePassword(sourceURL)
+	r.cfg.SourceURL = persistedSourceURL
 	r.lastSourceFailure = time.Time{}
 	r.lastErr = ""
+	r.lastErrorNumber = 0
+	r.lastErrorAt = time.Time{}
+	r.lastIOError = ""
+	r.lastIOErrorNumber = 0
+	r.lastIOErrorAt = time.Time{}
+	r.lastSQLError = ""
+	r.lastSQLErrorNumber = 0
+	r.lastSQLErrorAt = time.Time{}
+	r.nativeSourceUUID = ""
+	r.nativeHeartbeatCount = 0
+	r.nativeLastHeartbeatAt = time.Time{}
+	r.nativeSource = native
+	r.nativeConfig = nativeConfig
 	path := r.sourcePath
+	identityPath := r.sourceIdentityPath
 	r.mu.Unlock()
 	if path == "" {
 		return nil
 	}
-	raw, err := json.MarshalIndent(persistedSourceConfig{SourceURL: sourceURL}, "", "  ")
+	raw, err := json.MarshalIndent(persistedSourceConfig{SourceURL: persistedSourceURL}, "", "  ")
 	if err != nil {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
-	return writeReplicationFileAtomic(path, raw)
+	if err := writeReplicationFileAtomic(path, raw); err != nil {
+		return err
+	}
+	return persistSourceIdentity(identityPath, "")
+}
+
+// ChangeReplicationFilter replaces the replica-side filter set while the
+// applier is stopped, matching CHANGE REPLICATION FILTER's lifecycle. The
+// filter configuration is persisted independently from relay/GTID state.
+func (r *Runtime) ChangeReplicationFilter(config ReplicationFilterConfig) error {
+	if r == nil {
+		return fmt.Errorf("replication runtime is nil")
+	}
+	r.mu.RLock()
+	if r.role != RoleReplica || r.replica == nil {
+		r.mu.RUnlock()
+		return fmt.Errorf("only a replica runtime can change replication filters")
+	}
+	if r.pollCancel != nil {
+		r.mu.RUnlock()
+		return fmt.Errorf("stop replica before changing replication filters")
+	}
+	replica := r.replica
+	r.mu.RUnlock()
+	return replica.SetReplicationFilters(config, "CHANGE_REPLICATION_FILTER")
 }
 
 // ResetReplica removes the local replica execution state. It is intentionally
@@ -343,10 +514,23 @@ func (r *Runtime) ResetReplica() error {
 	}
 	replica := r.replica
 	r.mu.RUnlock()
+	r.mu.Lock()
+	r.lastErr = ""
+	r.lastErrorNumber = 0
+	r.lastErrorAt = time.Time{}
+	r.lastIOError = ""
+	r.lastIOErrorNumber = 0
+	r.lastIOErrorAt = time.Time{}
+	r.lastSQLError = ""
+	r.lastSQLErrorNumber = 0
+	r.lastSQLErrorAt = time.Time{}
+	r.nativeHeartbeatCount = 0
+	r.nativeLastHeartbeatAt = time.Time{}
+	r.mu.Unlock()
 
 	replica.mu.Lock()
 	defer replica.mu.Unlock()
-	next := replicaState{Executed: GTIDSet{}, AppliedRows: []RowChange{}, PreparedXA: map[string]BinlogEvent{}, RelayEvents: []BinlogEvent{}}
+	next := replicaState{Executed: GTIDSet{}, AppliedRows: []RowChange{}, PreparedXA: map[string]BinlogEvent{}, RelayEvents: []BinlogEvent{}, NativeRelayEvents: []NativeBinlogEvent{}, NativeTableMaps: []NativeBinlogEvent{}, AppliedTransactions: map[string]bool{}}
 	raw, err := json.MarshalIndent(next, "", "  ")
 	if err != nil {
 		return err
@@ -360,7 +544,11 @@ func (r *Runtime) ResetReplica() error {
 	replica.Executed = next.Executed
 	replica.AppliedRows = next.AppliedRows
 	replica.relayEvents = next.RelayEvents
+	replica.nativeRelayEvents = next.NativeRelayEvents
+	replica.nativeTableMaps = next.NativeTableMaps
 	replica.preparedXA = next.PreparedXA
+	replica.appliedTransactions = next.AppliedTransactions
+	replica.LastSourceFile = ""
 	replica.LastSourcePosition = 0
 	replica.LastAppliedAt = time.Time{}
 	replica.LastError = ""
@@ -377,9 +565,10 @@ func (r *Runtime) ResetReplicaAll() error {
 	r.mu.Lock()
 	r.cfg.SourceURL = ""
 	path := r.sourcePath
+	identityPath := r.sourceIdentityPath
 	r.mu.Unlock()
 	if path == "" {
-		return nil
+		return persistSourceIdentity(identityPath, "")
 	}
 	raw, err := json.MarshalIndent(persistedSourceConfig{}, "", "  ")
 	if err != nil {
@@ -388,7 +577,10 @@ func (r *Runtime) ResetReplicaAll() error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
-	return writeReplicationFileAtomic(path, raw)
+	if err := writeReplicationFileAtomic(path, raw); err != nil {
+		return err
+	}
+	return persistSourceIdentity(identityPath, "")
 }
 
 func (r *Runtime) Close() error {
@@ -453,6 +645,81 @@ func (r *Runtime) AppendCommittedTransactionWithKey(key string, changes []RowCha
 	return err
 }
 
+// AppendOnePhaseXATransaction publishes XA COMMIT ONE PHASE using the native
+// XA_PREPARE_EVENT(one_phase=1) boundary instead of a regular XID_EVENT.
+func (r *Runtime) AppendOnePhaseXATransaction(key string, xid XAIdentity, changes []RowChange, statements []Statement) error {
+	if r == nil {
+		return fmt.Errorf("replication runtime is nil")
+	}
+	r.mu.RLock()
+	source, role, fenced := r.source, r.role, r.fenced
+	r.mu.RUnlock()
+	if role != RoleSource || source == nil {
+		return fmt.Errorf("replication runtime is not a source")
+	}
+	if fenced {
+		return fmt.Errorf("replication source is fenced")
+	}
+	if len(statements) == 0 && len(changes) == 0 {
+		return nil
+	}
+	return source.AppendOnePhaseXATransaction(key, xid, changes, statements)
+}
+
+// PrepareXATransaction appends an XA PREPARE boundary on a source without
+// advancing its executed GTID set.
+func (r *Runtime) PrepareXATransaction(key string, xid XAIdentity, changes []RowChange, statements []Statement) error {
+	if r == nil {
+		return fmt.Errorf("replication runtime is nil")
+	}
+	r.mu.RLock()
+	source, role, fenced := r.source, r.role, r.fenced
+	r.mu.RUnlock()
+	if role != RoleSource || source == nil {
+		return fmt.Errorf("replication runtime is not a source")
+	}
+	if fenced {
+		return fmt.Errorf("replication source is fenced")
+	}
+	return source.PrepareXATransaction(key, xid, changes, statements)
+}
+
+// CommitXATransaction appends XA COMMIT and advances the source executed
+// GTID state for a previously prepared XID.
+func (r *Runtime) CommitXATransaction(key string, xid XAIdentity) error {
+	if r == nil {
+		return fmt.Errorf("replication runtime is nil")
+	}
+	r.mu.RLock()
+	source, role, fenced := r.source, r.role, r.fenced
+	r.mu.RUnlock()
+	if role != RoleSource || source == nil {
+		return fmt.Errorf("replication runtime is not a source")
+	}
+	if fenced {
+		return fmt.Errorf("replication source is fenced")
+	}
+	return source.CommitXATransaction(key, xid)
+}
+
+// RollbackXATransaction appends XA ROLLBACK for a prepared XID without
+// advancing the source executed GTID state.
+func (r *Runtime) RollbackXATransaction(key string, xid XAIdentity) error {
+	if r == nil {
+		return fmt.Errorf("replication runtime is nil")
+	}
+	r.mu.RLock()
+	source, role, fenced := r.source, r.role, r.fenced
+	r.mu.RUnlock()
+	if role != RoleSource || source == nil {
+		return fmt.Errorf("replication runtime is not a source")
+	}
+	if fenced {
+		return fmt.Errorf("replication source is fenced")
+	}
+	return source.RollbackXATransaction(key, xid)
+}
+
 // FlushBinaryLogs persists a rotate marker on a source. The logical runtime
 // keeps one durable JSONL stream, so rotation is represented as an event
 // boundary that native and internal consumers can observe.
@@ -477,6 +744,12 @@ func (r *Runtime) FlushBinaryLogs() error {
 
 // ResetMaster clears a source's durable logical binlog and GTID history.
 func (r *Runtime) ResetMaster() error {
+	return r.ResetMasterTo(1)
+}
+
+// ResetMasterTo clears a source's durable logical binlog and GTID history and
+// optionally starts the native binlog sequence at the requested file index.
+func (r *Runtime) ResetMasterTo(index uint32) error {
 	if r == nil {
 		return fmt.Errorf("replication runtime is nil")
 	}
@@ -491,7 +764,45 @@ func (r *Runtime) ResetMaster() error {
 	if fenced {
 		return fmt.Errorf("replication source is fenced")
 	}
-	return source.ResetMaster()
+	return source.ResetMasterTo(index)
+}
+
+// PurgeBinaryLogsTo removes source native binlog files older than logName.
+func (r *Runtime) PurgeBinaryLogsTo(logName string) error {
+	if r == nil {
+		return fmt.Errorf("replication runtime is nil")
+	}
+	r.mu.RLock()
+	source := r.source
+	role := r.role
+	fenced := r.fenced
+	r.mu.RUnlock()
+	if role != RoleSource || source == nil {
+		return fmt.Errorf("replication runtime is not a source")
+	}
+	if fenced {
+		return fmt.Errorf("replication source is fenced")
+	}
+	return source.PurgeBinaryLogsTo(logName)
+}
+
+// PurgeBinaryLogsBefore removes source native binlog files older than cutoff.
+func (r *Runtime) PurgeBinaryLogsBefore(cutoff time.Time) error {
+	if r == nil {
+		return fmt.Errorf("replication runtime is nil")
+	}
+	r.mu.RLock()
+	source := r.source
+	role := r.role
+	fenced := r.fenced
+	r.mu.RUnlock()
+	if role != RoleSource || source == nil {
+		return fmt.Errorf("replication runtime is not a source")
+	}
+	if fenced {
+		return fmt.Errorf("replication source is fenced")
+	}
+	return source.PurgeBinaryLogsBefore(cutoff)
 }
 
 // Address returns the bound control-plane address. It is useful for tests and
@@ -602,12 +913,26 @@ func (r *Runtime) Promote() error {
 	if r.replica != nil {
 		r.replica.mu.Lock()
 		executed := cloneGTIDSet(r.replica.Executed)
+		preparedXA := cloneNativePreparedXA(r.replica.preparedXA)
+		relayEvents := make([]BinlogEvent, len(r.replica.relayEvents))
+		for index, event := range r.replica.relayEvents {
+			relayEvents[index] = cloneBinlogEventForRelay(event)
+		}
 		r.replica.mu.Unlock()
 		source.Executed = executed
 		source.nextSeq = nextSequence(executed, source.UUID)
-		if err := source.persistSet(executed); err != nil {
+		if err := source.persistDurableState(); err != nil {
 			return err
 		}
+		if err := source.ImportRelayEvents(relayEvents); err != nil {
+			return err
+		}
+		if err := source.ImportPreparedXA(preparedXA); err != nil {
+			return err
+		}
+	}
+	if err := persistRuntimeRole(r.rolePath, RoleSource); err != nil {
+		return err
 	}
 	r.source = source
 	r.role = RoleSource
@@ -743,15 +1068,30 @@ func (r *Runtime) Status() StatusSnapshot {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	status := statusResponse{
-		Role:         r.role,
-		UUID:         r.cfg.UUID,
-		ServerID:     r.cfg.ServerID,
-		SourceURL:    r.cfg.SourceURL,
-		LastError:    r.lastErr,
-		Promotable:   r.role == RoleReplica && !r.fenced,
-		FencingEpoch: r.fencingEpoch,
-		Fenced:       r.fenced,
-		FencedBy:     r.fencedBy,
+		Role:               r.role,
+		UUID:               r.cfg.UUID,
+		ServerID:           r.cfg.ServerID,
+		SourceURL:          publicSourceURL(r.cfg.SourceURL),
+		SourceUUID:         r.nativeSourceUUID,
+		SourceAutoPosition: r.nativeSource != nil && r.nativeConfig.GTIDAutoPosition,
+		ReceivedHeartbeats: r.nativeHeartbeatCount,
+		LastHeartbeatAt:    r.nativeLastHeartbeatAt,
+		LastError:          r.lastErr,
+		LastErrorNumber:    r.lastErrorNumber,
+		LastErrorAt:        r.lastErrorAt,
+		LastIOError:        r.lastIOError,
+		LastIOErrorNumber:  r.lastIOErrorNumber,
+		LastIOErrorAt:      r.lastIOErrorAt,
+		LastSQLError:       r.lastSQLError,
+		LastSQLErrorNumber: r.lastSQLErrorNumber,
+		LastSQLErrorAt:     r.lastSQLErrorAt,
+		Promotable:         r.role == RoleReplica && !r.fenced,
+		FencingEpoch:       r.fencingEpoch,
+		Fenced:             r.fenced,
+		FencedBy:           r.fencedBy,
+	}
+	if parsed, err := url.Parse(strings.TrimSpace(r.cfg.SourceURL)); err == nil && parsed.User != nil {
+		status.SourceUser = parsed.User.Username()
 	}
 	if r.role == RoleSource && r.source != nil {
 		status.ExecutedGTIDs = r.source.Executed.String()
@@ -761,6 +1101,7 @@ func (r *Runtime) Status() StatusSnapshot {
 		status.ReplicaRunningKnown = true
 		r.replica.mu.Lock()
 		status.ExecutedGTIDs = r.replica.Executed.String()
+		status.SourceFile = r.replica.LastSourceFile
 		status.SourcePosition = r.replica.LastSourcePosition
 		if !r.replica.LastAppliedAt.IsZero() {
 			status.ReplicationLagSec = time.Since(r.replica.LastAppliedAt).Seconds()
@@ -771,9 +1112,78 @@ func (r *Runtime) Status() StatusSnapshot {
 		if r.replica.LastError != "" {
 			status.LastError = r.replica.LastError
 		}
+		status.ReplicationFilters = r.replica.replicationFilterStatusLocked()
 		r.replica.mu.Unlock()
 	}
 	return status
+}
+
+func publicSourceURL(raw string) string {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || parsed.User == nil || !strings.EqualFold(parsed.Scheme, "mysql") {
+		return raw
+	}
+	// A status endpoint is observable by operators and health probes. Do not
+	// expose either the password or the source username; the username is still
+	// credential material and can reveal account topology.
+	parsed.User = nil
+	return parsed.String()
+}
+
+// redactNativeSourcePassword removes only the password from a native source
+// URL while retaining the username needed by status and P_S projections. The
+// persisted source file must never become a credential store.
+func redactNativeSourcePassword(raw string) string {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || !strings.EqualFold(parsed.Scheme, "mysql") || parsed.User == nil {
+		return raw
+	}
+	parsed.User = url.User(parsed.User.Username())
+	return strings.TrimRight(parsed.String(), "/")
+}
+
+// nativeSourceURLWithEnvironmentPassword supplies a native source password at
+// runtime without persisting it. CHANGE REPLICATION SOURCE can provide a
+// password for the current process; a restarted process may rehydrate it from
+// the protected environment variable used by deployment orchestration.
+func nativeSourceURLWithEnvironmentPassword(raw string) string {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || !strings.EqualFold(parsed.Scheme, "mysql") || parsed.User == nil {
+		return raw
+	}
+	if _, passwordSet := parsed.User.Password(); passwordSet {
+		return raw
+	}
+	password := os.Getenv("XMYSQL_REPLICATION_PASSWORD")
+	if password == "" {
+		return raw
+	}
+	parsed.User = url.UserPassword(parsed.User.Username(), password)
+	return parsed.String()
+}
+
+func nativeMySQLGTIDSet(executed GTIDSet) string {
+	if len(executed) == 0 {
+		return ""
+	}
+	intervals := GTIDIntervalsFromSet(executed)
+	filtered := GTIDIntervals{}
+	for uuid, ranges := range intervals {
+		if !validNativeMySQLUUID(uuid) {
+			continue
+		}
+		filtered[uuid] = append([]GTIDInterval(nil), ranges...)
+	}
+	return filtered.String()
+}
+
+func validNativeMySQLUUID(value string) bool {
+	if len(value) != 36 || strings.Count(value, "-") != 4 {
+		return false
+	}
+	compact := strings.ReplaceAll(value, "-", "")
+	decoded, err := hex.DecodeString(compact)
+	return err == nil && len(decoded) == 16
 }
 
 func (r *Runtime) handler() http.Handler {
@@ -808,7 +1218,8 @@ func (r *Runtime) handleBinlog(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	writeJSON(w, binlogResponse{Events: events, NextPosition: next})
+	logName, _ := source.NativeCurrentFilePosition()
+	writeJSON(w, binlogResponse{Events: events, NextPosition: next, LogName: logName})
 }
 
 func (r *Runtime) handleStatus(w http.ResponseWriter, _ *http.Request) {
@@ -984,10 +1395,95 @@ func loadPersistedSource(path string) (string, error) {
 		return "", nil
 	}
 	parsed, err := url.ParseRequestURI(strings.TrimSpace(config.SourceURL))
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https" && parsed.Scheme != "mysql") || parsed.Host == "" {
 		return "", fmt.Errorf("persisted replication source is invalid: %q", config.SourceURL)
 	}
 	return strings.TrimRight(strings.TrimSpace(config.SourceURL), "/"), nil
+}
+
+func (r *Runtime) persistNativeSourceIdentity(sourceUUID string) error {
+	if r == nil {
+		return fmt.Errorf("replication runtime is nil")
+	}
+	r.mu.RLock()
+	path := r.sourceIdentityPath
+	r.mu.RUnlock()
+	return persistSourceIdentity(path, sourceUUID)
+}
+
+func persistSourceIdentity(path, sourceUUID string) error {
+	if strings.TrimSpace(path) == "" {
+		return nil
+	}
+	raw, err := json.MarshalIndent(persistedSourceIdentity{SourceUUID: strings.TrimSpace(sourceUUID)}, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	return writeReplicationFileAtomic(path, raw)
+}
+
+func loadPersistedSourceIdentity(path string) (string, error) {
+	if strings.TrimSpace(path) == "" {
+		return "", nil
+	}
+	raw, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	var identity persistedSourceIdentity
+	if err := json.Unmarshal(raw, &identity); err != nil {
+		return "", fmt.Errorf("decode persisted replication source identity: %w", err)
+	}
+	return strings.TrimSpace(identity.SourceUUID), nil
+}
+
+func loadPersistedRuntimeRole(path string) (string, error) {
+	if strings.TrimSpace(path) == "" {
+		return "", nil
+	}
+	raw, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	var persisted persistedRuntimeRole
+	if err := json.Unmarshal(raw, &persisted); err != nil {
+		return "", fmt.Errorf("decode persisted replication role: %w", err)
+	}
+	role := strings.ToLower(strings.TrimSpace(persisted.Role))
+	if role == "" {
+		return "", nil
+	}
+	if role != RoleSource {
+		return "", fmt.Errorf("persisted replication role is invalid: %q", persisted.Role)
+	}
+	return role, nil
+}
+
+func persistRuntimeRole(path, role string) error {
+	if strings.TrimSpace(path) == "" {
+		return nil
+	}
+	role = strings.ToLower(strings.TrimSpace(role))
+	if role != RoleSource {
+		return fmt.Errorf("cannot persist unsupported replication role %q", role)
+	}
+	raw, err := json.MarshalIndent(persistedRuntimeRole{Role: role}, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	return writeReplicationFileAtomic(path, raw)
 }
 
 func loadPersistedFencing(path string) (persistedFencingState, error) {
@@ -1052,16 +1548,31 @@ func (r *Runtime) poll(ctx context.Context, done chan struct{}) {
 		position = r.replica.LastSourcePosition
 	}
 	r.replica.mu.Unlock()
+	r.mu.RLock()
+	if position == 4 && r.nativeSource != nil && r.nativeConfig.BinlogPosition >= 4 {
+		position = r.nativeConfig.BinlogPosition
+	}
+	r.mu.RUnlock()
 	client := &http.Client{Timeout: 5 * time.Second}
 	for {
 		r.mu.RLock()
 		role := r.role
+		native := r.nativeSource != nil
 		r.mu.RUnlock()
 		if role != RoleReplica {
 			return
 		}
-		if err := r.pullOnce(ctx, client, &position); err != nil {
-			r.setError(err)
+		var pullErr error
+		if native {
+			pullErr = r.pullNativeOnce(ctx, &position)
+		} else {
+			pullErr = r.pullOnce(ctx, client, &position)
+		}
+		if pullErr != nil {
+			if replicationErrorClassOf(pullErr) == replicationErrorClassUnknown {
+				pullErr = wrapReplicationError(replicationErrorClassIO, pullErr)
+			}
+			r.setError(pullErr)
 			if r.shouldAutoFailover() {
 				if err := r.tryAutoPromote(ctx); err != nil {
 					r.setError(err)
@@ -1070,7 +1581,14 @@ func (r *Runtime) poll(ctx context.Context, done chan struct{}) {
 		} else {
 			r.clearSourceFailure()
 		}
-		timer := time.NewTimer(r.cfg.PollInterval)
+		delay := r.cfg.PollInterval
+		if native && pullErr != nil {
+			r.mu.RLock()
+			nativeConfig := r.nativeConfig
+			r.mu.RUnlock()
+			delay = nativeRetryDelay(nativeConfig, pullErr, delay)
+		}
+		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
 			if !timer.Stop() {
@@ -1080,6 +1598,365 @@ func (r *Runtime) poll(ctx context.Context, done chan struct{}) {
 		case <-timer.C:
 		}
 	}
+}
+
+func nativeRetryDelay(config MySQLBinlogSourceConfig, pullErr error, fallback time.Duration) time.Duration {
+	if pullErr == nil || config.ConnectionRetryInterval == 0 {
+		return fallback
+	}
+	const maxSeconds = uint64(1<<63-1) / uint64(time.Second)
+	if config.ConnectionRetryInterval > maxSeconds {
+		return time.Duration(1<<63 - 1)
+	}
+	return time.Duration(config.ConnectionRetryInterval) * time.Second
+}
+
+const nativeRuntimeBatchSize = 256
+
+func (r *Runtime) pullNativeOnce(ctx context.Context, position *uint64) error {
+	if r == nil || r.replica == nil || position == nil {
+		return fmt.Errorf("native replication runtime is not initialized")
+	}
+	r.mu.RLock()
+	source := r.nativeSource
+	nativeConfig := r.nativeConfig
+	forceFileReplay := r.nativeReplayFromFile
+	r.mu.RUnlock()
+	if source == nil {
+		return fmt.Errorf("native replication source is not configured")
+	}
+	if metadataSource, ok := source.(NativeBinlogSourceMetadata); ok {
+		r.mu.RLock()
+		knownSourceUUID := r.nativeSourceUUID
+		r.mu.RUnlock()
+		if strings.TrimSpace(knownSourceUUID) == "" {
+			metadataCtx, cancel := context.WithTimeout(ctx, nativeMetadataTimeout(nativeConfig.ReadTimeout))
+			sourceUUID, metadataErr := metadataSource.SourceUUID(metadataCtx)
+			cancel()
+			if metadataErr == nil && strings.TrimSpace(sourceUUID) != "" {
+				sourceUUID = strings.TrimSpace(sourceUUID)
+				if persistErr := r.persistNativeSourceIdentity(sourceUUID); persistErr != nil {
+					return persistErr
+				}
+				r.mu.Lock()
+				r.nativeSourceUUID = sourceUUID
+				r.mu.Unlock()
+			}
+		}
+	}
+	if forceFileReplay {
+		if err := r.replica.resetNativeTableMapsForFileReplay(); err != nil {
+			return err
+		}
+	}
+	r.replica.mu.Lock()
+	sourceFile := r.replica.LastSourceFile
+	storedPosition := r.replica.LastSourcePosition
+	executed := cloneGTIDSet(r.replica.Executed)
+	nativeRelayPending := len(r.replica.nativeRelayEvents) > 0
+	r.replica.mu.Unlock()
+	if forceFileReplay {
+		// A MySQL GTID dump may begin a later row event without replaying the
+		// TABLE_MAP needed by a fresh decoder. Rewind the current binlog file
+		// once so the decoder can rebuild its table dictionary; executed GTIDs
+		// keep already applied transactions idempotent.
+		nativeConfig.GTIDSet = ""
+		*position = 4
+		nativeConfig.BinlogPosition = 4
+	} else if !nativeRelayPending {
+		persistedGTIDs := nativeMySQLGTIDSet(executed)
+		if persistedGTIDs != "" {
+			nativeConfig.GTIDSet = persistedGTIDs
+			// A file-position URL is useful for the initial attach, but once
+			// the replica has a durable native GTID set, reconnects should use
+			// COM_BINLOG_DUMP_GTID. This avoids replaying stale ROTATE_EVENT
+			// preambles and makes the next pull independent of file retention.
+			nativeConfig.GTIDAutoPosition = true
+		} else if !(nativeConfig.GTIDAutoPosition && strings.TrimSpace(nativeConfig.GTIDSet) != "") {
+			// Preserve an explicitly configured GTID baseline on first attach.
+			// It is needed when the source has already executed initialization
+			// transactions that must not be replayed by a new replica.
+			nativeConfig.GTIDSet = ""
+		}
+	} else {
+		// A GTID dump restarts at the beginning of the next transaction. If
+		// the previous pull ended mid-transaction, that would duplicate the
+		// GTID already present in nativeRelayEvents. Resume by file/position
+		// until the relay transaction closes, then switch back to GTID mode.
+		nativeConfig.GTIDSet = ""
+	}
+	if nativeConfig.GTIDAutoPosition && nativeConfig.GTIDSet != "" && !nativeRelayPending {
+		r.mu.Lock()
+		r.nativeConfig.GTIDAutoPosition = true
+		r.mu.Unlock()
+	}
+	nativeGTIDStream := nativeConfig.GTIDAutoPosition && !forceFileReplay && !nativeRelayPending
+	if sourceFile == "" {
+		sourceFile = nativeConfig.BinlogFile
+	}
+	if storedPosition >= 4 {
+		*position = storedPosition
+	}
+	if *position < 4 {
+		*position = nativeConfig.BinlogPosition
+	}
+	if *position < 4 {
+		*position = 4
+	}
+	if forceFileReplay {
+		*position = 4
+		nativeConfig.BinlogPosition = 4
+	}
+	replayBoundaryFile := sourceFile
+	replayBoundaryPosition := storedPosition
+	if strings.TrimSpace(sourceFile) == "" && strings.TrimSpace(nativeConfig.GTIDSet) == "" && !nativeConfig.GTIDAutoPosition {
+		return fmt.Errorf("native replication source has no binlog file")
+	}
+
+	// Recreate the concrete source at the durable position for every pull. A
+	// COM_BINLOG_DUMP stream is stateful; restarting it from the persisted
+	// event boundary is what makes reconnect and crash recovery idempotent.
+	if _, ok := source.(*MySQLBinlogSource); ok {
+		nativeConfig.BinlogFile = sourceFile
+		nativeConfig.BinlogPosition = *position
+		var err error
+		source, err = NewMySQLBinlogSource(nativeConfig)
+		if err != nil {
+			return err
+		}
+	}
+	readTimeout := nativeConfig.ReadTimeout
+	if readTimeout <= 0 {
+		readTimeout = 15 * time.Second
+	}
+	for attempt := 0; attempt < 2; attempt++ {
+		readCtx, cancel := context.WithTimeout(ctx, readTimeout)
+		frames, dumpErr := source.Dump(readCtx, nativeRuntimeBatchSize)
+		cancel()
+		if heartbeatCount := nativeHeartbeatFrameCount(frames); heartbeatCount > 0 {
+			r.mu.Lock()
+			r.nativeHeartbeatCount += heartbeatCount
+			r.nativeLastHeartbeatAt = time.Now().UTC()
+			r.mu.Unlock()
+		}
+		if len(frames) == 0 {
+			// A file/position source can become stale across rotation while the
+			// replica is stopped. MySQL reports this as ER_MASTER_FATAL_ERROR_READING_BINLOG
+			// (1236), commonly with "requested ... position > file size". If the
+			// durable executed set is available, retry through GTID auto-position so
+			// recovery does not depend on the old file still being current. This is
+			// intentionally limited to the concrete MySQL source and one retry; the
+			// in-process source and scripted test sources retain their exact behavior.
+			if attempt == 0 && dumpErr != nil && nativeConfig.GTIDSet != "" &&
+				!nativeConfig.GTIDAutoPosition && isNativeMySQLStalePositionError(dumpErr) {
+				nativeConfig.GTIDAutoPosition = true
+				nativeConfig.BinlogFile = ""
+				nativeConfig.BinlogPosition = 4
+				fallback, fallbackErr := NewMySQLBinlogSource(nativeConfig)
+				if fallbackErr != nil {
+					return fallbackErr
+				}
+				source = fallback
+				continue
+			}
+			if attempt == 0 && nativeConfig.GTIDSet != "" &&
+				dumpErr != nil && !errors.Is(dumpErr, context.DeadlineExceeded) && !errors.Is(dumpErr, context.Canceled) {
+				nativeConfig.GTIDSet = ""
+				nativeConfig.BinlogFile = sourceFile
+				nativeConfig.BinlogPosition = *position
+				fallback, fallbackErr := NewMySQLBinlogSource(nativeConfig)
+				if fallbackErr != nil {
+					return fallbackErr
+				}
+				source = fallback
+				continue
+			}
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			if dumpErr != nil && !errors.Is(dumpErr, context.DeadlineExceeded) && !errors.Is(dumpErr, context.Canceled) {
+				return dumpErr
+			}
+			r.replica.mu.Lock()
+			r.replica.LastAppliedAt = time.Time{}
+			r.replica.LastError = ""
+			r.replica.mu.Unlock()
+			return nil
+		}
+
+		initialSourceFile := sourceFile
+		if !nativeGTIDStream {
+			frames = nativeFramesAtOrAfterSourceBoundary(frames, initialSourceFile, *position)
+		}
+		if len(frames) == 0 {
+			if dumpErr != nil && !errors.Is(dumpErr, context.DeadlineExceeded) && !errors.Is(dumpErr, context.Canceled) {
+				return dumpErr
+			}
+			continue
+		}
+		nextPosition := *position
+		metadataOnly := true
+		for _, frame := range frames {
+			frameFile := strings.TrimSpace(frame.File)
+			frameIsCurrentOrNewer := nativeGTIDStream || frameFile == "" || sourceFile == "" || frameFile >= sourceFile
+			switch nativeBinlogFrameType(frame.Raw) {
+			case 4, 15, 27: // synthetic ROTATE/FORMAT_DESCRIPTION and HEARTBEAT frames
+			default:
+				metadataOnly = false
+			}
+			if frameIsCurrentOrNewer && frameFile != "" && frameFile != sourceFile {
+				sourceFile = frameFile
+				nextPosition = 4
+			}
+			if frameIsCurrentOrNewer && frame.EndPosition > nextPosition {
+				nextPosition = frame.EndPosition
+			}
+			if rotateFile, rotatePosition, ok := nativeRotateTargetFile(frame); ok &&
+				(nativeGTIDStream || sourceFile == "" || rotateFile >= sourceFile) {
+				sourceFile = rotateFile
+				nextPosition = rotatePosition
+			}
+		}
+		if metadataOnly && attempt == 0 && nativeConfig.GTIDSet != "" &&
+			dumpErr != nil && !errors.Is(dumpErr, context.DeadlineExceeded) && !errors.Is(dumpErr, context.Canceled) {
+			nativeConfig.GTIDSet = ""
+			sourceFile = initialSourceFile
+			nativeConfig.BinlogFile = initialSourceFile
+			nativeConfig.BinlogPosition = *position
+			fallback, fallbackErr := NewMySQLBinlogSource(nativeConfig)
+			if fallbackErr != nil {
+				return fallbackErr
+			}
+			source = fallback
+			continue
+		}
+		if nextPosition <= *position && sourceFile == initialSourceFile {
+			if metadataOnly {
+				r.replica.mu.Lock()
+				r.replica.LastAppliedAt = time.Time{}
+				r.replica.LastError = ""
+				r.replica.mu.Unlock()
+				return nil
+			}
+			return fmt.Errorf("native replication source returned frames without advancing position")
+		}
+		framesToApply := frames
+		if forceFileReplay {
+			framesToApply = nativeFramesForFileReplay(frames, replayBoundaryFile, replayBoundaryPosition)
+		}
+		framesToApply = nativeFramesWithoutHeartbeats(framesToApply)
+		if err := r.replica.ApplyNativeAtSource(framesToApply, sourceFile, nextPosition); err != nil {
+			r.mu.Lock()
+			if _, ok := source.(*MySQLBinlogSource); ok {
+				r.nativeReplayFromFile = true
+			}
+			r.mu.Unlock()
+			return wrapReplicationError(replicationErrorClassSQL, err)
+		}
+		r.mu.Lock()
+		r.nativeReplayFromFile = false
+		r.mu.Unlock()
+		*position = nextPosition
+		if dumpErr != nil && !errors.Is(dumpErr, context.DeadlineExceeded) && !errors.Is(dumpErr, context.Canceled) {
+			return dumpErr
+		}
+		return nil
+	}
+	return nil
+}
+
+func nativeHeartbeatFrameCount(frames []NativeBinlogEvent) uint64 {
+	var count uint64
+	for _, frame := range frames {
+		if nativeBinlogFrameType(frame.Raw) == 27 { // HEARTBEAT_EVENT
+			count++
+		}
+	}
+	return count
+}
+
+func nativeFramesWithoutHeartbeats(frames []NativeBinlogEvent) []NativeBinlogEvent {
+	filtered := make([]NativeBinlogEvent, 0, len(frames))
+	for _, frame := range frames {
+		if nativeBinlogFrameType(frame.Raw) == 27 { // HEARTBEAT_EVENT
+			continue
+		}
+		filtered = append(filtered, frame)
+	}
+	return filtered
+}
+
+func nativeMetadataTimeout(configured time.Duration) time.Duration {
+	if configured <= 0 || configured > 5*time.Second {
+		return 5 * time.Second
+	}
+	return configured
+}
+
+func nativeFramesAtOrAfterSourceBoundary(frames []NativeBinlogEvent, boundaryFile string, boundaryPosition uint64) []NativeBinlogEvent {
+	if len(frames) == 0 || strings.TrimSpace(boundaryFile) == "" {
+		return frames
+	}
+	filtered := make([]NativeBinlogEvent, 0, len(frames))
+	for _, frame := range frames {
+		typeCode := nativeBinlogFrameType(frame.Raw)
+		if typeCode == 15 { // FORMAT_DESCRIPTION_EVENT is a valid stream preamble.
+			filtered = append(filtered, frame)
+			continue
+		}
+		if typeCode == 4 {
+			rotateFile, _, ok := nativeRotateTargetFile(frame)
+			if !ok || rotateFile >= boundaryFile {
+				filtered = append(filtered, frame)
+			}
+			continue
+		}
+		file := strings.TrimSpace(frame.File)
+		if file == "" {
+			if frame.EndPosition > boundaryPosition {
+				filtered = append(filtered, frame)
+			}
+			continue
+		}
+		if file > boundaryFile || file == boundaryFile && frame.EndPosition > boundaryPosition {
+			filtered = append(filtered, frame)
+		}
+	}
+	return filtered
+}
+
+func isNativeMySQLStalePositionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "error 1236") &&
+		(strings.Contains(message, "position") || strings.Contains(message, "binlog") || strings.Contains(message, "log file"))
+}
+
+func nativeFramesForFileReplay(frames []NativeBinlogEvent, boundaryFile string, boundaryPosition uint64) []NativeBinlogEvent {
+	if len(frames) == 0 || strings.TrimSpace(boundaryFile) == "" || boundaryPosition < 4 {
+		return frames
+	}
+	result := make([]NativeBinlogEvent, 0, len(frames))
+	for _, frame := range frames {
+		typeCode := nativeBinlogFrameType(frame.Raw)
+		if typeCode == 19 || typeCode == 4 || typeCode == 15 || typeCode == 35 {
+			result = append(result, frame)
+			continue
+		}
+		file := strings.TrimSpace(frame.File)
+		if file == "" {
+			if frame.Position >= boundaryPosition {
+				result = append(result, frame)
+			}
+			continue
+		}
+		if file > boundaryFile || file == boundaryFile && frame.EndPosition > boundaryPosition {
+			result = append(result, frame)
+		}
+	}
+	return result
 }
 
 func (r *Runtime) shouldAutoFailover() bool {
@@ -1204,17 +2081,30 @@ func (r *Runtime) pullOnce(ctx context.Context, client *http.Client, position *u
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		return err
 	}
-	if len(payload.Events) > 0 {
-		for _, transaction := range splitBinlogTransactions(payload.Events) {
-			if err := r.replica.Apply(transaction); err != nil {
-				return err
-			}
+	nextPosition := *position
+	if payload.NextPosition > nextPosition {
+		nextPosition = payload.NextPosition
+	}
+	r.replica.mu.Lock()
+	sourceFile := r.replica.LastSourceFile
+	r.replica.mu.Unlock()
+	if strings.TrimSpace(payload.LogName) != "" {
+		sourceFile = payload.LogName
+	}
+	var sourcePosition *replicaSourcePosition
+	if nextPosition > *position {
+		sourcePosition = &replicaSourcePosition{File: sourceFile, Position: nextPosition}
+	}
+	if len(payload.Events) > 0 || sourcePosition != nil {
+		if err := r.replica.applyWithPreparedXAAndNativeRelayAtSource(payload.Events, nil, nil, false, sourcePosition); err != nil {
+			return wrapReplicationError(replicationErrorClassSQL, err)
 		}
 	}
-	if payload.NextPosition > *position {
-		*position = payload.NextPosition
+	if sourcePosition != nil {
+		*position = nextPosition
 		r.replica.mu.Lock()
-		r.replica.LastSourcePosition = *position
+		r.replica.LastSourceFile = sourceFile
+		r.replica.LastSourcePosition = nextPosition
 		if len(payload.Events) == 0 {
 			r.replica.LastAppliedAt = time.Time{}
 		} else {
@@ -1260,18 +2150,93 @@ func splitBinlogTransactions(events []BinlogEvent) [][]BinlogEvent {
 	return transactions
 }
 
+type replicationErrorClass uint8
+
+const (
+	replicationErrorClassUnknown replicationErrorClass = iota
+	replicationErrorClassIO
+	replicationErrorClassSQL
+)
+
+type classifiedReplicationError struct {
+	class replicationErrorClass
+	err   error
+}
+
+func (e *classifiedReplicationError) Error() string {
+	if e == nil || e.err == nil {
+		return ""
+	}
+	return e.err.Error()
+}
+
+func (e *classifiedReplicationError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.err
+}
+
+func wrapReplicationError(class replicationErrorClass, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &classifiedReplicationError{class: class, err: err}
+}
+
+func replicationErrorClassOf(err error) replicationErrorClass {
+	var classified *classifiedReplicationError
+	if errors.As(err, &classified) && classified != nil {
+		return classified.class
+	}
+	return replicationErrorClassUnknown
+}
+
 func (r *Runtime) setError(err error) {
 	if err == nil {
 		return
 	}
+	errorText := err.Error()
+	errorAt := time.Now().UTC()
+	errorNumber := parseMySQLErrorNumber(err)
+	errorClass := replicationErrorClassOf(err)
 	r.mu.Lock()
-	r.lastErr = err.Error()
+	r.lastErr = errorText
+	r.lastErrorNumber = errorNumber
+	r.lastErrorAt = errorAt
+	switch errorClass {
+	case replicationErrorClassIO:
+		r.lastIOError = errorText
+		r.lastIOErrorNumber = errorNumber
+		r.lastIOErrorAt = errorAt
+	case replicationErrorClassSQL:
+		r.lastSQLError = errorText
+		r.lastSQLErrorNumber = errorNumber
+		r.lastSQLErrorAt = errorAt
+	}
 	r.mu.Unlock()
 	if r.replica != nil {
 		r.replica.mu.Lock()
-		r.replica.LastError = err.Error()
+		r.replica.LastError = errorText
 		r.replica.mu.Unlock()
 	}
+}
+
+var mysqlErrorNumberPattern = regexp.MustCompile(`(?i)\berror\s+([0-9]{1,6})\b`)
+
+func parseMySQLErrorNumber(err error) int64 {
+	if err == nil {
+		return 0
+	}
+	match := mysqlErrorNumberPattern.FindStringSubmatch(err.Error())
+	if len(match) != 2 {
+		return 0
+	}
+	number, parseErr := strconv.ParseInt(match[1], 10, 64)
+	if parseErr != nil {
+		return 0
+	}
+	return number
 }
 
 func writeJSON(w http.ResponseWriter, value interface{}) {

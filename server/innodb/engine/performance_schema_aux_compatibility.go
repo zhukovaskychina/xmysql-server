@@ -1,7 +1,9 @@
 package engine
 
 import (
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
 )
@@ -21,9 +23,13 @@ func (e *XMySQLExecutor) executePerformanceSchemaHostCacheSelect(query string, c
 	rows := make([][]interface{}, 0)
 	seen := make(map[string]struct{})
 	failedByHost := make(map[string]int64)
+	firstErrorByHost := make(map[string]time.Time)
+	lastErrorByHost := make(map[string]time.Time)
 	if e != nil && e.metricsRecorder != nil {
 		for _, summary := range e.metricsRecorder.AuthenticationFailureSummaryByHost() {
 			failedByHost[summary.Host] = summary.Count
+			firstErrorByHost[summary.Host] = summary.FirstSeen
+			lastErrorByHost[summary.Host] = summary.LastSeen
 		}
 	}
 	appendRow := func(ip, host string) {
@@ -48,7 +54,8 @@ func (e *XMySQLExecutor) executePerformanceSchemaHostCacheSelect(query string, c
 			"COUNT_PROXY_USER_ACL_ERRORS": int64(0), "COUNT_AUTHENTICATION_ERRORS": count, "COUNT_SSL_ERRORS": int64(0),
 			"COUNT_MAX_USER_CONNECTIONS_ERRORS": int64(0), "COUNT_MAX_USER_CONNECTIONS_PER_HOUR_ERRORS": int64(0),
 			"COUNT_DEFAULT_DATABASE_ERRORS": int64(0), "COUNT_INIT_CONNECT_ERRORS": int64(0), "COUNT_LOCAL_ERRORS": int64(0),
-			"COUNT_UNKNOWN_ERRORS": int64(0), "FIRST_SEEN": nil, "LAST_SEEN": nil, "FIRST_ERROR_SEEN": nil, "LAST_ERROR_SEEN": nil,
+			"COUNT_UNKNOWN_ERRORS": int64(0), "FIRST_SEEN": nil, "LAST_SEEN": nil,
+			"FIRST_ERROR_SEEN": firstErrorByHost[host], "LAST_ERROR_SEEN": lastErrorByHost[host],
 		}
 		if !performanceSchemaLockValuesMatch(query, values) {
 			return
@@ -85,18 +92,73 @@ func (e *XMySQLExecutor) executePerformanceSchemaSyncInstancesSelect(query, name
 
 func (e *XMySQLExecutor) executePerformanceSchemaObjectsSummarySelect(query string) *SelectResult {
 	columns := requestedInformationSchemaColumns(query, []string{"OBJECT_TYPE", "OBJECT_SCHEMA", "OBJECT_NAME", "COUNT_STAR", "SUM_TIMER_WAIT", "MIN_TIMER_WAIT", "AVG_TIMER_WAIT", "MAX_TIMER_WAIT"})
-	rows := make([][]interface{}, 0)
+	type objectSummary struct {
+		objectType   string
+		objectSchema interface{}
+		objectName   string
+		count        int64
+		sum          int64
+		min          int64
+		max          int64
+	}
+	byKey := make(map[string]*objectSummary)
+	addSummary := func(objectType string, objectSchema interface{}, objectName string, count, timer int64) {
+		key := objectType + "\x00" + objectName
+		summary := byKey[key]
+		if summary == nil {
+			summary = &objectSummary{objectType: objectType, objectSchema: objectSchema, objectName: objectName, min: timer, max: timer}
+			byKey[key] = summary
+		}
+		summary.count += count
+		summary.sum += timer
+		if summary.count == count || timer < summary.min {
+			summary.min = timer
+		}
+		if timer > summary.max {
+			summary.max = timer
+		}
+	}
+	if e != nil && e.lockManager != nil {
+		for _, edge := range e.lockManager.ObjectSummarySnapshot() {
+			timer := edge.WaitDuration.Nanoseconds() * 1000
+			addSummary("TABLE", nil, edge.ResourceID, 1, timer)
+		}
+	}
 	for _, edge := range e.performanceSchemaWaitEdges() {
+		timer := edge.WaitDuration.Nanoseconds() * 1000
+		addSummary("TABLE", nil, edge.ResourceID, 1, timer)
+	}
+	if e != nil {
+		e.performanceSchemaMu.RLock()
+		resetRows := append([]performanceSchemaObjectSummaryResetEvent(nil), e.performanceSchemaObjectSummaryReset...)
+		e.performanceSchemaMu.RUnlock()
+		for _, reset := range resetRows {
+			key := reset.ObjectType + "\x00" + reset.ObjectName
+			if _, exists := byKey[key]; !exists {
+				byKey[key] = &objectSummary{objectType: reset.ObjectType, objectSchema: reset.ObjectSchema, objectName: reset.ObjectName}
+			}
+		}
+	}
+	keys := make([]string, 0, len(byKey))
+	for key := range byKey {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	rows := make([][]interface{}, 0, len(keys))
+	for _, key := range keys {
+		summary := byKey[key]
+		avg := int64(0)
+		if summary.count > 0 {
+			avg = summary.sum / summary.count
+		}
 		values := map[string]interface{}{
-			"OBJECT_TYPE": "TABLE", "OBJECT_SCHEMA": nil, "OBJECT_NAME": edge.ResourceID,
-			"COUNT_STAR": int64(1), "SUM_TIMER_WAIT": edge.WaitDuration.Nanoseconds() * 1000,
-			"MIN_TIMER_WAIT": edge.WaitDuration.Nanoseconds() * 1000, "AVG_TIMER_WAIT": edge.WaitDuration.Nanoseconds() * 1000,
-			"MAX_TIMER_WAIT": edge.WaitDuration.Nanoseconds() * 1000,
+			"OBJECT_TYPE": summary.objectType, "OBJECT_SCHEMA": summary.objectSchema, "OBJECT_NAME": summary.objectName,
+			"COUNT_STAR": summary.count, "SUM_TIMER_WAIT": summary.sum, "MIN_TIMER_WAIT": summary.min,
+			"AVG_TIMER_WAIT": avg, "MAX_TIMER_WAIT": summary.max,
 		}
-		if !performanceSchemaLockValuesMatch(query, values) {
-			continue
+		if performanceSchemaLockValuesMatch(query, values) {
+			rows = append(rows, projectInformationSchemaRow(columns, values))
 		}
-		rows = append(rows, projectInformationSchemaRow(columns, values))
 	}
 	return newInformationSchemaSelectResult("performance_schema.objects_summary_global_by_type", columns, rows)
 }

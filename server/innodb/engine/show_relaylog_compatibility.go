@@ -56,6 +56,10 @@ func parseShowRelaylogEventsOptions(query string) (string, uint64, int, int, err
 }
 
 func (e *XMySQLExecutor) executeShowRelaylogEvents(ctx *ExecutionContext) {
+	if err := e.checkReplicationPrivilege(ctx, "REPLICATION SLAVE"); err != nil {
+		ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
+		return
+	}
 	columns := []string{"Log_name", "Pos", "Event_type", "Server_id", "End_log_pos", "Info"}
 	rows := [][]interface{}{}
 	logName, startPosition, offset, rowCount, optionsErr := parseShowRelaylogEventsOptions(ctx.RawQuery)

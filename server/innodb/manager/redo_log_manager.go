@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -30,6 +31,7 @@ type RedoLogManager struct {
 	groupCommit       *GroupCommit        // 组提交管理器
 	groupCommitWindow time.Duration       // 组提交窗口期
 	pendingCommits    chan *CommitRequest // 待提交请求队列
+	pendingFsyncs     atomic.Int64        // asynchronous fsync requests not completed yet
 	shutdown          chan struct{}       // 关闭信号
 	closeOnce         sync.Once           // 幂等关闭标记
 	workerWg          sync.WaitGroup      // 后台 flush/group-commit worker
@@ -50,10 +52,19 @@ func NewRedoLogManager(logDir string, bufferSize int) (*RedoLogManager, error) {
 	if err != nil {
 		return nil, err
 	}
+	lastPersistedLSN, err := readLastPersistedRedoLSN(logFile)
+	if err != nil {
+		_ = logFile.Close()
+		return nil, fmt.Errorf("read existing redo LSN: %w", err)
+	}
+	initialLSN := uint64(1)
+	if lastPersistedLSN > initialLSN {
+		initialLSN = lastPersistedLSN
+	}
 
 	manager := &RedoLogManager{
 		logFile:           logFile,
-		lsnManager:        NewLSNManager(1),
+		lsnManager:        NewLSNManager(initialLSN),
 		logBufferSize:     bufferSize,
 		logBuffer:         make([]RedoLogEntry, 0, bufferSize),
 		logDir:            logDir,
@@ -80,6 +91,46 @@ func NewRedoLogManager(logDir string, bufferSize int) (*RedoLogManager, error) {
 	}()
 
 	return manager, nil
+}
+
+// readLastPersistedRedoLSN returns the highest complete LSN already present
+// in redo.log. NewRedoLogManager must continue from that value after a process
+// restart; otherwise a fresh LSN manager would reuse low numbers and recovery
+// could not distinguish old records from the new process's records.
+func readLastPersistedRedoLSN(file *os.File) (uint64, error) {
+	if file == nil {
+		return 0, nil
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return 0, err
+	}
+	var lastLSN uint64
+	for {
+		var lsn uint64
+		if err := binary.Read(file, binary.BigEndian, &lsn); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return 0, err
+		}
+		var trxID int64
+		var pageID uint64
+		var entryType uint8
+		var dataLen uint16
+		for _, value := range []interface{}{&trxID, &pageID, &entryType, &dataLen} {
+			if err := binary.Read(file, binary.BigEndian, value); err != nil {
+				return 0, err
+			}
+		}
+		if _, err := io.CopyN(io.Discard, file, int64(dataLen)); err != nil {
+			return 0, err
+		}
+		if lsn > lastLSN {
+			lastLSN = lsn
+		}
+	}
+	_, err := file.Seek(0, io.SeekEnd)
+	return lastLSN, err
 }
 
 // Append 追加一条重做日志
@@ -125,6 +176,7 @@ func (r *RedoLogManager) FlushAsync(untilLSN uint64, callback func(error)) {
 		Callback: callback,
 		Done:     make(chan error, 1),
 	}
+	r.pendingFsyncs.Add(1)
 
 	select {
 	case r.pendingCommits <- req:
@@ -132,6 +184,7 @@ func (r *RedoLogManager) FlushAsync(untilLSN uint64, callback func(error)) {
 	default:
 		// 队列满，同步刷新
 		err := r.Flush(untilLSN)
+		r.pendingFsyncs.Add(-1)
 		if callback != nil {
 			callback(err)
 		}
@@ -345,6 +398,7 @@ func (r *RedoLogManager) executeGroupCommit(batch []*CommitRequest) {
 	start := time.Now()
 	// 一次性刷新到最大LSN
 	err := r.Flush(maxLSN)
+	r.pendingFsyncs.Add(-int64(len(batch)))
 	if r.groupCommit != nil {
 		r.groupCommit.RecordCommit(len(batch), time.Since(start))
 	}
@@ -559,6 +613,65 @@ func (r *RedoLogManager) GetLSNManager() *LSNManager {
 	return r.lsnManager
 }
 
+// HasCommittedTransaction reports whether the flushed redo stream contains a
+// durable transaction commit marker. The engine's higher-level transaction
+// journal can therefore recover a storage commit even when the process died
+// before its replication/GTID publication record was appended.
+func (r *RedoLogManager) HasCommittedTransaction(trxID int64) (bool, error) {
+	if r == nil {
+		return false, nil
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, entry := range r.logBuffer {
+		if entry.TrxID == trxID && entry.Type == LOG_TYPE_TXN_COMMIT {
+			return true, nil
+		}
+	}
+	file, err := os.Open(filepath.Join(r.logDir, "redo.log"))
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	defer file.Close()
+	for {
+		var lsn uint64
+		if err := binary.Read(file, binary.BigEndian, &lsn); err != nil {
+			if err == io.EOF {
+				return false, nil
+			}
+			return false, err
+		}
+		var loggedTrxID int64
+		var pageID uint64
+		var entryType uint8
+		var dataLen uint16
+		if err := binary.Read(file, binary.BigEndian, &loggedTrxID); err != nil {
+			return false, err
+		}
+		if err := binary.Read(file, binary.BigEndian, &pageID); err != nil {
+			return false, err
+		}
+		if err := binary.Read(file, binary.BigEndian, &entryType); err != nil {
+			return false, err
+		}
+		if err := binary.Read(file, binary.BigEndian, &dataLen); err != nil {
+			return false, err
+		}
+		if loggedTrxID == trxID && entryType == LOG_TYPE_TXN_COMMIT {
+			return true, nil
+		}
+		if _, err := io.CopyN(io.Discard, file, int64(dataLen)); err != nil {
+			if err == io.EOF {
+				return false, nil
+			}
+			return false, err
+		}
+	}
+}
+
 // GetStats 获取Redo Log统计信息
 func (r *RedoLogManager) GetStats() *RedoLogStats {
 	r.mu.RLock()
@@ -570,6 +683,7 @@ func (r *RedoLogManager) GetStats() *RedoLogStats {
 		BufferSize:     r.logBufferSize,
 		BufferedLogs:   len(r.logBuffer),
 		PendingCommits: len(r.pendingCommits),
+		PendingFsyncs:  int(r.pendingFsyncs.Load()),
 	}
 }
 
@@ -628,6 +742,7 @@ type RedoLogStats struct {
 	BufferSize     int    `json:"buffer_size"`
 	BufferedLogs   int    `json:"buffered_logs"`
 	PendingCommits int    `json:"pending_commits"`
+	PendingFsyncs  int    `json:"pending_fsyncs"`
 }
 
 // CommitRequest 提交请求

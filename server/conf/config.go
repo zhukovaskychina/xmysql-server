@@ -202,7 +202,7 @@ func setHomePath(args *CommandLineArgs) {
 
 func (cfg *Cfg) parseMysqlSessionCfg(section *ini.Section) *Cfg {
 	cfg.MySQLSessionParam = MySQLSessionParam{}
-	cfg.MySQLSessionParam.CompressEncoding = parseBool(section, "compress_encoding", true)
+	cfg.MySQLSessionParam.CompressEncoding = parseBool(section, "compress_encoding", false)
 	cfg.MySQLSessionParam.TcpNoDelay = parseBool(section, "tcp_no_delay", true)
 	cfg.MySQLSessionParam.TcpKeepAlive = parseBool(section, "tcp_keep_alive", true)
 	cfg.MySQLSessionParam.KeepAlivePeriod = parseString(section, "keep_alive_period", "180s")

@@ -55,29 +55,75 @@ func parseCompatibilityGTIDSet(raw string) (compatibilityGTIDSet, error) {
 			return nil, fmt.Errorf("invalid GTID set group %q", group)
 		}
 		uuid := strings.ToLower(strings.TrimSpace(parts[0]))
-		for _, rawInterval := range parts[1:] {
-			bounds := strings.Split(strings.TrimSpace(rawInterval), "-")
-			if len(bounds) > 2 || bounds[0] == "" {
-				return nil, fmt.Errorf("invalid GTID interval %q", rawInterval)
-			}
-			start, err := strconv.ParseUint(bounds[0], 10, 64)
-			if err != nil || start == 0 {
-				return nil, fmt.Errorf("invalid GTID interval %q", rawInterval)
-			}
-			end := start
-			if len(bounds) == 2 {
-				end, err = strconv.ParseUint(bounds[1], 10, 64)
-				if err != nil || end < start {
-					return nil, fmt.Errorf("invalid GTID interval %q", rawInterval)
+		for index := 1; index < len(parts); {
+			key := uuid
+			if !isCompatibilityGTIDIntervalToken(parts[index]) {
+				tag := strings.TrimSpace(parts[index])
+				if !validCompatibilityGTIDTag(tag) {
+					return nil, fmt.Errorf("invalid GTID tag %q", parts[index])
+				}
+				key += ":" + tag
+				index++
+				if index == len(parts) || !isCompatibilityGTIDIntervalToken(parts[index]) {
+					return nil, fmt.Errorf("invalid GTID tag interval group %q", group)
 				}
 			}
-			result[uuid] = append(result[uuid], compatibilityGTIDInterval{start: start, end: end})
+			for index < len(parts) && isCompatibilityGTIDIntervalToken(parts[index]) {
+				rawInterval := strings.TrimSpace(parts[index])
+				bounds := strings.SplitN(rawInterval, "-", 2)
+				start, _ := strconv.ParseUint(bounds[0], 10, 64)
+				end := start
+				if len(bounds) == 2 {
+					end, _ = strconv.ParseUint(bounds[1], 10, 64)
+				}
+				if start == 0 || end < start {
+					return nil, fmt.Errorf("invalid GTID interval %q", rawInterval)
+				}
+				result[key] = append(result[key], compatibilityGTIDInterval{start: start, end: end})
+				index++
+			}
 		}
 	}
 	for uuid, intervals := range result {
 		result[uuid] = mergeCompatibilityGTIDIntervals(intervals)
 	}
 	return result, nil
+}
+
+func isCompatibilityGTIDIntervalToken(token string) bool {
+	bounds := strings.SplitN(strings.TrimSpace(token), "-", 2)
+	if len(bounds) == 0 || bounds[0] == "" {
+		return false
+	}
+	start, err := strconv.ParseUint(bounds[0], 10, 64)
+	if err != nil || start == 0 {
+		return false
+	}
+	if len(bounds) == 2 {
+		end, endErr := strconv.ParseUint(bounds[1], 10, 64)
+		if endErr != nil || end < start {
+			return false
+		}
+	}
+	return true
+}
+
+func validCompatibilityGTIDTag(tag string) bool {
+	if len(tag) == 0 || len(tag) > 32 {
+		return false
+	}
+	for index, char := range []byte(tag) {
+		if index == 0 {
+			if !(char == '_' || char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z') {
+				return false
+			}
+			continue
+		}
+		if !(char == '_' || char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || char >= '0' && char <= '9') {
+			return false
+		}
+	}
+	return true
 }
 
 func mergeCompatibilityGTIDIntervals(intervals []compatibilityGTIDInterval) []compatibilityGTIDInterval {

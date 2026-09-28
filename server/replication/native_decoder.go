@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"math"
@@ -13,6 +14,12 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 )
+
+// ErrNativeTransactionIncomplete means a valid native stream ended after a
+// transaction began but before its XID_EVENT. Callers may persist the frames
+// and retry them after the next network connection instead of treating this
+// as a malformed binlog.
+var ErrNativeTransactionIncomplete = errors.New("native stream ended before XID_EVENT")
 
 // NativeBinlogDecoder keeps TABLE_MAP metadata while consuming physical
 // binlog frames. It is intentionally stateful: a native ROWS event does not
@@ -42,6 +49,8 @@ type NativeTableMapSchemaResolver func(database, table string, columnCount int) 
 type nativeDecoderTable struct {
 	database               string
 	table                  string
+	tableMapFile           string
+	tableMapPosition       uint64
 	columns                []string
 	types                  []byte
 	metadata               [][]byte
@@ -149,6 +158,36 @@ func (d *NativeBinlogDecoder) decodeTableMap(body []byte) (nativeDecoderTable, u
 		table.columns = append([]string(nil), columns...)
 	}
 	return table, tableID, nil
+}
+
+func (d *NativeBinlogDecoder) installTableMap(event NativeBinlogEvent, tableID uint64, table nativeDecoderTable) {
+	if d == nil {
+		return
+	}
+	if previous, exists := d.tables[tableID]; exists && !nativeTableMapIsAtLeastAsNew(previous.tableMapFile, previous.tableMapPosition, event.File, event.Position) {
+		return
+	}
+	table.tableMapFile = event.File
+	table.tableMapPosition = event.Position
+	d.tables[tableID] = table
+}
+
+func nativeTableMapIsAtLeastAsNew(previousFile string, previousPosition uint64, incomingFile string, incomingPosition uint64) bool {
+	previousFile = strings.TrimSpace(previousFile)
+	incomingFile = strings.TrimSpace(incomingFile)
+	if previousFile == "" || incomingFile == "" {
+		if previousPosition == 0 || incomingPosition == 0 {
+			return true
+		}
+		return incomingPosition >= previousPosition
+	}
+	if previousFile != incomingFile {
+		return incomingFile > previousFile
+	}
+	if previousPosition == 0 || incomingPosition == 0 {
+		return true
+	}
+	return incomingPosition >= previousPosition
 }
 
 // PreparedXA returns a defensive snapshot of the two-phase XA transactions
@@ -272,7 +311,7 @@ func (d *NativeBinlogDecoder) Decode(events []NativeBinlogEvent) ([]RowChange, e
 			if err != nil {
 				return nil, err
 			}
-			d.tables[tableID] = table
+			d.installTableMap(event, tableID, table)
 		case 35:
 			previous, err := decodeNativePreviousGTIDs(body, d.sourceUUID)
 			if err != nil {
@@ -348,7 +387,7 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 			if err != nil {
 				return nil, err
 			}
-			d.tables[tableID] = table
+			d.installTableMap(event, tableID, table)
 		case 35:
 			previous, err := decodeNativePreviousGTIDs(body, d.sourceUUID)
 			if err != nil {
@@ -370,16 +409,17 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 					if err != nil {
 						return nil, err
 					}
-					d.tables[tableID] = table
+					d.installTableMap(nested, tableID, table)
 				case 2:
 					statement, database, err := decodeNativeQuery(nestedBody)
 					if err != nil {
 						return nil, err
 					}
-					if handled, xaErr := d.consumeNativeXAQuery(statement, event.Position, &transactions); handled {
+					if handled, xaErr := d.consumeNativeXAQuery(statement, event.Position, current, &transactions); handled {
 						if xaErr != nil {
 							return nil, xaErr
 						}
+						current = nil
 						continue
 					}
 					switch nativeQueryBoundary(statement) {
@@ -424,7 +464,7 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 					transactions = append(transactions, *current)
 					current = nil
 				case 38:
-					xaKey, onePhase, err := decodeNativeXAPrepareDetails(nestedBody)
+					xid, onePhase, err := decodeNativeXAPrepareIdentity(nestedBody)
 					if err != nil {
 						return nil, err
 					}
@@ -433,15 +473,18 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 							return nil, fmt.Errorf("native payload XA_PREPARE_EVENT has no active transaction")
 						}
 						prepared := *current
-						prepared.Type = EventBegin
-						d.preparedXA[xaKey] = prepared
+						prepared.Type = EventXAPrepare
+						prepared.XA = &xid
+						d.preparedXA[xid.Key()] = prepared
 						current = nil
 						continue
 					}
 					if current == nil {
 						return nil, fmt.Errorf("native payload XA_PREPARE_EVENT has no active transaction")
 					}
-					current.Type = EventCommit
+					current.Type = EventXAPrepare
+					current.XA = &xid
+					current.OnePhase = true
 					transactions = append(transactions, *current)
 					current = nil
 				case 35:
@@ -457,7 +500,7 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 				}
 			}
 		case 38:
-			xaKey, onePhase, err := decodeNativeXAPrepareDetails(body)
+			xid, onePhase, err := decodeNativeXAPrepareIdentity(body)
 			if err != nil {
 				return nil, err
 			}
@@ -466,15 +509,18 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 					return nil, fmt.Errorf("native XA_PREPARE_EVENT has no active transaction")
 				}
 				prepared := *current
-				prepared.Type = EventBegin
-				d.preparedXA[xaKey] = prepared
+				prepared.Type = EventXAPrepare
+				prepared.XA = &xid
+				d.preparedXA[xid.Key()] = prepared
 				current = nil
 				continue
 			}
 			if current == nil {
 				return nil, fmt.Errorf("native XA_PREPARE_EVENT has no active transaction")
 			}
-			current.Type = EventCommit
+			current.Type = EventXAPrepare
+			current.XA = &xid
+			current.OnePhase = true
 			transactions = append(transactions, *current)
 			current = nil
 		case 33:
@@ -486,7 +532,18 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 				gtid.UUID = d.sourceUUID
 			}
 			if current != nil {
-				return nil, fmt.Errorf("native GTID_EVENT started before prior transaction committed")
+				// DDL and other autocommit statements are represented by a
+				// GTID_EVENT followed by one QUERY_EVENT, without an XID_EVENT.
+				// The next GTID is therefore the commit boundary. Row-based
+				// transactions still require XID_EVENT (or an explicit COMMIT),
+				// so never infer a commit when row images are already present.
+				if len(current.Changes) == 0 && len(current.Statements) > 0 {
+					current.Type = EventCommit
+					transactions = append(transactions, *current)
+					current = nil
+				} else {
+					return nil, fmt.Errorf("native GTID_EVENT started before prior transaction committed")
+				}
 			}
 			current = &BinlogEvent{Timestamp: timestamp, Type: EventBegin, ServerID: binary.LittleEndian.Uint32(frame[5:9]), Position: event.Position, GTID: gtid}
 		case 42:
@@ -514,10 +571,11 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 			if err != nil {
 				return nil, err
 			}
-			if handled, xaErr := d.consumeNativeXAQuery(statement, event.Position, &transactions); handled {
+			if handled, xaErr := d.consumeNativeXAQuery(statement, event.Position, current, &transactions); handled {
 				if xaErr != nil {
 					return nil, xaErr
 				}
+				current = nil
 				continue
 			}
 			switch nativeQueryBoundary(statement) {
@@ -569,7 +627,7 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 		}
 	}
 	if current != nil {
-		return nil, fmt.Errorf("native stream ended before XID_EVENT")
+		return nil, ErrNativeTransactionIncomplete
 	}
 	return transactions, nil
 }
@@ -863,17 +921,20 @@ func readNativeSerializationString(raw []byte, offset int) ([]byte, int, error) 
 }
 
 func validNativeGTIDTag(tag string) bool {
-	if len(tag) > 32 || tag == "" {
+	if len(tag) > 32 {
+		return false
+	}
+	if tag == "" {
 		return true
 	}
 	for index, char := range []byte(tag) {
 		if index == 0 {
-			if !(char == '_' || char >= 'a' && char <= 'z') {
+			if !(char == '_' || char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z') {
 				return false
 			}
 			continue
 		}
-		if !(char == '_' || char >= 'a' && char <= 'z' || char >= '0' && char <= '9') {
+		if !(char == '_' || char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || char >= '0' && char <= '9') {
 			return false
 		}
 	}
@@ -883,6 +944,14 @@ func validNativeGTIDTag(tag string) bool {
 func decodeNativePreviousGTIDs(body []byte, sourceUUID string) (GTIDIntervals, error) {
 	if len(body) < 8 {
 		return nil, fmt.Errorf("truncated PREVIOUS_GTIDS_EVENT")
+	}
+	if len(body) >= 8 && (body[0] == 1 || body[0] == 2) && body[7] == body[0] {
+		switch body[0] {
+		case 1:
+			return decodeNativePreviousGTIDsBinaryV1(body, sourceUUID)
+		case 2:
+			return decodeNativePreviousGTIDsBinaryV2(body, sourceUUID)
+		}
 	}
 	sidCount := binary.LittleEndian.Uint64(body[:8])
 	if sidCount > uint64((len(body)-8)/24) {
@@ -920,28 +989,222 @@ func decodeNativePreviousGTIDs(body []byte, sourceUUID string) (GTIDIntervals, e
 	return result, nil
 }
 
+func decodeNativePreviousGTIDsBinaryV1(body []byte, sourceUUID string) (GTIDIntervals, error) {
+	if len(body) < 8 || body[0] != 1 || body[7] != 1 {
+		return nil, fmt.Errorf("invalid tagged PREVIOUS_GTIDS_EVENT Binary v1 header")
+	}
+	sidCount := readNativeUint48(body[1:7])
+	offset := 8
+	result := GTIDIntervals{}
+	for sidIndex := uint64(0); sidIndex < sidCount; sidIndex++ {
+		if offset > len(body)-17 {
+			return nil, fmt.Errorf("truncated tagged PREVIOUS_GTIDS_EVENT TSID %d", sidIndex)
+		}
+		sid := body[offset : offset+16]
+		offset += 16
+		tagLength := int(body[offset])
+		offset++
+		if tagLength > 32 || tagLength > len(body)-offset {
+			return nil, fmt.Errorf("invalid tagged PREVIOUS_GTIDS_EVENT tag length")
+		}
+		tag := string(body[offset : offset+tagLength])
+		offset += tagLength
+		if !validNativeGTIDTag(tag) {
+			return nil, fmt.Errorf("invalid tagged PREVIOUS_GTIDS_EVENT tag %q", tag)
+		}
+		if offset > len(body)-8 {
+			return nil, fmt.Errorf("truncated tagged PREVIOUS_GTIDS_EVENT interval set")
+		}
+		intervalCount := binary.LittleEndian.Uint64(body[offset : offset+8])
+		offset += 8
+		if intervalCount > uint64((len(body)-offset)/16) {
+			return nil, fmt.Errorf("invalid tagged PREVIOUS_GTIDS_EVENT interval count")
+		}
+		uuid := nativeGTIDUUID(hex.EncodeToString(sid))
+		if sourceUUID != "" && bytes.Equal(nativeGTIDSID(sourceUUID), sid) {
+			uuid = sourceUUID
+		}
+		if tag != "" {
+			uuid += ":" + tag
+		}
+		for intervalIndex := uint64(0); intervalIndex < intervalCount; intervalIndex++ {
+			start := binary.LittleEndian.Uint64(body[offset : offset+8])
+			end := binary.LittleEndian.Uint64(body[offset+8 : offset+16])
+			offset += 16
+			if err := result.AddHalfOpen(uuid, start, end); err != nil {
+				return nil, fmt.Errorf("invalid tagged PREVIOUS_GTIDS_EVENT interval %d for TSID %d: %w", intervalIndex, sidIndex, err)
+			}
+		}
+	}
+	if offset != len(body) {
+		return nil, fmt.Errorf("tagged PREVIOUS_GTIDS_EVENT has %d trailing bytes", len(body)-offset)
+	}
+	return result, nil
+}
+
+func decodeNativePreviousGTIDsBinaryV2(body []byte, sourceUUID string) (GTIDIntervals, error) {
+	if len(body) < 8 || body[0] != 2 || body[7] != 2 {
+		return nil, fmt.Errorf("invalid tagged PREVIOUS_GTIDS_EVENT Binary v2 header")
+	}
+	sidCount := readNativeUint48(body[1:7])
+	offset := 8
+	tagCount, next, err := readNativeSerializationVarlen(body, offset, false)
+	if err != nil {
+		return nil, fmt.Errorf("tagged PREVIOUS_GTIDS_EVENT Binary v2 tag count: %w", err)
+	}
+	offset = next
+	if tagCount > uint64(len(body)-offset) {
+		return nil, fmt.Errorf("tagged PREVIOUS_GTIDS_EVENT Binary v2 tag count is invalid")
+	}
+	tags := make([]string, tagCount)
+	for index := range tags {
+		if offset >= len(body) {
+			return nil, fmt.Errorf("truncated tagged PREVIOUS_GTIDS_EVENT Binary v2 tag %d", index)
+		}
+		tagLength := int(body[offset])
+		offset++
+		if tagLength > 32 || tagLength > len(body)-offset {
+			return nil, fmt.Errorf("invalid tagged PREVIOUS_GTIDS_EVENT Binary v2 tag length")
+		}
+		tag := string(body[offset : offset+tagLength])
+		offset += tagLength
+		if !validNativeGTIDTag(tag) {
+			return nil, fmt.Errorf("invalid tagged PREVIOUS_GTIDS_EVENT Binary v2 tag %q", tag)
+		}
+		tags[index] = tag
+	}
+
+	result := GTIDIntervals{}
+	previousUUID := ""
+	for sidIndex := uint64(0); sidIndex < sidCount; sidIndex++ {
+		code, next, codeErr := readNativeSerializationVarlen(body, offset, false)
+		if codeErr != nil {
+			return nil, fmt.Errorf("tagged PREVIOUS_GTIDS_EVENT Binary v2 TSID code: %w", codeErr)
+		}
+		offset = next
+		tagOrdinal := code >> 1
+		if tagOrdinal >= tagCount {
+			return nil, fmt.Errorf("tagged PREVIOUS_GTIDS_EVENT Binary v2 tag ordinal %d is invalid", tagOrdinal)
+		}
+		uuid := previousUUID
+		if code&1 == 0 {
+			if offset > len(body)-16 {
+				return nil, fmt.Errorf("truncated tagged PREVIOUS_GTIDS_EVENT Binary v2 UUID")
+			}
+			sid := body[offset : offset+16]
+			offset += 16
+			uuid = nativeGTIDUUID(hex.EncodeToString(sid))
+			if sourceUUID != "" && bytes.Equal(nativeGTIDSID(sourceUUID), sid) {
+				uuid = sourceUUID
+			}
+		} else if uuid == "" {
+			return nil, fmt.Errorf("tagged PREVIOUS_GTIDS_EVENT Binary v2 TSID repeats an empty UUID")
+		}
+		previousUUID = uuid
+		key := uuid
+		if tags[tagOrdinal] != "" {
+			key += ":" + tags[tagOrdinal]
+		}
+		if err := decodeNativePreviousGTIDIntervalSetV2(body, &offset, key, result); err != nil {
+			return nil, err
+		}
+	}
+	if offset != len(body) {
+		return nil, fmt.Errorf("tagged PREVIOUS_GTIDS_EVENT Binary v2 has %d trailing bytes", len(body)-offset)
+	}
+	return result, nil
+}
+
+func decodeNativePreviousGTIDIntervalSetV2(body []byte, offset *int, key string, result GTIDIntervals) error {
+	encodedCount, next, err := readNativeSerializationVarlen(body, *offset, false)
+	if err != nil {
+		return fmt.Errorf("tagged PREVIOUS_GTIDS_EVENT Binary v2 interval count: %w", err)
+	}
+	*offset = next
+	if encodedCount > uint64(len(body)-*offset)+1 {
+		return fmt.Errorf("tagged PREVIOUS_GTIDS_EVENT Binary v2 interval count is invalid")
+	}
+	optimizedFirst := encodedCount%2 == 1
+	boundaryCount := encodedCount
+	if optimizedFirst {
+		boundaryCount++
+	}
+	if boundaryCount == 0 || boundaryCount%2 != 0 {
+		return fmt.Errorf("tagged PREVIOUS_GTIDS_EVENT Binary v2 interval boundaries are invalid")
+	}
+	boundaries := make([]uint64, 0, boundaryCount)
+	if optimizedFirst {
+		boundaries = append(boundaries, 1)
+	}
+	for len(boundaries) < int(boundaryCount) {
+		delta, next, deltaErr := readNativeSerializationVarlen(body, *offset, false)
+		if deltaErr != nil {
+			return fmt.Errorf("tagged PREVIOUS_GTIDS_EVENT Binary v2 interval delta: %w", deltaErr)
+		}
+		*offset = next
+		if len(boundaries) == 0 {
+			if delta > ^uint64(0)-2 {
+				return fmt.Errorf("tagged PREVIOUS_GTIDS_EVENT Binary v2 interval start overflows")
+			}
+			boundaries = append(boundaries, delta+2)
+			continue
+		}
+		previous := boundaries[len(boundaries)-1]
+		if delta > ^uint64(0)-previous-1 {
+			return fmt.Errorf("tagged PREVIOUS_GTIDS_EVENT Binary v2 interval boundary overflows")
+		}
+		boundaries = append(boundaries, previous+delta+1)
+	}
+	for index := 0; index < len(boundaries); index += 2 {
+		start, finish := boundaries[index], boundaries[index+1]
+		if start == 0 || finish <= start {
+			return fmt.Errorf("invalid tagged PREVIOUS_GTIDS_EVENT Binary v2 interval %d-%d", start, finish)
+		}
+		if err := result.AddHalfOpen(key, start, finish); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func readNativeUint48(raw []byte) uint64 {
+	var value uint64
+	for index := 0; index < 6; index++ {
+		value |= uint64(raw[index]) << uint(8*index)
+	}
+	return value
+}
+
 func decodeNativeXAPrepare(body []byte) (bool, error) {
 	_, onePhase, err := decodeNativeXAPrepareDetails(body)
 	return onePhase, err
 }
 
 func decodeNativeXAPrepareDetails(body []byte) (string, bool, error) {
+	xid, onePhase, err := decodeNativeXAPrepareIdentity(body)
+	if err != nil {
+		return "", false, err
+	}
+	return xid.Key(), onePhase, nil
+}
+
+func decodeNativeXAPrepareIdentity(body []byte) (XAIdentity, bool, error) {
 	if len(body) < 13 {
-		return "", false, fmt.Errorf("truncated XA_PREPARE_EVENT")
+		return XAIdentity{}, false, fmt.Errorf("truncated XA_PREPARE_EVENT")
 	}
 	formatID := binary.LittleEndian.Uint32(body[1:5])
 	gtridLength := uint64(binary.LittleEndian.Uint32(body[5:9]))
 	bqualLength := uint64(binary.LittleEndian.Uint32(body[9:13]))
 	if gtridLength > 64 || bqualLength > 64 || gtridLength+bqualLength > 128 {
-		return "", false, fmt.Errorf("invalid XA_PREPARE_EVENT XID lengths")
+		return XAIdentity{}, false, fmt.Errorf("invalid XA_PREPARE_EVENT XID lengths")
 	}
 	dataLength := gtridLength + bqualLength
 	if dataLength > uint64(len(body)-13) {
-		return "", false, fmt.Errorf("truncated XA_PREPARE_EVENT XID")
+		return XAIdentity{}, false, fmt.Errorf("truncated XA_PREPARE_EVENT XID")
 	}
 	gtrid := body[13 : 13+int(gtridLength)]
 	bqual := body[13+int(gtridLength) : 13+int(dataLength)]
-	return nativeXAKey(formatID, gtrid, bqual), body[0] != 0, nil
+	return XAIdentity{GTRID: string(gtrid), BQUAL: string(bqual), FormatID: formatID}, body[0] != 0, nil
 }
 
 func decodeNativeTransactionPayload(event NativeBinlogEvent) ([]NativeBinlogEvent, error) {
@@ -1056,14 +1319,16 @@ func decodeNativeQuery(body []byte) (string, string, error) {
 		return "", "", fmt.Errorf("truncated QUERY_EVENT")
 	}
 	databaseLength := int(body[8])
-	if databaseLength > len(body)-14 || body[13+databaseLength] != 0 {
+	statusVariablesLength := int(binary.LittleEndian.Uint16(body[11:13]))
+	databaseOffset := 13 + statusVariablesLength
+	if databaseOffset < 13 || databaseOffset+databaseLength >= len(body) || body[databaseOffset+databaseLength] != 0 {
 		return "", "", fmt.Errorf("invalid QUERY_EVENT database")
 	}
-	database := string(body[13 : 13+databaseLength])
-	return string(body[14+databaseLength:]), database, nil
+	database := string(body[databaseOffset : databaseOffset+databaseLength])
+	return string(body[databaseOffset+databaseLength+1:]), database, nil
 }
 
-func (d *NativeBinlogDecoder) consumeNativeXAQuery(statement string, position uint64, transactions *[]BinlogEvent) (bool, error) {
+func (d *NativeBinlogDecoder) consumeNativeXAQuery(statement string, position uint64, current *BinlogEvent, transactions *[]BinlogEvent) (bool, error) {
 	action, key, ok := nativeXAQuery(statement)
 	if !ok {
 		return false, nil
@@ -1074,16 +1339,30 @@ func (d *NativeBinlogDecoder) consumeNativeXAQuery(statement string, position ui
 		if !exists {
 			return true, fmt.Errorf("native XA COMMIT references unknown prepared XID")
 		}
-		prepared.Type = EventCommit
+		prepared.Type = EventXACommit
+		if current != nil {
+			terminalGTID := current.GTID
+			prepared.TerminalGTID = &terminalGTID
+		}
 		if position != 0 {
 			prepared.Position = position
 		}
 		*transactions = append(*transactions, prepared)
 		delete(d.preparedXA, key)
 	case "ROLLBACK":
-		if _, exists := d.preparedXA[key]; !exists {
+		prepared, exists := d.preparedXA[key]
+		if !exists {
 			return true, fmt.Errorf("native XA ROLLBACK references unknown prepared XID")
 		}
+		prepared.Type = EventXARollback
+		if current != nil {
+			terminalGTID := current.GTID
+			prepared.TerminalGTID = &terminalGTID
+		}
+		if position != 0 {
+			prepared.Position = position
+		}
+		*transactions = append(*transactions, prepared)
 		delete(d.preparedXA, key)
 	}
 	return true, nil
@@ -1140,6 +1419,11 @@ func splitNativeXAArguments(raw string) []string {
 
 func unquoteNativeXAArgument(raw string) string {
 	raw = strings.TrimSpace(raw)
+	if len(raw) >= 4 && (raw[0] == 'x' || raw[0] == 'X') && raw[1] == '\'' && raw[len(raw)-1] == '\'' {
+		if decoded, err := hex.DecodeString(raw[2 : len(raw)-1]); err == nil {
+			return string(decoded)
+		}
+	}
 	if len(raw) >= 2 && ((raw[0] == '\'' && raw[len(raw)-1] == '\'') || (raw[0] == '"' && raw[len(raw)-1] == '"')) {
 		return strings.ReplaceAll(raw[1:len(raw)-1], "\\'", "'")
 	}
@@ -1616,7 +1900,7 @@ func decodeNativeRowValuesWithPartial(table nativeDecoderTable, bitmap, nulls []
 		}
 		value, updates, next, err := decodeNativeValue(typeCode, table.metadata[index], table.unsigned[index], partial != nil && index < len(partial) && partial[index], body, offset)
 		if err != nil {
-			return nil, nil, 0, fmt.Errorf("decode column %s: %w", column, err)
+			return nil, nil, 0, fmt.Errorf("decode column %s in %s.%s (map=%s:%d): %w (offset=%d body=%d type_code=%d metadata=%x)", column, table.database, table.table, table.tableMapFile, table.tableMapPosition, err, offset, len(body), typeCode, table.metadata[index])
 		}
 		valueOffset := offset
 		offset = next
@@ -1660,6 +1944,15 @@ func decodeNativeValue(typeCode byte, metadata []byte, unsigned, partial bool, b
 		return nil, updates, offset + int(length), err
 	}
 	width := nativeFixedValueWidth(typeCode, metadata)
+	if typeCode == 254 && width > 0 && len(body)-offset < width {
+		// Official MySQL may encode a MYSQL_TYPE_STRING image with a
+		// length prefix when the declared character width is larger than
+		// the actual row image (notably for mysql.time_zone_name). Keep the
+		// historical fixed-width path when the complete field is present,
+		// but fall through to the length-prefixed decoder for the compact
+		// wire form instead of reporting a false truncation.
+		width = 0
+	}
 	if width > 0 {
 		if len(body)-offset < width {
 			return nil, nil, 0, fmt.Errorf("truncated fixed-width value")

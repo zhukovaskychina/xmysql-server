@@ -170,11 +170,12 @@ func (e *XMySQLExecutor) loadPreparedXATransactions() error {
 			return fmt.Errorf("prepared XA manifest %s has an empty gtrid", path)
 		}
 		prepared := &xaPreparedTransaction{
-			xid:          xid,
-			changes:      transactionChangesFromDurable(manifest.Changes),
-			statements:   append([]replication.Statement(nil), manifest.Statements...),
-			journalID:    manifest.JournalID,
-			manifestPath: path,
+			xid:               xid,
+			changes:           transactionChangesFromDurable(manifest.Changes),
+			statements:        append([]replication.Statement(nil), manifest.Statements...),
+			journalID:         manifest.JournalID,
+			manifestPath:      path,
+			preparedAtPrepare: true,
 		}
 		if previous := loaded[xid.key()]; previous != nil {
 			return fmt.Errorf("duplicate prepared XA XID %s", xid.key())

@@ -115,6 +115,11 @@ func (mgr *SystemVariablesManager) initializeDefaultVariables() {
 		{Name: "innodb_log_file_size", DefaultValue: int64(50331648), Scope: GlobalScope, ReadOnly: true, Description: "InnoDB log file size"},
 		{Name: "innodb_file_per_table", DefaultValue: "ON", Scope: GlobalScope, ReadOnly: false, Description: "InnoDB file per table"},
 		{Name: "innodb_flush_log_at_trx_commit", DefaultValue: int64(1), Scope: GlobalScope, ReadOnly: false, Description: "InnoDB flush log at transaction commit"},
+		{Name: "innodb_cmp_per_index_enabled", DefaultValue: "OFF", Scope: GlobalScope, ReadOnly: false, Description: "Collect per-index InnoDB compression statistics"},
+		{Name: "innodb_monitor_enable", DefaultValue: "", Scope: GlobalScope, ReadOnly: false, Description: "Enable InnoDB metrics counters"},
+		{Name: "innodb_monitor_disable", DefaultValue: "", Scope: GlobalScope, ReadOnly: false, Description: "Disable InnoDB metrics counters"},
+		{Name: "innodb_monitor_reset", DefaultValue: "", Scope: GlobalScope, ReadOnly: false, Description: "Reset InnoDB metrics counters"},
+		{Name: "innodb_monitor_reset_all", DefaultValue: "", Scope: GlobalScope, ReadOnly: false, Description: "Reset all InnoDB metrics counters"},
 
 		// 服务器状态
 		{Name: "hostname", DefaultValue: "localhost", Scope: GlobalScope, ReadOnly: true, Description: "Server hostname"},
@@ -135,6 +140,10 @@ func (mgr *SystemVariablesManager) initializeDefaultVariables() {
 		{Name: "mandatory_roles", DefaultValue: "", Scope: GlobalScope, ReadOnly: false, Description: "Roles granted to every account"},
 		{Name: "partial_revokes", DefaultValue: "OFF", Scope: GlobalScope, ReadOnly: false, Description: "Enable schema-level restrictions on global privileges"},
 		{Name: "log_bin", DefaultValue: "OFF", Scope: GlobalScope, ReadOnly: true, Description: "Binary logging enabled"},
+		{Name: "gtid_mode", DefaultValue: "ON", Scope: GlobalScope, ReadOnly: true, Description: "Global transaction identifier mode"},
+		{Name: "binlog_format", DefaultValue: "ROW", Scope: GlobalScope, ReadOnly: false, Description: "Binary log row format"},
+		{Name: "binlog_checksum", DefaultValue: "CRC32", Scope: GlobalScope, ReadOnly: false, Description: "Binary log checksum algorithm"},
+		{Name: "server_uuid", DefaultValue: "00000000-0000-0000-0000-000000000000", Scope: GlobalScope, ReadOnly: true, Description: "Replication server UUID"},
 		{Name: "server_id", DefaultValue: int64(1), Scope: GlobalScope, ReadOnly: false, Description: "Server ID"},
 		{Name: "log_error", DefaultValue: "/var/log/mysql/error.log", Scope: GlobalScope, ReadOnly: false, Description: "Error log file"},
 		{Name: "general_log", DefaultValue: "OFF", Scope: GlobalScope, ReadOnly: false, Description: "General log enabled"},

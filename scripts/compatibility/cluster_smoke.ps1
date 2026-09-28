@@ -4,7 +4,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
-$absoluteReportDir = Join-Path $repoRoot $ReportDir
+$absoluteReportDir = if ([IO.Path]::IsPathRooted($ReportDir)) {
+    [IO.Path]::GetFullPath($ReportDir)
+} else {
+    [IO.Path]::GetFullPath((Join-Path $repoRoot $ReportDir))
+}
 New-Item -ItemType Directory -Force -Path $absoluteReportDir | Out-Null
 
 $testPattern = 'TestEngineSourceReplicaReplicates(Committed(DML|DDL)|StoredObjectDefinition)'

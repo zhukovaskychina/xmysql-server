@@ -746,12 +746,13 @@ func (im *InfoSchemaManager) getAllTablesFromDict() []*metadata.Table {
 	var tables []*metadata.Table
 
 	if im.dictManager != nil {
-		im.dictManager.mu.RLock()
+		im.dictManager.mu.Lock()
+		im.dictManager.loadPersistedTablesLocked()
 		for _, tableDef := range im.dictManager.tables {
 			table := im.convertTableDefToMetadataTable(tableDef)
 			tables = append(tables, table)
 		}
-		im.dictManager.mu.RUnlock()
+		im.dictManager.mu.Unlock()
 	}
 
 	return tables

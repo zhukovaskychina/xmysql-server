@@ -33,6 +33,35 @@ func TestBinlogDumpStreamsCommittedEventsFromConfiguredSource(t *testing.T) {
 	}
 }
 
+func TestBinlogDumpRequiresReplicationSlavePrivilegeForAuthenticatedSession(t *testing.T) {
+	source, err := replication.NewSource(t.TempDir(), "source-uuid", 1)
+	require.NoError(t, err)
+	_, err = source.Append(1, []replication.RowChange{{Table: "app.docs", Action: "insert"}})
+	require.NoError(t, err)
+
+	session := NewMockSession("binlog-privilege")
+	session.SetAttribute("replication_source", source)
+	mysqlSession := NewMySQLServerSession(session)
+	mysqlSession.SetParamByName("user", "replica_reader")
+	mysqlSession.SetParamByName("global_privileges", []common.PrivilegeType{})
+	session.SetAttribute(mysqlSessionAttribute, mysqlSession)
+
+	body := make([]byte, 11)
+	body[0] = common.COM_BINLOG_DUMP
+	binary.LittleEndian.PutUint32(body[1:5], 4)
+	binary.LittleEndian.PutUint16(body[5:7], binlogDumpNonBlockFlag)
+	require.NoError(t, dumpBinlogEvents(session, body))
+	require.Len(t, session.written, 1)
+	require.Equal(t, byte(0xff), session.written[0][4])
+	require.Contains(t, string(session.written[0]), "REPLICATION SLAVE")
+
+	session.written = nil
+	mysqlSession.SetParamByName("global_privileges", []common.PrivilegeType{common.ReplicationSlavePriv})
+	require.NoError(t, dumpBinlogEvents(session, body))
+	require.NotEmpty(t, session.written)
+	require.Equal(t, byte(15), session.written[0][9], "authorized dump must stream the format description event")
+}
+
 type closingBinlogSession struct {
 	*MockSession
 	checks int
@@ -109,6 +138,36 @@ func TestRegisterSlaveStoresSafeRegistrationMetadata(t *testing.T) {
 	require.Empty(t, registry.Snapshot())
 }
 
+func TestRegisterSlaveRequiresReplicationSlavePrivilegeForAuthenticatedSession(t *testing.T) {
+	body := []byte{common.COM_REGISTER_SLAVE, 0x2a, 0, 0, 0, 9}
+	body = append(body, []byte("replica-1")...)
+	body = append(body, 4)
+	body = append(body, []byte("user")...)
+	body = append(body, 6)
+	body = append(body, []byte("secret")...)
+	body = append(body, 0x29, 0x0c, 0, 0, 0, 0, 0, 0, 0, 0)
+	session := NewMockSession("register-slave-privilege")
+	mysqlSession := NewMySQLServerSession(session)
+	mysqlSession.SetParamByName("user", "replica_reader")
+	mysqlSession.SetParamByName("global_privileges", []common.PrivilegeType{})
+	session.SetAttribute(mysqlSessionAttribute, mysqlSession)
+	handler := &DecoupledMySQLMessageHandler{replicaRegistry: replication.NewReplicaRegistry()}
+	packet := &MySQLPackage{Body: body}
+
+	require.NoError(t, handler.handleRegisterSlave(session, packet))
+	require.Len(t, session.written, 1)
+	require.Equal(t, byte(0xff), session.written[0][4])
+	require.Contains(t, string(session.written[0]), "REPLICATION SLAVE")
+	require.Nil(t, session.GetAttribute("replication_slave_registered"))
+
+	session.written = nil
+	mysqlSession.SetParamByName("global_privileges", []common.PrivilegeType{common.ReplicationSlavePriv})
+	require.NoError(t, handler.handleRegisterSlave(session, packet))
+	require.Len(t, session.written, 1)
+	require.Equal(t, byte(0x00), session.written[0][4])
+	require.Equal(t, true, session.GetAttribute("replication_slave_registered"))
+}
+
 func TestRegisterSlaveRejectsTruncatedPacket(t *testing.T) {
 	session := NewMockSession("register-slave-invalid")
 	handler := &DecoupledMySQLMessageHandler{}
@@ -183,7 +242,7 @@ func TestBinlogDumpSplitsOversizedNativeEvents(t *testing.T) {
 	queryPackets := session.written[3 : len(session.written)-1]
 	require.Greater(t, len(queryPackets), 1)
 	for index, packet := range queryPackets {
-		require.Equal(t, byte(3+index), packet[3])
+		require.Equal(t, byte(4+index), packet[3])
 	}
 	require.Equal(t, byte(16), session.written[len(session.written)-1][5+4])
 }
@@ -318,6 +377,15 @@ func TestNativeGTIDAndXIDEventsCarryTransactionIdentity(t *testing.T) {
 	require.Equal(t, uint64(7), binary.LittleEndian.Uint64(commit[19:27]))
 }
 
+func TestNativeTaggedGTIDEventUsesTaggedWireType(t *testing.T) {
+	event, err := encodeNativeBinlogEvent(replication.BinlogEvent{
+		Type: replication.EventBegin, ServerID: 9, Position: 10,
+		GTID: replication.GTID{UUID: "00112233-4455-6677-8899-aabbccddeeff:Domain_1", Seq: 7},
+	})
+	require.NoError(t, err)
+	require.Equal(t, byte(42), event[4])
+}
+
 func TestNativeBinlogEventsCarryCRC32Checksum(t *testing.T) {
 	event, err := encodeNativeBinlogEvent(replication.BinlogEvent{
 		Type: replication.EventBegin, ServerID: 9, Position: 10,
@@ -376,6 +444,23 @@ func TestBinlogDumpGTIDDecodesHalfOpenIntervals(t *testing.T) {
 	require.Equal(t, []replication.GTIDInterval{{Start: 2, End: 4}}, intervals[uuid])
 }
 
+func TestBinlogDumpGTIDDecodesMySQL84EightByteSIDCount(t *testing.T) {
+	uuid := "00112233-4455-6677-8899-aabbccddeeff"
+	sid, err := hex.DecodeString("00112233445566778899aabbccddeeff")
+	require.NoError(t, err)
+	gtidPayload := make([]byte, 8+16+8+16)
+	binary.LittleEndian.PutUint64(gtidPayload[0:8], 1)
+	copy(gtidPayload[8:24], sid)
+	binary.LittleEndian.PutUint64(gtidPayload[24:32], 1)
+	binary.LittleEndian.PutUint64(gtidPayload[32:40], 2)
+	binary.LittleEndian.PutUint64(gtidPayload[40:48], 5)
+
+	body := buildBinlogDumpGTIDRequest(gtidPayload)
+	intervals, err := binlogDumpGTIDIntervals(body)
+	require.NoError(t, err)
+	require.Equal(t, []replication.GTIDInterval{{Start: 2, End: 4}}, intervals[uuid])
+}
+
 func TestBinlogDumpGTIDKeepsLargeIntervalsCompact(t *testing.T) {
 	uuid := "00112233-4455-6677-8899-aabbccddeeff"
 	sid, err := hex.DecodeString("00112233445566778899aabbccddeeff")
@@ -405,6 +490,75 @@ func TestBinlogDumpGTIDKeepsLargeIntervalsCompact(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []replication.GTIDInterval{{Start: 1, End: intervalEnd - 1}}, intervals[uuid])
 	require.True(t, intervals.Contains(replication.GTID{UUID: uuid, Seq: intervalEnd - 1}))
+}
+
+func TestBinlogDumpGTIDDecodesTaggedBinaryV1Intervals(t *testing.T) {
+	uuid := "00112233-4455-6677-8899-aabbccddeeff"
+	sid, err := hex.DecodeString("00112233445566778899aabbccddeeff")
+	require.NoError(t, err)
+	tag := []byte("Domain_1")
+	// Binary v1: type, 6-byte TSID count, redundant type, then UUID/tag and
+	// half-open intervals for each TSID.
+	gtidPayload := make([]byte, 1+6+1+16+1+len(tag)+8+16)
+	offset := 0
+	gtidPayload[offset] = 1
+	offset++
+	gtidPayload[offset] = 1
+	offset += 6
+	gtidPayload[offset] = 1
+	offset++
+	copy(gtidPayload[offset:], sid)
+	offset += 16
+	gtidPayload[offset] = byte(len(tag))
+	offset++
+	copy(gtidPayload[offset:], tag)
+	offset += len(tag)
+	binary.LittleEndian.PutUint64(gtidPayload[offset:offset+8], 1)
+	offset += 8
+	binary.LittleEndian.PutUint64(gtidPayload[offset:offset+8], 2)
+	binary.LittleEndian.PutUint64(gtidPayload[offset+8:offset+16], 5)
+
+	body := buildBinlogDumpGTIDRequest(gtidPayload)
+	intervals, err := binlogDumpGTIDIntervals(body)
+	require.NoError(t, err)
+	require.Equal(t, []replication.GTIDInterval{{Start: 2, End: 4}}, intervals[uuid+":Domain_1"])
+}
+
+func TestBinlogDumpGTIDDecodesTaggedBinaryV2Intervals(t *testing.T) {
+	uuid := "00112233-4455-6677-8899-aabbccddeeff"
+	sid, err := hex.DecodeString("00112233445566778899aabbccddeeff")
+	require.NoError(t, err)
+	tag := []byte("Domain_1")
+	// Binary v2 encodes one tag, one TSID, and the [2,5) boundary points as
+	// varlen values: count=2, first delta=0, second delta=2.
+	gtidPayload := []byte{2, 1, 0, 0, 0, 0, 0, 2, 2, byte(len(tag))}
+	gtidPayload = append(gtidPayload, tag...)
+	gtidPayload = append(gtidPayload, 0) // tag ordinal 0, UUID is present
+	gtidPayload = append(gtidPayload, sid...)
+	gtidPayload = append(gtidPayload, 4, 0, 4)
+
+	body := buildBinlogDumpGTIDRequest(gtidPayload)
+	intervals, err := binlogDumpGTIDIntervals(body)
+	require.NoError(t, err)
+	require.Equal(t, []replication.GTIDInterval{{Start: 2, End: 4}}, intervals[uuid+":Domain_1"])
+}
+
+func buildBinlogDumpGTIDRequest(gtidPayload []byte) []byte {
+	const filename = "binlog.000001"
+	body := make([]byte, 1+2+4+4+len(filename)+8+4+len(gtidPayload))
+	body[0] = common.COM_BINLOG_DUMP_GTID
+	binary.LittleEndian.PutUint16(body[1:3], binlogDumpNonBlockFlag)
+	offset := 1 + 2 + 4
+	binary.LittleEndian.PutUint32(body[offset:offset+4], uint32(len(filename)))
+	offset += 4
+	copy(body[offset:], filename)
+	offset += len(filename)
+	binary.LittleEndian.PutUint64(body[offset:offset+8], 4)
+	offset += 8
+	binary.LittleEndian.PutUint32(body[offset:offset+4], uint32(len(gtidPayload)))
+	offset += 4
+	copy(body[offset:], gtidPayload)
+	return body
 }
 
 func TestBinlogDumpGTIDFiltersCommittedTransaction(t *testing.T) {
@@ -440,5 +594,5 @@ func TestBinlogDumpGTIDFiltersCommittedTransaction(t *testing.T) {
 	session := NewMockSession("gtid-filter")
 	session.SetAttribute("replication_source", source)
 	require.NoError(t, dumpBinlogEvents(session, body))
-	require.Len(t, session.written, 5, "FDE/PREVIOUS_GTIDS plus the non-executed transaction must be streamed")
+	require.Len(t, session.written, 3, "a non-empty GTID request must stream only the non-executed transaction")
 }

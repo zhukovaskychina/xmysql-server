@@ -29,17 +29,25 @@ type OptimizedBufferPoolManager struct {
 
 	// 统计信息（使用原子操作）
 	stats struct {
-		hits          uint64 // 缓存命中次数
-		misses        uint64 // 缓存未命中次数
-		evictions     uint64 // 页面驱逐次数
-		flushes       uint64 // 页面刷新次数
-		pageReads     uint64 // 页面读取次数
-		pageWrites    uint64 // 页面写入次数
-		youngHits     uint64 // young区命中次数
-		oldHits       uint64 // old区命中次数
-		dirtyPages    uint64 // 脏页数量
-		totalPages    uint64 // 总页数
-		backgroundOps uint64 // 后台操作次数
+		hits              uint64 // 缓存命中次数
+		misses            uint64 // 缓存未命中次数
+		evictions         uint64 // 页面驱逐次数
+		flushes           uint64 // 页面刷新次数
+		pageReads         uint64 // 页面读取次数
+		pageWrites        uint64 // 页面写入次数
+		pageCreates       uint64 // 页面创建次数
+		pagesMadeYoung    uint64 // pages promoted from old to young
+		pagesNotMadeYoung uint64 // old-list accesses not promoted
+		readAhead         uint64 // pages loaded by the background read-ahead workers
+		readAheadEvicted  uint64 // prefetched pages evicted before a cache hit
+		lruIOTotal        uint64 // buffer-pool I/O operations handled by the LRU path
+		lruIOCurrent      uint64 // LRU I/O operations since the last statistics snapshot
+		pendingLRUFlushes uint64 // dirty pages queued after LRU eviction
+		youngHits         uint64 // young区命中次数
+		oldHits           uint64 // old区命中次数
+		dirtyPages        uint64 // 脏页数量
+		totalPages        uint64 // 总页数
+		backgroundOps     uint64 // 后台操作次数
 	}
 
 	// 后台线程控制
@@ -50,6 +58,24 @@ type OptimizedBufferPoolManager struct {
 	closeErr    error
 	closed      atomic.Bool
 	lifecycleMu sync.RWMutex
+	rateMu      sync.Mutex
+	rateAt      time.Time
+	lastRates   struct {
+		pageReads               uint64
+		pageWrites              uint64
+		pageCreates             uint64
+		pagesMadeYoung          uint64
+		pagesNotMadeYoung       uint64
+		readAhead               uint64
+		readAheadEvicted        uint64
+		pageReadsPerSec         float64
+		pageWritesPerSec        float64
+		pageCreatesPerSec       float64
+		pagesMadeYoungPerSec    float64
+		pagesNotMadeYoungPerSec float64
+		readAheadPerSec         float64
+		readAheadEvictPerSec    float64
+	}
 
 	// 脏页管理
 	dirtyPageList map[uint64]*buffer_pool.BufferPage // 脏页列表
@@ -58,6 +84,12 @@ type OptimizedBufferPoolManager struct {
 	// 预读队列
 	prefetchQueue chan PrefetchRequest
 	prefetchWg    sync.WaitGroup
+	prefetchMu    sync.Mutex
+	prefetched    map[uint64]struct{}
+
+	// Dirty pages evicted from the LRU are queued for a storage flush before
+	// they are allowed to disappear from the durable dirty-page lifecycle.
+	lruFlushQueue chan *buffer_pool.BufferPage
 }
 
 // PrefetchRequest 预读请求
@@ -118,10 +150,26 @@ func NewOptimizedBufferPoolManager(config *BufferPoolConfig) (*OptimizedBufferPo
 		stopChan:      make(chan struct{}),
 		dirtyPageList: make(map[uint64]*buffer_pool.BufferPage),
 		prefetchQueue: make(chan PrefetchRequest, config.MaxQueueSize),
+		prefetched:    make(map[uint64]struct{}),
+		lruFlushQueue: make(chan *buffer_pool.BufferPage, config.MaxQueueSize),
 	}
 
-	lruCache.SetEvictedFunc(func(interface{}, interface{}) {
+	lruCache.SetEvictedFunc(func(key, value interface{}) {
 		atomic.AddUint64(&bpm.stats.evictions, 1)
+		pageID, ok := key.(uint64)
+		if !ok {
+			return
+		}
+		bpm.prefetchMu.Lock()
+		if _, wasPrefetched := bpm.prefetched[pageID]; wasPrefetched {
+			delete(bpm.prefetched, pageID)
+			atomic.AddUint64(&bpm.stats.readAheadEvicted, 1)
+		}
+		bpm.prefetchMu.Unlock()
+		if block, ok := value.(*buffer_pool.BufferBlock); ok && block != nil && block.BufferPage != nil && block.BufferPage.IsDirty() {
+			atomic.AddUint64(&bpm.stats.pendingLRUFlushes, 1)
+			bpm.lruFlushQueue <- block.BufferPage
+		}
 	})
 
 	// 启动后台线程
@@ -134,6 +182,7 @@ func NewOptimizedBufferPoolManager(config *BufferPoolConfig) (*OptimizedBufferPo
 func (bpm *OptimizedBufferPoolManager) GetPage(spaceID, pageNo uint32) (*buffer_pool.BufferPage, error) {
 	// 首先尝试从缓存获取
 	if block, err := bpm.lruCache.Get(spaceID, pageNo); err == nil {
+		bpm.consumePrefetchedPage(spaceID, pageNo)
 		atomic.AddUint64(&bpm.stats.hits, 1)
 		// Return the cache-owned page so dirty state and content mutations are
 		// shared with FlushPage and the dirty-page registry.
@@ -165,6 +214,7 @@ func (bpm *OptimizedBufferPoolManager) loadPageFromStorage(spaceID, pageNo uint3
 	}
 
 	atomic.AddUint64(&bpm.stats.pageReads, 1)
+	bpm.recordLRUIO()
 	atomic.AddUint64(&bpm.stats.totalPages, 1)
 
 	return bufferPage, nil
@@ -184,6 +234,7 @@ func (bpm *OptimizedBufferPoolManager) AllocatePage(spaceID uint32) (*buffer_poo
 	}
 
 	atomic.AddUint64(&bpm.stats.totalPages, 1)
+	atomic.AddUint64(&bpm.stats.pageCreates, 1)
 	return page, nil
 }
 
@@ -275,6 +326,7 @@ func (bpm *OptimizedBufferPoolManager) FlushPage(spaceID, pageNo uint32) error {
 
 	atomic.AddUint64(&bpm.stats.flushes, 1)
 	atomic.AddUint64(&bpm.stats.pageWrites, 1)
+	bpm.recordLRUIO()
 	decrementAtomicIfPositive(&bpm.stats.dirtyPages)
 
 	return nil
@@ -317,6 +369,26 @@ func (bpm *OptimizedBufferPoolManager) registerDirtyPage(page *buffer_pool.Buffe
 		atomic.AddUint64(&bpm.stats.dirtyPages, 1)
 	}
 	bpm.dirtyMutex.Unlock()
+}
+
+// recordLRUIO records an I/O operation that completed through the buffer
+// pool's LRU path.  This is deliberately separate from pageReads/pageWrites:
+// MySQL's INNODB_BUFFER_POOL_STATS LRU_IO_* fields describe LRU-policy I/O,
+// not a derived sum of the ordinary page counters.
+func (bpm *OptimizedBufferPoolManager) recordLRUIO() {
+	atomic.AddUint64(&bpm.stats.lruIOTotal, 1)
+	atomic.AddUint64(&bpm.stats.lruIOCurrent, 1)
+}
+
+// GetLRUIOStatsAndResetCurrent returns the cumulative LRU I/O count and
+// consumes the current statistics window.  The cumulative count is retained
+// across snapshots, matching the total/current distinction of MySQL's
+// INNODB_BUFFER_POOL_STATS view.
+func (bpm *OptimizedBufferPoolManager) GetLRUIOStatsAndResetCurrent() (uint64, uint64) {
+	if bpm == nil {
+		return 0, 0
+	}
+	return atomic.LoadUint64(&bpm.stats.lruIOTotal), atomic.SwapUint64(&bpm.stats.lruIOCurrent, 0)
 }
 
 // GetDirtyPages 获取所有脏页
@@ -395,20 +467,108 @@ func (bpm *OptimizedBufferPoolManager) PrefetchPage(spaceID, pageNo uint32) {
 
 // GetStats 获取统计信息
 func (bpm *OptimizedBufferPoolManager) GetStats() map[string]interface{} {
+	rates := bpm.runtimeRates()
+	madeYoung := atomic.LoadUint64(&bpm.stats.pagesMadeYoung)
+	notMadeYoung := atomic.LoadUint64(&bpm.stats.pagesNotMadeYoung)
+	bpm.dirtyMutex.RLock()
+	pendingFlushList := len(bpm.dirtyPageList)
+	bpm.dirtyMutex.RUnlock()
 	return map[string]interface{}{
-		"hits":           atomic.LoadUint64(&bpm.stats.hits),
-		"misses":         atomic.LoadUint64(&bpm.stats.misses),
-		"hit_rate":       bpm.calculateHitRate(),
-		"evictions":      atomic.LoadUint64(&bpm.stats.evictions),
-		"flushes":        atomic.LoadUint64(&bpm.stats.flushes),
-		"page_reads":     atomic.LoadUint64(&bpm.stats.pageReads),
-		"page_writes":    atomic.LoadUint64(&bpm.stats.pageWrites),
-		"young_hits":     atomic.LoadUint64(&bpm.stats.youngHits),
-		"old_hits":       atomic.LoadUint64(&bpm.stats.oldHits),
-		"dirty_pages":    atomic.LoadUint64(&bpm.stats.dirtyPages),
-		"total_pages":    atomic.LoadUint64(&bpm.stats.totalPages),
-		"background_ops": atomic.LoadUint64(&bpm.stats.backgroundOps),
-		"cache_size":     bpm.lruCache.Len(),
+		"hits":                      atomic.LoadUint64(&bpm.stats.hits),
+		"misses":                    atomic.LoadUint64(&bpm.stats.misses),
+		"hit_rate":                  bpm.calculateHitRate(),
+		"evictions":                 atomic.LoadUint64(&bpm.stats.evictions),
+		"flushes":                   atomic.LoadUint64(&bpm.stats.flushes),
+		"page_reads":                atomic.LoadUint64(&bpm.stats.pageReads),
+		"page_writes":               atomic.LoadUint64(&bpm.stats.pageWrites),
+		"page_creates":              atomic.LoadUint64(&bpm.stats.pageCreates),
+		"pages_made_young":          madeYoung,
+		"pages_not_made_young":      notMadeYoung,
+		"pending_reads":             int64(len(bpm.prefetchQueue)),
+		"pending_flush_list":        int64(pendingFlushList),
+		"read_ahead":                atomic.LoadUint64(&bpm.stats.readAhead),
+		"read_ahead_evicted":        atomic.LoadUint64(&bpm.stats.readAheadEvicted),
+		"pending_flush_lru":         int64(atomic.LoadUint64(&bpm.stats.pendingLRUFlushes)),
+		"lru_io_total":              atomic.LoadUint64(&bpm.stats.lruIOTotal),
+		"lru_io_current":            atomic.LoadUint64(&bpm.stats.lruIOCurrent),
+		"page_reads_rate":           rates.pageReadsPerSec,
+		"page_writes_rate":          rates.pageWritesPerSec,
+		"page_creates_rate":         rates.pageCreatesPerSec,
+		"pages_made_young_rate":     rates.pagesMadeYoungPerSec,
+		"pages_not_made_young_rate": rates.pagesNotMadeYoungPerSec,
+		"read_ahead_rate":           rates.readAheadPerSec,
+		"read_ahead_evicted_rate":   rates.readAheadEvictPerSec,
+		"young_hits":                atomic.LoadUint64(&bpm.stats.youngHits),
+		"old_hits":                  atomic.LoadUint64(&bpm.stats.oldHits),
+		"dirty_pages":               atomic.LoadUint64(&bpm.stats.dirtyPages),
+		"total_pages":               atomic.LoadUint64(&bpm.stats.totalPages),
+		"background_ops":            atomic.LoadUint64(&bpm.stats.backgroundOps),
+		"cache_size":                bpm.lruCache.Len(),
+	}
+}
+
+type bufferPoolRuntimeRates struct {
+	pageReadsPerSec         float64
+	pageWritesPerSec        float64
+	pageCreatesPerSec       float64
+	pagesMadeYoungPerSec    float64
+	pagesNotMadeYoungPerSec float64
+	readAheadPerSec         float64
+	readAheadEvictPerSec    float64
+}
+
+// runtimeRates calculates per-second deltas from successive live snapshots.
+// The first snapshot establishes the baseline and intentionally reports zero.
+func (bpm *OptimizedBufferPoolManager) runtimeRates() bufferPoolRuntimeRates {
+	now := time.Now()
+	reads := atomic.LoadUint64(&bpm.stats.pageReads)
+	writes := atomic.LoadUint64(&bpm.stats.pageWrites)
+	creates := atomic.LoadUint64(&bpm.stats.pageCreates)
+	madeYoung, notMadeYoung := bpm.lruCache.YoungPromotionStats()
+	atomic.StoreUint64(&bpm.stats.pagesMadeYoung, madeYoung)
+	atomic.StoreUint64(&bpm.stats.pagesNotMadeYoung, notMadeYoung)
+	readAhead := atomic.LoadUint64(&bpm.stats.readAhead)
+	readAheadEvicted := atomic.LoadUint64(&bpm.stats.readAheadEvicted)
+
+	bpm.rateMu.Lock()
+	defer bpm.rateMu.Unlock()
+	if bpm.rateAt.IsZero() {
+		bpm.rateAt = now
+		bpm.lastRates.pageReads = reads
+		bpm.lastRates.pageWrites = writes
+		bpm.lastRates.pageCreates = creates
+		bpm.lastRates.pagesMadeYoung = madeYoung
+		bpm.lastRates.pagesNotMadeYoung = notMadeYoung
+		bpm.lastRates.readAhead = readAhead
+		bpm.lastRates.readAheadEvicted = readAheadEvicted
+		return bufferPoolRuntimeRates{}
+	}
+	seconds := now.Sub(bpm.rateAt).Seconds()
+	if seconds > 0 {
+		bpm.lastRates.pageReadsPerSec = float64(reads-bpm.lastRates.pageReads) / seconds
+		bpm.lastRates.pageWritesPerSec = float64(writes-bpm.lastRates.pageWrites) / seconds
+		bpm.lastRates.pageCreatesPerSec = float64(creates-bpm.lastRates.pageCreates) / seconds
+		bpm.lastRates.pagesMadeYoungPerSec = float64(madeYoung-bpm.lastRates.pagesMadeYoung) / seconds
+		bpm.lastRates.pagesNotMadeYoungPerSec = float64(notMadeYoung-bpm.lastRates.pagesNotMadeYoung) / seconds
+		bpm.lastRates.readAheadPerSec = float64(readAhead-bpm.lastRates.readAhead) / seconds
+		bpm.lastRates.readAheadEvictPerSec = float64(readAheadEvicted-bpm.lastRates.readAheadEvicted) / seconds
+		bpm.rateAt = now
+		bpm.lastRates.pageReads = reads
+		bpm.lastRates.pageWrites = writes
+		bpm.lastRates.pageCreates = creates
+		bpm.lastRates.pagesMadeYoung = madeYoung
+		bpm.lastRates.pagesNotMadeYoung = notMadeYoung
+		bpm.lastRates.readAhead = readAhead
+		bpm.lastRates.readAheadEvicted = readAheadEvicted
+	}
+	return bufferPoolRuntimeRates{
+		pageReadsPerSec:         bpm.lastRates.pageReadsPerSec,
+		pageWritesPerSec:        bpm.lastRates.pageWritesPerSec,
+		pageCreatesPerSec:       bpm.lastRates.pageCreatesPerSec,
+		pagesMadeYoungPerSec:    bpm.lastRates.pagesMadeYoungPerSec,
+		pagesNotMadeYoungPerSec: bpm.lastRates.pagesNotMadeYoungPerSec,
+		readAheadPerSec:         bpm.lastRates.readAheadPerSec,
+		readAheadEvictPerSec:    bpm.lastRates.readAheadEvictPerSec,
 	}
 }
 
@@ -424,20 +584,26 @@ func (bpm *OptimizedBufferPoolManager) SnapshotPages() []buffer_pool.PageSnapsho
 
 // GetStatistics returns BufferPoolStatistics in a structured form.
 func (bpm *OptimizedBufferPoolManager) GetStatistics() *BufferPoolStatistics {
+	madeYoung, notMadeYoung := bpm.lruCache.YoungPromotionStats()
 	return &BufferPoolStatistics{
-		Hits:          atomic.LoadUint64(&bpm.stats.hits),
-		Misses:        atomic.LoadUint64(&bpm.stats.misses),
-		Evictions:     atomic.LoadUint64(&bpm.stats.evictions),
-		Flushes:       atomic.LoadUint64(&bpm.stats.flushes),
-		PageReads:     atomic.LoadUint64(&bpm.stats.pageReads),
-		PageWrites:    atomic.LoadUint64(&bpm.stats.pageWrites),
-		YoungHits:     atomic.LoadUint64(&bpm.stats.youngHits),
-		OldHits:       atomic.LoadUint64(&bpm.stats.oldHits),
-		DirtyPages:    atomic.LoadUint64(&bpm.stats.dirtyPages),
-		TotalPages:    atomic.LoadUint64(&bpm.stats.totalPages),
-		BackgroundOps: atomic.LoadUint64(&bpm.stats.backgroundOps),
-		HitRate:       bpm.calculateHitRate(),
-		CacheSize:     bpm.lruCache.Len(),
+		Hits:              atomic.LoadUint64(&bpm.stats.hits),
+		Misses:            atomic.LoadUint64(&bpm.stats.misses),
+		Evictions:         atomic.LoadUint64(&bpm.stats.evictions),
+		Flushes:           atomic.LoadUint64(&bpm.stats.flushes),
+		PageReads:         atomic.LoadUint64(&bpm.stats.pageReads),
+		PageWrites:        atomic.LoadUint64(&bpm.stats.pageWrites),
+		PageCreates:       atomic.LoadUint64(&bpm.stats.pageCreates),
+		PagesMadeYoung:    madeYoung,
+		PagesNotMadeYoung: notMadeYoung,
+		ReadAhead:         atomic.LoadUint64(&bpm.stats.readAhead),
+		ReadAheadEvicted:  atomic.LoadUint64(&bpm.stats.readAheadEvicted),
+		YoungHits:         atomic.LoadUint64(&bpm.stats.youngHits),
+		OldHits:           atomic.LoadUint64(&bpm.stats.oldHits),
+		DirtyPages:        atomic.LoadUint64(&bpm.stats.dirtyPages),
+		TotalPages:        atomic.LoadUint64(&bpm.stats.totalPages),
+		BackgroundOps:     atomic.LoadUint64(&bpm.stats.backgroundOps),
+		HitRate:           bpm.calculateHitRate(),
+		CacheSize:         bpm.lruCache.Len(),
 	}
 }
 
@@ -509,6 +675,7 @@ func (bpm *OptimizedBufferPoolManager) Close() error {
 		// 等待所有后台线程结束，确保它们不再访问缓存或预读队列。
 		bpm.wg.Wait()
 		bpm.prefetchWg.Wait()
+		bpm.flushPendingLRUQueue()
 
 		// 即使刷新失败，也继续释放内存和后台资源；调用方仍能收到刷新错误。
 		if err := bpm.FlushAllPages(); err != nil {
@@ -542,10 +709,61 @@ func (bpm *OptimizedBufferPoolManager) startBackgroundThreads() {
 	bpm.wg.Add(1)
 	go bpm.backgroundLRUMaintenance()
 
+	// Keep pending-LRU flushes separate from the periodic dirty-page flush so
+	// PENDING_FLUSH_LRU reports the real eviction queue rather than a dirty-page
+	// approximation.
+	bpm.wg.Add(1)
+	go bpm.backgroundLRUFlush()
+
 	// 启动预读工作线程
 	for i := uint32(0); i < bpm.config.PrefetchWorkers; i++ {
 		bpm.prefetchWg.Add(1)
 		go bpm.prefetchWorker()
+	}
+}
+
+func (bpm *OptimizedBufferPoolManager) backgroundLRUFlush() {
+	defer bpm.wg.Done()
+	for {
+		select {
+		case <-bpm.stopChan:
+			return
+		case page := <-bpm.lruFlushQueue:
+			bpm.flushLRUEvictedPage(page)
+		}
+	}
+}
+
+// flushLRUEvictedPage persists a dirty page that has already left the cache's
+// LRU list. It intentionally does not call FlushPage because that method
+// performs a cache lookup and this page is no longer cache-owned.
+func (bpm *OptimizedBufferPoolManager) flushLRUEvictedPage(page *buffer_pool.BufferPage) {
+	defer decrementAtomicIfPositive(&bpm.stats.pendingLRUFlushes)
+	if page == nil || !page.IsDirty() {
+		return
+	}
+	if err := bpm.storage.WritePage(page.GetSpaceID(), page.GetPageNo(), page.GetData()); err != nil {
+		return
+	}
+	page.SetDirty(false)
+	pageID := makePageID(page.GetSpaceID(), page.GetPageNo())
+	bpm.dirtyMutex.Lock()
+	delete(bpm.dirtyPageList, pageID)
+	bpm.dirtyMutex.Unlock()
+	atomic.AddUint64(&bpm.stats.flushes, 1)
+	atomic.AddUint64(&bpm.stats.pageWrites, 1)
+	bpm.recordLRUIO()
+	decrementAtomicIfPositive(&bpm.stats.dirtyPages)
+}
+
+func (bpm *OptimizedBufferPoolManager) flushPendingLRUQueue() {
+	for {
+		select {
+		case page := <-bpm.lruFlushQueue:
+			bpm.flushLRUEvictedPage(page)
+		default:
+			return
+		}
 	}
 }
 
@@ -622,9 +840,20 @@ func (bpm *OptimizedBufferPoolManager) prefetchWorker() {
 
 			// Keep storage reads bounded by PrefetchWorkers. The cache owns the
 			// returned page; no caller handle is retained for this request.
-			_, _ = bpm.loadPageFromStorage(req.SpaceID, req.PageNo)
+			if _, err := bpm.loadPageFromStorage(req.SpaceID, req.PageNo); err == nil {
+				bpm.prefetchMu.Lock()
+				bpm.prefetched[makePageID(req.SpaceID, req.PageNo)] = struct{}{}
+				bpm.prefetchMu.Unlock()
+				atomic.AddUint64(&bpm.stats.readAhead, 1)
+			}
 		}
 	}
+}
+
+func (bpm *OptimizedBufferPoolManager) consumePrefetchedPage(spaceID, pageNo uint32) {
+	bpm.prefetchMu.Lock()
+	delete(bpm.prefetched, makePageID(spaceID, pageNo))
+	bpm.prefetchMu.Unlock()
 }
 
 // flushSomeDirtyPages 刷新一些脏页

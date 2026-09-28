@@ -35,6 +35,18 @@ func TestTransactionStatementsReturnOK(t *testing.T) {
 	}
 }
 
+func TestUserVariableAssignmentSupportsReplicationHandshakeList(t *testing.T) {
+	executor := NewXMySQLExecutor(nil, &conf.Cfg{InnodbDataDir: t.TempDir()})
+	session := newTestMySQLSession()
+	session.SetParamByName("binlog_checksum", "CRC32")
+
+	result := <-executor.ExecuteWithQuery(session, "SET @master_heartbeat_period = 3000000000, @master_binlog_checksum = @@global.binlog_checksum, @source_binlog_checksum = @@global.binlog_checksum", "")
+	require.NoError(t, result.Err)
+	require.Equal(t, int64(3000000000), session.GetParamByName("master_heartbeat_period"))
+	require.Equal(t, "CRC32", session.GetParamByName("master_binlog_checksum"))
+	require.Equal(t, "CRC32", session.GetParamByName("source_binlog_checksum"))
+}
+
 func TestExplicitTransactionHoldsMetadataLockUntilCommit(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	owner := newTestMySQLSession()
@@ -387,6 +399,81 @@ func TestSetAutocommitOnCommitsActiveTransaction(t *testing.T) {
 	require.Len(t, mustQuerySessionSQL(t, engine, otherSession, "app", "select id from autocommit_boundary"), 1)
 }
 
+func TestAutocommitTransitionPreservesCurrentReadsAndAggregates(t *testing.T) {
+	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
+	session := newTestMySQLSession()
+	session.SetParamByName("transaction_isolation", "REPEATABLE-READ")
+	mustExecSessionSQLFully(t, engine, session, "", "create database app")
+	mustExecSessionSQLFully(t, engine, session, "app", "create table jdbc_visibility (id int primary key, bucket varchar(20), amount int)")
+	mustExecSessionSQLFully(t, engine, session, "app", "insert into jdbc_visibility values (1, 'a', 10)")
+
+	mustExecSessionSQLFully(t, engine, session, "app", "set autocommit = 0")
+	mustExecSessionSQLFully(t, engine, session, "app", "update jdbc_visibility set amount = 20 where id = 1")
+	require.Equal(t, [][]interface{}{{"1", "20"}}, mustQuerySessionSQL(t, engine, session, "app", "select id, amount from jdbc_visibility where id = 1"))
+	mustExecSessionSQLFully(t, engine, session, "app", "commit")
+	mustExecSessionSQLFully(t, engine, session, "app", "set autocommit = 1")
+	mustExecSessionSQLFully(t, engine, session, "app", "insert into jdbc_visibility values (2, 'b', 30)")
+
+	aggregate := mustSelectResultSessionSQL(t, engine, session, "app", "select count(*), sum(amount) from jdbc_visibility")
+	require.Len(t, aggregate.Records, 1)
+	aggregateValues := aggregate.Records[0].GetValues()
+	require.Len(t, aggregateValues, 2)
+	require.Equal(t, int64(2), aggregateValues[0].Int())
+	require.InDelta(t, 50.0, aggregateValues[1].Float64(), 0.0001)
+
+	grouped := mustSelectResultSessionSQL(t, engine, session, "app", "select bucket, count(*) from jdbc_visibility group by bucket order by bucket")
+	require.Len(t, grouped.Records, 2)
+	require.Equal(t, "a", grouped.Records[0].GetValues()[0].String())
+	require.Equal(t, int64(1), grouped.Records[0].GetValues()[1].Int())
+	require.Equal(t, "b", grouped.Records[1].GetValues()[0].String())
+	require.Equal(t, int64(1), grouped.Records[1].GetValues()[1].Int())
+}
+
+func TestRepeatedJdbcTransactionSequenceKeepsDecimalRowsVisible(t *testing.T) {
+	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
+	session := newTestMySQLSession()
+	session.SetParamByName("transaction_isolation", "REPEATABLE-READ")
+	mustExecSessionSQLFully(t, engine, session, "", "create database app")
+	mustExecSessionSQLFully(t, engine, session, "app", "create table accounts (id int primary key auto_increment, account_name varchar(100) not null, balance decimal(10,2) not null default 0.00)")
+
+	// TransactionTest.testTransactionCommit
+	mustExecSessionSQLFully(t, engine, session, "app", "set autocommit = 0")
+	mustExecSessionSQLFully(t, engine, session, "app", "insert into accounts (account_name, balance) values ('Alice', 1000.00)")
+	mustExecSessionSQLFully(t, engine, session, "app", "insert into accounts (account_name, balance) values ('Bob', 2000.00)")
+	mustExecSessionSQLFully(t, engine, session, "app", "commit")
+	require.Len(t, mustQuerySessionSQL(t, engine, session, "app", "select count(*) from accounts"), 1)
+	require.True(t, transactionSnapshotCaptured(session))
+	mustExecSessionSQLFully(t, engine, session, "app", "set autocommit = 1")
+	require.False(t, transactionSnapshotCaptured(session))
+
+	mustExecSessionSQLFully(t, engine, session, "app", "truncate table accounts")
+	// TransactionTest.testTransactionRollback
+	mustExecSessionSQLFully(t, engine, session, "app", "set autocommit = 0")
+	mustExecSessionSQLFully(t, engine, session, "app", "insert into accounts (account_name, balance) values ('Charlie', 3000.00)")
+	mustExecSessionSQLFully(t, engine, session, "app", "rollback")
+	mustExecSessionSQLFully(t, engine, session, "app", "set autocommit = 1")
+
+	mustExecSessionSQLFully(t, engine, session, "app", "truncate table accounts")
+	// TransactionTest.testTransferMoneySuccess
+	mustExecSessionSQLFully(t, engine, session, "app", "insert into accounts (account_name, balance) values ('Alice', 1000.00)")
+	mustExecSessionSQLFully(t, engine, session, "app", "insert into accounts (account_name, balance) values ('Bob', 500.00)")
+	mustExecSessionSQLFully(t, engine, session, "app", "set autocommit = 0")
+	mustExecSessionSQLFully(t, engine, session, "app", "update accounts set balance = balance - 200 where account_name = 'Alice'")
+	mustExecSessionSQLFully(t, engine, session, "app", "update accounts set balance = balance + 200 where account_name = 'Bob'")
+	mustExecSessionSQLFully(t, engine, session, "app", "commit")
+	mustExecSessionSQLFully(t, engine, session, "app", "set autocommit = 1")
+
+	mustExecSessionSQLFully(t, engine, session, "app", "truncate table accounts")
+	// TransactionTest.testTransferMoneyFailureRollback: this is the first
+	// failing JDBC read in the full suite.
+	mustExecSessionSQLFully(t, engine, session, "app", "insert into accounts (account_name, balance) values ('Alice', 100.00)")
+	mustExecSessionSQLFully(t, engine, session, "app", "insert into accounts (account_name, balance) values ('Bob', 500.00)")
+	mustExecSessionSQLFully(t, engine, session, "app", "set autocommit = 0")
+	mustExecSessionSQLFully(t, engine, session, "app", "update accounts set balance = balance - 200 where account_name = 'Alice'")
+	result := mustSelectResultSessionSQL(t, engine, session, "app", "select balance from accounts where account_name = 'Alice'")
+	require.Len(t, result.Records, 1)
+}
+
 func TestSetTransactionCharacteristicsRejectsActiveTransaction(t *testing.T) {
 	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
 	session := newTestMySQLSession()
@@ -433,6 +520,177 @@ func TestReadOnlyTransactionRejectsWritesButAllowsReplicationReplay(t *testing.T
 	if err := rejectReadOnlyDML(session, "INSERT"); err != nil {
 		t.Fatalf("replication replay should bypass client read-only guard: %v", err)
 	}
+}
+
+func TestReplicationStorageTransactionContextIsReusedAcrossStatements(t *testing.T) {
+	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
+	dml, err := engine.QueryExecutor.newStorageIntegratedDMLExecutor()
+	require.NoError(t, err)
+	shared := &StorageTransactionContext{}
+	ctx := context.WithValue(context.Background(), "replication_storage_transaction", shared)
+
+	first, err := dml.beginStorageTransaction(ctx)
+	require.NoError(t, err)
+	second, err := dml.beginStorageTransaction(ctx)
+	require.NoError(t, err)
+	require.Same(t, shared, first)
+	require.Same(t, shared, second)
+}
+
+func TestClientTransactionUsesSharedStorageTransactionBoundary(t *testing.T) {
+	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
+	setup := newTestMySQLSession()
+	mustExecSessionSQLFully(t, engine, setup, "", "create database app")
+	mustExecSessionSQLFully(t, engine, setup, "app", "create table client_transaction_boundary (id int primary key, note varchar(20))")
+
+	writer := newTestMySQLSession()
+	reader := newTestMySQLSession()
+	mustExecSessionSQLFully(t, engine, writer, "app", "set autocommit = 0")
+	mustExecSessionSQLFully(t, engine, writer, "app", "insert into client_transaction_boundary values (1, 'one')")
+	require.Equal(t, [][]interface{}{{"1", "one"}}, mustQuerySessionSQL(t, engine, writer, "app", "select id, note from client_transaction_boundary"))
+	require.Empty(t, mustQuerySessionSQL(t, engine, reader, "app", "select id, note from client_transaction_boundary"))
+
+	mustExecSessionSQLFully(t, engine, writer, "app", "insert into client_transaction_boundary values (2, 'two')")
+	require.Empty(t, mustQuerySessionSQL(t, engine, reader, "app", "select id, note from client_transaction_boundary"))
+
+	mustExecSessionSQLFully(t, engine, writer, "app", "commit")
+	require.Equal(t, [][]interface{}{{"1", "one"}, {"2", "two"}}, mustQuerySessionSQL(t, engine, reader, "app", "select id, note from client_transaction_boundary order by id"))
+
+	mustExecSessionSQLFully(t, engine, writer, "app", "insert into client_transaction_boundary values (3, 'three')")
+	require.Equal(t, [][]interface{}{{"1", "one"}, {"2", "two"}, {"3", "three"}}, mustQuerySessionSQL(t, engine, writer, "app", "select id, note from client_transaction_boundary order by id"))
+	mustExecSessionSQLFully(t, engine, writer, "app", "rollback")
+	require.Equal(t, [][]interface{}{{"1", "one"}, {"2", "two"}}, mustQuerySessionSQL(t, engine, reader, "app", "select id, note from client_transaction_boundary order by id"))
+}
+
+func TestClientTransactionHidesPendingUpdatesAndDeletes(t *testing.T) {
+	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
+	setup := newTestMySQLSession()
+	mustExecSessionSQLFully(t, engine, setup, "", "create database app")
+	mustExecSessionSQLFully(t, engine, setup, "app", "create table client_transaction_update_delete (id int primary key, note varchar(20), index idx_note (note))")
+	mustExecSessionSQLFully(t, engine, setup, "app", "insert into client_transaction_update_delete values (1, 'old')")
+
+	writer := newTestMySQLSession()
+	reader := newTestMySQLSession()
+	mustExecSessionSQLFully(t, engine, writer, "app", "set autocommit = 0")
+	mustExecSessionSQLFully(t, engine, writer, "app", "update client_transaction_update_delete set note = 'new' where id = 1")
+	require.Equal(t, [][]interface{}{{"1", "new"}}, mustQuerySessionSQL(t, engine, writer, "app", "select id, note from client_transaction_update_delete where note = 'new'"))
+	require.Equal(t, [][]interface{}{{"1", "old"}}, mustQuerySessionSQL(t, engine, reader, "app", "select id, note from client_transaction_update_delete where note = 'old'"))
+	require.Empty(t, mustQuerySessionSQL(t, engine, reader, "app", "select id from client_transaction_update_delete where note = 'new'"))
+
+	mustExecSessionSQLFully(t, engine, writer, "app", "delete from client_transaction_update_delete where id = 1")
+	require.Empty(t, mustQuerySessionSQL(t, engine, writer, "app", "select id from client_transaction_update_delete"))
+	require.Equal(t, [][]interface{}{{"1", "old"}}, mustQuerySessionSQL(t, engine, reader, "app", "select id, note from client_transaction_update_delete where note = 'old'"))
+
+	mustExecSessionSQLFully(t, engine, writer, "app", "rollback")
+	require.Equal(t, [][]interface{}{{"1", "old"}}, mustQuerySessionSQL(t, engine, reader, "app", "select id, note from client_transaction_update_delete where note = 'old'"))
+
+	mustExecSessionSQLFully(t, engine, writer, "app", "update client_transaction_update_delete set note = 'committed' where id = 1")
+	mustExecSessionSQLFully(t, engine, writer, "app", "commit")
+	require.Equal(t, [][]interface{}{{"1", "committed"}}, mustQuerySessionSQL(t, engine, reader, "app", "select id, note from client_transaction_update_delete where note = 'committed'"))
+}
+
+func TestRepeatableReadSnapshotHidesLaterCommittedDML(t *testing.T) {
+	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
+	setup := newTestMySQLSession()
+	mustExecSessionSQLFully(t, engine, setup, "", "create database app")
+	mustExecSessionSQLFully(t, engine, setup, "app", "create table repeatable_read_snapshot (id int primary key, note varchar(20))")
+	mustExecSessionSQLFully(t, engine, setup, "app", "insert into repeatable_read_snapshot values (1, 'old')")
+
+	reader := newTestMySQLSession()
+	writer := newTestMySQLSession()
+	mustExecSessionSQLFully(t, engine, reader, "app", "set autocommit = 0")
+	require.Equal(t, [][]interface{}{{"1", "old"}}, mustQuerySessionSQL(t, engine, reader, "app", "select id, note from repeatable_read_snapshot order by id"))
+
+	mustExecSessionSQLFully(t, engine, writer, "app", "insert into repeatable_read_snapshot values (2, 'later')")
+	mustExecSessionSQLFully(t, engine, writer, "app", "update repeatable_read_snapshot set note = 'new' where id = 1")
+	require.Equal(t, [][]interface{}{{"1", "old"}}, mustQuerySessionSQL(t, engine, reader, "app", "select id, note from repeatable_read_snapshot order by id"))
+
+	mustExecSessionSQLFully(t, engine, reader, "app", "commit")
+	require.Equal(t, [][]interface{}{{"1", "new"}, {"2", "later"}}, mustQuerySessionSQL(t, engine, reader, "app", "select id, note from repeatable_read_snapshot order by id"))
+}
+
+func TestRepeatableReadSnapshotCapturesEmptyEpoch(t *testing.T) {
+	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
+	setup := newTestMySQLSession()
+	mustExecSessionSQLFully(t, engine, setup, "", "create database app")
+	mustExecSessionSQLFully(t, engine, setup, "app", "create table repeatable_read_empty_epoch (id int primary key, note varchar(20))")
+
+	reader := newTestMySQLSession()
+	writer := newTestMySQLSession()
+	mustExecSessionSQLFully(t, engine, reader, "app", "set autocommit = 0")
+	require.Empty(t, mustQuerySessionSQL(t, engine, reader, "app", "select id, note from repeatable_read_empty_epoch"))
+
+	mustExecSessionSQLFully(t, engine, writer, "app", "insert into repeatable_read_empty_epoch values (1, 'later')")
+	require.Empty(t, mustQuerySessionSQL(t, engine, reader, "app", "select id, note from repeatable_read_empty_epoch"))
+
+	mustExecSessionSQLFully(t, engine, reader, "app", "commit")
+	require.Equal(t, [][]interface{}{{"1", "later"}}, mustQuerySessionSQL(t, engine, reader, "app", "select id, note from repeatable_read_empty_epoch"))
+}
+
+func TestCommittedHistoryRetainsRecordsNeededByLongSnapshot(t *testing.T) {
+	committedClientTransactionHistory.Lock()
+	previousItems := append([]committedClientTransactionRecord(nil), committedClientTransactionHistory.items...)
+	previousEpoch := committedClientTransactionHistory.nextEpoch
+	previousSnapshots := make(map[string]uint64, len(committedClientTransactionHistory.activeSnapshot))
+	for key, epoch := range committedClientTransactionHistory.activeSnapshot {
+		previousSnapshots[key] = epoch
+	}
+	committedClientTransactionHistory.items = nil
+	committedClientTransactionHistory.nextEpoch = 0
+	committedClientTransactionHistory.activeSnapshot = make(map[string]uint64)
+	committedClientTransactionHistory.Unlock()
+	t.Cleanup(func() {
+		committedClientTransactionHistory.Lock()
+		committedClientTransactionHistory.items = previousItems
+		committedClientTransactionHistory.nextEpoch = previousEpoch
+		committedClientTransactionHistory.activeSnapshot = previousSnapshots
+		committedClientTransactionHistory.Unlock()
+	})
+
+	reader := newTestMySQLSession()
+	reader.SetParamByName("autocommit", "0")
+	reader.SetParamByName("transaction_isolation", "REPEATABLE-READ")
+	ensureTransactionSnapshot(reader)
+	for index := 0; index < maxCommittedClientTransactionHistory+1; index++ {
+		recordAutocommitClientTransactionChanges("history-test", []transactionDMLChange{{
+			tableName: "app.history", before: map[string]interface{}{}, after: map[string]interface{}{"id": int64(index)}, kind: "insert",
+		}})
+	}
+	committedClientTransactionHistory.RLock()
+	require.Greater(t, len(committedClientTransactionHistory.items), maxCommittedClientTransactionHistory)
+	committedClientTransactionHistory.RUnlock()
+
+	clearTransactionSnapshot(reader)
+	committedClientTransactionHistory.RLock()
+	require.LessOrEqual(t, len(committedClientTransactionHistory.items), maxCommittedClientTransactionHistory)
+	committedClientTransactionHistory.RUnlock()
+}
+
+func TestRepeatableReadSnapshotCoversJoinAndAggregateSources(t *testing.T) {
+	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
+	setup := newTestMySQLSession()
+	mustExecSessionSQLFully(t, engine, setup, "", "create database app")
+	mustExecSessionSQLFully(t, engine, setup, "app", "create table rr_join_parent (id int primary key)")
+	mustExecSessionSQLFully(t, engine, setup, "app", "create table rr_join_child (id int primary key, parent_id int, index idx_parent_id (parent_id))")
+	mustExecSessionSQLFully(t, engine, setup, "app", "insert into rr_join_parent values (1)")
+	mustExecSessionSQLFully(t, engine, setup, "app", "insert into rr_join_child values (1, 1)")
+
+	reader := newTestMySQLSession()
+	writer := newTestMySQLSession()
+	mustExecSessionSQLFully(t, engine, reader, "app", "set autocommit = 0")
+	joinQuery := "select count(*) from rr_join_parent p join rr_join_child c on c.parent_id = p.id"
+	derivedJoinQuery := "select count(*) from (select p.id from rr_join_parent p join rr_join_child c on c.parent_id = p.id) joined_rows"
+	require.Equal(t, [][]interface{}{{"\x00\x00\x00\x00\x00\x00\x00\x01"}}, mustQuerySessionSQL(t, engine, reader, "app", joinQuery))
+	require.Equal(t, [][]interface{}{{"1"}}, mustQuerySessionSQL(t, engine, reader, "app", derivedJoinQuery))
+
+	mustExecSessionSQLFully(t, engine, writer, "app", "insert into rr_join_parent values (2)")
+	mustExecSessionSQLFully(t, engine, writer, "app", "insert into rr_join_child values (2, 2)")
+	require.Equal(t, [][]interface{}{{"\x00\x00\x00\x00\x00\x00\x00\x01"}}, mustQuerySessionSQL(t, engine, reader, "app", joinQuery))
+	require.Equal(t, [][]interface{}{{"1"}}, mustQuerySessionSQL(t, engine, reader, "app", derivedJoinQuery))
+
+	mustExecSessionSQLFully(t, engine, reader, "app", "commit")
+	require.Equal(t, [][]interface{}{{"\x00\x00\x00\x00\x00\x00\x00\x02"}}, mustQuerySessionSQL(t, engine, reader, "app", joinQuery))
+	require.Equal(t, [][]interface{}{{"2"}}, mustQuerySessionSQL(t, engine, reader, "app", derivedJoinQuery))
 }
 
 func TestReadOnlyTransactionRejectsSQLDML(t *testing.T) {

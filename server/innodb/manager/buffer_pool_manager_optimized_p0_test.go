@@ -1,10 +1,26 @@
 package manager
 
 import (
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 )
+
+type blockingOptimizedStorageProvider struct {
+	*mockOptimizedStorageProvider
+	writeStarted chan struct{}
+	releaseWrite chan struct{}
+	writeOnce    sync.Once
+}
+
+func (p *blockingOptimizedStorageProvider) WritePage(spaceID uint32, pageNo uint32, data []byte) error {
+	p.writeOnce.Do(func() { close(p.writeStarted) })
+	<-p.releaseWrite
+	return p.mockOptimizedStorageProvider.WritePage(spaceID, pageNo, data)
+}
 
 type delayedOptimizedStorageProvider struct {
 	*mockOptimizedStorageProvider
@@ -147,6 +163,208 @@ func TestOptimizedBufferPoolManagerBoundsPrefetchConcurrency(t *testing.T) {
 	}
 	if got := atomic.LoadInt32(&provider.maxActiveReads); got > 2 {
 		t.Fatalf("prefetch concurrency = %d, want at most 2 workers", got)
+	}
+}
+
+func TestOptimizedBufferPoolManagerCountsReadAheadEvictions(t *testing.T) {
+	bpm, err := NewOptimizedBufferPoolManager(&BufferPoolConfig{
+		PoolSize:        1,
+		PageSize:        PAGE_SIZE,
+		FlushInterval:   time.Hour,
+		StorageProvider: newMockOptimizedStorageProvider(),
+		PrefetchWorkers: 1,
+		MaxQueueSize:    4,
+	})
+	if err != nil {
+		t.Fatalf("new optimized buffer pool manager: %v", err)
+	}
+	defer bpm.Close()
+
+	bpm.PrefetchPage(1, 1)
+	deadline := time.Now().Add(2 * time.Second)
+	for atomic.LoadUint64(&bpm.stats.readAhead) == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := atomic.LoadUint64(&bpm.stats.readAhead); got == 0 {
+		t.Fatal("prefetch did not complete before eviction test")
+	}
+
+	if _, err := bpm.GetPage(1, 2); err != nil {
+		t.Fatalf("load page that evicts prefetched page: %v", err)
+	}
+	if got := atomic.LoadUint64(&bpm.stats.readAheadEvicted); got != 1 {
+		t.Fatalf("read-ahead evictions = %d, want 1", got)
+	}
+}
+
+func TestOptimizedBufferPoolManagerReportsReadAheadRate(t *testing.T) {
+	bpm, err := NewOptimizedBufferPoolManager(&BufferPoolConfig{
+		PoolSize:        32,
+		PageSize:        PAGE_SIZE,
+		FlushInterval:   time.Hour,
+		StorageProvider: newMockOptimizedStorageProvider(),
+		PrefetchWorkers: 1,
+		MaxQueueSize:    16,
+	})
+	if err != nil {
+		t.Fatalf("new optimized buffer pool manager: %v", err)
+	}
+	defer bpm.Close()
+
+	_ = bpm.GetStats()
+	for pageNo := uint32(1); pageNo <= 4; pageNo++ {
+		bpm.PrefetchPage(2, pageNo)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for atomic.LoadUint64(&bpm.stats.readAhead) < 4 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := atomic.LoadUint64(&bpm.stats.readAhead); got < 4 {
+		t.Fatalf("prefetch reads = %d, want at least 4", got)
+	}
+
+	stats := bpm.GetStats()
+	rate, ok := stats["read_ahead_rate"].(float64)
+	if !ok || rate <= 0 {
+		t.Fatalf("read-ahead rate = %#v, want positive rate", stats["read_ahead_rate"])
+	}
+}
+
+func TestOptimizedBufferPoolManagerReportsYoungPagePromotionCounters(t *testing.T) {
+	bpm, err := NewOptimizedBufferPoolManager(&BufferPoolConfig{
+		PoolSize:        8,
+		PageSize:        PAGE_SIZE,
+		FlushInterval:   time.Hour,
+		StorageProvider: newMockOptimizedStorageProvider(),
+	})
+	if err != nil {
+		t.Fatalf("new optimized buffer pool manager: %v", err)
+	}
+	defer bpm.Close()
+
+	page := buffer_pool.NewBufferPage(12, 34)
+	bpm.lruCache.SetOld(12, 34, buffer_pool.NewBufferBlock(page))
+	for i := 0; i < 4; i++ {
+		if _, err := bpm.GetPage(12, 34); err != nil {
+			t.Fatalf("get old page %d: %v", i, err)
+		}
+	}
+
+	stats := bpm.GetStats()
+	madeYoung, ok := stats["pages_made_young"].(uint64)
+	if !ok || madeYoung != 1 {
+		t.Fatalf("pages_made_young = %#v, want 1", stats["pages_made_young"])
+	}
+	notMadeYoung, ok := stats["pages_not_made_young"].(uint64)
+	if !ok || notMadeYoung != 2 {
+		t.Fatalf("pages_not_made_young = %#v, want 2", stats["pages_not_made_young"])
+	}
+}
+
+func TestOptimizedBufferPoolManagerReportsPendingBufferWork(t *testing.T) {
+	bpm, err := NewOptimizedBufferPoolManager(&BufferPoolConfig{
+		PoolSize:        8,
+		PageSize:        PAGE_SIZE,
+		FlushInterval:   time.Hour,
+		StorageProvider: newMockOptimizedStorageProvider(),
+	})
+	if err != nil {
+		t.Fatalf("new optimized buffer pool manager: %v", err)
+	}
+	defer bpm.Close()
+
+	if _, err := bpm.GetDirtyPage(4, 9); err != nil {
+		t.Fatalf("get dirty page: %v", err)
+	}
+	stats := bpm.GetStats()
+	pendingFlush, ok := stats["pending_flush_list"].(int64)
+	if !ok || pendingFlush != 1 {
+		t.Fatalf("pending_flush_list = %#v, want 1", stats["pending_flush_list"])
+	}
+}
+
+func TestOptimizedBufferPoolManagerFlushesDirtyLRUEviction(t *testing.T) {
+	provider := &blockingOptimizedStorageProvider{
+		mockOptimizedStorageProvider: newMockOptimizedStorageProvider(),
+		writeStarted:                 make(chan struct{}),
+		releaseWrite:                 make(chan struct{}),
+	}
+	bpm, err := NewOptimizedBufferPoolManager(&BufferPoolConfig{
+		PoolSize:        1,
+		PageSize:        PAGE_SIZE,
+		FlushInterval:   time.Hour,
+		MaxQueueSize:    4,
+		StorageProvider: provider,
+	})
+	if err != nil {
+		t.Fatalf("new optimized buffer pool manager: %v", err)
+	}
+	defer bpm.Close()
+
+	page, err := bpm.GetDirtyPage(21, 1)
+	if err != nil {
+		t.Fatalf("get dirty page: %v", err)
+	}
+	page.SetContent([]byte("lru-eviction-must-persist"))
+	if _, err := bpm.GetPage(21, 2); err != nil {
+		t.Fatalf("load page that evicts dirty page: %v", err)
+	}
+	select {
+	case <-provider.writeStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("dirty LRU eviction did not schedule a flush")
+	}
+
+	stats := bpm.GetStats()
+	pending, ok := stats["pending_flush_lru"].(int64)
+	if !ok || pending != 1 {
+		t.Fatalf("pending_flush_lru = %#v, want 1", stats["pending_flush_lru"])
+	}
+	close(provider.releaseWrite)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		stats = bpm.GetStats()
+		if pending, ok = stats["pending_flush_lru"].(int64); ok && pending == 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if pending != 0 {
+		t.Fatalf("pending_flush_lru after flush = %d, want 0", pending)
+	}
+	data, err := provider.ReadPage(21, 1)
+	if err != nil {
+		t.Fatalf("read flushed eviction: %v", err)
+	}
+	if string(data[:len("lru-eviction-must-persist")]) != "lru-eviction-must-persist" {
+		t.Fatalf("flushed eviction data = %q", data[:len("lru-eviction-must-persist")])
+	}
+}
+
+func TestOptimizedBufferPoolManagerReportsLRUIOWithIndependentCurrentWindow(t *testing.T) {
+	bpm, err := NewOptimizedBufferPoolManager(&BufferPoolConfig{
+		PoolSize:        8,
+		PageSize:        PAGE_SIZE,
+		FlushInterval:   time.Hour,
+		StorageProvider: newMockOptimizedStorageProvider(),
+	})
+	if err != nil {
+		t.Fatalf("new optimized buffer pool manager: %v", err)
+	}
+	defer bpm.Close()
+
+	if _, err := bpm.GetPage(15, 1); err != nil {
+		t.Fatalf("load page: %v", err)
+	}
+
+	total, current := bpm.GetLRUIOStatsAndResetCurrent()
+	if total != 1 || current != 1 {
+		t.Fatalf("lru io stats = %d/%d, want 1/1", total, current)
+	}
+
+	total, current = bpm.GetLRUIOStatsAndResetCurrent()
+	if total != 1 || current != 0 {
+		t.Fatalf("lru io stats after current reset = %d/%d, want 1/0", total, current)
 	}
 }
 

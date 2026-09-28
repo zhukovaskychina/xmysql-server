@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
+	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
@@ -346,6 +347,19 @@ func (dml *StorageIntegratedDMLExecutor) serializePrimaryKey(key interface{}) ([
 // beginStorageTransaction 开始存储事务
 func (dml *StorageIntegratedDMLExecutor) beginStorageTransaction(ctx context.Context) (interface{}, error) {
 	logger.Debugf("🔄 开始存储引擎事务")
+	if ctx != nil {
+		if shared, ok := ctx.Value(replicationStorageTransactionContextKey).(*StorageTransactionContext); ok && shared != nil {
+			// Replication replay supplies one physical transaction for the
+			// complete source transaction. Individual replayed statements must
+			// not open a second storage transaction.
+			return shared, nil
+		}
+		if shared, ok := ctx.Value(clientStorageTransactionContextKey).(*StorageTransactionContext); ok && shared != nil {
+			// A normal client transaction supplies one physical transaction for
+			// every DML statement until COMMIT or ROLLBACK.
+			return shared, nil
+		}
+	}
 
 	if dml.txManager == nil {
 		return nil, fmt.Errorf("transaction manager is not initialized for storage-integrated DML")
@@ -356,6 +370,7 @@ func (dml *StorageIntegratedDMLExecutor) beginStorageTransaction(ctx context.Con
 		StartTime:     time.Now(),
 		Status:        "ACTIVE",
 		ModifiedPages: make(map[string]uint32),
+		DataDir:       dml.dataDir,
 	}
 
 	// 从上下文中获取隔离级别，默认为可重复读
@@ -379,6 +394,19 @@ func (dml *StorageIntegratedDMLExecutor) beginStorageTransaction(ctx context.Con
 	// 将真实事务保存到上下文中
 	txnContext.RealTransaction = trx
 	txnContext.TransactionID = uint64(trx.ID)
+	if ctx != nil {
+		if session, ok := ctx.Value(storageTransactionSessionContextKey).(server.MySQLServerSession); ok && session != nil && sessionTransactionActive(session) {
+			txnContext.Session = session
+			// Replication replay owns its storage transaction through the
+			// replication-specific context. Do not also register it as a client
+			// transaction merely because replay uses autocommit=0; otherwise the
+			// replication commit path can return early without committing/flushing
+			// the shared storage transaction.
+			if !sessionBoolParam(session, "replication_replay") {
+				session.SetParamByName(clientStorageTransactionContextKey, txnContext)
+			}
+		}
+	}
 
 	logger.Debugf(" 使用事务管理器开始事务: TrxID=%d, IsolationLevel=%d, ReadOnly=%v",
 		trx.ID, isolationLevel, isReadOnly)
@@ -392,10 +420,32 @@ func (dml *StorageIntegratedDMLExecutor) beginStorageTransaction(ctx context.Con
 // commitStorageTransaction 提交存储事务
 func (dml *StorageIntegratedDMLExecutor) commitStorageTransaction(ctx context.Context, txn interface{}) error {
 	logger.Debugf(" 提交存储引擎事务")
+	if ctx != nil {
+		if shared, ok := ctx.Value(replicationStorageTransactionContextKey).(*StorageTransactionContext); ok && shared != nil && txn == shared {
+			// The replay coordinator commits the shared transaction once, after
+			// all source statements have succeeded.
+			return nil
+		}
+		if shared, ok := ctx.Value(clientStorageTransactionContextKey).(*StorageTransactionContext); ok && shared != nil && txn == shared {
+			return nil
+		}
+		if session, ok := ctx.Value(storageTransactionSessionContextKey).(server.MySQLServerSession); ok && session != nil {
+			if shared, ok := session.GetParamByName(clientStorageTransactionContextKey).(*StorageTransactionContext); ok && shared != nil && txn == shared {
+				return nil
+			}
+		}
+	}
 
 	txnCtx, ok := txn.(*StorageTransactionContext)
 	if !ok {
 		return fmt.Errorf("无效的事务上下文")
+	}
+	if txnCtx.Session != nil && ctx != nil && !storageTransactionForceCommit(ctx) {
+		if _, ok := ctx.Value(storageTransactionSessionContextKey).(server.MySQLServerSession); ok {
+			if shared, ok := txnCtx.Session.GetParamByName(clientStorageTransactionContextKey).(*StorageTransactionContext); ok && shared == txnCtx {
+				return nil
+			}
+		}
 	}
 
 	// 如果有真实事务，先提交真实事务
@@ -409,9 +459,25 @@ func (dml *StorageIntegratedDMLExecutor) commitStorageTransaction(ctx context.Co
 
 		logger.Debugf(" 事务管理器提交成功: TrxID=%d, Duration=%v",
 			txnCtx.RealTransaction.ID, time.Since(txnCtx.StartTime))
+
+		// The storage commit is authoritative as soon as TransactionManager.Commit
+		// returns. Publish the local durable commit marker before flushing dirty
+		// pages so a crash cannot leave committed redo state looking like an
+		// uncommitted transaction during recovery.
+		txnCtx.Status = "COMMITTED"
+		txnCtx.EndTime = time.Now()
+		postCommit := txnCtx.AfterRealCommit
+		txnCtx.AfterRealCommit = nil
+		if postCommit != nil {
+			if err := postCommit(txnCtx); err != nil {
+				logger.Errorf("真实存储提交后的 durable barrier 失败: %v", err)
+				txnCtx.PostCommitError = err
+			}
+		}
 	}
 
 	// 刷新所有修改的页面到磁盘
+	var flushErr error
 	if dml.bufferPoolManager != nil {
 		for spacePageKey, pageNo := range txnCtx.ModifiedPages {
 			parts := strings.Split(spacePageKey, ":")
@@ -420,6 +486,9 @@ func (dml *StorageIntegratedDMLExecutor) commitStorageTransaction(ctx context.Co
 					err = dml.bufferPoolManager.FlushPage(uint32(spaceID), pageNo)
 					if err != nil {
 						logger.Debugf("  警告: 刷新页面失败: %v", err)
+						if flushErr == nil {
+							flushErr = fmt.Errorf("flush page %s: %w", spacePageKey, err)
+						}
 					} else {
 						logger.Debugf(" 页面已刷新: SpaceID=%d, PageNo=%d", spaceID, pageNo)
 					}
@@ -430,11 +499,25 @@ func (dml *StorageIntegratedDMLExecutor) commitStorageTransaction(ctx context.Co
 		logger.Debugf("⚠️ bufferPoolManager 未初始化，跳过 %d 个脏页刷新", len(txnCtx.ModifiedPages))
 	}
 
-	txnCtx.Status = "COMMITTED"
-	txnCtx.EndTime = time.Now()
+	if txnCtx.Status != "COMMITTED" {
+		txnCtx.Status = "COMMITTED"
+		txnCtx.EndTime = time.Now()
+	}
 
 	logger.Debugf(" 存储事务提交完成: TxnID=%d, ModifiedPages=%d, Duration=%v",
 		txnCtx.TransactionID, len(txnCtx.ModifiedPages), time.Since(txnCtx.StartTime))
+	if flushErr != nil && txnCtx.PostCommitError != nil {
+		return fmt.Errorf("storage transaction committed but page flush failed: %v; post-commit barrier failed: %w", flushErr, txnCtx.PostCommitError)
+	}
+	if txnCtx.PostCommitError != nil {
+		return fmt.Errorf("storage transaction committed but post-commit barrier failed: %w", txnCtx.PostCommitError)
+	}
+	if flushErr != nil {
+		// The redo transaction is already committed. Preserve that state so a
+		// caller can retry the publication boundary without attempting a second
+		// TransactionManager.Commit, while still surfacing the durability error.
+		return fmt.Errorf("storage transaction committed but page flush failed: %w", flushErr)
+	}
 
 	return nil
 }
@@ -442,10 +525,32 @@ func (dml *StorageIntegratedDMLExecutor) commitStorageTransaction(ctx context.Co
 // rollbackStorageTransaction 回滚存储事务
 func (dml *StorageIntegratedDMLExecutor) rollbackStorageTransaction(ctx context.Context, txn interface{}) error {
 	logger.Debugf("🔄 回滚存储引擎事务")
+	if ctx != nil {
+		if shared, ok := ctx.Value(replicationStorageTransactionContextKey).(*StorageTransactionContext); ok && shared != nil && txn == shared {
+			// A replay statement failure is resolved by the outer replication
+			// rollback boundary, which owns the shared physical transaction.
+			return nil
+		}
+		if shared, ok := ctx.Value(clientStorageTransactionContextKey).(*StorageTransactionContext); ok && shared != nil && txn == shared {
+			return nil
+		}
+		if session, ok := ctx.Value(storageTransactionSessionContextKey).(server.MySQLServerSession); ok && session != nil {
+			if shared, ok := session.GetParamByName(clientStorageTransactionContextKey).(*StorageTransactionContext); ok && shared != nil && txn == shared {
+				return nil
+			}
+		}
+	}
 
 	txnCtx, ok := txn.(*StorageTransactionContext)
 	if !ok {
 		return fmt.Errorf("无效的事务上下文")
+	}
+	if txnCtx.Session != nil && ctx != nil && !storageTransactionForceCommit(ctx) {
+		if _, ok := ctx.Value(storageTransactionSessionContextKey).(server.MySQLServerSession); ok {
+			if shared, ok := txnCtx.Session.GetParamByName(clientStorageTransactionContextKey).(*StorageTransactionContext); ok && shared == txnCtx {
+				return nil
+			}
+		}
 	}
 
 	// 如果有真实事务，使用事务管理器回滚
@@ -480,6 +585,8 @@ func (dml *StorageIntegratedDMLExecutor) rollbackStorageTransaction(ctx context.
 
 	txnCtx.Status = "ROLLED_BACK"
 	txnCtx.EndTime = time.Now()
+	txnCtx.AfterRealCommit = nil
+	txnCtx.PostCommitError = nil
 
 	logger.Debugf(" 存储事务回滚完成: TxnID=%d, ModifiedPages=%d, Duration=%v",
 		txnCtx.TransactionID, len(txnCtx.ModifiedPages), time.Since(txnCtx.StartTime))
@@ -495,6 +602,21 @@ type StorageTransactionContext struct {
 	Status          string               // ACTIVE, COMMITTED, ROLLED_BACK
 	ModifiedPages   map[string]uint32    // "spaceID:pageNo" -> pageNo
 	RealTransaction *manager.Transaction // 真实的事务对象（如果使用事务管理器）
+	Session         server.MySQLServerSession
+	DataDir         string
+	// AfterRealCommit runs immediately after the real transaction manager has
+	// accepted the commit, before dirty pages are flushed. It is the narrow
+	// durable publication barrier used by client and replication transactions.
+	AfterRealCommit func(*StorageTransactionContext) error
+	PostCommitError error
+}
+
+func storageTransactionForceCommit(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	force, _ := ctx.Value(storageTransactionForceCommitContextKey).(bool)
+	return force
 }
 
 // ===== 数据查找和操作方法 =====
@@ -2594,6 +2716,20 @@ func planEvalContextWithRow(values map[string]interface{}) *plan.EvalContext {
 }
 
 func resolveExpressionRowValue(values map[string]interface{}, requested string) (interface{}, bool) {
+	normalized := strings.Trim(strings.TrimSpace(requested), "` ")
+	lowerNormalized := strings.ToLower(normalized)
+	for _, prefix := range []string{"@@global.", "@@session.", "@@local.", "global.", "session.", "local."} {
+		if strings.HasPrefix(lowerNormalized, prefix) {
+			normalized = normalized[len(prefix):]
+			break
+		}
+	}
+	if value, exists := values[normalized]; exists {
+		return value, true
+	}
+	if value, exists := values[strings.ToLower(normalized)]; exists {
+		return value, true
+	}
 	if value, exists := values[requested]; exists {
 		return value, true
 	}

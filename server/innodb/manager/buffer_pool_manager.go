@@ -385,15 +385,30 @@ func (bpm *BufferPoolManager) adjustFlushInterval(dirtyRatio float64) {
 func (bpm *BufferPoolManager) GetStats() map[string]interface{} {
 	dirtyPages := bpm.bufferPool.GetDirtyPages()
 	dirtyRatio := float64(len(dirtyPages)) / float64(bpm.config.PoolSize)
+	hits := atomic.LoadUint64(&bpm.stats.hits)
+	misses := atomic.LoadUint64(&bpm.stats.misses)
+	requests := hits + misses
+	hitRate := float64(0)
+	if requests > 0 {
+		hitRate = float64(hits) / float64(requests)
+	}
+	cacheSize := uint32(0)
+	if bpm.bufferPool != nil {
+		cacheSize = bpm.bufferPool.CachedPageCount()
+	}
 
 	return map[string]interface{}{
-		"hits":                   atomic.LoadUint64(&bpm.stats.hits),
-		"misses":                 atomic.LoadUint64(&bpm.stats.misses),
+		"hits":                   hits,
+		"misses":                 misses,
+		"hit_rate":               hitRate,
+		"young_hits":             atomic.LoadUint64(&bpm.stats.youngHits),
+		"old_hits":               atomic.LoadUint64(&bpm.stats.oldHits),
 		"evictions":              atomic.LoadUint64(&bpm.stats.evictions),
 		"flushes":                atomic.LoadUint64(&bpm.stats.flushes),
 		"page_reads":             atomic.LoadUint64(&bpm.stats.pageReads),
 		"page_writes":            atomic.LoadUint64(&bpm.stats.pageWrites),
 		"dirty_pages":            len(dirtyPages),
+		"cache_size":             cacheSize,
 		"dirty_ratio":            dirtyRatio,
 		"total_pages":            bpm.config.PoolSize,
 		"current_flush_interval": bpm.currentFlushInterval.String(),

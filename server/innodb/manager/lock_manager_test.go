@@ -89,6 +89,26 @@ func TestWaitHistoryRetainsCompletedLockWait(t *testing.T) {
 	}
 }
 
+func TestLockRuntimeStatsTrackRecordGrantAndReleaseAttempts(t *testing.T) {
+	lm := NewLockManager()
+	defer lm.Close()
+	if err := lm.AcquireLock(1, 1, 1, 1, LOCK_X); err != nil {
+		t.Fatalf("acquire owner lock: %v", err)
+	}
+	if err := lm.AcquireLock(2, 1, 1, 1, LOCK_S); !errors.Is(err, ErrLockConflict) {
+		t.Fatalf("expected waiter conflict, got %v", err)
+	}
+	stats := lm.LockRuntimeStatsSnapshot()
+	if stats.RecordLockGrantAttempts != 2 || stats.RecordLockReleaseAttempts != 0 {
+		t.Fatalf("unexpected initial attempt stats: %#v", stats)
+	}
+	lm.ReleaseLocks(1)
+	stats = lm.LockRuntimeStatsSnapshot()
+	if stats.RecordLockGrantAttempts != 3 || stats.RecordLockReleaseAttempts != 1 {
+		t.Fatalf("unexpected post-release attempt stats: %#v", stats)
+	}
+}
+
 func TestDeadlockSnapshotIncludesCycleVictimAndWaitDuration(t *testing.T) {
 	lm := NewLockManager()
 	defer lm.Close()
