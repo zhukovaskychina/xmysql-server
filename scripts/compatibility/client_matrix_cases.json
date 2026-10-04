@@ -11,5 +11,14 @@
   {"name":"savepoints","kind":"savepoint"},
   {"name":"session-state","kind":"session"},
   {"name":"multi-result-and-error","kind":"error"},
+  {"name":"protocol-ping","kind":"protocol","clients":["go","python","node"]},
+  {"name":"protocol-init-db","kind":"protocol","clients":["python"]},
+  {"name":"protocol-change-user","kind":"protocol","clients":["node"]},
+  {"name":"negative-error-code","kind":"negative-error"},
+  {"name":"extended-types-metadata","kind":"types"},
+  {"name":"wire-value-types","kind":"values"},
+  {"name":"multi-session-pool","kind":"pool","clients":["go","python","node"]},
+  {"name":"session-reset","kind":"protocol","clients":["python","node"]},
+  {"name":"auth-plugins","kind":"authentication","requires_tls":true},
   {"name":"reconnect","kind":"reconnect"}
 ]

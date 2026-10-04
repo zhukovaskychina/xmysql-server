@@ -41,19 +41,23 @@ const (
 
 // Transaction 表示一个事务
 type Transaction struct {
-	ID                 int64                 // 事务ID
-	State              uint8                 // 事务状态
-	IsolationLevel     uint8                 // 隔离级别
-	StartTime          time.Time             // 开始时间
-	LastActiveTime     time.Time             // 最后活跃时间
-	ReadView           *formatmvcc.ReadView  // MVCC读视图
-	purgeReadViewToken uint64                // UndoPurger registration token
-	UndoLogs           []UndoLogEntry        // Undo日志
-	RedoLogs           []RedoLogEntry        // Redo日志
-	IsReadOnly         bool                  // 是否只读事务
-	LockCount          int                   // 持有的锁数量
-	UndoLogSize        uint64                // Undo日志大小
-	Savepoints         map[string]*Savepoint // 保存点（新增）
+	ID                 int64                // 事务ID
+	State              uint8                // 事务状态
+	IsolationLevel     uint8                // 隔离级别
+	StartTime          time.Time            // 开始时间
+	LastActiveTime     time.Time            // 最后活跃时间
+	ReadView           *formatmvcc.ReadView // MVCC读视图
+	purgeReadViewToken uint64               // UndoPurger registration token
+	UndoLogs           []UndoLogEntry       // Undo日志
+	RedoLogs           []RedoLogEntry       // Redo日志
+	// CommitMetadata is an optional stable identity owned by the caller. It is
+	// copied into the physical commit record so higher-level recovery state can
+	// be correlated with the same WAL commit boundary.
+	CommitMetadata []byte
+	IsReadOnly     bool                  // 是否只读事务
+	LockCount      int                   // 持有的锁数量
+	UndoLogSize    uint64                // Undo日志大小
+	Savepoints     map[string]*Savepoint // 保存点（新增）
 }
 
 // Savepoint 保存点
@@ -291,7 +295,11 @@ func (tm *TransactionManager) Commit(trx *Transaction) error {
 	// its data records. Recovery uses this durable marker to distinguish a
 	// storage commit that was interrupted before the higher-level replication
 	// journal/GTID publication from an actually abandoned transaction.
-	if _, err := tm.redoManager.Append(&RedoLogEntry{TrxID: trx.ID, Type: LOG_TYPE_TXN_COMMIT}); err != nil {
+	if _, err := tm.redoManager.Append(&RedoLogEntry{
+		TrxID: trx.ID,
+		Type:  LOG_TYPE_TXN_COMMIT,
+		Data:  append([]byte(nil), trx.CommitMetadata...),
+	}); err != nil {
 		return err
 	}
 	// 确保Redo日志持久化

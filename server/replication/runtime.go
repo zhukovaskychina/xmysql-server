@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,12 +28,18 @@ const (
 )
 
 type RuntimeConfig struct {
-	Role       string
-	DataDir    string
-	UUID       string
-	ServerID   uint32
-	ListenAddr string
-	SourceURL  string
+	Role    string
+	DataDir string
+	// ChannelName is empty for the default replication channel. Named
+	// channels are owned by a parent runtime and use isolated state.
+	ChannelName string
+	UUID        string
+	ServerID    uint32
+	ListenAddr  string
+	SourceURL   string
+	// NativeEndpoint is the MySQL protocol endpoint advertised to peers after
+	// promotion. It is separate from ListenAddr, the replication HTTP endpoint.
+	NativeEndpoint string
 	// Peers contains the control-plane URLs of the other members in the
 	// replication group. It is only used by the guarded auto-failover path.
 	Peers           []string
@@ -54,6 +61,8 @@ type Runtime struct {
 	promotionMu           sync.Mutex
 	cfg                   RuntimeConfig
 	role                  string
+	channelName           string
+	channels              map[string]*Runtime
 	source                *Source
 	replica               *Replica
 	server                *http.Server
@@ -79,6 +88,7 @@ type Runtime struct {
 	nativeLastHeartbeatAt time.Time
 	nativeReplayFromFile  bool
 	membersPath           string
+	channelsPath          string
 	sourcePath            string
 	sourceIdentityPath    string
 	fencingPath           string
@@ -120,11 +130,13 @@ type binlogResponse struct {
 // StatusSnapshot is the stable operational view exposed through the HTTP and
 // SQL replication status surfaces.
 type StatusSnapshot struct {
+	ChannelName         string                    `json:"channel_name,omitempty"`
 	Role                string                    `json:"role"`
 	UUID                string                    `json:"uuid,omitempty"`
 	ServerID            uint32                    `json:"server_id,omitempty"`
 	ExecutedGTIDs       string                    `json:"executed_gtids,omitempty"`
 	SourceURL           string                    `json:"source_url,omitempty"`
+	NativeEndpoint      string                    `json:"native_endpoint,omitempty"`
 	SourceUser          string                    `json:"-"`
 	SourceUUID          string                    `json:"source_uuid,omitempty"`
 	SourceFile          string                    `json:"source_file,omitempty"`
@@ -151,6 +163,17 @@ type StatusSnapshot struct {
 	ReplicaRunningKnown bool                      `json:"-"`
 }
 
+func validateReplicationChannelName(channel string) error {
+	channel = strings.TrimSpace(channel)
+	if channel == "" {
+		return fmt.Errorf("replication channel name cannot be empty")
+	}
+	if len(channel) > 64 || strings.ContainsAny(channel, `/\\`) || strings.ContainsRune(channel, 0) || channel == "." || channel == ".." {
+		return fmt.Errorf("invalid replication channel name %q", channel)
+	}
+	return nil
+}
+
 type statusResponse = StatusSnapshot
 
 // MemberSnapshot is the control-plane view of one configured cluster member.
@@ -169,6 +192,10 @@ type membersResponse struct {
 
 type updateMembersRequest struct {
 	Peers []string `json:"peers"`
+}
+
+type persistedReplicationChannels struct {
+	Channels []string `json:"channels"`
 }
 
 func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
@@ -204,15 +231,26 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := validatePeersAgainstListenAddress(peers, cfg.ListenAddr); err != nil {
+		return nil, err
+	}
 	cfg.Peers = peers
 	r := &Runtime{
 		cfg:                cfg,
 		role:               cfg.Role,
+		channelName:        strings.TrimSpace(cfg.ChannelName),
+		channels:           make(map[string]*Runtime),
 		membersPath:        filepath.Join(cfg.DataDir, "replication", "members.json"),
+		channelsPath:       filepath.Join(cfg.DataDir, "replication", "channels.json"),
 		sourcePath:         filepath.Join(cfg.DataDir, "replication", "source.json"),
 		sourceIdentityPath: filepath.Join(cfg.DataDir, "replication", "source_identity.json"),
 		rolePath:           rolePath,
 		fencingPath:        filepath.Join(cfg.DataDir, "replication", "fencing.json"),
+	}
+	if r.channelName != "" {
+		if err := validateReplicationChannelName(r.channelName); err != nil {
+			return nil, err
+		}
 	}
 	if sourceUUID, err := loadPersistedSourceIdentity(r.sourceIdentityPath); err != nil {
 		return nil, err
@@ -229,6 +267,9 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	if persistedPeers, err := loadPersistedPeers(r.membersPath); err != nil {
 		return nil, err
 	} else if len(cfg.Peers) == 0 && len(persistedPeers) > 0 {
+		if err := validatePeersAgainstListenAddress(persistedPeers, cfg.ListenAddr); err != nil {
+			return nil, err
+		}
 		r.cfg.Peers = persistedPeers
 	}
 	if cfg.Role == RoleReplica && strings.TrimSpace(cfg.SourceURL) == "" {
@@ -255,8 +296,13 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 		replica.ApplyRowsWithID = cfg.ApplyRowsWithID
 		replica.ApplyStatementsWithID = cfg.ApplyWithID
 		r.replica = replica
-		if strings.TrimSpace(r.cfg.SourceURL) == "" {
+		if strings.TrimSpace(r.cfg.SourceURL) == "" && r.channelName == "" {
 			return nil, fmt.Errorf("replica source_url must be a valid URL: %q", r.cfg.SourceURL)
+		}
+		if strings.TrimSpace(r.cfg.SourceURL) == "" && r.channelName != "" {
+			// A named channel can be created before CHANGE REPLICATION SOURCE
+			// configures it. It remains inert until then.
+			return r, nil
 		}
 		parsed, err := url.Parse(r.cfg.SourceURL)
 		if err != nil || parsed.Host == "" {
@@ -301,7 +347,258 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 			return nil, fmt.Errorf("replica source_url must use http, https, or mysql scheme: %q", r.cfg.SourceURL)
 		}
 	}
+	if r.channelName == "" {
+		persistedChannels, err := loadPersistedReplicationChannels(r.channelsPath)
+		if err != nil {
+			return nil, err
+		}
+		for _, channel := range persistedChannels {
+			child, childErr := r.newChannelRuntime(channel)
+			if childErr != nil {
+				return nil, childErr
+			}
+			r.channels[channel] = child
+		}
+	}
 	return r, nil
+}
+
+func (r *Runtime) newChannelRuntime(channel string) (*Runtime, error) {
+	if err := validateReplicationChannelName(channel); err != nil {
+		return nil, err
+	}
+	return NewRuntime(RuntimeConfig{
+		Role:            RoleReplica,
+		DataDir:         filepath.Join(r.cfg.DataDir, "channels", channel),
+		ChannelName:     channel,
+		UUID:            r.cfg.UUID + "/" + channel,
+		ServerID:        r.cfg.ServerID,
+		NativeEndpoint:  r.cfg.NativeEndpoint,
+		Peers:           append([]string(nil), r.cfg.Peers...),
+		AutoFailover:    r.cfg.AutoFailover,
+		FailureTimeout:  r.cfg.FailureTimeout,
+		PollInterval:    r.cfg.PollInterval,
+		ApplyRows:       r.cfg.ApplyRows,
+		ApplyRowsWithID: r.cfg.ApplyRowsWithID,
+		Apply:           r.cfg.Apply,
+		ApplyWithID:     r.cfg.ApplyWithID,
+	})
+}
+
+func loadPersistedReplicationChannels(path string) ([]string, error) {
+	if path == "" {
+		return nil, nil
+	}
+	raw, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var persisted persistedReplicationChannels
+	if err := json.Unmarshal(raw, &persisted); err != nil {
+		return nil, fmt.Errorf("decode persisted replication channels: %w", err)
+	}
+	seen := make(map[string]struct{}, len(persisted.Channels))
+	channels := make([]string, 0, len(persisted.Channels))
+	for _, rawChannel := range persisted.Channels {
+		channel := strings.TrimSpace(rawChannel)
+		if err := validateReplicationChannelName(channel); err != nil {
+			return nil, err
+		}
+		if _, ok := seen[channel]; ok {
+			continue
+		}
+		seen[channel] = struct{}{}
+		channels = append(channels, channel)
+	}
+	sort.Strings(channels)
+	return channels, nil
+}
+
+func (r *Runtime) persistChannelNamesLocked(channels []string) error {
+	if r.channelsPath == "" {
+		return nil
+	}
+	copyChannels := append([]string(nil), channels...)
+	sort.Strings(copyChannels)
+	raw, err := json.MarshalIndent(persistedReplicationChannels{Channels: copyChannels}, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(r.channelsPath), 0755); err != nil {
+		return err
+	}
+	return writeReplicationFileAtomic(r.channelsPath, raw)
+}
+
+func (r *Runtime) channelRuntime(channel string) (*Runtime, error) {
+	if r == nil {
+		return nil, fmt.Errorf("replication runtime is nil")
+	}
+	channel = strings.TrimSpace(channel)
+	if channel == "" {
+		return r, nil
+	}
+	if err := validateReplicationChannelName(channel); err != nil {
+		return nil, err
+	}
+	r.mu.RLock()
+	child := r.channels[channel]
+	r.mu.RUnlock()
+	if child != nil {
+		return child, nil
+	}
+	child, err := r.newChannelRuntime(channel)
+	if err != nil {
+		return nil, err
+	}
+	r.mu.Lock()
+	if existing := r.channels[channel]; existing != nil {
+		r.mu.Unlock()
+		return existing, nil
+	}
+	channels := make([]string, 0, len(r.channels)+1)
+	for name := range r.channels {
+		channels = append(channels, name)
+	}
+	channels = append(channels, channel)
+	if err := r.persistChannelNamesLocked(channels); err != nil {
+		r.mu.Unlock()
+		return nil, err
+	}
+	r.channels[channel] = child
+	baseCtx := r.baseCtx
+	r.mu.Unlock()
+	if baseCtx != nil {
+		// Registering a channel after the parent has started creates its
+		// lifecycle context, but does not start the applier until START
+		// REPLICA FOR CHANNEL is issued.
+		ctx, cancel := context.WithCancel(baseCtx)
+		child.mu.Lock()
+		child.cancel = cancel
+		child.baseCtx = ctx
+		child.mu.Unlock()
+	}
+	return child, nil
+}
+
+func (r *Runtime) StatusForChannel(channel string) (StatusSnapshot, error) {
+	child, err := r.channelRuntime(channel)
+	if err != nil {
+		return StatusSnapshot{}, err
+	}
+	return child.Status(), nil
+}
+
+// ChannelStatuses returns the default channel followed by all configured
+// named channels. It is used by Performance Schema projections, where MySQL
+// exposes one row per replication channel rather than a single selected
+// channel. The returned snapshots are independent copies of runtime state.
+func (r *Runtime) ChannelStatuses() []StatusSnapshot {
+	if r == nil {
+		return nil
+	}
+	statuses := []StatusSnapshot{r.Status()}
+	r.mu.RLock()
+	names := make([]string, 0, len(r.channels))
+	for name := range r.channels {
+		names = append(names, name)
+	}
+	children := make(map[string]*Runtime, len(names))
+	for _, name := range names {
+		children[name] = r.channels[name]
+	}
+	r.mu.RUnlock()
+	sort.Strings(names)
+	for _, name := range names {
+		if child := children[name]; child != nil {
+			statuses = append(statuses, child.Status())
+		}
+	}
+	return statuses
+}
+
+func (r *Runtime) SourceForChannel(channel string) *Source {
+	child, err := r.channelRuntime(channel)
+	if err != nil {
+		return nil
+	}
+	return child.Source()
+}
+
+func (r *Runtime) ReplicaForChannel(channel string) *Replica {
+	child, err := r.channelRuntime(channel)
+	if err != nil {
+		return nil
+	}
+	return child.Replica()
+}
+
+func (r *Runtime) StartReplicaForChannel(channel string) error {
+	child, err := r.channelRuntime(channel)
+	if err != nil {
+		return err
+	}
+	if child == r {
+		return r.StartReplica()
+	}
+	child.mu.RLock()
+	started := child.baseCtx != nil && child.cancel != nil
+	child.mu.RUnlock()
+	if !started {
+		r.mu.RLock()
+		baseCtx := r.baseCtx
+		r.mu.RUnlock()
+		if baseCtx == nil {
+			return fmt.Errorf("replication runtime is not started")
+		}
+		if err := child.Start(baseCtx); err != nil {
+			return err
+		}
+	}
+	return child.StartReplica()
+}
+
+func (r *Runtime) StopReplicaForChannel(channel string) error {
+	child, err := r.channelRuntime(channel)
+	if err != nil {
+		return err
+	}
+	return child.StopReplica()
+}
+
+func (r *Runtime) ChangeSourceForChannel(channel, sourceURL string) error {
+	child, err := r.channelRuntime(channel)
+	if err != nil {
+		return err
+	}
+	return child.ChangeSource(sourceURL)
+}
+
+func (r *Runtime) ChangeReplicationFilterForChannel(channel string, config ReplicationFilterConfig) error {
+	child, err := r.channelRuntime(channel)
+	if err != nil {
+		return err
+	}
+	return child.ChangeReplicationFilter(config)
+}
+
+func (r *Runtime) ResetReplicaForChannel(channel string) error {
+	child, err := r.channelRuntime(channel)
+	if err != nil {
+		return err
+	}
+	return child.ResetReplica()
+}
+
+func (r *Runtime) ResetReplicaAllForChannel(channel string) error {
+	child, err := r.channelRuntime(channel)
+	if err != nil {
+		return err
+	}
+	return child.ResetReplicaAll()
 }
 
 func (r *Runtime) Start(ctx context.Context) error {
@@ -330,7 +627,20 @@ func (r *Runtime) Start(ctx context.Context) error {
 		}()
 	}
 	if r.role == RoleReplica {
-		if err := r.StartReplica(); err != nil {
+		if strings.TrimSpace(r.cfg.SourceURL) != "" {
+			if err := r.StartReplica(); err != nil {
+				return err
+			}
+		}
+	}
+	r.mu.RLock()
+	children := make([]*Runtime, 0, len(r.channels))
+	for _, child := range r.channels {
+		children = append(children, child)
+	}
+	r.mu.RUnlock()
+	for _, child := range children {
+		if err := child.Start(ctx); err != nil {
 			return err
 		}
 	}
@@ -348,6 +658,9 @@ func (r *Runtime) StartReplica() error {
 	defer r.mu.Unlock()
 	if r.role != RoleReplica || r.replica == nil {
 		return fmt.Errorf("only a replica runtime can start replication")
+	}
+	if strings.TrimSpace(r.cfg.SourceURL) == "" {
+		return fmt.Errorf("replication source is not configured")
 	}
 	if r.baseCtx == nil || r.cancel == nil {
 		return fmt.Errorf("replication runtime is not started")
@@ -426,16 +739,36 @@ func (r *Runtime) ChangeSource(sourceURL string) error {
 	} else if scheme != "http" && scheme != "https" {
 		return fmt.Errorf("source must be an absolute HTTP or MySQL URL: %q", sourceURL)
 	}
+	persistedSourceURL := redactNativeSourcePassword(sourceURL)
+	raw, err := json.MarshalIndent(persistedSourceConfig{SourceURL: persistedSourceURL}, "", "  ")
+	if err != nil {
+		return err
+	}
 	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.role != RoleReplica || r.replica == nil {
-		r.mu.Unlock()
 		return fmt.Errorf("only a replica runtime can change source")
 	}
 	if r.pollCancel != nil {
-		r.mu.Unlock()
 		return fmt.Errorf("stop replica before changing replication source")
 	}
-	persistedSourceURL := redactNativeSourcePassword(sourceURL)
+	oldSourceURL := r.cfg.SourceURL
+	path := r.sourcePath
+	identityPath := r.sourceIdentityPath
+	if path != "" {
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			return err
+		}
+		if err := writeReplicationFileAtomic(path, raw); err != nil {
+			return err
+		}
+	}
+	if err := persistSourceIdentity(identityPath, ""); err != nil {
+		if path != "" {
+			_ = persistSourceConfig(path, redactNativeSourcePassword(oldSourceURL))
+		}
+		return err
+	}
 	r.cfg.SourceURL = persistedSourceURL
 	r.lastSourceFailure = time.Time{}
 	r.lastErr = ""
@@ -452,23 +785,7 @@ func (r *Runtime) ChangeSource(sourceURL string) error {
 	r.nativeLastHeartbeatAt = time.Time{}
 	r.nativeSource = native
 	r.nativeConfig = nativeConfig
-	path := r.sourcePath
-	identityPath := r.sourceIdentityPath
-	r.mu.Unlock()
-	if path == "" {
-		return nil
-	}
-	raw, err := json.MarshalIndent(persistedSourceConfig{SourceURL: persistedSourceURL}, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return err
-	}
-	if err := writeReplicationFileAtomic(path, raw); err != nil {
-		return err
-	}
-	return persistSourceIdentity(identityPath, "")
+	return nil
 }
 
 // ChangeReplicationFilter replaces the replica-side filter set while the
@@ -591,7 +908,17 @@ func (r *Runtime) Close() error {
 	cancel := r.cancel
 	server := r.server
 	done := r.pollDone
+	children := make([]*Runtime, 0, len(r.channels))
+	for _, child := range r.channels {
+		children = append(children, child)
+	}
 	r.mu.RUnlock()
+	var childErr error
+	for _, child := range children {
+		if err := child.Close(); err != nil && childErr == nil {
+			childErr = err
+		}
+	}
 	if cancel != nil {
 		cancel()
 	}
@@ -609,6 +936,9 @@ func (r *Runtime) Close() error {
 				shutdownErr = fmt.Errorf("replication poll did not stop before runtime close timeout")
 			}
 		}
+	}
+	if shutdownErr == nil {
+		shutdownErr = childErr
 	}
 	return shutdownErr
 }
@@ -954,12 +1284,23 @@ func (r *Runtime) acquirePromotionFence(ctx context.Context) error {
 		}
 		localEpoch++
 		r.mu.Lock()
+		if r.fenced && r.fencedBy != "" && r.fencedBy != localUUID {
+			fencedBy := r.fencedBy
+			r.mu.Unlock()
+			return fmt.Errorf("promotion fencing lost to %s", fencedBy)
+		}
+		previousEpoch, previousFenced, previousBy := r.fencingEpoch, r.fenced, r.fencedBy
 		r.fencingEpoch = localEpoch
 		r.fenced = false
 		r.fencedBy = ""
 		path := r.fencingPath
+		if err := persistFencing(path, persistedFencingState{Epoch: localEpoch}); err != nil {
+			r.fencingEpoch, r.fenced, r.fencedBy = previousEpoch, previousFenced, previousBy
+			r.mu.Unlock()
+			return err
+		}
 		r.mu.Unlock()
-		return persistFencing(path, persistedFencingState{Epoch: localEpoch})
+		return nil
 	}
 
 	client := &http.Client{Timeout: 750 * time.Millisecond}
@@ -1011,12 +1352,27 @@ func (r *Runtime) acquirePromotionFence(ctx context.Context) error {
 		return fmt.Errorf("fencing quorum not reached: acknowledged %d of %d peers", acknowledged, len(peers))
 	}
 	r.mu.Lock()
+	if r.fencingEpoch > epoch || (r.fenced && r.fencedBy != "" && r.fencedBy != localUUID) {
+		fencedBy := r.fencedBy
+		currentEpoch := r.fencingEpoch
+		r.mu.Unlock()
+		if fencedBy != "" {
+			return fmt.Errorf("promotion fencing lost to %s at epoch %d", fencedBy, currentEpoch)
+		}
+		return fmt.Errorf("promotion fencing epoch advanced to %d", currentEpoch)
+	}
+	previousEpoch, previousFenced, previousBy := r.fencingEpoch, r.fenced, r.fencedBy
 	r.fencingEpoch = epoch
 	r.fenced = false
 	r.fencedBy = ""
 	path := r.fencingPath
+	if err := persistFencing(path, persistedFencingState{Epoch: epoch}); err != nil {
+		r.fencingEpoch, r.fenced, r.fencedBy = previousEpoch, previousFenced, previousBy
+		r.mu.Unlock()
+		return err
+	}
 	r.mu.Unlock()
-	return persistFencing(path, persistedFencingState{Epoch: epoch})
+	return nil
 }
 
 func (r *Runtime) applyFence(request fenceRequest) error {
@@ -1025,32 +1381,32 @@ func (r *Runtime) applyFence(request fenceRequest) error {
 		return fmt.Errorf("fence request requires epoch and candidate_uuid")
 	}
 	r.mu.Lock()
+	defer r.mu.Unlock()
 	if request.Epoch < r.fencingEpoch {
-		r.mu.Unlock()
 		return fmt.Errorf("stale fencing epoch")
 	}
 	if request.Epoch == r.fencingEpoch && r.fenced {
 		if request.CandidateUUID >= r.fencedBy {
-			r.mu.Unlock()
 			return fmt.Errorf("fencing epoch already owned by %s", r.fencedBy)
 		}
 	}
 	if request.Epoch == r.fencingEpoch && !r.fenced {
 		if request.CandidateUUID == r.cfg.UUID {
-			r.mu.Unlock()
 			return nil
 		}
 		if request.CandidateUUID >= r.cfg.UUID {
-			r.mu.Unlock()
 			return fmt.Errorf("fencing epoch already owned by %s", r.cfg.UUID)
 		}
 	}
+	previousEpoch, previousFenced, previousBy := r.fencingEpoch, r.fenced, r.fencedBy
 	r.fencingEpoch = request.Epoch
 	r.fenced = true
 	r.fencedBy = request.CandidateUUID
-	path := r.fencingPath
-	r.mu.Unlock()
-	return persistFencing(path, persistedFencingState{Epoch: request.Epoch, Fenced: true, By: request.CandidateUUID})
+	if err := persistFencing(r.fencingPath, persistedFencingState{Epoch: request.Epoch, Fenced: true, By: request.CandidateUUID}); err != nil {
+		r.fencingEpoch, r.fenced, r.fencedBy = previousEpoch, previousFenced, previousBy
+		return err
+	}
+	return nil
 }
 
 func nextSequence(set GTIDSet, uuid string) uint64 {
@@ -1068,10 +1424,12 @@ func (r *Runtime) Status() StatusSnapshot {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	status := statusResponse{
+		ChannelName:        r.channelName,
 		Role:               r.role,
 		UUID:               r.cfg.UUID,
 		ServerID:           r.cfg.ServerID,
 		SourceURL:          publicSourceURL(r.cfg.SourceURL),
+		NativeEndpoint:     strings.TrimRight(strings.TrimSpace(r.cfg.NativeEndpoint), "/"),
 		SourceUUID:         r.nativeSourceUUID,
 		SourceAutoPosition: r.nativeSource != nil && r.nativeConfig.GTIDAutoPosition,
 		ReceivedHeartbeats: r.nativeHeartbeatCount,
@@ -1280,21 +1638,37 @@ func (r *Runtime) UpdatePeers(peers []string) error {
 	if err != nil {
 		return err
 	}
-	r.mu.Lock()
-	r.cfg.Peers = normalized
-	path := r.membersPath
-	r.mu.Unlock()
-	if path == "" {
-		return nil
+	r.mu.RLock()
+	listenAddr := r.cfg.ListenAddr
+	if r.listener != nil {
+		listenAddr = r.listener.Addr().String()
+	}
+	r.mu.RUnlock()
+	if err := validatePeersAgainstListenAddress(normalized, listenAddr); err != nil {
+		return err
 	}
 	raw, err := json.MarshalIndent(normalized, "", "  ")
 	if err != nil {
 		return err
 	}
+	r.mu.Lock()
+	path := r.membersPath
+	if path == "" {
+		r.cfg.Peers = normalized
+		r.mu.Unlock()
+		return nil
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		r.mu.Unlock()
 		return err
 	}
-	return writeReplicationFileAtomic(path, raw)
+	if err := writeReplicationFileAtomic(path, raw); err != nil {
+		r.mu.Unlock()
+		return err
+	}
+	r.cfg.Peers = normalized
+	r.mu.Unlock()
+	return nil
 }
 
 // Members probes the current peer set and returns the same view used by
@@ -1358,6 +1732,29 @@ func normalizePeers(peers []string) ([]string, error) {
 	return result, nil
 }
 
+// validatePeersAgainstListenAddress prevents a node from counting its own
+// control endpoint as a remote member. A self peer would inflate the quorum
+// denominator while reporting the local node as reachable, which can make an
+// isolated replica appear to have a majority during automatic failover.
+// Host aliases cannot be proven equivalent without service discovery, so this
+// intentionally rejects exact configured/listener endpoint matches only.
+func validatePeersAgainstListenAddress(peers []string, listenAddr string) error {
+	listenAddr = strings.TrimRight(strings.TrimSpace(listenAddr), "/")
+	if listenAddr == "" {
+		return nil
+	}
+	for _, peer := range peers {
+		parsed, err := url.Parse(peer)
+		if err != nil {
+			continue
+		}
+		if parsed.Host == listenAddr {
+			return fmt.Errorf("peer %q cannot include local replication endpoint %q", peer, listenAddr)
+		}
+	}
+	return nil
+}
+
 func loadPersistedPeers(path string) ([]string, error) {
 	if path == "" {
 		return nil, nil
@@ -1409,6 +1806,20 @@ func (r *Runtime) persistNativeSourceIdentity(sourceUUID string) error {
 	path := r.sourceIdentityPath
 	r.mu.RUnlock()
 	return persistSourceIdentity(path, sourceUUID)
+}
+
+func persistSourceConfig(path, sourceURL string) error {
+	if strings.TrimSpace(path) == "" {
+		return nil
+	}
+	raw, err := json.MarshalIndent(persistedSourceConfig{SourceURL: strings.TrimRight(strings.TrimSpace(sourceURL), "/")}, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	return writeReplicationFileAtomic(path, raw)
 }
 
 func persistSourceIdentity(path, sourceUUID string) error {
@@ -1667,11 +2078,12 @@ func (r *Runtime) pullNativeOnce(ctx context.Context, position *uint64) error {
 		persistedGTIDs := nativeMySQLGTIDSet(executed)
 		if persistedGTIDs != "" {
 			nativeConfig.GTIDSet = persistedGTIDs
-			// A file-position URL is useful for the initial attach, but once
-			// the replica has a durable native GTID set, reconnects should use
-			// COM_BINLOG_DUMP_GTID. This avoids replaying stale ROTATE_EVENT
-			// preambles and makes the next pull independent of file retention.
-			nativeConfig.GTIDAutoPosition = true
+			// A persisted source file/position is the precise recovery boundary.
+			// Prefer it when available: COM_BINLOG_DUMP_GTID with an empty file
+			// name may replay a large non-GTID history before reaching the next
+			// transaction, so a bounded pull can reconnect at the same old
+			// preamble forever. Keep the durable GTID set for stale-file fallback.
+			nativeConfig.GTIDAutoPosition = !nativeRecoveryUsesPersistedFilePosition(sourceFile, storedPosition, false)
 		} else if !(nativeConfig.GTIDAutoPosition && strings.TrimSpace(nativeConfig.GTIDSet) != "") {
 			// Preserve an explicitly configured GTID baseline on first attach.
 			// It is needed when the source has already executed initialization
@@ -1684,6 +2096,7 @@ func (r *Runtime) pullNativeOnce(ctx context.Context, position *uint64) error {
 		// GTID already present in nativeRelayEvents. Resume by file/position
 		// until the relay transaction closes, then switch back to GTID mode.
 		nativeConfig.GTIDSet = ""
+		nativeConfig.GTIDAutoPosition = false
 	}
 	if nativeConfig.GTIDAutoPosition && nativeConfig.GTIDSet != "" && !nativeRelayPending {
 		r.mu.Lock()
@@ -1875,6 +2288,10 @@ func nativeHeartbeatFrameCount(frames []NativeBinlogEvent) uint64 {
 	return count
 }
 
+func nativeRecoveryUsesPersistedFilePosition(sourceFile string, storedPosition uint64, nativeRelayPending bool) bool {
+	return !nativeRelayPending && strings.TrimSpace(sourceFile) != "" && storedPosition >= 4
+}
+
 func nativeFramesWithoutHeartbeats(frames []NativeBinlogEvent) []NativeBinlogEvent {
 	filtered := make([]NativeBinlogEvent, 0, len(frames))
 	for _, frame := range frames {
@@ -1975,6 +2392,7 @@ func (r *Runtime) shouldAutoFailover() bool {
 type peerStatus struct {
 	StatusSnapshot
 	Reachable bool
+	URL       string
 }
 
 // tryAutoPromote implements a deliberately conservative single-winner
@@ -1989,9 +2407,6 @@ func (r *Runtime) tryAutoPromote(ctx context.Context) error {
 	local := StatusSnapshot{Role: r.role, UUID: r.cfg.UUID, ServerID: r.cfg.ServerID, Promotable: r.role == RoleReplica && !r.fenced, Fenced: r.fenced, FencingEpoch: r.fencingEpoch}
 	totalMembers := len(peers) + 1
 	r.mu.RUnlock()
-	if local.Fenced {
-		return nil
-	}
 	if len(peers) == 0 {
 		return fmt.Errorf("automatic failover requires configured peers")
 	}
@@ -2018,10 +2433,24 @@ func (r *Runtime) tryAutoPromote(ctx context.Context) error {
 		if resp.StatusCode != http.StatusOK || decodeErr != nil {
 			continue
 		}
-		statuses = append(statuses, peerStatus{StatusSnapshot: status, Reachable: true})
+		statuses = append(statuses, peerStatus{StatusSnapshot: status, Reachable: true, URL: peer})
 		if status.Role == RoleSource && !status.Fenced {
 			sourceSeen = true
 		}
+	}
+	if sourceSeen {
+		for _, observed := range statuses[1:] {
+			if observed.Role != RoleSource || observed.Fenced || strings.TrimSpace(observed.URL) == "" {
+				continue
+			}
+			if err := r.repointSourceDuringPoll(observed); err != nil {
+				return err
+			}
+			return nil
+		}
+	}
+	if local.Fenced {
+		return nil
 	}
 	quorum := totalMembers/2 + 1
 	if len(statuses) < quorum || sourceSeen {
@@ -2041,6 +2470,174 @@ func (r *Runtime) tryAutoPromote(ctx context.Context) error {
 		return nil
 	}
 	return r.Promote()
+}
+
+// repointSourceDuringPoll updates a running replica's source after a peer has
+// been promoted. The normal ChangeSource API intentionally requires STOP
+// REPLICA first; the poll loop is already the serialization point here, so
+// waiting for itself would deadlock. The durable relay/GTID state remains
+// untouched and makes the new source resume idempotently.
+func (r *Runtime) repointSourceDuringPoll(observed peerStatus) error {
+	r.mu.RLock()
+	native := r.nativeSource != nil || r.nativeConfig.Host != ""
+	currentSourceURL := r.cfg.SourceURL
+	nativeConfig := r.nativeConfig
+	r.mu.RUnlock()
+	if native {
+		return r.repointNativeSourceDuringPoll(observed.StatusSnapshot.NativeEndpoint, currentSourceURL, nativeConfig)
+	}
+	return r.repointHTTPSourceDuringPoll(observed.URL)
+}
+
+func (r *Runtime) repointHTTPSourceDuringPoll(sourceURL string) error {
+	sourceURL = strings.TrimRight(strings.TrimSpace(sourceURL), "/")
+	parsed, err := url.ParseRequestURI(sourceURL)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return fmt.Errorf("automatic source repoint requires an absolute HTTP URL: %q", sourceURL)
+	}
+	r.mu.Lock()
+	if r.role != RoleReplica || r.replica == nil {
+		r.mu.Unlock()
+		return fmt.Errorf("automatic source repoint requires a replica runtime")
+	}
+	if r.nativeSource != nil || r.nativeConfig.Host != "" {
+		r.mu.Unlock()
+		return fmt.Errorf("automatic source repoint for native MySQL sources requires a native source endpoint")
+	}
+	if strings.TrimRight(strings.TrimSpace(r.cfg.SourceURL), "/") == sourceURL {
+		r.lastSourceFailure = time.Time{}
+		r.mu.Unlock()
+		return nil
+	}
+	r.cfg.SourceURL = sourceURL
+	r.lastSourceFailure = time.Time{}
+	r.lastErr = ""
+	r.lastErrorNumber = 0
+	r.lastErrorAt = time.Time{}
+	r.lastIOError = ""
+	r.lastIOErrorNumber = 0
+	r.lastIOErrorAt = time.Time{}
+	r.lastSQLError = ""
+	r.lastSQLErrorNumber = 0
+	r.lastSQLErrorAt = time.Time{}
+	path := r.sourcePath
+	r.mu.Unlock()
+	if path == "" {
+		return nil
+	}
+	raw, err := json.MarshalIndent(persistedSourceConfig{SourceURL: sourceURL}, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	return writeReplicationFileAtomic(path, raw)
+}
+
+func (r *Runtime) repointNativeSourceDuringPoll(endpoint, currentSourceURL string, current MySQLBinlogSourceConfig) error {
+	endpoint = strings.TrimRight(strings.TrimSpace(endpoint), "/")
+	parsedEndpoint, err := url.ParseRequestURI(endpoint)
+	if err != nil || parsedEndpoint.Host == "" || !strings.EqualFold(parsedEndpoint.Scheme, "mysql") {
+		return fmt.Errorf("automatic native source repoint requires a MySQL endpoint: %q", endpoint)
+	}
+	parsedCurrent, err := url.Parse(strings.TrimSpace(currentSourceURL))
+	if err != nil || !strings.EqualFold(parsedCurrent.Scheme, "mysql") {
+		return fmt.Errorf("automatic native source repoint has an invalid current source: %q", currentSourceURL)
+	}
+	if current.User != "" {
+		if current.Password != "" {
+			parsedEndpoint.User = url.UserPassword(current.User, current.Password)
+		} else {
+			parsedEndpoint.User = url.User(current.User)
+		}
+	}
+	parsedEndpoint.RawQuery = parsedCurrent.RawQuery
+	sourceURL := strings.TrimRight(parsedEndpoint.String(), "/")
+	config, err := ParseMySQLBinlogSourceURL(sourceURL, current.ServerID)
+	if err != nil {
+		return err
+	}
+	config.BinlogFile = current.BinlogFile
+	config.BinlogPosition = current.BinlogPosition
+	config.GTIDSet = current.GTIDSet
+	config.GTIDAutoPosition = current.GTIDAutoPosition
+	config.TLSConfig = current.TLSConfig
+	native, err := NewMySQLBinlogSource(config)
+	if err != nil {
+		return err
+	}
+
+	persistedSourceURL := redactNativeSourcePassword(sourceURL)
+	r.mu.RLock()
+	if r.role != RoleReplica || r.replica == nil {
+		r.mu.RUnlock()
+		return fmt.Errorf("automatic native source repoint requires a replica runtime")
+	}
+	oldSourceURL := r.cfg.SourceURL
+	oldSourceUUID := r.nativeSourceUUID
+	path := r.sourcePath
+	identityPath := r.sourceIdentityPath
+	r.mu.RUnlock()
+
+	// Publish neither the endpoint nor the native source until both durable
+	// files are updated. The source file is written first, matching
+	// CHANGE REPLICATION SOURCE; if identity cleanup fails, restore the old
+	// source URL so a failed repoint cannot split current and restart state.
+	if err := persistReplicationSourceURL(path, persistedSourceURL); err != nil {
+		return err
+	}
+	if err := persistSourceIdentity(identityPath, ""); err != nil {
+		restoreErr := persistReplicationSourceURL(path, redactNativeSourcePassword(oldSourceURL))
+		if restoreErr != nil {
+			return fmt.Errorf("persist native source identity: %w; restore source URL: %v", err, restoreErr)
+		}
+		return err
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.role != RoleReplica || r.replica == nil {
+		_ = persistReplicationSourceURL(path, redactNativeSourcePassword(oldSourceURL))
+		_ = persistSourceIdentity(identityPath, oldSourceUUID)
+		return fmt.Errorf("automatic native source repoint requires a replica runtime")
+	}
+	if r.cfg.SourceURL != oldSourceURL {
+		_ = persistReplicationSourceURL(path, redactNativeSourcePassword(r.cfg.SourceURL))
+		_ = persistSourceIdentity(identityPath, r.nativeSourceUUID)
+		return fmt.Errorf("automatic native source repoint superseded by another source change")
+	}
+	r.cfg.SourceURL = persistedSourceURL
+	r.nativeSource = native
+	r.nativeConfig = config
+	r.lastSourceFailure = time.Time{}
+	r.lastErr = ""
+	r.lastErrorNumber = 0
+	r.lastErrorAt = time.Time{}
+	r.lastIOError = ""
+	r.lastIOErrorNumber = 0
+	r.lastIOErrorAt = time.Time{}
+	r.lastSQLError = ""
+	r.lastSQLErrorNumber = 0
+	r.lastSQLErrorAt = time.Time{}
+	r.nativeSourceUUID = ""
+	r.nativeHeartbeatCount = 0
+	r.nativeLastHeartbeatAt = time.Time{}
+	return nil
+}
+
+func persistReplicationSourceURL(path, sourceURL string) error {
+	if path == "" {
+		return nil
+	}
+	raw, err := json.MarshalIndent(persistedSourceConfig{SourceURL: sourceURL}, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	return writeReplicationFileAtomic(path, raw)
 }
 
 func failoverCandidateLess(left, right StatusSnapshot) bool {

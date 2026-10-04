@@ -41,6 +41,10 @@ func (e *XMySQLExecutor) beginReplicationStorageTransaction(session server.MySQL
 	if !ok || shared == nil {
 		return fmt.Errorf("replication storage transaction has unexpected type %T", txn)
 	}
+	transactionID := strings.TrimSpace(fmt.Sprint(session.GetParamByName("replication_transaction_id")))
+	if transactionID != "" && transactionID != "<nil>" && shared.RealTransaction != nil {
+		shared.RealTransaction.CommitMetadata = []byte(transactionID)
+	}
 	session.SetParamByName(replicationStorageTransactionContextKey, shared)
 	return nil
 }
@@ -60,6 +64,36 @@ func (e *XMySQLExecutor) commitReplicationStorageTransaction(session server.MySQ
 	commitContext := transactionContextForSession(context.Background(), session)
 	commitContext = context.WithValue(commitContext, replicationStorageTransactionContextKey, nil)
 	transactionID := strings.TrimSpace(fmt.Sprint(session.GetParamByName("replication_transaction_id")))
+	finalizeCommitted := func() error {
+		if transactionID == "" || transactionID == "<nil>" {
+			session.SetParamByName(replicationStorageTransactionContextKey, nil)
+			return nil
+		}
+		// The physical commit has already completed. A retry must only finish
+		// the journal/marker publication boundary; calling TransactionManager
+		// Commit again would reject the already-COMMITTED transaction.
+		if err := e.persistReplicationCommitRecord(transactionID); err != nil {
+			return fmt.Errorf("persist replication commit record on retry: %w", err)
+		}
+		if err := e.syncTransactionJournal(session); err != nil {
+			return fmt.Errorf("sync replication commit record on retry: %w", err)
+		}
+		if err := e.markReplicationTransactionCommitted(transactionID); err != nil {
+			return err
+		}
+		session.SetParamByName(replicationStorageTransactionContextKey, nil)
+		return nil
+	}
+	if shared.Status == "COMMITTED" {
+		return finalizeCommitted()
+	}
+	// The physical redo commit must not outrun the transaction journal that
+	// contains the row images/statements needed to republish after a crash.
+	// The later post-commit barrier records the committed boundary; this
+	// pre-commit sync makes the input for that recovery decision durable first.
+	if err := e.syncTransactionJournal(session); err != nil {
+		return fmt.Errorf("sync replication transaction journal before storage commit: %w", err)
+	}
 	postCommitBarrierCompleted := false
 	shared.AfterRealCommit = func(_ *StorageTransactionContext) error {
 		if transactionID == "" || transactionID == "<nil>" {
@@ -139,14 +173,30 @@ func (e *XMySQLExecutor) commitClientStorageTransaction(session server.MySQLServ
 	commitContext = context.WithValue(commitContext, clientStorageTransactionContextKey, nil)
 	commitContext = context.WithValue(commitContext, storageTransactionSessionContextKey, nil)
 	commitContext = context.WithValue(commitContext, storageTransactionForceCommitContextKey, true)
+	// Persist the recovery input before TransactionManager.Commit can make the
+	// storage changes authoritative. If the process dies between the physical
+	// commit and the replication append, recovery must still have the complete
+	// row/statement journal available for idempotent republishing.
+	if err := e.syncTransactionJournal(session); err != nil {
+		return fmt.Errorf("sync client transaction journal before storage commit: %w", err)
+	}
 	postCommitBarrierCompleted := false
+	commitIdentity := strings.TrimSpace(fmt.Sprint(session.GetParamByName("xa_xid")))
+	if commitIdentity == "" || commitIdentity == "<nil>" {
+		if state := e.sessionTransactionState(session); state != nil {
+			commitIdentity = strings.TrimSpace(state.CommitKey)
+		}
+	}
+	if shared.RealTransaction != nil && commitIdentity != "" && commitIdentity != "<nil>" {
+		shared.RealTransaction.CommitMetadata = []byte(commitIdentity)
+	}
 	shared.AfterRealCommit = func(_ *StorageTransactionContext) error {
 		state := e.sessionTransactionState(session)
 		if state == nil || len(state.Changes) == 0 || strings.TrimSpace(state.CommitKey) == "" {
 			postCommitBarrierCompleted = true
 			return nil
 		}
-		if err := e.persistTransactionCommitRecord(e.transactionJournalID(session), state.CommitKey, state.Statements); err != nil {
+		if err := e.persistTransactionCommitRecord(e.transactionJournalID(session), commitIdentity, state.Statements); err != nil {
 			return err
 		}
 		if err := e.syncTransactionJournal(session); err != nil {
@@ -188,7 +238,7 @@ func (e *XMySQLExecutor) commitClientStorageTransaction(session server.MySQLServ
 			// same journal before invoking the external binlog/GTID publisher;
 			// a process restart must not undo committed pages merely because
 			// the publisher returned an error afterward.
-			if err := e.persistTransactionCommitRecord(e.transactionJournalID(session), state.CommitKey, state.Statements); err != nil {
+			if err := e.persistTransactionCommitRecord(e.transactionJournalID(session), commitIdentity, state.Statements); err != nil {
 				return err
 			}
 			if err := e.syncTransactionJournal(session); err != nil {

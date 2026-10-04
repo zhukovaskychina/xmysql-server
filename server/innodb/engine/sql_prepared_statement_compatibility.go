@@ -105,6 +105,9 @@ func (m *sqlPreparedStatementManager) RecordExecution(name string, stats compati
 	statement.RowsAffected += stats.RowsAffected
 	statement.RowsSent += stats.RowsSent
 	statement.RowsExamined += stats.RowsExamined
+	if stats.CPUTimeCaptured {
+		statement.CPUTimeTotal += stats.CPUTime
+	}
 	return nil
 }
 
@@ -230,6 +233,7 @@ func (e *XMySQLExecutor) executeSQLPreparedStatementCompatibility(ctx *Execution
 			Duration: time.Since(startedAt), Failed: failed, Warnings: uint64(maxInt64(0, warnings)),
 			RowsAffected: uint64(maxInt64(0, rowsAffected)), RowsSent: uint64(maxInt64(0, rowsSent)),
 			RowsExamined: uint64(maxInt64(0, nestedContext.statementRowsExamined.Load())),
+			CPUTime:      uint64(maxInt64(0, nestedContext.statementCPUTime.Load())), CPUTimeCaptured: nestedContext.statementCPUTimeCaptured.Load(),
 		})
 		return true, nil
 	}

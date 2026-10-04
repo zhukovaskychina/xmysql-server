@@ -162,6 +162,22 @@ func TestErrorHelper_CreateErrorMessage(t *testing.T) {
 	})
 }
 
+func TestClassifyGoErrorMapsMissingTableVariantsToMySQL1146(t *testing.T) {
+	for _, message := range []string{
+		"table 'mysql.missing' doesn't exist",
+		"execute query failed: table 'mysql.missing' not found",
+		"[engine][execute-select] code=E_UNKNOWN: execute SELECT failed: table 'mysql.missing' not found",
+	} {
+		err := ClassifyGoError(errors.New(message))
+		if err.Code != common.ER_NO_SUCH_TABLE {
+			t.Fatalf("ClassifyGoError(%q) code = %d, want %d", message, err.Code, common.ER_NO_SUCH_TABLE)
+		}
+		if err.State != "42S02" {
+			t.Fatalf("ClassifyGoError(%q) state = %q, want 42S02", message, err.State)
+		}
+	}
+}
+
 func TestErrorHelper_CommonErrors(t *testing.T) {
 	helper := NewErrorHelper()
 

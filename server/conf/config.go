@@ -39,6 +39,13 @@ type Cfg struct {
 	AppName     string
 	// 开发环境认证开关：true=免密（跳过口令校验），false=执行真实口令校验
 	DevBypassPasswordAuth bool
+	// MySQL protocol-level TLS configuration. The server advertises CLIENT_SSL
+	// only when a certificate and key can be loaded successfully.
+	TLSEnabled           bool
+	TLSCertificateFile   string
+	TLSKeyFile           string
+	TLSCAFile            string
+	TLSRequireClientCert bool
 
 	ProfilePort int
 	// session
@@ -77,14 +84,19 @@ type Cfg struct {
 	InnodbCompression         InnodbCompressionConfig
 
 	// replication / cluster (P1: one source, many replicas)
-	ReplicationRole                 string `default:"standalone" yaml:"replication_role" json:"replication_role,omitempty"`
-	ReplicationUUID                 string `default:"" yaml:"replication_uuid" json:"replication_uuid,omitempty"`
-	ReplicationServerID             uint32 `default:"1" yaml:"replication_server_id" json:"replication_server_id,omitempty"`
-	ReplicationListenAddress        string `default:"" yaml:"replication_listen_address" json:"replication_listen_address,omitempty"`
-	ReplicationSourceURL            string `default:"" yaml:"replication_source_url" json:"replication_source_url,omitempty"`
-	ReplicationPollInterval         string `default:"500ms" yaml:"replication_poll_interval" json:"replication_poll_interval,omitempty"`
-	ReplicationPollIntervalDuration time.Duration
-	ReplicationReadOnly             bool `default:"true" yaml:"replication_read_only" json:"replication_read_only,omitempty"`
+	ReplicationRole                   string   `default:"standalone" yaml:"replication_role" json:"replication_role,omitempty"`
+	ReplicationUUID                   string   `default:"" yaml:"replication_uuid" json:"replication_uuid,omitempty"`
+	ReplicationServerID               uint32   `default:"1" yaml:"replication_server_id" json:"replication_server_id,omitempty"`
+	ReplicationListenAddress          string   `default:"" yaml:"replication_listen_address" json:"replication_listen_address,omitempty"`
+	ReplicationSourceURL              string   `default:"" yaml:"replication_source_url" json:"replication_source_url,omitempty"`
+	ReplicationNativeEndpoint         string   `default:"" yaml:"replication_native_endpoint" json:"replication_native_endpoint,omitempty"`
+	ReplicationPeers                  []string `default:"" yaml:"replication_peers" json:"replication_peers,omitempty"`
+	ReplicationAutoFailover           bool     `default:"false" yaml:"replication_auto_failover" json:"replication_auto_failover,omitempty"`
+	ReplicationFailureTimeout         string   `default:"5s" yaml:"replication_failure_timeout" json:"replication_failure_timeout,omitempty"`
+	ReplicationFailureTimeoutDuration time.Duration
+	ReplicationPollInterval           string `default:"500ms" yaml:"replication_poll_interval" json:"replication_poll_interval,omitempty"`
+	ReplicationPollIntervalDuration   time.Duration
+	ReplicationReadOnly               bool `default:"true" yaml:"replication_read_only" json:"replication_read_only,omitempty"`
 
 	// session tcp parameters
 	MySQLSessionParam MySQLSessionParam `required:"true" yaml:"getty_session_param" json:"getty_session_param,omitempty"`
@@ -165,11 +177,13 @@ func NewCfg() *Cfg {
 			Level:     6,
 			AllSpaces: true,
 		},
-		ReplicationRole:                 "standalone",
-		ReplicationServerID:             1,
-		ReplicationPollInterval:         "500ms",
-		ReplicationPollIntervalDuration: 500 * time.Millisecond,
-		ReplicationReadOnly:             true,
+		ReplicationRole:                   "standalone",
+		ReplicationServerID:               1,
+		ReplicationFailureTimeout:         "5s",
+		ReplicationFailureTimeoutDuration: 5 * time.Second,
+		ReplicationPollInterval:           "500ms",
+		ReplicationPollIntervalDuration:   500 * time.Millisecond,
+		ReplicationReadOnly:               true,
 	}
 }
 
@@ -262,6 +276,11 @@ func (cfg *Cfg) parseMysqldCfg(section *ini.Section) *Cfg {
 		logger.Warnf("安全策略异常: 非本地监听下不允许开启 dev_bypass_password_auth，已关闭该配置")
 		cfg.DevBypassPasswordAuth = false
 	}
+	cfg.TLSEnabled = parseBool(section, "ssl", cfg.TLSEnabled)
+	cfg.TLSCertificateFile = parseOptionalString(section, "ssl-cert")
+	cfg.TLSKeyFile = parseOptionalString(section, "ssl-key")
+	cfg.TLSCAFile = parseOptionalString(section, "ssl-ca")
+	cfg.TLSRequireClientCert = parseBool(section, "ssl_require_client_cert", cfg.TLSRequireClientCert)
 
 	cfg.Port = parseInt(section, "port", 3307)
 	cfg.BaseDir = parseString(section, "basedir", cfg.BaseDir)
@@ -285,6 +304,13 @@ func parseString(section *ini.Section, key string, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+func parseOptionalString(section *ini.Section, key string) string {
+	if section == nil {
+		return ""
+	}
+	return strings.TrimSpace(section.Key(key).String())
 }
 
 func parseInt(section *ini.Section, key string, defaultValue int) int {
@@ -586,6 +612,11 @@ func (cfg *Cfg) parseReplicationCfg(section *ini.Section) *Cfg {
 	}
 	cfg.ReplicationListenAddress = parseString(section, "listen_address", cfg.ReplicationListenAddress)
 	cfg.ReplicationSourceURL = parseString(section, "source_url", cfg.ReplicationSourceURL)
+	cfg.ReplicationNativeEndpoint = parseString(section, "native_endpoint", cfg.ReplicationNativeEndpoint)
+	cfg.ReplicationPeers = parseReplicationPeers(parseString(section, "peers", strings.Join(cfg.ReplicationPeers, ",")))
+	cfg.ReplicationAutoFailover = parseBool(section, "auto_failover", cfg.ReplicationAutoFailover)
+	cfg.ReplicationFailureTimeout = parseString(section, "failure_timeout", cfg.ReplicationFailureTimeout)
+	cfg.ReplicationFailureTimeoutDuration = parseDurationOrDefault("replication.failure_timeout", cfg.ReplicationFailureTimeout, 5*time.Second)
 	cfg.ReplicationPollInterval = parseString(section, "poll_interval", cfg.ReplicationPollInterval)
 	cfg.ReplicationPollIntervalDuration = parseDurationOrDefault(
 		"replication.poll_interval",
@@ -594,4 +625,22 @@ func (cfg *Cfg) parseReplicationCfg(section *ini.Section) *Cfg {
 	)
 	cfg.ReplicationReadOnly = parseBool(section, "read_only", cfg.ReplicationReadOnly)
 	return cfg
+}
+
+func parseReplicationPeers(raw string) []string {
+	parts := strings.Split(raw, ",")
+	peers := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		peer := strings.TrimRight(strings.TrimSpace(part), "/")
+		if peer == "" {
+			continue
+		}
+		if _, exists := seen[peer]; exists {
+			continue
+		}
+		seen[peer] = struct{}{}
+		peers = append(peers, peer)
+	}
+	return peers
 }

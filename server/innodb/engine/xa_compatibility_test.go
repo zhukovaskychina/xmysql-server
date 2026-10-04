@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
@@ -144,6 +145,46 @@ func TestXACompatibilitySupportsPrepareRecoverCommitAndRollback(t *testing.T) {
 	recoverResult = <-executor.ExecuteQuery(session, "XA RECOVER", "app")
 	require.NoError(t, recoverResult.Err)
 	require.Empty(t, selectResultRows(recoverResult.Data.(*SelectResult)))
+}
+
+func TestXAPreparePublishesPerformanceSchemaMutexOwner(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	session := newTestMySQLSession()
+	session.SessionContext().SetConnectionID(931)
+	mustExecSessionSQL(t, executor, session, "", "create database app")
+	mustExecSessionSQL(t, executor, session, "app", "create table xa_mutex_owner (id int primary key)")
+	mustExecSessionSQL(t, executor, session, "app", "XA START 'mutex-owner'")
+	mustExecSessionSQL(t, executor, session, "app", "INSERT INTO xa_mutex_owner VALUES (1)")
+	mustExecSessionSQL(t, executor, session, "app", "XA END 'mutex-owner'")
+
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	executor.QueryExecutor.SetReplicationXAPrepareHook(func(string, replication.XAIdentity, []replication.RowChange, []replication.Statement) error {
+		close(entered)
+		<-release
+		return nil
+	})
+	prepareDone := make(chan *Result, 1)
+	go func() {
+		prepareDone <- <-executor.ExecuteQuery(session, "XA PREPARE 'mutex-owner'", "app")
+	}()
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("XA PREPARE did not reach the replication hook")
+	}
+
+	owner := mustSelectResultSQL(t, executor, "", "select locked_by_thread_id from performance_schema.mutex_instances where name='wait/synch/mutex/sql/xmysql/xa'")
+	require.Len(t, owner.Records, 1)
+	require.Equal(t, int64(931), owner.Records[0].GetValues()[0].Int())
+
+	close(release)
+	select {
+	case result := <-prepareDone:
+		require.NoError(t, result.Err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("XA PREPARE did not finish after releasing the replication hook")
+	}
 }
 
 func TestXACommitPublishesOneNativeBinlogTransactionAfterPrepare(t *testing.T) {

@@ -1,11 +1,533 @@
 # xmysql-server 全局 MySQL 兼容范围梳理
 
-更新时间：2026-09-28
+更新时间：2026-10-04
 
 本文把已确认的兼容目标统一纳入一个全局任务边界。状态以源码、专项测试和
-`reports/compatibility/scope-matrix-current-continuation1544.json` 为准；本轮最新增量证据见
-`reports/compatibility/p2-show-binary-log-status-current-continuation1545.txt`；仅有表名、
+`reports/compatibility/scope-matrix-current-final.json` 为准；本轮最新增量证据见
+`reports/compatibility/p1-performance-schema-global-read-lock-summary-instance-identity-current-continuation1801.txt`；
+`reports/compatibility/p1-performance-schema-session-connect-attrs-truncated-current-continuation1802.txt`；
+`reports/compatibility/p1-current-role-account-format-current-continuation1803.txt`；
+`reports/compatibility/p1-roles-graphml-role-admin-boundary-current-continuation1804.txt`；
+`reports/compatibility/p1-current-role-dispatcher-format-current-continuation1805.txt`；
+`reports/compatibility/p1-role-metadata-account-filters-current-continuation1806.txt`；
+`reports/compatibility/p1-performance-schema-mutex-owner-current-continuation1807.txt`；
+`reports/compatibility/p1-performance-schema-host-cache-seen-times-current-continuation1808.txt`；
+`reports/compatibility/p1-performance-schema-setup-actors-active-role-current-continuation1809.txt`；
+`reports/compatibility/p1-performance-schema-setup-actors-default-role-current-continuation1810.txt`；
+`reports/compatibility/p1-information-schema-events-disabled-status-current-continuation1811.txt`；
+`reports/compatibility/p1-information-schema-events-start-end-current-continuation1812.txt`；
+`reports/compatibility/p1-information-schema-events-completion-policy-current-continuation1813.txt`；
+`reports/compatibility/p1-information-schema-events-definer-comment-current-continuation1814.txt`；
+`reports/compatibility/p1-information-schema-events-timestamps-current-continuation1815.txt`；
+`reports/compatibility/p1-information-schema-events-last-executed-current-continuation1816.txt`；
+`reports/compatibility/p2-native-replication-local-regression-current-continuation1825.txt`；
+`reports/compatibility/p1-information-schema-parameters-return-name-current-continuation1826.txt`；
+`reports/compatibility/p1-information-schema-parameters-filters-current-continuation1827.txt`；
+`reports/compatibility/p1-performance-schema-setup-column-semantics-current-continuation1828.txt`；
+`reports/compatibility/p1-information-schema-parameters-null-predicates-current-continuation1829.txt`；
+`reports/compatibility/p1-performance-schema-xa-mutex-owner-current-continuation1830.txt`；
+`reports/compatibility/p1-information-schema-privilege-null-predicates-current-continuation1831.txt`；
+`reports/compatibility/p1-performance-schema-mutex-wait-lifecycle-current-continuation1832.txt`；
+`reports/compatibility/p1-performance-schema-mutex-summary-dimension-reset-current-continuation1833.txt`；
+`reports/compatibility/p1-performance-schema-mutex-account-summary-current-continuation1834.txt`；
+`reports/compatibility/p2-native-local-and-official-fixture-audit-current-continuation1835.txt`；
+`reports/compatibility/p1-performance-schema-mutex-history-capacity-current-continuation1836.txt`；
+`reports/compatibility/p1-performance-schema-table-handles-statement-lease-current-continuation1837.txt`；
+`reports/compatibility/p1-performance-schema-metadata-lock-duration-current-continuation1838.txt`；
+`reports/compatibility/p1-performance-schema-metadata-lock-capacity-filter-current-continuation1839.txt`；
+`reports/compatibility/p1-performance-schema-table-handle-capacity-filter-current-continuation1840.txt`；
+`reports/compatibility/p1-information-schema-routines-timestamps-current-continuation1817.txt`；
+`reports/compatibility/p1-stored-object-session-metadata-current-continuation1818.txt`；
+`reports/compatibility/p1-information-schema-srs-id-like-filter-current-continuation1883.txt`；
+`reports/compatibility/p1-p2-p3-fresh-gate-audit-current-continuation1884.txt`；
+`reports/compatibility/p1-local-privilege-role-fresh-audit-current-continuation1885.txt`；
+`reports/compatibility/p2-p4-official-mysql-fresh-interoperability-current-continuation1886.txt`；
+`reports/compatibility/p3-non-connector-client-fresh-matrix-current-continuation1888.txt`；
+`reports/compatibility/p3-client-fault-and-cluster-fresh-current-continuation1892.txt`；
+`reports/compatibility/p1-final-boundary-audit-current-continuation1894.txt`；
+`reports/compatibility/official-mysql-privilege-lifecycle-current/privilege-lifecycle-20261003-204707.json`；
+`reports/compatibility/p1-performance-schema-native-lifecycle-current-continuation1900.txt`；
+`reports/compatibility/full-go-regression-current-continuation1901.txt`；
+以下历史证据仍保留用于追溯：
+`reports/compatibility/p2-p4-official-source-crash-reconnect-current-continuation1651.txt` 和
+`reports/compatibility/p2-replication-directory-fsync-current-continuation1652.txt` 和
+`reports/compatibility/p2-native-partial-transport-retry-current-continuation1654.txt` 和
+`reports/compatibility/p3-client-network-fault-reconnect-current-continuation1655.txt` 和
+`reports/compatibility/p3-mysql-cli-version-matrix-current-continuation1656.txt` 和
+`reports/compatibility/p2-p4-official-reverse-promotion-current-continuation1657.txt` 和
+`reports/compatibility/p2-p4-official-source-crash-reconnect-current-continuation1658.txt` 和
+`reports/compatibility/p2-p4-official-reverse-promotion-mysql80-current-continuation1659.txt` 和
+`reports/compatibility/p2-p4-official-source-crash-reconnect-mysql80-current-continuation1660.txt` 和
+`reports/compatibility/p2-p4-official-reverse-promotion-script-regression-current-continuation1661.txt` 和
+`reports/compatibility/p2-p4-official-source-network-partition-current-continuation1662.txt` 和
+`reports/compatibility/p3-client-network-fault-reconnect-current-continuation1663.txt` 和
+`reports/compatibility/p2-p4-official-source-network-partition-current-continuation1664.txt` 和
+`reports/compatibility/p1-information-schema-performance-schema-targeted-regression-current-continuation1665.txt` 和
+`reports/compatibility/p2-physical-commit-identity-wal-current-continuation1666.txt` 和
+`reports/compatibility/p2-xa-identity-wal-current-continuation1667.txt` 和
+`reports/compatibility/p2-xa-journal-recovery-identity-current-continuation1668.txt` 和
+`reports/compatibility/p2-xa-precommit-journal-identity-current-continuation1669.txt`；仅有表名、
 列名或单元测试通过，不代表已经达到 MySQL 完整语义。
+
+全局优先级固定为：P0 先保证 MySQL 启动、核心 CRUD、基础集群和 Connector/J；随后推进
+P1 完整 INFORMATION_SCHEMA/PERFORMANCE_SCHEMA，P2 本地复制/XA/binlog/GTID/恢复与提升，
+P3 非 Connector/J 客户端全量矩阵，P4 官方 MySQL 互操作。Fulltext 延后；非 InnoDB 引擎、
+非 InnoDB 修复和引擎转换明确不纳入范围。P0 的已实现状态不覆盖后续聚合项。
+
+本轮最新 P2 增量证据：`reports/compatibility/p2-replication-committed-context-marker-retry-current-continuation1697.txt`。
+本轮最新 P1 增量证据：`reports/compatibility/p1-log-status-storage-engine-current-continuation1700.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-session-read-only-variable-aliases-current-continuation1702.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-session-character-set-variable-scope-current-continuation1703.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-session-variable-manager-inventory-current-continuation1704.txt`。
+
+本轮最新 P1 Performance Schema 增量证据：`reports/compatibility/p1-performance-schema-rwlock-instances-current-continuation1784.txt`。
+
+本轮最新 P3 客户端增量证据：`reports/compatibility/p3-client-session-reset-current-continuation1785.txt`。
+
+本轮最新 P3 客户端增量证据：`reports/compatibility/p3-client-protocol-ping-current-continuation1786.txt`。
+
+本轮最新 P3 客户端增量证据：`reports/compatibility/p3-client-protocol-init-db-current-continuation1787.txt`。
+
+PyMySQL 的 `select_db()` 已通过真实 `COM_INIT_DB` live slice；该结果只覆盖 Python
+客户端协议路径，不改变非 Connector/J 全量客户端矩阵的 `partial` 状态。
+
+本轮最新 P3 客户端增量证据：`reports/compatibility/p3-client-protocol-change-user-current-continuation1788.txt`。
+
+Node.js/mysql2 的 `changeUser()` 已通过真实 `COM_CHANGE_USER` live slice；该结果只覆盖
+Node.js 客户端协议路径，不改变非 Connector/J 全量客户端矩阵的 `partial` 状态。
+
+本轮最新 P1 Performance Schema 增量证据：`reports/compatibility/p1-performance-schema-mutex-instances-current-continuation1789.txt`。
+
+`performance_schema.mutex_instances` 已接入五个执行器真实 `sync.Mutex` 实例，并验证容量、
+lost 计数和 instrument 开关；`max_mutex_classes` / `max_rwlock_classes` 也已约束
+`setup_instruments` 与 class lost 统计。condition 实例以及完整 I_S/P_S 字段、运行时统计、
+等待/线程精度和权限语义仍未完成，P1 聚合项继续为 `partial`。
+
+本轮最新 P2 原生 binlog 增量证据：`reports/compatibility/p2-native-control-events-current-continuation1790.txt`。
+
+原生解码器现在消费 `BEGIN_LOAD_QUERY_EVENT(17)` 和 `EXECUTE_LOAD_QUERY_EVENT(18)`，
+覆盖顶层、事务 payload 和 row-image 路径；该本地解码增量不等同于官方 MySQL XA/binlog/
+GTID、崩溃恢复和提升互操作已完成。
+
+本轮最新 P1 Performance Schema 增量证据：`reports/compatibility/p1-performance-schema-condition-instances-current-continuation1791.txt`。
+
+`performance_schema.cond_instances` 已接入全局读锁 gate 实际使用的 `sync.Cond`，并验证
+对象身份、实例/class 容量、lost 计数和 instrument 开关；完整 I_S/P_S 运行时、等待/线程、
+组件生命周期及权限语义仍保持 `partial`。
+
+本轮继续补齐全局读锁等待生产者：阻塞写入的 condition wait 现在有当前事件、完成历史以及
+按线程/全局 summary 的真实投影。证据：
+`reports/compatibility/p1-performance-schema-global-read-lock-waits-current-continuation1792.txt`。
+
+本轮补齐 `events_waits_summary_by_instance` 对全局读锁 condition wait 的实例级当前/历史
+汇总，实例身份与 `cond_instances` 保持一致。证据：
+`reports/compatibility/p1-performance-schema-global-read-lock-instance-summary-current-continuation1793.txt`。
+
+本轮按 MySQL 8.4 wait-event 对象契约修正 condition wait 的对象字段与实例身份：同步对象的
+schema/name/type 均为 NULL，实例地址与 `cond_instances` 一致。证据：
+`reports/compatibility/p1-performance-schema-global-read-lock-wait-object-contract-current-continuation1794.txt`。
+
+本轮补齐全局读锁等待的 per-thread history 容量投影，`history_size` 与 `history_long_size`
+的可见边界开始分离。证据：
+`reports/compatibility/p1-performance-schema-global-read-lock-history-capacity-current-continuation1795.txt`。
+
+本轮完成全局读锁 condition wait 的短/长历史独立容量：per-thread history 不再被较小的
+history_long 容量错误截断。证据：
+`reports/compatibility/p1-performance-schema-global-read-lock-independent-history-current-continuation1796.txt`。
+
+本轮补齐全局读锁等待历史的短/长 truncate 独立作用域。证据：
+`reports/compatibility/p1-performance-schema-global-read-lock-history-truncate-current-continuation1797.txt`。
+
+本轮补齐 `events_waits_summary_by_instance` 的独立 truncate 分发和全局读锁实例摘要
+reset；by-instance truncate 不再影响 global/thread 摘要，global summary truncate 的
+既有 by-instance 零行投影保持不变。证据：
+`reports/compatibility/p1-performance-schema-global-read-lock-summary-instance-truncate-current-continuation1798.txt`。
+
+本轮将 by-instance reset 扩展到完成的 record-lock、MDL 和全局读锁等待，按 truncate
+边界过滤历史并保留新等待；global/thread 摘要继续独立。证据：
+`reports/compatibility/p1-performance-schema-wait-summary-instance-reset-current-continuation1799.txt`。
+
+本轮补充嵌套角色可见性回归：`SET ROLE ALL` 后，`ENABLED_ROLES` 保留直接启用的父角色，
+而父角色继承的子角色权限继续在 `ROLE_TABLE_GRANTS` 中可见。该结果只收口一个 P1 角色
+语义边界；完整 INFORMATION_SCHEMA/PERFORMANCE_SCHEMA、全权限视图和组件生命周期仍为
+全局任务中的 `partial`。证据：
+`reports/compatibility/p1-nested-role-enabled-vs-inherited-privilege-current-continuation1800.txt`。
+
+本轮修正全局读锁 condition wait 的 `OBJECT_INSTANCE_BEGIN`：
+`cond_instances`、wait current/history、`events_waits_summary_by_instance` 和 summary
+truncate 零行现在共用真实 `sync.Cond` 对象身份。专项和完整 Performance Schema 回归均通过，
+该切片不改变 P1 聚合项仍为 `partial` 的状态。证据：
+`reports/compatibility/p1-performance-schema-global-read-lock-summary-instance-identity-current-continuation1801.txt`。
+
+Go、PyMySQL、Node.js/mysql2 的真实 `COM_PING` smoke gate 已通过；P3 聚合项仍为 `partial`，
+因为 CLI、版本/TLS/认证组合、协议负例、连接池、故障切换和集群端点矩阵尚未完成。
+
+本轮已验证 PyMySQL 和 Node.js/mysql2 的 `COM_RESET_CONNECTION` live slice；Go 驱动的公开
+`SessionResetter` 不发送该协议命令，因此没有将其误计入该 slice。P3 全量非 Connector/J
+客户端矩阵仍为 `partial`，MySQL CLI、版本/TLS/认证、连接池、协议负例、故障切换和集群端点
+仍待完成。
+
+该切片已把真实 `tableDDLCoordinator` 表级 DDL rwlock 注册表接入
+`performance_schema.rwlock_instances`，并验证实例容量、lost 计数及 instrument 开关；mutex/condition
+仍没有权威同步对象生命周期来源，故不伪造实例行。P1 聚合项仍为 partial。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-statement-stack-lost-current-continuation1773.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-table-instances-lost-current-continuation1774.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-transaction-thread-mapping-current-continuation1732.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-wait-thread-mapping-current-continuation1733.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-prepared-command-status-current-continuation1734.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-prepared-command-session-status-current-continuation1735.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-digest-sample-age-current-continuation1762.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-connect-attrs-longest-seen-current-continuation1763.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-metadata-lock-lost-current-continuation1764.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-connection-summary-lost-current-continuation1765.txt`。
+
+本轮最新 P3 环境证据：`reports/compatibility/p3-client-environment-matrix-audit-current-continuation1781.txt`。
+
+本轮最新 P1 运行时来源审计：`reports/compatibility/p1-performance-schema-sync-instance-source-audit-current-continuation1782.txt`。
+
+本轮最新 P3 live 客户端证据：`reports/compatibility/p3-client-live-matrix-go-python-node-current-continuation1783.txt`。
+
+Continuation 1783 在隔离服务实例上通过了 Go、PyMySQL、Node.js/mysql2 的定义客户端场景；
+MySQL CLI 仍因当前环境缺少 `mysql.exe` 且 Docker fallback 不可用而跳过。该证据关闭三类
+客户端的 live smoke slice，但不等于完整非 Connector/J 矩阵完成，P3 继续保持 `partial`。
+
+Continuation 1782 确认 mutex/rwlock/condition instance 当前只有官方形状和无组件时的空集投影，
+尚无可追踪对象身份、owner/wait 状态及 allocator/lost 的真实同步对象来源；因此没有伪造运行时
+行，也没有把 Go `sync` 原语冒充 MySQL instrument。该切片不改变 P1 聚合项的 `partial` 状态，
+下一步需先建设真实同步对象生命周期，再收口实例、wait、history 和 lost 语义。
+
+Continuation 1781 刷新了非 Connector/J 客户端环境状态：Go、PyMySQL 和 Node.js/mysql2
+运行时可用，但当前主机没有 `mysql.exe`。该次命令是 diagnostic-only，不启动服务端、不执行
+SQL，因此只能更新可执行条件证据，不能把完整 P3 矩阵改成 implemented；缺失 CLI、受保护凭据
+或官方 fixture 时继续标记为环境未验证/外部待验证。
+
+Continuation 1765 补齐了 Performance Schema accounts/hosts/users 容量溢出 status 的真实
+计数，并修正内部空身份摘要不应生成匿名连接汇总行的问题；完整 P_S、manager、`server/net`
+和 metrics 门禁通过。完整 I_S/P_S、P3 全客户端矩阵及 P2/P4 复制/XA/crash/promotion
+聚合仍保持原状态。
+
+Continuation 1764 补齐 `Performance_schema_metadata_lock_lost` 的真实容量溢出计数，并验证
+`max_metadata_locks=0`、重复读取和过滤后限容行为；完整 P_S、manager、`server/net` 和
+metrics 门禁通过。P1 I_S/P_S 聚合、P3 全客户端矩阵及 P2/P4 复制/XA/crash/promotion
+聚合仍保持原状态。
+
+Continuation 1763 补齐 `Performance_schema_session_connect_attrs_longest_seen` 的实际最大
+编码缓冲区跟踪，并验证其在 P_S 截断前记录；完整 P_S、manager、`server/net` 和 metrics
+门禁通过。该切片仍不改变完整 I_S/P_S、非 Connector/J 客户端、P2/P4 复制互操作以及明确
+out-of-scope 项的聚合状态。
+
+Continuation 1762 将 `performance_schema_max_digest_sample_age` 接入 digest recorder 的
+实际重采样策略：旧样本超过配置年龄时可被新样本替换，动态 `SET GLOBAL` 与启动配置均生效；
+完整 P_S、manager、`server/net` 和 metrics 门禁通过。该切片不改变 P1 I_S/P_S 聚合项的
+`partial` 状态，也不改变非 Connector/J 客户端、P2/P4 复制互操作或明确 out-of-scope 项。
+
+Continuation 1735 将六类 `Com_stmt_*` 预处理协议命令的身份维度接入
+`status_by_thread` 与 `status_by_account/status_by_user`：有权威在线 session 时使用真实
+连接 ID、用户和主机；身份缺失时只保留全局计数，不伪造线程。引擎身份维度专项和
+`server/net` 回归均通过；完整 I_S/P_S、P2/P3/P4 聚合仍保持原状态。
+
+Continuation 1734 补齐了二进制预处理协议到 `Com_stmt_*` 状态变量的运行时计数，覆盖
+prepare/execute/close/reset/send-long-data/fetch，并通过引擎状态回归和预处理协议专项回归。
+该切片只关闭 prepared-protocol status counter 缺口；完整 P_S 字段、组件生命周期、权限
+语义和 P1/P2/P3/P4 聚合仍保持原状态。
+
+Continuation 1733 将同一权威映射扩展到 `events_waits_current`、`events_waits_history` 和
+按线程等待汇总，record-lock wait 的 THREAD_ID 在在线 session 存在时不再使用事务 ID 冒充。
+六项专项回归（26.635 秒）及完整 `TestPerformanceSchema` 族（922.654 秒）通过；该切片
+仍不等于完整 Performance Schema 表列、组件生命周期和权限语义完成。
+
+Continuation 1732 完成了 record-lock 视图的权威事务到 session/thread 映射：
+`performance_schema.data_locks` 与 `data_lock_waits` 在在线 session 注册存在时返回真实连接
+线程 ID，没有映射时保持 `NULL`；不再把 InnoDB transaction ID 伪装成 THREAD_ID。该项不等于
+完整 Performance Schema、锁元数据/值解析或 P1/P2/P3/P4 聚合完成。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-variables-info-global-source-current-continuation1705.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-setup-instruments-null-flags-current-continuation1706.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-replication-empty-runtime-current-continuation1707.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-abstract-instrument-metadata-current-continuation1712.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-innodb-file-instrument-registry-current-continuation1713.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-thread-instrument-registry-current-continuation1714.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-windows-thread-registry-current-continuation1715.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-main-thread-fallback-current-continuation1716.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-main-thread-update-current-continuation1717.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-main-thread-runtime-fields-current-continuation1718.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-prepared-statements-all-live-sessions-current-continuation1721.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-event-history-all-live-threads-current-continuation1724.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-history-retention-defaults-current-continuation1725.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-history-size-variables-current-continuation1726.txt`。
+
+本轮最新 P2 增量证据：`reports/compatibility/p2-native-endpoint-discovery-control-plane-current-continuation1727.txt`。
+
+本轮最新 P2 增量证据：`reports/compatibility/p2-relay-state-persist-recovery-current-continuation1728.txt`。
+
+本轮最新 P2 增量证据：`reports/compatibility/p2-native-pre-ga-row-events-current-continuation1729.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-innodb-locks-granted-snapshot-current-continuation1730.txt`。
+
+本轮最新 P1 增量证据：`reports/compatibility/p1-performance-schema-data-lock-thread-identity-current-continuation1731.txt`。
+
+Continuation 1731 修正 `performance_schema.data_locks` 的 record-lock 身份语义：没有
+权威 transaction-to-thread 来源时，`THREAD_ID` 保持 NULL，不再冒充事务 ID；真实
+`ENGINE_TRANSACTION_ID`、wait/history 和 metadata-lock owner thread 保持不变。
+
+Continuation 1730 补齐 `INFORMATION_SCHEMA.INNODB_LOCKS` 对 LockManager 中 granted
+record-lock snapshot 的实时投影，并覆盖无 wait edge 的已持有锁；P1 聚合项仍需完整
+锁元数据、组件、生命周期、运行时字段和权限证据，继续保持 `partial`。
+
+Continuation 1729 补齐 native binlog 解码器对 PRE-GA 行事件类型 20/21/22 的 v1 行布局、
+事务内嵌套 payload 和 insert/update/delete 行像映射；专项测试先红后绿，整个
+`server/replication` 包通过。该证据只关闭 legacy row-frame 解码缺口，官方 binlog/GTID
+fixture、XA 互操作、crash-kill、晋升和 fencing 的 P2/P4 聚合项仍保持 `partial`。
+
+Continuation 1727 补齐并回归 native endpoint 的控制面发现：replica 通过 peer 的
+`/replication/status` 读取 source 的 `NativeEndpoint` 并执行 native source repoint，
+内部凭据保留、持久化和对外状态脱敏，旧 source UUID 在切换后清除。专项重复 5 次及
+整个 `server/replication` 包通过；跨节点多源调度、分布式 channel 编排、共识级 fencing
+和完整官方 XA/binlog/GTID 拓扑仍保持 P2/P4 `partial`。
+
+Continuation 1728 补齐晋升 relay 导入的持久化恢复证据：当 relay 的逻辑/native 投影已经
+落盘而 promoted source 的 durable state 替换失败时，重启可从已提交 stream 恢复 upstream
+GTID 与稳定 transaction key，重试导入不产生第二个逻辑 COMMIT。该切片仍不等于共识级
+fencing、多源调度、分布式 channel 编排、完整官方 XA/binlog/GTID 互操作或 crash-kill
+全矩阵，P2/P4 聚合项继续保持 `partial`。
+
+## 本轮全局范围与优先级确认
+
+以下边界统一纳入全局任务，不再作为“暂不考虑”的局部备注：
+
+- **P0**：MySQL 服务可启动、核心 SQL/事务可用、集群复制与故障切换可用，以及
+  **Connector/J** 连接、初始化、预编译、事务和元数据主路径。
+- **P2**：native binlog/GTID、XA 与复制回放的统一提交边界、崩溃恢复、晋升、fencing
+  和官方互操作；它是 P0 集群能力后的下一阶段收口项。
+- **P1**：完整 `INFORMATION_SCHEMA` / `PERFORMANCE_SCHEMA` 的表、字段、运行时统计、
+  锁/等待、线程生命周期、组件和权限语义。当前常用表与字段已实现，但全量官方语义仍是
+  `partial`。
+- **P3**：除 Connector/J 外的 MySQL CLI、Python、Go、Node.js 及 ORM/连接池/版本/网络
+  故障的完整客户端兼容矩阵。已有基础矩阵和若干故障切片，但聚合项仍是 `partial`。
+- **P4**：更多官方 MySQL 版本、双向拓扑、crash-kill、网络分区和 XA/binlog/GTID 的
+  端到端 fixture 门禁。
+- **明确排除**：MyISAM、ARCHIVE、CSV 等非 InnoDB 存储引擎，以及非 InnoDB 专用的
+  `REPAIR TABLE`、引擎转换等能力；FULLTEXT 继续按既定延期项处理。
+
+因此，状态判断不能只看“SQL 能返回”或单元测试通过：只有对应的真实运行时、恢复、
+客户端和官方互操作证据齐备，才允许把聚合项从 `partial` 改为 `implemented`。
+
+## Continuation 1718
+
+补齐 `performance_schema.threads` server-main fallback 的 `PROCESSLIST_DB`、
+`PROCESSLIST_TIME` 和 `RESOURCE_GROUP` 运行时投影，并同步覆盖两条 fallback 路径。专项
+回归先红后绿，完整 Performance Schema 回归（734.861 秒，D: 临时目录）通过；真实 OS
+线程号、主线程内存计数、完整后台线程生命周期、组件/权限语义和全量 I_S/P_S 仍保持
+`partial`。
+
+Evidence: `reports/compatibility/p1-performance-schema-main-thread-runtime-fields-current-continuation1718.txt`。
+
+## Continuation 1717
+
+补齐 `performance_schema.threads` 官方 server-main 行 `THREAD_ID=1` 的运行时更新语义：
+`INSTRUMENTED` 和 `HISTORY` 可被更新并在查询中反映，单行影响数也正确返回。专项回归
+先红后绿，完整 Performance Schema 回归（741.468 秒，D: 临时目录）通过；完整后台线程
+生命周期、运行时统计、组件/权限语义和全量 I_S/P_S 仍保持 `partial`。
+
+Evidence: `reports/compatibility/p1-performance-schema-main-thread-update-current-continuation1717.txt`。
+
+## Continuation 1716
+
+修正 `performance_schema.threads` 无当前客户端会话时的 server-main fallback：从项目自定义
+的 `xmysql/FOREGROUND/Sleep` 改为官方 MySQL 8.4 的 `thread/sql/main/BACKGROUND`，并让
+`PROCESSLIST_ID` 和 `PROCESSLIST_COMMAND` 返回 `NULL`。专项回归先红后绿，完整
+Performance Schema 回归（711.962 秒，D: 临时目录）通过；该切片只关闭一行线程形状差异，
+完整后台线程生命周期、运行时统计、组件/权限语义以及全量 I_S/P_S 仍保持 `partial`。
+
+Evidence: `reports/compatibility/p1-performance-schema-main-thread-fallback-current-continuation1716.txt`。
+
+## Continuation 1715
+
+补齐官方 MySQL 8.4 Windows 条件注册的四个 `setup_threads` 行：
+`thread/sql/con_named_pipes`、`thread/sql/con_shared_mem`、`thread/sql/con_sockets` 和
+`thread/sql/shutdown_restart`。xmysql 按 `runtime.GOOS` 进行平台条件投影，当前 Windows
+专项测试和完整 Performance Schema 回归（1139.440 秒）通过；listener、shutdown 和完整
+线程生命周期/权限语义仍保持 P1 `partial`。
+
+Evidence: `reports/compatibility/p1-performance-schema-windows-thread-registry-current-continuation1715.txt`。
+
+## Continuation 1714
+
+补齐官方 MySQL 8.4 Unix server thread registry 中的六个 `setup_threads` 行：
+`thread/sql/admin_interface`、`thread/sql/bootstrap`、`thread/sql/compress_gtid_table`、
+`thread/sql/manager`、`thread/sql/parser_service` 和 `thread/sql/signal_handler`。
+它们现在按官方 PSI flags 返回 `singleton/user` 属性，默认 `ENABLED=YES,HISTORY=YES`，
+并通过专项及完整 Performance Schema 回归（1023.278 秒）。这只关闭 thread registry
+缺口，完整后台线程生命周期、权限和运行时语义仍为 P1 `partial`。
+
+Evidence: `reports/compatibility/p1-performance-schema-thread-instrument-registry-current-continuation1714.txt`。
+
+## Continuation 1713
+
+补齐官方 MySQL 8.4 `setup_instruments` 的四个 InnoDB 文件注册行：
+`innodb_tablespace_open_file`、`innodb_temp_file`、`innodb_arch_file` 和
+`innodb_clone_file`。它们现在以 `ENABLED=YES,TIMED=YES` 出现在 setup registry 中；
+先红后绿专项测试和完整 `TestPerformanceSchema` 族（750.467 秒）通过。该切片只关闭
+注册表缺口，不等于 file instances、I/O runtime lifecycle、组件和权限语义完成，P1 聚合项
+继续保持 `partial`。
+
+Evidence: `reports/compatibility/p1-performance-schema-innodb-file-instrument-registry-current-continuation1713.txt`。
+
+## Continuation 1700
+
+`performance_schema.log_status` 的 `STORAGE_ENGINES` 不再固定返回空对象：当本地 InnoDB
+redo manager 可用时，xmysql 现在按 MySQL 8.4 契约返回
+`{"InnoDB":{"LSN":...,"LSN_checkpoint":...}}`，数值直接来源于当前 redo manager。
+该切片通过先红后绿的运行时回归和 redo/log_status 聚焦回归，但不改变 P1 聚合项仍为
+`partial` 的结论；完整 I_S/P_S 运行时、组件生命周期和权限矩阵仍需继续覆盖。
+
+Evidence: `reports/compatibility/p1-log-status-storage-engine-current-continuation1700.txt`。
+
+## Continuation 1701
+
+修正 `performance_schema.log_status.REPLICATION` 的官方 JSON 容器契约：MySQL 8.4 要求
+该列是按 replication channel 组织的 JSON 数组。当前 runtime 尚无权威本地 relay-log
+文件/位点时，xmysql 返回 `[]`，不再返回 `{"channels":[]}`，也不把 upstream source
+坐标伪装成 relay 坐标。先红后绿回归通过；完整 relay channel lifecycle、XA/native
+binlog/GTID 和官方双向互操作仍保持 `partial`。
+
+Evidence: `reports/compatibility/p1-log-status-replication-json-shape-current-continuation1701.txt`。
+
+## Continuation 1702
+
+补齐 `transaction_read_only` 与兼容别名 `tx_read_only` 的 session-variable 投影：两者现在
+都有 `OFF` 默认值，并在会话设置了对应值时从实时 session state 返回。聚焦回归先复现旧实现
+漏行，再通过完整 `TestInformationSchema|TestPerformanceSchema` 定向族；该切片只补齐两个
+动态变量行，完整系统变量清单、字段精度、组件生命周期和权限语义仍保持 `partial`。
+
+Evidence: `reports/compatibility/p1-session-read-only-variable-aliases-current-continuation1702.txt`。
+
+## Continuation 1703
+
+补齐 `character_set_database` 与 `character_set_server` 的 session-variable 投影：已有会话
+上下文中的动态值现在可以从 session-variable 视图读取，未覆盖时使用当前 utf8mb4 基线。
+聚焦先红后绿通过；该切片不改变完整 charset/collation、系统变量清单和 P1 聚合项的
+`partial` 状态。
+
+Evidence: `reports/compatibility/p1-session-character-set-variable-scope-current-continuation1703.txt`。
+
+## Continuation 1704
+
+将 session-variable 视图的基线从手写十几个变量扩展为仓库现有 `SystemVariablesManager` 的
+完整定义清单，并继续用实时 session 参数覆盖默认值；因此 `wait_timeout`、`innodb_page_size`
+等已注册变量不再从 session 视图消失，`variables_by_thread` 也复用同一投影。聚焦回归和完整
+Performance Schema 定向族（737.921 秒）均通过；MySQL 8.4 全量变量目录、精确元数据和
+完整 P1 语义仍保持 `partial`。
+
+Evidence: `reports/compatibility/p1-session-variable-manager-inventory-current-continuation1704.txt`。
+
+## Continuation 1705
+
+P1 继续收口 `performance_schema.variables_info` 的真实来源语义：系统变量管理器现在
+记录全局变量的来源，初始定义显示 `COMPILED`，`SET GLOBAL` 修改后显示 `GLOBAL`；
+持久化变量仍由 `SET PERSIST/PERSIST_ONLY` 的 durable metadata 覆盖为 `PERSISTED`，
+并保留路径、设置用户和主机信息。新增红绿回归先确认旧实现把运行时修改错误报告为
+`COMPILED`，随后通过变量/持久化聚焦门禁及完整 Performance Schema 定向族（705.749
+秒）。
+
+该切片只补齐一个 variables_info 来源状态，不代表完整 I_S/P_S 逐表运行时、组件生命
+周期和权限矩阵完成；P1 聚合仍为 partial。P2/P4 官方 XA/binlog/GTID/复制/崩溃恢复/
+晋升互操作、P3 全量非 Connector/J 客户端矩阵继续按原范围推进，FULLTEXT 继续 deferred，
+非 InnoDB 引擎、专用 REPAIR TABLE 和引擎转换继续 out_of_scope。证据见
+`reports/compatibility/p1-variables-info-global-source-current-continuation1705.txt`。
+
+## Continuation 1706
+
+P1 继续收口 `performance_schema.setup_instruments` 的字段值语义：对于没有权威 runtime
+flag 的 instrument，`FLAGS` 现在返回 SQL `NULL`，与其可空的
+`SET('controlled')` 元数据契约一致；不把未知属性合成成 `controlled`。先红后绿回归、
+setup/variables 相关门禁和完整 Performance Schema 定向族均通过。P1 完整
+INFORMATION_SCHEMA/PERFORMANCE_SCHEMA 逐表运行时、组件生命周期和权限矩阵仍为
+partial；P2/P4 XA/binlog/GTID/复制/崩溃恢复互操作、P3 全量非 Connector/J 客户端矩阵
+继续按原范围推进，FULLTEXT 继续 deferred，非 InnoDB 继续 out_of_scope。证据见
+`reports/compatibility/p1-performance-schema-setup-instruments-null-flags-current-continuation1706.txt`。
+
+## Continuation 1707
+
+又收口了 P_S 复制视图的无 runtime 边界：standalone/source 节点没有已配置 replica
+channel 时，`replication_applier_status`、`replication_connection_configuration` 和
+`replication_connection_status` 返回空集，不再把空状态快照伪装成 channel；真实过滤规则
+仍按其配置状态可见。专项回归和完整 Performance Schema 定向族通过，但这只是 P1/P2 的
+一个局部空集语义切片，完整 I_S/P_S、native binlog/GTID/XA/crash recovery、P3 客户端
+矩阵和 P4 官方双向互操作仍保持 `partial`。证据见
+`reports/compatibility/p1-performance-schema-replication-empty-runtime-current-continuation1707.txt`。
+
+## Continuation 1708
+
+补齐一个有官方注册来源的 `setup_instruments.PROPERTIES` 值：
+`wait/io/socket/sql/client_connection` 现在返回 `user`，对应 MySQL PSI 的
+`PSI_FLAG_USER`；其余未建立权威 metadata 映射的 instrument 不做名称推断。专项 setup
+回归和完整 Performance Schema 定向族通过，但完整 instrument metadata、组件生命周期、
+I_S/P_S 逐表运行时和 P2/P3/P4 剩余范围仍保持 `partial`。证据见
+`reports/compatibility/p1-performance-schema-client-socket-property-current-continuation1708.txt`。
+
+## Continuation 1709
+
+继续补齐一个有官方注册来源的 `setup_instruments` memory metadata 行：
+`memory/sql/THD::main_mem_root` 现在返回 `PROPERTIES='controlled_by_default'`、
+`FLAGS='controlled'`、`VOLATILITY=0` 以及官方 documentation。专项回归和完整
+Performance Schema 定向族（60.333 秒）通过；其他没有权威来源的 instrument metadata
+仍不做名称推断。完整 I_S/P_S 逐表运行时、组件生命周期、P2/P3/P4 互操作仍保持
+`partial`。证据见
+`reports/compatibility/p1-performance-schema-memory-instrument-metadata-current-continuation1709.txt`。
+
+## Continuation 1710
+
+补齐一个有官方 8.4 文档来源的 `setup_instruments` 注册/metadata 行：
+`statement/abstract/Query` 现在返回 `PROPERTIES='mutable'`、`FLAGS=NULL`、
+`VOLATILITY=0` 以及查询刚从网络接收、尚未完成语句类型细化的 documentation。专项
+setup metadata 回归和完整 Performance Schema 定向族（786.386 秒，D: 临时目录）通过；
+这只补齐注册/metadata，不代表 abstract statement 完整生命周期，完整 I_S/P_S、P2/P3/P4
+仍保持 `partial`。证据见
+`reports/compatibility/p1-performance-schema-abstract-query-instrument-current-continuation1710.txt`。
+
+## Continuation 1711
+
+补齐两个有官方 8.4 statement event 文档来源的 `setup_instruments` 注册行：
+`statement/abstract/new_packet` 和 `statement/abstract/relay_log`，两者返回
+`ENABLED=YES`、`TIMED=YES`。专项 setup 回归和完整 Performance Schema 定向族
+（785.895 秒，D: 临时目录）通过；完整 abstract statement refinement/lifecycle、
+I_S/P_S 逐表运行时及 P2/P3/P4 仍保持 `partial`。证据见
+`reports/compatibility/p1-performance-schema-abstract-instrument-registry-current-continuation1711.txt`。
+
+## Continuation 1712
+
+补齐 `statement/abstract/new_packet` 与 `statement/abstract/relay_log` 的官方 metadata：
+`PROPERTIES='mutable'`、`FLAGS=NULL`、`VOLATILITY=0` 以及官方 documentation。专项
+metadata 回归和完整 Performance Schema 定向族（780.342 秒，D: 临时目录）通过；完整
+statement refinement/lifecycle、I_S/P_S 逐表运行时和 P2/P3/P4 仍保持 `partial`。证据见
+`reports/compatibility/p1-performance-schema-abstract-instrument-metadata-current-continuation1712.txt`。
 
 ## 1. 范围决策
 
@@ -15,10 +537,12 @@
 | P1-A | INFORMATION_SCHEMA 全量表/列形状、过滤、权限可见性、运行时数据 | partial | 纳入全局任务，继续补齐，不以“可查询”作为完成条件 |
 | P1-A | PERFORMANCE_SCHEMA 全量表/列形状、instrument/consumer、事件生命周期、运行时统计 | partial | 纳入全局任务，继续补齐；组件不存在时必须有明确兼容语义 |
 | P2 | XA、原生 binlog、GTID、relay/applied state、崩溃恢复、提升/切换 | partial | 纳入全局任务，继续收敛持久化提交边界和恢复互操作 |
-| P3 | 非 Connector/J 客户端完整矩阵：mysql CLI、Go、Python、Node.js 及集群端点场景 | implemented | 纳入全局任务；单端点、集群源端和晋升端四类客户端用例均已有 PASS 证据 |
+| P3 | 非 Connector/J 客户端完整矩阵：mysql CLI、Go、Python、Node.js 及集群端点场景 | partial | 纳入全局任务；定义的 smoke gate 已通过，但负向、重连、协议边界和完整集群客户端矩阵仍未完成 |
 | P4 | 官方 MySQL fixture 的 XA/binlog/GTID/复制/崩溃恢复互操作 | partial | 已验证隔离的 xmysql -> 官方 MySQL XA 应用；全量历史追平、反向 XA、崩溃恢复等仍需验收 |
 | deferred | FULLTEXT | deferred | 按当前决定暂不进入本轮实现 |
 | out of scope | MyISAM、ARCHIVE、CSV 等非 InnoDB 引擎，以及非 InnoDB 专用 REPAIR/引擎转换 | out_of_scope | 明确不纳入本项目兼容目标 |
+
+执行顺序按当前交付目标固定为：P0（启动、核心 CRUD、集群、Connector/J）→ P2（本地原生复制/XA/binlog/GTID/恢复收口）→ P1（完整 I_S/P_S）→ P3（非 Connector/J 全量客户端）→ P4（官方 MySQL 双向互操作）。FULLTEXT 保持 deferred；非 InnoDB 保持 out_of_scope。
 
 ## 2. 已完成的 P0
 
@@ -50,14 +574,120 @@ implemented。
 1. 完整 `INFORMATION_SCHEMA` / `PERFORMANCE_SCHEMA` 继续纳入全局 P1。常用表、主要字段
    形状、部分运行时路径和权限切片已实现，但全量表/字段精度、组件生命周期、运行时统计
    以及全部权限/角色语义仍为 `partial`。
-2. 非 Connector/J 客户端矩阵继续纳入全局 P3，当前状态为 `implemented`。已有证据覆盖
-   Docker MySQL 8.4.11 CLI、Go mysql driver、PyMySQL、Node mysql2，并覆盖源端和晋升端；
-   这表示矩阵 gate 已通过，不表示客户端范围从全局任务中删除。
+2. 非 Connector/J 客户端矩阵继续纳入全局 P3。定义的 smoke/cluster-endpoint gate 已
+   `implemented`，已有证据覆盖 Docker MySQL 8.4.11 CLI、Go mysql driver、PyMySQL、Node
+   mysql2，并覆盖源端和晋升端；负向、协议边界、更多类型/字符集、ORM 和完整故障恢复
+   矩阵仍由 `non-connector-j-full-compatibility-matrix` 保持 `partial`。
 3. XA 原生互操作继续纳入全局 P2/P4。本地 XA 状态机、native binlog 基线和官方 MySQL
    作为 source 的读取已有证据；官方双向 XA/binlog/GTID、重复投递、崩溃窗口、恢复后
    promotion/failover 仍未形成完整闭环，因此聚合项保持 `partial`。
 4. 非 InnoDB 引擎不纳入本全局任务，状态为 `out_of_scope`。MyISAM、ARCHIVE、CSV、非
-   InnoDB 专用 `REPAIR TABLE` 和引擎转换均不作为剩余开发项。
+InnoDB 专用 `REPAIR TABLE` 和引擎转换均不作为剩余开发项。
+
+### 2.2.2 最新增量（Continuation 1697）
+
+复制 storage transaction 在物理 WAL 已提交但 applied/GTID marker 首次写入失败时，
+现在可以在同一个 committed context 上重试并完成 journal/marker 发布；重试不会再次执行
+物理 `TransactionManager.Commit`。该切片只关闭同进程 marker 重试窗口，P2/P4 的统一
+storage/WAL/native-binlog/GTID/applied-marker 提交协议、完整 crash-kill/拓扑以及官方
+MySQL 全量互操作仍保持 `partial`。
+
+Evidence: `reports/compatibility/p2-replication-committed-context-marker-retry-current-continuation1697.txt`。
+
+### 2.2.3 最新增量（Continuation 1698）
+
+SQL EVENT 的 DML 结果现在通过内部 statement-result observer 在结果发布前收口
+`events_statements_summary_by_program` 摘要，不再等待无关的 executeQuery 延迟 metrics
+cleanup；事件生命周期回归同时等待数据行和摘要行，避免用异步 scheduler 的中间状态误判。
+该切片收窄一个 P1 Performance Schema runtime publication 窗口，但完整 I_S/P_S 表、字段、
+组件、运行时和权限语义仍保持 partial。
+
+Evidence: `reports/compatibility/p1-event-program-summary-publication-current-continuation1698.txt`。
+
+### 2.2.1 最新状态校正（Continuation 1655）
+
+当前权威矩阵已更新为 `scope-matrix-current-continuation1655.json`：29 项中
+18 项 `implemented`、8 项 `partial`、1 项 `deferred`、2 项 `out_of_scope`。
+`caching_sha2_password` 快速认证的服务端协议切片、Go/PyMySQL/mysql CLI 和 Node.js/mysql2
+的端到端认证插件切片均已有通过证据；Node 的历史一次性超时在两次独立新进程重跑中未复现。
+P3 聚合项仍不能标记为完成，因为更广泛客户端版本/ORM、负向/网络故障和集群拓扑尚未覆盖。
+P1 的完整 I_S/P_S 运行时/组件/权限语义、P2 的统一物理提交协议与完整 crash-kill/拓扑矩阵、
+P4 官方 MySQL 双向 fixture 仍是全局未完成项；但 continuation 1650/1651 已新增官方
+8.4.11 反向晋升和 source crash/reconnect 子门禁通过，不能替代完整拓扑和全交错矩阵。
+
+Continuation 1652 又补齐了共享原子复制状态文件的 rename 后目录项持久化边界：Unix 使用目录
+句柄 `Sync()`；Windows 尝试带 backup-semantics 的目录句柄 `FlushFileBuffers()`，对常见
+文件系统的 `ERROR_ACCESS_DENIED` 按平台不支持处理为 best-effort，并验证目录同步调用及
+失败传播。该切片关闭/收窄一个本地目录项崩溃窗口，但不改变 P2/P4 聚合项的 `partial` 状态，
+因为统一 storage/WAL/native-binlog/applied-marker 提交协议、全 crash-kill/网络分区/拓扑和
+完整官方双向 fixture 仍未完成。
+
+Continuation 1653 的全仓 Go 串行回归（`go test -p 1 ./... -count=1 -timeout 90m`）全部通过，
+确认 Continuation 1652 的复制状态目录持久化改动没有引入跨包回归；它不替代 P1/P2/P3/P4
+各自所需的官方语义、外部客户端和分布式故障门禁。
+
+Continuation 1654 又验证了 native 复制部分事务批次在 transport reset 后的重连恢复：relay
+边界先持久化，剩余帧重试后只应用一次，GTID/source position 前进且历史 I/O 错误保留。该
+切片收口一个具体网络故障边界，但不改变 P2/P4 聚合项的 `partial` 状态。
+
+Continuation 1655 又验证了非 Connector/J 客户端的真实 TCP 断连恢复：xmysql 保持运行，由
+本地 fault proxy 主动关闭 Go mysql-driver、PyMySQL、Node.js/mysql2 的活动连接，三者均在
+旧查询失败后通过新连接恢复。该切片关闭一个 P3 网络故障子门禁，但不改变完整客户端矩阵的
+`partial` 状态。
+
+Continuation 1656 又用 Docker `mysql:5.7.44` 和 `mysql:8.0.41` 跑通当前定义的 16 个
+CLI 用例，结合既有 `mysql:8.4.11` 证据形成 CLI 5.7/8.0/8.4 版本切片。该门禁使用开发
+免密夹具，不能替代生产凭据和完整客户端版本/ORM/网络拓扑覆盖，因此 P3 聚合项继续保持
+`partial`。
+
+Continuation 1657 新鲜重跑官方 MySQL 8.4.11 反向晋升 fixture：官方 source 的普通事务、两阶段
+XA 和一阶段 XA 均应用到 xmysql，xmysql 重启后无重复；xmysql 晋升为 source 后，普通/XA/一阶段
+XA 又应用到官方 target。该子门禁通过，但不改变 P2/P4 聚合项的 `partial` 状态，因为完整
+crash-kill、网络分区、更多版本和双向 GTID/XA 拓扑仍未完成。
+
+Continuation 1658 新鲜重跑官方 MySQL 8.4.11 source crash/reconnect fixture：xmysql 重启后恢复
+崩溃窗口前、窗口中的普通/XA/一阶段 XA 事务，随后在官方 source 重连后继续应用后续普通/XA
+事务；GTID 连续且无重复。该子门禁通过，但完整 crash-kill、网络分区、更多版本和双向拓扑仍
+未完成，P2/P4 继续保持 `partial`。
+
+Continuation 1659 新鲜运行官方 MySQL 8.0.41 反向晋升 fixture：普通事务、两阶段 XA、一阶段 XA
+均完成官方 source -> xmysql、重启无重复、xmysql 晋升 -> 官方 target 的闭环；fixture 已兼容
+MySQL 8.0 的 `SHOW MASTER STATUS`。该版本子门禁通过，但 P2/P4 聚合项仍因更多版本、完整
+crash-kill/网络分区和双向 GTID/XA 拓扑保持 partial。Evidence:
+`reports/compatibility/p2-p4-official-reverse-promotion-mysql80-current-continuation1659.txt`。
+
+Continuation 1660 新鲜运行官方 MySQL 8.0.41 source crash/reconnect fixture：xmysql 强制终止后恢复
+崩溃前/崩溃窗口中的普通、两阶段 XA、一阶段 XA，官方 source 重启后继续追平后续普通/XA 事务，
+GTID 连续且无重复。该版本子门禁通过，但 P2/P4 聚合项仍因更多版本、网络分区/fencing 和完整
+双向 GTID/XA 拓扑保持 partial。Evidence:
+`reports/compatibility/p2-p4-official-source-crash-reconnect-mysql80-current-continuation1660.txt`。
+
+Continuation 1661 在 8.0.41 版本化状态查询修改后重新执行官方 MySQL 8.4.11 反向晋升 fixture，
+普通、两阶段 XA、一阶段 XA 双向应用及重启去重均通过，确认 fixture 回退逻辑未破坏 8.4.11。
+该回归不替代完整网络分区、fencing 和双向 GTID/XA 拓扑门禁，P2/P4 聚合项继续保持 partial。
+Evidence: `reports/compatibility/p2-p4-official-reverse-promotion-script-regression-current-continuation1661.txt`。
+
+Continuation 1662 新增官方 MySQL 8.4.11 真实进程持续网络分区/恢复：官方 source 保持在线，
+proxy 关闭活动连接并拒绝新连接，分区期间 xmysql 保持断点，heal 后普通事务、两阶段 XA、一阶段
+XA 全部追平且无重复。该子门禁通过，但不替代分布式 fencing/共识、多节点分区晋升和完整版本/拓扑
+矩阵，P2/P4 聚合项继续保持 partial。Evidence:
+`reports/compatibility/p2-p4-official-source-network-partition-current-continuation1662.txt`。
+
+Continuation 1667 确认 XA 一阶段和已 prepare 的提交路径把规范化 XA XID 写入同一条物理
+`LOG_TYPE_TXN_COMMIT` WAL 记录；focused identity tests 与 engine 全包回归通过。该切片只
+收口 XA 的 WAL identity binding，不改变统一 storage/WAL/native-binlog/GTID/applied-state
+提交协议仍未完成的结论。Evidence:
+`reports/compatibility/p2-xa-identity-wal-current-continuation1667.txt`。
+
+Continuation 1668 又修复 XA publication 失败后的 durable journal identity：恢复用的 commit
+record 现在与物理 WAL 一样优先使用规范化 XA XID，避免把 XA 当普通 client key 重放。聚焦
+测试和 engine 全包回归通过；该切片不改变 P2/P4 聚合项仍为 partial 的结论。Evidence:
+`reports/compatibility/p2-xa-journal-recovery-identity-current-continuation1668.txt`。
+
+Continuation 1669 又确认 XA DML journal 在物理提交前就使用规范化 XA XID，覆盖 commit record
+尚未生成时的更早崩溃窗口。该切片通过 focused identity tests 与 engine 全包回归，但不改变
+统一 storage/WAL/native-binlog/GTID/applied-state 物理提交协议仍未完成的结论。Evidence:
+`reports/compatibility/p2-xa-precommit-journal-identity-current-continuation1669.txt`。
 
 本次结论不把 Docker daemon、受保护密码或官方 fixture 的当前不可复跑条件误报为通过；
 已有 PASS 证据与当前环境复跑条件分开记录。FULLTEXT 继续保持 `deferred`，不阻塞当前
@@ -118,7 +748,8 @@ implemented。
    的交叉场景。
 
 当前已经补齐多项本地故障窗口，包括 native relay、replication commit marker、
-source position、HTTP pull position、prepared-XA 重试和恢复测试；仍未完成的是单一
+source position、HTTP pull position、prepared-XA 重试和恢复测试，以及 native applied
+marker 在同进程重试时的状态收敛；仍未完成的是单一
 物理提交协议，以及与官方 MySQL 的真实互操作证明。
 
 官方 MySQL 参考明确要求 GTID execution history、binlog 同步和 XA prepare/terminal
@@ -147,9 +778,9 @@ source position、HTTP pull position、prepared-XA 重试和恢复测试；仍�
 
 ## 6. 当前计数与验收门槛
 
-当前矩阵：26 条记录，其中 24 条在范围内、2 条明确 out of scope；状态为：
+当前矩阵：29 条记录，其中 27 条在范围内、2 条明确 out of scope；状态为：
 
-- implemented：14
+- implemented：18
 - partial：8
 - unverified：0
 - pending_external：0
@@ -2748,3 +3379,1903 @@ engine 全包回归均通过。
 promotion/failover 仍为 partial。FULLTEXT 继续 deferred，非 InnoDB 引擎及专用
 REPAIR/转换继续 out of scope。证据见
 `reports/compatibility/p1-performance-schema-wait-history-instrument-snapshot-current-continuation1561.txt`。
+
+## Continuation 1562
+
+继续补齐等待生命周期语义：`performance_schema.table_lock_waits_summary_by_table` 对已经
+完成的 record-lock 与 metadata-lock wait，现在使用事件完成时保存的 `Instrumented/TIMED`
+快照；后续把当前 instrument 改为 `TIMED=NO` 或 `ENABLED=NO`，不会重算计时或删除已经
+产生的汇总。current wait 仍按当前配置判断。专项测试、manager 全包、完整 P_S 和 engine
+全包回归均通过。
+
+该切片关闭的是已完成 table-lock wait summary 的生命周期快照缺口；完整
+INFORMATION_SCHEMA/PERFORMANCE_SCHEMA 表、字段、组件/权限语义，剩余 wait 类别，P2/P4
+多通道复制、官方 XA/binlog/GTID、崩溃恢复、重复投递和 promotion/failover 仍为 partial。
+FULLTEXT 继续 deferred，非 InnoDB 引擎及专用 REPAIR/转换继续 out of scope。证据见
+`reports/compatibility/p1-performance-schema-wait-summary-instrument-snapshot-current-continuation1562.txt`。
+
+## Continuation 1563
+
+继续补齐 Performance Schema statement instrument 的最终命名与配置边界：已支持的
+DDL、SHOW、SET、事务、授权和 XA 语句不再统一记录为首个 SQL 关键词，而是映射到
+MySQL 风格的 `statement/sql/create_table`、`statement/sql/alter_table`、
+`statement/sql/show_tables`、`statement/sql/begin`、`statement/sql/xa_start` 等
+最终 instrument；`setup_instruments` 同步暴露这些行，因此按行更新 `ENABLED/TIMED`
+可以控制对应语句采集；新增回归验证关闭 `statement/sql/create_table` 时真实 DDL 不入
+汇总、重新开启后恢复。statement instrument 专项、完整 P_S 和 engine 全包回归均通过。
+
+该切片关闭的是已支持语句的 canonical statement instrument 命名/配置缺口；完整
+INFORMATION_SCHEMA/PERFORMANCE_SCHEMA 表、字段、组件/权限语义，剩余 instrument/stage/wait
+类别，P2/P4 多通道复制、官方 XA/binlog/GTID、崩溃恢复、重复投递和 promotion/failover
+仍为 partial。FULLTEXT 继续 deferred，非 InnoDB 引擎及专用 REPAIR/转换继续 out of scope。
+证据见 `reports/compatibility/p1-performance-schema-canonical-statement-instruments-current-continuation1563.txt`。
+
+## Continuation 1564
+
+继续补齐已有执行路径的 Performance Schema statement instrument 覆盖：存储对象 DDL、视图、
+SQL PREPARE/EXECUTE/DEALLOCATE、CALL、表重命名、表锁、FLUSH/KILL、表维护、复制控制、
+SHOW 扩展以及用户/角色语句现在映射到 MySQL 风格的 canonical `statement/sql/*` 名称，
+包括 `create_view`、`create_procedure`、`call_procedure`、`prepare_sql`、`rename_table`、
+`lock_tables`、`change_master`、`slave_start` 等；`insert ... select` 和
+`replace ... select` 也分别使用 `insert_select`/`replace_select`。这些名称已注册到
+`setup_instruments`，因此现有 runtime gate 可按 instrument 控制采集。
+
+新增映射与 setup 行回归通过；完整 `TestPerformanceSchema` 用例通过（75.181s），engine
+全包通过（446.339s）。本切片不宣称没有对应 xmysql runtime 的 Clone、Firewall、Keyring、
+NDB、Enterprise scheduler 等组件表已完成；这些仍按真实组件是否存在分别处理，不能用合成
+运行时行冒充官方语义。完整 INFORMATION_SCHEMA/PERFORMANCE_SCHEMA 表、字段、组件/权限
+语义，剩余 instrument/stage/wait 类别，P2/P4 官方 XA/binlog/GTID、崩溃恢复、重复投递和
+promotion/failover 仍为 partial。FULLTEXT 继续 deferred，非 InnoDB 引擎及专用
+REPAIR/转换继续 out of scope。证据见
+`reports/compatibility/p1-performance-schema-expanded-statement-instruments-current-continuation1564.txt`。
+
+## Continuation 1565
+
+补齐 Performance Schema 8.4 `setup_consumers` 的 `events_statements_cpu` 配置项：默认值为
+`NO`，可以通过 `SELECT` 查看并通过 `UPDATE` 动态切换，且继续受现有 setup 表权限校验约束。
+该 consumer 只表示 CPU 时间采集开关；当前 xmysql 尚未伪造 CPU 时间，`CPU_TIME` 仍保持
+未采集时的 `NULL/0` 边界，因此不能把 CPU 指标本身宣称为已实现。
+
+新增 consumer 默认值/查询/更新回归和完整 `TestPerformanceSchema` 回归通过（73.137s）。
+该切片只关闭 setup consumer 注册与生命周期配置缺口；完整 INFORMATION_SCHEMA/PERFORMANCE_SCHEMA
+表、字段、组件/权限语义，P2/P4 官方 XA/binlog/GTID、崩溃恢复、重复投递和 promotion/failover
+仍为 partial。FULLTEXT 继续 deferred，非 InnoDB 引擎及专用 REPAIR/转换继续 out of scope。证据见
+`reports/compatibility/p1-performance-schema-statement-cpu-consumer-current-continuation1565.txt`。
+
+## Continuation 1566
+
+完成官方 MySQL 8.4.11 反向复制与运行时 Promote 验证：官方源的普通 InnoDB 事务和
+XA 事务均被 xmysql 追平；停止官方源后 xmysql Promote 为 source；官方目标随后从
+xmysql 读取 GTID/native binlog，并成功应用 Promote 后的行。过程中补齐认证结果权限
+传播、Promote 后动态 source 绑定、所有启动角色安装 replication/XA commit hooks、普通
+事务的 `QUERY_EVENT(BEGIN)`、MySQL 8.4 GTID event 元数据以及 `VARCHAR` TABLE_MAP
+字节宽度。
+
+证据：`reports/compatibility/p2-p4-official-reverse-replication-current-continuation1566.txt`，
+fixture 结果目录为
+`C:\\Users\\Administrator\\AppData\\Local\\Temp\\xmysql-reverse-promotion-20260928-114430`。
+最新源码下 `server/net`、`server/replication` 和 `server/innodb/engine` 回归均通过，
+其中 engine 全包耗时 435.977 秒。
+官方反向 source/replica、XA、GTID、native row-event 和 runtime promotion 子门禁已验证，
+但 P2/P4 聚合项仍保持 partial：崩溃窗口恢复、重启后的重复投递幂等、官方双向 XA 以及
+更广泛的拓扑/故障切换场景尚未全部覆盖。完整 INFORMATION_SCHEMA/PERFORMANCE_SCHEMA
+和非 Connector/J 客户端矩阵继续作为全局任务；FULLTEXT 继续 deferred，非 InnoDB
+引擎、专用 REPAIR/转换继续 out of scope。
+
+## Continuation 1567
+
+执行外部进程级崩溃恢复矩阵 3 次：已提交数据重启后保留，未提交数据回滚，
+半提交场景最多应用一次，DDL 和重建索引元数据在重启后仍可查询。证据见
+`reports/compatibility/p2-external-process-crash-recovery-current-continuation1567.txt`。
+该切片关闭 xmysql 本地外部 crash/recovery 子门禁，但官方 MySQL 重启后的重复投递、
+native GTID/applied-state 崩溃窗口、双向 XA 和更广泛 promotion/failover 拓扑仍使
+P2/P4 聚合项保持 partial。
+
+## Continuation 1568
+
+增强官方 MySQL 8.4.11 反向复制 fixture，加入 xmysql 进程重启后的重复拉取检查：
+普通事务和 XA 事务先同步到 xmysql，xmysql 重启并重新连接后数据仍存在且没有重复，
+随后 Promote 成 source，官方目标继续成功应用 Promote 后的 xmysql 事务。证据见
+`reports/compatibility/p2-p4-official-reverse-restart-promotion-current-continuation1568.txt`。
+该切片关闭官方 source → xmysql restart → promotion → official target 子门禁；
+官方双向 XA、native GTID/applied-state crash-kill、任意重复投递和更广泛拓扑仍使
+P2/P4 聚合项保持 partial。
+
+## Continuation 1569
+
+补齐 `performance_schema.setup_consumers.events_statements_cpu` 的实际运行时语义：
+在 Windows/Linux 上按执行 OS 线程采集 CPU 时间，传递到 `events_statements_history*`
+的 `CPU_TIME`，并累计到 statement summary/digest 的 `SUM_CPU_TIME`；consumer 关闭时
+历史事件的 `CPU_TIME` 保持 `NULL`。专项测试、metrics 包回归、完整 `TestPerformanceSchema`、
+engine 全包回归和 Linux 目标编译均通过。证据见
+`reports/compatibility/p1-performance-schema-statement-cpu-time-current-continuation1569.txt`。
+
+该切片只关闭 CPU_TIME 的运行时采集缺口；完整 INFORMATION_SCHEMA/PERFORMANCE_SCHEMA
+的组件、权限、instrument/stage/wait/thread/runtime 语义仍为 partial。P2/P4 官方双向 XA、
+native GTID/applied-state crash-kill、任意重复投递和更广泛拓扑仍为 partial；FULLTEXT
+继续 deferred，非 InnoDB 引擎及专用 REPAIR/转换继续 out of scope。
+
+## Continuation 1570
+
+继续补齐 P_S prepared statement 运行时统计：SQL `PREPARE/EXECUTE` 的嵌套执行上下文
+现在把已采集的 CPU 时间累计到 `prepared_statements_instances.SUM_CPU_TIME`，不再固定
+返回 0；新增 prepared statement 回归通过。协议 `COM_STMT_EXECUTE` 的独立 CPU 传播门禁
+仍需单独补齐。证据见
+`reports/compatibility/p1-performance-schema-prepared-cpu-time-current-continuation1570.txt`。
+
+## Continuation 1571
+
+补齐协议 prepared statement 的 CPU 统计：`COM_STMT_EXECUTE` 在
+`events_statements_cpu` 开启时锁定执行 OS 线程采集 CPU 时间，协议层
+`PreparedStatementManager` 现在保留 `CPUTimeTotal`，因此
+`prepared_statements_instances.SUM_CPU_TIME` 可覆盖 Connector/J 风格的二进制预处理
+语句。协议级回归和 net/protocol/compatibility 包回归通过。证据见
+`reports/compatibility/p1-performance-schema-com-stmt-cpu-time-current-continuation1571.txt`。
+
+## Continuation 1572
+
+补齐 `events_statements_summary_by_program.SUM_CPU_TIME` 的真实运行时聚合：存储过程
+从子语句 summary 累计 CPU 时间，存储函数、EVENT 和 TRIGGER 也在 CPU consumer 开启
+时传递捕获值；普通 `executeQuery` 路径同步补上 statement summary 的 CPU 字段传播。
+存储过程/函数专项和完整 `TestPerformanceSchema` 回归均通过。证据见
+`reports/compatibility/p1-performance-schema-program-cpu-time-current-continuation1572.txt`。
+
+该切片只关闭程序级 CPU 聚合缺口；完整 INFORMATION_SCHEMA/PERFORMANCE_SCHEMA 的
+组件、权限、instrument/stage/wait/thread/runtime 语义仍为 partial，P2/P4 官方
+XA/binlog/GTID、崩溃恢复、重复投递和拓扑故障切换仍未完成。
+
+## Continuation 1573
+
+官方 MySQL 反向复制 fixture 现在额外验证 Promote 后的 xmysql XA 事务：官方源的
+普通事务和 XA 事务先同步到 xmysql；xmysql 重启并 Promote 后，官方目标同时成功
+应用 xmysql 的普通事务和 XA 事务。该路径形成了官方源 -> xmysql XA 与 xmysql
+Promote -> 官方目标 XA 的双向子门禁。Evidence:
+`reports/compatibility/p2-p4-official-bidirectional-xa-current-continuation1573.txt`。
+
+native GTID/applied-state crash-kill、任意重复投递和更广泛 topology/failover
+仍未关闭，P2/P4 聚合项继续保持 partial。
+
+## Continuation 1574
+
+补齐本地 replica 的 applied-marker 重试状态收敛：当存储回调已经成功、但最终
+replica-state replacement 失败时，后续同进程重试会先提升已持久化 marker，再继续
+处理后续事件；relay、native relay、table map、prepared-XA 和已应用行的内存重试视图
+也会在每个成功持久化边界同步。新增 native 物理 binlog 回归，验证同进程重试与重启
+重试都不会重复调用存储回调。Evidence:
+`reports/compatibility/p2-native-applied-marker-same-process-current-continuation1574.txt`。
+
+该切片关闭本地 native applied-marker 同进程/重启重试子门禁；官方 MySQL crash-kill、
+任意重复投递和更广泛 topology/failover 仍未关闭，P2/P4 聚合项继续保持 partial。
+
+## Continuation 1575
+
+重新执行官方 MySQL 双向 XA/晋升门禁：官方源的普通事务和 XA 事务同步到 xmysql；
+xmysql 重启后保留两条记录并完成 Promote；官方目标随后同时应用 xmysql 的普通事务和
+XA 事务。该门禁结果为 PASS，但它是已有双向子门禁的最新复跑，不等于关闭官方
+crash-kill、任意重复投递或更广拓扑组合。Evidence:
+`reports/compatibility/p2-p4-official-bidirectional-xa-current-continuation1575.txt`。
+
+## Continuation 1576
+
+修复 `performance_schema.table_lock_waits_summary_by_table` 的最小等待时间
+初始化：如果表行先由 reset/filter 快照创建，再收到第一条真实等待，
+`MIN_TIMER_WAIT`、读/写和 metadata wait 的 `MIN_TIMER_*` 不再错误保持为 0。
+单测和完整 `TestPerformanceSchema` 专项回归均通过。Evidence:
+`reports/compatibility/p1-performance-schema-table-lock-minimum-current-continuation1576.txt`。
+
+该切片只关闭一个 P_S 运行时统计正确性缺口；完整组件生命周期、所有等待分类、
+权限语义和 I_S/P_S 聚合项仍保持 `partial`。
+
+## Continuation 1577
+
+修复全局及按实例 `events_waits_summary_*` 的首条等待初始化：reset 空行在收到
+真实等待后不再把 `MIN_TIMER_WAIT`/`MAX_TIMER_WAIT` 锁在默认零值。通过
+`TestPerformanceSchemaWaitSummaryTruncateResetsRows`、完整 `TestPerformanceSchema`
+专项回归和 `server/innodb/engine` 全包回归。Evidence:
+`reports/compatibility/p1-performance-schema-wait-minimum-current-continuation1577.txt`。
+
+该切片只关闭一个 P_S 等待汇总正确性缺口；完整组件生命周期、所有等待分类、权限
+语义和 I_S/P_S 聚合项仍保持 `partial`。
+
+## Continuation 1578
+
+修复按 account/host/user 维度重新聚合等待统计时的首条真实等待初始化：reset
+保留的空线程行不再污染同一维度其他线程的 `MIN_TIMER_WAIT`/`MAX_TIMER_WAIT`。
+通过 account 维度专项、完整 `TestPerformanceSchema` 和 `server/innodb/engine`
+全包回归。Evidence:
+`reports/compatibility/p1-performance-schema-wait-dimension-minimum-current-continuation1578.txt`。
+
+该切片只关闭一个 P_S 维度聚合正确性缺口；完整组件生命周期、所有等待分类、权限
+语义和 I_S/P_S 聚合项仍保持 `partial`。
+
+## Continuation 1579
+
+修复 `INFORMATION_SCHEMA.COLUMN_PRIVILEGES UNION ALL TABLE_PRIVILEGES` 原先固定
+返回空结果的问题，改为组合两个真实权限视图的可见性、过滤和行投影。通过联合
+查询专项、权限/角色专项、完整 `TestInformationSchema` 和引擎全包回归。
+Evidence:
+`reports/compatibility/p1-information-schema-privileges-union-current-continuation1579.txt`。
+
+该切片只关闭一个 I_S 权限联合查询缺口；完整权限/角色语义、所有 SQL set-operation
+形状以及 I_S/P_S 聚合项仍保持 `partial`。
+
+## Continuation 1580
+
+补齐 one-phase XA 的原生 binlog 重试恢复：当逻辑 `XA_PREPARE` 已落盘但原生
+binlog 写入失败时，重试会从逻辑流重建原生文件，并恢复为同一条
+`one_phase=1` 事务，不再追加重复事务。新增故障注入回归、原生/XA/崩溃/晋升专项
+和完整 `server/replication` 回归均通过。Evidence:
+`reports/compatibility/p2-one-phase-xa-native-retry-current-continuation1580.txt`。
+
+该切片只关闭本地 one-phase XA native retry 子门禁；P2/P4 的完整 native binlog、
+GTID、crash-kill、promotion 和官方 MySQL 互操作聚合项仍保持 `partial`。
+
+## Continuation 1581
+
+官方 MySQL 双向 fixture 现在同时覆盖 one-phase XA：官方源先向 xmysql 发送普通、
+两阶段 XA 和 one-phase XA；xmysql 重启后保持三条记录并完成 Promote；官方目标随后
+成功应用 xmysql 的普通、两阶段 XA 和 one-phase XA。该门禁结果为 PASS。Evidence:
+`reports/compatibility/p2-p4-official-bidirectional-one-phase-xa-current-continuation1581.txt`。
+
+该切片关闭官方双向 one-phase XA 子门禁，但 P2/P4 完整 crash-kill、GTID/位置、
+拓扑故障切换和全量官方互操作聚合项仍保持 `partial`。
+
+## Continuation 1582
+
+补齐权限视图的多分支集合查询：`INFORMATION_SCHEMA.COLUMN_PRIVILEGES` 与
+`TABLE_PRIVILEGES` 现在支持多段顶层 `UNION ALL`，并支持 `UNION`/`UNION DISTINCT`
+的重复行消除。权限/角色专项和完整 `TestInformationSchema` 均通过。Evidence:
+`reports/compatibility/p1-information-schema-privileges-union-distinct-current-continuation1582.txt`。
+
+该切片只关闭权限视图集合查询的已验证子门禁；完整权限/角色可见性、全部 SQL
+set-operation 组合及 I_S/P_S 聚合项仍保持 `partial`。
+
+## Continuation 1583
+
+外部进程崩溃恢复矩阵连续执行 3 次通过：已提交数据保留、未提交数据回滚、半提交
+事务至多应用一次，DDL 元数据和索引重建元数据在重启后均可查询。Evidence:
+`reports/compatibility/p2-external-process-crash-recovery-current-continuation1583.txt`。
+
+该切片确认本地 redo/undo 和半提交 crash 子门禁，但 P2/P4 native GTID/applied-state、
+官方 MySQL crash、promotion 和拓扑矩阵仍保持 `partial`。
+
+## Continuation 1584
+
+补齐权限视图的 `INTERSECT`/`EXCEPT` 集合语义：每个分支继续使用原有账户
+可见性、过滤和授权行展开逻辑，新增受限账户的交集/差集回归，并通过权限/角色专项、
+完整 `TestInformationSchema` 和 engine 包全量回归。Evidence:
+`reports/compatibility/p1-information-schema-privileges-intersect-except-current-continuation1584.txt`。
+
+该切片只关闭权限视图集合运算的已验证子门禁；完整权限/角色可见性、全部 SQL
+set-operation 组合及 I_S/P_S 聚合项仍保持 `partial`。P3 非 Connector/J 客户端的
+已定义 smoke gate 已通过，但全量客户端边界仍单独保持 `partial`。
+
+## Continuation 1586
+
+修复解耦网络处理器的认证字段边界：未指定默认库时，不再把
+`mysql_native_password` 插件名写入当前 database；新增 no-default/empty-default
+handshake 回归，并通过网络、协议和 replication 包专项回归。官方 MySQL -> xmysql
+崩溃前查询可见性已通过，持久化 GTID 6-10、DDL 和崩溃前行 1/2 均有真实 fixture
+证据。Evidence:
+`reports/compatibility/p2-p4-official-source-crash-reconnect-current-continuation1586.txt`。
+
+已修复 native recovery 在持久化文件/位置可用时反复从空文件名 GTID dump
+起点重放旧 metadata 的问题，并补齐运行时 `@@GLOBAL.gtid_executed` 的客户端可见性。
+官方源停机期间产生的行 3/4（普通事务和 one-phase XA）现已在 xmysql 重启后完整追平；
+`33489/3429/4429` fixture 返回 `PASS`，xmysql 的 GTID 为 `...:6-12`。
+该 crash/reconnect 子门禁已关闭，但 P2/P4 聚合项仍保持 `partial`，因为双向
+XA/binlog/GTID、提升/切换、重复投递和存储/WAL/applied-state 的其他边界仍需独立门禁。
+
+## Continuation 1591
+
+重跑非 Connector/J 客户端门禁并修正 Go runner 的 reconnect 检查：不再只复用
+原连接执行 `Ping`，而是关闭旧 `database/sql` 句柄、重新打开连接并执行查询。
+官方 MySQL 8.4.11 CLI、Go mysql driver、PyMySQL、Node mysql2 全部通过，包含
+DDL/DML、预处理、事务、类型/字符集、元数据、savepoint、多结果/错误和物理重连。
+Evidence:
+`reports/compatibility/p3-non-connector-client-matrix-current-continuation1591.txt`。
+
+这只关闭 P3 基础客户端与物理重连子门禁；负向/协议边界、TLS/认证插件、更多类型
+和字符集、ORM 以及集群故障恢复仍使 P3 全量聚合项保持 `partial`。
+
+## Continuation 1592
+
+官方 MySQL -> xmysql 崩溃重连 fixture 扩展覆盖 xmysql 停机期间提交的普通事务、
+one-phase XA 和两阶段 XA。三类事务均在 xmysql 重启后恢复，且 `@@GLOBAL.gtid_executed`
+从源端 `...:1-14` 对应追平到 xmysql 的 `...:6-14`。Evidence:
+`reports/compatibility/p2-p4-official-source-crash-reconnect-current-continuation1592.txt`。
+
+该切片关闭官方源 crash-window XA 子门禁；P2/P4 聚合项仍为 `partial`，任意重复投递、
+全部存储/WAL/native-binlog/applied-marker 崩溃点、提升/故障切换拓扑和剩余双向官方
+MySQL 矩阵仍需独立验证。
+
+## Continuation 1594
+
+官方 MySQL 反向提升 fixture 通过：官方源的普通事务、两阶段 XA、one-phase XA 已应用到
+xmysql；xmysql 重启后无重复并完成 Promote；官方目标随后成功应用 xmysql 提升后的普通、
+两阶段 XA 和 one-phase XA。Evidence:
+`reports/compatibility/p2-p4-official-reverse-promotion-current-continuation1594.txt`。
+
+该切片关闭官方反向提升重启子门禁，但 P2/P4 聚合项仍为 `partial`，因为任意重复投递、
+全部存储/WAL/applied-marker 崩溃点、完整拓扑故障切换和剩余官方双向矩阵仍未全部覆盖。
+
+## Continuation 1595
+
+新增 native duplicate-prefix retry 回归：副本先持久化事务前缀，重启后再次收到已持久化
+前缀和提交帧，事务只应用一次；提交后的同一物理重试继续为 no-op。专项测试及
+`server/replication`、`server/net` 回归均通过。Evidence:
+`reports/compatibility/p2-native-duplicate-prefix-retry-current-continuation1595.txt`。
+
+该切片关闭本地 native 重复前缀重试子门禁，但 P2/P4 聚合项仍为 `partial`，官方传输层
+重复投递、全部存储/WAL/applied-marker 崩溃点和完整拓扑/官方互操作矩阵仍需验证。
+
+## Continuation 1597
+
+当前版本真实外部进程崩溃恢复矩阵连续 3 轮通过：已提交数据保留、未提交数据回滚、
+半提交事务至多应用一次，DDL 和索引重建元数据在重启后仍可查询。Evidence:
+`reports/compatibility/p2-external-crash-recovery-current-continuation1597.txt`。
+
+该切片关闭当前外部进程 redo/undo/半提交 crash 子门禁，但 P2/P4 聚合项仍为 `partial`，
+native replication/applied-marker 的全部传输边界、完整提升拓扑和官方互操作矩阵仍需验证。
+
+## Continuation 1600
+
+客户端集群故障切换 fixture 通过：MySQL CLI、Go mysql driver、PyMySQL、Node mysql2 均能
+访问源端；副本追平 GTID 后源端停止并完成 Promote；四类客户端再次访问提升节点全部通过。
+Evidence:
+`reports/compatibility/p2-p3-client-cluster-failover-current-continuation1600.txt`。
+
+该切片关闭客户端可见的集群端点故障切换子门禁，但 P3 全量客户端和 P2/P4 聚合项仍为
+`partial`，负向/协议/TLS/认证插件/ORM、native 传输崩溃边界和完整官方拓扑矩阵仍需验证。
+
+## Continuation 1602
+
+本地 replication runtime 的 quorum/fencing 拓扑专项通过：单副本法定人数选举、重启后
+fencing 状态和旧 epoch 拒绝、提升前隔离可达旧源均通过。Evidence:
+`reports/compatibility/p2-local-topology-failover-current-continuation1602.txt`。
+
+该切片关闭本地 quorum/fencing 拓扑子门禁，但 P2/P4 聚合项仍为 `partial`，多节点进程级
+native 传输中断和完整官方 MySQL 拓扑矩阵仍需验证。
+
+## Continuation 1604
+
+扩展官方 MySQL → xmysql fixture：xmysql 保持运行时，官方源停止并重新启动；源恢复后
+xmysql 自动重连并继续应用普通事务和两阶段 XA，行 1-7 均只出现一次。Evidence:
+`reports/compatibility/p2-p4-official-source-transport-reconnect-current-continuation1604.txt`。
+
+该切片关闭官方源 transport interruption/reconnect 子门禁，但 P2/P4 聚合项仍为 `partial`，
+native 传输在全部 applied-marker/storage 崩溃边界和完整官方拓扑矩阵仍需验证。
+
+## Continuation 1607
+
+补齐 native 一次批量包含多个事务时的 source-position/applied-marker 故障窗口：在两笔
+事务都完成 storage apply 和 durable applied marker 后，注入最终状态替换失败；重启后使用
+同一 `ApplyNativeAtSource` 路径重试，两个事务均不重复执行，source position 只在整批状态
+替换成功后发布。Evidence:
+`reports/compatibility/p2-native-multi-transaction-source-position-current-continuation1607.txt`。
+
+该切片只关闭本地多事务 native source-position 重试子门禁；所有 storage/WAL/native relay/
+applied-marker 交错故障、完整多节点拓扑和官方 MySQL 矩阵仍保持 P2/P4 `partial`。
+
+## Continuation 1606
+
+补齐 P_S 组件型虚拟表的逐表 SELECT 权限回归：普通持久化账户访问
+`component_scheduler_tasks`、`clone_status`、`keyring_keys` 时，在未授予对应表级
+SELECT 前均被拒绝；逐表授权后可查询注册列，组件不存在时仍返回符合当前边界的空结果。
+同时复跑 P_S/I_S、角色默认激活、mandatory role、`SET ROLE` 和角色可见性专项均通过。
+Evidence: `reports/compatibility/p1-component-table-permissions-current-continuation1606.txt`。
+
+该切片只关闭 P_S 组件表权限分发的局部门禁；Clone、Keyring、Enterprise Firewall、
+component scheduler 的完整运行时生命周期仍需要权威组件或官方 Enterprise fixture，
+因此 P1 聚合项仍为 `partial`。P2/P4 native XA/binlog/GTID/crash/promotion、P3 全量
+非 Connector/J 边界矩阵仍保持 `partial`；FULLTEXT deferred，非 InnoDB out of scope。
+
+## Continuation 1608
+
+补齐本地 HTTP replication source 重启重连：replica 保持运行，source 使用同一数据目录和
+replication UUID 重启后，普通事务与两阶段 XA 均继续应用，重启前事务没有重复。Evidence:
+`reports/compatibility/p2-engine-source-reconnect-current-continuation1608.txt`。
+
+该切片只关闭本地单副本 source restart/reconnect 子门禁；多节点进程级 transport 中断、所有
+native relay/applied-marker/storage 崩溃交错和官方 MySQL 完整拓扑矩阵仍保持 P2/P4 `partial`。
+
+## Continuation 1609
+
+补齐带真实数据的三成员 quorum 自动故障切换：source 与两个 replica 先同步同一事务，source
+停止后低 server-id 候选唯一晋升，另一 replica 保持从属，两个副本都只保留一条已应用记录。
+Evidence: `reports/compatibility/p2-runtime-multi-replica-failover-data-current-continuation1609.txt`。
+
+该切片只关闭本地进程内三成员 quorum/failover 数据子门禁；进程/容器级网络分区、完整 fencing
+与 storage 崩溃交错、晋升后其他 replica 自动改指向，以及官方 MySQL 拓扑矩阵仍保持 P2/P4
+`partial`。
+
+## Continuation 1612
+
+补齐非 Connector/J 客户端的负向协议错误契约：不存在表查询在服务端错误分类修复后，
+Go mysql driver、PyMySQL 和 Node mysql2 均收到 MySQL `ER_NO_SUCH_TABLE`（1146，
+SQLSTATE `42S02`）；mysql CLI 用例已加入同一门禁，但当前主机没有 mysql 可执行文件或
+Docker CLI，因此结果记录为 `SKIPPED_ENVIRONMENT`，不伪造 PASS。Evidence:
+`reports/compatibility/p3-client-negative-error-code-current-continuation1612.txt`；
+`reports/compatibility/client-matrix-current-continuation1612`。
+
+该切片只关闭 P3 负向错误码/SQLSTATE 子门禁；连接池、旧连接故障重试、TLS/认证插件、
+更多类型/字符集、ORM、客户端版本边界和完整集群客户端矩阵仍保持 P3 `partial`。
+
+## Continuation 1613
+
+补齐 P3 多会话/连接池子门禁：Go 使用 `database/sql` 的两个并发连接，Node 使用
+`mysql2` 原生 pool，PyMySQL 使用两个独立连接，三者均能同时执行查询并返回正确结果。
+mysql CLI 没有连接池 API，因此不纳入该专用 case，也不将环境缺失伪装成 PASS。Evidence:
+`reports/compatibility/p3-client-multi-session-pool-current-continuation1613.txt`；
+`reports/compatibility/client-matrix-current-continuation1613`。
+
+该切片只关闭 P3 多会话/连接池基础子门禁；旧连接故障重试、TLS/认证插件、更多类型/字符集、
+ORM、客户端版本边界和完整集群客户端矩阵仍保持 P3 `partial`。
+
+## Continuation 1615
+
+补齐 P3 常见类型/元数据子门禁：跨客户端创建包含 `BIGINT`、`DECIMAL`、`DOUBLE`、`TEXT`、
+`BLOB`、`TIMESTAMP` 的 InnoDB 表，并通过 `INFORMATION_SCHEMA.COLUMNS` 验证类型序列。
+Go mysql driver、PyMySQL、Node mysql2 均通过；mysql CLI 因环境缺少客户端和 Docker 记录为
+`SKIPPED_ENVIRONMENT`。Evidence:
+`reports/compatibility/p3-client-extended-types-metadata-current-continuation1615.txt`；
+`reports/compatibility/client-matrix-current-continuation1615`。
+
+## Continuation 1624
+
+补齐 P3 客户端真实值编码子门禁：通过 InnoDB 表实际写入并读取 `DECIMAL(10,2)`、`DOUBLE`、
+`BLOB` 和 `DATE`，Go mysql driver、PyMySQL、Node.js/mysql2 均通过；mysql CLI 因环境缺少
+客户端和 Docker 记录为 `SKIPPED_ENVIRONMENT`。同时修复 Go 客户端矩阵与独立重连夹具的构建
+边界，避免两个 `main` 互相污染。Evidence:
+`reports/compatibility/p3-client-wire-values-current-continuation1624.txt`；
+`reports/compatibility/client-matrix-current-continuation1624`；
+`reports/compatibility/client-restart-reconnect-current-continuation1624`。
+
+该切片只关闭 P3 真实值编码基础子门禁；mysql CLI、TLS/认证插件、更多值/字符集、ORM、
+客户端版本边界和完整集群客户端矩阵仍保持 P3 `partial`。
+
+## Continuation 1625
+
+补齐 P2 原生复制长连接在提升后的 source 刷新：在 `COM_REGISTER_SLAVE`、
+`COM_BINLOG_DUMP` 和 `COM_BINLOG_DUMP_GTID` 到达时，从当前引擎重新取得复制 source，
+不再依赖连接建立时缓存的旧指针。该切片通过网络层和 native binlog/GTID dump 回归，
+但完整 native 拓扑、崩溃窗口和官方双向互操作仍保持 P2/P4 `partial`。Evidence:
+`reports/compatibility/p2-native-session-source-refresh-current-continuation1625.txt`。
+
+该切片只关闭 P2 原生复制长连接 source 刷新子门禁；完整 native 拓扑、崩溃窗口、网络分区和
+官方双向互操作仍保持 P2/P4 `partial`。
+
+## Continuation 1626
+
+在当前机器可用 Docker 的条件下补跑官方 MySQL 8.4.11 互操作：
+
+- 官方 MySQL 源 → xmysql 副本：xmysql 进程崩溃/重启、官方源停止/重连后，普通事务和 XA
+  事务均恢复且无重复，PASS。
+- 官方 MySQL 源 → xmysql 副本 → xmysql 提升 → 官方 MySQL 目标：普通事务、两阶段 XA、
+  一阶段 XA 均通过 xmysql native binlog 继续复制，PASS。
+
+Evidence: `reports/compatibility/p2-p4-official-source-crash-reconnect-current-continuation1626.txt`；
+`reports/compatibility/p2-p4-official-reverse-promotion-current-continuation1626.txt`。
+
+这两个专项门禁通过后，P2/P4 仍不能标记为 complete：完整双向拓扑、网络分区、更多官方
+版本和全量故障窗口仍需继续验证。
+
+同一轮 P1 回归也通过了现有权限、角色、组件生命周期和复制运行时切片：
+`reports/compatibility/p1-privilege-role-component-regression-current-continuation1626.txt`。
+这只证明已实现的语义切片没有回归，不改变 P1 全量 I_S/P_S 的 `partial` 状态。
+
+## Continuation 1627
+
+补齐 P3 客户端实测：在仓库受控免密测试配置下，mysql CLI（Docker MySQL 8.4.11）、Go
+mysql driver、PyMySQL、Node.js/mysql2 均通过共享协议矩阵；随后在两节点 source/replica
+拓扑中，四类客户端均通过 source 端点、replica 追平、source 停止后的 promoted 端点。
+
+Evidence: `reports/compatibility/p3-client-matrix-dev-auth-current-continuation1627.txt`；
+`reports/compatibility/p3-client-cluster-endpoint-current-continuation1627.txt`。
+
+该结果关闭 P3 当前客户端 smoke/集群端点子门禁，但不等同于完整客户端兼容：真实密码插件、
+TLS、ORM/版本边界、网络分区和全量负向矩阵仍保持 P3 `partial`。
+
+## Continuation 1628
+
+补齐正式 engine 配置到 replication runtime 的自动故障切换 wiring：`[replication] peers`、
+`auto_failover`、`failure_timeout` 现在会被解析并传入运行时；三节点 engine 集成回归证明仅
+通过配置即可在 source 失效后按 server-id 选举副本并保持另一副本为 replica。
+
+Evidence: `reports/compatibility/p2-engine-replication-config-autofailover-current-continuation1628.txt`。
+
+这关闭的是配置接线缺口，不改变 P2/P4 的聚合状态；native endpoint 广播、网络分区 fencing、
+完整 native 拓扑与官方双向故障矩阵仍需继续验证。
+
+## Continuation 1629
+
+补齐 native endpoint 默认发现：具体 SQL 监听地址现在自动发布为 `mysql://host:port`，可供
+晋升后副本自动重指向；`0.0.0.0`/`::` 等 wildcard 监听不会发布不可连接地址，仍需显式
+配置 `native_endpoint`。相关 engine 回归通过。
+
+Evidence: `reports/compatibility/p2-native-endpoint-advertisement-current-continuation1629.txt`。
+
+这关闭 native endpoint 的默认发现缺口；容器/NAT/网络分区和官方完整 native 拓扑仍保持
+ P2/P4 `partial`。
+
+## Continuation 1689
+
+补齐 native `ROTATE_EVENT` 本体的一致性门禁：每个 logical ROTATE 边界现在都会推导下一个
+native 文件名，并比较完整 deterministic rotate body；checksum-valid 的轮转目标文件名
+篡改会从 durable logical stream 重建。正常追加和恢复重建共用同一 rotate body 编码，
+focused、replication 全包、engine replication/XA 及全仓串行回归通过。该切片只关闭一个
+本地 native 轮转完整性边界，P2/P4 的统一物理提交、完整 crash-kill/拓扑和官方双向
+XA/binlog/GTID 互操作仍为 `partial`。
+
+Evidence: `reports/compatibility/p2-native-relay-rotate-event-integrity-current-continuation1689.txt`；
+`reports/compatibility/full-go-regression-current-continuation1689.txt`。
+
+## Continuation 1690
+
+补齐 native binlog 物理帧的 short-write 检查：native 文件初始化、`ROTATE_EVENT` 和事务帧
+写入统一检查 `io.Writer.Write` 返回的完整字节数，短写返回 `io.ErrShortWrite`，由现有
+恢复/重建路径处理，不再静默留下截断帧。focused、replication 全包及 engine
+replication/XA 回归通过；这只收口本地物理写入完整性，P2/P4 统一物理提交、完整 crash-kill/
+拓扑和官方双向 XA/binlog/GTID 互操作仍为 `partial`。
+
+Evidence: `reports/compatibility/p2-native-binlog-short-write-integrity-current-continuation1690.txt`。
+
+## Continuation 1691
+
+收口 pending native ROTATE 的同进程重试：当 logical ROTATE 已同步但 native `ROTATE_EVENT`
+追加失败时，下一次 `Rotate()` 会从 durable logical stream 重建 native 投影并返回原事件，
+不会追加第二个 logical rotation boundary。focused、rotation/restart/dump、replication 全包
+及 engine replication/XA 回归通过。该切片只关闭本地 pending-ROTATE 幂等恢复边界，P2/P4
+统一物理提交、完整 crash-kill/拓扑和官方双向 XA/binlog/GTID 互操作仍为 `partial`。
+
+Evidence: `reports/compatibility/p2-native-rotate-retry-recovery-current-continuation1691.txt`。
+
+## Continuation 1692
+
+收口 native `binlog.index` 持久化失败后的同进程重试：当 logical ROTATE、native
+`ROTATE_EVENT` 和下一个 native 文件已经落盘、但索引原子替换失败时，下一次 `Rotate()`
+会比较 durable index 与 native 文件投影，修复索引并返回原事件，不会追加第二个 logical
+rotation boundary 或第三个 native 文件。focused、replication 全包、engine replication/XA
+及全仓串行回归通过。该切片只关闭本地 ROTATE/index 发布重试边界，P2/P4 统一物理提交、完整
+crash-kill/拓扑和官方双向 XA/binlog/GTID 互操作仍为 `partial`。
+
+Evidence: `reports/compatibility/p2-native-rotate-index-retry-recovery-current-continuation1692.txt`。
+
+## Continuation 1693
+
+收口 relay/import 的 durable GTID 索引重试窗口：当 logical relay 和 native binlog 已完整
+落盘、但 `binlog.gtid.index` 原子发布失败时，下一次 `ImportEvents()` 会重建并持久化 GTID
+索引后再确认幂等成功，不会留下 native 文件可读但 GTID 定位索引为空的状态。focused、
+replication 全包、engine replication/XA 及全仓串行回归通过。该切片只关闭本地 native
+relay/promotion GTID-index 发布边界，P2/P4 统一物理提交、完整 crash-kill/拓扑和官方双向
+XA/binlog/GTID 互操作仍为 `partial`。
+
+Evidence: `reports/compatibility/p2-native-gtid-index-import-retry-current-continuation1693.txt`。
+
+## Continuation 1694
+
+补齐 promotion/imported relay 的 native dump GTID 身份传播：晋升节点重新编码上游 relay 历史
+时，native GTID_EVENT 仍携带上游 SID，而 source UUID 已切换为晋升节点身份。此前
+`NativeDumpFileWithIntervals` 只在 SID 等于本机 UUID 时推进 executed set，可能造成跨文件续传
+重复发送上游事务；现在按 wire SID 记录 canonical upstream UUID。focused、replication 全包、
+engine replication/XA 及全仓串行回归通过。该切片只关闭 native dump 的 GTID 身份窗口，P2/P4
+统一物理提交、完整 crash-kill/拓扑和官方双向 XA/binlog/GTID 互操作仍为 `partial`。
+
+Evidence: `reports/compatibility/p2-native-dump-imported-gtid-executed-set-current-continuation1694.txt`。
+
+## Continuation 1695
+
+修复 native dump 从事务中间位置恢复时提前推进 executed GTID 的问题：位置跳过的 partial
+transaction 现在必须先遇到完整 `XID_EVENT` 或 XA terminal query 才会写入调用方 executed
+interval set。这样既保留 imported upstream SID 的身份传播，也避免后续完整重拉错误过滤未完成
+事务。focused、net binlog/GTID、replication、engine replication/XA 及全仓串行回归通过；该切片
+只关闭 native dump 的 partial-position GTID 窗口，P2/P4 聚合项仍为 `partial`。
+
+Evidence: `reports/compatibility/p2-native-dump-partial-gtid-advancement-current-continuation1695.txt`。
+
+## Continuation 1696
+
+补齐 XA terminal 的 native dump 中间位置恢复：普通事务从 GTID_EVENT 之后开始仍视为 partial
+并不推进 executed set；XA COMMIT/ROLLBACK 的 terminal query 在该位置下会被保留，因此现在
+在 terminal query 到达时推进 terminal GTID。focused、net binlog/GTID、replication、engine
+replication/XA 及全仓串行回归通过；该切片只关闭 native dump 的 XA terminal 位置窗口，P2/P4
+聚合项仍为 `partial`。
+
+Evidence: `reports/compatibility/p2-native-dump-xa-terminal-mid-resume-current-continuation1696.txt`。
+
+## Continuation 1630
+
+补齐 engine 配置级 quorum 安全门禁：配置一个不可达的第二副本后停止 source，存活副本在
+超过 `failure_timeout` 后仍保持 replica，不会在网络分区时单节点自提升。该回归验证了
+`conf.Cfg` 到 live replication runtime 的多数派约束。
+
+Evidence: `reports/compatibility/p2-engine-replication-config-quorum-fencing-current-continuation1630.txt`。
+
+这只关闭配置级“无 quorum 不晋升”子门禁；真实网络分区注入、并发 fencing race、完整 native
+拓扑和官方双向 XA/binlog/GTID 矩阵仍保持 P2/P4 `partial`。
+
+同轮串行回归 `server/conf`、`server/net`、`server/replication` 和 `server/innodb/engine`
+全部通过（engine 448.330s）：`reports/compatibility/p2-p1-config-cluster-regression-current-continuation1630.txt`。
+
+## Continuation 1631
+
+重新执行官方 MySQL 8.4.11 互操作门禁：官方源崩溃/重连场景，以及官方源 → xmysql 重启/晋升
+→ 官方目标的反向场景均 PASS，普通事务、两阶段 XA 和一阶段 XA 均完成恢复或继续复制。
+
+Evidence: `reports/compatibility/p2-p4-official-source-crash-reconnect-current-continuation1631.txt`；
+`reports/compatibility/p2-p4-official-reverse-promotion-current-continuation1631.txt`。
+
+这些门禁刷新了当前证据，但不关闭完整双向拓扑、网络分区 fencing race、全部崩溃交错和更多
+官方版本矩阵，P2/P4 仍保持 `partial`。
+
+## Continuation 1632
+
+补齐复制成员配置的自节点安全校验：`NewRuntime` 和运行中的 `UpdatePeers` 均拒绝与本地
+replication listen endpoint 完全相同的 peer。这样不会把本节点算作远端可达成员，也不会
+在自动故障转移时错误放大 quorum 分母；拒绝发生在持久化之前。专项测试和完整
+`server/replication` 回归均通过。Evidence:
+`reports/compatibility/p2-replication-self-peer-quorum-validation-current-continuation1632.txt`。
+
+该切片只关闭“精确自节点 endpoint 不得进入成员集合”子门禁；host alias/NAT、真实网络分区、
+并发 fencing race、完整多通道拓扑、native GTID/binlog 全部崩溃交错及官方版本广度仍保持
+P2/P4 `partial`。
+
+### Continuation 1736
+
+原生 binlog/GTID、XA、relay 晋升和存储提交恢复边界完成一次新鲜审计。`server/replication`
+全包回归通过（162.876 秒）；存储引擎复制/XA/恢复专项通过（247.133 秒）。当前局部能力
+包括事务键幂等、native 投影重建、GTID/index 恢复、XA 两阶段状态恢复及稳定事务身份重试。
+
+这不足以把 P2/P4 聚合项改为 `implemented`：跨 storage/WAL、logical/native binlog、
+GTID/applied marker 和外部 topology/fencing 的统一物理提交点，以及完整官方版本/kill/
+partition/双向拓扑互操作仍未完成。证据：
+`reports/compatibility/p2-native-binlog-gtid-recovery-audit-current-continuation1736.txt`。
+
+## Continuation 1633
+
+修复晋升 fencing 的本地状态覆盖竞态：收集 peer ACK 后，如果本节点已经被更高 epoch 或
+其他候选 UUID 围栏，晋升流程不再无条件清除 `fenced`，而是中止并保留围栏状态；无 peer
+路径也使用同一保护。专项回归通过。Evidence:
+`reports/compatibility/p2-fencing-epoch-race-guard-current-continuation1633.txt`。
+
+这只关闭本地 fencing 状态覆盖子门禁；它不是共识协议，任意网络分区、进程暂停、同时外部
+围栏、完整多节点拓扑和官方双向矩阵仍保持 P2/P4 `partial`。
+
+## Continuation 1634
+
+修复并发 fencing 持久化顺序：`applyFence` 现在在同一临界区内完成 epoch 校验、内存更新和
+持久化替换，避免旧 epoch 的延迟写入覆盖新 epoch。并发请求后重启仍观察到最高 epoch 和
+对应 owner。Evidence:
+`reports/compatibility/p2-fencing-persistence-order-current-continuation1634.txt`。
+
+该切片只关闭本地 fencing 文件回退风险；分布式共识、quorum lease、网络分区 fencing 和
+完整拓扑仍保持 P2/P4 `partial`。
+
+## Continuation 1635
+
+补齐 fencing 持久化失败回滚：直接 fence、无 peer 晋升和带 peer 晋升在 fencing 文件写入
+失败时都会恢复原有内存 epoch/owner，避免本进程与重启后的持久化状态分裂。Evidence:
+`reports/compatibility/p2-fencing-persistence-rollback-current-continuation1635.txt`。
+
+该切片只关闭本地文件写失败后的状态分裂；分布式共识、quorum lease、网络分区 fencing
+和完整拓扑仍保持 P2/P4 `partial`。
+
+## Continuation 1636
+
+收紧 `CHANGE REPLICATION SOURCE` 的本地持久化边界：source 配置成功写入并通过 identity
+清理后才发布新的内存 source；写入失败时旧 source URL 保持不变，避免当前进程和重启后的
+source 不一致。Evidence:
+`reports/compatibility/p2-source-config-persistence-rollback-current-continuation1636.txt`。
+
+该切片只关闭本地 source 配置状态分裂；命名复制通道、分布式共识和完整拓扑仍保持 P2/P4
+`partial`。
+
+## Continuation 1637
+
+补齐成员配置的一致性边界：启动加载 persisted members 时校验自节点 endpoint，`UpdatePeers`
+先持久化再发布新内存 peer 集合，写失败时保留旧集合。Evidence:
+`reports/compatibility/p2-members-persistence-rollback-current-continuation1637.txt`。
+
+该切片只关闭本地 members 配置回退和自节点重载风险；host/NAT alias、分布式共识、命名通道
+和完整拓扑仍保持 P2/P4 `partial`。
+
+## Continuation 1638
+
+补齐默认通道之外的命名复制通道第一段：运行时为每个命名通道建立隔离的 source/relay 状态
+和生命周期，并持久化通道清单；SQL 层已接入 `CHANGE REPLICATION SOURCE/FILTER`、
+`START/STOP/RESET REPLICA ... FOR CHANNEL` 以及 `SHOW REPLICA STATUS FOR CHANNEL`。
+专项、复制包和引擎包全量回归均通过。Evidence:
+`reports/compatibility/p2-named-replication-channels-current-continuation1638.txt`。
+
+该切片只关闭“SQL/runtime 仅允许 default channel”的边界；每通道 native 协议注册与 binlog
+dump 路由、独立 native endpoint 发现、多源调度、分布式 fencing、网络分区和完整 crash
+矩阵仍保持 P2/P4 `partial`。
+
+## Continuation 1639
+
+Performance Schema 的复制连接、applier、filter 和 failover 视图现在从 default 加上所有
+持久化命名通道生成独立行，并保留 `CHANNEL_NAME`；server-wide 的 `log_status` 等视图不被
+重复展开。专项回归通过。Evidence:
+`reports/compatibility/p1-p2-performance-schema-named-channel-views-current-continuation1639.txt`。
+
+该切片只补齐本地命名通道的可观测性，不改变完整 P1 系统表/组件语义，也不等价于 native
+endpoint 发现、分布式故障转移或官方多版本矩阵完成。
+
+## Continuation 1640
+
+补齐命名复制通道的 native 拉取/应用隔离：west/east 两个通道分别消费不同 native source，
+并独立维护 source UUID、GTID、文件位置、applier 和 source URL；回归验证两边只应用各自事务。
+MySQL 原生 COM_REGISTER_SLAVE/COM_BINLOG_DUMP 是连接级协议，因此不伪造 channel id；本地
+命名 runtime 负责通道身份和状态隔离。Evidence:
+`reports/compatibility/p2-named-replication-channels-current-continuation1640.txt`。
+
+该切片只关闭本地 native 多通道拉取/应用隔离；native endpoint 发现、多节点调度、网络分区、
+分布式 fencing、完整 crash-kill 矩阵和官方 XA/binlog/GTID 拓扑仍保持 P2/P4 `partial`。
+
+## Continuation 1641
+
+修复 native 晋升后 source repoint 的本地持久化顺序：先持久化脱敏 source URL 和 identity
+清理，成功后才发布内存 native source；identity 写失败时恢复旧 source URL，避免当前进程和
+重启状态分裂。Evidence:
+`reports/compatibility/p2-native-source-repoint-persistence-rollback-current-continuation1641.txt`。
+
+该切片只关闭本地 repoint 状态分裂，不等价于分布式共识、外部租约 fencing、网络分区安全或
+官方多节点 native MySQL 故障转移完成。
+
+## Continuation 1642
+
+补齐 source/XA 的同进程幂等重试 state repair：keyed transaction、native one-phase XA、XA
+PREPARE、COMMIT、ROLLBACK 在 binlog 已写入但 state 写失败后，重试会重新持久化 durable
+state，并保持不重复追加。Evidence:
+`reports/compatibility/p2-source-idempotent-retry-state-repair-current-continuation1642.txt`。
+
+该切片只关闭本地 source state repair 窗口；storage、binlog writer、外部表提交的统一物理
+原子性以及分布式 crash/network-partition 拓扑仍保持 P2/P4 `partial`。
+
+## Continuation 1643
+
+补齐客户端和复制回放事务的提交前恢复日志同步：物理存储提交前先保证 row/statement journal
+落盘，提交后的 commit record/marker 屏障保持不变；同步失败时物理事务仍保持 ACTIVE，可安全
+重试。复制包全量、引擎包全量和全仓 compile-only 验证通过。Evidence:
+`reports/compatibility/p2-precommit-journal-sync-current-continuation1643.txt`。
+
+该切片只关闭本地恢复日志先于物理提交的顺序窗口；storage/WAL、binlog writer、外部表、
+applied marker 的统一物理原子性以及分布式 crash/network-partition 拓扑仍保持 P2/P4 `partial`。
+
+## Continuation 1644
+
+刷新当前外部证据：官方 MySQL 8.4.11 反向晋升、官方源 crash/reconnect（含 XA/one-phase XA）
+和本地外部进程 crash-recovery 矩阵均通过；本地矩阵重复 3 次。该切片增强 P2/P4 子门禁，
+但统一 storage/WAL/binlog/applied-marker 提交、完整 crash-kill 交错、分布式网络分区、全版本
+和完整 XA/GTID 拓扑仍保持 `partial`。
+
+Evidence: `reports/compatibility/p2-p4-external-crash-official-current-continuation1644.txt`。
+
+## Continuation 1645
+
+非 Connector/J 当前定义的 17 个客户端用例已在 loopback 开发测试配置下通过：Docker mysql
+CLI、Go mysql-driver、PyMySQL、Node.js/mysql2 均通过连接认证、DDL/DML、预处理、事务、类型/字符集、
+元数据、savepoint、多结果/错误、多会话池和重连等用例。认证插件/TLS、更多客户端版本/ORM、
+扩展负向和网络故障、受保护认证仍未闭环，P3 聚合项保持 `partial`。
+
+Evidence: `reports/compatibility/p3-client-full-defined-matrix-current-continuation1645.txt`。
+
+## Continuation 1646
+
+服务端 TLS/认证协议切片回归通过，覆盖 TLS 状态记录、`REQUIRE SSL/X509`、
+`caching_sha2_password` 和 `sha256_password` 的 TLS/RSA 分支。该结果只证明服务端协议层，
+不替代四类客户端的真实端到端 TLS 门禁，因此 P3 聚合项仍保持 `partial`。
+
+Evidence: `reports/compatibility/p3-tls-auth-slice-current-continuation1646.txt`。
+
+## Continuation 1647
+
+补齐 MySQL 协议级 SSLRequest：服务端先发送明文握手并声明 `CLIENT_SSL`，收到 32 字节
+SSLRequest 后在同一 TCP 连接上升级为 `tls.Conn`，再继续解析后续 MySQL 包。增加 `ssl`、
+`ssl-cert`、`ssl-key`、`ssl-ca`、`ssl_require_client_cert` 配置解析，并通过配置、TLS 握手、
+会话读循环和全仓 compile-only 回归。四类非 Connector/J 客户端的真实 TLS/受保护凭据矩阵仍
+未完成，P3 全量聚合保持 `partial`。
+
+Evidence: `reports/compatibility/p3-mysql-protocol-tls-upgrade-current-continuation1647.txt`。
+
+同一 continuation 的真实客户端 TLS 子门禁也已通过：Go mysql-driver、PyMySQL、Node.js/mysql2
+和 Docker mysql:8.4.11 的 mysql CLI 均使用 CA 校验连接 TLS 服务，并通过当前定义用例。更多
+客户端版本、ORM、认证插件、网络故障和集群客户端拓扑仍未闭环，P3 聚合项保持 `partial`。
+
+Evidence: `reports/compatibility/p3-client-tls-e2e-current-continuation1647.txt`。
+
+随后以 `dev_bypass_password_auth=false` 和受保护 root 凭据重跑，四类客户端的 TLS/认证矩阵
+也全部通过；当前定义的非 Connector/J 协议、TLS、受保护认证子门禁已关闭。更多客户端版本、
+ORM、认证插件、网络故障和集群客户端拓扑仍未闭环，P3 聚合项保持 `partial`。
+
+Evidence: `reports/compatibility/p3-client-tls-protected-e2e-current-continuation1647.txt`。
+
+## Continuation 1648
+
+补齐 `caching_sha2_password` 快速认证协议：服务端在验证 32 字节 fast response 后先发送
+AuthenticationMoreData `0x01 0x03`，再发送最终 OK；服务端定向回归、TLS 最小探针、Go
+mysql-driver、PyMySQL 和 Docker mysql CLI 认证插件路径通过。Node mysql2 在同一 AuthSwitch
+场景仍 `connect ETIMEDOUT`，所以 P3 全量非 Connector/J 矩阵仍为 `partial`，Node 专项和更广
+版本/ORM、负向/网络故障边界继续开放。
+
+Evidence: `reports/compatibility/p3-client-auth-plugin-matrix-current-continuation1648.txt`。
+
+## Continuation 1620
+
+补齐 P3 旧连接故障与重连子门禁：每个客户端先保持一个真实 TCP/物理连接，控制器停止并
+重新启动同一 xmysql 进程和数据目录；旧连接按预期失败，随后 Go mysql driver、PyMySQL、
+Node.js/mysql2 均重新建立连接并成功执行 `SELECT 1`。Evidence:
+`reports/compatibility/p3-client-restart-reconnect-current-continuation1620.txt`；
+`reports/compatibility/client-restart-reconnect-current-continuation1620`。
+
+该切片只关闭 P3 旧连接故障/重连基础子门禁；mysql CLI 当前仍因环境缺少客户端和 Docker
+而未验证，TLS/认证插件、更多值/字符集、ORM、客户端版本边界和完整集群客户端矩阵仍保持
+P3 `partial`。
+
+## Continuation 1621
+
+补齐 P2 晋升后的 HTTP 副本自动重指向：低 server-id 副本晋升后，其他存活副本通过控制面
+发现新的 source，自动更新并持久化 source URL；随后从新 source 追加的事务能够继续应用且
+不重复。Evidence: `reports/compatibility/p2-promotion-auto-repoint-current-continuation1621.txt`。
+
+该切片只关闭现有 HTTP 复制拓扑的晋升后自动重指向子门禁；native MySQL binlog 仍需要可
+发现的晋升后 MySQL binlog endpoint，完整 native/官方拓扑、崩溃窗口和双向互操作仍保持
+P2/P4 `partial`。
+
+## Continuation 1737
+
+补齐一个 Performance Schema statement instrument 细节：注册 `statement/sql/error`，并让
+SQL parser failure 在 executor/worker 指标路径和全局 statement summary 中使用该专用类型；
+普通执行错误仍保留其 statement 类型。先红后绿的解析错误专项、聚焦 Performance Schema
+instrument 回归及 metrics 全包通过。Evidence:
+`reports/compatibility/p1-performance-schema-parse-error-instrument-current-continuation1737.txt`。
+
+该切片不改变全局矩阵计数，也不代表完整 I_S/P_S 表列、运行时统计、锁/等待/线程生命周期、
+组件/插件生命周期或权限语义完成；P1 聚合项仍为 `partial`。
+
+## Continuation 1738
+
+补齐六个预处理协议 command instrument：`statement/com/Prepare`、`Execute`、`Close stmt`、
+`Reset stmt`、`Long Data` 和 `Fetch`；事件汇总保留官方 `statement/com/*` 名称，状态变量
+仍投影到 `Com_stmt_*`。同时接入 command instrument 的 enabled/timed 设置，关闭 instrument
+时不再生成事件但保留全局命令计数。Evidence:
+`reports/compatibility/p1-performance-schema-command-instruments-current-continuation1738.txt`。
+
+该切片不改变矩阵计数，也不代表其它 COM command、完整命令生命周期或 P1 全量 I_S/P_S
+语义完成；P1 聚合项仍为 `partial`。
+
+## Continuation 1739
+
+补齐普通协议命令的 `statement/com/*` registry 与 handler 分类，并接入协议级事件记录；
+覆盖 Ping、Init DB、Field List、Refresh、Statistics、Processlist、Kill、Debug、Time、
+Change user、Binlog Dump、Table Dump、Connect、Connect Out、Register Slave、Set option、
+Daemon、Sleep、Quit 和 Error。COM_QUERY 与预处理命令仍保留各自专用执行/统计路径，避免
+重复计数。Evidence:
+`reports/compatibility/p1-performance-schema-common-command-instruments-current-continuation1739.txt`。
+
+该切片不改变全局矩阵计数，也不代表 `statement/com/Query` 父级生命周期、完整 command
+history/current 语义、全量 I_S/P_S 表字段或 P1 聚合完成；P1 聚合项仍为 `partial`。
+
+## Continuation 1740
+
+补齐 COM_QUERY 在 `events_statements_current` 中的初始命令 instrument：协议 handler 将
+`statement/com/Query` 上下文传给 active statement，executor 再按最终解析结果写入
+`statement/sql/*` 或 `statement/sql/error`，不生成重复的完成事件。Evidence:
+`reports/compatibility/p1-performance-schema-com-query-current-instrument-current-continuation1740.txt`。
+
+该切片不改变全局矩阵计数，也不代表同一物理事件的完整可变生命周期、完整 command
+history/current 语义、全量 I_S/P_S 表字段或 P1 聚合完成；P1 聚合项仍为 `partial`。
+
+## Continuation 1741
+
+修正合法 `COM_RESET_CONNECTION` 的 command instrument，注册并路由到
+`statement/com/Reset connection`，不再错误使用 `statement/com/Error`。Evidence:
+`reports/compatibility/p1-performance-schema-reset-connection-command-current-continuation1741.txt`。
+
+该切片不改变全局矩阵计数，也不代表剩余命令矩阵、完整 command lifecycle/current-history
+语义、全量 I_S/P_S 表字段或 P1 聚合完成；P1 聚合项仍为 `partial`。
+
+## Continuation 1742
+
+补齐 Performance Schema `setup_actors/setup_objects` 容量变量和默认容量限制：注册
+`performance_schema_setup_actors_size`、`performance_schema_setup_objects_size`，默认值为
+`-1` autosizing，并在有效默认容量 100 行时拒绝溢出插入。Evidence:
+`reports/compatibility/p1-performance-schema-setup-capacity-current-continuation1742.txt`。
+
+该切片不改变全局矩阵计数，也不代表完整 I_S/P_S 表、组件、运行时和权限语义完成；
+P1 聚合项仍为 `partial`。
+
+## Continuation 1743
+
+补齐 Performance Schema `performance_schema_show_processlist` 动态变量：默认 `OFF`，
+`SET GLOBAL` 后规范化为 `ON/OFF`，开启时 `SHOW PROCESSLIST` 使用 Performance Schema
+processlist 数据源并保持传统返回形状。Evidence:
+`reports/compatibility/p1-performance-schema-show-processlist-current-continuation1743.txt`。
+
+该切片不改变全局矩阵计数，也不代表完整 I_S/P_S 表字段、运行时统计、锁/等待/线程、
+组件/插件生命周期或权限语义完成；P1 聚合项仍为 `partial`。
+
+## Continuation 1744
+
+补齐 Performance Schema 连接摘要容量：注册并加载启动变量
+`performance_schema_accounts_size`、`performance_schema_hosts_size`、
+`performance_schema_users_size`，对 `accounts/hosts/users` 及对应 `status_by_*` 表实现
+0 禁用、正值限行、-1 autosizing。Evidence:
+`reports/compatibility/p1-performance-schema-connection-summary-capacity-current-continuation1744.txt`。
+
+该切片不改变全局矩阵计数，也不代表完整 I_S/P_S 运行时、组件/插件生命周期、线程/锁/等待
+和权限语义完成；P1 聚合项仍为 `partial`。
+
+## Continuation 1745
+
+补齐 Performance Schema `performance_schema_digests_size` 启动变量及 digest summary 容量
+语义：0 禁用、正值限行、-1 autosizing，并在过滤后限行。Evidence:
+`reports/compatibility/p1-performance-schema-digest-capacity-current-continuation1745.txt`。
+
+该切片不改变全局矩阵计数，也不代表 digest 算法完全一致、lost 计数器或完整 I_S/P_S
+运行时、组件和权限语义完成；P1 聚合项仍为 `partial`。
+
+## Continuation 1746
+
+补齐 `performance_schema_max_sql_text_length` 启动变量及 statement event `SQL_TEXT`、
+digest `QUERY_SAMPLE_TEXT` 的字节长度限制，默认 1024，配置范围 0..1048576。Evidence:
+`reports/compatibility/p1-performance-schema-sql-text-length-current-continuation1746.txt`。
+
+该切片不改变全局矩阵计数，也不代表完整 digest 算法、其它 P_S 容量变量、I_S/P_S 运行时
+和权限语义完成；P1 聚合项仍为 `partial`。
+
+## Continuation 1747
+
+补齐 `performance_schema_error_size` 只读启动变量与 `[performance_schema] error_size` 配置，
+支持 0 禁用和正值容量限制，并通过错误摘要专项、完整 P_S 族、manager、net、metrics 回归。
+该项不等于全量错误码目录或完整 error log 兼容；全量 I_S/P_S 运行时、组件/权限语义仍纳入
+全局 P1 partial 任务。
+
+## Continuation 1748
+
+补齐 `performance_schema_max_metadata_locks` 启动变量与 `[performance_schema] max_metadata_locks`
+配置，支持 autosizing、0 禁用和正值限行；metadata lock owner/waiter 专项通过。lost 计数器、
+完整 instrument allocation 及全量 I_S/P_S 运行时语义仍纳入全局 P1 partial 任务。
+
+## Continuation 1750
+
+补齐 `performance_schema_session_connect_attrs_size` 启动变量和配置加载，并实现两个连接属性
+表的 per-session 值字节限制；完整套件全部通过。`session_connect_attrs_lost`、`_truncated`、
+已补充 `Performance_schema_session_connect_attrs_lost` 状态计数；`_truncated`、精确协议字节
+语义和 error-log 副作用仍纳入全局 P1 partial 任务。
+
+## Continuation 1751
+
+补齐 `performance_schema_max_prepared_statements_instances` 启动变量与配置加载，实现预处理
+语句实例表的 0 禁用和正值限行；预处理语句 lost 计数、精确 autosizing 与全量运行时语义仍
+纳入全局 P1 partial 任务。
+
+## Continuation 1752
+
+补齐 `performance_schema_max_program_instances` 启动变量与配置加载，实现程序汇总表的 0
+禁用和正值限行；专项、完整 P_S、manager、`server/net`、metrics 回归通过。Program instrument
+allocation/lost 语义以及全量 I_S/P_S 运行时、组件、锁/等待/线程和权限语义仍纳入全局 P1
+partial 任务。
+
+## Continuation 1753
+
+补齐 `Performance_schema_prepared_statements_lost` 状态投影和容量溢出计数，重复读取同一
+溢出库存不会重复累加；prepared 专项、完整 P_S、manager、`server/net`、metrics 回归通过。
+精确分配时机、`max_prepared_stmt_count` 自动扩容及全量 I_S/P_S 运行时语义仍纳入 P1 partial。
+
+## Continuation 1754
+
+补齐 `performance_schema_max_thread_instances` 启动变量、`threads` 容量限制和
+`Performance_schema_thread_instances_lost` 状态计数；线程专项、完整 P_S、manager、
+`server/net`、metrics 回归通过。精确分配时机、自动扩容和全量 I_S/P_S 运行时语义仍纳入
+P1 partial。
+
+## Continuation 1759
+
+补齐 `performance_schema_max_index_stat` 启动变量、index-usage summary 容量限制和
+`Performance_schema_index_stat_lost` 状态计数；index-stat 专项、完整 P_S、manager、
+`server/net`、metrics 回归通过。精确分配时机、真实索引身份和自动扩容，以及全量 I_S/P_S
+运行时语义仍纳入 P1 partial。非 InnoDB 引擎及非 InnoDB 修复/转换不纳入范围。
+
+## Continuation 1760
+
+补齐 `performance_schema_max_digest_length` 启动变量及 digest 聚合、直方图、statement-event
+文本的统一字节限制；digest 专项、完整 P_S、manager、`server/net`、metrics 回归通过。精确
+tokenizer/hash 及全量 I_S/P_S 运行时语义仍纳入 P1 partial。
+
+## Continuation 1761
+
+补齐 MySQL 8.4 Performance Schema 剩余容量变量和官方 lost-status 名称，并实现
+`Performance_schema_digest_lost` 的 digest 容量溢出计数；专项、完整 P_S、manager、
+`server/net`、metrics 回归通过。真实 instrument allocator/lifecycle、digest age-based
+resampling 及全量 I_S/P_S 运行时语义仍纳入 P1 partial。
+
+## Continuation 1758
+
+补齐 `performance_schema_max_table_lock_stat` 启动变量、table lock summary 容量限制和
+`Performance_schema_table_lock_stat_lost` 状态计数；table-lock 专项、完整 P_S、manager、
+`server/net`、metrics 回归通过。精确分配时机、自动扩容和全量 I_S/P_S 运行时语义仍纳入
+P1 partial。
+
+## Continuation 1757
+
+补齐 `Performance_schema_program_lost` 状态投影和程序汇总容量溢出计数，重复读取不会重复累加；
+program 专项、完整 P_S、manager、`server/net`、metrics 回归通过。精确分配时机、自动扩容和
+全量 I_S/P_S 运行时语义仍纳入 P1 partial。
+
+## Continuation 1756
+
+补齐 `performance_schema_max_socket_instances` 启动变量、`socket_instances` 容量限制和
+`Performance_schema_socket_instances_lost` 状态计数；socket 专项、完整 P_S、manager、
+`server/net`、metrics 回归通过。精确分配时机、自动扩容和全量 I_S/P_S 运行时语义仍纳入
+P1 partial。
+
+## Continuation 1755
+
+补齐 `performance_schema_max_file_instances` 启动变量、`file_instances` 容量限制和
+`Performance_schema_file_instances_lost` 状态计数；file 专项、完整 P_S、manager、
+`server/net`、metrics 回归通过。精确分配时机、自动扩容和全量 I_S/P_S 运行时语义仍纳入
+P1 partial。
+
+## Continuation 1749
+
+补齐 `performance_schema_max_table_handles` 启动变量与 `[performance_schema] max_table_handles`
+配置，支持 autosizing、0 禁用和正值限行；显式锁及隐式事务 table handle 专项通过。lost 计数器、
+完整 instrument allocation 及全量 I_S/P_S 运行时语义仍纳入全局 P1 partial 任务。
+
+## Continuation 1766
+
+补齐 `performance_schema_max_statement_classes` 的 statement instrument 注册容量、运行时可用性和
+`Performance_schema_statement_classes_lost` 实际计数；statement-class 专项、完整 P_S、manager、
+`server/net`、metrics 回归通过。其余 I_S/P_S 全量语义、allocator/lifecycle/lost 家族、运行时统计、
+锁/等待/线程、组件/权限语义仍纳入 P1 partial；非 Connector/J 客户端矩阵仍为 P3，XA/binlog/GTID/
+崩溃恢复/提升仍为 P2/P4，非 InnoDB 仍不纳入范围。
+
+## Continuation 1767
+
+补齐当前已暴露的 stage/file/socket/memory instrument class 注册容量、运行时可用性和四个
+`*_classes_lost` 状态计数；专项、完整 P_S、manager、`server/net`、metrics 回归通过。其余
+I_S/P_S 全量语义、allocator/lifecycle/lost 家族、运行时统计、锁/等待/线程、组件/权限语义仍
+纳入 P1 partial；非 Connector/J 客户端矩阵仍为 P3，XA/binlog/GTID/崩溃恢复/提升仍为 P2/P4，
+非 InnoDB 仍不纳入范围。
+
+## Continuation 1772
+
+补齐 `performance_schema_max_file_handles` 和 `Performance_schema_file_handles_lost`：使用真实
+文件 recorder 的 active open count 统计容量溢出，专项、完整 P_S、manager、`server/net`、
+metrics 回归通过。其余 I_S/P_S 全量语义、allocator/lifecycle/lost 家族、运行时统计、
+锁/等待/线程、组件/权限语义仍纳入 P1 partial；非 Connector/J 客户端矩阵仍为 P3，
+XA/binlog/GTID/崩溃恢复/提升仍为 P2/P4，非 InnoDB 仍不纳入范围。
+
+## Continuation 1773
+
+补齐真实 trigger stack 路径上的 `performance_schema_max_statement_stack` 溢出计数和
+`Performance_schema_nested_statement_lost` 投影；同时修复完整 P_S 回归发现的官方 rwlock
+lost 状态行缺失。专项、完整 P_S、manager、`server/net`、metrics 回归通过。其余 I_S/P_S
+全量语义、allocator/lifecycle/lost 家族、运行时统计、锁/等待/线程、组件/权限语义仍纳入
+P1 partial；非 Connector/J 客户端矩阵仍为 P3，XA/binlog/GTID/崩溃恢复/提升仍为 P2/P4，
+非 InnoDB 仍不纳入范围。
+
+## Continuation 1774
+
+补齐 `performance_schema_max_table_instances` 在现有 table-I/O recorder 上的真实容量投影，
+并实现 `Performance_schema_table_instances_lost` 累计计数；table/index I/O 汇总遵守该容量。
+专项、完整 P_S、manager、`server/net`、metrics 回归通过。其余 I_S/P_S 全量语义、
+allocator/lifecycle/lost 家族、运行时统计、锁/等待/线程、组件/权限语义仍纳入 P1 partial；
+非 Connector/J 客户端矩阵仍为 P3，XA/binlog/GTID/崩溃恢复/提升仍为 P2/P4，非 InnoDB 仍不纳入范围。
+
+## Continuation 1771
+
+补齐 `Performance_schema_table_handles_lost` 的真实 table handle 淘汰计数，并保持显式锁、隐式
+事务 lease 与容量为 0 的空结果语义；专项、完整 P_S、manager、`server/net`、metrics 回归通过。
+其余 I_S/P_S 全量语义、allocator/lifecycle/lost 家族、运行时统计、锁/等待/线程、组件/权限语义
+仍纳入 P1 partial；非 Connector/J 客户端矩阵仍为 P3，XA/binlog/GTID/崩溃恢复/提升仍为 P2/P4，
+非 InnoDB 仍不纳入范围。
+
+## Continuation 1775
+
+补齐 InnoDB SELECT 执行器到 RuntimeRecorder 的真实物理索引身份传递，并在
+`table_io_waits_summary_by_index_usage` 中按索引身份分行记账；table scan 和无权威索引身份
+仍保留空索引行。索引身份与受影响 P_S/table-I/O 回归通过。其余 I_S/P_S 全量语义、完整
+index-stat 选择/连接分配、运行时统计、锁/等待/线程、组件/权限语义仍纳入 P1 partial；非
+Connector/J 客户端矩阵仍为 P3，XA/binlog/GTID/崩溃恢复/提升仍为 P2/P4，非 InnoDB 仍不纳入
+范围。
+
+## Continuation 1776
+
+补齐 Performance Schema `setup_actors`/`setup_objects` 的 TRUNCATE 表级 DROP 权限检查，保持
+`setup_consumers`、`setup_instruments`、`setup_threads` 的官方拒绝边界。新权限专项和完整 P_S
+回归通过。其余 I_S/P_S 运行时、组件/权限/角色全量语义仍为 P1 partial；非 Connector/J 客户端
+矩阵仍为 P3，XA/binlog/GTID/崩溃恢复/提升仍为 P2/P4，Fulltext 延后，非 InnoDB 不纳入范围。
+
+## Continuation 1777
+
+Node.js/mysql2 的 `caching_sha2_password` / `sha256_password` TLS 子门禁在刷新有效临时证书后通过，
+此前失败被确认为过期测试证书而非协议失败。P3 全量非 Connector/J 矩阵仍保持 `partial`，
+其余客户端版本、ORM/连接池、协议负例、集群拓扑和长期故障场景继续纳入全局任务；P1/P2/P4、
+Fulltext 与非 InnoDB 范围不变。Evidence:
+`reports/compatibility/p3-client-node-auth-rerun-current-continuation1777.txt`。
+
+## Continuation 1778
+
+补齐网络层 `COM_QUERY` 的 Performance Schema 父级命令 instrument 完成态，完成后保留
+`statement/com/Query`，并与引擎的 `statement/sql/*` 事件分开记账。专项 `server/net` 通过；
+受影响包级回归中 `server/net` 与 metrics 通过，engine 包在 45 分钟测试上限超时，故不宣称
+全包通过。P1 全量 I_S/P_S、组件/权限/角色语义仍为 partial；P3 非 Connector/J 全矩阵、
+P2/P4 XA/binlog/GTID/恢复/提升仍未完成；Fulltext 延后，非 InnoDB 不纳入范围。Evidence:
+`reports/compatibility/p1-performance-schema-com-query-command-lifecycle-current-continuation1778.txt`。
+
+## Continuation 1779
+
+`server/replication` 全量回归通过（163.789s），覆盖 xmysql-native binlog、GTID、XA、relay/restart、
+promotion/fencing、rotation、purge 与 exactly-once 状态转换。官方 MySQL fixture 选择性测试共 6 项，
+因当前环境缺少 `XMYSQL_OFFICIAL_BINLOG_URL` / `XMYSQL_OFFICIAL_BINLOG_DSN` 全部跳过；因此官方
+XA/binlog/GTID/崩溃恢复/提升互操作继续保持 P2/P4 partial，不能宣称通过。Evidence:
+`reports/compatibility/p2-replication-regression-official-fixture-audit-current-continuation1779.txt`。
+
+## Continuation 1780
+
+P1 I_S/P_S、权限和角色定向回归通过：`server/innodb/engine` 退出码 0，用时 1669.007s。
+这刷新了当前已实现切片的证据，但完整 I_S/P_S 组件运行时来源、字段权威值、锁/等待/线程精度
+及全部权限/角色生命周期仍保持 partial；P2/P4 官方互操作、P3 全量非 Connector/J 矩阵、
+Fulltext 与非 InnoDB 边界不变。Evidence:
+`reports/compatibility/p1-information-performance-regression-current-continuation1780.txt`。
+
+## Continuation 1770
+
+补齐 file/socket/memory instrument class capacity 到 instances/summary 运行时投影：容量为 0 时
+对应查询不返回未注册类行，专项、完整 P_S、manager、`server/net`、metrics 回归通过。其余
+I_S/P_S 全量语义、allocator/lifecycle/lost 家族、运行时统计、锁/等待/线程、组件/权限语义仍
+纳入 P1 partial；非 Connector/J 客户端矩阵仍为 P3，XA/binlog/GTID/崩溃恢复/提升仍为 P2/P4，
+非 InnoDB 仍不纳入范围。
+
+## Continuation 1768
+
+补齐 `performance_schema_max_thread_classes` 的 `setup_threads` 注册容量、前台/后台线程 class
+运行时可用性和 `Performance_schema_thread_classes_lost` 实际计数；专项、完整 P_S、manager、
+`server/net`、metrics 回归通过。其余 I_S/P_S 全量语义、allocator/lifecycle/lost 家族、运行时
+统计、锁/等待/线程、组件/权限语义仍纳入 P1 partial；非 Connector/J 客户端矩阵仍为 P3，
+XA/binlog/GTID/崩溃恢复/提升仍为 P2/P4，非 InnoDB 仍不纳入范围。
+
+## Continuation 1769
+
+补齐 telemetry registry 的 meter/metric class 容量和 `Performance_schema_meter_lost`、
+`Performance_schema_metric_lost` 实际计数；专项、完整 P_S、manager、`server/net`、metrics
+回归通过。其余 I_S/P_S 全量语义、allocator/lifecycle/lost 家族、运行时统计、锁/等待/线程、
+组件/权限语义仍纳入 P1 partial；非 Connector/J 客户端矩阵仍为 P3，XA/binlog/GTID/崩溃恢复/
+提升仍为 P2/P4，非 InnoDB 仍不纳入范围。
+
+## Continuation 1804
+
+补齐 `ROLES_GRAPHML()` 的角色可见性边界：普通账户返回空 GraphML，`ROLE_ADMIN` 会话可读取
+持久化账户节点和直接角色边；Dispatcher 会保留权威引擎准备的 GraphML 会话值。引擎、plan、
+dispatcher 回归通过。完整角色/权限视图、全量 I_S/P_S、P2/P3/P4 聚合仍未完成。
+
+Evidence: `reports/compatibility/p1-roles-graphml-role-admin-boundary-current-continuation1804.txt`。
+
+## Continuation 1805
+
+统一 Dispatcher 与引擎入口的 `CURRENT_ROLE()` 限定账号格式：默认变量值输出反引号账号，
+关闭 `sql_quote_show_create` 后保留裸账号格式；失败优先测试和 Dispatcher 全包回归通过。
+完整角色/权限视图、I_S/P_S、P2/P3/P4 聚合仍未完成。
+
+Evidence: `reports/compatibility/p1-current-role-dispatcher-format-current-continuation1805.txt`。
+
+## Continuation 1806
+
+补齐角色元数据视图对 `USER`、`HOST`、`GRANTEE_HOST` 和 `DEFAULT_ROLE` 的等值/LIKE 过滤；
+错误账号、主机和默认角色条件不再被忽略。失败优先专项及角色相关回归通过（217.132s）；
+engine 全包回归运行超过十分钟未产生退出码，已中止且不记录为 PASS。完整角色/权限视图、
+I_S/P_S、P2/P3/P4 聚合仍未完成。
+
+Evidence: `reports/compatibility/p1-role-metadata-account-filters-current-continuation1806.txt`。
+
+## Continuation 1807
+
+为 `performance_schema.mutex_instances` 接入真实 owner sidecar：`active_query` 和账户变更
+路径在已知连接线程号时投影 `LOCKED_BY_THREAD_ID`；其他无法从 Go 原语可靠推导 owner 的
+mutex 仍返回 `NULL`。失败优先专项及同步实例、账户、KILL QUERY 回归通过（37.407s）。
+完整 I_S/P_S、等待/线程生命周期、组件/权限语义和 P2/P3/P4 聚合仍未完成。
+
+Evidence: `reports/compatibility/p1-performance-schema-mutex-owner-current-continuation1807.txt`。
+
+## Continuation 1808
+
+补齐 `performance_schema.host_cache` 的时间字段边界：认证失败记录已有权威的最早/最晚
+观测时间，现在同时投影到 `FIRST_SEEN/LAST_SEEN`；没有时间源的活动 host 仍返回 `NULL`，
+不伪造连接生命周期。失败优先专项及相关 host-cache 回归通过（9.300s）。完整 I_S/P_S、
+组件/权限语义和 P2/P3/P4 聚合仍未完成。
+
+Evidence: `reports/compatibility/p1-performance-schema-host-cache-seen-times-current-continuation1808.txt`。
+
+## Continuation 1809
+
+补齐 `performance_schema.setup_actors` 的 `ROLE` 运行时匹配：规则现在同时按 `HOST`、`USER`
+和会话 `active_roles` 选择，`ROLE='%'` 继续匹配无激活角色的会话，具体角色规则只作用于
+对应激活角色，并保留具体规则优先级。失败优先测试先复现无角色会话错误继承具体角色规则，
+随后专项、setup_actors/setup_threads 相关回归及完整 `TestPerformanceSchema` 族通过（923.700s）。
+完整 I_S/P_S、组件/权限语义和 P2/P3/P4 聚合仍未完成。
+
+Evidence: `reports/compatibility/p1-performance-schema-setup-actors-active-role-current-continuation1809.txt`。
+
+## Continuation 1810
+
+继续收口 `performance_schema.setup_actors` 的角色来源：会话没有显式 `active_roles` 参数时，
+现在复用 `ENABLED_ROLES` 的权威来源，使用账户持久化的 `DefaultRoles` 并合并 mandatory roles；
+显式空切片仍表示 `SET ROLE NONE`，不会被默认角色覆盖。失败优先测试先复现默认角色会话错误
+落入通配规则，随后专项、相关 setup/ENABLED_ROLES 回归及完整 `TestPerformanceSchema` 族
+通过（915.818s）。完整 I_S/P_S、组件/权限语义和 P2/P3/P4 聚合仍未完成。
+
+Evidence: `reports/compatibility/p1-performance-schema-setup-actors-default-role-current-continuation1810.txt`。
+
+## Continuation 1811
+
+- [x] `INFORMATION_SCHEMA.EVENTS.STATUS` 反映事件对象的持久化禁用状态，
+  `ALTER EVENT ... DISABLE/ENABLE` 的查询结果分别为 `DISABLED`/`ENABLED`。
+- [x] 失败优先专项和事件相关回归通过。
+- [ ] 完整 I_S/P_S 字段精度、组件/权限生命周期、非 Connector/J 客户端矩阵以及
+  P2/P4 官方复制互操作仍保持未完成；相关聚合项继续标记为 `partial`。
+
+Evidence: `reports/compatibility/p1-information-schema-events-disabled-status-current-continuation1811.txt`。
+
+## Continuation 1812
+
+- [x] `INFORMATION_SCHEMA.EVENTS.STARTS/ENDS` 反映事件定义中的调度起止边界，并与
+  `SHOW EVENTS` 保持一致。
+- [x] 失败优先专项和事件相关回归通过。
+- [ ] 完整 I_S/P_S 字段精度、组件/权限生命周期、非 Connector/J 客户端矩阵以及
+  P2/P4 官方复制互操作仍保持未完成；相关聚合项继续标记为 `partial`。
+
+Evidence: `reports/compatibility/p1-information-schema-events-start-end-current-continuation1812.txt`。
+
+## Continuation 1813
+
+- [x] `INFORMATION_SCHEMA.EVENTS.ON_COMPLETION` 反映显式 `PRESERVE` 策略，默认策略仍为
+  `NOT PRESERVE`。
+- [x] 失败优先专项和事件相关回归通过。
+- [ ] 完整 I_S/P_S 字段精度、组件/权限生命周期、非 Connector/J 客户端矩阵以及
+  P2/P4 官方复制互操作仍保持未完成；相关聚合项继续标记为 `partial`。
+
+Evidence: `reports/compatibility/p1-information-schema-events-completion-policy-current-continuation1813.txt`。
+
+## Continuation 1814
+
+- [x] `INFORMATION_SCHEMA.EVENTS.DEFINER` 与 `EVENT_COMMENT` 复用持久化事件对象状态，
+  支持自定义 DEFINER 和 COMMENT。
+- [x] 失败优先专项和事件相关回归通过。
+- [ ] 完整 I_S/P_S 字段精度、组件/权限生命周期、非 Connector/J 客户端矩阵以及
+  P2/P4 官方复制互操作仍保持未完成；相关聚合项继续标记为 `partial`。
+
+Evidence: `reports/compatibility/p1-information-schema-events-definer-comment-current-continuation1814.txt`。
+
+## Continuation 1815
+
+- [x] `INFORMATION_SCHEMA.EVENTS.CREATED/LAST_ALTERED` 反映持久化创建及修改时间，
+  覆盖旧对象回退和 ALTER/rename 更新。
+- [x] 失败优先专项和事件相关回归通过。
+- [ ] `LAST_EXECUTED` 等运行时字段、完整 I_S/P_S 字段精度、组件/权限生命周期、
+  非 Connector/J 客户端矩阵以及 P2/P4 官方复制互操作仍保持未完成。
+
+Evidence: `reports/compatibility/p1-information-schema-events-timestamps-current-continuation1815.txt`。
+
+## Continuation 1816
+
+- [x] `INFORMATION_SCHEMA.EVENTS.LAST_EXECUTED` 由真实 SQL EVENT scheduler 执行回调持久化，
+  并以 DATETIME 形状可查询。
+- [x] 失败优先专项及完整事件调度相关回归通过。
+- [ ] 完整 I_S/P_S 字段精度、组件/权限生命周期、非 Connector/J 客户端矩阵以及
+  P2/P4 官方复制互操作仍保持未完成；相关聚合项继续标记为 `partial`。
+
+Evidence: `reports/compatibility/p1-information-schema-events-last-executed-current-continuation1816.txt`。
+
+## Continuation 1817
+
+- [x] `INFORMATION_SCHEMA.ROUTINES.CREATED/LAST_ALTERED` 复用持久化创建及修改时间，
+  覆盖过程/函数 ALTER 路径和旧对象回退。
+- [x] 失败优先专项及 routine 相关回归通过。
+- [ ] 完整 I_S/P_S 字段精度、组件/权限生命周期、非 Connector/J 客户端矩阵以及
+  P2/P4 官方复制互操作仍保持未完成；相关聚合项继续标记为 `partial`。
+
+Evidence: `reports/compatibility/p1-information-schema-routines-timestamps-current-continuation1817.txt`。
+
+## Continuation 1818
+
+- [x] 存储对象创建会话的 `sql_mode/time_zone/character_set_client/collation_connection`
+  已持久化并投影到相关 I_S/SHOW 路径，覆盖过程、触发器和事件。
+- [x] 失败优先专项及共享事件/routine/trigger 回归通过。
+- [ ] 完整 I_S/P_S 字段精度、组件/权限生命周期、非 Connector/J 客户端矩阵以及
+  P2/P4 官方复制互操作仍保持未完成；相关聚合项继续标记为 `partial`。
+
+Evidence: `reports/compatibility/p1-stored-object-session-metadata-current-continuation1818.txt`。
+
+## Continuation 1819
+
+- [x] `INFORMATION_SCHEMA.EVENTS.ORIGINATOR` 持久化并投影事件创建者的 `server_id`；旧事件
+  元数据使用当前实例 `server_id` 兼容回退。
+- [x] 失败优先专项和事件/routine/trigger 共享回归通过。
+- [ ] 完整 I_S/P_S 字段精度、组件/权限生命周期、非 Connector/J 客户端矩阵以及
+  P2/P4 官方复制互操作仍保持未完成；相关聚合项继续标记为 `partial`。
+
+Evidence: `reports/compatibility/p1-information-schema-events-originator-current-continuation1819.txt`。
+
+## Continuation 1820
+
+- [x] `INFORMATION_SCHEMA.ROUTINES.ROUTINE_DEFINITION` 投影 routine body；完整 CREATE 语句仍由
+  `SHOW CREATE` 提供。
+- [x] 失败优先专项和 routine 相关回归通过。
+- [ ] 完整 I_S/P_S 字段精度、组件/权限生命周期、非 Connector/J 客户端矩阵以及
+  P2/P4 官方复制互操作仍保持未完成；相关聚合项继续标记为 `partial`。
+
+Evidence: `reports/compatibility/p1-information-schema-routines-definition-current-continuation1820.txt`。
+
+## Continuation 1821
+
+- [x] `INFORMATION_SCHEMA.TRIGGERS.ACTION_ORDER` 复用 FOLLOWS/PRECEDES 的实际执行顺序，投影
+  一基序号；`ACTION_STATEMENT` 不再包含顺序前缀。
+- [x] 失败优先专项和触发器/存储对象回归通过。
+- [ ] 完整 I_S/P_S 字段精度、组件/权限生命周期、非 Connector/J 客户端矩阵以及
+  P2/P4 官方复制互操作仍保持未完成；相关聚合项继续标记为 `partial`。
+
+Evidence: `reports/compatibility/p1-information-schema-triggers-action-order-current-continuation1821.txt`。
+
+## Continuation 1822
+
+- [x] 视图创建会话的 `character_set_client/collation_connection` 已持久化，并投影到
+  `INFORMATION_SCHEMA.VIEWS` 与 `SHOW CREATE VIEW`；旧元数据保留回退值。
+- [x] 视图专项及相关回归通过。
+- [ ] 完整 I_S/P_S 字段精度、组件/权限生命周期、非 Connector/J 客户端矩阵以及
+  P2/P4 官方复制互操作仍保持未完成；相关聚合项继续标记为 `partial`。
+
+Evidence: `reports/compatibility/p1-information-schema-views-session-metadata-current-continuation1822.txt`。
+
+## Continuation 1823
+
+- [x] `INFORMATION_SCHEMA.VIEWS.IS_UPDATABLE` 对可证明的单表直接列投影视图返回 `YES`，对聚合、
+  连接、分组、集合和子查询等复杂视图返回 `NO`。
+- [x] 失败优先专项和 view 相关回归通过。
+- [ ] 完整 I_S/P_S 字段精度、组件/权限生命周期、非 Connector/J 客户端矩阵以及
+  P2/P4 官方复制互操作仍保持未完成；相关聚合项继续标记为 `partial`。
+
+Evidence: `reports/compatibility/p1-information-schema-views-updatability-current-continuation1823.txt`。
+
+## Continuation 1824
+
+- [x] `INFORMATION_SCHEMA.EVENTS.EVENT_DEFINITION` 返回 `DO` 后的事件体；完整 CREATE 语句继续由
+  `SHOW CREATE EVENT` 提供。
+- [x] 失败优先专项和严格事件回归通过。
+- [ ] 完整 I_S/P_S 字段精度、组件/权限生命周期、非 Connector/J 客户端矩阵以及
+  P2/P4 官方复制互操作仍保持未完成；相关聚合项继续标记为 `partial`。
+
+Evidence: `reports/compatibility/p1-information-schema-events-definition-current-continuation1824.txt`。
+
+## Continuation 1825
+
+- [x] 本地 XA、native binlog、GTID、恢复、promotion 和 fencing 专项回归通过（102.199 秒）。
+- [x] 官方 MySQL 集成测试的跳过原因已确认：`XMYSQL_OFFICIAL_BINLOG_URL`、
+  `XMYSQL_OFFICIAL_BINLOG_DSN` 未配置，且当前 Docker 没有可用 server 端响应。
+- [ ] 官方 MySQL XA/binlog/GTID、崩溃恢复和提升互操作仍未验证；P2/P4 聚合项继续保持
+  `partial`，不能以本地回归替代官方拓扑证据。
+
+Evidence: `reports/compatibility/p2-native-replication-local-regression-current-continuation1825.txt`。
+
+## Continuation 1826
+
+- [x] `INFORMATION_SCHEMA.PARAMETERS` 函数返回值行的 native `PARAMETER_NAME` 已修正为
+  `NULL`；JDBC `COLUMN_NAME=RETURN_VALUE` 兼容投影保持不变。
+- [x] 失败优先专项以及参数/例程相关回归通过。
+- [ ] 完整 I_S/P_S 字段精度、组件/权限生命周期、非 Connector/J 矩阵和 P2/P4 官方互操作
+  仍未完成；相关聚合项继续保持 `partial`。
+
+Evidence: `reports/compatibility/p1-information-schema-parameters-return-name-current-continuation1826.txt`。
+
+## Continuation 1827
+
+- [x] native `INFORMATION_SCHEMA.PARAMETERS` 支持 `ORDINAL_POSITION`、`PARAMETER_NAME`、
+  `PARAMETER_MODE` 过滤，函数返回值筛选不再包含输入参数。
+- [x] 失败优先专项以及参数/例程回归通过。
+- [ ] 完整 I_S/P_S 字段精度、组件/权限生命周期和其他 P1/P2/P3/P4 聚合项仍未完成。
+
+Evidence: `reports/compatibility/p1-information-schema-parameters-filters-current-continuation1827.txt`。
+
+## Continuation 1828
+
+- [x] 收紧 Performance Schema setup 表的可更新列集合，非法 `TIMED/HISTORY` 更新现在被拒绝。
+- [x] 失败优先专项和全部 `TestPerformanceSchemaSetup*` 回归通过。
+- [ ] 完整 P_S 组件生命周期、字段精度和权限聚合仍未完成，聚合状态保持 `partial`。
+
+Evidence: `reports/compatibility/p1-performance-schema-setup-column-semantics-current-continuation1828.txt`。
+
+## Continuation 1829
+
+- [x] native `INFORMATION_SCHEMA.PARAMETERS` 支持 `IS NULL`/`IS NOT NULL` 过滤，正确区分函数返回值行
+  与普通参数的 NULL/非 NULL 名称和模式。
+- [x] 失败优先专项以及参数/例程/存储对象相关回归通过。
+- [ ] 完整 I_S/P_S 字段精度、组件/权限生命周期和其他 P1/P2/P3/P4 聚合项仍未完成。
+
+Evidence: `reports/compatibility/p1-information-schema-parameters-null-predicates-current-continuation1829.txt`。
+
+### Continuation 1830
+
+- [x] XA 业务路径和 XA 持久化恢复路径统一使用 owner-aware mutex 封装。
+- [x] XA PREPARE 持锁期间，`performance_schema.mutex_instances.LOCKED_BY_THREAD_ID`
+  可观察到实际会话线程 ID；失败优先、XA 和同步实例回归通过。
+- [ ] 完整 P_S 锁/等待/线程生命周期、字段精度、组件/权限聚合和 P2/P3/P4 互操作仍未完成。
+
+Evidence: `reports/compatibility/p1-performance-schema-xa-mutex-owner-current-continuation1830.txt`。
+
+### Continuation 1831
+
+- [x] INFORMATION_SCHEMA 四类权限视图支持 `IS NULL` / `IS NOT NULL` 谓词，按实际投影值的 NULL
+  状态进行过滤。
+- [x] 失败优先权限视图专项和权限视图回归通过。
+- [ ] 完整角色/权限图、I_S/P_S 字段精度和运行时语义、P2/P3/P4 互操作仍未完成。
+
+Evidence: `reports/compatibility/p1-information-schema-privilege-null-predicates-current-continuation1831.txt`。
+
+### Continuation 1832
+
+- [x] executor-owned mutex 阻塞等待进入 `events_waits_current`，完成后进入短/长历史视图。
+- [x] mutex 等待按稳定 `OBJECT_INSTANCE_BEGIN` 进入 `events_waits_summary_by_instance`。
+- [x] `events_waits_summary_by_instance` 的 TRUNCATE 会清除 mutex 历史贡献并保留零计数行。
+- [x] XA mutex owner、同步实例和等待视图相关回归通过。
+- [ ] 完整 I_S/P_S 字段、组件/权限/线程生命周期以及 P2/P3/P4 互操作仍未完成。
+
+Evidence: `reports/compatibility/p1-performance-schema-mutex-wait-lifecycle-current-continuation1832.txt`。
+
+### Continuation 1833
+
+- [x] global/thread wait summaries now apply mutex-history reset cutoffs independently.
+- [x] thread summary dispatch carries the `thread` dimension, and thread truncate preserves the zero row without clearing global summary.
+- [ ] Complete I_S/P_S fields, components, permissions, threads and P2/P3/P4 interoperability remain unfinished.
+
+Evidence: `reports/compatibility/p1-performance-schema-mutex-summary-dimension-reset-current-continuation1833.txt`。
+
+### Continuation 1834
+
+- [x] executor-owned mutex waits are verified in account summary with session user/host identity.
+- [x] account summary truncate is isolated from the global mutex summary; host/user share the same dimension path.
+- [ ] Complete I_S/P_S, component/permission/thread semantics and P2/P3/P4 interoperability remain unfinished.
+
+Evidence: `reports/compatibility/p1-performance-schema-mutex-account-summary-current-continuation1834.txt`。
+
+### Continuation 1835
+
+- [x] Native binlog/GTID/XA/recovery/promotion local regression passed.
+- [x] Official MySQL integration tests were explicitly audited and skipped only because the required fixture variables are unset.
+- [ ] Official MySQL XA/binlog/GTID/crash/promotion interoperability remains partial until a reachable reproducible fixture exists.
+
+Evidence: `reports/compatibility/p2-native-local-and-official-fixture-audit-current-continuation1835.txt`。
+
+### Continuation 1836
+
+- [x] Verified independent `events_waits_history` and `events_waits_history_long` capacities for executor-owned mutex waits.
+- [x] Verified dynamic long-history capacity reduction trims retained mutex wait history.
+- [ ] Keep the aggregate P1 I_S/P_S requirement partial; remaining table/field, component, permission and lifecycle semantics are not closed.
+
+Evidence: `reports/compatibility/p1-performance-schema-mutex-history-capacity-current-continuation1836.txt`。
+
+### Continuation 1837
+
+- [x] Exposed ordinary statement-acquired table locks in `performance_schema.table_handles` for the statement lifetime.
+- [x] Cleared the ephemeral row during statement cleanup and preserved explicit/transaction lease behavior.
+- [x] Filtered virtual metadata-schema self-observation so table-handle loss accounting remains stable.
+- [ ] Keep the aggregate P1 I_S/P_S requirement partial; full table/field coverage and remaining runtime component semantics are not closed.
+
+Evidence: `reports/compatibility/p1-performance-schema-table-handles-statement-lease-current-continuation1837.txt`。
+
+### Continuation 1838
+
+- [x] Preserved `STATEMENT`, `TRANSACTION`, and `EXPLICIT` metadata-lock duration through owner/waiter snapshots.
+- [x] Verified ordinary statement, transaction-held, and `LOCK TABLES` projections in `performance_schema.metadata_locks`.
+- [ ] Keep the aggregate P1 I_S/P_S requirement partial; full table/field coverage and remaining runtime lifecycle semantics are not closed.
+
+Evidence: `reports/compatibility/p1-performance-schema-metadata-lock-duration-current-continuation1838.txt`。
+
+### Continuation 1839
+
+- [x] Applied metadata-lock capacity before SQL filtering and made lost accounting use the full runtime collection.
+- [x] Added a filtered-read regression proving the retained row stays visible, the evicted row does not reappear, and `Performance_schema_metadata_lock_lost` is one.
+- [ ] Keep the aggregate P1 I_S/P_S requirement partial; full table/field coverage and remaining runtime lifecycle semantics are not closed.
+
+Evidence: `reports/compatibility/p1-performance-schema-metadata-lock-capacity-filter-current-continuation1839.txt`。
+
+### Continuation 1840
+
+- [x] Applied table-handle capacity before SQL filtering, matching metadata-lock behavior.
+- [x] Verified an evicted handle cannot be resurrected by a selective query and lost accounting remains one.
+- [ ] Keep the aggregate P1 I_S/P_S requirement partial; full table/field coverage and remaining runtime lifecycle semantics are not closed.
+
+Evidence: `reports/compatibility/p1-performance-schema-table-handle-capacity-filter-current-continuation1840.txt`。
+
+### Continuation 1841
+
+- [x] Applied `performance_schema.prepared_statements_instances` capacity before SQL filtering.
+- [x] Verified an evicted prepared statement cannot be resurrected by a selective query while
+  `Performance_schema_prepared_statements_lost` remains based on the complete live inventory.
+- [ ] Keep the aggregate P1 I_S/P_S requirement partial; complete table/field coverage and remaining
+  component, permission and lifecycle semantics are not closed.
+
+Evidence: `reports/compatibility/p1-performance-schema-prepared-capacity-filter-current-continuation1841.txt`。
+
+### Continuation 1842
+
+- [x] Applied socket/file instance capacity before SQL filtering and retained full-set lost accounting.
+- [x] Verified filtered reads cannot resurrect evicted socket or file instances.
+- [ ] Keep the aggregate P1 I_S/P_S requirement partial; complete table/field and remaining runtime
+  component, permission and lifecycle semantics are not closed.
+
+Evidence: `reports/compatibility/p1-performance-schema-file-socket-capacity-filter-current-continuation1842.txt`。
+
+### Continuation 1843
+
+- [x] Applied program-summary capacity before SQL filtering and retained full-set lost accounting.
+- [x] Verified a selective query cannot resurrect an evicted program summary.
+- [ ] Keep the aggregate P1 I_S/P_S requirement partial; complete table/field and remaining runtime
+  component, permission and lifecycle semantics are not closed.
+
+Evidence: `reports/compatibility/p1-performance-schema-program-capacity-filter-current-continuation1843.txt`。
+
+### Continuation 1844
+
+- [x] Applied connection-summary capacity before SQL filtering and retained complete-set lost accounting.
+- [x] Applied the same ordering to table-lock summaries, table I/O, and index-usage summaries.
+- [x] Verified retained rows remain visible and evicted rows are not resurrected by selective predicates.
+- [ ] Keep the aggregate P1 I_S/P_S requirement partial; complete table/field coverage and remaining
+  component, permission, thread, and lifecycle semantics are not closed.
+
+Evidence: `reports/compatibility/p1-performance-schema-summary-io-capacity-filter-current-continuation1844.txt`。
+
+### Continuation 1845
+
+- [x] Applied error-summary capacity before predicates for global and identity dimensions.
+- [x] Applied digest capacity before predicates and retained complete-source lost accounting.
+- [x] Verified selective reads cannot resurrect evicted error or digest rows.
+- [ ] Keep the aggregate P1 I_S/P_S requirement partial; complete table/field and remaining runtime
+  lifecycle semantics are not closed.
+
+Evidence: `reports/compatibility/p1-performance-schema-error-digest-capacity-filter-current-continuation1845.txt`。
+
+### Continuation 1846
+
+- [x] Applied thread-instance capacity before SQL filtering on the complete sorted processlist inventory.
+- [x] Verified an evicted thread cannot be resurrected by a selective `THREAD_ID` predicate.
+- [ ] Keep the aggregate P1 I_S/P_S requirement partial; complete field and runtime lifecycle semantics
+  are not closed.
+
+Evidence: `reports/compatibility/p1-performance-schema-thread-capacity-filter-current-continuation1846.txt`。
+
+### Continuation 1847
+
+- [x] Re-ran the Performance Schema capacity/filter regression family from continuations 1841-1846.
+- [x] Re-ran the local native binlog/GTID/XA/recovery/promotion regression family.
+- [x] Confirmed the matrix remains 18 implemented, 8 partial, 1 deferred, and 2 out of scope.
+- [ ] Keep official MySQL interoperability, missing component runtimes, and the incomplete
+  non-Connector/J client matrix partial; keep Fulltext deferred and non-InnoDB out of scope.
+
+Evidence: `reports/compatibility/p1-p2-capacity-and-native-regression-current-continuation1847.txt`。
+
+### Continuation 1848
+
+- [x] Added `IN`, `NOT IN`, `IS NULL`, and `IS NOT NULL` matching for role metadata views.
+- [x] Preserved equality/LIKE behavior and applied the matcher across role projections.
+- [x] Passed the focused RED/GREEN regression, role/privilege regression family, and full
+  `TestInformationSchema|TestPerformanceSchema` family.
+- [ ] Keep the aggregate P1 requirement partial pending complete official field/runtime/component
+  evidence.
+
+Evidence: `reports/compatibility/p1-information-schema-role-predicate-filters-current-continuation1848.txt`。
+
+### Continuation 1849
+
+- [x] Added `IN` and `NOT IN` matching to the generic INFORMATION_SCHEMA privilege views.
+- [x] Preserved equality, LIKE, and NULL predicate behavior.
+- [x] Passed focused and role/permission regression families.
+- [ ] Keep the aggregate P1 requirement partial pending complete official field/runtime/
+  component evidence.
+
+Evidence: `reports/compatibility/p1-information-schema-privilege-predicate-filters-current-continuation1849.txt`。
+
+### Continuation 1850
+
+- [x] Added `IN`, `NOT IN`, `IS NULL`, and `IS NOT NULL` matching to shared metadata filters.
+- [x] Passed focused metadata and related tables/columns/constraints/catalog regressions.
+- [ ] Keep the aggregate P1 requirement partial pending complete official field/runtime/
+  component evidence.
+
+Evidence: `reports/compatibility/p1-information-schema-metadata-predicate-filters-current-continuation1850.txt`。
+
+### Continuation 1851
+
+- [x] Added shared `IN`/`NOT IN`/NULL matching for mysql privilege metadata tables.
+- [x] Preserved equality and LIKE behavior and passed the account/permission regression family.
+- [ ] Keep complete mysql.* coverage and the aggregate P1 requirement partial pending
+  full field/runtime/component and official MySQL evidence.
+
+Evidence: `reports/compatibility/p1-mysql-system-privilege-predicate-filters-current-continuation1851.txt`。
+
+### Continuation 1852
+
+- [x] Added `IN`, `NOT IN`, and NULL predicate matching to mysql.role_edges and mysql.default_roles.
+- [x] Preserved equality/LIKE behavior and passed the role-focused regression family.
+- [ ] Keep complete mysql.* and aggregate P1 lifecycle/field/runtime coverage partial.
+
+Evidence: `reports/compatibility/p1-mysql-role-table-predicate-filters-current-continuation1852.txt`。
+
+### Continuation 1853
+
+- [x] Added `IN` and `NOT IN` matching to INFORMATION_SCHEMA.PARAMETERS fields.
+- [x] Applied it to ordinary parameters and function return rows while retaining equality/LIKE/NULL.
+- [x] Passed parameter/routine regression coverage.
+- [ ] Keep complete I_S/P_S field/runtime/component and lifecycle coverage partial.
+
+Evidence: `reports/compatibility/p1-information-schema-parameters-in-predicates-current-continuation1853.txt`。
+
+### Continuation 1854
+
+- [x] Added `IN`, `NOT IN`, and NULL matching to mysql.procs_priv routine filters.
+- [x] Preserved equality/LIKE and JDBC-compatible projections.
+- [x] Passed the parameter/routine regression family.
+- [ ] Keep complete mysql.* and aggregate I_S/P_S runtime/lifecycle coverage partial.
+
+Evidence: `reports/compatibility/p1-mysql-procs-priv-predicate-filters-current-continuation1854.txt`。
+
+### Continuation 1855
+
+- [x] Re-ran the complete targeted INFORMATION_SCHEMA/PERFORMANCE_SCHEMA regression family.
+- [x] Confirmed the 1849-1854 predicate changes do not regress existing P1 role, permission,
+  runtime, capacity, and metadata behavior.
+- [ ] Keep the aggregate P1 requirement partial pending complete component/runtime/field/lifecycle
+  and official MySQL evidence.
+
+Evidence: `reports/compatibility/p1-information-performance-predicate-regression-current-continuation1855.txt`。
+
+### Continuation 1856
+
+- [x] Ran the full serial Go command and captured all post-timeout package results.
+- [ ] Do not claim repository-wide PASS: `server/innodb/engine` timed out at 2702.580s;
+  the targeted I_S/P_S gate remains the authoritative evidence for continuations 1849-1855.
+
+Evidence: `reports/compatibility/full-go-regression-current-continuation1856.txt`。
+
+### Continuation 1857
+
+- [x] Added shared `IN`, `NOT IN`, `IS NULL`, and `IS NOT NULL` predicate matching to
+  `performance_schema.setup_consumers`, `setup_instruments`, `setup_timers`, `setup_actors`,
+  and `setup_objects`, retaining equality/LIKE behavior.
+- [x] Reused the actor/object matcher across setup SELECT, UPDATE, and DELETE paths.
+- [x] Passed the focused RED/GREEN test and setup regression family.
+- [ ] Keep the aggregate I_S/P_S requirement partial pending complete field/runtime/component/
+  permission lifecycle coverage and official MySQL evidence.
+
+Evidence: `reports/compatibility/p1-performance-schema-setup-predicate-filters-current-continuation1857.txt`。
+
+### Continuation 1858
+
+- [x] Added `NOT IN`, `IS NULL`, and `IS NOT NULL` matching to the shared
+  Performance Schema telemetry filter used by `setup_loggers`, `setup_meters`, and
+  `setup_metrics`, while retaining equality/LIKE/IN behavior.
+- [x] Passed focused telemetry predicate and telemetry regression tests.
+- [ ] Keep the aggregate I_S/P_S requirement partial pending complete field/runtime/component/
+  permission lifecycle coverage and official MySQL evidence.
+
+Evidence: `reports/compatibility/p1-performance-schema-telemetry-predicate-filters-current-continuation1858.txt`。
+
+### Continuation 1859
+
+- [x] Applied mysql system-table predicates to `mysql.proxies_priv` target/grant columns
+  (`PROXIED_HOST`, `PROXIED_USER`, `WITH_GRANT`, and `GRANTOR`), not only proxy account
+  `HOST`/`USER`.
+- [x] Preserved equality/LIKE/IN/NOT IN/NULL matching and passed proxy lifecycle regression.
+- [ ] Keep complete mysql.* table/field and privilege-lifecycle coverage partial; official
+  MySQL interoperability remains unverified.
+
+Evidence: `reports/compatibility/p1-mysql-proxies-priv-target-filters-current-continuation1859.txt`。
+
+### Continuation 1860
+
+- [x] Added read projections for `mysql.component`, `mysql.password_history`,
+  `mysql.server_cost`, and `mysql.engine_cost`.
+- [x] Exposed MySQL 8.4 cost defaults, empty component/password-history runtime
+  boundaries, predicate filtering, and INFORMATION_SCHEMA table/column discovery.
+- [x] Passed the focused and related account/role/proxy/metadata regression gate.
+- [ ] Keep system-table write lifecycle, complete mysql.* coverage, aggregate
+  I_S/P_S runtime/permission semantics, and official MySQL evidence partial.
+
+Evidence: `reports/compatibility/p1-mysql-cost-component-system-table-shapes-current-continuation1860.txt`。
+
+### Continuation 1861
+
+- [x] `mysql.password_history` now records the previous non-empty password hash
+  and UTC timestamp for supported `ALTER USER` and `SET PASSWORD` changes.
+- [x] Password-history rows are read from durable account metadata and retain
+  native filtering behavior.
+- [ ] The global P1 system-metadata requirement remains partial: password
+  reuse/retention policy, complete mysql.* lifecycle, component lifecycle,
+  optimizer-cost writes, full I_S/P_S runtime/permission semantics, and
+  official MySQL interoperability are still open.
+
+Evidence: `reports/compatibility/p1-mysql-password-history-persistence-current-continuation1861.txt`。
+
+### Continuation 1862
+
+- [x] Implemented durable `INSTALL COMPONENT`/`UNINSTALL COMPONENT` registry
+  rows for supported `file://...` URNs.
+- [x] Enforced INSERT/DELETE permissions on `mysql.component` and projected
+  component IDs, group IDs, and URNs through the virtual system table.
+- [ ] Native component loading/unloading, dependency and service activation,
+  INSTALL SET/PERSIST, full mysql.* lifecycle, and official interoperability
+  remain partial.
+
+Evidence: `reports/compatibility/p1-mysql-component-registry-lifecycle-current-continuation1862.txt`。
+
+### Continuation 1863
+
+- [x] Added explicit `FLUSH OPTIMIZER_COSTS` dispatch with `LOCAL` and
+  `NO_WRITE_TO_BINLOG` forms.
+- [x] Enforced the `FLUSH_OPTIMIZER_COSTS` or `RELOAD` privilege boundary.
+- [ ] Durable optimizer-cost table mutations and the real session-visible
+  in-memory cost-model reload remain open.
+
+Evidence: `reports/compatibility/p1-flush-optimizer-costs-privilege-dispatch-current-continuation1863.txt`。
+
+### Continuation 1864
+
+- [x] Added durable INSERT/UPDATE/DELETE semantics for `mysql.server_cost` and
+  `mysql.engine_cost`, including transaction staging and table privileges.
+- [x] `FLUSH OPTIMIZER_COSTS` now reloads the persisted model into the runtime
+  optimizer snapshot; sequential-scan costing consumes `row_evaluate_cost`.
+- [ ] Full MySQL cost-model warning/replication/plan-operator parity remains
+  open, as do the broader I_S/P_S, XA/binlog, client-matrix, and official
+  interoperability requirements.
+
+Evidence: `reports/compatibility/p1-mysql-optimizer-cost-dml-reload-current-continuation1864.txt`。
+
+### Continuation 1865
+
+- [x] Added the global dynamic `password_require_current` policy and durable
+  account-level `PASSWORD REQUIRE CURRENT`, `OPTIONAL`, and `DEFAULT` state.
+- [x] Projected password verification/reuse policy fields through `mysql.user`,
+  rendered them in `SHOW CREATE USER`, and enforced `REPLACE` verification for
+  self-service `ALTER USER`/`SET PASSWORD` changes.
+- [ ] Full mysql.user lifecycle/field parity, secondary-password clauses,
+  complete I_S/P_S semantics, official replication/XA interoperability, and
+  the non-Connector/J client matrix remain open or externally blocked.
+
+Evidence: `reports/compatibility/p1-password-verification-policy-current-continuation1865.txt`。
+
+### Continuation 1866
+
+- [x] Added durable `password_last_changed` and account `password_lifetime`
+  metadata, plus the dynamic `default_password_lifetime` variable.
+- [x] Added `PASSWORD EXPIRE INTERVAL N DAY` persistence, projection, and
+  `SHOW CREATE USER` rendering; `NEVER`/`DEFAULT` clear the account override.
+- [ ] Password expiration scheduling/enforcement and complete `mysql.user`
+  lifecycle/field parity remain open, along with the broader I_S/P_S,
+  replication/XA, client-matrix, and official interoperability requirements.
+
+Evidence: `reports/compatibility/p1-mysql-user-password-lifetime-current-continuation1866.txt`。
+
+### Continuation 1867
+
+- [x] Expanded the default `mysql.user` projection to all MySQL 8.4 static
+  privilege columns, backed by durable global grants and existing ALL expansion.
+- [x] Preserved the password-management fields and account filtering in the
+  expanded projection.
+- [ ] Full grant-table lifecycle, dynamic privilege/role edge semantics, full
+  I_S/P_S field/runtime parity, official replication/XA interoperability, and
+  the non-Connector-J client matrix remain open or externally blocked.
+
+Evidence: `reports/compatibility/p1-mysql-user-static-privilege-columns-current-continuation1867.txt`。
+
+### Continuation 1868
+
+- [x] Connected durable `password_last_changed` and `password_lifetime` to
+  authentication; account lifetime overrides the global default.
+- [x] Authentication rejects accounts whose configured password lifetime has
+  elapsed while preserving explicit `password_expired` behavior.
+- [ ] Expired-password warning/change-flow protocol details and complete
+  mysql.user/I_S/P_S parity remain open, as do official replication/XA and
+  full non-Connector-J client-matrix gates.
+
+Evidence: `reports/compatibility/p1-password-lifetime-auth-enforcement-current-continuation1868.txt`。
+### Continuation 1869
+
+`SHOW CREATE USER` 已补齐 MySQL 8.4 的账户可见性、哈希脱敏、`CURRENT_USER()` 目标解析和
+默认账户选项输出，专项回归通过。该切片不改变全局聚合状态：完整 I_S/P_S 运行时与权限
+语义、非 Connector/J 全量客户端矩阵、XA/native binlog/GTID/崩溃恢复/提升官方互操作仍需
+继续推进；Fulltext 延后，非 InnoDB 不纳入范围。
+### Continuation 1870
+
+账户属性语法已补齐：CREATE/ALTER USER 的 JSON ATTRIBUTE 和 COMMENT 可持久化、清除/更新，USER()/CURRENT_USER() 目标可用于改密和账户属性，并在 mysql.user、
+INFORMATION_SCHEMA.USER_ATTRIBUTES 和 SHOW CREATE USER 中保持一致。专项回归通过；全局
+I_S/P_S 运行时、非 Connector/J 客户端矩阵、XA/native binlog/GTID/崩溃恢复/提升官方互操作
+仍保持未完成边界。
+
+### Continuation 1878
+
+`INFORMATION_SCHEMA.PARAMETERS` 已修复 schema/routine 空字符串 `=`/`LIKE` 谓词：只有查询中
+实际出现的 `SPECIFIC_SCHEMA`、`ROUTINE_SCHEMA`、`SPECIFIC_NAME`、`ROUTINE_NAME` 条件才参与
+匹配，空字符串不再被当作无过滤。专项例程回归通过；全局 I_S/P_S、P2/P3/P4 仍保持未完成边界。
+
+### Continuation 1883
+
+`INFORMATION_SCHEMA.ST_SPATIAL_REFERENCE_SYSTEMS.SRS_ID` 现在按 MySQL 的 `LIKE` 通配语义
+匹配：`srs_id LIKE '4%'` 可以命中内置 4326，精确数值过滤及显式空字符串语义保持不变。
+专项回归、完整 I_S 族和全仓编译通过；该切片只关闭一个 P1 目录过滤缺口，P1/P2/P3/P4
+聚合项仍保持未完成边界。
+
+### Continuation 1879
+
+通用 INFORMATION_SCHEMA 元数据过滤现在区分“没有谓词”和显式空字符串谓词：
+`TABLE_SCHEMA/TABLE_NAME/COLUMN_NAME/... = ''`、`LIKE ''` 不再恢复全量元数据行；缺少谓词仍保持
+全量查询。专项 I_S 元数据回归和全仓编译通过；完整 I_S/P_S 运行时、权限/组件生命周期、
+P2/P3/P4 仍保持未完成边界。
+
+### Continuation 1880
+
+`INFORMATION_SCHEMA.PARAMETERS` 现在也区分 `PARAMETER_NAME/PARAMETER_MODE` 缺少谓词与
+显式 `= ''`/`LIKE ''`：procedure 参数使用空模式精确匹配，function return 的 NULL 参数名/模式
+不会错误匹配空字符串。专项 PARAMETERS、相关例程族和全仓编译通过；完整 I_S/P_S、P2/P3/P4
+仍保持未完成边界。
+
+### Continuation 1882
+
+INFORMATION_SCHEMA 专用目录过滤器现在保留显式空字符串语义：view table/routine usage、
+`KEYWORDS.WORD`、空间单位、空间参考系统和几何列的 `= ''`/`LIKE ''` 不再被当成缺少谓词；
+真实空值 SRS 行仍可被精确区分。专项 I_S 回归通过；完整 I_S/P_S、组件/权限生命周期、
+P2/P3/P4 仍保持未完成边界。
+
+### Continuation 1881
+
+INFORMATION_SCHEMA 权限视图现在区分缺少谓词与显式空字符串谓词：`TABLE_SCHEMA = ''`、
+`PRIVILEGE_TYPE LIKE ''` 不再恢复已有权限行。专项权限回归通过；完整 I_S/P_S、组件/权限
+生命周期、P2/P3/P4 仍保持未完成边界。
+
+### Continuation 1877
+
+角色授权表和 MySQL 系统表现在区分“没有谓词”和“谓词值为空字符串”：`=`/`LIKE ''` 不再
+被当作无过滤条件，因此 `mysql.role_edges`、`mysql.server_cost` 等查询不会错误恢复全量行；
+通配符及非空等值/LIKE 语义保持不变。专项角色/账户回归通过；全局 I_S/P_S、P2/P3/P4 仍保持
+未完成边界。
+
+### Continuation 1871
+
+账户 TLS 与资源限制元数据已接通：`REQUIRE CIPHER/ISSUER/SUBJECT`、四类 `WITH` 资源限制可
+持久化，并通过 `mysql.user`、`SHOW CREATE USER` 和认证侧读取验证；四类限制已接入解耦协议
+的认证、普通查询和预处理执行路径。其他协议适配器、警告/重试边界、完整 I_S/P_S、非
+Connector-J 全量客户端矩阵及 XA/native binlog/GTID/崩溃恢复/提升官方互操作仍保持未完成边界。
+
+### Continuation 1872
+
+账户失败登录策略已接通本地持久化和认证状态机：支持失败次数阈值、按天临时锁定、
+`UNBOUNDED` 锁定、成功认证/改密/解锁清零，并在 `mysql.user` 与 `SHOW CREATE USER` 中投影。
+专项账户回归和跨包编译通过；该切片仍不足以把全局 P1 聚合项标记为完成。
+
+### Continuation 1873
+
+过期密码协议闭环已补齐：支持 `CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS` 的客户端进入受限会话，
+不支持的客户端返回 1862；受限会话只允许当前账户改密，并覆盖文本协议和预处理协议，成功改密
+后解除限制。该局部边界已通过专项及 auth/net/protocol/dispatcher 回归，但全局 I_S/P_S、非
+Connector-J 客户端矩阵、XA/native binlog/GTID/崩溃恢复/提升官方互操作仍保持未完成；Fulltext
+延后，非 InnoDB 不纳入范围。
+
+### Continuation 1874
+
+Performance Schema 汇总过滤器已支持 `IS NULL`/`IS NOT NULL`，实际 NULL 投影值也按
+MySQL 三值逻辑处理；专项、完整 P_S 回归和全仓编译均通过。该局部修复不改变全局聚合状态：
+完整 I_S/P_S 运行时与权限语义、非 Connector/J 全量客户端矩阵、XA/native binlog/GTID/
+崩溃恢复/提升官方互操作仍需继续推进；Fulltext 延后，非 InnoDB 不纳入范围。
+
+### Continuation 1875
+
+Performance Schema 全局/会话变量视图已修复空结果回退：`VARIABLE_NAME` 的 `IN/NOT IN` 和
+`IS NULL/IS NOT NULL` 无匹配时返回空集，不再恢复完整变量列表；无该谓词时仍保持全量投影。
+聚焦、相关回归、完整 P_S 测试族和全仓编译通过。全局 I_S/P_S、P2/P3/P4 仍保持未完成边界。
+
+### Continuation 1876
+
+MySQL 系统成本表的 NULL 成员谓词已修复：`mysql.server_cost`/`mysql.engine_cost` 中真实
+`NULL` 值参与 `IN` 或 `NOT IN` 时按三值逻辑判定为 UNKNOWN，不再错误保留 `NOT IN` 行；
+显式 `IS NULL`、`IS NOT NULL`、等值和 `LIKE` 语义保持不变。专项成本回归通过；全局
+I_S/P_S 运行时、官方 XA/binlog/GTID/崩溃恢复/提升互操作及非 Connector/J 全量客户端矩阵
+仍保持未完成边界。

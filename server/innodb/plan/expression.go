@@ -578,6 +578,14 @@ func (f *Function) Eval(ctx *EvalContext) (interface{}, error) {
 			return "NONE", nil
 		}
 		return ctx.SessionValues["current_role"], nil
+	case "ROLES_GRAPHML":
+		if len(args) != 0 {
+			return nil, fmt.Errorf("%s requires no arguments", f.FuncName)
+		}
+		if ctx == nil || ctx.SessionValues == nil {
+			return "<?xml version=\"1.0\" encoding=\"UTF-8\"?><graphml />", nil
+		}
+		return ctx.SessionValues["roles_graphml"], nil
 	case "CURRENT_USER":
 		if len(args) != 0 {
 			return nil, fmt.Errorf("%s requires no arguments", f.FuncName)

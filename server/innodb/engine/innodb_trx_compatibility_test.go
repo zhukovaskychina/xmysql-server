@@ -148,6 +148,28 @@ func TestInformationSchemaInnoDBLockViewsProjectWaitGraph(t *testing.T) {
 	require.Empty(t, wrongLockTable.Data.(*SelectResult).Records)
 }
 
+func TestInformationSchemaInnoDBLocksIncludesGrantedLocksWithoutWaitEdge(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	lockManager := manager.NewLockManager()
+	defer lockManager.Close()
+	executor.QueryExecutor.SetLockManager(lockManager)
+	require.NoError(t, lockManager.AcquireLock(31, 7, 1, 11, manager.LOCK_X))
+
+	result := <-executor.ExecuteQuery(nil, "select lock_id, lock_trx_id, lock_mode, lock_type, lock_table, lock_page, lock_rec from information_schema.innodb_locks", "")
+	require.NoError(t, result.Err)
+	rows, ok := result.Data.(*SelectResult)
+	require.True(t, ok)
+	require.Len(t, rows.Records, 1)
+	values := rows.Records[0].GetValues()
+	require.Equal(t, "7_1_11:31", values[0].String())
+	require.Equal(t, int64(31), values[1].Int())
+	require.Equal(t, "X", values[2].String())
+	require.Equal(t, "RECORD", values[3].String())
+	require.Equal(t, "7_1_11", values[4].String())
+	require.Equal(t, int64(1), values[5].Int())
+	require.Equal(t, int64(11), values[6].Int())
+}
+
 func TestInformationSchemaInnoDBMetricsReportsLiveStateAndFilters(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	txManager, err := executor.QueryExecutor.getTransactionManager()

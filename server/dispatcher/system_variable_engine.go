@@ -201,6 +201,7 @@ func (e *SystemVariableEngine) exprContainsSystemVariable(expr sqlparser.Expr) b
 			"SESSION_USER":   true,
 			"SYSTEM_USER":    true,
 			"CURRENT_ROLE":   true,
+			"ROLES_GRAPHML":  true,
 			"LAST_INSERT_ID": true,
 			"ROW_COUNT":      true,
 		}
@@ -282,17 +283,21 @@ func (e *SystemVariableEngine) isSystemVariableSetExpression(expr *sqlparser.Set
 
 	// 检查常见的系统变量名
 	systemVariables := map[string]bool{
-		"AUTOCOMMIT":               true,
-		"SQL_MODE":                 true,
-		"TIME_ZONE":                true,
-		"CHARACTER_SET_CLIENT":     true,
-		"CHARACTER_SET_CONNECTION": true,
-		"CHARACTER_SET_RESULTS":    true,
-		"COLLATION_CONNECTION":     true,
-		"FOREIGN_KEY_CHECKS":       true,
-		"CHECK_CONSTRAINT_CHECKS":  true,
-		"UNIQUE_CHECKS":            true,
-		"SQL_SAFE_UPDATES":         true,
+		"AUTOCOMMIT":                true,
+		"SQL_MODE":                  true,
+		"TIME_ZONE":                 true,
+		"CHARACTER_SET_CLIENT":      true,
+		"CHARACTER_SET_CONNECTION":  true,
+		"CHARACTER_SET_RESULTS":     true,
+		"COLLATION_CONNECTION":      true,
+		"FOREIGN_KEY_CHECKS":        true,
+		"CHECK_CONSTRAINT_CHECKS":   true,
+		"UNIQUE_CHECKS":             true,
+		"SQL_SAFE_UPDATES":          true,
+		"PASSWORD_HISTORY":          true,
+		"PASSWORD_REUSE_INTERVAL":   true,
+		"PASSWORD_REQUIRE_CURRENT":  true,
+		"DEFAULT_PASSWORD_LIFETIME": true,
 	}
 
 	return systemVariables[varName]
@@ -806,6 +811,7 @@ func (e *SystemVariableEngine) parseSystemFunction(expr *sqlparser.AliasedExpr) 
 			"SESSION_USER":   true,
 			"SYSTEM_USER":    true,
 			"CURRENT_ROLE":   true,
+			"ROLES_GRAPHML":  true,
 			"LAST_INSERT_ID": true,
 			"ROW_COUNT":      true,
 		}
@@ -849,9 +855,19 @@ func (e *SystemVariableEngine) evaluateSystemFunction(funcName string, session s
 
 	case "CURRENT_ROLE":
 		if roles, ok := session.GetParamByName("active_roles").([]string); ok && len(roles) > 0 {
-			return strings.Join(roles, ",")
+			quote := true
+			if raw := session.GetParamByName("sql_quote_show_create"); raw != nil {
+				quote = dispatcherSessionBoolean(raw)
+			}
+			return formatDispatcherCurrentRoles(roles, quote)
 		}
 		return "NONE"
+
+	case "ROLES_GRAPHML":
+		if graph, ok := session.GetParamByName("__xmysql_roles_graphml").(string); ok && graph != "" {
+			return graph
+		}
+		return "<?xml version=\"1.0\" encoding=\"UTF-8\"?><graphml />"
 
 	case "DATABASE":
 		if dbParam := session.GetParamByName("database"); dbParam != nil {
@@ -888,6 +904,44 @@ func (e *SystemVariableEngine) evaluateSystemFunction(funcName string, session s
 
 	default:
 		return nil
+	}
+}
+
+func formatDispatcherCurrentRoles(roles []string, quote bool) string {
+	formatted := make([]string, 0, len(roles))
+	for _, role := range roles {
+		role = strings.TrimSpace(role)
+		at := strings.LastIndex(role, "@")
+		if !quote || at <= 0 || at >= len(role)-1 {
+			formatted = append(formatted, role)
+			continue
+		}
+		user := strings.ReplaceAll(role[:at], "`", "``")
+		host := strings.ReplaceAll(role[at+1:], "`", "``")
+		formatted = append(formatted, "`"+user+"`@`"+host+"`")
+	}
+	return strings.Join(formatted, ",")
+}
+
+func dispatcherSessionBoolean(value interface{}) bool {
+	switch current := value.(type) {
+	case bool:
+		return current
+	case int:
+		return current != 0
+	case int64:
+		return current != 0
+	case uint64:
+		return current != 0
+	case string:
+		switch strings.ToLower(strings.TrimSpace(current)) {
+		case "0", "off", "false", "no":
+			return false
+		default:
+			return true
+		}
+	default:
+		return value != nil
 	}
 }
 

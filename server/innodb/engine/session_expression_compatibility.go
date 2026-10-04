@@ -12,6 +12,8 @@ import (
 
 const sessionExpressionValuesKey = "__xmysql_session_values"
 
+const emptyRolesGraphML = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><graphml />"
+
 const defaultServerVersion = "8.0.32"
 
 var qualifiedSystemVariablePattern = regexp.MustCompile(`(?i)@@(?:global|session|local)\s*\.\s*`)
@@ -35,6 +37,7 @@ func newSessionExpressionValues(session server.MySQLServerSession) map[string]in
 		"session_user":   sessionQualifiedUser(session, false),
 		"system_user":    sessionQualifiedUser(session, false),
 		"current_role":   sessionCurrentRole(session),
+		"roles_graphml":  sessionRolesGraphML(session),
 		"version":        defaultServerVersion,
 		// These server variables are consumed by native replication clients
 		// during the source-version/server-id probe. Keep them in the same
@@ -46,6 +49,7 @@ func newSessionExpressionValues(session server.MySQLServerSession) map[string]in
 		"binlog_format":   "ROW",
 		"binlog_checksum": "CRC32",
 		"server_uuid":     "00000000-0000-0000-0000-000000000000",
+		"gtid_executed":   nil,
 		"connection_id":   sessionConnectionIDValue(session),
 	}
 	if session == nil {
@@ -56,12 +60,21 @@ func newSessionExpressionValues(session server.MySQLServerSession) map[string]in
 	if version := sessionStringParam(session, "version"); version != "" {
 		values["version"] = version
 	}
-	for _, name := range []string{"server_id", "gtid_mode", "log_bin", "binlog_format", "binlog_checksum", "server_uuid"} {
+	for _, name := range []string{"server_id", "gtid_mode", "log_bin", "binlog_format", "binlog_checksum", "server_uuid", "gtid_executed"} {
 		if value := session.GetParamByName(name); value != nil {
 			values[name] = value
 		}
 	}
 	return values
+}
+
+func sessionRolesGraphML(session server.MySQLServerSession) string {
+	if session != nil {
+		if graph, ok := session.GetParamByName("__xmysql_roles_graphml").(string); ok && graph != "" {
+			return graph
+		}
+	}
+	return emptyRolesGraphML
 }
 
 func sessionDatabaseName(session server.MySQLServerSession) interface{} {
@@ -122,7 +135,30 @@ func sessionConnectionIDValue(session server.MySQLServerSession) int64 {
 func sessionCurrentRole(session server.MySQLServerSession) string {
 	if session != nil {
 		if roles, ok := session.GetParamByName("active_roles").([]string); ok && len(roles) > 0 {
-			return strings.Join(roles, ",")
+			quote := true
+			if raw := session.GetParamByName("sql_quote_show_create"); raw != nil {
+				quote = sessionBoolValue(raw)
+			}
+			formatted := make([]string, 0, len(roles))
+			for _, role := range roles {
+				role = strings.TrimSpace(role)
+				at := strings.LastIndex(role, "@")
+				if at <= 0 || at >= len(role)-1 {
+					// Synthetic sessions and legacy callers may carry an
+					// unqualified role name. Preserve that representation until
+					// the account identity is available.
+					formatted = append(formatted, role)
+					continue
+				}
+				if !quote {
+					formatted = append(formatted, role)
+					continue
+				}
+				user := strings.ReplaceAll(role[:at], "`", "``")
+				host := strings.ReplaceAll(role[at+1:], "`", "``")
+				formatted = append(formatted, "`"+user+"`@`"+host+"`")
+			}
+			return strings.Join(formatted, ",")
 		}
 	}
 	return "NONE"

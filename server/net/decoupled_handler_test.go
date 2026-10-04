@@ -20,6 +20,31 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/protocol"
 )
 
+func TestPreparedProtocolCommandInstrumentNames(t *testing.T) {
+	cases := map[string]string{
+		"stmt_prepare":        "statement/com/Prepare",
+		"stmt_execute":        "statement/com/Execute",
+		"stmt_close":          "statement/com/Close stmt",
+		"stmt_reset":          "statement/com/Reset stmt",
+		"stmt_send_long_data": "statement/com/Long Data",
+		"stmt_fetch":          "statement/com/Fetch",
+	}
+	for input, want := range cases {
+		require.Equal(t, want, preparedProtocolCommandInstrument(input), input)
+	}
+}
+
+func TestProtocolCommandInstrumentNames(t *testing.T) {
+	require.Equal(t, "statement/com/Ping", protocolCommandInstrument(common.COM_PING))
+	require.Equal(t, "statement/com/Init DB", protocolCommandInstrument(common.COM_INIT_DB))
+	require.Equal(t, "statement/com/Reset connection", protocolCommandInstrument(common.COM_RESET_CONNECTION))
+	require.Equal(t, "statement/com/Processlist", protocolCommandInstrument(common.COM_PROCESS_INFO))
+	require.Equal(t, "statement/com/Binlog Dump", protocolCommandInstrument(common.COM_BINLOG_DUMP_GTID))
+	require.Empty(t, protocolCommandInstrument(common.COM_QUERY))
+	require.Empty(t, protocolCommandInstrument(common.COM_STMT_EXECUTE))
+	require.Equal(t, "statement/com/Error", protocolCommandInstrument(0xff))
+}
+
 // MockSession 模拟会话用于测试
 type MockSession struct {
 	attributeMu sync.RWMutex
@@ -118,6 +143,44 @@ func TestMySQLSessionStatusFlagsReflectAutocommitOff(t *testing.T) {
 	if flags&protocol.SERVER_STATUS_AUTOCOMMIT != 0 {
 		t.Fatalf("expected autocommit flag to be cleared, got 0x%04x", flags)
 	}
+}
+
+func TestAccountMaxUserConnectionsIsEnforcedAtProtocolBoundary(t *testing.T) {
+	service := &authSwitchTestService{user: &auth.UserInfo{User: "bounded", Host: "localhost", MaxUserConnections: 1}}
+	existing := NewMockSession("bounded-existing")
+	existingMysql := NewMySQLServerSession(existing)
+	existingMysql.SetParamByName("user", "bounded")
+	existingMysql.SetParamByName("host", "localhost")
+	current := NewMockSession("bounded-current")
+	handler := &DecoupledMySQLMessageHandler{
+		authService: service,
+		sessionMap:  map[Session]server.MySQLServerSession{existing: existingMysql},
+	}
+
+	err := handler.enforceAccountConnectionLimit(context.Background(), current, "bounded", "localhost")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "max_user_connections")
+
+	delete(handler.sessionMap, existing)
+	require.NoError(t, handler.enforceAccountConnectionLimit(context.Background(), current, "bounded", "localhost"))
+}
+
+func TestAccountHourlyQueryAndUpdateLimitsAreEnforced(t *testing.T) {
+	service := &authSwitchTestService{user: &auth.UserInfo{User: "bounded", Host: "localhost", MaxQuestions: 1, MaxUpdates: 1}}
+	session := NewMockSession("bounded-query")
+	mysqlSession := NewMySQLServerSession(session)
+	mysqlSession.SetParamByName("user", "bounded")
+	mysqlSession.SetParamByName("host", "localhost")
+	handler := &DecoupledMySQLMessageHandler{authService: service}
+
+	require.NoError(t, handler.enforceAccountQueryLimit(context.Background(), &mysqlSession, "select 1"))
+	require.Error(t, handler.enforceAccountQueryLimit(context.Background(), &mysqlSession, "select 2"))
+
+	service.user.MaxQuestions = 10
+	service.user.MaxUpdates = 1
+	handler.resourceWindows = nil
+	require.NoError(t, handler.enforceAccountQueryLimit(context.Background(), &mysqlSession, "update t set c = 1"))
+	require.Error(t, handler.enforceAccountQueryLimit(context.Background(), &mysqlSession, "delete from t"))
 }
 
 func TestHandleFieldListReturnsColumnDefinitionPackets(t *testing.T) {
@@ -474,6 +537,37 @@ func TestHandleComStmtExecuteRecordsExecutionAccounting(t *testing.T) {
 	got := snapshots[0]
 	if got.ExecuteCount != 1 || got.ErrorCount != 0 || got.RowsSent != 1 || got.ExecuteTimeTotal < 0 {
 		t.Fatalf("prepared execution accounting = %#v, want one successful row-producing execution", got)
+	}
+}
+
+func TestHandleComStmtExecuteRecordsCPUTimeWhenConsumerEnabled(t *testing.T) {
+	handler := NewDecoupledMySQLMessageHandler(conf.NewCfg())
+	handler.businessHandler = fixedQueryBusinessHandler{response: &protocol.ResponseMessage{
+		Result: &protocol.MessageQueryResult{Columns: []string{"value"}, Rows: [][]interface{}{{int64(1)}}, Type: "select"},
+	}}
+	result := <-handler.xmysqlEngine.ExecuteQuery(nil, "update performance_schema.setup_consumers set enabled='YES' where name='events_statements_cpu'", "")
+	if result.Err != nil {
+		t.Fatalf("enable events_statements_cpu: %v", result.Err)
+	}
+	if !handler.xmysqlEngine.QueryExecutor.PerformanceSchemaConsumerEnabled("events_statements_cpu") {
+		t.Fatal("events_statements_cpu was not enabled in the engine")
+	}
+
+	session := NewMockSession("stmt_execute_cpu")
+	mgr := handler.preparedStmtMgrFromSession(session)
+	stmt, err := mgr.Prepare("select 1")
+	if err != nil {
+		t.Fatalf("prepare failed: %v", err)
+	}
+	body := make([]byte, 10)
+	body[0] = common.COM_STMT_EXECUTE
+	binary.LittleEndian.PutUint32(body[1:5], stmt.ID)
+	if err := handler.handleComStmtExecute(session, nil, &MySQLPackage{Header: MySQLPkgHeader{PacketId: 4}, Body: body}); err != nil {
+		t.Fatalf("COM_STMT_EXECUTE returned transport error: %v", err)
+	}
+	snapshots := mgr.Snapshot()
+	if len(snapshots) != 1 || snapshots[0].CPUTimeTotal == 0 {
+		t.Fatalf("prepared CPU accounting = %#v, want captured CPU time", snapshots)
 	}
 }
 
@@ -952,6 +1046,40 @@ func TestHandleQueryMessageDirectDoesNotDoubleRecordEngineMetrics(t *testing.T) 
 	require.Equal(t, int64(session.ID()), events[0].ThreadID)
 }
 
+func TestHandlePacketQueryRecordsProtocolCommandInstrument(t *testing.T) {
+	handler := NewDecoupledMySQLMessageHandler(conf.NewCfg())
+	handler.businessHandler = fixedQueryBusinessHandler{response: &protocol.ResponseMessage{
+		BaseMessage: protocol.NewBaseMessage(protocol.MSG_QUERY_RESPONSE, "query-command", nil),
+		Result:      &protocol.MessageQueryResult{Type: "ddl"},
+	}}
+	session := NewMockSession("query-command-instrument")
+	require.NoError(t, handler.OnOpen(session))
+	session.SetAttribute("auth_status", "success")
+	currentSession, ok := handler.sessionMap[session]
+	require.True(t, ok)
+	currentSession.SetParamByName("user", "query_user")
+	currentSession.SetParamByName("host", "localhost")
+	before := len(metrics.DefaultRuntimeRecorder().StatementHistory())
+
+	packet := &MySQLPackage{
+		Header: MySQLPkgHeader{PacketLength: []byte{0x08, 0x00, 0x00}, PacketId: 0},
+		Body:   []byte{common.COM_QUERY, 'S', 'E', 'L', 'E', 'C', 'T', ' ', '1'},
+	}
+	require.NoError(t, handler.handlePacket(session, &currentSession, packet))
+
+	found := false
+	for _, event := range metrics.DefaultRuntimeRecorder().StatementHistory()[before:] {
+		if event.StatementType == "statement/com/Query" {
+			found = true
+			require.Equal(t, int64(session.ID()), event.ThreadID)
+			require.Equal(t, "query_user", event.User)
+			require.Equal(t, "localhost", event.Host)
+			require.Empty(t, event.SQL)
+		}
+	}
+	require.True(t, found, "COM_QUERY command instrument was not recorded")
+}
+
 func TestHandlePacketUnsupportedCommandReturnsErrorPacket(t *testing.T) {
 	config := conf.NewCfg()
 	handler := NewDecoupledMySQLMessageHandler(config)
@@ -1288,6 +1416,28 @@ func TestHandleComChangeUserReauthenticatesAndResetsSessionState(t *testing.T) {
 	}
 }
 
+func TestAuthenticateWithChallengePreservesPrivilegesInDevBypass(t *testing.T) {
+	service := &authSwitchTestService{user: &auth.UserInfo{
+		User:             "root",
+		Host:             "%",
+		GlobalPrivileges: []common.PrivilegeType{common.AllPriv},
+		DatabasePrivileges: map[string][]common.PrivilegeType{
+			"app": {common.SelectPriv},
+		},
+		DynamicPrivileges: []string{"BACKUP_ADMIN"},
+		DefaultRoles:      []string{"replica_admin@localhost"},
+	}}
+	handler := &DecoupledMySQLMessageHandler{authService: service, cfg: &conf.Cfg{DevBypassPasswordAuth: true}}
+
+	result, err := handler.authenticateWithChallenge(context.Background(), "root", nil, nil, "10.0.0.2", "app")
+	require.NoError(t, err)
+	require.True(t, result.Success)
+	require.Contains(t, result.Privileges, common.AllPriv)
+	require.Contains(t, result.Privileges, common.SelectPriv)
+	require.Equal(t, []string{"BACKUP_ADMIN"}, result.DynamicPrivileges)
+	require.Equal(t, []string{"replica_admin@localhost"}, result.ActiveRoles)
+}
+
 type proxyResolutionTestService struct {
 	authSwitchTestService
 	proxiedUser string
@@ -1385,6 +1535,49 @@ func TestHandleComChangeUserReadsLengthEncodedAuthResponse(t *testing.T) {
 	if got := currentSession.GetParamByName("database"); got != "new_db" {
 		t.Fatalf("database after length-encoded COM_CHANGE_USER = %v, want new_db", got)
 	}
+}
+
+func TestExpiredPasswordQueryAllowlist(t *testing.T) {
+	allowed := []string{
+		"SET PASSWORD = 'new-secret'",
+		"SET PASSWORD FOR USER() = 'new-secret'",
+		"ALTER USER USER() IDENTIFIED BY 'new-secret'",
+		"ALTER USER CURRENT_USER() IDENTIFIED BY 'new-secret'",
+	}
+	for _, query := range allowed {
+		require.True(t, expiredPasswordQueryAllowed(query), query)
+	}
+
+	denied := []string{
+		"SELECT 1",
+		"SHOW DATABASES",
+		"SET @value = 1",
+		"ALTER USER 'other'@'localhost' IDENTIFIED BY 'new-secret'",
+	}
+	for _, query := range denied {
+		require.False(t, expiredPasswordQueryAllowed(query), query)
+	}
+}
+
+func TestExpiredPasswordRestrictedSessionGate(t *testing.T) {
+	session := NewMockSession("expired-password")
+	session.SetAttribute(expiredPasswordRestrictedAttribute, true)
+	handler := &DecoupledMySQLMessageHandler{}
+
+	err := handler.rejectExpiredPasswordQuery(session, "SELECT 1")
+	if err == nil {
+		t.Fatal("expected restricted session query error")
+	}
+	sqlErr, ok := err.(*common.SQLError)
+	if !ok {
+		t.Fatalf("expected SQL error, got %T", err)
+	}
+	require.Equal(t, uint16(common.ErrMustChangePassword), sqlErr.Code)
+	require.Equal(t, common.DefaultMySQLState, sqlErr.State)
+
+	require.NoError(t, handler.rejectExpiredPasswordQuery(session, "SET PASSWORD = 'new-secret'"))
+	clearExpiredPasswordRestriction(session, "SET PASSWORD = 'new-secret'", true)
+	require.Equal(t, false, session.GetAttribute(expiredPasswordRestrictedAttribute))
 }
 
 func TestHandleComChangeUserRejectsTruncatedPacket(t *testing.T) {

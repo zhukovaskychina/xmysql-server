@@ -1,5 +1,7 @@
 import json
 import os
+import secrets
+import ssl
 import sys
 
 try:
@@ -11,11 +13,56 @@ except ImportError:
 
 dsn = os.environ["XMYSQL_CLIENT_DSN"]
 host, port = dsn.split(":", 1)
-connection = pymysql.connect(host=host, port=int(port), user=os.environ["XMYSQL_CLIENT_USER"], password=os.environ["XMYSQL_CLIENT_PASSWORD"], database="mysql", autocommit=True, charset="utf8mb4", client_flag=CLIENT.MULTI_STATEMENTS | CLIENT.MULTI_RESULTS)
+ca_file = os.environ.get("XMYSQL_CLIENT_TLS_CA")
+def make_connection_args(user, password, database=None, multi_statements=False):
+    args = dict(host=host, port=int(port), user=user, password=password, autocommit=True, charset="utf8mb4", connect_timeout=10, read_timeout=10, write_timeout=10)
+    if database is not None:
+        args["database"] = database
+    if multi_statements:
+        args["client_flag"] = CLIENT.MULTI_STATEMENTS | CLIENT.MULTI_RESULTS
+    if ca_file:
+        tls_context = ssl.create_default_context(cafile=ca_file)
+        tls_context.check_hostname = False
+        args["ssl"] = tls_context
+    return args
+
+connection_args = make_connection_args(os.environ["XMYSQL_CLIENT_USER"], os.environ["XMYSQL_CLIENT_PASSWORD"], database="mysql", multi_statements=True)
+connection = pymysql.connect(**connection_args)
+COM_RESET_CONNECTION = 31
 cases = {}
 def passed(name):
     cases[name] = "PASS"
+
+def run_auth_plugin_case():
+    password = os.environ.get("XMYSQL_CLIENT_AUTH_PLUGIN_PASSWORD") or secrets.token_hex(24)
+    accounts = [
+        ("xmysql_cache_client", "caching_sha2_password"),
+        ("xmysql_sha_client", "sha256_password"),
+    ]
+    with connection.cursor() as cursor:
+        for user, _ in accounts:
+            cursor.execute(f"DROP USER IF EXISTS '{user}'@'%'")
+        for user, plugin in accounts:
+            cursor.execute(f"CREATE USER '{user}'@'%' IDENTIFIED WITH {plugin} BY '{password}'")
+            cursor.execute(f"GRANT SELECT ON *.* TO '{user}'@'%'")
+    try:
+        for user, _ in accounts:
+            plugin_connection = pymysql.connect(**make_connection_args(user, password))
+            try:
+                with plugin_connection.cursor() as cursor:
+                    cursor.execute("SELECT 1")
+                    assert cursor.fetchone()[0] == 1
+            finally:
+                plugin_connection.close()
+        passed("auth-plugins")
+    finally:
+        with connection.cursor() as cursor:
+            for user, _ in accounts:
+                cursor.execute(f"DROP USER IF EXISTS '{user}'@'%'")
+
 try:
+    if os.environ.get("XMYSQL_CLIENT_AUTH_PLUGINS") == "1":
+        run_auth_plugin_case()
     with connection.cursor() as cursor:
         cursor.execute("SELECT 1")
         assert cursor.fetchone()[0] == 1
@@ -65,6 +112,18 @@ try:
         cursor.execute("SELECT @client_matrix_value + 1")
         assert cursor.fetchone()[0] == 42
         passed("session-state")
+        connection.ping(reconnect=False)
+        passed("protocol-ping")
+        connection.select_db("client_matrix")
+        cursor.execute("SELECT DATABASE()")
+        assert cursor.fetchone()[0] == "client_matrix"
+        passed("protocol-init-db")
+        cursor.execute("SET @client_matrix_reset = 41")
+        connection._execute_command(COM_RESET_CONNECTION, b"")
+        connection._read_ok_packet()
+        cursor.execute("SELECT @client_matrix_reset")
+        assert cursor.fetchone()[0] is None
+        passed("session-reset")
         cursor.execute("SELECT 1 AS first_col; SELECT 2 AS second_col")
         assert cursor.fetchone()[0] == 1
         assert cursor.nextset()
@@ -75,6 +134,37 @@ try:
             raise AssertionError("missing table query unexpectedly succeeded")
         except pymysql.MySQLError as error:
             assert "table" in str(error).lower(), error
+        try:
+            cursor.execute("SELECT * FROM client_matrix_missing_table")
+            raise AssertionError("missing table query unexpectedly succeeded")
+        except pymysql.MySQLError as error:
+            assert error.args and error.args[0] == 1146, error.args
+        passed("negative-error-code")
+        cursor.execute("CREATE TABLE IF NOT EXISTS client_matrix.type_rows(id BIGINT PRIMARY KEY, decimal_value DECIMAL(10,2), double_value DOUBLE, text_value TEXT, blob_value BLOB, created_at TIMESTAMP)")
+        cursor.execute("SELECT DATA_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='client_matrix' AND TABLE_NAME='type_rows' ORDER BY ORDINAL_POSITION")
+        assert [row[0].lower() for row in cursor.fetchall()] == ["bigint", "decimal", "double", "text", "blob", "timestamp"]
+        passed("extended-types-metadata")
+        cursor.execute("CREATE TABLE IF NOT EXISTS client_matrix.wire_rows(id INT PRIMARY KEY, decimal_value DECIMAL(10,2), double_value DOUBLE, binary_value BLOB, date_value DATE)")
+        cursor.execute("DELETE FROM client_matrix.wire_rows WHERE id = 1")
+        cursor.execute("INSERT INTO client_matrix.wire_rows(id, decimal_value, double_value, binary_value, date_value) VALUES (1, 12.34, 1.5, _binary'xy', '2026-09-28')")
+        cursor.execute("SELECT decimal_value, double_value, binary_value, date_value FROM client_matrix.wire_rows WHERE id = 1")
+        row = cursor.fetchone()
+        binary_value = row[2].encode() if isinstance(row[2], str) else bytes(row[2])
+        assert str(row[0]) == "12.34" and float(row[1]) == 1.5 and binary_value == b"xy" and str(row[3]) == "2026-09-28", row
+        passed("wire-value-types")
+    pool_first = pymysql.connect(host=host, port=int(port), user=os.environ["XMYSQL_CLIENT_USER"], password=os.environ["XMYSQL_CLIENT_PASSWORD"], database="mysql", autocommit=True, charset="utf8mb4")
+    pool_second = pymysql.connect(host=host, port=int(port), user=os.environ["XMYSQL_CLIENT_USER"], password=os.environ["XMYSQL_CLIENT_PASSWORD"], database="mysql", autocommit=True, charset="utf8mb4")
+    try:
+        with pool_first.cursor() as pool_cursor:
+            pool_cursor.execute("SELECT 1")
+            assert pool_cursor.fetchone()[0] == 1
+        with pool_second.cursor() as pool_cursor:
+            pool_cursor.execute("SELECT 2")
+            assert pool_cursor.fetchone()[0] == 2
+    finally:
+        pool_first.close()
+        pool_second.close()
+    passed("multi-session-pool")
     connection.close()
     connection = pymysql.connect(host=host, port=int(port), user=os.environ["XMYSQL_CLIENT_USER"], password=os.environ["XMYSQL_CLIENT_PASSWORD"], database="mysql", autocommit=True, charset="utf8mb4", client_flag=CLIENT.MULTI_STATEMENTS | CLIENT.MULTI_RESULTS)
     with connection.cursor() as cursor:

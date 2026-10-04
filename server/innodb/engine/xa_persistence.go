@@ -182,14 +182,14 @@ func (e *XMySQLExecutor) loadPreparedXATransactions() error {
 		}
 		loaded[xid.key()] = prepared
 	}
-	e.xaMu.Lock()
+	e.lockXAMutex(nil)
 	if e.xaPrepared == nil {
 		e.xaPrepared = make(map[string]*xaPreparedTransaction)
 	}
 	for key, prepared := range loaded {
 		e.xaPrepared[key] = prepared
 	}
-	e.xaMu.Unlock()
+	e.unlockXAMutex()
 	return nil
 }
 
@@ -288,14 +288,14 @@ func (e *XMySQLExecutor) loadSuspendedXATransactions() error {
 		}
 		loaded[xid.key()] = suspended
 	}
-	e.xaMu.Lock()
+	e.lockXAMutex(nil)
 	if e.xaSuspended == nil {
 		e.xaSuspended = make(map[string]*xaSuspendedTransaction)
 	}
 	for key, suspended := range loaded {
 		e.xaSuspended[key] = suspended
 	}
-	e.xaMu.Unlock()
+	e.unlockXAMutex()
 	return nil
 }
 
@@ -304,8 +304,8 @@ func (e *XMySQLExecutor) suspendedXAJournalIDs() map[string]bool {
 	if e == nil {
 		return result
 	}
-	e.xaMu.Lock()
-	defer e.xaMu.Unlock()
+	e.lockXAMutex(nil)
+	defer e.unlockXAMutex()
 	for _, suspended := range e.xaSuspended {
 		if suspended != nil && strings.TrimSpace(suspended.journalID) != "" {
 			name := filepath.Base(transactionJournalPath(e.getDataDir(), suspended.journalID))
@@ -320,8 +320,8 @@ func (e *XMySQLExecutor) preparedXAJournalIDs() map[string]bool {
 	if e == nil {
 		return result
 	}
-	e.xaMu.Lock()
-	defer e.xaMu.Unlock()
+	e.lockXAMutex(nil)
+	defer e.unlockXAMutex()
 	for _, prepared := range e.xaPrepared {
 		if prepared != nil && strings.TrimSpace(prepared.journalID) != "" {
 			name := filepath.Base(transactionJournalPath(e.getDataDir(), prepared.journalID))

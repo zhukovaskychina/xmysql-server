@@ -81,6 +81,22 @@ func defaultPerformanceSchemaMeters() map[string]performanceSchemaTelemetryMeter
 	return result
 }
 
+func (e *XMySQLExecutor) performanceSchemaMeterClassesLost() int64 {
+	capacity := e.performanceSchemaCapacity("performance_schema_max_meter_classes")
+	if capacity >= len(performanceSchemaTelemetryMeters) {
+		return 0
+	}
+	return int64(len(performanceSchemaTelemetryMeters) - capacity)
+}
+
+func (e *XMySQLExecutor) performanceSchemaMetricClassesLost() int64 {
+	capacity := e.performanceSchemaCapacity("performance_schema_max_metric_classes")
+	if capacity >= len(performanceSchemaTelemetryMetrics) {
+		return 0
+	}
+	return int64(len(performanceSchemaTelemetryMetrics) - capacity)
+}
+
 func (e *XMySQLExecutor) executePerformanceSchemaTelemetrySetupSelect(query, table string) *SelectResult {
 	columns := requestedInformationSchemaColumns(query, performanceSchemaTableColumns(table))
 	rows := make([][]interface{}, 0)
@@ -109,7 +125,12 @@ func (e *XMySQLExecutor) executePerformanceSchemaTelemetrySetupSelect(query, tab
 			meters = clonePerformanceSchemaMeters(e.performanceSchemaMeters)
 			e.performanceSchemaMu.RUnlock()
 		}
-		for _, meter := range sortedPerformanceSchemaMeters(meters) {
+		meterRows := sortedPerformanceSchemaMeters(meters)
+		capacity := e.performanceSchemaCapacity("performance_schema_max_meter_classes")
+		if capacity < len(meterRows) {
+			meterRows = meterRows[:capacity]
+		}
+		for _, meter := range meterRows {
 			if !performanceSchemaTelemetryRowMatches(query, map[string]string{
 				"name": meter.name, "enabled": meter.enabled, "frequency": formatInt64(meter.frequency), "description": meter.description,
 			}) {
@@ -120,7 +141,12 @@ func (e *XMySQLExecutor) executePerformanceSchemaTelemetrySetupSelect(query, tab
 			}))
 		}
 	case "setup_metrics":
-		for _, metric := range performanceSchemaTelemetryMetrics {
+		metricRows := performanceSchemaTelemetryMetrics
+		capacity := e.performanceSchemaCapacity("performance_schema_max_metric_classes")
+		if capacity < len(metricRows) {
+			metricRows = metricRows[:capacity]
+		}
+		for _, metric := range metricRows {
 			if !performanceSchemaTelemetryRowMatches(query, map[string]string{
 				"name": metric.name, "meter": metric.meter, "metric_type": metric.metricType, "num_type": metric.numType,
 				"unit": metric.unit, "description": metric.description,

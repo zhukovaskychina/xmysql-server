@@ -603,6 +603,16 @@ func TestCreateViewOptionsPersistAndExecute(t *testing.T) {
 	require.Contains(t, strings.ToLower(string(raw)), "check_option")
 }
 
+func TestInformationSchemaViewsExposeUpdatableMetadata(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table view_users (id int primary key, name varchar(40))")
+	mustExecSQL(t, executor, "app", "create view updatable_users as select id, name from view_users")
+	mustExecSQL(t, executor, "app", "create view aggregate_users as select count(*) as total from view_users")
+
+	require.Equal(t, [][]interface{}{{"aggregate_users", "NO"}, {"updatable_users", "YES"}}, mustQuerySQL(t, executor, "app", "select table_name, is_updatable from information_schema.views where table_schema = 'app' order by table_name"))
+}
+
 func TestCreateViewRejectsDuplicateAndOrReplaceReplaces(t *testing.T) {
 	tmp := t.TempDir()
 	executor := newTestStorageIntegratedExecutor(t, tmp)
@@ -1592,9 +1602,12 @@ func TestInformationSchemaEnginesAppliesNativeFilters(t *testing.T) {
 	require.Empty(t, mustQuerySQL(t, executor, "", "select engine from information_schema.engines where savepoints = 'NO'"))
 }
 
-func TestInformationSchemaPrivilegesUnionAllReturnsEmptyResult(t *testing.T) {
+func TestInformationSchemaPrivilegesUnionAllCombinesPrivilegeRows(t *testing.T) {
 	tmp := t.TempDir()
 	executor := newTestStorageIntegratedExecutor(t, tmp)
+	mustExecSQL(t, executor, "", "create user 'union_reader'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant select (name) on performance_schema.setup_consumers to 'union_reader'@'localhost'")
+	mustExecSQL(t, executor, "", "grant select on performance_schema.setup_instruments to 'union_reader'@'localhost'")
 
 	query := "select grantee, table_name, column_name, privilege_type, is_grantable from information_schema.column_privileges where table_schema = 'performance_schema' union all select grantee, table_name, null as column_name, privilege_type, is_grantable from information_schema.table_privileges where table_schema = 'performance_schema'"
 	got := <-executor.ExecuteQuery(nil, query, "")
@@ -1603,7 +1616,70 @@ func TestInformationSchemaPrivilegesUnionAllReturnsEmptyResult(t *testing.T) {
 	result, ok := got.Data.(*SelectResult)
 	require.True(t, ok, "expected SelectResult, got %T", got.Data)
 	require.Equal(t, []string{"GRANTEE", "TABLE_NAME", "COLUMN_NAME", "PRIVILEGE_TYPE", "IS_GRANTABLE"}, result.Columns)
-	require.Empty(t, result.Records)
+	require.ElementsMatch(t, [][]interface{}{
+		{"'union_reader'@'localhost'", "setup_consumers", "name", "SELECT", "NO"},
+		{"'union_reader'@'localhost'", "setup_instruments", "", "SELECT", "NO"},
+	}, selectResultRows(result))
+}
+
+func TestInformationSchemaPrivilegesUnionDistinctCombinesPrivilegeRows(t *testing.T) {
+	tmp := t.TempDir()
+	executor := newTestStorageIntegratedExecutor(t, tmp)
+	mustExecSQL(t, executor, "", "create user 'union_distinct_reader'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant select (name) on performance_schema.setup_consumers to 'union_distinct_reader'@'localhost'")
+	mustExecSQL(t, executor, "", "grant select on performance_schema.setup_instruments to 'union_distinct_reader'@'localhost'")
+
+	query := "select grantee, table_name, column_name, privilege_type, is_grantable from information_schema.column_privileges where table_schema = 'performance_schema' union select grantee, table_name, null as column_name, privilege_type, is_grantable from information_schema.table_privileges where table_schema = 'performance_schema'"
+	got := <-executor.ExecuteQuery(nil, query, "")
+	require.NoError(t, got.Err)
+
+	result, ok := got.Data.(*SelectResult)
+	require.True(t, ok, "expected SelectResult, got %T", got.Data)
+	require.Equal(t, []string{"GRANTEE", "TABLE_NAME", "COLUMN_NAME", "PRIVILEGE_TYPE", "IS_GRANTABLE"}, result.Columns)
+	require.ElementsMatch(t, [][]interface{}{
+		{"'union_distinct_reader'@'localhost'", "setup_consumers", "name", "SELECT", "NO"},
+		{"'union_distinct_reader'@'localhost'", "setup_instruments", "", "SELECT", "NO"},
+	}, selectResultRows(result))
+}
+
+func TestInformationSchemaPrivilegesUnionAllCombinesMultiplePrivilegeBranches(t *testing.T) {
+	tmp := t.TempDir()
+	executor := newTestStorageIntegratedExecutor(t, tmp)
+	mustExecSQL(t, executor, "", "create user 'union_chain_reader'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant select (name) on performance_schema.setup_consumers to 'union_chain_reader'@'localhost'")
+	mustExecSQL(t, executor, "", "grant select on performance_schema.setup_instruments to 'union_chain_reader'@'localhost'")
+
+	query := "select grantee, table_name, column_name, privilege_type, is_grantable from information_schema.column_privileges where table_schema = 'performance_schema' union all select grantee, table_name, null as column_name, privilege_type, is_grantable from information_schema.table_privileges where table_schema = 'performance_schema' union all select grantee, table_name, null as column_name, privilege_type, is_grantable from information_schema.table_privileges where table_schema = 'performance_schema'"
+	got := <-executor.ExecuteQuery(nil, query, "")
+	require.NoError(t, got.Err)
+
+	result, ok := got.Data.(*SelectResult)
+	require.True(t, ok, "expected SelectResult, got %T", got.Data)
+	require.Equal(t, []string{"GRANTEE", "TABLE_NAME", "COLUMN_NAME", "PRIVILEGE_TYPE", "IS_GRANTABLE"}, result.Columns)
+	require.Len(t, selectResultRows(result), 3)
+}
+
+func TestInformationSchemaPrivilegesIntersectAndExceptApplyPrivilegeRows(t *testing.T) {
+	tmp := t.TempDir()
+	executor := newTestStorageIntegratedExecutor(t, tmp)
+	mustExecSQL(t, executor, "", "create user 'set_reader'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant select (name) on performance_schema.setup_consumers to 'set_reader'@'localhost'")
+	mustExecSQL(t, executor, "", "grant select (enabled) on performance_schema.setup_instruments to 'set_reader'@'localhost'")
+
+	base := "select grantee, table_name, column_name, privilege_type, is_grantable from information_schema.column_privileges where table_schema = 'performance_schema'"
+	intersection := <-executor.ExecuteQuery(nil, base+" intersect "+base+" and table_name = 'setup_consumers'", "")
+	require.NoError(t, intersection.Err)
+	intersectionResult, ok := intersection.Data.(*SelectResult)
+	require.True(t, ok, "expected SelectResult, got %T", intersection.Data)
+	require.Len(t, selectResultRows(intersectionResult), 1)
+	require.Equal(t, "setup_consumers", selectResultRows(intersectionResult)[0][1])
+
+	difference := <-executor.ExecuteQuery(nil, base+" except "+base+" and table_name = 'setup_consumers'", "")
+	require.NoError(t, difference.Err)
+	differenceResult, ok := difference.Data.(*SelectResult)
+	require.True(t, ok, "expected SelectResult, got %T", difference.Data)
+	require.Len(t, selectResultRows(differenceResult), 1)
+	require.Equal(t, "setup_instruments", selectResultRows(differenceResult)[0][1])
 }
 
 func TestInformationSchemaTablesAutoIncrementProjectionReturnsRequestedColumns(t *testing.T) {

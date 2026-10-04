@@ -23,11 +23,283 @@ import (
 )
 
 func metricStatementType(query string) string {
-	fields := strings.Fields(strings.TrimSpace(query))
+	normalized := strings.ToLower(strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(query), ";")))
+	if normalized == "" {
+		return "empty"
+	}
+	hasPrefix := func(prefix string) bool {
+		return normalized == prefix || strings.HasPrefix(normalized, prefix+" ")
+	}
+	switch {
+	case hasPrefix("create database"):
+		return "create_db"
+	case hasPrefix("create table") || hasPrefix("create temporary table"):
+		return "create_table"
+	case hasPrefix("create view"):
+		return "create_view"
+	case hasPrefix("create procedure"):
+		return "create_procedure"
+	case hasPrefix("create function"):
+		return "create_function"
+	case hasPrefix("create trigger"):
+		return "create_trigger"
+	case hasPrefix("create event"):
+		return "create_event"
+	case hasPrefix("create role"):
+		return "create_role"
+	case hasPrefix("create index") || hasPrefix("create unique index"):
+		return "create_index"
+	case hasPrefix("create user"):
+		return "create_user"
+	case hasPrefix("alter database"):
+		return "alter_db"
+	case hasPrefix("alter table"):
+		return "alter_table"
+	case hasPrefix("alter view"):
+		return "alter_view"
+	case hasPrefix("alter procedure"):
+		return "alter_procedure"
+	case hasPrefix("alter function"):
+		return "alter_function"
+	case hasPrefix("alter event"):
+		return "alter_event"
+	case hasPrefix("alter tablespace"):
+		return "alter_tablespace"
+	case hasPrefix("alter user"):
+		return "alter_user"
+	case hasPrefix("drop database"):
+		return "drop_db"
+	case hasPrefix("drop table"):
+		return "drop_table"
+	case hasPrefix("drop temporary table"):
+		return "drop_table"
+	case hasPrefix("drop index"):
+		return "drop_index"
+	case hasPrefix("drop view"):
+		return "drop_view"
+	case hasPrefix("drop procedure"):
+		return "drop_procedure"
+	case hasPrefix("drop function"):
+		return "drop_function"
+	case hasPrefix("drop trigger"):
+		return "drop_trigger"
+	case hasPrefix("drop event"):
+		return "drop_event"
+	case hasPrefix("drop role"):
+		return "drop_role"
+	case hasPrefix("drop user"):
+		return "drop_user"
+	case hasPrefix("rename table"):
+		return "rename_table"
+	case hasPrefix("rename user"):
+		return "rename_user"
+	case hasPrefix("truncate table"):
+		return "truncate"
+	case hasPrefix("insert"):
+		if strings.Contains(normalized, " select ") {
+			return "insert_select"
+		}
+		return "insert"
+	case hasPrefix("replace"):
+		if strings.Contains(normalized, " select ") {
+			return "replace_select"
+		}
+		return "replace"
+	case hasPrefix("update"):
+		return "update"
+	case hasPrefix("delete"):
+		return "delete"
+	case hasPrefix("prepare"):
+		return "prepare_sql"
+	case hasPrefix("execute"):
+		return "execute_sql"
+	case hasPrefix("deallocate prepare"):
+		return "dealloc_sql"
+	case hasPrefix("call"):
+		return "call_procedure"
+	case hasPrefix("show create table"):
+		return "show_create_table"
+	case hasPrefix("show create database"):
+		return "show_create_db"
+	case hasPrefix("show create view"):
+		return "show_create_table"
+	case hasPrefix("show create procedure"):
+		return "show_create_proc"
+	case hasPrefix("show create function"):
+		return "show_create_func"
+	case hasPrefix("show create trigger"):
+		return "show_create_trigger"
+	case hasPrefix("show create event"):
+		return "show_create_event"
+	case hasPrefix("show create user"):
+		return "show_create_user"
+	case hasPrefix("show databases"):
+		return "show_databases"
+	case hasPrefix("show tables") || hasPrefix("show full tables"):
+		return "show_tables"
+	case hasPrefix("show table status"):
+		return "show_table_status"
+	case hasPrefix("show triggers"):
+		return "show_triggers"
+	case hasPrefix("show events"):
+		return "show_events"
+	case hasPrefix("show procedure status"):
+		return "show_procedure_status"
+	case hasPrefix("show function status"):
+		return "show_function_status"
+	case hasPrefix("show columns") || hasPrefix("show fields") || hasPrefix("show full columns") || hasPrefix("show full fields"):
+		return "show_fields"
+	case hasPrefix("show index") || hasPrefix("show indexes") || hasPrefix("show keys"):
+		return "show_keys"
+	case hasPrefix("show charsets"):
+		return "show_charsets"
+	case hasPrefix("show collations") || hasPrefix("show collation"):
+		return "show_collations"
+	case hasPrefix("show plugins"):
+		return "show_plugins"
+	case hasPrefix("show privileges"):
+		return "show_privileges"
+	case hasPrefix("show storage engines"):
+		return "show_storage_engines"
+	case hasPrefix("show open tables"):
+		return "show_open_tables"
+	case hasPrefix("show binlogs"):
+		return "show_binlogs"
+	case hasPrefix("show binary logs"):
+		return "show_binlogs"
+	case hasPrefix("show binlog events"):
+		return "show_binlog_events"
+	case hasPrefix("show relaylog events"):
+		return "show_relaylog_events"
+	case hasPrefix("show relay log events"):
+		return "show_relaylog_events"
+	case hasPrefix("show master status") || hasPrefix("show source status"):
+		return "show_master_status"
+	case hasPrefix("show slave status") || hasPrefix("show replica status"):
+		return "show_slave_status"
+	case hasPrefix("show slave hosts") || hasPrefix("show replica hosts"):
+		return "show_slave_hosts"
+	case hasPrefix("show engine") && strings.Contains(normalized, " logs"):
+		return "show_engine_logs"
+	case hasPrefix("show engine") && strings.Contains(normalized, " status"):
+		return "show_engine_status"
+	case hasPrefix("show engine") && strings.Contains(normalized, " mutex"):
+		return "show_engine_mutex"
+	case hasPrefix("show profiles"):
+		return "show_profiles"
+	case hasPrefix("show profile"):
+		return "show_profile"
+	case hasPrefix("show variables"):
+		return "show_variables"
+	case hasPrefix("show status"):
+		return "show_status"
+	case hasPrefix("show processlist"):
+		return "show_processlist"
+	case hasPrefix("show grants"):
+		return "show_grants"
+	case hasPrefix("show warnings"):
+		return "show_warnings"
+	case hasPrefix("show errors"):
+		return "show_errors"
+	case hasPrefix("load data"):
+		return "load"
+	case hasPrefix("lock tables"):
+		return "lock_tables"
+	case hasPrefix("unlock tables"):
+		return "unlock_tables"
+	case hasPrefix("flush"):
+		return "flush"
+	case hasPrefix("kill"):
+		return "kill"
+	case hasPrefix("analyze table"):
+		return "analyze"
+	case hasPrefix("optimize table"):
+		return "optimize"
+	case hasPrefix("check table"):
+		return "check"
+	case hasPrefix("checksum table"):
+		return "checksum"
+	case hasPrefix("reset"):
+		return "reset"
+	case hasPrefix("purge binary logs") || hasPrefix("purge master logs"):
+		return "purge"
+	case hasPrefix("change replication filter"):
+		return "change_repl_filter"
+	case hasPrefix("change replication source") || hasPrefix("change master"):
+		return "change_master"
+	case hasPrefix("start replica") || hasPrefix("start slave"):
+		return "slave_start"
+	case hasPrefix("stop replica") || hasPrefix("stop slave"):
+		return "slave_stop"
+	case hasPrefix("use"):
+		return "change_db"
+	case hasPrefix("do"):
+		return "do"
+	case hasPrefix("empty query"):
+		return "empty_query"
+	case hasPrefix("set"):
+		return "set_option"
+	case hasPrefix("rollback to savepoint"):
+		return "rollback_to_savepoint"
+	case hasPrefix("rollback to"):
+		return "rollback_to_savepoint"
+	case hasPrefix("rollback"):
+		return "rollback"
+	case hasPrefix("release savepoint"):
+		return "release_savepoint"
+	case hasPrefix("savepoint"):
+		return "savepoint"
+	case hasPrefix("start transaction") || hasPrefix("begin"):
+		return "begin"
+	case hasPrefix("commit"):
+		return "commit"
+	case strings.HasPrefix(normalized, "grant '"):
+		return "grant_role"
+	case hasPrefix("grant"):
+		return "grant"
+	case hasPrefix("revoke all"):
+		return "revoke_all"
+	case strings.HasPrefix(normalized, "revoke '"):
+		return "revoke_role"
+	case hasPrefix("revoke"):
+		return "revoke"
+	case hasPrefix("xa start"):
+		return "xa_start"
+	case hasPrefix("xa end"):
+		return "xa_end"
+	case hasPrefix("xa prepare"):
+		return "xa_prepare"
+	case hasPrefix("xa commit"):
+		return "xa_commit"
+	case hasPrefix("xa rollback"):
+		return "xa_rollback"
+	case hasPrefix("xa recover"):
+		return "xa_recover"
+	}
+	fields := strings.Fields(normalized)
 	if len(fields) == 0 {
 		return "empty"
 	}
-	return strings.ToLower(fields[0])
+	return fields[0]
+}
+
+func metricStatementTypeForContext(ctx *ExecutionContext, query string) string {
+	if ctx != nil && ctx.statementParseError {
+		return "error"
+	}
+	return metricStatementType(query)
+}
+
+// performanceSchemaStatementEventName preserves fully-qualified command
+// instruments while keeping the historical shorthand for SQL statements.
+// SQL execution records use values such as "select"; protocol commands use
+// MySQL's statement/com/* names, for example "statement/com/Close stmt".
+func performanceSchemaStatementEventName(statementType string) string {
+	statementType = strings.TrimSpace(statementType)
+	if strings.HasPrefix(strings.ToLower(statementType), "statement/") {
+		return statementType
+	}
+	return "statement/sql/" + strings.ToLower(statementType)
 }
 
 // executeAdminCompatibility handles session-scoped table locks and gives
@@ -58,6 +330,12 @@ func (e *XMySQLExecutor) executeAdminCompatibility(ctx *ExecutionContext, sessio
 		}
 	}
 	if handled, err := e.executeReplicationControl(q, lower); handled {
+		return true, err
+	}
+	if handled, err := e.executeFlushOptimizerCosts(ctx, q); handled {
+		return true, err
+	}
+	if handled, err := e.executeComponentLifecycle(ctx, session, q); handled {
 		return true, err
 	}
 	if handled, err := e.executeFlushTables(ctx, q); handled {
@@ -150,6 +428,20 @@ func (e *XMySQLExecutor) executeAdminCompatibility(ctx *ExecutionContext, sessio
 }
 
 var flushTablesPattern = regexp.MustCompile(`(?is)^\s*flush\s+(?:(?:no_write_to_binlog|local)\s+)?tables(?:\s+(.+?))?\s*$`)
+var flushOptimizerCostsPattern = regexp.MustCompile(`(?is)^\s*flush\s+(?:(?:no_write_to_binlog|local)\s+)?optimizer_costs\s*$`)
+
+func (e *XMySQLExecutor) executeFlushOptimizerCosts(ctx *ExecutionContext, query string) (bool, error) {
+	if !flushOptimizerCostsPattern.MatchString(query) {
+		return false, nil
+	}
+	if err := e.prepareDDLImplicitCommit(ctx.Session); err != nil {
+		return true, err
+	}
+	if err := e.reloadOptimizerCostModel(); err != nil {
+		return true, err
+	}
+	return true, nil
+}
 
 // executeFlushTables makes FLUSH TABLES a real storage barrier. The current
 // engine has no independent open-table cache, so named-table forms flush the
@@ -209,7 +501,9 @@ func (e *XMySQLExecutor) holdGlobalReadLock(ctx context.Context, session server.
 		return fmt.Errorf("FLUSH TABLES WITH READ LOCK is already held")
 	}
 	e.globalReadLockStateMu.Unlock()
-	if err := e.globalReadLock.Lock(ctx); err != nil {
+	if err := e.globalReadLock.LockWithObserver(ctx, func(started time.Time) func() {
+		return e.beginPerformanceSchemaGlobalReadLockWait(session, started)
+	}); err != nil {
 		return err
 	}
 	e.globalReadLockStateMu.Lock()
@@ -243,7 +537,9 @@ func (e *XMySQLExecutor) acquireGlobalReadLockForStatement(ctx context.Context, 
 	if e == nil || !globalReadLockWriteStatement(query) {
 		return func() {}, nil
 	}
-	if err := e.globalReadLock.RLock(ctx); err != nil {
+	if err := e.globalReadLock.RLockWithObserver(ctx, func(started time.Time) func() {
+		return e.beginPerformanceSchemaGlobalReadLockWait(session, started)
+	}); err != nil {
 		return nil, err
 	}
 	return e.globalReadLock.RUnlock, nil
@@ -365,6 +661,9 @@ func replicationControlRequiredPrivilege(lower string) string {
 }
 
 func sourceBinlogRequiredPrivilege(lower string) string {
+	if flushOptimizerCostsPattern.MatchString(lower) {
+		return "FLUSH_OPTIMIZER_COSTS"
+	}
 	if lower == "flush binary logs" || lower == "reset master" ||
 		lower == "reset binary logs and gtids" || strings.HasPrefix(lower, "reset binary logs and gtids ") {
 		return "RELOAD"
@@ -434,22 +733,42 @@ func (e *XMySQLExecutor) executeReplicationControl(query, lower string) (bool, e
 		return true, e.replicationResetBinaryLogsAndGTIDs(index)
 	}
 	if strings.HasPrefix(lower, "change replication source to ") || strings.HasPrefix(lower, "change master to ") {
-		if e == nil || e.replicationChangeSource == nil {
+		if e == nil {
 			return true, fmt.Errorf("replication runtime is not configured")
 		}
 		sourceURL, err := parseReplicationSourceURL(query)
 		if err != nil {
 			return true, err
 		}
+		_, channel, _ := splitReplicationChannelSuffix(query)
+		if channel != "" {
+			if e.replicationChangeSourceForChannel == nil {
+				return true, fmt.Errorf("only the default replication channel is supported")
+			}
+			return true, e.replicationChangeSourceForChannel(channel, sourceURL)
+		}
+		if e.replicationChangeSource == nil {
+			return true, fmt.Errorf("replication runtime is not configured")
+		}
 		return true, e.replicationChangeSource(sourceURL)
 	}
 	if strings.HasPrefix(lower, "change replication filter ") {
-		if e == nil || e.replicationChangeFilter == nil {
+		if e == nil {
 			return true, fmt.Errorf("replication runtime is not configured")
 		}
 		filters, err := parseReplicationFilter(query)
 		if err != nil {
 			return true, err
+		}
+		_, channel, _ := splitReplicationChannelSuffix(query)
+		if channel != "" {
+			if e.replicationChangeFilterForChannel == nil {
+				return true, fmt.Errorf("only the default replication channel is supported")
+			}
+			return true, e.replicationChangeFilterForChannel(channel, filters)
+		}
+		if e.replicationChangeFilter == nil {
+			return true, fmt.Errorf("replication runtime is not configured")
 		}
 		return true, e.replicationChangeFilter(filters)
 	}
@@ -459,14 +778,23 @@ func (e *XMySQLExecutor) executeReplicationControl(query, lower string) (bool, e
 		if !valid {
 			return true, fmt.Errorf("invalid RESET REPLICA syntax")
 		}
-		if channel != "" {
-			return true, fmt.Errorf("only the default replication channel is supported")
-		}
 		if resetAll {
+			if channel != "" {
+				if e == nil || e.replicationResetAllForChannel == nil {
+					return true, fmt.Errorf("only the default replication channel is supported")
+				}
+				return true, e.replicationResetAllForChannel(channel)
+			}
 			if e == nil || e.replicationResetAll == nil {
 				return true, fmt.Errorf("replication runtime is not configured")
 			}
 			return true, e.replicationResetAll()
+		}
+		if channel != "" {
+			if e == nil || e.replicationResetForChannel == nil {
+				return true, fmt.Errorf("only the default replication channel is supported")
+			}
+			return true, e.replicationResetForChannel(channel)
 		}
 		if e == nil || e.replicationReset == nil {
 			return true, fmt.Errorf("replication runtime is not configured")
@@ -479,11 +807,7 @@ func (e *XMySQLExecutor) executeReplicationControl(query, lower string) (bool, e
 		return false, nil
 	}
 	channel, channelSyntax := parseReplicationChannelControl(query)
-	if channelSyntax {
-		if channel != "" {
-			return true, fmt.Errorf("only the default replication channel is supported")
-		}
-	} else {
+	if !channelSyntax {
 		fields := strings.Fields(lower)
 		if len(fields) > 2 {
 			return true, fmt.Errorf("replication thread options are not supported")
@@ -493,10 +817,22 @@ func (e *XMySQLExecutor) executeReplicationControl(query, lower string) (bool, e
 		}
 	}
 	if start {
+		if channel != "" {
+			if e == nil || e.replicationStartForChannel == nil {
+				return true, fmt.Errorf("only the default replication channel is supported")
+			}
+			return true, e.replicationStartForChannel(channel)
+		}
 		if e == nil || e.replicationStart == nil {
 			return true, fmt.Errorf("replication runtime is not configured")
 		}
 		return true, e.replicationStart()
+	}
+	if channel != "" {
+		if e == nil || e.replicationStopForChannel == nil {
+			return true, fmt.Errorf("only the default replication channel is supported")
+		}
+		return true, e.replicationStopForChannel(channel)
 	}
 	if e == nil || e.replicationStop == nil {
 		return true, fmt.Errorf("replication runtime is not configured")
@@ -567,10 +903,7 @@ func splitReplicationChannelSuffix(query string) (base, channel string, matched 
 
 func parseReplicationFilter(query string) (replication.ReplicationFilterConfig, error) {
 	var config replication.ReplicationFilterConfig
-	trimmed, channel, channelSyntax := splitReplicationChannelSuffix(query)
-	if channelSyntax && channel != "" {
-		return config, fmt.Errorf("only the default replication channel is supported")
-	}
+	trimmed, _, _ := splitReplicationChannelSuffix(query)
 	prefix := "change replication filter"
 	if len(trimmed) <= len(prefix) || !strings.EqualFold(trimmed[:len(prefix)], prefix) {
 		return config, fmt.Errorf("invalid CHANGE REPLICATION FILTER syntax")
@@ -709,10 +1042,7 @@ func parseBinlogPurgeTime(value string) (time.Time, error) {
 var replicationSourceOptionPattern = regexp.MustCompile(`(?is)^\s*(source_host|master_host|source_port|master_port|source_user|master_user|source_password|master_password|source_log_file|master_log_file|source_log_pos|master_log_pos|source_auto_position|master_auto_position|source_ssl|master_ssl|source_ssl_verify_server_cert|master_ssl_verify_server_cert|source_ssl_ca|master_ssl_ca|source_ssl_cert|master_ssl_cert|source_ssl_key|master_ssl_key|source_connect_retry|master_connect_retry|source_retry_count|master_retry_count|source_heartbeat_period|master_heartbeat_period|source_compression_algorithms|master_compression_algorithms|source_zstd_compression_level|master_zstd_compression_level)\s*=\s*(?:'((?:''|[^'])*)'|"((?:""|[^"])*)"|([^\s]+))\s*$`)
 
 func parseReplicationSourceURL(query string) (string, error) {
-	query, channel, channelSyntax := splitReplicationChannelSuffix(query)
-	if channelSyntax && channel != "" {
-		return "", fmt.Errorf("only the default replication channel is supported")
-	}
+	query, _, _ = splitReplicationChannelSuffix(query)
 	lower := strings.ToLower(strings.TrimSpace(query))
 	prefix := "change replication source to"
 	if strings.HasPrefix(lower, "change master to") {

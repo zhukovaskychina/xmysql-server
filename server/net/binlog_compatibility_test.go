@@ -25,8 +25,8 @@ func TestBinlogDumpStreamsCommittedEventsFromConfiguredSource(t *testing.T) {
 	binary.LittleEndian.PutUint32(body[1:5], 4)
 	binary.LittleEndian.PutUint16(body[5:7], binlogDumpNonBlockFlag)
 	require.NoError(t, dumpBinlogEvents(session, body))
-	require.Len(t, session.written, 6)
-	expectedTypes := []byte{15, 35, 33, 19, 30, 16} // FDE, PREVIOUS_GTIDS, GTID_EVENT, TABLE_MAP_EVENT, WRITE_ROWS_EVENTv2, XID_EVENT
+	require.Len(t, session.written, 7)
+	expectedTypes := []byte{15, 35, 33, 2, 19, 30, 16} // FDE, PREVIOUS_GTIDS, GTID_EVENT, BEGIN, TABLE_MAP_EVENT, WRITE_ROWS_EVENTv2, XID_EVENT
 	for i, packet := range session.written {
 		require.Greater(t, len(packet), 5)
 		require.Equal(t, expectedTypes[i], packet[5+4])
@@ -189,9 +189,9 @@ func TestBinlogDumpUsesNativeEventHeaderAndQueryEvent(t *testing.T) {
 	binary.LittleEndian.PutUint32(body[1:5], 4)
 	binary.LittleEndian.PutUint16(body[5:7], binlogDumpNonBlockFlag)
 	require.NoError(t, dumpBinlogEvents(session, body))
-	require.Len(t, session.written, 5)
+	require.Len(t, session.written, 6)
 
-	expectedTypes := []byte{15, 35, 33, 2, 16} // FDE, PREVIOUS_GTIDS, GTID_EVENT, QUERY_EVENT, XID_EVENT
+	expectedTypes := []byte{15, 35, 33, 2, 2, 16} // FDE, PREVIOUS_GTIDS, GTID_EVENT, BEGIN, QUERY_EVENT, XID_EVENT
 	for i, packet := range session.written {
 		require.GreaterOrEqual(t, len(packet), 4+1+19)
 		event := packet[5:] // packet header + binlog stream marker
@@ -212,8 +212,8 @@ func TestBinlogDumpUsesNativeRowEventsForLogicalChanges(t *testing.T) {
 	binary.LittleEndian.PutUint32(body[1:5], 4)
 	binary.LittleEndian.PutUint16(body[5:7], binlogDumpNonBlockFlag)
 	require.NoError(t, dumpBinlogEvents(session, body))
-	require.Len(t, session.written, 6)
-	expectedTypes := []byte{15, 35, 33, 19, 30, 16} // FDE, PREVIOUS_GTIDS, GTID, TABLE_MAP, WRITE_ROWSv2, XID
+	require.Len(t, session.written, 7)
+	expectedTypes := []byte{15, 35, 33, 2, 19, 30, 16} // FDE, PREVIOUS_GTIDS, GTID, BEGIN, TABLE_MAP, WRITE_ROWSv2, XID
 	for i, packet := range session.written {
 		require.GreaterOrEqual(t, len(packet), 4+1+19)
 		event := packet[5:]
@@ -266,8 +266,8 @@ func TestBinlogDumpUsesRequestedRotatedFile(t *testing.T) {
 	binary.LittleEndian.PutUint32(body[7:11], 99)
 	copy(body[11:], "binlog.000002")
 	require.NoError(t, dumpBinlogEvents(session, body))
-	require.Len(t, session.written, 5)
-	expectedTypes := []byte{15, 35, 33, 2, 16} // FDE, PREVIOUS_GTIDS, GTID, QUERY_EVENT, XID_EVENT
+	require.Len(t, session.written, 6)
+	expectedTypes := []byte{15, 35, 33, 2, 2, 16} // FDE, PREVIOUS_GTIDS, GTID, BEGIN, QUERY_EVENT, XID_EVENT
 	for index, packet := range session.written {
 		require.Equal(t, expectedTypes[index], packet[9])
 	}
@@ -308,7 +308,7 @@ func TestBinlogDumpStreamsPhysicalNativePositions(t *testing.T) {
 				binary.LittleEndian.PutUint16(body[5:7], binlogDumpNonBlockFlag)
 				binary.LittleEndian.PutUint32(body[7:11], 99)
 				require.NoError(t, dumpBinlogEvents(session, body))
-				require.Len(t, session.written, 3)
+				require.Len(t, session.written, 4)
 				for packetIndex, packet := range session.written {
 					raw := packet[5:]
 					require.Equal(t, native[index+packetIndex].EndPosition, uint64(binary.LittleEndian.Uint32(raw[13:17])))
@@ -594,5 +594,5 @@ func TestBinlogDumpGTIDFiltersCommittedTransaction(t *testing.T) {
 	session := NewMockSession("gtid-filter")
 	session.SetAttribute("replication_source", source)
 	require.NoError(t, dumpBinlogEvents(session, body))
-	require.Len(t, session.written, 3, "a non-empty GTID request must stream only the non-executed transaction")
+	require.Len(t, session.written, 4, "a non-empty GTID request must stream only the non-executed transaction")
 }

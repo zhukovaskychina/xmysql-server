@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
@@ -17,8 +19,33 @@ import (
 
 // InnoDBEngineAccess InnoDB引擎访问实现
 type InnoDBEngineAccess struct {
-	config *conf.Cfg
-	engine *engine.XMySQLEngine
+	config         *conf.Cfg
+	engine         *engine.XMySQLEngine
+	accountWriteMu sync.Mutex
+}
+
+// DefaultPasswordLifetime exposes the live global password-lifetime policy to
+// the authentication service without widening the stable EngineAccess API.
+func (ea *InnoDBEngineAccess) DefaultPasswordLifetime(context.Context) int64 {
+	if ea == nil || ea.engine == nil || ea.engine.GetStorageManager() == nil || ea.engine.GetStorageManager().GetSystemVariablesManager() == nil {
+		return 0
+	}
+	value, err := ea.engine.GetStorageManager().GetSystemVariablesManager().GetVariable("", "default_password_lifetime", manager.GlobalScope)
+	if err != nil {
+		return 0
+	}
+	switch typed := value.(type) {
+	case int64:
+		return typed
+	case int:
+		return int64(typed)
+	case string:
+		parsed, parseErr := strconv.ParseInt(strings.TrimSpace(typed), 10, 64)
+		if parseErr == nil {
+			return parsed
+		}
+	}
+	return 0
 }
 
 // NewInnoDBEngineAccess 创建InnoDB引擎访问
@@ -63,7 +90,7 @@ func (ea *InnoDBEngineAccess) QueryUser(ctx context.Context, user, host string) 
 	// 构造查询SQL
 	sql := fmt.Sprintf(`
 		SELECT User, Host, authentication_string, account_locked, password_expired, 
-		       max_connections, max_user_connections
+		       max_connections, max_user_connections, password_lifetime, password_last_changed
 		FROM mysql.user 
 		WHERE User = '%s' AND Host = '%s'
 	`, escapedUser, escapedHost)
@@ -81,15 +108,17 @@ func (ea *InnoDBEngineAccess) QueryUser(ctx context.Context, user, host string) 
 
 	row := result.Rows[0]
 	userInfo := &UserInfo{
-		User:               user,
-		Host:               host,
-		Password:           ea.getString(row, 2),
-		AccountLocked:      ea.getBool(row, 3),
-		PasswordExpired:    ea.getBool(row, 4),
-		MaxConnections:     ea.getInt(row, 5),
-		MaxUserConnections: ea.getInt(row, 6),
-		DatabasePrivileges: make(map[string][]common.PrivilegeType),
-		TablePrivileges:    make(map[string]map[string][]common.PrivilegeType),
+		User:                user,
+		Host:                host,
+		Password:            ea.getString(row, 2),
+		AccountLocked:       ea.getBool(row, 3),
+		PasswordExpired:     ea.getBool(row, 4),
+		MaxConnections:      ea.getInt(row, 5),
+		MaxUserConnections:  ea.getInt(row, 6),
+		PasswordLifetime:    nullableAuthInt64(row, 7),
+		PasswordLastChanged: parseAuthTime(ea.getString(row, 8)),
+		DatabasePrivileges:  make(map[string][]common.PrivilegeType),
+		TablePrivileges:     make(map[string]map[string][]common.PrivilegeType),
 	}
 
 	return userInfo, nil
@@ -149,17 +178,24 @@ func mysqlUserToUserInfo(mysqlUser *manager.MySQLUser) *UserInfo {
 	if mysqlUser == nil {
 		return nil
 	}
+	var passwordLifetime *int64
+	if mysqlUser.PasswordLifetime != nil {
+		value := int64(*mysqlUser.PasswordLifetime)
+		passwordLifetime = &value
+	}
 	return &UserInfo{
-		User:               mysqlUser.User,
-		Host:               mysqlUser.Host,
-		Password:           mysqlUser.AuthenticationString,
-		AccountLocked:      strings.EqualFold(mysqlUser.AccountLocked, "Y"),
-		PasswordExpired:    strings.EqualFold(mysqlUser.PasswordExpired, "Y"),
-		MaxConnections:     0,
-		MaxUserConnections: 0,
-		GlobalPrivileges:   mysqlUserGlobalPrivileges(mysqlUser),
-		DatabasePrivileges: make(map[string][]common.PrivilegeType),
-		TablePrivileges:    make(map[string]map[string][]common.PrivilegeType),
+		User:                mysqlUser.User,
+		Host:                mysqlUser.Host,
+		Password:            mysqlUser.AuthenticationString,
+		AccountLocked:       strings.EqualFold(mysqlUser.AccountLocked, "Y"),
+		PasswordExpired:     strings.EqualFold(mysqlUser.PasswordExpired, "Y"),
+		PasswordLastChanged: mysqlUser.PasswordLastChanged,
+		PasswordLifetime:    passwordLifetime,
+		MaxConnections:      0,
+		MaxUserConnections:  0,
+		GlobalPrivileges:    mysqlUserGlobalPrivileges(mysqlUser),
+		DatabasePrivileges:  make(map[string][]common.PrivilegeType),
+		TablePrivileges:     make(map[string]map[string][]common.PrivilegeType),
 	}
 }
 
@@ -210,7 +246,7 @@ func (ea *InnoDBEngineAccess) queryUserWithWildcard(ctx context.Context, user, h
 	// 查询所有可能匹配的用户
 	sql := fmt.Sprintf(`
 		SELECT User, Host, authentication_string, account_locked, password_expired, 
-		       max_connections, max_user_connections
+		       max_connections, max_user_connections, password_lifetime, password_last_changed
 		FROM mysql.user 
 		WHERE User = '%s'
 		ORDER BY Host DESC
@@ -229,15 +265,17 @@ func (ea *InnoDBEngineAccess) queryUserWithWildcard(ctx context.Context, user, h
 		hostPattern := ea.getString(row, 1)
 		if score := authHostMatchSpecificity(ea, host, hostPattern); score > bestScore {
 			best = &UserInfo{
-				User:               user,
-				Host:               hostPattern,
-				Password:           ea.getString(row, 2),
-				AccountLocked:      ea.getBool(row, 3),
-				PasswordExpired:    ea.getBool(row, 4),
-				MaxConnections:     ea.getInt(row, 5),
-				MaxUserConnections: ea.getInt(row, 6),
-				DatabasePrivileges: make(map[string][]common.PrivilegeType),
-				TablePrivileges:    make(map[string]map[string][]common.PrivilegeType),
+				User:                user,
+				Host:                hostPattern,
+				Password:            ea.getString(row, 2),
+				AccountLocked:       ea.getBool(row, 3),
+				PasswordExpired:     ea.getBool(row, 4),
+				MaxConnections:      ea.getInt(row, 5),
+				MaxUserConnections:  ea.getInt(row, 6),
+				PasswordLifetime:    nullableAuthInt64(row, 7),
+				PasswordLastChanged: parseAuthTime(ea.getString(row, 8)),
+				DatabasePrivileges:  make(map[string][]common.PrivilegeType),
+				TablePrivileges:     make(map[string]map[string][]common.PrivilegeType),
 			}
 			bestScore = score
 		}
@@ -769,6 +807,48 @@ func (ea *InnoDBEngineAccess) getInt(row []interface{}, index int) int {
 	default:
 		return 0
 	}
+}
+
+func nullableAuthInt64(row []interface{}, index int) *int64 {
+	if index < 0 || index >= len(row) || row[index] == nil {
+		return nil
+	}
+	var value int64
+	switch typed := row[index].(type) {
+	case int:
+		value = int64(typed)
+	case int64:
+		value = typed
+	case uint64:
+		value = int64(typed)
+	case string:
+		parsed, err := strconv.ParseInt(strings.TrimSpace(typed), 10, 64)
+		if err != nil {
+			return nil
+		}
+		value = parsed
+	case []byte:
+		parsed, err := strconv.ParseInt(strings.TrimSpace(string(typed)), 10, 64)
+		if err != nil {
+			return nil
+		}
+		value = parsed
+	default:
+		parsed, err := strconv.ParseInt(strings.TrimSpace(fmt.Sprint(typed)), 10, 64)
+		if err != nil {
+			return nil
+		}
+		value = parsed
+	}
+	return &value
+}
+
+func parseAuthTime(value string) time.Time {
+	parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(value))
+	if err != nil {
+		return time.Time{}
+	}
+	return parsed
 }
 
 // matchHost 匹配主机模式

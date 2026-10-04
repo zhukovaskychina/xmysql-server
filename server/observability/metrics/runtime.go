@@ -9,7 +9,13 @@ import (
 	"time"
 )
 
-const statementHistoryLimit = 256
+// MySQL exposes ten completed events per thread in *_history tables and keeps
+// up to ten thousand instance-wide events in *_history_long by default. Keep
+// the two retention windows separate so a busy thread cannot evict every
+// other thread's short history and the long view remains useful for global
+// diagnostics.
+const statementHistoryLimit = 10000
+const statementHistoryPerThreadLimit = 10
 const errorLogLimit = 256
 
 // StatementEvent is the execution record exposed by Performance Schema
@@ -46,6 +52,12 @@ type StatementEvent struct {
 	TotalMemory         int64
 	MaxTotalMemory      int64
 	Warnings            int64
+	CPUTime             int64
+	CPUTimeCaptured     bool
+	// IndexNames contains the physical index identities reported by the
+	// executor for this statement. It is intentionally empty when the access
+	// path is a table scan or the caller has no authoritative index identity.
+	IndexNames []string
 }
 
 // StatementSummaryRow is an instance-lifetime aggregate for one statement
@@ -82,6 +94,7 @@ type StatementSummaryRow struct {
 	SortRange           int64
 	NoIndexUsed         int64
 	NoGoodIndexUsed     int64
+	SumCPUTime          int64
 	MaxControlledMemory int64
 	MaxTotalMemory      int64
 	FirstSeen           time.Time
@@ -121,6 +134,7 @@ type TableIOSummaryRow struct {
 type tableIOStatementKey struct {
 	objectSchema  string
 	objectName    string
+	indexName     string
 	statementType string
 }
 
@@ -250,6 +264,11 @@ type RuntimeRecorder struct {
 	statementByThread                map[int64][]StatementEvent
 	stageEvents                      []StatementEvent
 	stageByThread                    map[int64][]StatementEvent
+	statementHistoryLimit            int
+	statementHistoryPerThreadLimit   int
+	stageHistoryLimit                int
+	stageHistoryPerThreadLimit       int
+	digestSampleAge                  time.Duration
 	statementSummary                 map[statementSummaryKey]*StatementSummaryRow
 	statementSummaryByDimension      map[string]map[string]*StatementSummaryRow
 	statementDigestSummary           map[statementDigestKey]*StatementSummaryRow
@@ -314,6 +333,11 @@ func NewRuntimeRecorder(registry *Registry) *RuntimeRecorder {
 		statementByThread:                make(map[int64][]StatementEvent),
 		stageEvents:                      make([]StatementEvent, 0, statementHistoryLimit),
 		stageByThread:                    make(map[int64][]StatementEvent),
+		statementHistoryLimit:            statementHistoryLimit,
+		statementHistoryPerThreadLimit:   statementHistoryPerThreadLimit,
+		stageHistoryLimit:                statementHistoryLimit,
+		stageHistoryPerThreadLimit:       statementHistoryPerThreadLimit,
+		digestSampleAge:                  60 * time.Second,
 		statementSummary:                 make(map[statementSummaryKey]*StatementSummaryRow),
 		statementSummaryByDimension:      make(map[string]map[string]*StatementSummaryRow),
 		statementDigestSummary:           make(map[statementDigestKey]*StatementSummaryRow),
@@ -340,6 +364,21 @@ func NewRuntimeRecorder(registry *Registry) *RuntimeRecorder {
 		fileIO:                           newFileSummaryRecorder(),
 		socketRows:                       make(map[int64]*SocketSummaryRow),
 	}
+}
+
+// SetDigestSampleAge applies the Performance Schema digest resampling age.
+// A zero duration disables age-based replacement; wait-time based replacement
+// remains active.
+func (r *RuntimeRecorder) SetDigestSampleAge(age time.Duration) {
+	if r == nil {
+		return
+	}
+	if age < 0 {
+		age = 0
+	}
+	r.statementMu.Lock()
+	r.digestSampleAge = age
+	r.statementMu.Unlock()
 }
 
 // SetInstrument updates the runtime gate for a Performance Schema instrument.
@@ -562,6 +601,17 @@ func (r *RuntimeRecorder) RecordStatement(database, sql, statementType, status s
 	r.RecordStatementWithThreadID(0, database, sql, statementType, status, latency)
 }
 
+// RecordStatementWithIndexNames is a compact instrumentation entry point for
+// callers that have an authoritative physical access path but do not need the
+// extended statement accounting arguments.
+func (r *RuntimeRecorder) RecordStatementWithIndexNames(database, sql, statementType, status string, latency time.Duration, indexNames []string) {
+	r.RecordStatementWithThreadIDAndIdentityAndAccountingWithRowsExaminedAndScanAndIndexUsageAndSortRowsAndScanAndRangeAndJoinWithTimerAndCPUAndIndexNames(
+		0, "", "", database, sql, statementType, status, latency,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		false, true, true, true, true, true, indexNames,
+	)
+}
+
 // RecordStatementWithThreadID stores a completed statement together with the
 // connection/thread that executed it. A zero thread ID remains valid for
 // internal callers that do not have a client session.
@@ -659,6 +709,22 @@ func (r *RuntimeRecorder) RecordStatementWithThreadIDAndIdentityAndAccountingWit
 // without dropping the event from statement summaries. stageInstrumented
 // independently controls creation of stage summary/history rows.
 func (r *RuntimeRecorder) RecordStatementWithThreadIDAndIdentityAndAccountingWithRowsExaminedAndScanAndIndexUsageAndSortRowsAndScanAndRangeAndJoinWithTimer(threadID int64, user, host, database, sql, statementType, status string, latency time.Duration, rowsAffected, rowsSent, rowsExamined, selectScan, selectRange, selectFullJoin, selectFullRangeJoin, selectRangeCheck, noIndexUsed, noGoodIndexUsed, sortRows, sortScan, sortRange, warnings int64, instrumented, history, timed, stageInstrumented, stageTimed bool) {
+	r.RecordStatementWithThreadIDAndIdentityAndAccountingWithRowsExaminedAndScanAndIndexUsageAndSortRowsAndScanAndRangeAndJoinWithTimerAndCPU(
+		threadID, user, host, database, sql, statementType, status, latency, rowsAffected, rowsSent, rowsExamined, selectScan, selectRange, selectFullJoin, selectFullRangeJoin, selectRangeCheck, noIndexUsed, noGoodIndexUsed, sortRows, sortScan, sortRange, warnings, 0, false, instrumented, history, timed, stageInstrumented, stageTimed,
+	)
+}
+
+// RecordStatementWithThreadIDAndIdentityAndAccountingWithRowsExaminedAndScanAndIndexUsageAndSortRowsAndScanAndRangeAndJoinWithTimerAndCPU records a statement and carries authoritative physical index identities when the executor has them.
+func (r *RuntimeRecorder) RecordStatementWithThreadIDAndIdentityAndAccountingWithRowsExaminedAndScanAndIndexUsageAndSortRowsAndScanAndRangeAndJoinWithTimerAndCPU(threadID int64, user, host, database, sql, statementType, status string, latency time.Duration, rowsAffected, rowsSent, rowsExamined, selectScan, selectRange, selectFullJoin, selectFullRangeJoin, selectRangeCheck, noIndexUsed, noGoodIndexUsed, sortRows, sortScan, sortRange, warnings, cpuTime int64, cpuTimeCaptured, instrumented, history, timed, stageInstrumented, stageTimed bool) {
+	r.recordStatementWithIndexNames(threadID, user, host, database, sql, statementType, status, latency, rowsAffected, rowsSent, rowsExamined, selectScan, selectRange, selectFullJoin, selectFullRangeJoin, selectRangeCheck, noIndexUsed, noGoodIndexUsed, sortRows, sortScan, sortRange, warnings, cpuTime, cpuTimeCaptured, instrumented, history, timed, stageInstrumented, stageTimed, nil)
+}
+
+// RecordStatementWithThreadIDAndIdentityAndAccountingWithRowsExaminedAndScanAndIndexUsageAndSortRowsAndScanAndRangeAndJoinWithTimerAndCPUAndIndexNames is the executor-facing variant that preserves physical index identities for table I/O summaries.
+func (r *RuntimeRecorder) RecordStatementWithThreadIDAndIdentityAndAccountingWithRowsExaminedAndScanAndIndexUsageAndSortRowsAndScanAndRangeAndJoinWithTimerAndCPUAndIndexNames(threadID int64, user, host, database, sql, statementType, status string, latency time.Duration, rowsAffected, rowsSent, rowsExamined, selectScan, selectRange, selectFullJoin, selectFullRangeJoin, selectRangeCheck, noIndexUsed, noGoodIndexUsed, sortRows, sortScan, sortRange, warnings, cpuTime int64, cpuTimeCaptured, instrumented, history, timed, stageInstrumented, stageTimed bool, indexNames []string) {
+	r.recordStatementWithIndexNames(threadID, user, host, database, sql, statementType, status, latency, rowsAffected, rowsSent, rowsExamined, selectScan, selectRange, selectFullJoin, selectFullRangeJoin, selectRangeCheck, noIndexUsed, noGoodIndexUsed, sortRows, sortScan, sortRange, warnings, cpuTime, cpuTimeCaptured, instrumented, history, timed, stageInstrumented, stageTimed, indexNames)
+}
+
+func (r *RuntimeRecorder) recordStatementWithIndexNames(threadID int64, user, host, database, sql, statementType, status string, latency time.Duration, rowsAffected, rowsSent, rowsExamined, selectScan, selectRange, selectFullJoin, selectFullRangeJoin, selectRangeCheck, noIndexUsed, noGoodIndexUsed, sortRows, sortScan, sortRange, warnings, cpuTime int64, cpuTimeCaptured, instrumented, history, timed, stageInstrumented, stageTimed bool, indexNames []string) {
 	if r == nil {
 		return
 	}
@@ -707,6 +773,9 @@ func (r *RuntimeRecorder) RecordStatementWithThreadIDAndIdentityAndAccountingWit
 	if warnings < 0 {
 		warnings = 0
 	}
+	if cpuTime < 0 {
+		cpuTime = 0
+	}
 	currentMemory, maxMemory := r.statementMemorySnapshot(threadID)
 	event := StatementEvent{
 		Time:                time.Now(),
@@ -740,6 +809,9 @@ func (r *RuntimeRecorder) RecordStatementWithThreadIDAndIdentityAndAccountingWit
 		TotalMemory:         currentMemory,
 		MaxTotalMemory:      maxMemory,
 		Warnings:            warnings,
+		CPUTime:             cpuTime,
+		CPUTimeCaptured:     cpuTimeCaptured,
+		IndexNames:          append([]string(nil), indexNames...),
 	}
 	r.statementMu.Lock()
 	defer r.statementMu.Unlock()
@@ -770,6 +842,12 @@ func (r *RuntimeRecorder) RecordStatementWithThreadIDAndIdentityAndAccountingWit
 		r.statementDigestSummary[digestKey] = digestSummary
 	}
 	accumulateStatementSummary(digestSummary, event, timer)
+	if digestSummary.Count == 1 || timer > digestSummary.SampleTimerWait ||
+		(r.digestSampleAge > 0 && !digestSummary.SampleSeen.IsZero() && event.Time.Sub(digestSummary.SampleSeen) > r.digestSampleAge) {
+		digestSummary.SQL = sql
+		digestSummary.SampleSeen = event.Time
+		digestSummary.SampleTimerWait = timer
+	}
 	if stageInstrumented {
 		stageKey := statementStageKey{threadID: threadID, user: user, host: host}
 		stageSummary := r.statementStageSummary[stageKey]
@@ -782,36 +860,86 @@ func (r *RuntimeRecorder) RecordStatementWithThreadIDAndIdentityAndAccountingWit
 	}
 	r.recordTableIOSummariesLocked(event, timer)
 	r.statementHistogramSamples = append(r.statementHistogramSamples, timer)
-	if len(r.statementEvents) >= statementHistoryLimit {
-		copy(r.statementEvents, r.statementEvents[1:])
-		r.statementEvents = r.statementEvents[:statementHistoryLimit-1]
-	}
-	r.statementEvents = append(r.statementEvents, event)
+	r.statementEvents = appendBoundedStatementEvent(r.statementEvents, event, r.statementHistoryLimit)
 	if r.statementByThread == nil {
 		r.statementByThread = make(map[int64][]StatementEvent)
 	}
 	threadEvents := r.statementByThread[threadID]
-	if len(threadEvents) >= statementHistoryLimit {
-		copy(threadEvents, threadEvents[1:])
-		threadEvents = threadEvents[:statementHistoryLimit-1]
-	}
-	r.statementByThread[threadID] = append(threadEvents, event)
+	r.statementByThread[threadID] = appendBoundedStatementEvent(threadEvents, event, r.statementHistoryPerThreadLimit)
 	if stageInstrumented {
-		if len(r.stageEvents) >= statementHistoryLimit {
-			copy(r.stageEvents, r.stageEvents[1:])
-			r.stageEvents = r.stageEvents[:statementHistoryLimit-1]
-		}
-		r.stageEvents = append(r.stageEvents, event)
+		r.stageEvents = appendBoundedStatementEvent(r.stageEvents, event, r.stageHistoryLimit)
 		if r.stageByThread == nil {
 			r.stageByThread = make(map[int64][]StatementEvent)
 		}
 		stageThreadEvents := r.stageByThread[threadID]
-		if len(stageThreadEvents) >= statementHistoryLimit {
-			copy(stageThreadEvents, stageThreadEvents[1:])
-			stageThreadEvents = stageThreadEvents[:statementHistoryLimit-1]
-		}
-		r.stageByThread[threadID] = append(stageThreadEvents, event)
+		r.stageByThread[threadID] = appendBoundedStatementEvent(stageThreadEvents, event, r.stageHistoryPerThreadLimit)
 	}
+}
+
+func appendBoundedStatementEvent(events []StatementEvent, event StatementEvent, limit int) []StatementEvent {
+	if limit <= 0 {
+		return events[:0]
+	}
+	if len(events) >= limit {
+		copy(events, events[1:])
+		events = events[:limit-1]
+	}
+	return append(events, event)
+}
+
+func trimStatementEvents(events []StatementEvent, limit int) []StatementEvent {
+	if limit <= 0 {
+		return events[:0]
+	}
+	if len(events) <= limit {
+		return events
+	}
+	return append([]StatementEvent(nil), events[len(events)-limit:]...)
+}
+
+// SetStatementHistoryLimits applies the live global and per-thread retention
+// windows used by events_statements_history and events_statements_history_long.
+// Existing rows are trimmed immediately, matching a runtime size reduction.
+func (r *RuntimeRecorder) SetStatementHistoryLimits(perThread, long int) {
+	if r == nil {
+		return
+	}
+	if perThread < 0 {
+		perThread = 0
+	}
+	if long < 0 {
+		long = 0
+	}
+	r.statementMu.Lock()
+	r.statementHistoryPerThreadLimit = perThread
+	r.statementHistoryLimit = long
+	r.statementEvents = trimStatementEvents(r.statementEvents, long)
+	for threadID, events := range r.statementByThread {
+		r.statementByThread[threadID] = trimStatementEvents(events, perThread)
+	}
+	r.statementMu.Unlock()
+}
+
+// SetStageHistoryLimits applies the live global and per-thread retention
+// windows used by events_stages_history and events_stages_history_long.
+func (r *RuntimeRecorder) SetStageHistoryLimits(perThread, long int) {
+	if r == nil {
+		return
+	}
+	if perThread < 0 {
+		perThread = 0
+	}
+	if long < 0 {
+		long = 0
+	}
+	r.statementMu.Lock()
+	r.stageHistoryPerThreadLimit = perThread
+	r.stageHistoryLimit = long
+	r.stageEvents = trimStatementEvents(r.stageEvents, long)
+	for threadID, events := range r.stageByThread {
+		r.stageByThread[threadID] = trimStatementEvents(events, perThread)
+	}
+	r.statementMu.Unlock()
 }
 
 // BeginStatementMemory marks the current thread memory high-water mark before
@@ -960,6 +1088,9 @@ func accumulateStatementSummary(summary *StatementSummaryRow, event StatementEve
 	summary.SortRange += event.SortRange
 	summary.NoIndexUsed += event.NoIndexUsed
 	summary.NoGoodIndexUsed += event.NoGoodIndexUsed
+	if event.CPUTimeCaptured {
+		summary.SumCPUTime += event.CPUTime
+	}
 	if event.MaxControlledMemory > summary.MaxControlledMemory {
 		summary.MaxControlledMemory = event.MaxControlledMemory
 	}
@@ -1024,12 +1155,12 @@ func (r *RuntimeRecorder) recordTableIOSummariesLocked(event StatementEvent, tim
 		statementType = "SELECT"
 	}
 	for _, ref := range refs {
-		key := tableIOStatementKey{objectSchema: ref[0], objectName: ref[1], statementType: statementType}
-		for _, summaries := range []map[tableIOStatementKey]*TableIOSummaryRow{r.tableIOSummary, r.tableIOIndexSummary} {
+		update := func(summaries map[tableIOStatementKey]*TableIOSummaryRow, indexName string) {
+			key := tableIOStatementKey{objectSchema: ref[0], objectName: ref[1], indexName: indexName, statementType: statementType}
 			row := summaries[key]
 			if row == nil {
 				row = &TableIOSummaryRow{
-					ObjectType: "TABLE", ObjectSchema: ref[0], ObjectName: ref[1],
+					ObjectType: "TABLE", ObjectSchema: ref[0], ObjectName: ref[1], IndexName: indexName,
 					StatementType: statementType,
 				}
 				summaries[key] = row
@@ -1054,6 +1185,14 @@ func (r *RuntimeRecorder) recordTableIOSummariesLocked(event StatementEvent, tim
 				row.Read.add(timer)
 			}
 		}
+		update(r.tableIOSummary, "")
+		indexNames := event.IndexNames
+		if len(indexNames) == 0 {
+			indexNames = []string{""}
+		}
+		for _, indexName := range indexNames {
+			update(r.tableIOIndexSummary, indexName)
+		}
 	}
 }
 
@@ -1070,6 +1209,9 @@ func copyTableIOSummaries(source map[tableIOStatementKey]*TableIOSummaryRow) []T
 		}
 		if rows[i].ObjectName != rows[j].ObjectName {
 			return rows[i].ObjectName < rows[j].ObjectName
+		}
+		if rows[i].IndexName != rows[j].IndexName {
+			return rows[i].IndexName < rows[j].IndexName
 		}
 		return rows[i].StatementType < rows[j].StatementType
 	})
@@ -1273,7 +1415,7 @@ func (r *RuntimeRecorder) StatementSummary() []StatementSummaryRow {
 var statementSummaryDimensionNames = []string{"global", "thread", "account", "host", "user"}
 
 func statementSummaryDimensionKey(event StatementEvent, dimension string) string {
-	eventName := "statement/sql/" + strings.ToLower(event.StatementType)
+	eventName := statementEventName(event.StatementType)
 	switch dimension {
 	case "thread":
 		return fmt.Sprintf("%d\x00%s", event.ThreadID, eventName)
@@ -1286,6 +1428,14 @@ func statementSummaryDimensionKey(event StatementEvent, dimension string) string
 	default:
 		return eventName
 	}
+}
+
+func statementEventName(statementType string) string {
+	statementType = strings.TrimSpace(statementType)
+	if strings.HasPrefix(strings.ToLower(statementType), "statement/") {
+		return statementType
+	}
+	return "statement/sql/" + strings.ToLower(statementType)
 }
 
 func (r *RuntimeRecorder) recordStatementSummaryDimensionsLocked(event StatementEvent, timer int64) {
@@ -1975,6 +2125,40 @@ func (r *RuntimeRecorder) RecordQuery(database, statementType, status string, la
 		"statement_type": statementType,
 		"status":         status,
 	})
+}
+
+// RecordProtocolCommand records a completed protocol command together with
+// the authenticated session identity when one is available.  Text-protocol
+// and engine statements already enter statement summaries through the engine
+// execution boundary; prepared protocol commands such as COM_STMT_CLOSE and
+// COM_STMT_FETCH do not, so keeping this small entry point here lets
+// Performance Schema status_by_thread/account/user expose their real command
+// counters without changing the SQL statement lifecycle.
+func (r *RuntimeRecorder) RecordProtocolCommand(threadID int64, user, host, database, statementType, status string, latency time.Duration) {
+	r.RecordProtocolCommandWithSettings(threadID, user, host, database, statementType, status, latency, true, true, true)
+}
+
+// RecordProtocolCommandWithSettings records a protocol command's global
+// command counter and optionally its Performance Schema statement event. The
+// command counter remains available when the individual instrument is
+// disabled, matching the distinction between status variables and event
+// instrumentation.
+func (r *RuntimeRecorder) RecordProtocolCommandWithSettings(threadID int64, user, host, database, statementType, status string, latency time.Duration, instrumented, history, timed bool) {
+	if r == nil {
+		return
+	}
+	r.RecordQuery(database, statementType, status, latency)
+	if !instrumented {
+		return
+	}
+	if threadID == 0 && strings.TrimSpace(user) == "" && strings.TrimSpace(host) == "" {
+		return
+	}
+	r.RecordStatementWithThreadIDAndIdentityAndAccountingWithRowsExaminedAndScanAndIndexUsageAndSortRowsAndScanAndRangeAndJoinWithTimer(
+		threadID, user, host, database, "", statementType, status, latency,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		instrumented, history, timed, false, false,
+	)
 }
 
 // QueryTotals returns server-lifetime query counts grouped by normalized

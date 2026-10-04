@@ -157,6 +157,42 @@ type MysqlTCPConn struct {
 	conn   net.Conn
 }
 
+// upgradeTLS performs the MySQL protocol-level TLS transition. The initial
+// server handshake and SSLRequest are read from the plain connection; only
+// after that request is accepted do subsequent packets use tls.Conn.
+func (t *MysqlTCPConn) upgradeTLS(config *tls.Config) error {
+	return t.upgradeTLSWithBufferedData(config, nil)
+}
+
+func (t *MysqlTCPConn) upgradeTLSWithBufferedData(config *tls.Config, buffered []byte) error {
+	if t == nil || t.conn == nil {
+		return jerrors.New("connection is nil")
+	}
+	if config == nil {
+		return jerrors.New("mysql TLS config is nil")
+	}
+	if _, ok := t.conn.(*tls.Conn); ok {
+		return nil
+	}
+
+	rawConn := t.conn
+	if len(buffered) > 0 {
+		rawConn = &mysqlBufferedNetConn{Conn: t.conn, buffered: append([]byte(nil), buffered...)}
+	}
+	tlsConn := tls.Server(rawConn, config.Clone())
+	if err := tlsConn.Handshake(); err != nil {
+		_ = tlsConn.Close()
+		return jerrors.Annotate(err, "mysql TLS handshake")
+	}
+	t.conn = tlsConn
+	t.reader = tlsConn
+	t.writer = tlsConn
+	t.compress = CompressNone
+	t.rLastDeadline = time.Time{}
+	t.wLastDeadline = time.Time{}
+	return nil
+}
+
 // create gettyTCPConn
 func newMySQLTCPConn(conn net.Conn) *MysqlTCPConn {
 	if conn == nil {
@@ -393,9 +429,8 @@ func (t *MysqlTCPConn) close(waitSec int) {
 			_ = conn.SetLinger(waitSec)
 			_ = conn.Close()
 		} else {
-			logger.Debugf("[MysqlTCPConn.close] 关闭TLS连接\n")
-			_ = t.conn.(*tls.Conn).Close()
-
+			logger.Debugf("[MysqlTCPConn.close] 关闭网络连接\n")
+			_ = t.conn.Close()
 		}
 		t.conn = nil
 		logger.Debugf("[MysqlTCPConn.close] 连接已关闭\n")

@@ -552,9 +552,16 @@ func (e *XMySQLExecutor) executeInformationSchemaSTGeometryColumnsSelect(query s
 				continue
 			}
 			if !metadataPatternMatches(column.name, filters["column_name"]) ||
-				!metadataPatternMatches(strings.ToUpper(column.typeName), geometryFilters["GEOMETRY_TYPE_NAME"]) ||
-				!metadataPatternMatches("", geometryFilters["SRS_ID"]) {
+				!metadataPatternMatches(strings.ToUpper(column.typeName), geometryFilters["GEOMETRY_TYPE_NAME"]) {
 				continue
+			}
+			if srsIDFilter, exists := geometryFilters["SRS_ID"]; exists {
+				// SRS_ID is projected as SQL NULL for geometry columns without
+				// persisted SRS metadata. Neither `= ''` nor `LIKE ''` matches
+				// that NULL value.
+				if srsIDFilter == informationSchemaExplicitEmptyPattern || !metadataPatternMatches("", srsIDFilter) {
+					continue
+				}
 			}
 			rows = append(rows, projectInformationSchemaRow(columns, map[string]interface{}{
 				"TABLE_CATALOG": "def", "TABLE_SCHEMA": table.schemaName, "TABLE_NAME": table.tableName,
@@ -579,6 +586,12 @@ func informationSchemaGeometryColumnFilters(query string) map[string]string {
 		value := match[2]
 		if value == "" {
 			value = match[3]
+		}
+		if value == "" {
+			// Keep explicit empty-string predicates distinct from an omitted
+			// geometry filter. This matters for nullable SRS_ID, where `= ''`
+			// must not become an unrestricted scan.
+			value = informationSchemaExplicitEmptyPattern
 		}
 		column := strings.ToUpper(match[1])
 		if column == "GEOMETRY_TYPE" {

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,6 +35,13 @@ type persistedStoredObject struct {
 	Disabled             bool     `json:"disabled,omitempty"`
 	OnCompletionPreserve bool     `json:"on_completion_preserve,omitempty"`
 	CreatedAt            string   `json:"created_at"`
+	LastAlteredAt        string   `json:"last_altered_at,omitempty"`
+	LastExecutedAt       string   `json:"last_executed_at,omitempty"`
+	Originator           uint32   `json:"originator,omitempty"`
+	SQLMode              string   `json:"sql_mode,omitempty"`
+	TimeZone             string   `json:"time_zone,omitempty"`
+	CharacterSetClient   string   `json:"character_set_client,omitempty"`
+	CollationConnection  string   `json:"collation_connection,omitempty"`
 }
 
 type storedRoutineCursor struct {
@@ -325,6 +333,7 @@ func (e *XMySQLExecutor) executeStoredObjectDDL(ctx *ExecutionContext, query, da
 	} else if definer != "" {
 		security = "DEFINER"
 	}
+	sqlMode, timeZone, characterSetClient, collationConnection := storedObjectSessionMetadata(ctx.Session)
 	object := persistedStoredObject{
 		Schema: schema, Name: name, ObjectType: objectType, Definition: trimmed,
 		Parameters:       parseRoutineParameterNames(create[3]),
@@ -333,6 +342,10 @@ func (e *XMySQLExecutor) executeStoredObjectDDL(ctx *ExecutionContext, query, da
 		ReturnExpression: parseRoutineReturnExpression(objectType, trimmed),
 		RoutineComment:   parseRoutineComment(trimmed),
 		Definer:          definer, SQLSecurity: security, CreatedAt: time.Now().UTC().Format(time.RFC3339),
+		SQLMode: sqlMode, TimeZone: timeZone, CharacterSetClient: characterSetClient, CollationConnection: collationConnection,
+	}
+	if e.conf != nil {
+		object.Originator = e.conf.ReplicationServerID
 	}
 	if strings.EqualFold(objectType, "event") {
 		schedule, err := parseSQLEventSchedule(object.Definition)
@@ -426,6 +439,7 @@ func (e *XMySQLExecutor) executeStoredObjectAlter(ctx *ExecutionContext, query, 
 			ctx.Results <- &Result{Err: fmt.Errorf("unsupported ALTER %s options", strings.ToUpper(objectType)), ResultType: common.RESULT_TYPE_QUERY}
 			return true
 		}
+		object.LastAlteredAt = time.Now().UTC().Format(time.RFC3339)
 		encoded, err := json.MarshalIndent(object, "", "  ")
 		if err == nil {
 			err = writeMetadataFileAtomic(path, encoded)
@@ -482,6 +496,7 @@ func (e *XMySQLExecutor) executeStoredObjectAlter(ctx *ExecutionContext, query, 
 			return true
 		}
 		object.Name = newName
+		object.LastAlteredAt = time.Now().UTC().Format(time.RFC3339)
 		if scheduleAt := strings.Index(strings.ToLower(object.Definition), "on schedule"); scheduleAt >= 0 {
 			object.Definition = fmt.Sprintf("CREATE EVENT %s.%s %s", schema, newName, strings.TrimSpace(object.Definition[scheduleAt:]))
 		}
@@ -526,6 +541,7 @@ func (e *XMySQLExecutor) executeStoredObjectAlter(ctx *ExecutionContext, query, 
 	} else if strings.Contains(lower, "on completion preserve") || strings.Contains(lower, "on completion not preserve") {
 		object.OnCompletionPreserve = strings.Contains(lower, "on completion preserve") && !strings.Contains(lower, "on completion not preserve")
 	}
+	object.LastAlteredAt = time.Now().UTC().Format(time.RFC3339)
 	encoded, err := json.MarshalIndent(object, "", "  ")
 	if err == nil {
 		err = writeMetadataFileAtomic(path, encoded)
@@ -806,9 +822,10 @@ func (e *XMySQLExecutor) executeStoredProcedureCall(ctx *ExecutionContext, query
 		statementStats.rowsSent = state.accounting.rowsSent
 		statementStats.warnings = state.accounting.warnings
 	}
-	e.recordPerformanceSchemaProgramExecution("PROCEDURE", routineSchema, routineName, time.Since(startedAt).Nanoseconds()*1000,
+	e.recordPerformanceSchemaProgramExecutionWithCPU("PROCEDURE", routineSchema, routineName, time.Since(startedAt).Nanoseconds()*1000,
 		statementStats.count, statementStats.sum, statementStats.min, statementStats.max,
 		statementStats.errors, statementStats.warnings, statementStats.rowsAffected, statementStats.rowsSent, statementStats.rowsExamined,
+		statementStats.cpuTime, statementStats.cpuTimeCaptured,
 	)
 	return nil
 }
@@ -817,6 +834,8 @@ type performanceSchemaStoredProgramStatementStats struct {
 	count, sum, min, max                 int64
 	errors, warnings                     int64
 	rowsAffected, rowsSent, rowsExamined int64
+	cpuTime                              int64
+	cpuTimeCaptured                      bool
 }
 
 func performanceSchemaStatementSummaryKey(row metrics.StatementSummaryRow) string {
@@ -861,6 +880,11 @@ func (e *XMySQLExecutor) performanceSchemaStoredProgramStatementStats(session se
 			stats.rowsAffected += maxInt64(0, row.RowsAffected-previous.RowsAffected)
 			stats.rowsSent += maxInt64(0, row.RowsSent-previous.RowsSent)
 			stats.rowsExamined += maxInt64(0, row.RowsExamined-previous.RowsExamined)
+			cpuDelta := maxInt64(0, row.SumCPUTime-previous.SumCPUTime)
+			if cpuDelta > 0 {
+				stats.cpuTime += cpuDelta
+				stats.cpuTimeCaptured = true
+			}
 			start := len(previous.LatencySamples)
 			if start > len(row.LatencySamples) {
 				start = len(row.LatencySamples)
@@ -908,6 +932,10 @@ func (e *XMySQLExecutor) performanceSchemaStoredProgramStatementStats(session se
 		stats.warnings += event.Warnings
 		stats.rowsAffected += event.RowsAffected
 		stats.rowsSent += event.RowsSent
+		if event.CPUTimeCaptured {
+			stats.cpuTime += event.CPUTime
+			stats.cpuTimeCaptured = true
+		}
 	}
 	if stats.count == 0 {
 		return performanceSchemaStoredProgramStatementStats{count: fallbackCount}
@@ -2237,6 +2265,18 @@ func (e *XMySQLExecutor) executeStoredFunctionCall(ctx *ExecutionContext, query,
 		return false
 	}
 	startedAt := time.Now()
+	cpuStart, cpuTime := int64(0), int64(0)
+	cpuSupported, cpuThreadLocked, cpuTimeCaptured := false, false, false
+	if e.performanceSchemaConsumerEnabled("events_statements_cpu") {
+		runtime.LockOSThread()
+		cpuThreadLocked = true
+		cpuStart, cpuSupported = metrics.CurrentThreadCPUTimeNanos()
+	}
+	defer func() {
+		if cpuThreadLocked {
+			runtime.UnlockOSThread()
+		}
+	}()
 	functionSchema, functionName := databaseName, strings.Trim(match[1], "`")
 	if strings.Contains(functionName, ".") {
 		parts := strings.SplitN(functionName, ".", 2)
@@ -2290,7 +2330,20 @@ func (e *XMySQLExecutor) executeStoredFunctionCall(ctx *ExecutionContext, query,
 	if timerWait <= 0 {
 		timerWait = 1000
 	}
-	e.recordPerformanceSchemaProgramExecution("FUNCTION", functionSchema, functionName, timerWait, 1, timerWait, timerWait, timerWait, 0, 0, 0, 1, 0)
+	if cpuThreadLocked {
+		if cpuSupported {
+			if cpuEnd, ok := metrics.CurrentThreadCPUTimeNanos(); ok && cpuEnd >= cpuStart {
+				cpuTime = (cpuEnd - cpuStart) * 1000
+				if cpuTime <= 0 {
+					cpuTime = 1
+				}
+				cpuTimeCaptured = true
+			}
+		}
+		runtime.UnlockOSThread()
+		cpuThreadLocked = false
+	}
+	e.recordPerformanceSchemaProgramExecutionWithCPU("FUNCTION", functionSchema, functionName, timerWait, 1, timerWait, timerWait, timerWait, 0, 0, 0, 1, 0, cpuTime, cpuTimeCaptured)
 	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: result, Message: "stored function evaluated"}
 	return true
 }
@@ -2622,6 +2675,18 @@ func showCreateStoredObjectRow(ctx *ExecutionContext, e *XMySQLExecutor, object 
 		if _, collation, _ := persistedTableDisplayOptions(e, object.Schema, tableName); strings.TrimSpace(collation) != "" {
 			databaseCollation = collation
 		}
+	}
+	if object.SQLMode != "" {
+		sqlMode = object.SQLMode
+	}
+	if object.TimeZone != "" {
+		timeZone = object.TimeZone
+	}
+	if object.CharacterSetClient != "" {
+		charset = object.CharacterSetClient
+	}
+	if object.CollationConnection != "" {
+		connectionCollation = object.CollationConnection
 	}
 	switch strings.ToLower(object.ObjectType) {
 	case "procedure", "function":
@@ -3040,7 +3105,21 @@ func (e *XMySQLExecutor) executeInformationSchemaRoutinesSelect(query string, se
 			}
 			definition := interface{}(nil)
 			if definitionVisible {
-				definition = object.Definition
+				definition = storedRoutineBodyDefinition(object.Definition)
+			}
+			created := storedObjectTimestamp(object.CreatedAt)
+			lastAltered := storedObjectTimestamp(object.LastAlteredAt)
+			if lastAltered == nil {
+				lastAltered = created
+			}
+			sqlMode := object.SQLMode
+			characterSetClient := object.CharacterSetClient
+			if characterSetClient == "" {
+				characterSetClient = "utf8mb4"
+			}
+			collationConnection := object.CollationConnection
+			if collationConnection == "" {
+				collationConnection = "utf8mb4_general_ci"
 			}
 			values := map[string]interface{}{
 				"SPECIFIC_NAME": object.Name, "ROUTINE_CATALOG": "def", "ROUTINE_SCHEMA": object.Schema, "ROUTINE_NAME": object.Name,
@@ -3050,8 +3129,8 @@ func (e *XMySQLExecutor) executeInformationSchemaRoutinesSelect(query string, se
 				"DTD_IDENTIFIER": dataType, "ROUTINE_BODY": "SQL", "ROUTINE_DEFINITION": definition,
 				"EXTERNAL_NAME": nil, "EXTERNAL_LANGUAGE": nil, "PARAMETER_STYLE": "SQL", "IS_DETERMINISTIC": boolToYesNo(routineIsDeterministic(object.Definition)),
 				"SQL_DATA_ACCESS": routineSQLDataAccess(object.Definition), "SQL_PATH": nil, "SECURITY_TYPE": routineSecurityType(object.SQLSecurity),
-				"CREATED": nil, "LAST_ALTERED": nil, "SQL_MODE": "", "ROUTINE_COMMENT": object.RoutineComment, "DEFINER": object.Definer,
-				"CHARACTER_SET_CLIENT": "utf8mb4", "COLLATION_CONNECTION": "utf8mb4_general_ci", "DATABASE_COLLATION": "utf8mb4_general_ci",
+				"CREATED": created, "LAST_ALTERED": lastAltered, "SQL_MODE": sqlMode, "ROUTINE_COMMENT": object.RoutineComment, "DEFINER": object.Definer,
+				"CHARACTER_SET_CLIENT": characterSetClient, "COLLATION_CONNECTION": collationConnection, "DATABASE_COLLATION": "utf8mb4_general_ci",
 			}
 			if strings.TrimSpace(fmt.Sprintf("%v", values["DEFINER"])) == "" {
 				values["DEFINER"] = "root@localhost"
@@ -3080,6 +3159,25 @@ func routineSecurityType(value string) string {
 		return "INVOKER"
 	}
 	return "DEFINER"
+}
+
+// storedRoutineBodyDefinition projects the body portion required by
+// INFORMATION_SCHEMA.ROUTINES.ROUTINE_DEFINITION. SHOW CREATE keeps the full
+// CREATE statement; I_S exposes the executable body after the routine header.
+// The persisted definition is intentionally retained verbatim elsewhere.
+func storedRoutineBodyDefinition(definition string) string {
+	definition = strings.TrimSpace(definition)
+	definition = regexp.MustCompile(`(?is)^create\s+definer\s*=\s*'[^']*'\s*@\s*'[^']*'\s+`).ReplaceAllString(definition, "create ")
+	parsed := parseStoredObjectCreate(definition)
+	if len(parsed) != 5 {
+		return definition
+	}
+	body := strings.TrimSpace(parsed[4])
+	marker := regexp.MustCompile(`(?is)\b(begin|return)\b`).FindStringIndex(body)
+	if marker == nil {
+		return body
+	}
+	return strings.TrimSpace(body[marker[0]:])
 }
 
 // storedRoutineMetadataVisibility follows MySQL's INFORMATION_SCHEMA.ROUTINES
@@ -3196,7 +3294,27 @@ func (e *XMySQLExecutor) executeInformationSchemaTriggersSelect(query string, se
 			continue
 		}
 		timing, event, tableName, action := parseTriggerInformationSchemaMetadata(object.Definition)
-		values := map[string]interface{}{"TRIGGER_CATALOG": "def", "TRIGGER_SCHEMA": object.Schema, "TRIGGER_NAME": object.Name, "EVENT_MANIPULATION": event, "EVENT_OBJECT_CATALOG": "def", "EVENT_OBJECT_SCHEMA": object.Schema, "EVENT_OBJECT_TABLE": tableName, "ACTION_ORDER": int64(1), "ACTION_CONDITION": nil, "ACTION_STATEMENT": action, "ACTION_ORIENTATION": "ROW", "ACTION_TIMING": timing, "ACTION_REFERENCE_OLD_TABLE": nil, "ACTION_REFERENCE_NEW_TABLE": nil, "ACTION_REFERENCE_OLD_ROW": "OLD", "ACTION_REFERENCE_NEW_ROW": "NEW", "CREATED": nil, "SQL_MODE": "", "DEFINER": "root@localhost", "CHARACTER_SET_CLIENT": "utf8mb4", "COLLATION_CONNECTION": "utf8mb4_general_ci", "DATABASE_COLLATION": "utf8mb4_general_ci"}
+		actionOrder := int64(1)
+		for index, orderedTrigger := range loadTableTriggers(e.getDataDir(), object.Schema, tableName, event, timing) {
+			if strings.EqualFold(orderedTrigger.Name, object.Name) {
+				actionOrder = int64(index + 1)
+				break
+			}
+		}
+		definer := strings.TrimSpace(object.Definer)
+		if definer == "" {
+			definer = "root@localhost"
+		}
+		sqlMode := object.SQLMode
+		characterSetClient := object.CharacterSetClient
+		if characterSetClient == "" {
+			characterSetClient = "utf8mb4"
+		}
+		collationConnection := object.CollationConnection
+		if collationConnection == "" {
+			collationConnection = "utf8mb4_general_ci"
+		}
+		values := map[string]interface{}{"TRIGGER_CATALOG": "def", "TRIGGER_SCHEMA": object.Schema, "TRIGGER_NAME": object.Name, "EVENT_MANIPULATION": event, "EVENT_OBJECT_CATALOG": "def", "EVENT_OBJECT_SCHEMA": object.Schema, "EVENT_OBJECT_TABLE": tableName, "ACTION_ORDER": actionOrder, "ACTION_CONDITION": nil, "ACTION_STATEMENT": action, "ACTION_ORIENTATION": "ROW", "ACTION_TIMING": timing, "ACTION_REFERENCE_OLD_TABLE": nil, "ACTION_REFERENCE_NEW_TABLE": nil, "ACTION_REFERENCE_OLD_ROW": "OLD", "ACTION_REFERENCE_NEW_ROW": "NEW", "CREATED": storedObjectTimestamp(object.CreatedAt), "SQL_MODE": sqlMode, "DEFINER": definer, "CHARACTER_SET_CLIENT": characterSetClient, "COLLATION_CONNECTION": collationConnection, "DATABASE_COLLATION": "utf8mb4_general_ci"}
 		if performanceSchemaLockValuesMatch(query, values) {
 			rows = append(rows, projectInformationSchemaRow(columns, values))
 		}
@@ -3209,7 +3327,7 @@ func parseTriggerInformationSchemaMetadata(definition string) (timing, event, ta
 	if len(match) == 0 {
 		return "", "", "", strings.TrimSpace(definition)
 	}
-	return strings.ToUpper(match[1]), strings.ToUpper(match[2]), match[3], strings.TrimSpace(match[4])
+	return strings.ToUpper(match[1]), strings.ToUpper(match[2]), match[3], stripTriggerOrderPrefix(strings.TrimSpace(match[4]))
 }
 
 func (e *XMySQLExecutor) executeInformationSchemaEventsSelect(query string, session server.MySQLServerSession) (*SelectResult, error) {
@@ -3234,12 +3352,66 @@ func (e *XMySQLExecutor) executeInformationSchemaEventsSelect(query string, sess
 			continue
 		}
 		eventType, executeAt, intervalValue, intervalField := parseEventInformationSchemaMetadata(object.Definition)
-		values := map[string]interface{}{"EVENT_CATALOG": "def", "EVENT_SCHEMA": object.Schema, "EVENT_NAME": object.Name, "DEFINER": "root@localhost", "TIME_ZONE": "SYSTEM", "EVENT_BODY": "SQL", "EVENT_DEFINITION": object.Definition, "EVENT_TYPE": eventType, "EXECUTE_AT": executeAt, "INTERVAL_VALUE": intervalValue, "INTERVAL_FIELD": intervalField, "SQL_MODE": "", "STARTS": nil, "ENDS": nil, "STATUS": "ENABLED", "ON_COMPLETION": "NOT PRESERVE", "CREATED": nil, "LAST_ALTERED": nil, "LAST_EXECUTED": nil, "EVENT_COMMENT": "", "ORIGINATOR": int64(0), "CHARACTER_SET_CLIENT": "utf8mb4", "COLLATION_CONNECTION": "utf8mb4_general_ci", "DATABASE_COLLATION": "utf8mb4_general_ci"}
+		starts := interface{}(nil)
+		if match := regexp.MustCompile(`(?is)\bstarts\s+'([^']+)'`).FindStringSubmatch(object.Definition); len(match) == 2 {
+			starts = match[1]
+		}
+		ends := interface{}(nil)
+		if match := regexp.MustCompile(`(?is)\bends\s+'([^']+)'`).FindStringSubmatch(object.Definition); len(match) == 2 {
+			ends = match[1]
+		}
+		definer := strings.TrimSpace(object.Definer)
+		if definer == "" {
+			definer = "root@localhost"
+		}
+		onCompletion := "NOT PRESERVE"
+		if object.OnCompletionPreserve {
+			onCompletion = "PRESERVE"
+		}
+		status := "ENABLED"
+		if object.Disabled {
+			status = "DISABLED"
+		}
+		created := storedObjectTimestamp(object.CreatedAt)
+		lastAltered := storedObjectTimestamp(object.LastAlteredAt)
+		if lastAltered == nil {
+			lastAltered = created
+		}
+		lastExecuted := storedObjectTimestamp(object.LastExecutedAt)
+		sqlMode := object.SQLMode
+		timeZone := object.TimeZone
+		if timeZone == "" {
+			timeZone = "SYSTEM"
+		}
+		characterSetClient := object.CharacterSetClient
+		if characterSetClient == "" {
+			characterSetClient = "utf8mb4"
+		}
+		collationConnection := object.CollationConnection
+		if collationConnection == "" {
+			collationConnection = "utf8mb4_general_ci"
+		}
+		eventDefinition := storedEventBodyDefinition(object.Definition)
+		originator := object.Originator
+		if originator == 0 && e.conf != nil {
+			// Legacy event metadata predates the persisted originator field.
+			// Use the current server_id as the compatible fallback while new
+			// events persist the creator's id above.
+			originator = e.conf.ReplicationServerID
+		}
+		values := map[string]interface{}{"EVENT_CATALOG": "def", "EVENT_SCHEMA": object.Schema, "EVENT_NAME": object.Name, "DEFINER": definer, "TIME_ZONE": timeZone, "EVENT_BODY": "SQL", "EVENT_DEFINITION": eventDefinition, "EVENT_TYPE": eventType, "EXECUTE_AT": executeAt, "INTERVAL_VALUE": intervalValue, "INTERVAL_FIELD": intervalField, "SQL_MODE": sqlMode, "STARTS": starts, "ENDS": ends, "STATUS": status, "ON_COMPLETION": onCompletion, "CREATED": created, "LAST_ALTERED": lastAltered, "LAST_EXECUTED": lastExecuted, "EVENT_COMMENT": object.RoutineComment, "ORIGINATOR": int64(originator), "CHARACTER_SET_CLIENT": characterSetClient, "COLLATION_CONNECTION": collationConnection, "DATABASE_COLLATION": "utf8mb4_general_ci"}
 		if performanceSchemaLockValuesMatch(query, values) {
 			rows = append(rows, projectInformationSchemaRow(columns, values))
 		}
 	}
 	return newInformationSchemaSelectResult("information_schema_events", columns, rows), nil
+}
+
+func storedEventBodyDefinition(definition string) string {
+	if schedule, err := parseSQLEventSchedule(definition); err == nil && strings.TrimSpace(schedule.Statement) != "" {
+		return strings.TrimSpace(schedule.Statement)
+	}
+	return strings.TrimSpace(definition)
 }
 
 func parseEventInformationSchemaMetadata(definition string) (eventType string, executeAt, intervalValue, intervalField interface{}) {
@@ -3251,4 +3423,37 @@ func parseEventInformationSchemaMetadata(definition string) (eventType string, e
 		return "ONE TIME", at[1], nil, nil
 	}
 	return "ONE TIME", nil, nil, nil
+}
+
+func storedObjectTimestamp(value string) interface{} {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04:05"} {
+		if parsed, err := time.Parse(layout, value); err == nil {
+			return parsed.UTC().Format("2006-01-02 15:04:05")
+		}
+	}
+	return value
+}
+
+func storedObjectSessionMetadata(session server.MySQLServerSession) (sqlMode, timeZone, characterSetClient, collationConnection string) {
+	timeZone = "SYSTEM"
+	if session == nil {
+		return "", timeZone, "", ""
+	}
+	if value, ok := session.GetParamByName("sql_mode").(string); ok {
+		sqlMode = value
+	}
+	if value, ok := session.GetParamByName("time_zone").(string); ok && strings.TrimSpace(value) != "" {
+		timeZone = value
+	}
+	if value, ok := session.GetParamByName("character_set_client").(string); ok {
+		characterSetClient = value
+	}
+	if value, ok := session.GetParamByName("collation_connection").(string); ok {
+		collationConnection = value
+	}
+	return sqlMode, timeZone, characterSetClient, collationConnection
 }

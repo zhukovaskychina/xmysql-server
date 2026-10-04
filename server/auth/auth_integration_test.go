@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
@@ -132,6 +133,124 @@ func TestEngineAccess(t *testing.T) {
 
 // MockEngineAccessForTest 测试用的模拟引擎访问
 type MockEngineAccessForTest struct{}
+
+type passwordLifetimeEngineAccess struct {
+	MockEngineAccessForTest
+	passwordHash string
+}
+
+type failedLoginPolicyEngineAccess struct {
+	MockEngineAccessForTest
+	user *UserInfo
+}
+
+func (m *failedLoginPolicyEngineAccess) QueryUser(context.Context, string, string) (*UserInfo, error) {
+	return m.user, nil
+}
+
+func (m *failedLoginPolicyEngineAccess) RecordAuthenticationFailure(string, string) error {
+	m.user.FailedLoginCount++
+	if m.user.FailedLoginAttempts != nil && m.user.FailedLoginCount >= *m.user.FailedLoginAttempts {
+		if m.user.PasswordLockUnbounded {
+			m.user.PasswordLockedUnbounded = true
+		} else if m.user.PasswordLockTime != nil && *m.user.PasswordLockTime > 0 {
+			lockedUntil := time.Now().UTC().Add(time.Duration(*m.user.PasswordLockTime) * 24 * time.Hour)
+			m.user.PasswordLockedUntil = &lockedUntil
+		}
+	}
+	return nil
+}
+
+func (m *failedLoginPolicyEngineAccess) ResetAuthenticationFailures(string, string) error {
+	m.user.FailedLoginCount = 0
+	m.user.PasswordLockedUntil = nil
+	m.user.PasswordLockedUnbounded = false
+	return nil
+}
+
+func (m *passwordLifetimeEngineAccess) QueryUser(ctx context.Context, user, host string) (*UserInfo, error) {
+	return &UserInfo{
+		User:                user,
+		Host:                host,
+		Password:            m.passwordHash,
+		AuthPlugin:          "mysql_native_password",
+		PasswordLastChanged: time.Now().UTC().Add(-48 * time.Hour),
+		PasswordLifetime:    func() *int64 { value := int64(1); return &value }(),
+		DatabasePrivileges:  make(map[string][]common.PrivilegeType),
+		TablePrivileges:     make(map[string]map[string][]common.PrivilegeType),
+	}, nil
+}
+
+func TestAuthServiceEnforcesAccountPasswordLifetime(t *testing.T) {
+	validator := NewMySQLNativePasswordValidator()
+	hash, err := validator.HashPassword("secret")
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	authService := NewAuthService(&conf.Cfg{}, &passwordLifetimeEngineAccess{passwordHash: hash})
+
+	result, err := authService.AuthenticateUser(context.Background(), "expired_user", "secret", "localhost", "")
+	if err != nil {
+		t.Fatalf("authenticate expired user: %v", err)
+	}
+	if result == nil || result.Success || result.ErrorMessage != "Your password has expired. To log in you must change it using a client that supports expired passwords." {
+		t.Fatalf("expected password-lifetime rejection, got %#v", result)
+	}
+}
+
+func TestAuthServiceAllowsExpiredPasswordForCapableClient(t *testing.T) {
+	validator := NewMySQLNativePasswordValidator()
+	hash, err := validator.HashPassword("secret")
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	access := &passwordLifetimeEngineAccess{passwordHash: hash}
+	service := NewAuthService(&conf.Cfg{}, access)
+
+	result, err := service.AuthenticateUser(WithExpiredPasswordSupport(context.Background()), "expired_user", "secret", "localhost", "")
+	if err != nil {
+		t.Fatalf("authenticate expired user with capability: %v", err)
+	}
+	if result == nil || !result.Success || !result.PasswordExpired {
+		t.Fatalf("expected successful restricted authentication, got %#v", result)
+	}
+}
+
+func TestAuthServiceEnforcesFailedLoginPolicyAndResetsOnSuccess(t *testing.T) {
+	validator := NewMySQLNativePasswordValidator()
+	hash, err := validator.HashPassword("secret")
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	attempts := int64(2)
+	access := &failedLoginPolicyEngineAccess{user: &UserInfo{
+		User: "locked", Host: "localhost", Password: hash, AuthPlugin: "mysql_native_password",
+		FailedLoginAttempts: &attempts, PasswordLockUnbounded: true,
+		GlobalPrivileges: []common.PrivilegeType{common.AllPriv}, DatabasePrivileges: map[string][]common.PrivilegeType{}, TablePrivileges: map[string]map[string][]common.PrivilegeType{},
+	}}
+	service := NewAuthService(&conf.Cfg{}, access)
+
+	first, err := service.AuthenticateUser(context.Background(), "locked", "wrong", "localhost", "")
+	if err != nil || first == nil || first.Success {
+		t.Fatalf("expected first failed login, result=%#v err=%v", first, err)
+	}
+	second, err := service.AuthenticateUser(context.Background(), "locked", "wrong", "localhost", "")
+	if err != nil || second == nil || second.Success {
+		t.Fatalf("expected second failed login, result=%#v err=%v", second, err)
+	}
+	locked, err := service.AuthenticateUser(context.Background(), "locked", "secret", "localhost", "")
+	if err != nil || locked == nil || locked.Success || locked.ErrorMessage != "Account 'locked'@'localhost' is temporarily locked" {
+		t.Fatalf("expected temporary lock, result=%#v err=%v", locked, err)
+	}
+
+	access.user.PasswordLockedUnbounded = false
+	access.user.FailedLoginCount = 0
+	access.user.PasswordLockedUntil = nil
+	success, err := service.AuthenticateUser(context.Background(), "locked", "secret", "localhost", "")
+	if err != nil || success == nil || !success.Success || access.user.FailedLoginCount != 0 {
+		t.Fatalf("expected successful login and reset, result=%#v err=%v count=%d", success, err, access.user.FailedLoginCount)
+	}
+}
 
 func (m *MockEngineAccessForTest) QueryUser(ctx context.Context, user, host string) (*UserInfo, error) {
 	// 模拟用户数据

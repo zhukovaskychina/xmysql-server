@@ -3,33 +3,112 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 )
 
 type persistedAccountForAuth struct {
-	User            string              `json:"user"`
-	Host            string              `json:"host"`
-	Password        string              `json:"password"`
-	Plugin          string              `json:"plugin,omitempty"`
-	TLSRequired     bool                `json:"tls_required,omitempty"`
-	X509Required    bool                `json:"x509_required,omitempty"`
-	AccountLocked   bool                `json:"account_locked"`
-	PasswordExpired bool                `json:"password_expired"`
-	Roles           []string            `json:"roles,omitempty"`
-	DefaultRoles    []string            `json:"default_roles,omitempty"`
-	Grants          map[string][]string `json:"grants,omitempty"`
-	ColumnGrants    map[string][]string `json:"column_grants,omitempty"`
-	GlobalGrants    []string            `json:"global_grants,omitempty"`
-	Restrictions    map[string][]string `json:"restrictions,omitempty"`
+	User                  string              `json:"user"`
+	Host                  string              `json:"host"`
+	Password              string              `json:"password"`
+	Plugin                string              `json:"plugin,omitempty"`
+	TLSRequired           bool                `json:"tls_required,omitempty"`
+	X509Required          bool                `json:"x509_required,omitempty"`
+	MaxQuestions          *int64              `json:"max_questions,omitempty"`
+	MaxUpdates            *int64              `json:"max_updates,omitempty"`
+	MaxConnections        *int64              `json:"max_connections,omitempty"`
+	MaxUserConnections    *int64              `json:"max_user_connections,omitempty"`
+	AccountLocked         bool                `json:"account_locked"`
+	PasswordExpired       bool                `json:"password_expired"`
+	PasswordLastChanged   string              `json:"password_last_changed,omitempty"`
+	PasswordLifetime      *int64              `json:"password_lifetime,omitempty"`
+	FailedLoginAttempts   *int64              `json:"failed_login_attempts,omitempty"`
+	PasswordLockTime      *int64              `json:"password_lock_time,omitempty"`
+	PasswordLockUnbounded bool                `json:"password_lock_unbounded,omitempty"`
+	FailedLoginCount      int64               `json:"failed_login_count,omitempty"`
+	PasswordLockedUntil   string              `json:"password_locked_until,omitempty"`
+	Roles                 []string            `json:"roles,omitempty"`
+	DefaultRoles          []string            `json:"default_roles,omitempty"`
+	Grants                map[string][]string `json:"grants,omitempty"`
+	ColumnGrants          map[string][]string `json:"column_grants,omitempty"`
+	GlobalGrants          []string            `json:"global_grants,omitempty"`
+	Restrictions          map[string][]string `json:"restrictions,omitempty"`
 }
 
 type persistedAccountFileForAuth struct {
 	Accounts []persistedAccountForAuth `json:"accounts"`
+}
+
+func (ea *InnoDBEngineAccess) mutatePersistedAccount(user, host string, mutate func(*persistedAccountForAuth) error) error {
+	if ea == nil || ea.engine == nil || mutate == nil {
+		return nil
+	}
+	ea.accountWriteMu.Lock()
+	defer ea.accountWriteMu.Unlock()
+	path := filepath.Join(ea.engine.GetDataDir(), "mysql", "accounts.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var file persistedAccountFileForAuth
+	if err := json.Unmarshal(raw, &file); err != nil {
+		return err
+	}
+	bestIndex := -1
+	bestScore := -1
+	for index := range file.Accounts {
+		account := &file.Accounts[index]
+		if !strings.EqualFold(account.User, user) {
+			continue
+		}
+		if score := authHostMatchSpecificity(ea, host, account.Host); score > bestScore {
+			bestIndex = index
+			bestScore = score
+		}
+	}
+	if bestIndex < 0 {
+		return fmt.Errorf("user '%s'@'%s' not found", user, host)
+	}
+	if err := mutate(&file.Accounts[bestIndex]); err != nil {
+		return err
+	}
+	updated, err := json.MarshalIndent(file, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, updated, 0600)
+}
+
+func (ea *InnoDBEngineAccess) RecordAuthenticationFailure(user, host string) error {
+	return ea.mutatePersistedAccount(user, host, func(account *persistedAccountForAuth) error {
+		if account.FailedLoginAttempts == nil || *account.FailedLoginAttempts <= 0 {
+			return nil
+		}
+		account.FailedLoginCount++
+		if account.FailedLoginCount < *account.FailedLoginAttempts {
+			return nil
+		}
+		if account.PasswordLockUnbounded {
+			account.PasswordLockedUntil = "unbounded"
+		} else if account.PasswordLockTime != nil && *account.PasswordLockTime > 0 {
+			account.PasswordLockedUntil = time.Now().UTC().Add(time.Duration(*account.PasswordLockTime) * 24 * time.Hour).Format(time.RFC3339)
+		}
+		return nil
+	})
+}
+
+func (ea *InnoDBEngineAccess) ResetAuthenticationFailures(user, host string) error {
+	return ea.mutatePersistedAccount(user, host, func(account *persistedAccountForAuth) error {
+		account.FailedLoginCount = 0
+		account.PasswordLockedUntil = ""
+		return nil
+	})
 }
 
 func (ea *InnoDBEngineAccess) loadPersistedAccount(user, host string) (*persistedAccountForAuth, bool, error) {
@@ -100,23 +179,51 @@ func persistedAccountToUserInfo(account *persistedAccountForAuth) *UserInfo {
 	}
 	globalGrantNames := append([]string(nil), account.Grants["*.*"]...)
 	globalGrantNames = appendUniqueGrantNames(globalGrantNames, account.GlobalGrants...)
+	lastChanged := time.Time{}
+	if strings.TrimSpace(account.PasswordLastChanged) != "" {
+		if parsed, parseErr := time.Parse(time.RFC3339, account.PasswordLastChanged); parseErr == nil {
+			lastChanged = parsed
+		}
+	}
+	lockedUntil := time.Time{}
+	if strings.TrimSpace(account.PasswordLockedUntil) != "" && !strings.EqualFold(account.PasswordLockedUntil, "unbounded") {
+		if parsed, parseErr := time.Parse(time.RFC3339, account.PasswordLockedUntil); parseErr == nil {
+			lockedUntil = parsed
+		}
+	}
+	var lockedUntilPtr *time.Time
+	if !lockedUntil.IsZero() {
+		lockedUntilPtr = &lockedUntil
+	}
 	info := &UserInfo{
-		User:               account.User,
-		Host:               account.Host,
-		Password:           account.Password,
-		AuthPlugin:         account.Plugin,
-		TLSRequired:        account.TLSRequired,
-		X509Required:       account.X509Required,
-		AccountLocked:      account.AccountLocked,
-		PasswordExpired:    account.PasswordExpired,
-		GlobalPrivileges:   grantNamesToPrivileges(globalGrantNames),
-		DynamicPrivileges:  dynamicGrantNames(globalGrantNames),
-		DatabasePrivileges: make(map[string][]common.PrivilegeType),
-		TablePrivileges:    make(map[string]map[string][]common.PrivilegeType),
-		ColumnPrivileges:   make(map[string][]common.PrivilegeType),
-		Roles:              append([]string(nil), account.Roles...),
-		DefaultRoles:       append([]string(nil), account.DefaultRoles...),
-		Restrictions:       persistedRestrictionPrivileges(account.Restrictions),
+		User:                    account.User,
+		Host:                    account.Host,
+		Password:                account.Password,
+		AuthPlugin:              account.Plugin,
+		TLSRequired:             account.TLSRequired,
+		X509Required:            account.X509Required,
+		AccountLocked:           account.AccountLocked,
+		FailedLoginAttempts:     account.FailedLoginAttempts,
+		PasswordLockTime:        account.PasswordLockTime,
+		PasswordLockUnbounded:   account.PasswordLockUnbounded,
+		FailedLoginCount:        account.FailedLoginCount,
+		PasswordLockedUntil:     lockedUntilPtr,
+		PasswordLockedUnbounded: strings.EqualFold(strings.TrimSpace(account.PasswordLockedUntil), "unbounded"),
+		PasswordExpired:         account.PasswordExpired,
+		PasswordLastChanged:     lastChanged,
+		PasswordLifetime:        account.PasswordLifetime,
+		MaxQuestions:            int(accountResourceValue(account.MaxQuestions)),
+		MaxUpdates:              int(accountResourceValue(account.MaxUpdates)),
+		MaxConnections:          int(accountResourceValue(account.MaxConnections)),
+		MaxUserConnections:      int(accountResourceValue(account.MaxUserConnections)),
+		GlobalPrivileges:        grantNamesToPrivileges(globalGrantNames),
+		DynamicPrivileges:       dynamicGrantNames(globalGrantNames),
+		DatabasePrivileges:      make(map[string][]common.PrivilegeType),
+		TablePrivileges:         make(map[string]map[string][]common.PrivilegeType),
+		ColumnPrivileges:        make(map[string][]common.PrivilegeType),
+		Roles:                   append([]string(nil), account.Roles...),
+		DefaultRoles:            append([]string(nil), account.DefaultRoles...),
+		Restrictions:            persistedRestrictionPrivileges(account.Restrictions),
 	}
 	for scope, names := range account.Grants {
 		privileges := grantNamesToPrivileges(names)
@@ -140,6 +247,13 @@ func persistedAccountToUserInfo(account *persistedAccountForAuth) *UserInfo {
 		info.ColumnPrivileges[scope] = appendUniquePrivileges(info.ColumnPrivileges[scope], grantNamesToPrivileges(names)...)
 	}
 	return info
+}
+
+func accountResourceValue(value *int64) int64 {
+	if value == nil {
+		return 0
+	}
+	return *value
 }
 
 func persistedRestrictionPrivileges(restrictions map[string][]string) map[string][]common.PrivilegeType {

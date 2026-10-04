@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -159,6 +160,9 @@ func (e *XMySQLExecutor) registerSQLEvent(object persistedStoredObject) error {
 		Interval:  schedule.Interval,
 		Repeat:    schedule.Repeat,
 		Execute: func(ctx context.Context) error {
+			if err := e.markSQLEventExecuted(object.Schema, object.Name); err != nil {
+				return err
+			}
 			// Remove one-shot metadata before executing the user statement. The
 			// statement's committed rows become visible before this callback
 			// returns; deleting afterwards creates a race where callers observe
@@ -176,6 +180,30 @@ func (e *XMySQLExecutor) registerSQLEvent(object persistedStoredObject) error {
 	})
 }
 
+func (e *XMySQLExecutor) markSQLEventExecuted(schema, name string) error {
+	path := e.storedObjectPath(schema, name, "event")
+	lockCtx := &ExecutionContext{Context: context.Background()}
+	release, err := e.acquireStoredObjectWriteLock(lockCtx, schema, name)
+	if err != nil {
+		return err
+	}
+	defer release()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var object persistedStoredObject
+	if err := json.Unmarshal(raw, &object); err != nil {
+		return err
+	}
+	object.LastExecutedAt = time.Now().UTC().Format(time.RFC3339)
+	encoded, err := json.MarshalIndent(object, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writeMetadataFileAtomic(path, encoded)
+}
+
 func (e *XMySQLExecutor) executeSQLEvent(parent context.Context, databaseName, eventName, statement string) error {
 	if parent == nil {
 		parent = context.Background()
@@ -183,11 +211,43 @@ func (e *XMySQLExecutor) executeSQLEvent(parent context.Context, databaseName, e
 	startedAt := time.Now()
 	results := make(chan *Result, 8)
 	ctx := &ExecutionContext{Context: parent, Cfg: e.conf, DatabaseName: databaseName, RawQuery: statement, Results: results}
-	go e.executeQuery(ctx, nil, statement, databaseName, results)
 	accounting := statementResultAccounting{}
 	var eventErr error
+	recorded := false
+	var observed atomic.Bool
+	record := func() {
+		if recorded {
+			return
+		}
+		recorded = true
+		timerWait := time.Since(startedAt).Nanoseconds() * 1000
+		if timerWait <= 0 {
+			timerWait = 1000
+		}
+		e.recordPerformanceSchemaProgramExecutionWithCPU("EVENT", databaseName, eventName, timerWait, 1, timerWait, timerWait, timerWait,
+			boolToInt64(eventErr != nil), accounting.warnings, accounting.rowsAffected, accounting.rowsSent, 0,
+			ctx.statementCPUTime.Load(), ctx.statementCPUTimeCaptured.Load(),
+		)
+	}
+	ctx.statementResultObserver = func(result *Result) {
+		if result == nil || observed.Swap(true) {
+			return
+		}
+		resultAccounting := statementResultAccountingFor(result)
+		accounting.rowsAffected += resultAccounting.rowsAffected
+		accounting.rowsSent += resultAccounting.rowsSent
+		accounting.warnings += resultAccounting.warnings
+		if result.Err != nil {
+			eventErr = result.Err
+		}
+		record()
+	}
+	go e.executeQuery(ctx, nil, statement, databaseName, results)
 	for result := range results {
 		if result == nil {
+			continue
+		}
+		if observed.Load() {
 			continue
 		}
 		resultAccounting := statementResultAccountingFor(result)
@@ -197,14 +257,13 @@ func (e *XMySQLExecutor) executeSQLEvent(parent context.Context, databaseName, e
 		if result.Err != nil && eventErr == nil {
 			eventErr = result.Err
 		}
+		// executeQuery publishes the statement result after the DML commit but
+		// may still be running lifecycle/metrics defers before closing results.
+		// Record the program boundary as soon as that committed result is
+		// observable, so Performance Schema does not lag durable event effects.
+		record()
 	}
-	timerWait := time.Since(startedAt).Nanoseconds() * 1000
-	if timerWait <= 0 {
-		timerWait = 1000
-	}
-	e.recordPerformanceSchemaProgramExecution("EVENT", databaseName, eventName, timerWait, 1, timerWait, timerWait, timerWait,
-		boolToInt64(eventErr != nil), accounting.warnings, accounting.rowsAffected, accounting.rowsSent, 0,
-	)
+	record()
 	return eventErr
 }
 

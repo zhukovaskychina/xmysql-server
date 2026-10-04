@@ -15,7 +15,7 @@ func TestInformationSchemaMetadataContractProbe(t *testing.T) {
 }
 
 func TestInformationSchemaCriticalMetadataContractsAreExplicit(t *testing.T) {
-	missing := informationSchemaMissingExplicitMetadataContracts([]string{"connection_control_failed_login_attempts", "files", "global_variables", "innodb_lock_waits", "innodb_locks", "innodb_trx", "parameters", "partitions", "routines", "session_variables", "system_variables", "tablespaces", "tp_thread_group_state", "tp_thread_group_stats", "tp_thread_state"})
+	missing := informationSchemaMissingExplicitMetadataContracts([]string{"connection_control_failed_login_attempts", "files", "global_variables", "innodb_lock_waits", "innodb_locks", "innodb_trx", "mysql_firewall_users", "mysql_firewall_whitelist", "parameters", "partitions", "routines", "session_variables", "system_variables", "tablespaces", "tp_thread_group_state", "tp_thread_group_stats", "tp_thread_state"})
 	require.Empty(t, missing)
 }
 

@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -53,116 +54,189 @@ type XMySQLExecutor struct {
 	results            chan *Result               // 结果通道
 
 	// 管理器组件 - 添加这些字段来访问各个管理器
-	optimizerManager  interface{} // 查询优化器管理器
-	bufferPoolManager interface{} // 缓冲池管理器
-	btreeManager      interface{} // B+树管理器
-	tableManager      interface{} // 表管理器
+	optimizerManager            interface{} // 查询优化器管理器
+	bufferPoolManager           interface{} // 缓冲池管理器
+	btreeManager                interface{} // B+树管理器
+	tableManager                interface{} // 表管理器
+	optimizerCostMu             sync.RWMutex
+	optimizerCostSnapshot       optimizerCostRuntimeSnapshot
+	optimizerCostSnapshotLoaded bool
 
 	// 存储引擎相关管理器 - 新增字段
-	indexManager                                      *manager.IndexManager        // 索引管理器
-	storageManager                                    *manager.StorageManager      // 存储管理器
-	tableStorageManager                               *manager.TableStorageManager // 表存储映射管理器
-	txManager                                         *manager.TransactionManager  // 事务管理器
-	lockManager                                       *manager.LockManager         // 锁等待诊断
-	metricsRecorder                                   *observabilitymetrics.RuntimeRecorder
-	replicationCommitHook                             func([]replication.Statement) error
-	replicationCommitTransactionHook                  func([]replication.RowChange, []replication.Statement) error
-	replicationCommitTransactionHookWithID            func(string, []replication.RowChange, []replication.Statement) error
-	replicationCommitMarkerHook                       func(string) error // test-only fault injection
-	replicationXAPrepareHook                          func(string, replication.XAIdentity, []replication.RowChange, []replication.Statement) error
-	replicationXAOnePhaseCommitHook                   func(string, replication.XAIdentity, []replication.RowChange, []replication.Statement) error
-	replicationXACommitHook                           func(string, replication.XAIdentity) error
-	replicationXARollbackHook                         func(string, replication.XAIdentity) error
-	replicationStatus                                 func() replication.StatusSnapshot
-	replicationSource                                 func() *replication.Source
-	replicationReplica                                func() *replication.Replica
-	replicaRegistrations                              func() []replication.ReplicaRegistration
-	replicationStart                                  func() error
-	replicationStop                                   func() error
-	replicationChangeSource                           func(string) error
-	replicationChangeFilter                           func(replication.ReplicationFilterConfig) error
-	replicationReset                                  func() error
-	replicationResetAll                               func() error
-	replicationFlushLogs                              func() error
-	replicationResetMaster                            func() error
-	replicationResetBinaryLogsAndGTIDs                func(uint32) error
-	replicationPurgeBinaryLogsTo                      func(string) error
-	replicationPurgeBinaryLogsBefore                  func(time.Time) error
-	sessionKill                                       func(uint32, server.MySQLServerSession) error
-	sessionQueryKill                                  func(uint32, server.MySQLServerSession) error
-	processlistProvider                               func() []server.MySQLServerSession
-	eventScheduler                                    *EventScheduler
-	accountMu                                         sync.Mutex
-	ddlCoordinatorMu                                  sync.Mutex
-	ddlCoordinator                                    *tableDDLCoordinator
-	globalReadLock                                    globalReadLockGate
-	globalReadLockStateMu                             sync.Mutex
-	globalReadLockOwner                               server.MySQLServerSession
-	globalReadLockHeld                                bool
-	performanceSchemaMu                               sync.RWMutex
-	performanceSchemaConsumers                        map[string]performanceSchemaSetupSetting
-	performanceSchemaInstruments                      map[string]performanceSchemaSetupSetting
-	performanceSchemaObjects                          map[performanceSchemaObjectKey]performanceSchemaSetupSetting
-	performanceSchemaLoggers                          map[string]performanceSchemaTelemetryLogger
-	performanceSchemaMeters                           map[string]performanceSchemaTelemetryMeter
-	performanceSchemaActors                           performanceSchemaActorSetting
-	performanceSchemaActorRules                       map[performanceSchemaActorKey]performanceSchemaActorSetting
-	performanceSchemaThreads                          map[string]performanceSchemaThreadSetting
-	performanceSchemaActorSessions                    map[server.MySQLServerSession]performanceSchemaActorSetting
-	performanceSchemaThreadSessions                   map[server.MySQLServerSession]performanceSchemaThreadSetting
-	performanceSchemaTransactionHistoryLong           []performanceSchemaTransactionEvent
-	performanceSchemaTransactionHistoryGeneration     uint64
-	performanceSchemaTransactionSummaries             []performanceSchemaTransactionEvent
-	performanceSchemaTransactionSummaryReset          []performanceSchemaTransactionEvent
-	performanceSchemaTransactionSummarySequence       uint64
-	performanceSchemaTransactionSummaryDimensionReset map[string]uint64
-	performanceSchemaWaitSummaryReset                 []performanceSchemaWaitSummaryResetEvent
-	performanceSchemaWaitSummaryDimensionReset        map[string]map[string]struct{}
-	performanceSchemaWaitSummaryDimensionRows         map[string][]performanceSchemaWaitSummaryResetEvent
-	performanceSchemaObjectSummaryReset               []performanceSchemaObjectSummaryResetEvent
-	performanceSchemaTableLockSummaryReset            []performanceSchemaTableLockSummaryResetEvent
-	performanceSchemaProgramHistoryLong               []performanceSchemaProgramEvent
-	performanceSchemaProgramSummaries                 map[string]performanceSchemaProgramEvent
-	innodbMetricMu                                    sync.RWMutex
-	innodbMetricEnabled                               map[string]bool
-	innodbMetricRuntime                               map[string]*innodbMetricRuntimeState
-	innodbLockMetricBaseline                          int
-	innodbLockMetricResetBaseline                     int
-	innodbTableLockWaitBaseline                       int
-	innodbTableLockWaitResetBaseline                  int
-	innodbLockTimeoutBaseline                         int64
-	innodbLockTimeoutResetBaseline                    int64
-	innodbRWCommitBaseline                            int64
-	innodbRWCommitResetBaseline                       int64
-	innodbROCommitBaseline                            int64
-	innodbROCommitResetBaseline                       int64
-	innodbNLROCommitBaseline                          int64
-	innodbNLROCommitResetBaseline                     int64
-	innodbTransactionAllocationBaseline               int64
-	innodbTransactionAllocationResetBaseline          int64
-	innodbDMLCommitBaseline                           int64
-	innodbDMLCommitResetBaseline                      int64
-	innodbRollbackSavepointBaseline                   int64
-	innodbRollbackSavepointResetBaseline              int64
-	innodbUndoSlotsUsedBaseline                       int64
-	innodbUndoSlotsUsedResetBaseline                  int64
-	innodbOSLogBytesWrittenBaseline                   int64
-	innodbOSLogBytesWrittenResetBaseline              int64
-	innodbLockLifecycleBaseline                       manager.LockRuntimeStats
-	innodbLockLifecycleResetBaseline                  manager.LockRuntimeStats
-	optimizerTraceMu                                  sync.RWMutex
-	optimizerTraces                                   []optimizerTraceEntry
-	activeTransactions                                atomic.Int64
-	activeQueryMu                                     sync.Mutex
-	activeQueries                                     map[server.MySQLServerSession]activeQueryHandle
-	activeQuerySequence                               atomic.Uint64
-	activeStatementMu                                 sync.RWMutex
-	activeStatements                                  map[server.MySQLServerSession]activeStatement
-	activeStatementSequence                           atomic.Uint64
-	transactionSequence                               atomic.Uint64
-	xaMu                                              sync.Mutex
-	xaPrepared                                        map[string]*xaPreparedTransaction
-	xaSuspended                                       map[string]*xaSuspendedTransaction
+	indexManager                                                      *manager.IndexManager        // 索引管理器
+	storageManager                                                    *manager.StorageManager      // 存储管理器
+	tableStorageManager                                               *manager.TableStorageManager // 表存储映射管理器
+	txManager                                                         *manager.TransactionManager  // 事务管理器
+	lockManager                                                       *manager.LockManager         // 锁等待诊断
+	metricsRecorder                                                   *observabilitymetrics.RuntimeRecorder
+	replicationCommitHook                                             func([]replication.Statement) error
+	replicationCommitTransactionHook                                  func([]replication.RowChange, []replication.Statement) error
+	replicationCommitTransactionHookWithID                            func(string, []replication.RowChange, []replication.Statement) error
+	replicationCommitMarkerHook                                       func(string) error // test-only fault injection
+	transactionJournalSyncHook                                        func(string) error // test-only fault injection
+	replicationXAPrepareHook                                          func(string, replication.XAIdentity, []replication.RowChange, []replication.Statement) error
+	replicationXAOnePhaseCommitHook                                   func(string, replication.XAIdentity, []replication.RowChange, []replication.Statement) error
+	replicationXACommitHook                                           func(string, replication.XAIdentity) error
+	replicationXARollbackHook                                         func(string, replication.XAIdentity) error
+	replicationStatus                                                 func() replication.StatusSnapshot
+	replicationChannelStatuses                                        func() []replication.StatusSnapshot
+	replicationStatusForChannel                                       func(string) (replication.StatusSnapshot, error)
+	replicationSource                                                 func() *replication.Source
+	replicationSourceForChannel                                       func(string) *replication.Source
+	replicationReplica                                                func() *replication.Replica
+	replicationReplicaForChannel                                      func(string) *replication.Replica
+	replicaRegistrations                                              func() []replication.ReplicaRegistration
+	replicationStart                                                  func() error
+	replicationStartForChannel                                        func(string) error
+	replicationStop                                                   func() error
+	replicationStopForChannel                                         func(string) error
+	replicationChangeSource                                           func(string) error
+	replicationChangeSourceForChannel                                 func(string, string) error
+	replicationChangeFilter                                           func(replication.ReplicationFilterConfig) error
+	replicationChangeFilterForChannel                                 func(string, replication.ReplicationFilterConfig) error
+	replicationReset                                                  func() error
+	replicationResetForChannel                                        func(string) error
+	replicationResetAll                                               func() error
+	replicationResetAllForChannel                                     func(string) error
+	replicationFlushLogs                                              func() error
+	replicationResetMaster                                            func() error
+	replicationResetBinaryLogsAndGTIDs                                func(uint32) error
+	replicationPurgeBinaryLogsTo                                      func(string) error
+	replicationPurgeBinaryLogsBefore                                  func(time.Time) error
+	sessionKill                                                       func(uint32, server.MySQLServerSession) error
+	sessionQueryKill                                                  func(uint32, server.MySQLServerSession) error
+	processlistProvider                                               func() []server.MySQLServerSession
+	eventScheduler                                                    *EventScheduler
+	accountMu                                                         sync.Mutex
+	ddlCoordinatorMu                                                  sync.Mutex
+	ddlCoordinator                                                    *tableDDLCoordinator
+	globalReadLock                                                    globalReadLockGate
+	globalReadLockStateMu                                             sync.Mutex
+	globalReadLockOwner                                               server.MySQLServerSession
+	globalReadLockHeld                                                bool
+	performanceSchemaMu                                               sync.RWMutex
+	performanceSchemaMutexOwnerMu                                     sync.RWMutex
+	performanceSchemaMutexOwners                                      map[string]int64
+	performanceSchemaConsumers                                        map[string]performanceSchemaSetupSetting
+	performanceSchemaInstruments                                      map[string]performanceSchemaSetupSetting
+	performanceSchemaObjects                                          map[performanceSchemaObjectKey]performanceSchemaSetupSetting
+	performanceSchemaLoggers                                          map[string]performanceSchemaTelemetryLogger
+	performanceSchemaMeters                                           map[string]performanceSchemaTelemetryMeter
+	performanceSchemaActors                                           performanceSchemaActorSetting
+	performanceSchemaActorRules                                       map[performanceSchemaActorKey]performanceSchemaActorSetting
+	performanceSchemaThreads                                          map[string]performanceSchemaThreadSetting
+	performanceSchemaMainThreadSetting                                performanceSchemaActorSetting
+	performanceSchemaActorSessions                                    map[server.MySQLServerSession]performanceSchemaActorSetting
+	performanceSchemaThreadSessions                                   map[server.MySQLServerSession]performanceSchemaThreadSetting
+	performanceSchemaTransactionHistoryLong                           []performanceSchemaTransactionEvent
+	performanceSchemaTransactionHistoryLimit                          int
+	performanceSchemaTransactionHistoryLongLimit                      int
+	performanceSchemaTransactionHistoryGeneration                     uint64
+	performanceSchemaTransactionSummaries                             []performanceSchemaTransactionEvent
+	performanceSchemaTransactionSummaryReset                          []performanceSchemaTransactionEvent
+	performanceSchemaTransactionSummarySequence                       uint64
+	performanceSchemaTransactionSummaryDimensionReset                 map[string]uint64
+	performanceSchemaWaitSummaryReset                                 []performanceSchemaWaitSummaryResetEvent
+	performanceSchemaWaitSummaryByInstanceReset                       []performanceSchemaWaitSummaryResetEvent
+	performanceSchemaWaitSummaryByInstanceResetKeys                   map[string]struct{}
+	performanceSchemaWaitSummaryDimensionReset                        map[string]map[string]struct{}
+	performanceSchemaWaitSummaryDimensionRows                         map[string][]performanceSchemaWaitSummaryResetEvent
+	performanceSchemaObjectSummaryReset                               []performanceSchemaObjectSummaryResetEvent
+	performanceSchemaTableLockSummaryReset                            []performanceSchemaTableLockSummaryResetEvent
+	performanceSchemaProgramHistoryLong                               []performanceSchemaProgramEvent
+	performanceSchemaProgramSummaries                                 map[string]performanceSchemaProgramEvent
+	performanceSchemaSessionConnectAttrsLost                          atomic.Int64
+	performanceSchemaSessionConnectAttrsLongestSeen                   atomic.Int64
+	performanceSchemaMetadataLockLost                                 atomic.Int64
+	performanceSchemaMetadataLockLostKeys                             map[string]struct{}
+	performanceSchemaAccountsLost                                     atomic.Int64
+	performanceSchemaAccountLostKeys                                  map[string]struct{}
+	performanceSchemaHostsLost                                        atomic.Int64
+	performanceSchemaHostLostKeys                                     map[string]struct{}
+	performanceSchemaUsersLost                                        atomic.Int64
+	performanceSchemaUserLostKeys                                     map[string]struct{}
+	performanceSchemaPreparedStatementsLost                           atomic.Int64
+	performanceSchemaPreparedStatementLostKeys                        map[string]struct{}
+	performanceSchemaThreadInstancesLost                              atomic.Int64
+	performanceSchemaThreadInstanceLostKeys                           map[string]struct{}
+	performanceSchemaFileInstancesLost                                atomic.Int64
+	performanceSchemaFileInstanceLostKeys                             map[string]struct{}
+	performanceSchemaFileHandlesLost                                  atomic.Int64
+	performanceSchemaFileHandleLostKeys                               map[string]struct{}
+	performanceSchemaSocketInstancesLost                              atomic.Int64
+	performanceSchemaSocketInstanceLostKeys                           map[string]struct{}
+	performanceSchemaProgramLost                                      atomic.Int64
+	performanceSchemaProgramLostKeys                                  map[string]struct{}
+	performanceSchemaTableLockStatLost                                atomic.Int64
+	performanceSchemaTableLockStatLostKeys                            map[string]struct{}
+	performanceSchemaIndexStatLost                                    atomic.Int64
+	performanceSchemaIndexStatLostKeys                                map[string]struct{}
+	performanceSchemaDigestLost                                       atomic.Int64
+	performanceSchemaDigestLostKeys                                   map[string]struct{}
+	performanceSchemaTableHandlesLost                                 atomic.Int64
+	performanceSchemaTableHandleLostKeys                              map[string]struct{}
+	performanceSchemaTableInstancesLost                               atomic.Int64
+	performanceSchemaTableInstanceLostKeys                            map[string]struct{}
+	performanceSchemaMutexInstancesLost                               atomic.Int64
+	performanceSchemaMutexInstanceLostKeys                            map[string]struct{}
+	performanceSchemaCondInstancesLost                                atomic.Int64
+	performanceSchemaCondInstanceLostKeys                             map[string]struct{}
+	performanceSchemaGlobalReadLockWaitMu                             sync.RWMutex
+	performanceSchemaGlobalReadLockWaits                              map[uint64]performanceSchemaGlobalReadLockWait
+	performanceSchemaGlobalReadLockWaitHistory                        []performanceSchemaGlobalReadLockWait
+	performanceSchemaGlobalReadLockWaitHistoryByThread                map[int64][]performanceSchemaGlobalReadLockWait
+	performanceSchemaGlobalReadLockWaitSequence                       atomic.Uint64
+	performanceSchemaGlobalReadLockWaitSummaryResetSequence           uint64
+	performanceSchemaGlobalReadLockWaitSummaryByInstanceResetSequence uint64
+	performanceSchemaMutexWaitMu                                      sync.RWMutex
+	performanceSchemaMutexWaits                                       map[uint64]performanceSchemaMutexWait
+	performanceSchemaMutexWaitHistory                                 []performanceSchemaMutexWait
+	performanceSchemaMutexWaitHistoryByThread                         map[int64][]performanceSchemaMutexWait
+	performanceSchemaMutexWaitSequence                                atomic.Uint64
+	performanceSchemaMutexWaitSummaryResetSequence                    uint64
+	performanceSchemaRWLockInstancesLost                              atomic.Int64
+	performanceSchemaRWLockInstanceLostKeys                           map[string]struct{}
+	performanceSchemaNestedStatementLost                              atomic.Int64
+	innodbMetricMu                                                    sync.RWMutex
+	innodbMetricEnabled                                               map[string]bool
+	innodbMetricRuntime                                               map[string]*innodbMetricRuntimeState
+	innodbLockMetricBaseline                                          int
+	innodbLockMetricResetBaseline                                     int
+	innodbTableLockWaitBaseline                                       int
+	innodbTableLockWaitResetBaseline                                  int
+	innodbLockTimeoutBaseline                                         int64
+	innodbLockTimeoutResetBaseline                                    int64
+	innodbRWCommitBaseline                                            int64
+	innodbRWCommitResetBaseline                                       int64
+	innodbROCommitBaseline                                            int64
+	innodbROCommitResetBaseline                                       int64
+	innodbNLROCommitBaseline                                          int64
+	innodbNLROCommitResetBaseline                                     int64
+	innodbTransactionAllocationBaseline                               int64
+	innodbTransactionAllocationResetBaseline                          int64
+	innodbDMLCommitBaseline                                           int64
+	innodbDMLCommitResetBaseline                                      int64
+	innodbRollbackSavepointBaseline                                   int64
+	innodbRollbackSavepointResetBaseline                              int64
+	innodbUndoSlotsUsedBaseline                                       int64
+	innodbUndoSlotsUsedResetBaseline                                  int64
+	innodbOSLogBytesWrittenBaseline                                   int64
+	innodbOSLogBytesWrittenResetBaseline                              int64
+	innodbLockLifecycleBaseline                                       manager.LockRuntimeStats
+	innodbLockLifecycleResetBaseline                                  manager.LockRuntimeStats
+	optimizerTraceMu                                                  sync.RWMutex
+	optimizerTraces                                                   []optimizerTraceEntry
+	activeTransactions                                                atomic.Int64
+	activeQueryMu                                                     sync.Mutex
+	activeQueries                                                     map[server.MySQLServerSession]activeQueryHandle
+	activeQuerySequence                                               atomic.Uint64
+	activeStatementMu                                                 sync.RWMutex
+	activeStatements                                                  map[server.MySQLServerSession]activeStatement
+	activeStatementSequence                                           atomic.Uint64
+	transactionSequence                                               atomic.Uint64
+	xaMu                                                              sync.Mutex
+	xaPrepared                                                        map[string]*xaPreparedTransaction
+	xaSuspended                                                       map[string]*xaSuspendedTransaction
 }
 
 type activeQueryHandle struct {
@@ -204,6 +278,13 @@ type performanceSchemaSetupSetting struct {
 	Enabled       bool
 	Timed         bool
 	TimedNullable bool
+}
+
+type performanceSchemaInstrumentMetadata struct {
+	Properties    string
+	Flags         interface{}
+	Volatility    int64
+	Documentation interface{}
 }
 
 type performanceSchemaObjectKey struct {
@@ -261,30 +342,707 @@ func NewXMySQLExecutor(infosSchemaManager metadata.InfoSchemaManager, conf *conf
 	}
 	serverStartedAt := time.Now()
 	return &XMySQLExecutor{
-		infosSchemaManager:                infosSchemaManager,
-		conf:                              conf,
-		serverStartedAt:                   serverStartedAt,
-		metricsRecorder:                   observabilitymetrics.DefaultRuntimeRecorder(),
-		eventScheduler:                    NewEventScheduler(false),
-		ddlCoordinator:                    newTableDDLCoordinator(),
-		performanceSchemaConsumers:        defaultPerformanceSchemaConsumers(),
-		performanceSchemaInstruments:      defaultPerformanceSchemaInstruments(),
-		performanceSchemaObjects:          defaultPerformanceSchemaObjects(),
-		performanceSchemaLoggers:          defaultPerformanceSchemaLoggers(),
-		performanceSchemaMeters:           defaultPerformanceSchemaMeters(),
-		performanceSchemaActors:           performanceSchemaActorSetting{Enabled: true, History: true},
-		performanceSchemaActorRules:       defaultPerformanceSchemaActorRules(),
-		performanceSchemaThreads:          defaultPerformanceSchemaThreadSettings(),
-		performanceSchemaActorSessions:    make(map[server.MySQLServerSession]performanceSchemaActorSetting),
-		performanceSchemaThreadSessions:   make(map[server.MySQLServerSession]performanceSchemaThreadSetting),
-		performanceSchemaProgramSummaries: make(map[string]performanceSchemaProgramEvent),
-		innodbMetricEnabled:               defaultInnoDBMetricEnabledState(),
-		innodbMetricRuntime:               newInnoDBMetricRuntimeState(serverStartedAt),
-		optimizerTraces:                   make([]optimizerTraceEntry, 0, optimizerTraceHistoryLimit),
-		activeQueries:                     make(map[server.MySQLServerSession]activeQueryHandle),
-		activeStatements:                  make(map[server.MySQLServerSession]activeStatement),
-		xaPrepared:                        make(map[string]*xaPreparedTransaction),
-		xaSuspended:                       make(map[string]*xaSuspendedTransaction),
+		infosSchemaManager:                                 infosSchemaManager,
+		conf:                                               conf,
+		serverStartedAt:                                    serverStartedAt,
+		metricsRecorder:                                    observabilitymetrics.DefaultRuntimeRecorder(),
+		eventScheduler:                                     NewEventScheduler(false),
+		ddlCoordinator:                                     newTableDDLCoordinator(),
+		performanceSchemaConsumers:                         defaultPerformanceSchemaConsumers(),
+		performanceSchemaInstruments:                       defaultPerformanceSchemaInstruments(),
+		performanceSchemaObjects:                           defaultPerformanceSchemaObjects(),
+		performanceSchemaLoggers:                           defaultPerformanceSchemaLoggers(),
+		performanceSchemaMeters:                            defaultPerformanceSchemaMeters(),
+		performanceSchemaActors:                            performanceSchemaActorSetting{Enabled: true, History: true},
+		performanceSchemaActorRules:                        defaultPerformanceSchemaActorRules(),
+		performanceSchemaThreads:                           defaultPerformanceSchemaThreadSettings(),
+		performanceSchemaMainThreadSetting:                 performanceSchemaActorSetting{Enabled: true, History: true},
+		performanceSchemaActorSessions:                     make(map[server.MySQLServerSession]performanceSchemaActorSetting),
+		performanceSchemaThreadSessions:                    make(map[server.MySQLServerSession]performanceSchemaThreadSetting),
+		performanceSchemaTransactionHistoryLimit:           performanceSchemaTransactionHistoryLimit,
+		performanceSchemaTransactionHistoryLongLimit:       performanceSchemaTransactionHistoryLongLimit,
+		performanceSchemaProgramSummaries:                  make(map[string]performanceSchemaProgramEvent),
+		performanceSchemaIndexStatLostKeys:                 make(map[string]struct{}),
+		performanceSchemaDigestLostKeys:                    make(map[string]struct{}),
+		performanceSchemaTableHandleLostKeys:               make(map[string]struct{}),
+		performanceSchemaTableInstanceLostKeys:             make(map[string]struct{}),
+		performanceSchemaCondInstanceLostKeys:              make(map[string]struct{}),
+		performanceSchemaGlobalReadLockWaits:               make(map[uint64]performanceSchemaGlobalReadLockWait),
+		performanceSchemaGlobalReadLockWaitHistory:         make([]performanceSchemaGlobalReadLockWait, 0),
+		performanceSchemaGlobalReadLockWaitHistoryByThread: make(map[int64][]performanceSchemaGlobalReadLockWait),
+		performanceSchemaMutexWaits:                        make(map[uint64]performanceSchemaMutexWait),
+		performanceSchemaMutexWaitHistory:                  make([]performanceSchemaMutexWait, 0),
+		performanceSchemaMutexWaitHistoryByThread:          make(map[int64][]performanceSchemaMutexWait),
+		performanceSchemaRWLockInstanceLostKeys:            make(map[string]struct{}),
+		performanceSchemaMetadataLockLostKeys:              make(map[string]struct{}),
+		performanceSchemaAccountLostKeys:                   make(map[string]struct{}),
+		performanceSchemaHostLostKeys:                      make(map[string]struct{}),
+		performanceSchemaUserLostKeys:                      make(map[string]struct{}),
+		performanceSchemaFileHandleLostKeys:                make(map[string]struct{}),
+		innodbMetricEnabled:                                defaultInnoDBMetricEnabledState(),
+		innodbMetricRuntime:                                newInnoDBMetricRuntimeState(serverStartedAt),
+		optimizerTraces:                                    make([]optimizerTraceEntry, 0, optimizerTraceHistoryLimit),
+		activeQueries:                                      make(map[server.MySQLServerSession]activeQueryHandle),
+		activeStatements:                                   make(map[server.MySQLServerSession]activeStatement),
+		xaPrepared:                                         make(map[string]*xaPreparedTransaction),
+		xaSuspended:                                        make(map[string]*xaSuspendedTransaction),
+	}
+}
+
+func (e *XMySQLExecutor) performanceSchemaHistorySize(name string, fallback int) int {
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return fallback
+	}
+	raw, err := e.storageManager.GetSystemVariablesManager().GetVariable("", name, manager.GlobalScope)
+	if err != nil {
+		return fallback
+	}
+	size := int64Param(raw)
+	if size < 0 {
+		return 0
+	}
+	return int(size)
+}
+
+// performanceSchemaSetupTableCapacity returns the configured maximum row
+// count for a setup table. MySQL exposes -1 for autosizing while the default
+// effective capacity of setup_actors/setup_objects is 100 rows.
+func (e *XMySQLExecutor) performanceSchemaSetupTableCapacity(name string, fallback int) int {
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return fallback
+	}
+	raw, err := e.storageManager.GetSystemVariablesManager().GetVariable("", name, manager.GlobalScope)
+	if err != nil {
+		return fallback
+	}
+	size := int64Param(raw)
+	if size < 0 {
+		return fallback
+	}
+	if size > 1048576 {
+		return 1048576
+	}
+	return int(size)
+}
+
+func (e *XMySQLExecutor) performanceSchemaShowProcesslistEnabled() bool {
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return false
+	}
+	raw, err := e.storageManager.GetSystemVariablesManager().GetVariable("", "performance_schema_show_processlist", manager.GlobalScope)
+	return err == nil && sessionBoolValue(raw)
+}
+
+func (e *XMySQLExecutor) performanceSchemaCapacity(name string) int {
+	const autosizedCapacity = 1048576
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return autosizedCapacity
+	}
+	raw, err := e.storageManager.GetSystemVariablesManager().GetVariable("", name, manager.GlobalScope)
+	if err != nil {
+		return autosizedCapacity
+	}
+	size := int64Param(raw)
+	if size < 0 {
+		return autosizedCapacity
+	}
+	if size > autosizedCapacity {
+		return autosizedCapacity
+	}
+	return int(size)
+}
+
+func (e *XMySQLExecutor) performanceSchemaConnectionSummaryCapacity(name string) int {
+	return e.performanceSchemaCapacity(name)
+}
+
+func (e *XMySQLExecutor) performanceSchemaErrorCapacity() int {
+	const defaultCapacity = 5377
+	const maximumCapacity = 1048576
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return defaultCapacity
+	}
+	raw, err := e.storageManager.GetSystemVariablesManager().GetVariable("", "performance_schema_error_size", manager.GlobalScope)
+	if err != nil {
+		return defaultCapacity
+	}
+	capacity := int64Param(raw)
+	if capacity < 0 {
+		return 0
+	}
+	if capacity > maximumCapacity {
+		return maximumCapacity
+	}
+	return int(capacity)
+}
+
+func (e *XMySQLExecutor) performanceSchemaMetadataLockCapacity() int {
+	const autosizedCapacity = 10485760
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return autosizedCapacity
+	}
+	raw, err := e.storageManager.GetSystemVariablesManager().GetVariable("", "performance_schema_max_metadata_locks", manager.GlobalScope)
+	if err != nil {
+		return autosizedCapacity
+	}
+	capacity := int64Param(raw)
+	if capacity < 0 {
+		return autosizedCapacity
+	}
+	if capacity > autosizedCapacity {
+		return autosizedCapacity
+	}
+	return int(capacity)
+}
+
+func (e *XMySQLExecutor) performanceSchemaPreparedStatementCapacity() int {
+	const autosizedCapacity = 1048576
+	const maximumCapacity = 4194304
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return autosizedCapacity
+	}
+	raw, err := e.storageManager.GetSystemVariablesManager().GetVariable("", "performance_schema_max_prepared_statements_instances", manager.GlobalScope)
+	if err != nil {
+		return autosizedCapacity
+	}
+	capacity := int64Param(raw)
+	if capacity < 0 {
+		return autosizedCapacity
+	}
+	if capacity > maximumCapacity {
+		return maximumCapacity
+	}
+	return int(capacity)
+}
+
+func (e *XMySQLExecutor) performanceSchemaProgramCapacity() int {
+	const autosizedCapacity = 1048576
+	const maximumCapacity = 1048576
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return autosizedCapacity
+	}
+	raw, err := e.storageManager.GetSystemVariablesManager().GetVariable("", "performance_schema_max_program_instances", manager.GlobalScope)
+	if err != nil {
+		return autosizedCapacity
+	}
+	capacity := int64Param(raw)
+	if capacity < 0 {
+		return autosizedCapacity
+	}
+	if capacity > maximumCapacity {
+		return maximumCapacity
+	}
+	return int(capacity)
+}
+
+func (e *XMySQLExecutor) performanceSchemaThreadCapacity() int {
+	const autosizedCapacity = 1048576
+	const maximumCapacity = 1048576
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return autosizedCapacity
+	}
+	raw, err := e.storageManager.GetSystemVariablesManager().GetVariable("", "performance_schema_max_thread_instances", manager.GlobalScope)
+	if err != nil {
+		return autosizedCapacity
+	}
+	capacity := int64Param(raw)
+	if capacity < 0 {
+		return autosizedCapacity
+	}
+	if capacity > maximumCapacity {
+		return maximumCapacity
+	}
+	return int(capacity)
+}
+
+func (e *XMySQLExecutor) performanceSchemaFileCapacity() int {
+	const autosizedCapacity = 1048576
+	const maximumCapacity = 1048576
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return autosizedCapacity
+	}
+	raw, err := e.storageManager.GetSystemVariablesManager().GetVariable("", "performance_schema_max_file_instances", manager.GlobalScope)
+	if err != nil {
+		return autosizedCapacity
+	}
+	capacity := int64Param(raw)
+	if capacity < 0 {
+		return autosizedCapacity
+	}
+	if capacity > maximumCapacity {
+		return maximumCapacity
+	}
+	return int(capacity)
+}
+
+func (e *XMySQLExecutor) performanceSchemaFileHandleCapacity() int {
+	const autosizedCapacity = 1048576
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return autosizedCapacity
+	}
+	raw, err := e.storageManager.GetSystemVariablesManager().GetVariable("", "performance_schema_max_file_handles", manager.GlobalScope)
+	if err != nil {
+		return autosizedCapacity
+	}
+	capacity := int64Param(raw)
+	if capacity < 0 {
+		return autosizedCapacity
+	}
+	if capacity > autosizedCapacity {
+		return autosizedCapacity
+	}
+	return int(capacity)
+}
+
+func (e *XMySQLExecutor) refreshPerformanceSchemaFileHandleLost() {
+	if e == nil || e.metricsRecorder == nil {
+		return
+	}
+	capacity := int64(e.performanceSchemaFileHandleCapacity())
+	summaries := e.metricsRecorder.FileSummary()
+	sort.Slice(summaries, func(i, j int) bool {
+		if summaries[i].FileName != summaries[j].FileName {
+			return summaries[i].FileName < summaries[j].FileName
+		}
+		return summaries[i].EventName < summaries[j].EventName
+	})
+	lostKeys := make(map[string]struct{})
+	remaining := capacity
+	for _, summary := range summaries {
+		if summary.OpenCount <= 0 {
+			continue
+		}
+		if remaining >= summary.OpenCount {
+			remaining -= summary.OpenCount
+			continue
+		}
+		firstLost := remaining
+		remaining = 0
+		for ordinal := firstLost; ordinal < summary.OpenCount; ordinal++ {
+			key := summary.FileName + "\x00" + summary.EventName + "\x00" + strconv.FormatInt(ordinal, 10)
+			lostKeys[key] = struct{}{}
+		}
+	}
+	e.performanceSchemaMu.Lock()
+	if e.performanceSchemaFileHandleLostKeys == nil {
+		e.performanceSchemaFileHandleLostKeys = make(map[string]struct{})
+	}
+	for key := range lostKeys {
+		if _, exists := e.performanceSchemaFileHandleLostKeys[key]; !exists {
+			e.performanceSchemaFileHandleLostKeys[key] = struct{}{}
+			e.performanceSchemaFileHandlesLost.Add(1)
+		}
+	}
+	for key := range e.performanceSchemaFileHandleLostKeys {
+		if _, exists := lostKeys[key]; !exists {
+			delete(e.performanceSchemaFileHandleLostKeys, key)
+		}
+	}
+	e.performanceSchemaMu.Unlock()
+}
+
+func (e *XMySQLExecutor) performanceSchemaSocketCapacity() int {
+	const autosizedCapacity = 1048576
+	const maximumCapacity = 1048576
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return autosizedCapacity
+	}
+	raw, err := e.storageManager.GetSystemVariablesManager().GetVariable("", "performance_schema_max_socket_instances", manager.GlobalScope)
+	if err != nil {
+		return autosizedCapacity
+	}
+	capacity := int64Param(raw)
+	if capacity < 0 {
+		return autosizedCapacity
+	}
+	if capacity > maximumCapacity {
+		return maximumCapacity
+	}
+	return int(capacity)
+}
+
+func (e *XMySQLExecutor) performanceSchemaTableLockStatCapacity() int {
+	const autosizedCapacity = 1048576
+	const maximumCapacity = 1048576
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return autosizedCapacity
+	}
+	raw, err := e.storageManager.GetSystemVariablesManager().GetVariable("", "performance_schema_max_table_lock_stat", manager.GlobalScope)
+	if err != nil {
+		return autosizedCapacity
+	}
+	capacity := int64Param(raw)
+	if capacity < 0 {
+		return autosizedCapacity
+	}
+	if capacity > maximumCapacity {
+		return maximumCapacity
+	}
+	return int(capacity)
+}
+
+func (e *XMySQLExecutor) performanceSchemaIndexStatCapacity() int {
+	const autosizedCapacity = 1048576
+	const maximumCapacity = 1048576
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return autosizedCapacity
+	}
+	raw, err := e.storageManager.GetSystemVariablesManager().GetVariable("", "performance_schema_max_index_stat", manager.GlobalScope)
+	if err != nil {
+		return autosizedCapacity
+	}
+	capacity := int64Param(raw)
+	if capacity < 0 {
+		return autosizedCapacity
+	}
+	if capacity > maximumCapacity {
+		return maximumCapacity
+	}
+	return int(capacity)
+}
+
+func (e *XMySQLExecutor) performanceSchemaTableHandleCapacity() int {
+	const autosizedCapacity = 1048576
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return autosizedCapacity
+	}
+	raw, err := e.storageManager.GetSystemVariablesManager().GetVariable("", "performance_schema_max_table_handles", manager.GlobalScope)
+	if err != nil {
+		return autosizedCapacity
+	}
+	capacity := int64Param(raw)
+	if capacity < 0 {
+		return autosizedCapacity
+	}
+	if capacity > autosizedCapacity {
+		return autosizedCapacity
+	}
+	return int(capacity)
+}
+
+func (e *XMySQLExecutor) performanceSchemaSessionConnectAttrsLimit() int {
+	const autosizedLimit = 512
+	const maximumLimit = 1048576
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return autosizedLimit
+	}
+	raw, err := e.storageManager.GetSystemVariablesManager().GetVariable("", "performance_schema_session_connect_attrs_size", manager.GlobalScope)
+	if err != nil {
+		return autosizedLimit
+	}
+	limit := int64Param(raw)
+	if limit < 0 {
+		return autosizedLimit
+	}
+	if limit > maximumLimit {
+		return maximumLimit
+	}
+	return int(limit)
+}
+
+func (e *XMySQLExecutor) performanceSchemaSQLTextLimit() int {
+	const defaultLimit = 1024
+	const maximumLimit = 1048576
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return defaultLimit
+	}
+	raw, err := e.storageManager.GetSystemVariablesManager().GetVariable("", "performance_schema_max_sql_text_length", manager.GlobalScope)
+	if err != nil {
+		return defaultLimit
+	}
+	limit := int64Param(raw)
+	if limit < 0 {
+		return 0
+	}
+	if limit > maximumLimit {
+		return maximumLimit
+	}
+	return int(limit)
+}
+
+func (e *XMySQLExecutor) performanceSchemaSQLText(value string) string {
+	limit := e.performanceSchemaSQLTextLimit()
+	if len([]byte(value)) <= limit {
+		return value
+	}
+	return strings.ToValidUTF8(string([]byte(value)[:limit]), "")
+}
+
+func (e *XMySQLExecutor) performanceSchemaDigestText(sql string) string {
+	value := performanceSchemaDigestText(sql)
+	limit := e.performanceSchemaDigestLengthLimit()
+	if len([]byte(value)) <= limit {
+		return value
+	}
+	return strings.ToValidUTF8(string([]byte(value)[:limit]), "")
+}
+
+func (e *XMySQLExecutor) performanceSchemaDigestLengthLimit() int {
+	const defaultLimit = 1024
+	const maximumLimit = 1048576
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return defaultLimit
+	}
+	raw, err := e.storageManager.GetSystemVariablesManager().GetVariable("", "performance_schema_max_digest_length", manager.GlobalScope)
+	if err != nil {
+		return defaultLimit
+	}
+	limit := int64Param(raw)
+	if limit < 0 {
+		return 0
+	}
+	if limit > maximumLimit {
+		return maximumLimit
+	}
+	return int(limit)
+}
+
+func (e *XMySQLExecutor) performanceSchemaDigestSampleAge() time.Duration {
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return 60 * time.Second
+	}
+	raw, err := e.storageManager.GetSystemVariablesManager().GetVariable("", "performance_schema_max_digest_sample_age", manager.GlobalScope)
+	if err != nil {
+		return 60 * time.Second
+	}
+	seconds := int64Param(raw)
+	if seconds <= 0 {
+		return 0
+	}
+	const maximumSeconds = 1048576
+	if seconds > maximumSeconds {
+		seconds = maximumSeconds
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+func (e *XMySQLExecutor) syncPerformanceSchemaDigestSampleAge() {
+	if e == nil || e.metricsRecorder == nil {
+		return
+	}
+	e.metricsRecorder.SetDigestSampleAge(e.performanceSchemaDigestSampleAge())
+}
+
+func performanceSchemaConnectionSummaryVariable(table string) string {
+	switch strings.ToLower(strings.TrimSpace(table)) {
+	case "accounts", "status_by_account":
+		return "performance_schema_accounts_size"
+	case "hosts", "status_by_host":
+		return "performance_schema_hosts_size"
+	case "users", "status_by_user":
+		return "performance_schema_users_size"
+	default:
+		return ""
+	}
+}
+
+func (e *XMySQLExecutor) applyConfiguredPerformanceSchemaVariables() {
+	if e == nil || e.conf == nil || e.conf.Raw == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return
+	}
+	section := e.conf.Raw.Section("performance_schema")
+	if section == nil {
+		return
+	}
+	for _, setting := range []struct {
+		key  string
+		name string
+	}{
+		{key: "accounts_size", name: "performance_schema_accounts_size"},
+		{key: "digests_size", name: "performance_schema_digests_size"},
+		{key: "error_size", name: "performance_schema_error_size"},
+		{key: "max_digest_length", name: "performance_schema_max_digest_length"},
+		{key: "max_cond_classes", name: "performance_schema_max_cond_classes"},
+		{key: "max_cond_instances", name: "performance_schema_max_cond_instances"},
+		{key: "max_digest_sample_age", name: "performance_schema_max_digest_sample_age"},
+		{key: "max_file_classes", name: "performance_schema_max_file_classes"},
+		{key: "max_file_handles", name: "performance_schema_max_file_handles"},
+		{key: "max_memory_classes", name: "performance_schema_max_memory_classes"},
+		{key: "max_meter_classes", name: "performance_schema_max_meter_classes"},
+		{key: "max_metric_classes", name: "performance_schema_max_metric_classes"},
+		{key: "max_mutex_classes", name: "performance_schema_max_mutex_classes"},
+		{key: "max_mutex_instances", name: "performance_schema_max_mutex_instances"},
+		{key: "max_rwlock_classes", name: "performance_schema_max_rwlock_classes"},
+		{key: "max_rwlock_instances", name: "performance_schema_max_rwlock_instances"},
+		{key: "max_socket_classes", name: "performance_schema_max_socket_classes"},
+		{key: "max_stage_classes", name: "performance_schema_max_stage_classes"},
+		{key: "max_statement_classes", name: "performance_schema_max_statement_classes"},
+		{key: "max_statement_stack", name: "performance_schema_max_statement_stack"},
+		{key: "max_table_instances", name: "performance_schema_max_table_instances"},
+		{key: "max_thread_classes", name: "performance_schema_max_thread_classes"},
+		{key: "max_file_instances", name: "performance_schema_max_file_instances"},
+		{key: "hosts_size", name: "performance_schema_hosts_size"},
+		{key: "max_index_stat", name: "performance_schema_max_index_stat"},
+		{key: "max_metadata_locks", name: "performance_schema_max_metadata_locks"},
+		{key: "max_prepared_statements_instances", name: "performance_schema_max_prepared_statements_instances"},
+		{key: "max_program_instances", name: "performance_schema_max_program_instances"},
+		{key: "max_table_handles", name: "performance_schema_max_table_handles"},
+		{key: "max_thread_instances", name: "performance_schema_max_thread_instances"},
+		{key: "max_socket_instances", name: "performance_schema_max_socket_instances"},
+		{key: "max_table_lock_stat", name: "performance_schema_max_table_lock_stat"},
+		{key: "session_connect_attrs_size", name: "performance_schema_session_connect_attrs_size"},
+		{key: "users_size", name: "performance_schema_users_size"},
+	} {
+		if !section.HasKey(setting.key) {
+			continue
+		}
+		value, err := section.Key(setting.key).Int64()
+		if err != nil {
+			logger.Warnf("invalid performance_schema.%s: %v", setting.key, err)
+			continue
+		}
+		if minimum, maximum, bounded := performanceSchemaStartupVariableBounds(setting.name); bounded && (value < minimum || value > maximum) {
+			logger.Warnf("invalid performance_schema.%s value: %d", setting.key, value)
+			continue
+		}
+		if setting.name == "performance_schema_error_size" && (value < 0 || value > 1048576) {
+			logger.Warnf("invalid performance_schema.%s value: %d", setting.key, value)
+			continue
+		}
+		if setting.name == "performance_schema_max_digest_length" && (value < 0 || value > 1048576) {
+			logger.Warnf("invalid performance_schema.%s value: %d", setting.key, value)
+			continue
+		}
+		if setting.name == "performance_schema_max_file_instances" && (value < -1 || value > 1048576) {
+			logger.Warnf("invalid performance_schema.%s value: %d", setting.key, value)
+			continue
+		}
+		if setting.name == "performance_schema_max_metadata_locks" && (value < -1 || value > 10485760) {
+			logger.Warnf("invalid performance_schema.%s value: %d", setting.key, value)
+			continue
+		}
+		if setting.name == "performance_schema_max_index_stat" && (value < -1 || value > 1048576) {
+			logger.Warnf("invalid performance_schema.%s value: %d", setting.key, value)
+			continue
+		}
+		if setting.name == "performance_schema_max_prepared_statements_instances" && (value < -1 || value > 4194304) {
+			logger.Warnf("invalid performance_schema.%s value: %d", setting.key, value)
+			continue
+		}
+		if setting.name == "performance_schema_max_program_instances" && (value < -1 || value > 1048576) {
+			logger.Warnf("invalid performance_schema.%s value: %d", setting.key, value)
+			continue
+		}
+		if setting.name == "performance_schema_max_table_handles" && (value < -1 || value > 1048576) {
+			logger.Warnf("invalid performance_schema.%s value: %d", setting.key, value)
+			continue
+		}
+		if setting.name == "performance_schema_max_thread_instances" && (value < -1 || value > 1048576) {
+			logger.Warnf("invalid performance_schema.%s value: %d", setting.key, value)
+			continue
+		}
+		if setting.name == "performance_schema_max_socket_instances" && (value < -1 || value > 1048576) {
+			logger.Warnf("invalid performance_schema.%s value: %d", setting.key, value)
+			continue
+		}
+		if setting.name == "performance_schema_max_table_lock_stat" && (value < -1 || value > 1048576) {
+			logger.Warnf("invalid performance_schema.%s value: %d", setting.key, value)
+			continue
+		}
+		if setting.name == "performance_schema_session_connect_attrs_size" && (value < -1 || value > 1048576) {
+			logger.Warnf("invalid performance_schema.%s value: %d", setting.key, value)
+			continue
+		}
+		if setting.name != "performance_schema_error_size" && setting.name != "performance_schema_max_digest_length" && setting.name != "performance_schema_max_file_instances" && setting.name != "performance_schema_max_index_stat" && setting.name != "performance_schema_max_metadata_locks" && setting.name != "performance_schema_max_table_handles" && setting.name != "performance_schema_max_socket_instances" && setting.name != "performance_schema_max_table_lock_stat" && setting.name != "performance_schema_max_thread_instances" && setting.name != "performance_schema_session_connect_attrs_size" && value < -1 {
+			logger.Warnf("invalid performance_schema.%s value: %d", setting.key, value)
+			continue
+		}
+		if err := e.storageManager.GetSystemVariablesManager().SetStartupVariable(setting.name, value); err != nil {
+			logger.Warnf("failed to apply performance_schema.%s: %v", setting.key, err)
+		}
+	}
+	if section.HasKey("max_sql_text_length") {
+		value, err := section.Key("max_sql_text_length").Int64()
+		if err != nil || value < 0 || value > 1048576 {
+			logger.Warnf("invalid performance_schema.max_sql_text_length: %v", err)
+		} else if err := e.storageManager.GetSystemVariablesManager().SetStartupVariable("performance_schema_max_sql_text_length", value); err != nil {
+			logger.Warnf("failed to apply performance_schema.max_sql_text_length: %v", err)
+		}
+	}
+}
+
+func performanceSchemaStartupVariableBounds(name string) (int64, int64, bool) {
+	switch name {
+	case "performance_schema_max_cond_classes", "performance_schema_max_file_classes", "performance_schema_max_memory_classes", "performance_schema_max_mutex_classes", "performance_schema_max_rwlock_classes", "performance_schema_max_socket_classes", "performance_schema_max_stage_classes", "performance_schema_max_thread_classes":
+		return 0, 1024, true
+	case "performance_schema_max_cond_instances", "performance_schema_max_table_instances":
+		return -1, 1048576, true
+	case "performance_schema_max_digest_sample_age":
+		return 0, 1048576, true
+	case "performance_schema_max_file_handles":
+		return 0, 1048576, true
+	case "performance_schema_max_meter_classes":
+		return 0, 64, true
+	case "performance_schema_max_metric_classes":
+		return 30, 11000, true
+	case "performance_schema_max_mutex_instances", "performance_schema_max_rwlock_instances":
+		return -1, 104857600, true
+	case "performance_schema_max_statement_classes":
+		return 0, 256, true
+	case "performance_schema_max_statement_stack":
+		return 1, 256, true
+	default:
+		return 0, 0, false
+	}
+}
+
+// refreshPerformanceSchemaHistoryLimits applies the dynamic Performance
+// Schema history-size variables to all in-process retention owners. MySQL
+// trims existing rows when a size is reduced, so each owner performs that
+// trim synchronously before the SET GLOBAL statement returns.
+func (e *XMySQLExecutor) refreshPerformanceSchemaHistoryLimits() {
+	if e == nil {
+		return
+	}
+	statementShort := e.performanceSchemaHistorySize("performance_schema_events_statements_history_size", 10)
+	statementLong := e.performanceSchemaHistorySize("performance_schema_events_statements_history_long_size", 10000)
+	stageShort := e.performanceSchemaHistorySize("performance_schema_events_stages_history_size", 10)
+	stageLong := e.performanceSchemaHistorySize("performance_schema_events_stages_history_long_size", 10000)
+	transactionShort := e.performanceSchemaHistorySize("performance_schema_events_transactions_history_size", performanceSchemaTransactionHistoryLimit)
+	transactionLong := e.performanceSchemaHistorySize("performance_schema_events_transactions_history_long_size", performanceSchemaTransactionHistoryLongLimit)
+	waitShort := e.performanceSchemaHistorySize("performance_schema_events_waits_history_size", metadataLockWaitHistoryLimit)
+	waitLong := e.performanceSchemaHistorySize("performance_schema_events_waits_history_long_size", metadataLockWaitHistoryLongLimit)
+	if e.metricsRecorder != nil {
+		e.metricsRecorder.SetStatementHistoryLimits(statementShort, statementLong)
+		e.metricsRecorder.SetStageHistoryLimits(stageShort, stageLong)
+	}
+	if e.ddlCoordinator != nil {
+		e.ddlCoordinator.SetPerformanceSchemaWaitHistoryLimits(waitShort, waitLong)
+	}
+	e.trimPerformanceSchemaMutexWaitHistory(waitShort, waitLong)
+	e.performanceSchemaMu.Lock()
+	e.performanceSchemaTransactionHistoryLimit = transactionShort
+	e.performanceSchemaTransactionHistoryLongLimit = transactionLong
+	if len(e.performanceSchemaTransactionHistoryLong) > transactionLong {
+		if transactionLong == 0 {
+			e.performanceSchemaTransactionHistoryLong = e.performanceSchemaTransactionHistoryLong[:0]
+		} else {
+			e.performanceSchemaTransactionHistoryLong = append([]performanceSchemaTransactionEvent(nil), e.performanceSchemaTransactionHistoryLong[len(e.performanceSchemaTransactionHistoryLong)-transactionLong:]...)
+		}
+	}
+	e.performanceSchemaMu.Unlock()
+	for _, session := range e.performanceSchemaSessions(nil) {
+		if session == nil {
+			continue
+		}
+		e.performanceSchemaMu.RLock()
+		limit := e.performanceSchemaTransactionHistoryLimit
+		e.performanceSchemaMu.RUnlock()
+		e.trimPerformanceSchemaTransactionSessionHistory(session, limit)
+	}
+}
+
+func (e *XMySQLExecutor) trimPerformanceSchemaTransactionSessionHistory(session server.MySQLServerSession, limit int) {
+	if session == nil {
+		return
+	}
+	events, _ := session.GetParamByName("performance_schema_transaction_history").([]performanceSchemaTransactionEvent)
+	if limit <= 0 {
+		session.SetParamByName("performance_schema_transaction_history", events[:0])
+		return
+	}
+	if len(events) > limit {
+		session.SetParamByName("performance_schema_transaction_history", append([]performanceSchemaTransactionEvent(nil), events[len(events)-limit:]...))
 	}
 }
 
@@ -293,6 +1051,12 @@ func (e *XMySQLExecutor) beginActiveStatement(session server.MySQLServerSession,
 		return func() {}
 	}
 	token := e.activeStatementSequence.Add(1)
+	statementType := metricStatementType(query)
+	if command, ok := session.GetParamByName("performance_schema_statement_event_name").(string); ok && strings.TrimSpace(command) != "" {
+		statementType = command
+	}
+	actorSetting := e.performanceSchemaStatementSettingForSession(session)
+	instrumentEnabled, instrumentTimed := e.performanceSchemaInstrumentSetting(performanceSchemaStatementEventName(statementType))
 	event := activeStatement{
 		token: token,
 		event: observabilitymetrics.StatementEvent{
@@ -300,8 +1064,11 @@ func (e *XMySQLExecutor) beginActiveStatement(session server.MySQLServerSession,
 			ThreadID:      int64(sessionConnectionID(session)),
 			Schema:        database,
 			SQL:           strings.TrimSpace(query),
-			StatementType: metricStatementType(query),
+			StatementType: statementType,
 			Status:        "running",
+			Instrumented:  actorSetting.Enabled && instrumentEnabled,
+			History:       actorSetting.History,
+			Timed:         instrumentTimed,
 		},
 	}
 	e.activeStatementMu.Lock()
@@ -344,18 +1111,18 @@ func (e *XMySQLExecutor) beginActiveQuery(session server.MySQLServerSession) (co
 		return queryContext, cancel
 	}
 	token := e.activeQuerySequence.Add(1)
-	e.activeQueryMu.Lock()
+	e.lockPerformanceSchemaMutex(&e.activeQueryMu, "wait/synch/mutex/sql/xmysql/active_query", int64(sessionConnectionID(session)))
 	if e.activeQueries == nil {
 		e.activeQueries = make(map[server.MySQLServerSession]activeQueryHandle)
 	}
 	e.activeQueries[session] = activeQueryHandle{token: token, cancel: cancel}
-	e.activeQueryMu.Unlock()
+	e.unlockPerformanceSchemaMutex(&e.activeQueryMu, "wait/synch/mutex/sql/xmysql/active_query")
 	return queryContext, func() {
-		e.activeQueryMu.Lock()
+		e.lockPerformanceSchemaMutex(&e.activeQueryMu, "wait/synch/mutex/sql/xmysql/active_query", int64(sessionConnectionID(session)))
 		if current, ok := e.activeQueries[session]; ok && current.token == token {
 			delete(e.activeQueries, session)
 		}
-		e.activeQueryMu.Unlock()
+		e.unlockPerformanceSchemaMutex(&e.activeQueryMu, "wait/synch/mutex/sql/xmysql/active_query")
 		cancel()
 	}
 }
@@ -367,14 +1134,14 @@ func (e *XMySQLExecutor) CancelActiveQuery(targetID uint32) error {
 		return fmt.Errorf("invalid KILL QUERY thread id")
 	}
 	var cancel context.CancelFunc
-	e.activeQueryMu.Lock()
+	e.lockPerformanceSchemaMutex(&e.activeQueryMu, "wait/synch/mutex/sql/xmysql/active_query", 0)
 	for session, handle := range e.activeQueries {
 		if sessionConnectionID(session) == targetID {
 			cancel = handle.cancel
 			break
 		}
 	}
-	e.activeQueryMu.Unlock()
+	e.unlockPerformanceSchemaMutex(&e.activeQueryMu, "wait/synch/mutex/sql/xmysql/active_query")
 	if cancel != nil {
 		cancel()
 	}
@@ -495,6 +1262,9 @@ func (e *XMySQLExecutor) executeAfterTriggerStatement(parent *ExecutionContext, 
 				return fmt.Errorf("trigger recursion detected for %s", frame)
 			}
 		}
+		if len(parent.triggerStack) >= e.performanceSchemaStatementStackCapacity() {
+			e.performanceSchemaNestedStatementLost.Add(1)
+		}
 		if len(parent.triggerStack) >= 64 {
 			return fmt.Errorf("trigger nesting depth exceeded while executing %s", frame)
 		}
@@ -526,8 +1296,9 @@ func (e *XMySQLExecutor) executeAfterTriggerStatement(parent *ExecutionContext, 
 	if timerWait <= 0 {
 		timerWait = 1000
 	}
-	e.recordPerformanceSchemaProgramExecution("TRIGGER", schema, triggerName, timerWait, 1, timerWait, timerWait, timerWait,
+	e.recordPerformanceSchemaProgramExecutionWithCPU("TRIGGER", schema, triggerName, timerWait, 1, timerWait, timerWait, timerWait,
 		boolToInt64(triggerErr != nil), accounting.warnings, accounting.rowsAffected, accounting.rowsSent, 0,
+		nested.statementCPUTime.Load(), nested.statementCPUTimeCaptured.Load(),
 	)
 	return triggerErr
 }
@@ -1468,6 +2239,11 @@ func (e *XMySQLExecutor) ResetSession(session server.MySQLServerSession) error {
 	}
 	e.discardSessionAccountChanges(session)
 	e.clearSessionTransactionState(session)
+	if names, ok := session.GetParamByName("user_variable_parameter_names").([]string); ok {
+		for _, name := range names {
+			session.SetParamByName(name, nil)
+		}
+	}
 	session.SetParamByName("autocommit", "1")
 	session.SetParamByName("in_transaction", false)
 	session.SetParamByName("transaction_journal_active", false)
@@ -1477,6 +2253,7 @@ func (e *XMySQLExecutor) ResetSession(session server.MySQLServerSession) error {
 	session.SetParamByName("locked_tables", map[string]string{})
 	session.SetParamByName("warnings", []Warning{})
 	session.SetParamByName("user_variables", map[string]interface{}{})
+	session.SetParamByName("user_variable_parameter_names", []string{})
 	session.SetParamByName("session_variables", map[string]interface{}{})
 	session.SetParamByName("handler_cursors", map[string]*handlerCursorState{})
 	session.SetParamByName(sqlPreparedStatementSessionParam, nil)
@@ -1884,14 +2661,15 @@ func (e *XMySQLExecutor) recordStatementMetrics(ctx *ExecutionContext, mysqlSess
 		user, _ = mysqlSession.GetParamByName("user").(string)
 		host, _ = mysqlSession.GetParamByName("host").(string)
 	}
+	statementType := metricStatementTypeForContext(ctx, query)
 	actorSetting := e.performanceSchemaStatementSettingForSession(mysqlSession)
-	instrumentEnabled, instrumentTimed := e.performanceSchemaInstrumentSetting("statement/sql/" + strings.ToLower(metricStatementType(query)))
+	instrumentEnabled, instrumentTimed := e.performanceSchemaInstrumentSetting(performanceSchemaStatementEventName(statementType))
 	stageInstrumented, stageTimed := e.performanceSchemaInstrumentSetting("stage/sql/execute")
 	actorSetting.Enabled = actorSetting.Enabled && instrumentEnabled
 	stageInstrumented = stageInstrumented && actorSetting.Enabled
-	e.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccountingWithRowsExaminedAndScanAndIndexUsageAndSortRowsAndScanAndRangeAndJoinWithTimer(
-		threadID, user, host, databaseName, strings.TrimSpace(query), metricStatementType(query), status, latency,
-		ctx.statementRowsAffected.Load(), ctx.statementRowsSent.Load(), ctx.statementRowsExamined.Load(), ctx.statementSelectScan.Load(), ctx.statementSelectRange.Load(), ctx.statementSelectFullJoin.Load(), ctx.statementSelectFullRangeJoin.Load(), ctx.statementSelectRangeCheck.Load(), ctx.statementNoIndexUsed.Load(), ctx.statementNoGoodIndexUsed.Load(), ctx.statementSortRows.Load(), ctx.statementSortScan.Load(), ctx.statementSortRange.Load(), ctx.statementWarnings.Load(), actorSetting.Enabled, actorSetting.History, instrumentTimed, stageInstrumented, stageTimed,
+	e.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccountingWithRowsExaminedAndScanAndIndexUsageAndSortRowsAndScanAndRangeAndJoinWithTimerAndCPU(
+		threadID, user, host, databaseName, strings.TrimSpace(query), statementType, status, latency,
+		ctx.statementRowsAffected.Load(), ctx.statementRowsSent.Load(), ctx.statementRowsExamined.Load(), ctx.statementSelectScan.Load(), ctx.statementSelectRange.Load(), ctx.statementSelectFullJoin.Load(), ctx.statementSelectFullRangeJoin.Load(), ctx.statementSelectRangeCheck.Load(), ctx.statementNoIndexUsed.Load(), ctx.statementNoGoodIndexUsed.Load(), ctx.statementSortRows.Load(), ctx.statementSortScan.Load(), ctx.statementSortRange.Load(), ctx.statementWarnings.Load(), ctx.statementCPUTime.Load(), ctx.statementCPUTimeCaptured.Load(), actorSetting.Enabled, actorSetting.History, instrumentTimed, stageInstrumented, stageTimed,
 	)
 }
 
@@ -1925,7 +2703,8 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		}
 		defer func() {
 			latency := time.Since(startedAt)
-			e.metricsRecorder.RecordQuery(databaseName, metricStatementType(query), metricStatus, latency)
+			statementType := metricStatementTypeForContext(ctx, query)
+			e.metricsRecorder.RecordQuery(databaseName, statementType, metricStatus, latency)
 			if ctx != nil {
 				ctx.statementMetricStatus = metricStatus
 			}
@@ -1941,17 +2720,35 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 				host, _ = mysqlSession.GetParamByName("host").(string)
 			}
 			actorSetting := e.performanceSchemaStatementSettingForSession(mysqlSession)
-			instrumentEnabled, instrumentTimed := e.performanceSchemaInstrumentSetting("statement/sql/" + strings.ToLower(metricStatementType(query)))
+			instrumentEnabled, instrumentTimed := e.performanceSchemaInstrumentSetting(performanceSchemaStatementEventName(statementType))
 			stageInstrumented, stageTimed := e.performanceSchemaInstrumentSetting("stage/sql/execute")
 			actorSetting.Enabled = actorSetting.Enabled && instrumentEnabled
 			stageInstrumented = stageInstrumented && actorSetting.Enabled
-			e.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccountingWithRowsExaminedAndScanAndIndexUsageAndSortRowsAndScanAndRangeAndJoinWithTimer(
-				threadID, user, host, databaseName, strings.TrimSpace(query), metricStatementType(query), metricStatus, latency,
-				ctx.statementRowsAffected.Load(), ctx.statementRowsSent.Load(), ctx.statementRowsExamined.Load(), ctx.statementSelectScan.Load(), ctx.statementSelectRange.Load(), ctx.statementSelectFullJoin.Load(), ctx.statementSelectFullRangeJoin.Load(), ctx.statementSelectRangeCheck.Load(), ctx.statementNoIndexUsed.Load(), ctx.statementNoGoodIndexUsed.Load(), ctx.statementSortRows.Load(), ctx.statementSortScan.Load(), ctx.statementSortRange.Load(), ctx.statementWarnings.Load(), actorSetting.Enabled, actorSetting.History, instrumentTimed, stageInstrumented, stageTimed,
+			e.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccountingWithRowsExaminedAndScanAndIndexUsageAndSortRowsAndScanAndRangeAndJoinWithTimerAndCPU(
+				threadID, user, host, databaseName, strings.TrimSpace(query), statementType, metricStatus, latency,
+				ctx.statementRowsAffected.Load(), ctx.statementRowsSent.Load(), ctx.statementRowsExamined.Load(), ctx.statementSelectScan.Load(), ctx.statementSelectRange.Load(), ctx.statementSelectFullJoin.Load(), ctx.statementSelectFullRangeJoin.Load(), ctx.statementSelectRangeCheck.Load(), ctx.statementNoIndexUsed.Load(), ctx.statementNoGoodIndexUsed.Load(), ctx.statementSortRows.Load(), ctx.statementSortScan.Load(), ctx.statementSortRange.Load(), ctx.statementWarnings.Load(), ctx.statementCPUTime.Load(), ctx.statementCPUTimeCaptured.Load(), actorSetting.Enabled, actorSetting.History, instrumentTimed, stageInstrumented, stageTimed,
 			)
 			if metricStatus == "error" && (ctx == nil || !ctx.errorMetricsDeferred) {
 				e.recordQueryErrorCode(databaseName, string(ExecutionErrorCodeUnknown))
 			}
+		}()
+	}
+	if e.metricsRecorder != nil && ctx != nil && e.performanceSchemaConsumerEnabled("events_statements_cpu") {
+		runtime.LockOSThread()
+		cpuStart, cpuSupported := observabilitymetrics.CurrentThreadCPUTimeNanos()
+		defer func() {
+			if cpuSupported {
+				cpuEnd, ok := observabilitymetrics.CurrentThreadCPUTimeNanos()
+				if ok && cpuEnd >= cpuStart {
+					cpuTime := (cpuEnd - cpuStart) * 1000
+					if cpuTime <= 0 {
+						cpuTime = 1
+					}
+					ctx.statementCPUTime.Store(cpuTime)
+					ctx.statementCPUTimeCaptured.Store(true)
+				}
+			}
+			runtime.UnlockOSThread()
 		}()
 	}
 	defer func() {
@@ -1968,6 +2765,7 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		ctx.RawQuery = query
 		ctx.Session = mysqlSession
 	}
+	e.prepareRolesGraphMLSession(mysqlSession)
 	if result, handled, err := e.executeDirectSystemVariableSelect(query, mysqlSession); handled {
 		if err != nil {
 			results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY, Message: err.Error()}
@@ -2099,6 +2897,15 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		}
 		if ctx.AdminResult != nil {
 			results <- ctx.AdminResult
+			return
+		}
+		results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Message: "statement executed successfully"}
+		return
+	}
+	if handled, err := e.executeMySQLOptimizerCostMutation(ctx, mysqlSession, query); handled {
+		if err != nil {
+			metricStatus = "error"
+			results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY, Message: err.Error()}
 			return
 		}
 		results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Message: "statement executed successfully"}
@@ -2444,6 +3251,7 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 	// SQL语法解析
 	stmt, err := sqlparser.Parse(query)
 	if err != nil {
+		ctx.statementParseError = true
 		results <- &Result{
 			Err:        newExecutorErrorf("sql-parse", ExecutionErrorCodeValidation, "", "", query, err, "SQL parse error"),
 			ResultType: common.RESULT_TYPE_QUERY,
@@ -2499,6 +3307,7 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 	case *sqlparser.Insert:
 		// 执行INSERT语句
 		if err := e.prepareTransactionalDML(mysqlSession); err != nil {
+			ctx.observeStatementResult(&Result{Err: err, ResultType: innodbcommon.RESULT_TYPE_ERROR, Message: err.Error()})
 			results <- &Result{
 				Err:        err,
 				ResultType: innodbcommon.RESULT_TYPE_ERROR,
@@ -2508,8 +3317,10 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		}
 		dmlResult, err := e.executeInsertStatement(ctx, stmt, databaseName, mysqlSession)
 		if err != nil {
+			result := &Result{Err: newExecutorErrorf("execute-insert", ExecutionErrorCodeUnknown, databaseName, "", query, err, "execute INSERT failed"), ResultType: common.RESULT_TYPE_QUERY, Message: "INSERT failed"}
+			ctx.observeStatementResult(result)
 			results <- &Result{
-				Err:        newExecutorErrorf("execute-insert", ExecutionErrorCodeUnknown, databaseName, "", query, err, "execute INSERT failed"),
+				Err:        result.Err,
 				ResultType: common.RESULT_TYPE_QUERY,
 				Message:    "INSERT failed",
 			}
@@ -2525,11 +3336,13 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 				Warnings:     dmlResult.Warnings,
 				Message:      dmlResult.Message,
 			}
+			ctx.observeStatementResult(result)
 			results <- result
 		}
 	case *sqlparser.Update:
 		// 执行UPDATE语句
 		if err := e.prepareTransactionalDML(mysqlSession); err != nil {
+			ctx.observeStatementResult(&Result{Err: err, ResultType: innodbcommon.RESULT_TYPE_ERROR, Message: err.Error()})
 			results <- &Result{
 				Err:        err,
 				ResultType: innodbcommon.RESULT_TYPE_ERROR,
@@ -2539,8 +3352,10 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		}
 		dmlResult, err := e.executeUpdateStatement(ctx, stmt, databaseName, mysqlSession)
 		if err != nil {
+			result := &Result{Err: newExecutorErrorf("execute-update", ExecutionErrorCodeUnknown, databaseName, "", query, err, "execute UPDATE failed"), ResultType: common.RESULT_TYPE_QUERY, Message: "UPDATE failed"}
+			ctx.observeStatementResult(result)
 			results <- &Result{
-				Err:        newExecutorErrorf("execute-update", ExecutionErrorCodeUnknown, databaseName, "", query, err, "execute UPDATE failed"),
+				Err:        result.Err,
 				ResultType: common.RESULT_TYPE_QUERY,
 				Message:    "UPDATE failed",
 			}
@@ -2556,11 +3371,13 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 				Warnings:     dmlResult.Warnings,
 				Message:      dmlResult.Message,
 			}
+			ctx.observeStatementResult(result)
 			results <- result
 		}
 	case *sqlparser.Delete:
 		// 执行DELETE语句
 		if err := e.prepareTransactionalDML(mysqlSession); err != nil {
+			ctx.observeStatementResult(&Result{Err: err, ResultType: innodbcommon.RESULT_TYPE_ERROR, Message: err.Error()})
 			results <- &Result{
 				Err:        err,
 				ResultType: innodbcommon.RESULT_TYPE_ERROR,
@@ -2570,8 +3387,10 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		}
 		dmlResult, err := e.executeDeleteStatement(ctx, stmt, databaseName, mysqlSession)
 		if err != nil {
+			result := &Result{Err: newExecutorErrorf("execute-delete", ExecutionErrorCodeUnknown, databaseName, "", query, err, "execute DELETE failed"), ResultType: common.RESULT_TYPE_QUERY, Message: "DELETE failed"}
+			ctx.observeStatementResult(result)
 			results <- &Result{
-				Err:        newExecutorErrorf("execute-delete", ExecutionErrorCodeUnknown, databaseName, "", query, err, "execute DELETE failed"),
+				Err:        result.Err,
 				ResultType: common.RESULT_TYPE_QUERY,
 				Message:    "DELETE failed",
 			}
@@ -2587,6 +3406,7 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 				Warnings:     dmlResult.Warnings,
 				Message:      dmlResult.Message,
 			}
+			ctx.observeStatementResult(result)
 			results <- result
 		}
 	case *sqlparser.DDL:
@@ -5289,12 +6109,24 @@ func (e *XMySQLExecutor) executeTruncateTableStatement(ctx *ExecutionContext, cu
 	if strings.EqualFold(databaseName, "performance_schema") {
 		switch strings.ToLower(strings.TrimSpace(tableName)) {
 		case "setup_objects":
+			if ctx != nil && ctx.Session != nil {
+				if err := e.checkTablePrivilege(ctx, "performance_schema", tableName, "DROP"); err != nil {
+					ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_DDL, Message: fmt.Sprintf("TRUNCATE TABLE failed: %v", err)}
+					return
+				}
+			}
 			e.performanceSchemaMu.Lock()
 			e.performanceSchemaObjects = make(map[performanceSchemaObjectKey]performanceSchemaSetupSetting)
 			e.performanceSchemaMu.Unlock()
 			ctx.Results <- &Result{ResultType: common.RESULT_TYPE_DDL, Message: fmt.Sprintf("Table '%s' truncated successfully", tableName)}
 			return
 		case "setup_actors":
+			if ctx != nil && ctx.Session != nil {
+				if err := e.checkTablePrivilege(ctx, "performance_schema", tableName, "DROP"); err != nil {
+					ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_DDL, Message: fmt.Sprintf("TRUNCATE TABLE failed: %v", err)}
+					return
+				}
+			}
 			e.performanceSchemaMu.Lock()
 			e.performanceSchemaActorRules = make(map[performanceSchemaActorKey]performanceSchemaActorSetting)
 			e.performanceSchemaActors = performanceSchemaActorSetting{}
@@ -5492,6 +6324,13 @@ func (e *XMySQLExecutor) executeTruncateTableStatement(ctx *ExecutionContext, cu
 			return
 		case "events_waits_summary_global_by_event_name":
 			e.resetPerformanceSchemaWaitSummaries()
+			ctx.Results <- &Result{
+				ResultType: common.RESULT_TYPE_DDL,
+				Message:    fmt.Sprintf("Table '%s' truncated successfully", tableName),
+			}
+			return
+		case "events_waits_summary_by_instance":
+			e.resetPerformanceSchemaWaitSummaryByInstance()
 			ctx.Results <- &Result{
 				ResultType: common.RESULT_TYPE_DDL,
 				Message:    fmt.Sprintf("Table '%s' truncated successfully", tableName),
@@ -5876,6 +6715,7 @@ func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sql
 	selectContext = context.WithValue(selectContext, storageTransactionDataDirContextKey, e.getDataDir())
 	result, err := selectExecutor.ExecuteSelect(selectContext, stmt, databaseName)
 	if ctx != nil {
+		ctx.recordIndexAccessPath(selectExecutor.lastAccessPath)
 		ctx.recordRowsExamined(selectExecutor.rowsExamined)
 		selectScan := selectExecutor.selectScan
 		if selectScan == 0 && selectExecutor.lastAccessPath == "table_scan" {
@@ -6065,7 +6905,7 @@ func executeConstantSelectStatement(stmt *sqlparser.Select, sessionValues ...map
 }
 
 var directSystemVariableSelectPattern = regexp.MustCompile(`(?is)^\s*select\s+(.+?)\s*;?\s*$`)
-var directSystemVariableTokenPattern = regexp.MustCompile(`(?is)^@@(?:global|session|local)?\s*\.??\s*` + "`?([a-zA-Z0-9_]+)`?" + `\s*$`)
+var directSystemVariableTokenPattern = regexp.MustCompile(`(?is)^@@(?:(global|session|local)\s*\.\s*)?` + "`?([a-zA-Z0-9_]+)`?" + `\s*$`)
 
 // executeDirectSystemVariableSelect handles the no-FROM form used by native
 // replication clients (for example SELECT @@GLOBAL.SERVER_ID). The general
@@ -6083,6 +6923,13 @@ func (e *XMySQLExecutor) executeDirectSystemVariableSelect(query string, session
 		return nil, false, nil
 	}
 	values := newSessionExpressionValues(session)
+	if e != nil && e.replicationStatus != nil {
+		// @@GLOBAL.gtid_executed is a runtime-owned value, not a static
+		// session variable. Expose the same durable GTID set used by SHOW
+		// REPLICA STATUS and Performance Schema so native clients can verify
+		// crash/reconnect progress.
+		values["gtid_executed"] = e.replicationStatus().ExecutedGTIDs
+	}
 	recordValues := make([]basic.Value, 0, len(parts))
 	columns := make([]string, 0, len(parts))
 	columnTypes := make([]string, 0, len(parts))
@@ -6090,11 +6937,17 @@ func (e *XMySQLExecutor) executeDirectSystemVariableSelect(query string, session
 	for _, raw := range parts {
 		token := strings.TrimSpace(raw)
 		tokenMatch := directSystemVariableTokenPattern.FindStringSubmatch(token)
-		if len(tokenMatch) != 2 {
+		if len(tokenMatch) != 3 {
 			return nil, false, nil
 		}
-		name := strings.ToLower(tokenMatch[1])
+		scope := strings.ToLower(tokenMatch[1])
+		name := strings.ToLower(tokenMatch[2])
 		value, exists := values[name]
+		if scope == "global" && !exists && e != nil && e.storageManager != nil && e.storageManager.GetSystemVariablesManager() != nil {
+			if globalValue, err := e.storageManager.GetSystemVariablesManager().GetVariable("", name, manager.GlobalScope); err == nil {
+				value, exists = globalValue, true
+			}
+		}
 		if !exists {
 			return nil, false, nil
 		}
@@ -7069,6 +7922,11 @@ func (e *XMySQLExecutor) rewriteSessionUserVariables(query string, session serve
 		if value == nil {
 			value = session.GetParamByName(name[1:])
 		}
+		if value == nil {
+			if variables, ok := session.GetParamByName("user_variables").(map[string]interface{}); ok {
+				value = variables[strings.ToLower(name[1:])]
+			}
+		}
 		builder.WriteString(sessionUserVariableSQLLiteral(value))
 		index = end
 	}
@@ -7118,8 +7976,31 @@ func (e *XMySQLExecutor) executeUserVariableAssignment(ctx *ExecutionContext, qu
 			ctx.Results <- &Result{Err: err, ResultType: innodbcommon.RESULT_TYPE_ERROR}
 			return true
 		}
-		session.SetParamByName(match[1], value)
-		session.SetParamByName(strings.TrimPrefix(match[1], "@"), value)
+		variableName := strings.ToLower(strings.TrimPrefix(match[1], "@"))
+		variables, _ := session.GetParamByName("user_variables").(map[string]interface{})
+		if variables == nil {
+			variables = make(map[string]interface{})
+		}
+		variables[variableName] = value
+		session.SetParamByName("user_variables", variables)
+		// Keep the legacy direct parameter aliases used by replication handshake
+		// probes and EXECUTE ... USING, while tracking them so COM_RESET_CONNECTION
+		// can remove the dynamic keys without enumerating the session map.
+		directName := "@" + variableName
+		session.SetParamByName(directName, value)
+		session.SetParamByName(variableName, value)
+		names, _ := session.GetParamByName("user_variable_parameter_names").([]string)
+		seen := false
+		for _, name := range names {
+			if name == directName || name == variableName {
+				seen = true
+				break
+			}
+		}
+		if !seen {
+			names = append(names, directName, variableName)
+			session.SetParamByName("user_variable_parameter_names", names)
+		}
 	}
 	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_SET, Message: "user variable set"}
 	return true
@@ -7627,7 +8508,7 @@ func (e *XMySQLExecutor) executeInformationSchemaMetadataSelect(query string, se
 	case strings.Contains(lower, "performance_schema.metadata_locks"):
 		return e.executePerformanceSchemaMetadataLocksSelect(query), true, nil
 	case strings.Contains(lower, "performance_schema.events_waits_summary_by_thread_by_event_name"):
-		return e.executePerformanceSchemaWaitSummarySelect(query, true), true, nil
+		return e.executePerformanceSchemaWaitSummarySelectWithDimension(query, true, "thread"), true, nil
 	case strings.Contains(lower, "performance_schema.events_waits_summary_by_instance"):
 		return e.executePerformanceSchemaWaitSummaryByInstanceSelect(query), true, nil
 	case strings.Contains(lower, "performance_schema.events_waits_summary_by_account_by_event_name"):
@@ -7666,6 +8547,8 @@ func (e *XMySQLExecutor) executeInformationSchemaMetadataSelect(query string, se
 		return e.executePerformanceSchemaHostCacheSelect(query, session), true, nil
 	case strings.Contains(lower, "performance_schema.mutex_instances"):
 		return e.executePerformanceSchemaSyncInstancesSelect(query, "performance_schema.mutex_instances"), true, nil
+	case strings.Contains(lower, "performance_schema.cond_instances"):
+		return e.executePerformanceSchemaSyncInstancesSelect(query, "performance_schema.cond_instances"), true, nil
 	case strings.Contains(lower, "performance_schema.rwlock_instances"):
 		return e.executePerformanceSchemaSyncInstancesSelect(query, "performance_schema.rwlock_instances"), true, nil
 	case strings.Contains(lower, "performance_schema.objects_summary_global_by_type"):
@@ -7772,11 +8655,14 @@ func (e *XMySQLExecutor) executeInformationSchemaMetadataSelect(query string, se
 	case strings.Contains(lower, "information_schema.column_privileges") &&
 		strings.Contains(lower, "information_schema.table_privileges") &&
 		strings.Contains(lower, " union all "):
-		return newInformationSchemaSelectResult(
-			"information_schema_privileges_union",
-			[]string{"GRANTEE", "TABLE_NAME", "COLUMN_NAME", "PRIVILEGE_TYPE", "IS_GRANTABLE"},
-			nil,
-		), true, nil
+		return e.executeInformationSchemaPrivilegesUnionAll(query, session), true, nil
+	case strings.Contains(lower, "information_schema.column_privileges") &&
+		strings.Contains(lower, "information_schema.table_privileges") &&
+		(strings.Contains(lower, " union distinct ") || strings.Contains(lower, " union ")):
+		return e.executeInformationSchemaPrivilegesUnionDistinct(query, session), true, nil
+	case (strings.Contains(lower, "information_schema.column_privileges") || strings.Contains(lower, "information_schema.table_privileges")) &&
+		(strings.Contains(lower, " intersect ") || strings.Contains(lower, " except ")):
+		return e.executeInformationSchemaPrivilegesIntersectExcept(query, session), true, nil
 	case strings.Contains(lower, "information_schema.tablespaces"):
 		return e.executeInformationSchemaTablespacesSelect(query), true, nil
 	case strings.Contains(lower, "information_schema.tables"):
@@ -7856,6 +8742,26 @@ func (e *XMySQLExecutor) executeInformationSchemaMetadataSelect(query string, se
 			return nil, true, err
 		}
 		return e.executeMySQLDefaultRolesSelect(query), true, nil
+	case strings.Contains(lower, "mysql.component"):
+		if err := e.checkMySQLMetadataTableSelectPrivilege(session, "component"); err != nil {
+			return nil, true, err
+		}
+		return e.executeMySQLSystemTableSelect(query, session, "component"), true, nil
+	case strings.Contains(lower, "mysql.password_history"):
+		if err := e.checkMySQLMetadataTableSelectPrivilege(session, "password_history"); err != nil {
+			return nil, true, err
+		}
+		return e.executeMySQLSystemTableSelect(query, session, "password_history"), true, nil
+	case strings.Contains(lower, "mysql.server_cost"):
+		if err := e.checkMySQLMetadataTableSelectPrivilege(session, "server_cost"); err != nil {
+			return nil, true, err
+		}
+		return e.executeMySQLSystemTableSelect(query, session, "server_cost"), true, nil
+	case strings.Contains(lower, "mysql.engine_cost"):
+		if err := e.checkMySQLMetadataTableSelectPrivilege(session, "engine_cost"); err != nil {
+			return nil, true, err
+		}
+		return e.executeMySQLSystemTableSelect(query, session, "engine_cost"), true, nil
 	case strings.Contains(lower, "mysql.user"):
 		if err := e.checkMySQLMetadataTableSelectPrivilege(session, "user"); err != nil {
 			return nil, true, err
@@ -7998,7 +8904,7 @@ func informationSchemaInnoDBProcessTableNames() []string {
 }
 
 func mysqlMetadataTableNames() []string {
-	return []string{"user", "procs_priv", "proxies_priv", "db", "tables_priv", "columns_priv", "global_grants", "role_edges", "default_roles"}
+	return []string{"user", "procs_priv", "proxies_priv", "db", "tables_priv", "columns_priv", "global_grants", "role_edges", "default_roles", "component", "password_history", "server_cost", "engine_cost"}
 }
 
 // checkInformationSchemaProcessPrivileges applies the PROCESS boundary to
@@ -8026,16 +8932,16 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatementsSelect(query string) 
 		return newInformationSchemaSelectResult("performance_schema."+table, columns, nil)
 	}
 	type digestAggregate struct {
-		schema, digest, digestText, sample                                                                                                                                                                                               string
-		count, sum, min, max, errors                                                                                                                                                                                                     int64
-		warnings, rowsAffected, rowsSent, rowsExamined, selectScan, selectRange, selectFullJoin, selectFullRangeJoin, selectRangeCheck, sortRows, sortScan, sortRange, noIndexUsed, noGoodIndexUsed, maxControlledMemory, maxTotalMemory int64
-		firstSeen, lastSeen, sampleSeen                                                                                                                                                                                                  time.Time
-		sampleTimer                                                                                                                                                                                                                      int64
-		latencies                                                                                                                                                                                                                        []int64
+		schema, digest, digestText, sample                                                                                                                                                                                                           string
+		count, sum, min, max, errors                                                                                                                                                                                                                 int64
+		warnings, rowsAffected, rowsSent, rowsExamined, selectScan, selectRange, selectFullJoin, selectFullRangeJoin, selectRangeCheck, sortRows, sortScan, sortRange, noIndexUsed, noGoodIndexUsed, sumCPUTime, maxControlledMemory, maxTotalMemory int64
+		firstSeen, lastSeen, sampleSeen                                                                                                                                                                                                              time.Time
+		sampleTimer                                                                                                                                                                                                                                  int64
+		latencies                                                                                                                                                                                                                                    []int64
 	}
 	aggregates := make(map[string]*digestAggregate)
 	for _, event := range e.metricsRecorder.StatementDigestSummary() {
-		digestText := performanceSchemaDigestText(event.SQL)
+		digestText := e.performanceSchemaDigestText(event.SQL)
 		key := event.Schema + "\x00" + digestText
 		aggregate := aggregates[key]
 		if aggregate == nil {
@@ -8081,6 +8987,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatementsSelect(query string) 
 		aggregate.sortRange += event.SortRange
 		aggregate.noIndexUsed += event.NoIndexUsed
 		aggregate.noGoodIndexUsed += event.NoGoodIndexUsed
+		aggregate.sumCPUTime += event.SumCPUTime
 		if event.MaxControlledMemory > aggregate.maxControlledMemory {
 			aggregate.maxControlledMemory = event.MaxControlledMemory
 		}
@@ -8093,6 +9000,11 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatementsSelect(query string) 
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
+	digestCapacity := e.performanceSchemaCapacity("performance_schema_digests_size")
+	if digestCapacity >= 0 && len(keys) > digestCapacity {
+		e.recordPerformanceSchemaDigestLoss(keys[digestCapacity:])
+		keys = keys[:digestCapacity]
+	}
 	rows := make([][]interface{}, 0, len(keys))
 	for _, key := range keys {
 		aggregate := aggregates[key]
@@ -8115,12 +9027,12 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatementsSelect(query string) 
 			"SUM_SELECT_RANGE": aggregate.selectRange, "SUM_SELECT_RANGE_CHECK": aggregate.selectRangeCheck, "SUM_SELECT_SCAN": aggregate.selectScan,
 			"SUM_SORT_MERGE_PASSES": int64(0), "SUM_SORT_RANGE": aggregate.sortRange, "SUM_SORT_ROWS": aggregate.sortRows,
 			"SUM_SORT_SCAN": aggregate.sortScan, "SUM_NO_INDEX_USED": aggregate.noIndexUsed, "SUM_NO_GOOD_INDEX_USED": aggregate.noGoodIndexUsed,
-			"SUM_CPU_TIME": int64(0), "MAX_CONTROLLED_MEMORY": aggregate.maxControlledMemory, "MAX_TOTAL_MEMORY": aggregate.maxTotalMemory,
+			"SUM_CPU_TIME": aggregate.sumCPUTime, "MAX_CONTROLLED_MEMORY": aggregate.maxControlledMemory, "MAX_TOTAL_MEMORY": aggregate.maxTotalMemory,
 			"COUNT_SECONDARY": int64(0), "FIRST_SEEN": aggregate.firstSeen, "LAST_SEEN": aggregate.lastSeen,
 			"QUANTILE_95":       performanceSchemaObservedQuantile(aggregate.latencies, 95, 100),
 			"QUANTILE_99":       performanceSchemaObservedQuantile(aggregate.latencies, 99, 100),
 			"QUANTILE_999":      performanceSchemaObservedQuantile(aggregate.latencies, 999, 1000),
-			"QUERY_SAMPLE_TEXT": aggregate.sample, "QUERY_SAMPLE_SEEN": aggregate.sampleSeen,
+			"QUERY_SAMPLE_TEXT": e.performanceSchemaSQLText(aggregate.sample), "QUERY_SAMPLE_SEEN": aggregate.sampleSeen,
 			"QUERY_SAMPLE_TIMER_WAIT": aggregate.sampleTimer,
 		}
 		if performanceSchemaLockValuesMatch(query, values) {
@@ -8128,6 +9040,24 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatementsSelect(query string) 
 		}
 	}
 	return newInformationSchemaSelectResult("performance_schema."+table, columns, rows)
+}
+
+func (e *XMySQLExecutor) recordPerformanceSchemaDigestLoss(keys []string) {
+	if e == nil || len(keys) == 0 {
+		return
+	}
+	e.performanceSchemaMu.Lock()
+	defer e.performanceSchemaMu.Unlock()
+	if e.performanceSchemaDigestLostKeys == nil {
+		e.performanceSchemaDigestLostKeys = make(map[string]struct{})
+	}
+	for _, key := range keys {
+		if _, exists := e.performanceSchemaDigestLostKeys[key]; exists {
+			continue
+		}
+		e.performanceSchemaDigestLostKeys[key] = struct{}{}
+		e.performanceSchemaDigestLost.Add(1)
+	}
 }
 
 // performanceSchemaObservedQuantile returns a nearest-rank quantile from the
@@ -8274,9 +9204,10 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatementHistorySelectWithSessi
 	}
 	events := e.metricsRecorder.StatementHistory()
 	if !currentOnly {
-		if strings.HasSuffix(name, "events_statements_history") && session != nil {
-			events = e.metricsRecorder.StatementHistoryForThread(int64(sessionConnectionID(session)))
-		}
+		// MySQL's per-thread history table contains the recent history for
+		// every instrumented thread. The per-thread boundary is the retention
+		// unit, not the identity of the session issuing SELECT; callers can use
+		// THREAD_ID in WHERE to narrow the result.
 		events = performanceSchemaHistoricalStatementEvents(events)
 	}
 	if currentOnly {
@@ -8304,8 +9235,9 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatementHistorySelectWithSessi
 		// setup_instruments value here would retroactively rewrite history when
 		// an instrument is disabled or re-enabled after the statement ran.
 		instrumentTimed := event.Timed
+		sqlText := e.performanceSchemaSQLText(event.SQL)
 		eventID := startID + int64(index)
-		eventName := "statement/sql/" + strings.ToLower(event.StatementType)
+		eventName := performanceSchemaStatementEventName(event.StatementType)
 		errno := int64(0)
 		var state interface{}
 		if event.Status == "error" {
@@ -8315,7 +9247,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatementHistorySelectWithSessi
 		if !performanceSchemaSummaryFilterMatches(query, "event_id", fmt.Sprint(eventID)) ||
 			!performanceSchemaSummaryFilterMatches(query, "thread_id", fmt.Sprint(event.ThreadID)) ||
 			!performanceSchemaSummaryFilterMatches(query, "event_name", eventName) ||
-			!performanceSchemaSummaryFilterMatches(query, "sql_text", event.SQL) ||
+			!performanceSchemaSummaryFilterMatches(query, "sql_text", sqlText) ||
 			!performanceSchemaSummaryFilterMatches(query, "current_schema", event.Schema) ||
 			!performanceSchemaSummaryFilterMatches(query, "sql_command", strings.ToUpper(event.StatementType)) ||
 			!performanceSchemaSummaryFilterMatches(query, "mysql_errno", fmt.Sprint(errno)) ||
@@ -8356,7 +9288,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatementHistorySelectWithSessi
 		if isCurrentEvent {
 			endEventID = nil
 		}
-		digestText := performanceSchemaDigestText(event.SQL)
+		digestText := e.performanceSchemaDigestText(event.SQL)
 		digest := sha256.Sum256([]byte(digestText))
 		errors := int64(0)
 		if event.Status == "error" {
@@ -8365,7 +9297,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatementHistorySelectWithSessi
 		rows = append(rows, projectInformationSchemaRow(columns, map[string]interface{}{
 			"THREAD_ID": event.ThreadID, "EVENT_ID": eventID, "END_EVENT_ID": endEventID,
 			"EVENT_NAME": eventName, "SOURCE": nil, "TIMER_START": timerStart, "TIMER_END": timerEnd,
-			"TIMER_WAIT": timerWaitValue, "LOCK_TIME": nil, "SQL_TEXT": event.SQL,
+			"TIMER_WAIT": timerWaitValue, "LOCK_TIME": nil, "SQL_TEXT": sqlText,
 			"DIGEST": fmt.Sprintf("%x", digest[:]), "DIGEST_TEXT": digestText,
 			"CURRENT_SCHEMA": event.Schema, "OBJECT_TYPE": nil, "OBJECT_SCHEMA": nil, "OBJECT_NAME": nil,
 			"OBJECT_INSTANCE_BEGIN": nil, "MYSQL_ERRNO": errno, "RETURNED_SQLSTATE": state,
@@ -8375,7 +9307,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatementHistorySelectWithSessi
 			"SELECT_RANGE": event.SelectRange, "SELECT_RANGE_CHECK": event.SelectRangeCheck, "SELECT_SCAN": event.SelectScan, "SORT_MERGE_PASSES": nil,
 			"SORT_RANGE": event.SortRange, "SORT_ROWS": event.SortRows, "SORT_SCAN": event.SortScan, "NO_INDEX_USED": event.NoIndexUsed,
 			"NO_GOOD_INDEX_USED": event.NoGoodIndexUsed, "NESTING_EVENT_ID": nil, "NESTING_EVENT_TYPE": nil,
-			"NESTING_EVENT_LEVEL": int64(0), "STATEMENT_ID": eventID, "CPU_TIME": nil,
+			"NESTING_EVENT_LEVEL": int64(0), "STATEMENT_ID": eventID, "CPU_TIME": performanceSchemaCPUTimeValue(event),
 			"MAX_CONTROLLED_MEMORY": event.MaxControlledMemory, "MAX_TOTAL_MEMORY": event.MaxTotalMemory, "EXECUTION_ENGINE": "PRIMARY",
 			// SQL_COMMAND is retained as a compatibility alias for existing xmysql
 			// clients even though it is not part of the upstream event-table shape.
@@ -8393,6 +9325,13 @@ func performanceSchemaHistoricalStatementEvents(events []observabilitymetrics.St
 		}
 	}
 	return filtered
+}
+
+func performanceSchemaCPUTimeValue(event observabilitymetrics.StatementEvent) interface{} {
+	if !event.CPUTimeCaptured {
+		return nil
+	}
+	return event.CPUTime
 }
 
 func (e *XMySQLExecutor) executePerformanceSchemaStageHistorySelect(name string, currentOnly bool, queries ...string) *SelectResult {
@@ -8424,9 +9363,9 @@ func (e *XMySQLExecutor) executePerformanceSchemaStageHistorySelectWithSession(n
 	}
 	events := e.metricsRecorder.StageHistory()
 	if !currentOnly {
-		if strings.HasSuffix(name, "events_stages_history") && session != nil {
-			events = e.metricsRecorder.StageHistoryForThread(int64(sessionConnectionID(session)))
-		}
+		// The per-thread stage history table contains the retained history for
+		// every instrumented thread. The querying session is not the retention
+		// scope; callers can filter by THREAD_ID.
 		events = performanceSchemaHistoricalStatementEvents(events)
 	}
 	if currentOnly {
@@ -8602,27 +9541,38 @@ func (e *XMySQLExecutor) executePerformanceSchemaTransactionsSelect(query string
 		return newInformationSchemaSelectResult(name, columns, nil)
 	}
 	if consumer != "events_transactions_current" {
-		var events []performanceSchemaTransactionEvent
+		var histories [][]performanceSchemaTransactionEvent
 		if consumer == "events_transactions_history_long" {
 			e.performanceSchemaMu.RLock()
-			events = append(events, e.performanceSchemaTransactionHistoryLong...)
+			histories = append(histories, append([]performanceSchemaTransactionEvent(nil), e.performanceSchemaTransactionHistoryLong...))
 			e.performanceSchemaMu.RUnlock()
 		} else {
-			events, _ = session.GetParamByName("performance_schema_transaction_history").([]performanceSchemaTransactionEvent)
-			e.performanceSchemaMu.RLock()
-			generation := e.performanceSchemaTransactionHistoryGeneration
-			e.performanceSchemaMu.RUnlock()
-			if uint64(int64Param(session.GetParamByName("performance_schema_transaction_history_generation"))) != generation {
-				events = nil
+			// The per-thread history table contains one retained history for
+			// every live thread. Gather each session's bounded history rather
+			// than using the session that issued SELECT as the scope.
+			for _, liveSession := range e.performanceSchemaLiveSessions(session) {
+				if liveSession == nil {
+					continue
+				}
+				events, _ := liveSession.GetParamByName("performance_schema_transaction_history").([]performanceSchemaTransactionEvent)
+				e.performanceSchemaMu.RLock()
+				generation := e.performanceSchemaTransactionHistoryGeneration
+				e.performanceSchemaMu.RUnlock()
+				if uint64(int64Param(liveSession.GetParamByName("performance_schema_transaction_history_generation"))) != generation {
+					continue
+				}
+				histories = append(histories, append([]performanceSchemaTransactionEvent(nil), events...))
 			}
 		}
-		rows := make([][]interface{}, 0, len(events))
-		for _, event := range events {
-			values := performanceSchemaTransactionRowValues(defaultColumns, event.Row)
-			if !performanceSchemaTransactionRowMatches(query, values) {
-				continue
+		rows := make([][]interface{}, 0)
+		for _, events := range histories {
+			for _, event := range events {
+				values := performanceSchemaTransactionRowValues(defaultColumns, event.Row)
+				if !performanceSchemaTransactionRowMatches(query, values) {
+					continue
+				}
+				rows = append(rows, projectInformationSchemaRow(columns, values))
 			}
-			rows = append(rows, projectInformationSchemaRow(columns, values))
 		}
 		return newInformationSchemaSelectResult(name, columns, rows)
 	}
@@ -8736,8 +9686,11 @@ func informationSchemaRowValues(columns []string, row []interface{}) map[string]
 	return values
 }
 
-const performanceSchemaTransactionHistoryLimit = 64
-const performanceSchemaTransactionHistoryLongLimit = 1024
+// MySQL's transaction history consumers use the same default retention
+// windows as the other Performance Schema event families: ten rows per
+// thread and ten thousand rows for the instance-wide history_long view.
+const performanceSchemaTransactionHistoryLimit = 10
+const performanceSchemaTransactionHistoryLongLimit = 10000
 
 type performanceSchemaTransactionEvent struct {
 	Row       []interface{}
@@ -8784,9 +9737,15 @@ type performanceSchemaProgramEvent struct {
 	RowsAffected      int64
 	RowsSent          int64
 	RowsExamined      int64
+	CPUTime           int64
+	CPUTimeCaptured   bool
 }
 
 func (e *XMySQLExecutor) recordPerformanceSchemaProgramExecution(objectType, schema, name string, timerWait, statementCount, statementsWaitSum, statementsWaitMin, statementsWaitMax, errors, warnings, rowsAffected, rowsSent, rowsExamined int64) {
+	e.recordPerformanceSchemaProgramExecutionWithCPU(objectType, schema, name, timerWait, statementCount, statementsWaitSum, statementsWaitMin, statementsWaitMax, errors, warnings, rowsAffected, rowsSent, rowsExamined, 0, false)
+}
+
+func (e *XMySQLExecutor) recordPerformanceSchemaProgramExecutionWithCPU(objectType, schema, name string, timerWait, statementCount, statementsWaitSum, statementsWaitMin, statementsWaitMax, errors, warnings, rowsAffected, rowsSent, rowsExamined, cpuTime int64, cpuTimeCaptured bool) {
 	if e == nil || strings.TrimSpace(name) == "" {
 		return
 	}
@@ -8825,6 +9784,13 @@ func (e *XMySQLExecutor) recordPerformanceSchemaProgramExecution(objectType, sch
 	if timerWait < 0 {
 		timerWait = 0
 	}
+	if cpuTime < 0 {
+		cpuTime = 0
+	}
+	if !cpuTimeCaptured || !e.performanceSchemaConsumerEnabled("events_statements_cpu") {
+		cpuTime = 0
+		cpuTimeCaptured = false
+	}
 	e.performanceSchemaMu.Lock()
 	defer e.performanceSchemaMu.Unlock()
 	if e.performanceSchemaProgramSummaries == nil {
@@ -8862,6 +9828,10 @@ func (e *XMySQLExecutor) recordPerformanceSchemaProgramExecution(objectType, sch
 	summary.RowsAffected += rowsAffected
 	summary.RowsSent += rowsSent
 	summary.RowsExamined += rowsExamined
+	if cpuTimeCaptured {
+		summary.CPUTime += cpuTime
+		summary.CPUTimeCaptured = true
+	}
 	e.performanceSchemaProgramSummaries[key] = summary
 	if len(e.performanceSchemaProgramHistoryLong) >= performanceSchemaProgramHistoryLongLimit {
 		e.performanceSchemaProgramHistoryLong = e.performanceSchemaProgramHistoryLong[1:]
@@ -8871,7 +9841,7 @@ func (e *XMySQLExecutor) recordPerformanceSchemaProgramExecution(objectType, sch
 		TimerWait: timerWait, StatementCount: statementCount, StatementsWaitSum: statementsWaitSum,
 		StatementsWaitMin: statementsWaitMin, StatementsWaitMax: statementsWaitMax, Errors: errors,
 		Warnings: warnings, RowsAffected: rowsAffected, RowsSent: rowsSent,
-		RowsExamined: rowsExamined,
+		RowsExamined: rowsExamined, CPUTime: cpuTime, CPUTimeCaptured: cpuTimeCaptured,
 	})
 }
 
@@ -8983,14 +9953,16 @@ func (e *XMySQLExecutor) recordPerformanceSchemaTransactionHistory(session serve
 	}, User: sessionStringParam(session, "user"), Host: sessionStringParam(session, "host"), TimerWait: timerWait}
 	session.SetParamByName("performance_schema_transaction_started_at", nil)
 	e.performanceSchemaMu.Lock()
+	transactionHistoryLimit := e.performanceSchemaTransactionHistoryLimit
+	transactionHistoryLongLimit := e.performanceSchemaTransactionHistoryLongLimit
 	// Summary consumers need instance-lifetime totals; only the dedicated
 	// history-long slice below is bounded to the Performance Schema history
 	// window.
 	e.performanceSchemaTransactionSummarySequence++
 	event.Sequence = e.performanceSchemaTransactionSummarySequence
 	e.performanceSchemaTransactionSummaries = append(e.performanceSchemaTransactionSummaries, event)
-	if keepLongHistory {
-		if len(e.performanceSchemaTransactionHistoryLong) >= performanceSchemaTransactionHistoryLongLimit {
+	if keepLongHistory && transactionHistoryLongLimit > 0 {
+		if len(e.performanceSchemaTransactionHistoryLong) >= transactionHistoryLongLimit {
 			e.performanceSchemaTransactionHistoryLong = e.performanceSchemaTransactionHistoryLong[1:]
 		}
 		e.performanceSchemaTransactionHistoryLong = append(e.performanceSchemaTransactionHistoryLong, event)
@@ -9005,7 +9977,9 @@ func (e *XMySQLExecutor) recordPerformanceSchemaTransactionHistory(session serve
 			events = nil
 			session.SetParamByName("performance_schema_transaction_history_generation", int64(generation))
 		}
-		if len(events) >= performanceSchemaTransactionHistoryLimit {
+		if transactionHistoryLimit <= 0 {
+			events = events[:0]
+		} else if len(events) >= transactionHistoryLimit {
 			events = events[1:]
 		}
 		events = append(events, event)
@@ -9070,6 +10044,14 @@ func (e *XMySQLExecutor) resetPerformanceSchemaWaitHistory(long bool) {
 	if e == nil {
 		return
 	}
+	e.performanceSchemaGlobalReadLockWaitMu.Lock()
+	if long {
+		e.performanceSchemaGlobalReadLockWaitHistory = nil
+	} else {
+		e.performanceSchemaGlobalReadLockWaitHistoryByThread = make(map[int64][]performanceSchemaGlobalReadLockWait)
+	}
+	e.performanceSchemaGlobalReadLockWaitMu.Unlock()
+	e.resetPerformanceSchemaMutexWaitHistory(long)
 	if e.lockManager != nil {
 		if long {
 			e.lockManager.ResetWaitHistoryLong()
@@ -9092,10 +10074,31 @@ func (e *XMySQLExecutor) resetPerformanceSchemaWaitSummaries() {
 	e.performanceSchemaMu.RLock()
 	resetEvents = append(resetEvents, e.performanceSchemaWaitSummaryReset...)
 	e.performanceSchemaMu.RUnlock()
+	e.performanceSchemaGlobalReadLockWaitMu.Lock()
+	e.performanceSchemaGlobalReadLockWaitSummaryResetSequence = e.performanceSchemaGlobalReadLockWaitSequence.Load()
+	for _, wait := range e.performanceSchemaGlobalReadLockWaitHistory {
+		resetEvents = append(resetEvents, performanceSchemaWaitSummaryResetEvent{
+			ThreadID: wait.threadID,
+			Event:    performanceSchemaGlobalReadLockConditionInstrument,
+			Instance: strconv.FormatInt(e.performanceSchemaGlobalReadLockConditionObjectInstanceBegin(), 10),
+		})
+	}
+	e.performanceSchemaGlobalReadLockWaitMu.Unlock()
+	e.performanceSchemaMutexWaitMu.Lock()
+	e.performanceSchemaMutexWaitSummaryResetSequence = e.performanceSchemaMutexWaitSequence.Load()
+	e.performanceSchemaMutexWaitMu.Unlock()
+	_, mutexHistory := e.performanceSchemaMutexWaitSnapshots(true, true)
+	for _, wait := range mutexHistory {
+		resetEvents = append(resetEvents, performanceSchemaWaitSummaryResetEvent{
+			ThreadID: wait.threadID,
+			Event:    wait.eventName,
+			Instance: strconv.FormatInt(wait.objectInstanceBegin, 10),
+		})
+	}
 	if e.lockManager != nil {
 		for _, edge := range e.lockManager.ResetWaitSummary() {
 			resetEvents = append(resetEvents, performanceSchemaWaitSummaryResetEvent{
-				ThreadID: int64(edge.WaitingTxID),
+				ThreadID: e.performanceSchemaTransactionThreadIDOrFallback(edge.WaitingTxID),
 				Event:    "wait/lock/table/sql/handler",
 				Instance: edge.ResourceID,
 			})
@@ -9125,8 +10128,74 @@ func (e *XMySQLExecutor) resetPerformanceSchemaWaitSummaries() {
 	e.performanceSchemaMu.Unlock()
 }
 
+func (e *XMySQLExecutor) resetPerformanceSchemaWaitSummaryByInstance() {
+	if e == nil {
+		return
+	}
+	resetEvents := make([]performanceSchemaWaitSummaryResetEvent, 0)
+	resetKeys := make(map[string]struct{})
+	if e.lockManager != nil {
+		for _, edge := range e.lockManager.WaitSummarySnapshot() {
+			threadID := e.performanceSchemaTransactionThreadIDOrFallback(edge.WaitingTxID)
+			resetKeys[performanceSchemaWaitSummaryRawKey(threadID, "wait/lock/table/sql/handler", edge.ResourceID, edge.Since, edge.WaitDuration)] = struct{}{}
+			resetEvents = append(resetEvents, performanceSchemaWaitSummaryResetEvent{ThreadID: threadID, Event: "wait/lock/table/sql/handler", Instance: edge.ResourceID})
+		}
+	}
+	for _, edge := range e.getDDLCoordinator().MetadataLockWaitSummary() {
+		threadID := int64(0)
+		if id, ok := metadataLockThreadID(edge.WaitingOwner).(int64); ok {
+			threadID = id
+		}
+		resetKeys[performanceSchemaWaitSummaryRawKey(threadID, "wait/lock/metadata/sql/mdl", edge.Table, edge.WaitStarted, edge.WaitDuration)] = struct{}{}
+		resetEvents = append(resetEvents, performanceSchemaWaitSummaryResetEvent{ThreadID: threadID, Event: "wait/lock/metadata/sql/mdl", Instance: edge.Table})
+	}
+	e.performanceSchemaGlobalReadLockWaitMu.Lock()
+	e.performanceSchemaGlobalReadLockWaitSummaryByInstanceResetSequence = e.performanceSchemaGlobalReadLockWaitSequence.Load()
+	for _, wait := range e.performanceSchemaGlobalReadLockWaitHistory {
+		resetEvents = append(resetEvents, performanceSchemaWaitSummaryResetEvent{
+			ThreadID: wait.threadID,
+			Event:    performanceSchemaGlobalReadLockConditionInstrument,
+			Instance: strconv.FormatInt(e.performanceSchemaGlobalReadLockConditionObjectInstanceBegin(), 10),
+		})
+	}
+	e.performanceSchemaGlobalReadLockWaitMu.Unlock()
+	_, mutexHistory := e.performanceSchemaMutexWaitSnapshots(true, true)
+	for _, wait := range mutexHistory {
+		instance := strconv.FormatInt(wait.objectInstanceBegin, 10)
+		resetKeys[performanceSchemaWaitSummaryRawKey(wait.threadID, wait.eventName, instance, wait.started, wait.waitDuration)] = struct{}{}
+		resetEvents = append(resetEvents, performanceSchemaWaitSummaryResetEvent{
+			ThreadID: wait.threadID,
+			Event:    wait.eventName,
+			Instance: instance,
+		})
+	}
+
+	unique := make(map[string]performanceSchemaWaitSummaryResetEvent, len(resetEvents))
+	for _, event := range resetEvents {
+		key := fmt.Sprintf("%d\x00%s\x00%s", event.ThreadID, event.Event, event.Instance)
+		unique[key] = event
+	}
+	e.performanceSchemaMu.Lock()
+	e.performanceSchemaWaitSummaryByInstanceReset = e.performanceSchemaWaitSummaryByInstanceReset[:0]
+	e.performanceSchemaWaitSummaryByInstanceResetKeys = resetKeys
+	for _, event := range unique {
+		e.performanceSchemaWaitSummaryByInstanceReset = append(e.performanceSchemaWaitSummaryByInstanceReset, event)
+	}
+	e.performanceSchemaMu.Unlock()
+}
+
 func performanceSchemaWaitSummaryRawKey(threadID int64, event, instance string, started time.Time, wait time.Duration) string {
 	return fmt.Sprintf("%d\x00%s\x00%s\x00%d\x00%d", threadID, event, instance, started.UnixNano(), wait.Nanoseconds())
+}
+
+func (e *XMySQLExecutor) performanceSchemaWaitSummaryByInstanceWasReset(threadID int64, event, instance string, started time.Time, wait time.Duration) bool {
+	if e == nil {
+		return false
+	}
+	e.performanceSchemaMu.RLock()
+	_, reset := e.performanceSchemaWaitSummaryByInstanceResetKeys[performanceSchemaWaitSummaryRawKey(threadID, event, instance, started, wait)]
+	e.performanceSchemaMu.RUnlock()
+	return reset
 }
 
 func (e *XMySQLExecutor) resetPerformanceSchemaWaitSummaryDimension(dimension string) {
@@ -9159,13 +10228,17 @@ func (e *XMySQLExecutor) resetPerformanceSchemaWaitSummaryDimension(dimension st
 	}
 	if e.lockManager != nil {
 		for _, edge := range e.lockManager.WaitSummarySnapshot() {
-			add(int64(edge.WaitingTxID), "wait/lock/table/sql/handler", edge.ResourceID, edge.Since, edge.WaitDuration)
+			add(e.performanceSchemaTransactionThreadIDOrFallback(edge.WaitingTxID), "wait/lock/table/sql/handler", edge.ResourceID, edge.Since, edge.WaitDuration)
 		}
 	}
 	for _, edge := range e.getDDLCoordinator().MetadataLockWaitSummary() {
 		if threadID, ok := metadataLockThreadID(edge.WaitingOwner).(int64); ok {
 			add(threadID, "wait/lock/metadata/sql/mdl", edge.Table, edge.WaitStarted, edge.WaitDuration)
 		}
+	}
+	_, mutexHistory := e.performanceSchemaMutexWaitSnapshots(true, true)
+	for _, wait := range mutexHistory {
+		add(wait.threadID, wait.eventName, strconv.FormatInt(wait.objectInstanceBegin, 10), wait.started, wait.waitDuration)
 	}
 	e.performanceSchemaMu.Lock()
 	if e.performanceSchemaWaitSummaryDimensionReset == nil {
@@ -9516,6 +10589,7 @@ func defaultPerformanceSchemaConsumers() map[string]performanceSchemaSetupSettin
 	return map[string]performanceSchemaSetupSetting{
 		"global_instrumentation":           {Enabled: true, Timed: true},
 		"thread_instrumentation":           {Enabled: true, Timed: true},
+		"events_statements_cpu":            {Enabled: false, Timed: true},
 		"events_statements_current":        {Enabled: true, Timed: true},
 		"events_statements_history":        {Enabled: true, Timed: true},
 		"events_statements_history_long":   {Enabled: false, Timed: true},
@@ -9532,25 +10606,238 @@ func defaultPerformanceSchemaConsumers() map[string]performanceSchemaSetupSettin
 	}
 }
 
-func defaultPerformanceSchemaInstruments() map[string]performanceSchemaSetupSetting {
-	return map[string]performanceSchemaSetupSetting{
-		"statement/sql/select":                 {Enabled: true, Timed: true},
-		"statement/sql/insert":                 {Enabled: true, Timed: true},
-		"statement/sql/replace":                {Enabled: true, Timed: true},
-		"statement/sql/update":                 {Enabled: true, Timed: true},
-		"statement/sql/delete":                 {Enabled: true, Timed: true},
-		"transaction":                          {Enabled: true, Timed: true},
-		"stage/sql/execute":                    {Enabled: true, Timed: true},
-		"wait/lock/table/sql/handler":          {Enabled: true, Timed: true},
-		"wait/lock/metadata/sql/mdl":           {Enabled: true, Timed: true},
-		"wait/io/file/innodb/innodb_data_file": {Enabled: true, Timed: true},
-		"wait/io/file/innodb/innodb_log_file":  {Enabled: true, Timed: true},
-		"wait/io/file/sql/FRM":                 {Enabled: true, Timed: true},
-		"wait/io/file/sql/file":                {Enabled: true, Timed: true},
-		"wait/io/socket/sql/client_connection": {Enabled: true, Timed: true},
-		"error":                                {Enabled: true, Timed: false},
-		"memory/sql/THD::main_mem_root":        {Enabled: true, TimedNullable: true},
+var performanceSchemaStatementInstrumentNames = []string{
+	"statement/sql/select", "statement/sql/error", "statement/sql/insert", "statement/sql/insert_select",
+	"statement/sql/replace", "statement/sql/replace_select", "statement/sql/update", "statement/sql/delete",
+	"statement/sql/create_db", "statement/sql/create_table", "statement/sql/create_index", "statement/sql/create_user",
+	"statement/sql/create_view", "statement/sql/create_procedure", "statement/sql/create_function",
+	"statement/sql/create_trigger", "statement/sql/create_event", "statement/sql/create_role",
+	"statement/sql/alter_db", "statement/sql/alter_table", "statement/sql/alter_user",
+	"statement/sql/alter_view", "statement/sql/alter_procedure", "statement/sql/alter_function",
+	"statement/sql/alter_event", "statement/sql/alter_tablespace",
+	"statement/sql/drop_db", "statement/sql/drop_table", "statement/sql/drop_index", "statement/sql/drop_user",
+	"statement/sql/drop_view", "statement/sql/drop_procedure", "statement/sql/drop_function",
+	"statement/sql/drop_trigger", "statement/sql/drop_event", "statement/sql/drop_role",
+	"statement/sql/rename_table", "statement/sql/rename_user", "statement/sql/truncate",
+	"statement/sql/prepare_sql", "statement/sql/execute_sql", "statement/sql/dealloc_sql", "statement/sql/call_procedure",
+	"statement/sql/show_databases", "statement/sql/show_tables", "statement/sql/show_fields",
+	"statement/sql/show_keys", "statement/sql/show_variables", "statement/sql/show_status", "statement/sql/show_processlist",
+	"statement/sql/show_grants", "statement/sql/show_create_table", "statement/sql/show_create_db", "statement/sql/show_create_proc",
+	"statement/sql/show_create_func", "statement/sql/show_create_trigger", "statement/sql/show_create_event", "statement/sql/show_create_user",
+	"statement/sql/show_table_status", "statement/sql/show_triggers", "statement/sql/show_events",
+	"statement/sql/show_procedure_status", "statement/sql/show_function_status", "statement/sql/show_charsets",
+	"statement/sql/show_collations", "statement/sql/show_plugins", "statement/sql/show_privileges",
+	"statement/sql/show_storage_engines", "statement/sql/show_open_tables", "statement/sql/show_binlogs",
+	"statement/sql/show_binlog_events", "statement/sql/show_relaylog_events", "statement/sql/show_master_status",
+	"statement/sql/show_slave_status", "statement/sql/show_slave_hosts", "statement/sql/show_engine_logs",
+	"statement/sql/show_engine_status", "statement/sql/show_engine_mutex", "statement/sql/show_profiles", "statement/sql/show_profile",
+	"statement/sql/show_warnings", "statement/sql/show_errors", "statement/sql/set_option", "statement/sql/begin", "statement/sql/commit",
+	"statement/sql/rollback", "statement/sql/rollback_to_savepoint", "statement/sql/savepoint", "statement/sql/release_savepoint",
+	"statement/sql/grant", "statement/sql/grant_role", "statement/sql/revoke", "statement/sql/revoke_role", "statement/sql/revoke_all",
+	"statement/sql/load", "statement/sql/lock_tables", "statement/sql/unlock_tables", "statement/sql/flush", "statement/sql/kill",
+	"statement/sql/analyze", "statement/sql/optimize", "statement/sql/check", "statement/sql/checksum", "statement/sql/reset",
+	"statement/sql/purge", "statement/sql/change_master", "statement/sql/change_repl_filter", "statement/sql/slave_start", "statement/sql/slave_stop",
+	"statement/sql/change_db", "statement/sql/do", "statement/sql/empty_query",
+	"statement/sql/xa_start", "statement/sql/xa_end",
+	"statement/sql/xa_prepare", "statement/sql/xa_commit", "statement/sql/xa_rollback", "statement/sql/xa_recover",
+}
+
+var performanceSchemaCommandInstrumentNames = []string{
+	"statement/com/Binlog Dump", "statement/com/Change user", "statement/com/Close stmt",
+	"statement/com/Connect", "statement/com/Connect Out", "statement/com/Create DB",
+	"statement/com/Daemon", "statement/com/Debug", "statement/com/Delayed insert",
+	"statement/com/Drop DB", "statement/com/Execute", "statement/com/Fetch",
+	"statement/com/Field List", "statement/com/Init DB", "statement/com/Kill",
+	"statement/com/Long Data", "statement/com/Ping", "statement/com/Prepare",
+	"statement/com/Processlist", "statement/com/Query", "statement/com/Quit",
+	"statement/com/Refresh", "statement/com/Register Slave", "statement/com/Reset connection", "statement/com/Reset stmt",
+	"statement/com/Set option", "statement/com/Shutdown", "statement/com/Sleep",
+	"statement/com/Statistics", "statement/com/Table Dump", "statement/com/Time",
+	"statement/com/Error",
+}
+
+var performanceSchemaStageInstrumentNames = []string{
+	"stage/sql/execute",
+}
+
+var performanceSchemaFileInstrumentNames = []string{
+	"wait/io/file/innodb/innodb_data_file",
+	"wait/io/file/innodb/innodb_log_file",
+	"wait/io/file/innodb/innodb_tablespace_open_file",
+	"wait/io/file/innodb/innodb_temp_file",
+	"wait/io/file/innodb/innodb_arch_file",
+	"wait/io/file/innodb/innodb_clone_file",
+	"wait/io/file/sql/FRM",
+	"wait/io/file/sql/file",
+}
+
+var performanceSchemaSocketInstrumentNames = []string{
+	"wait/io/socket/sql/client_connection",
+}
+
+var performanceSchemaMemoryInstrumentNames = []string{
+	"memory/sql/THD::main_mem_root",
+}
+
+var performanceSchemaConditionInstrumentNames = []string{
+	performanceSchemaGlobalReadLockConditionInstrument,
+}
+
+// These are the executor-owned sync.Mutex instances for which xmysql-server
+// has a stable runtime object. They are deliberately a small, explicit set;
+// generic Go locks elsewhere in the server are not exposed as MySQL
+// instrumentation without an authoritative lifecycle and identity source.
+var performanceSchemaMutexInstrumentNames = []string{
+	"wait/synch/mutex/sql/xmysql/account",
+	"wait/synch/mutex/sql/xmysql/ddl_coordinator",
+	"wait/synch/mutex/sql/xmysql/global_read_lock_state",
+	"wait/synch/mutex/sql/xmysql/active_query",
+	"wait/synch/mutex/sql/xmysql/xa",
+}
+
+var performanceSchemaRWLockInstrumentNames = []string{
+	performanceSchemaDDLCoordinatorRWLockInstrument,
+}
+
+// performanceSchemaStatementClassNames is the stable registration order for
+// statement classes. max_statement_classes limits the number of these classes
+// that can be registered; keeping the order stable also makes the lost count
+// deterministic when a deliberately small capacity is configured.
+var performanceSchemaStatementClassNames = func() []string {
+	names := make([]string, 0, len(performanceSchemaStatementInstrumentNames)+len(performanceSchemaCommandInstrumentNames)+3)
+	names = append(names, performanceSchemaStatementInstrumentNames...)
+	names = append(names, performanceSchemaCommandInstrumentNames...)
+	names = append(names, "statement/abstract/Query", "statement/abstract/new_packet", "statement/abstract/relay_log")
+	return names
+}()
+
+func (e *XMySQLExecutor) performanceSchemaStatementClassCapacity() int {
+	return e.performanceSchemaCapacity("performance_schema_max_statement_classes")
+}
+
+func (e *XMySQLExecutor) performanceSchemaStatementStackCapacity() int {
+	const defaultCapacity = 256
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return defaultCapacity
 	}
+	raw, err := e.storageManager.GetSystemVariablesManager().GetVariable("", "performance_schema_max_statement_stack", manager.GlobalScope)
+	if err != nil {
+		return defaultCapacity
+	}
+	capacity := int64Param(raw)
+	if capacity < 1 {
+		return 1
+	}
+	if capacity > defaultCapacity {
+		return defaultCapacity
+	}
+	return int(capacity)
+}
+
+func (e *XMySQLExecutor) performanceSchemaStatementClassesLost() int64 {
+	capacity := e.performanceSchemaStatementClassCapacity()
+	if capacity >= len(performanceSchemaStatementClassNames) {
+		return 0
+	}
+	return int64(len(performanceSchemaStatementClassNames) - capacity)
+}
+
+func (e *XMySQLExecutor) performanceSchemaStatementClassLoaded(name string) bool {
+	trimmed := strings.TrimSpace(name)
+	for index, candidate := range performanceSchemaStatementClassNames {
+		if strings.EqualFold(candidate, trimmed) {
+			return index < e.performanceSchemaStatementClassCapacity()
+		}
+	}
+	return false
+}
+
+func performanceSchemaInstrumentClassFamily(name string) (string, []string, bool) {
+	trimmed := strings.TrimSpace(name)
+	lower := strings.ToLower(trimmed)
+	switch {
+	case strings.HasPrefix(lower, "stage/"):
+		return "performance_schema_max_stage_classes", performanceSchemaStageInstrumentNames, true
+	case strings.HasPrefix(lower, "wait/io/file/"):
+		return "performance_schema_max_file_classes", performanceSchemaFileInstrumentNames, true
+	case strings.HasPrefix(lower, "wait/io/socket/"):
+		return "performance_schema_max_socket_classes", performanceSchemaSocketInstrumentNames, true
+	case strings.HasPrefix(lower, "wait/synch/mutex/"):
+		return "performance_schema_max_mutex_classes", performanceSchemaMutexInstrumentNames, true
+	case strings.HasPrefix(lower, "wait/synch/cond/"):
+		return "performance_schema_max_cond_classes", performanceSchemaConditionInstrumentNames, true
+	case strings.HasPrefix(lower, "wait/synch/rwlock/"):
+		return "performance_schema_max_rwlock_classes", performanceSchemaRWLockInstrumentNames, true
+	case strings.HasPrefix(lower, "memory/"):
+		return "performance_schema_max_memory_classes", performanceSchemaMemoryInstrumentNames, true
+	default:
+		return "", nil, false
+	}
+}
+
+func (e *XMySQLExecutor) performanceSchemaInstrumentClassLoaded(name string) bool {
+	lower := strings.ToLower(strings.TrimSpace(name))
+	if strings.HasPrefix(lower, "statement/") {
+		return e.performanceSchemaStatementClassLoaded(name)
+	}
+	variableName, names, family := performanceSchemaInstrumentClassFamily(name)
+	if !family {
+		return true
+	}
+	for index, candidate := range names {
+		if strings.EqualFold(candidate, strings.TrimSpace(name)) {
+			return index < e.performanceSchemaCapacity(variableName)
+		}
+	}
+	return false
+}
+
+func (e *XMySQLExecutor) performanceSchemaInstrumentClassLost(variableName string, names []string) int64 {
+	capacity := e.performanceSchemaCapacity(variableName)
+	if capacity >= len(names) {
+		return 0
+	}
+	return int64(len(names) - capacity)
+}
+
+func defaultPerformanceSchemaInstruments() map[string]performanceSchemaSetupSetting {
+	instruments := make(map[string]performanceSchemaSetupSetting, len(performanceSchemaStatementInstrumentNames)+len(performanceSchemaCommandInstrumentNames)+11)
+	for _, name := range performanceSchemaStatementInstrumentNames {
+		instruments[name] = performanceSchemaSetupSetting{Enabled: true, Timed: true}
+	}
+	for _, name := range performanceSchemaCommandInstrumentNames {
+		instruments[name] = performanceSchemaSetupSetting{Enabled: true, Timed: true}
+	}
+	for name, setting := range map[string]performanceSchemaSetupSetting{
+		"statement/abstract/Query":                           {Enabled: true, Timed: true},
+		"statement/abstract/new_packet":                      {Enabled: true, Timed: true},
+		"statement/abstract/relay_log":                       {Enabled: true, Timed: true},
+		"transaction":                                        {Enabled: true, Timed: true},
+		"stage/sql/execute":                                  {Enabled: true, Timed: true},
+		"wait/lock/table/sql/handler":                        {Enabled: true, Timed: true},
+		"wait/lock/metadata/sql/mdl":                         {Enabled: true, Timed: true},
+		performanceSchemaGlobalReadLockConditionInstrument:   {Enabled: true, Timed: true},
+		"wait/synch/mutex/sql/xmysql/account":                {Enabled: true, Timed: true},
+		"wait/synch/mutex/sql/xmysql/ddl_coordinator":        {Enabled: true, Timed: true},
+		"wait/synch/mutex/sql/xmysql/global_read_lock_state": {Enabled: true, Timed: true},
+		"wait/synch/mutex/sql/xmysql/active_query":           {Enabled: true, Timed: true},
+		"wait/synch/mutex/sql/xmysql/xa":                     {Enabled: true, Timed: true},
+		performanceSchemaDDLCoordinatorRWLockInstrument:      {Enabled: true, Timed: true},
+		"wait/io/file/innodb/innodb_data_file":               {Enabled: true, Timed: true},
+		"wait/io/file/innodb/innodb_log_file":                {Enabled: true, Timed: true},
+		"wait/io/file/innodb/innodb_tablespace_open_file":    {Enabled: true, Timed: true},
+		"wait/io/file/innodb/innodb_temp_file":               {Enabled: true, Timed: true},
+		"wait/io/file/innodb/innodb_arch_file":               {Enabled: true, Timed: true},
+		"wait/io/file/innodb/innodb_clone_file":              {Enabled: true, Timed: true},
+		"wait/io/file/sql/FRM":                               {Enabled: true, Timed: true},
+		"wait/io/file/sql/file":                              {Enabled: true, Timed: true},
+		"wait/io/socket/sql/client_connection":               {Enabled: true, Timed: true},
+		"error":                                              {Enabled: true, Timed: false},
+		"memory/sql/THD::main_mem_root":                      {Enabled: true, TimedNullable: true},
+	} {
+		instruments[name] = setting
+	}
+	return instruments
 }
 
 func defaultPerformanceSchemaObjects() map[performanceSchemaObjectKey]performanceSchemaSetupSetting {
@@ -9575,12 +10862,60 @@ func defaultPerformanceSchemaActorRules() map[performanceSchemaActorKey]performa
 // performance_schema.threads: xmysql-server only materializes rows in the
 // latter for actual client sessions and replication workers.
 func defaultPerformanceSchemaThreadSettings() map[string]performanceSchemaThreadSetting {
-	return map[string]performanceSchemaThreadSetting{
+	settings := map[string]performanceSchemaThreadSetting{
 		"thread/performance_schema/setup": {Enabled: true, History: true, Properties: "singleton", Volatility: 0},
+		"thread/sql/admin_interface":      {Enabled: true, History: true, Properties: "user", Volatility: 0},
+		"thread/sql/bootstrap":            {Enabled: true, History: true, Properties: "singleton", Volatility: 0},
+		"thread/sql/compress_gtid_table":  {Enabled: true, History: true, Properties: "singleton", Volatility: 0},
 		"thread/sql/event_scheduler":      {Enabled: true, History: true, Properties: "singleton", Volatility: 0},
 		"thread/sql/main":                 {Enabled: true, History: true, Properties: "singleton", Volatility: 0},
+		"thread/sql/manager":              {Enabled: true, History: true, Properties: "singleton", Volatility: 0},
 		"thread/sql/one_connection":       {Enabled: true, History: true, Properties: "user", Volatility: 0},
+		"thread/sql/parser_service":       {Enabled: true, History: true, Properties: "singleton", Volatility: 0},
+		"thread/sql/signal_handler":       {Enabled: true, History: true, Properties: "singleton", Volatility: 0},
 	}
+	if runtime.GOOS == "windows" {
+		for _, name := range []string{
+			"thread/sql/con_named_pipes",
+			"thread/sql/con_shared_mem",
+			"thread/sql/con_sockets",
+			"thread/sql/shutdown_restart",
+		} {
+			settings[name] = performanceSchemaThreadSetting{Enabled: true, History: true, Properties: "singleton", Volatility: 0}
+		}
+	}
+	return settings
+}
+
+var performanceSchemaThreadClassNames = func() []string {
+	settings := defaultPerformanceSchemaThreadSettings()
+	names := make([]string, 0, len(settings))
+	for name := range settings {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}()
+
+func (e *XMySQLExecutor) performanceSchemaThreadClassCapacity() int {
+	return e.performanceSchemaCapacity("performance_schema_max_thread_classes")
+}
+
+func (e *XMySQLExecutor) performanceSchemaThreadClassLoaded(name string) bool {
+	for index, candidate := range performanceSchemaThreadClassNames {
+		if strings.EqualFold(candidate, strings.TrimSpace(name)) {
+			return index < e.performanceSchemaThreadClassCapacity()
+		}
+	}
+	return false
+}
+
+func (e *XMySQLExecutor) performanceSchemaThreadClassesLost() int64 {
+	capacity := e.performanceSchemaThreadClassCapacity()
+	if capacity >= len(performanceSchemaThreadClassNames) {
+		return 0
+	}
+	return int64(len(performanceSchemaThreadClassNames) - capacity)
 }
 
 func performanceSchemaActorPatternMatches(pattern, value string) bool {
@@ -9592,9 +10927,37 @@ func performanceSchemaActorPatternMatches(pattern, value string) bool {
 	return performanceSchemaSQLLike(pattern, value)
 }
 
-func performanceSchemaActorRuleMatches(key performanceSchemaActorKey, host, user string) bool {
+func performanceSchemaActorRoleMatches(pattern string, activeRoles []string) bool {
+	pattern = strings.TrimSpace(pattern)
+	if pattern == "%" {
+		return true
+	}
+	if pattern == "" {
+		return len(activeRoles) == 0
+	}
+	for _, activeRole := range activeRoles {
+		activeRole = strings.TrimSpace(activeRole)
+		if activeRole == "" {
+			continue
+		}
+		if performanceSchemaActorPatternMatches(pattern, activeRole) {
+			return true
+		}
+		// Session role parameters normally use user@host.  MySQL's setup_actors
+		// ROLE column is the role identity; accept the user part as well so a
+		// rule written with the role name matches the same active role.
+		if parts := strings.SplitN(activeRole, "@", 2); len(parts) == 2 &&
+			performanceSchemaActorPatternMatches(pattern, parts[0]) {
+			return true
+		}
+	}
+	return false
+}
+
+func performanceSchemaActorRuleMatches(key performanceSchemaActorKey, host, user string, activeRoles []string) bool {
 	return performanceSchemaActorPatternMatches(key.Host, host) &&
-		performanceSchemaActorPatternMatches(key.User, user)
+		performanceSchemaActorPatternMatches(key.User, user) &&
+		performanceSchemaActorRoleMatches(key.Role, activeRoles)
 }
 
 func performanceSchemaActorRuleSpecificity(key performanceSchemaActorKey) int {
@@ -9609,11 +10972,11 @@ func performanceSchemaActorRuleSpecificity(key performanceSchemaActorKey) int {
 	return score
 }
 
-func (e *XMySQLExecutor) performanceSchemaActorSettingForIdentityLocked(host, user string) performanceSchemaActorSetting {
+func (e *XMySQLExecutor) performanceSchemaActorSettingForIdentityLocked(host, user string, activeRoles []string) performanceSchemaActorSetting {
 	setting := e.performanceSchemaActors
 	bestScore := -1
 	for key, candidate := range e.performanceSchemaActorRules {
-		if !performanceSchemaActorRuleMatches(key, host, user) {
+		if !performanceSchemaActorRuleMatches(key, host, user, activeRoles) {
 			continue
 		}
 		score := performanceSchemaActorRuleSpecificity(key)
@@ -9627,7 +10990,7 @@ func (e *XMySQLExecutor) performanceSchemaActorSettingForIdentityLocked(host, us
 
 func (e *XMySQLExecutor) executePerformanceSchemaSetupConsumersSelect(query string) *SelectResult {
 	columns := []string{"NAME", "ENABLED"}
-	names := []string{"global_instrumentation", "thread_instrumentation", "events_statements_current", "events_statements_history", "events_statements_history_long", "events_stages_current", "events_stages_history", "events_stages_history_long", "events_waits_current", "events_waits_history", "events_waits_history_long", "events_transactions_current", "events_transactions_history", "events_transactions_history_long", "statements_digest"}
+	names := []string{"global_instrumentation", "thread_instrumentation", "events_statements_cpu", "events_statements_current", "events_statements_history", "events_statements_history_long", "events_stages_current", "events_stages_history", "events_stages_history_long", "events_waits_current", "events_waits_history", "events_waits_history_long", "events_transactions_current", "events_transactions_history", "events_transactions_history_long", "statements_digest"}
 	e.performanceSchemaMu.RLock()
 	rows := make([][]interface{}, 0, len(names))
 	for _, name := range names {
@@ -9641,27 +11004,75 @@ func (e *XMySQLExecutor) executePerformanceSchemaSetupConsumersSelect(query stri
 
 func (e *XMySQLExecutor) executePerformanceSchemaSetupInstrumentsSelect(query string) *SelectResult {
 	columns := []string{"NAME", "ENABLED", "TIMED", "PROPERTIES", "FLAGS", "VOLATILITY", "DOCUMENTATION"}
-	names := []string{
-		"statement/sql/select", "statement/sql/insert", "statement/sql/replace", "statement/sql/update", "statement/sql/delete",
+	statementClassCapacity := e.performanceSchemaStatementClassCapacity()
+	if statementClassCapacity > len(performanceSchemaStatementClassNames) {
+		statementClassCapacity = len(performanceSchemaStatementClassNames)
+	}
+	names := append([]string(nil), performanceSchemaStatementClassNames[:statementClassCapacity]...)
+	names = append(names,
 		"transaction",
 		"stage/sql/execute", "wait/lock/table/sql/handler", "wait/lock/metadata/sql/mdl",
+		performanceSchemaConditionInstrumentNames[0],
+		performanceSchemaDDLCoordinatorRWLockInstrument,
+		performanceSchemaMutexInstrumentNames[0], performanceSchemaMutexInstrumentNames[1],
+		performanceSchemaMutexInstrumentNames[2], performanceSchemaMutexInstrumentNames[3],
+		performanceSchemaMutexInstrumentNames[4],
 		"wait/io/file/innodb/innodb_data_file", "wait/io/file/innodb/innodb_log_file",
+		"wait/io/file/innodb/innodb_tablespace_open_file", "wait/io/file/innodb/innodb_temp_file",
+		"wait/io/file/innodb/innodb_arch_file", "wait/io/file/innodb/innodb_clone_file",
 		"wait/io/file/sql/FRM", "wait/io/file/sql/file", "wait/io/socket/sql/client_connection",
 		"error", "memory/sql/THD::main_mem_root",
-	}
+	)
 	e.performanceSchemaMu.RLock()
 	rows := make([][]interface{}, 0, len(names))
 	for _, name := range names {
+		if !e.performanceSchemaInstrumentClassLoaded(name) {
+			continue
+		}
 		setting := e.performanceSchemaInstruments[name]
+		metadata := performanceSchemaInstrumentMetadataFor(name)
 		timed := interface{}(performanceSchemaYesNo(setting.Timed))
 		if setting.TimedNullable {
 			timed = nil
 		}
-		rows = append(rows, []interface{}{name, performanceSchemaYesNo(setting.Enabled), timed, "", "", int64(0), nil})
+		rows = append(rows, []interface{}{name, performanceSchemaYesNo(setting.Enabled), timed, metadata.Properties, metadata.Flags, metadata.Volatility, metadata.Documentation})
 	}
 	e.performanceSchemaMu.RUnlock()
 	rows = filterPerformanceSchemaSetupRows(query, rows)
 	return newInformationSchemaSelectResult("performance_schema.setup_instruments", columns, rows)
+}
+
+// performanceSchemaInstrumentMetadataFor mirrors metadata that is part of the
+// official instrument registration, rather than inventing properties from the
+// event name. The client connection socket is registered with PSI_FLAG_USER
+// in MySQL, so its PROPERTIES column is the SET value "user".
+func performanceSchemaInstrumentMetadataFor(name string) performanceSchemaInstrumentMetadata {
+	switch {
+	case strings.EqualFold(strings.TrimSpace(name), "wait/io/socket/sql/client_connection"):
+		return performanceSchemaInstrumentMetadata{Properties: "user"}
+	case strings.EqualFold(strings.TrimSpace(name), "memory/sql/THD::main_mem_root"):
+		return performanceSchemaInstrumentMetadata{
+			Properties:    "controlled_by_default",
+			Flags:         "controlled",
+			Documentation: "Main mem root used for e.g. the query arena.",
+		}
+	case strings.EqualFold(strings.TrimSpace(name), "statement/abstract/Query"):
+		return performanceSchemaInstrumentMetadata{
+			Properties:    "mutable",
+			Documentation: "SQL query just received from the network. At this point, the real statement type is unknown, the type will be refined after SQL parsing.",
+		}
+	case strings.EqualFold(strings.TrimSpace(name), "statement/abstract/new_packet"):
+		return performanceSchemaInstrumentMetadata{
+			Properties:    "mutable",
+			Documentation: "New packet just received from the network. At this point, the real command type is unknown, the type will be refined after reading the packet header.",
+		}
+	case strings.EqualFold(strings.TrimSpace(name), "statement/abstract/relay_log"):
+		return performanceSchemaInstrumentMetadata{
+			Properties:    "mutable",
+			Documentation: "New event just read from the relay log. At this point, the real statement type is unknown, the type will be refined after parsing the event.",
+		}
+	}
+	return performanceSchemaInstrumentMetadata{}
 }
 
 func (e *XMySQLExecutor) executePerformanceSchemaSetupActorsSelect(query string) *SelectResult {
@@ -9737,28 +11148,13 @@ func (e *XMySQLExecutor) executePerformanceSchemaSetupTimersSelect(query string)
 }
 
 func filterPerformanceSchemaSetupObjectRows(query string, columns []string, rows [][]interface{}) *SelectResult {
-	patterns := regexp.MustCompile(`(?i)\b(object_type|object_schema|object_name)\s*(=|like)\s*(?:'([^']*)'|"([^"]*)")`)
-	matches := patterns.FindAllStringSubmatch(query, -1)
-	if len(matches) == 0 {
+	matcher, ok := performanceSchemaSetupObjectMatcher(query)
+	if !ok {
 		return newInformationSchemaSelectResult("performance_schema.setup_objects", columns, rows)
 	}
 	filtered := make([][]interface{}, 0, len(rows))
 	for _, row := range rows {
-		matched := true
-		for _, match := range matches {
-			columnIndex := map[string]int{"object_type": 0, "object_schema": 1, "object_name": 2}[strings.ToLower(match[1])]
-			value := fmt.Sprint(row[columnIndex])
-			pattern := match[3]
-			if pattern == "" {
-				pattern = match[4]
-			}
-			if strings.EqualFold(match[2], "=") {
-				matched = matched && strings.EqualFold(value, pattern)
-			} else {
-				matched = matched && performanceSchemaSQLLike(pattern, value)
-			}
-		}
-		if matched {
+		if len(row) >= 3 && matcher(fmt.Sprint(row[0]), fmt.Sprint(row[1]), fmt.Sprint(row[2])) {
 			filtered = append(filtered, row)
 		}
 	}
@@ -9772,6 +11168,14 @@ func (e *XMySQLExecutor) performanceSchemaConsumerEnabled(name string) bool {
 	return !ok || setting.Enabled
 }
 
+// PerformanceSchemaConsumerEnabled exposes a read-only consumer gate to the
+// protocol layer for command paths that own their result accounting, such as
+// COM_STMT_EXECUTE. The SQL executor remains the source of truth for setup
+// consumers; callers cannot mutate the setting through this method.
+func (e *XMySQLExecutor) PerformanceSchemaConsumerEnabled(name string) bool {
+	return e.performanceSchemaConsumerEnabled(name)
+}
+
 // performanceSchemaActorSettingForSession snapshots setup_actors when a
 // foreground session is first observed. MySQL applies setup_actors changes to
 // foreground threads created after the change; keeping the snapshot per
@@ -9782,6 +11186,7 @@ func (e *XMySQLExecutor) performanceSchemaActorSettingForSession(session server.
 	if e == nil || session == nil {
 		return performanceSchemaActorSetting{Enabled: true, History: true}
 	}
+	activeRoles := e.performanceSchemaActiveRolesForSession(session)
 	e.performanceSchemaMu.Lock()
 	defer e.performanceSchemaMu.Unlock()
 	if e.performanceSchemaActorSessions == nil {
@@ -9790,9 +11195,33 @@ func (e *XMySQLExecutor) performanceSchemaActorSettingForSession(session server.
 	if setting, ok := e.performanceSchemaActorSessions[session]; ok {
 		return setting
 	}
-	setting := e.performanceSchemaActorSettingForIdentityLocked(sessionStringParam(session, "host"), sessionStringParam(session, "user"))
+	setting := e.performanceSchemaActorSettingForIdentityLocked(sessionStringParam(session, "host"), sessionStringParam(session, "user"), activeRoles)
 	e.performanceSchemaActorSessions[session] = setting
 	return setting
+}
+
+// performanceSchemaActiveRolesForSession mirrors the role source used by
+// INFORMATION_SCHEMA.ENABLED_ROLES. An explicitly stored active_roles slice,
+// including an empty slice from SET ROLE NONE, is authoritative. When the
+// session has not been initialized with that parameter yet, use the account's
+// persisted default roles and mandatory roles instead of treating the session
+// as role-less.
+func (e *XMySQLExecutor) performanceSchemaActiveRolesForSession(session server.MySQLServerSession) []string {
+	if e == nil || session == nil {
+		return nil
+	}
+	if roles, ok := session.GetParamByName("active_roles").([]string); ok {
+		return append([]string(nil), roles...)
+	}
+	file, err := e.accountFileForSession(&ExecutionContext{Session: session})
+	if err != nil {
+		return nil
+	}
+	account := sessionAccount(file, session)
+	if account == nil {
+		return nil
+	}
+	return e.addMandatoryRoles(file, append([]string(nil), account.DefaultRoles...))
 }
 
 // performanceSchemaThreadSettingForSession snapshots setup_threads when a
@@ -9812,7 +11241,9 @@ func (e *XMySQLExecutor) performanceSchemaThreadSettingForSession(session server
 		return setting
 	}
 	setting := performanceSchemaThreadSetting{Enabled: true, History: true}
-	if configured, ok := e.performanceSchemaThreads["thread/sql/one_connection"]; ok {
+	if !e.performanceSchemaThreadClassLoaded("thread/sql/one_connection") {
+		setting = performanceSchemaThreadSetting{Enabled: false, History: false}
+	} else if configured, ok := e.performanceSchemaThreads["thread/sql/one_connection"]; ok {
 		setting = configured
 	}
 	e.performanceSchemaThreadSessions[session] = setting
@@ -9866,6 +11297,9 @@ func (e *XMySQLExecutor) performanceSchemaMemoryInstrumentEnabled() bool {
 }
 
 func (e *XMySQLExecutor) performanceSchemaInstrumentSetting(name string) (bool, bool) {
+	if !e.performanceSchemaInstrumentClassLoaded(name) {
+		return false, false
+	}
 	e.performanceSchemaMu.RLock()
 	setting, ok := e.performanceSchemaInstruments[strings.ToLower(name)]
 	if !ok {
@@ -9881,6 +11315,18 @@ func (e *XMySQLExecutor) performanceSchemaInstrumentSetting(name string) (bool, 
 		return true, true
 	}
 	return setting.Enabled, setting.Timed
+}
+
+// RecordProtocolCommand records a protocol command using the command
+// instrument's current setup_instruments state. Global command counters stay
+// visible even when the individual Performance Schema instrument is disabled;
+// only the statement event is filtered or untimed.
+func (e *XMySQLExecutor) RecordProtocolCommand(threadID int64, user, host, database, statementType, status string, latency time.Duration) {
+	if e == nil || e.metricsRecorder == nil {
+		return
+	}
+	enabled, timed := e.performanceSchemaInstrumentSetting(statementType)
+	e.metricsRecorder.RecordProtocolCommandWithSettings(threadID, user, host, database, statementType, status, latency, enabled, true, timed)
 }
 
 func (e *XMySQLExecutor) performanceSchemaObservedWait(event string, wait time.Duration) (bool, time.Duration) {
@@ -9942,6 +11388,9 @@ func (e *XMySQLExecutor) executePerformanceSchemaSetupActorsMutation(query strin
 		defer e.performanceSchemaMu.Unlock()
 		if _, exists := e.performanceSchemaActorRules[key]; exists {
 			return nil, true, fmt.Errorf("duplicate Performance Schema setup_actors row for %s/%s/%s", key.Host, key.User, key.Role)
+		}
+		if len(e.performanceSchemaActorRules) >= e.performanceSchemaSetupTableCapacity("performance_schema_setup_actors_size", 100) {
+			return nil, true, fmt.Errorf("Performance Schema setup_actors has reached its maximum row count")
 		}
 		if e.performanceSchemaActorRules == nil {
 			e.performanceSchemaActorRules = make(map[performanceSchemaActorKey]performanceSchemaActorSetting)
@@ -10029,6 +11478,9 @@ func (e *XMySQLExecutor) executePerformanceSchemaSetupObjectsMutation(query stri
 		defer e.performanceSchemaMu.Unlock()
 		if _, exists := e.performanceSchemaObjects[key]; exists {
 			return nil, true, fmt.Errorf("duplicate Performance Schema setup_objects row for %s/%s/%s", key.ObjectType, key.ObjectSchema, key.ObjectName)
+		}
+		if len(e.performanceSchemaObjects) >= e.performanceSchemaSetupTableCapacity("performance_schema_setup_objects_size", 100) {
+			return nil, true, fmt.Errorf("Performance Schema setup_objects has reached its maximum row count")
 		}
 		e.performanceSchemaObjects[key] = setting
 		return &Result{AffectedRows: 1, ResultType: common.RESULT_TYPE_QUERY, Message: "Performance Schema setup_objects row inserted"}, true, nil
@@ -10150,6 +11602,21 @@ func (e *XMySQLExecutor) executePerformanceSchemaThreadsUpdate(query string, ses
 
 	e.performanceSchemaMu.Lock()
 	defer e.performanceSchemaMu.Unlock()
+	if threadID == 1 {
+		setting := e.performanceSchemaMainThreadSetting
+		if value, exists := updates["instrumented"]; exists {
+			setting.Enabled = value
+		}
+		if value, exists := updates["history"]; exists {
+			setting.History = value
+		}
+		e.performanceSchemaMainThreadSetting = setting
+		return &Result{
+			AffectedRows: 1,
+			ResultType:   common.RESULT_TYPE_QUERY,
+			Message:      "Performance Schema thread updated, 1 rows affected",
+		}, true, nil
+	}
 	if e.performanceSchemaActorSessions == nil {
 		e.performanceSchemaActorSessions = make(map[server.MySQLServerSession]performanceSchemaActorSetting)
 	}
@@ -10188,6 +11655,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaSetupUpdate(query string, sessi
 		return e.executePerformanceSchemaTelemetrySetupUpdate(match[1], match[2], match[3])
 	}
 
+	setupTable := strings.ToLower(match[1])
 	updates := make(map[string]bool)
 	for _, assignment := range splitTopLevelComma(match[2]) {
 		parts := strings.SplitN(assignment, "=", 2)
@@ -10196,11 +11664,17 @@ func (e *XMySQLExecutor) executePerformanceSchemaSetupUpdate(query string, sessi
 		}
 		column := strings.ToLower(strings.Trim(strings.TrimSpace(parts[0]), "`"))
 		value, ok := performanceSchemaSetupBoolean(parts[1])
-		if !ok || (column != "enabled" && column != "timed" && column != "history") {
-			return nil, true, fmt.Errorf("unsupported Performance Schema setup assignment %q", strings.TrimSpace(assignment))
+		allowed := false
+		switch setupTable {
+		case "setup_consumers":
+			allowed = column == "enabled"
+		case "setup_instruments", "setup_objects":
+			allowed = column == "enabled" || column == "timed"
+		case "setup_actors", "setup_threads":
+			allowed = column == "enabled" || column == "history"
 		}
-		if strings.EqualFold(match[1], "setup_objects") && column != "enabled" && column != "timed" {
-			return nil, true, fmt.Errorf("unsupported Performance Schema setup_objects assignment %q", strings.TrimSpace(assignment))
+		if !ok || !allowed {
+			return nil, true, fmt.Errorf("unsupported Performance Schema setup assignment %q", strings.TrimSpace(assignment))
 		}
 		updates[column] = value
 	}
@@ -10306,26 +11780,19 @@ func (e *XMySQLExecutor) executePerformanceSchemaSetupUpdate(query string, sessi
 }
 
 func performanceSchemaSetupActorMatcher(where string) (func(performanceSchemaActorKey) bool, bool) {
-	pattern := regexp.MustCompile(`(?i)\b(host|user|role)\s*(=|like)\s*'((?:''|[^'])*)'`)
-	matches := pattern.FindAllStringSubmatch(where, -1)
-	if len(matches) == 0 {
+	predicates := make(map[string][]performanceSchemaSetupPredicate)
+	for _, column := range []string{"host", "user", "role"} {
+		if parsed, ok := parsePerformanceSchemaSetupPredicates(where, column); ok {
+			predicates[column] = parsed
+		}
+	}
+	if len(predicates) == 0 {
 		return nil, false
 	}
 	return func(key performanceSchemaActorKey) bool {
-		for _, match := range matches {
-			value := strings.ReplaceAll(match[3], "''", "'")
-			actual := key.Host
-			switch strings.ToLower(match[1]) {
-			case "user":
-				actual = key.User
-			case "role":
-				actual = key.Role
-			}
-			if strings.EqualFold(match[2], "=") {
-				if !strings.EqualFold(actual, value) {
-					return false
-				}
-			} else if !performanceSchemaSQLLike(value, actual) {
+		values := map[string]string{"host": key.Host, "user": key.User, "role": key.Role}
+		for column, columnPredicates := range predicates {
+			if !performanceSchemaSetupPredicatesMatch(columnPredicates, values[column]) {
 				return false
 			}
 		}
@@ -10346,41 +11813,24 @@ func performanceSchemaSetupBoolean(raw string) (bool, bool) {
 }
 
 func performanceSchemaSetupNameMatcher(where string) (func(string) bool, bool) {
-	for _, expression := range []string{`(?i)\bname\s*=\s*'([^']*)'`, `(?i)\bname\s*=\s*"([^"]*)"`, `(?i)\bname\s+like\s+'([^']*)'`, `(?i)\bname\s+like\s+"([^"]*)"`} {
-		match := regexp.MustCompile(expression).FindStringSubmatch(where)
-		if len(match) != 2 {
-			continue
-		}
-		pattern := match[1]
-		if strings.Contains(strings.ToLower(expression), "like") {
-			return func(name string) bool { return performanceSchemaSQLLike(pattern, name) }, true
-		}
-		return func(name string) bool { return strings.EqualFold(name, pattern) }, true
+	predicates, ok := parsePerformanceSchemaSetupPredicates(where, "name")
+	if !ok {
+		return nil, false
 	}
-	return nil, false
+	return func(name string) bool {
+		return performanceSchemaSetupPredicatesMatch(predicates, name)
+	}, true
 }
 
 func performanceSchemaSetupObjectMatcher(where string) (func(string, string, string) bool, bool) {
-	matches := regexp.MustCompile(`(?i)\b(object_type|object_schema|object_name)\s*(=|like)\s*(?:'([^']*)'|"([^"]*)")`).FindAllStringSubmatch(where, -1)
-	if len(matches) == 0 {
-		return nil, false
-	}
-	type predicate struct {
-		column string
-		like   bool
-		value  string
-	}
-	predicates := make([]predicate, 0, len(matches))
-	for _, match := range matches {
-		value := match[3]
-		if value == "" {
-			value = match[4]
+	predicates := make(map[string][]performanceSchemaSetupPredicate)
+	for _, column := range []string{"object_type", "object_schema", "object_name"} {
+		if parsed, ok := parsePerformanceSchemaSetupPredicates(where, column); ok {
+			predicates[column] = parsed
 		}
-		predicates = append(predicates, predicate{
-			column: strings.ToLower(match[1]),
-			like:   strings.EqualFold(match[2], "like"),
-			value:  value,
-		})
+	}
+	if len(predicates) == 0 {
+		return nil, false
 	}
 	return func(objectType, objectSchema, objectName string) bool {
 		values := map[string]string{
@@ -10388,20 +11838,99 @@ func performanceSchemaSetupObjectMatcher(where string) (func(string, string, str
 			"object_schema": objectSchema,
 			"object_name":   objectName,
 		}
-		for _, predicate := range predicates {
-			value := values[predicate.column]
-			if predicate.like {
-				if !performanceSchemaSQLLike(predicate.value, value) {
-					return false
-				}
-				continue
-			}
-			if !strings.EqualFold(value, predicate.value) {
+		for column, columnPredicates := range predicates {
+			if !performanceSchemaSetupPredicatesMatch(columnPredicates, values[column]) {
 				return false
 			}
 		}
 		return true
 	}, true
+}
+
+type performanceSchemaSetupPredicate struct {
+	operator string
+	values   []string
+	nullTest *bool
+}
+
+func parsePerformanceSchemaSetupPredicates(where, column string) ([]performanceSchemaSetupPredicate, bool) {
+	column = regexp.QuoteMeta(strings.TrimSpace(column))
+	predicates := make([]performanceSchemaSetupPredicate, 0)
+	nullPattern := regexp.MustCompile(`(?i)\b` + column + `\s+is\s+(not\s+)?null`)
+	for _, match := range nullPattern.FindAllStringSubmatch(where, -1) {
+		isNull := len(match) > 1 && strings.TrimSpace(match[1]) == ""
+		predicates = append(predicates, performanceSchemaSetupPredicate{nullTest: &isNull})
+	}
+	valuePattern := regexp.MustCompile(`(?i)\b` + column + `\s*(not\s+in|in|like|=)\s*(\([^)]*\)|'((?:''|[^'])*)'|"([^"]*)")`)
+	for _, match := range valuePattern.FindAllStringSubmatch(where, -1) {
+		if len(match) < 5 {
+			continue
+		}
+		raw := strings.TrimSpace(match[2])
+		values := make([]string, 0, 1)
+		if strings.HasPrefix(raw, "(") && strings.HasSuffix(raw, ")") {
+			for _, item := range splitTopLevelComma(raw[1 : len(raw)-1]) {
+				values = append(values, unquotePerformanceSchemaSetupValue(item))
+			}
+		} else {
+			value := match[3]
+			if value == "" {
+				value = match[4]
+			}
+			values = append(values, strings.ReplaceAll(value, "''", "'"))
+		}
+		if len(values) == 0 {
+			continue
+		}
+		predicates = append(predicates, performanceSchemaSetupPredicate{
+			operator: strings.ToLower(strings.Join(strings.Fields(match[1]), " ")),
+			values:   values,
+		})
+	}
+	return predicates, len(predicates) > 0
+}
+
+func performanceSchemaSetupPredicatesMatch(predicates []performanceSchemaSetupPredicate, actual string) bool {
+	for _, predicate := range predicates {
+		if predicate.nullTest != nil {
+			// setup_* identity columns are non-NULL. IS NULL matches no row;
+			// IS NOT NULL matches every row.
+			if *predicate.nullTest {
+				return false
+			}
+			continue
+		}
+		switch predicate.operator {
+		case "=":
+			if len(predicate.values) != 1 || !strings.EqualFold(actual, predicate.values[0]) {
+				return false
+			}
+		case "like":
+			if len(predicate.values) != 1 || !performanceSchemaSQLLike(predicate.values[0], actual) {
+				return false
+			}
+		case "in":
+			matched := false
+			for _, value := range predicate.values {
+				if strings.EqualFold(actual, value) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				return false
+			}
+		case "not in":
+			for _, value := range predicate.values {
+				if strings.EqualFold(actual, value) {
+					return false
+				}
+			}
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func performanceSchemaSQLLike(pattern, value string) bool {
@@ -10483,7 +12012,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaVariablesSelect(name string, qu
 func (e *XMySQLExecutor) executePerformanceSchemaSessionVariablesSelect(name, query string, session server.MySQLServerSession) *SelectResult {
 	defaults := []string{"VARIABLE_NAME", "VARIABLE_VALUE"}
 	columns := requestedInformationSchemaColumns(query, defaults)
-	rows := filterPerformanceSchemaVariableRows(query, performanceSchemaSessionVariableRows(session))
+	rows := filterPerformanceSchemaVariableRows(query, e.performanceSchemaSessionVariableRows(session))
 	projected := make([][]interface{}, 0, len(rows))
 	for _, row := range rows {
 		if len(row) < 2 {
@@ -10503,7 +12032,8 @@ func filterPerformanceSchemaVariableRows(query string, rows [][]interface{}) [][
 			filtered = append(filtered, row)
 		}
 	}
-	if len(filtered) == 0 && !regexp.MustCompile(`(?i)\bvariable_name\b\s*(?:=|like)`).MatchString(query) {
+	variableNamePredicate := regexp.MustCompile(`(?is)\bvariable_name\b\s*(?:=|like)|\bvariable_name\b\s+(?:not\s+)?in\s*\([^)]*\)|\bvariable_name\b\s+is\s+(?:not\s+)?null`)
+	if len(filtered) == 0 && !variableNamePredicate.MatchString(query) {
 		return rows
 	}
 	return filtered
@@ -10579,6 +12109,77 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatusSelect(name, query string
 			threadsRunning = strconv.Itoa(len(e.activeStatementEvents()))
 		}
 	}
+	connectAttrsLost := int64(0)
+	connectAttrsLongestSeen := int64(0)
+	metadataLockLost := int64(0)
+	accountsLost := int64(0)
+	hostsLost := int64(0)
+	usersLost := int64(0)
+	preparedStatementsLost := int64(0)
+	threadInstancesLost := int64(0)
+	fileInstancesLost := int64(0)
+	fileHandlesLost := int64(0)
+	socketInstancesLost := int64(0)
+	programLost := int64(0)
+	tableLockStatLost := int64(0)
+	indexStatLost := int64(0)
+	digestLost := int64(0)
+	statementClassesLost := int64(0)
+	stageClassesLost := int64(0)
+	fileClassesLost := int64(0)
+	socketClassesLost := int64(0)
+	memoryClassesLost := int64(0)
+	threadClassesLost := int64(0)
+	mutexClassesLost := int64(0)
+	condClassesLost := int64(0)
+	rwlockClassesLost := int64(0)
+	meterClassesLost := int64(0)
+	metricClassesLost := int64(0)
+	tableHandlesLost := int64(0)
+	tableInstancesLost := int64(0)
+	mutexInstancesLost := int64(0)
+	condInstancesLost := int64(0)
+	rwlockInstancesLost := int64(0)
+	nestedStatementLost := int64(0)
+	if e != nil {
+		e.refreshPerformanceSchemaFileHandleLost()
+		connectAttrsLost = e.performanceSchemaSessionConnectAttrsLost.Load()
+		connectAttrsLongestSeen = e.performanceSchemaSessionConnectAttrsLongestSeen.Load()
+		metadataLockLost = e.performanceSchemaMetadataLockLost.Load()
+		accountsLost = e.performanceSchemaAccountsLost.Load()
+		hostsLost = e.performanceSchemaHostsLost.Load()
+		usersLost = e.performanceSchemaUsersLost.Load()
+		preparedStatementsLost = e.performanceSchemaPreparedStatementsLost.Load()
+		threadInstancesLost = e.performanceSchemaThreadInstancesLost.Load()
+		fileInstancesLost = e.performanceSchemaFileInstancesLost.Load()
+		fileHandlesLost = e.performanceSchemaFileHandlesLost.Load()
+		socketInstancesLost = e.performanceSchemaSocketInstancesLost.Load()
+		programLost = e.performanceSchemaProgramLost.Load()
+		tableLockStatLost = e.performanceSchemaTableLockStatLost.Load()
+		indexStatLost = e.performanceSchemaIndexStatLost.Load()
+		digestLost = e.performanceSchemaDigestLost.Load()
+		statementClassesLost = e.performanceSchemaStatementClassesLost()
+		stageClassesLost = e.performanceSchemaInstrumentClassLost("performance_schema_max_stage_classes", performanceSchemaStageInstrumentNames)
+		fileClassesLost = e.performanceSchemaInstrumentClassLost("performance_schema_max_file_classes", performanceSchemaFileInstrumentNames)
+		socketClassesLost = e.performanceSchemaInstrumentClassLost("performance_schema_max_socket_classes", performanceSchemaSocketInstrumentNames)
+		memoryClassesLost = e.performanceSchemaInstrumentClassLost("performance_schema_max_memory_classes", performanceSchemaMemoryInstrumentNames)
+		threadClassesLost = e.performanceSchemaThreadClassesLost()
+		mutexClassesLost = e.performanceSchemaInstrumentClassLost("performance_schema_max_mutex_classes", performanceSchemaMutexInstrumentNames)
+		condClassesLost = e.performanceSchemaInstrumentClassLost("performance_schema_max_cond_classes", performanceSchemaConditionInstrumentNames)
+		rwlockClassesLost = e.performanceSchemaInstrumentClassLost("performance_schema_max_rwlock_classes", performanceSchemaRWLockInstrumentNames)
+		meterClassesLost = e.performanceSchemaMeterClassesLost()
+		metricClassesLost = e.performanceSchemaMetricClassesLost()
+		tableHandlesLost = e.performanceSchemaTableHandlesLost.Load()
+		e.refreshPerformanceSchemaTableInstancesLost()
+		tableInstancesLost = e.performanceSchemaTableInstancesLost.Load()
+		e.refreshPerformanceSchemaMutexInstancesLost()
+		mutexInstancesLost = e.performanceSchemaMutexInstancesLost.Load()
+		e.refreshPerformanceSchemaConditionInstancesLost()
+		condInstancesLost = e.performanceSchemaCondInstancesLost.Load()
+		e.refreshPerformanceSchemaRWLockInstancesLost()
+		rwlockInstancesLost = e.performanceSchemaRWLockInstancesLost.Load()
+		nestedStatementLost = e.performanceSchemaNestedStatementLost.Load()
+	}
 	rows := [][]interface{}{
 		{"Threads_connected", threadsConnected},
 		{"Threads_running", threadsRunning},
@@ -10587,12 +12188,52 @@ func (e *XMySQLExecutor) executePerformanceSchemaStatusSelect(name, query string
 		{"Questions", strconv.FormatInt(questions, 10)},
 		{"Queries", queryCount},
 		{"Uptime", e.performanceSchemaUptimeSeconds()},
+		{"Performance_schema_session_connect_attrs_longest_seen", strconv.FormatInt(connectAttrsLongestSeen, 10)},
+		{"Performance_schema_session_connect_attrs_lost", strconv.FormatInt(connectAttrsLost, 10)},
+		{"Performance_schema_metadata_lock_lost", strconv.FormatInt(metadataLockLost, 10)},
+		{"Performance_schema_accounts_lost", strconv.FormatInt(accountsLost, 10)},
+		{"Performance_schema_hosts_lost", strconv.FormatInt(hostsLost, 10)},
+		{"Performance_schema_users_lost", strconv.FormatInt(usersLost, 10)},
+		{"Performance_schema_prepared_statements_lost", strconv.FormatInt(preparedStatementsLost, 10)},
+		{"Performance_schema_thread_instances_lost", strconv.FormatInt(threadInstancesLost, 10)},
+		{"Performance_schema_file_instances_lost", strconv.FormatInt(fileInstancesLost, 10)},
+		{"Performance_schema_file_handles_lost", strconv.FormatInt(fileHandlesLost, 10)},
+		{"Performance_schema_socket_instances_lost", strconv.FormatInt(socketInstancesLost, 10)},
+		{"Performance_schema_program_lost", strconv.FormatInt(programLost, 10)},
+		{"Performance_schema_table_lock_stat_lost", strconv.FormatInt(tableLockStatLost, 10)},
+		{"Performance_schema_index_stat_lost", strconv.FormatInt(indexStatLost, 10)},
+		{"Performance_schema_digest_lost", strconv.FormatInt(digestLost, 10)},
+		{"Performance_schema_statement_classes_lost", strconv.FormatInt(statementClassesLost, 10)},
+		{"Performance_schema_stage_classes_lost", strconv.FormatInt(stageClassesLost, 10)},
+		{"Performance_schema_file_classes_lost", strconv.FormatInt(fileClassesLost, 10)},
+		{"Performance_schema_socket_classes_lost", strconv.FormatInt(socketClassesLost, 10)},
+		{"Performance_schema_memory_classes_lost", strconv.FormatInt(memoryClassesLost, 10)},
+		{"Performance_schema_thread_classes_lost", strconv.FormatInt(threadClassesLost, 10)},
+		{"Performance_schema_mutex_classes_lost", strconv.FormatInt(mutexClassesLost, 10)},
+		{"Performance_schema_cond_classes_lost", strconv.FormatInt(condClassesLost, 10)},
+		{"Performance_schema_rwlock_classes_lost", strconv.FormatInt(rwlockClassesLost, 10)},
+		{"Performance_schema_meter_lost", strconv.FormatInt(meterClassesLost, 10)},
+		{"Performance_schema_metric_lost", strconv.FormatInt(metricClassesLost, 10)},
+		{"Performance_schema_table_handles_lost", strconv.FormatInt(tableHandlesLost, 10)},
+		{"Performance_schema_table_instances_lost", strconv.FormatInt(tableInstancesLost, 10)},
+		{"Performance_schema_mutex_instances_lost", strconv.FormatInt(mutexInstancesLost, 10)},
+		{"Performance_schema_cond_instances_lost", strconv.FormatInt(condInstancesLost, 10)},
+		{"Performance_schema_rwlock_instances_lost", strconv.FormatInt(rwlockInstancesLost, 10)},
+		{"Performance_schema_nested_statement_lost", strconv.FormatInt(nestedStatementLost, 10)},
+	}
+	for _, variableName := range []string{
+		"Performance_schema_locker_lost",
+		"Performance_schema_logger_lost",
+	} {
+		rows = append(rows, []interface{}{variableName, "0"})
 	}
 	for _, variableName := range []string{
 		"Com_select", "Com_insert", "Com_update", "Com_delete", "Com_begin", "Com_commit", "Com_rollback", "Com_show",
 		"Com_replace", "Com_truncate", "Com_set_option", "Com_flush", "Com_call_procedure",
 		"Com_change_db", "Com_explain", "Com_describe", "Com_analyze", "Com_savepoint", "Com_grant", "Com_revoke",
 		"Com_lock_tables", "Com_unlock_tables", "Com_kill", "Com_reset",
+		"Com_stmt_prepare", "Com_stmt_execute", "Com_stmt_close", "Com_stmt_reset",
+		"Com_stmt_send_long_data", "Com_stmt_fetch",
 	} {
 		rows = append(rows, []interface{}{variableName, strconv.FormatInt(commandCounts[variableName], 10)})
 	}
@@ -10662,6 +12303,30 @@ func performanceSchemaCommandStatusVariable(statementType string) string {
 		return "Com_kill"
 	case "reset":
 		return "Com_reset"
+	case "stmt_prepare":
+		return "Com_stmt_prepare"
+	case "stmt_execute":
+		return "Com_stmt_execute"
+	case "stmt_close":
+		return "Com_stmt_close"
+	case "stmt_reset":
+		return "Com_stmt_reset"
+	case "stmt_send_long_data":
+		return "Com_stmt_send_long_data"
+	case "stmt_fetch":
+		return "Com_stmt_fetch"
+	case "statement/com/prepare":
+		return "Com_stmt_prepare"
+	case "statement/com/execute":
+		return "Com_stmt_execute"
+	case "statement/com/close stmt":
+		return "Com_stmt_close"
+	case "statement/com/reset stmt":
+		return "Com_stmt_reset"
+	case "statement/com/long data":
+		return "Com_stmt_send_long_data"
+	case "statement/com/fetch":
+		return "Com_stmt_fetch"
 	default:
 		return ""
 	}
@@ -10702,6 +12367,77 @@ func (e *XMySQLExecutor) performanceSchemaThreadMemory(threadID int64) (current,
 	return current, high
 }
 
+func (e *XMySQLExecutor) performanceSchemaMainThreadInstrumentation() performanceSchemaActorSetting {
+	if e == nil {
+		return performanceSchemaActorSetting{Enabled: true, History: true}
+	}
+	if !e.performanceSchemaThreadClassLoaded("thread/sql/main") {
+		return performanceSchemaActorSetting{Enabled: false, History: false}
+	}
+	e.performanceSchemaMu.RLock()
+	defer e.performanceSchemaMu.RUnlock()
+	return e.performanceSchemaMainThreadSetting
+}
+
+func (e *XMySQLExecutor) performanceSchemaMainThreadProcesslistTime() int64 {
+	if e == nil || e.serverStartedAt.IsZero() {
+		return 0
+	}
+	elapsed := time.Since(e.serverStartedAt)
+	if elapsed < 0 {
+		return 0
+	}
+	return int64(elapsed / time.Second)
+}
+
+func (e *XMySQLExecutor) recordPerformanceSchemaThreadLoss(threadIDs []int64) {
+	if e == nil {
+		return
+	}
+	capacity := e.performanceSchemaThreadCapacity()
+	if capacity < 0 {
+		return
+	}
+	ids := append([]int64(nil), threadIDs...)
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	unique := ids[:0]
+	for _, id := range ids {
+		if len(unique) == 0 || unique[len(unique)-1] != id {
+			unique = append(unique, id)
+		}
+	}
+	lostKeys := make(map[string]struct{})
+	if capacity < len(unique) {
+		for _, id := range unique[capacity:] {
+			lostKeys[strconv.FormatInt(id, 10)] = struct{}{}
+		}
+	}
+	e.performanceSchemaMu.Lock()
+	if e.performanceSchemaThreadInstanceLostKeys == nil {
+		e.performanceSchemaThreadInstanceLostKeys = make(map[string]struct{})
+	}
+	for key := range lostKeys {
+		if _, exists := e.performanceSchemaThreadInstanceLostKeys[key]; !exists {
+			e.performanceSchemaThreadInstanceLostKeys[key] = struct{}{}
+			e.performanceSchemaThreadInstancesLost.Add(1)
+		}
+	}
+	for key := range e.performanceSchemaThreadInstanceLostKeys {
+		if _, exists := lostKeys[key]; !exists {
+			delete(e.performanceSchemaThreadInstanceLostKeys, key)
+		}
+	}
+	e.performanceSchemaMu.Unlock()
+}
+
+func (e *XMySQLExecutor) performanceSchemaThreadsResult(columns []string, rows [][]interface{}) *SelectResult {
+	capacity := e.performanceSchemaThreadCapacity()
+	if capacity >= 0 && len(rows) > capacity {
+		rows = rows[:capacity]
+	}
+	return newInformationSchemaSelectResult("performance_schema.threads", columns, rows)
+}
+
 func (e *XMySQLExecutor) executePerformanceSchemaThreadsSelect(query string, current ...server.MySQLServerSession) *SelectResult {
 	defaults := []string{
 		"THREAD_ID", "NAME", "TYPE", "PROCESSLIST_ID", "PROCESSLIST_USER", "PROCESSLIST_HOST",
@@ -10714,6 +12450,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaThreadsSelect(query string, cur
 	if e == nil || e.processlistProvider == nil {
 		if len(current) > 0 && current[0] != nil {
 			process := e.processlistRow(current[0], query, true)
+			e.recordPerformanceSchemaThreadLoss([]int64{int64Param(process[0])})
 			actorSetting := e.performanceSchemaStatementSettingForSession(current[0])
 			currentMemory, maxMemory := e.performanceSchemaThreadMemory(int64Param(process[0]))
 			values := map[string]interface{}{
@@ -10728,27 +12465,30 @@ func (e *XMySQLExecutor) executePerformanceSchemaThreadsSelect(query string, cur
 				"MAX_TOTAL_MEMORY": maxMemory, "TELEMETRY_ACTIVE": "NO",
 			}
 			if !performanceSchemaLockValuesMatch(query, values) {
-				return newInformationSchemaSelectResult("performance_schema.threads", columns, nil)
+				return e.performanceSchemaThreadsResult(columns, nil)
 			}
-			return newInformationSchemaSelectResult("performance_schema.threads", columns, [][]interface{}{projectInformationSchemaRow(columns, values)})
+			return e.performanceSchemaThreadsResult(columns, [][]interface{}{projectInformationSchemaRow(columns, values)})
 		}
+		e.recordPerformanceSchemaThreadLoss([]int64{1})
 		state := ""
 		if e != nil && e.lockManager != nil && len(e.lockManager.WaitGraphSnapshot()) > 0 {
 			state = "Waiting for lock"
 		}
+		mainThreadSetting := e.performanceSchemaMainThreadInstrumentation()
 		values := map[string]interface{}{
-			"THREAD_ID": int64(1), "NAME": "xmysql", "TYPE": "FOREGROUND", "PROCESSLIST_ID": nil,
-			"PROCESSLIST_USER": nil, "PROCESSLIST_HOST": nil, "PROCESSLIST_DB": nil,
-			"PROCESSLIST_COMMAND": "Sleep", "PROCESSLIST_TIME": int64(0), "PROCESSLIST_STATE": state,
+			"THREAD_ID": int64(1), "NAME": "thread/sql/main", "TYPE": "BACKGROUND", "PROCESSLIST_ID": nil,
+			"PROCESSLIST_USER": nil, "PROCESSLIST_HOST": nil, "PROCESSLIST_DB": "mysql",
+			"PROCESSLIST_COMMAND": nil, "PROCESSLIST_TIME": e.performanceSchemaMainThreadProcesslistTime(), "PROCESSLIST_STATE": state,
 			"PROCESSLIST_INFO": nil, "PARENT_THREAD_ID": nil, "ROLE": nil, "INSTRUMENTED": "YES",
-			"HISTORY": "YES", "CONNECTION_TYPE": nil, "THREAD_OS_ID": nil, "RESOURCE_GROUP": nil,
+			"HISTORY": performanceSchemaYesNo(mainThreadSetting.History), "CONNECTION_TYPE": nil, "THREAD_OS_ID": nil, "RESOURCE_GROUP": "SYS_default",
 			"EXECUTION_ENGINE": "PRIMARY", "CONTROLLED_MEMORY": int64(0), "MAX_CONTROLLED_MEMORY": int64(0),
 			"TOTAL_MEMORY": int64(0), "MAX_TOTAL_MEMORY": int64(0), "TELEMETRY_ACTIVE": "NO",
 		}
+		values["INSTRUMENTED"] = performanceSchemaYesNo(mainThreadSetting.Enabled)
 		if !performanceSchemaLockValuesMatch(query, values) {
-			return newInformationSchemaSelectResult("performance_schema.threads", columns, nil)
+			return e.performanceSchemaThreadsResult(columns, nil)
 		}
-		return newInformationSchemaSelectResult("performance_schema.threads", columns, [][]interface{}{projectInformationSchemaRow(columns, values)})
+		return e.performanceSchemaThreadsResult(columns, [][]interface{}{projectInformationSchemaRow(columns, values)})
 	}
 	var session server.MySQLServerSession
 	if len(current) > 0 {
@@ -10760,10 +12500,29 @@ func (e *XMySQLExecutor) executePerformanceSchemaThreadsSelect(query string, cur
 		currentUser, _ = session.GetParamByName("user").(string)
 	}
 	rows := make([][]interface{}, 0)
-	for _, listedSession := range e.processlistProvider() {
+	listedSessions := append([]server.MySQLServerSession(nil), e.processlistProvider()...)
+	sort.SliceStable(listedSessions, func(i, j int) bool {
+		return sessionConnectionID(listedSessions[i]) < sessionConnectionID(listedSessions[j])
+	})
+	threadIDs := make([]int64, 0, len(listedSessions))
+	for _, listedSession := range listedSessions {
 		if listedSession == nil {
 			continue
 		}
+		threadID, _, _ := performanceSchemaSessionIdentity(listedSession)
+		threadIDs = append(threadIDs, threadID)
+	}
+	e.recordPerformanceSchemaThreadLoss(threadIDs)
+	capacity := e.performanceSchemaThreadCapacity()
+	threadIndex := 0
+	for _, listedSession := range listedSessions {
+		if listedSession == nil {
+			continue
+		}
+		if capacity >= 0 && threadIndex >= capacity {
+			break
+		}
+		threadIndex++
 		listedUser, _ := listedSession.GetParamByName("user").(string)
 		isCurrent := listedSession == session
 		if !canInspectAll && !isCurrent && (currentUser == "" || !strings.EqualFold(currentUser, listedUser)) {
@@ -10788,19 +12547,21 @@ func (e *XMySQLExecutor) executePerformanceSchemaThreadsSelect(query string, cur
 		}
 	}
 	if len(rows) == 0 && session == nil {
+		e.recordPerformanceSchemaThreadLoss([]int64{1})
+		mainThreadSetting := e.performanceSchemaMainThreadInstrumentation()
 		values := map[string]interface{}{
-			"THREAD_ID": int64(1), "NAME": "xmysql", "TYPE": "FOREGROUND", "PROCESSLIST_ID": nil,
-			"PROCESSLIST_USER": nil, "PROCESSLIST_HOST": nil, "PROCESSLIST_DB": nil, "PROCESSLIST_COMMAND": "Sleep",
-			"PROCESSLIST_TIME": int64(0), "PROCESSLIST_STATE": nil, "PROCESSLIST_INFO": nil, "PARENT_THREAD_ID": nil,
-			"ROLE": nil, "INSTRUMENTED": "YES", "HISTORY": "YES", "CONNECTION_TYPE": nil, "THREAD_OS_ID": nil,
-			"RESOURCE_GROUP": nil, "EXECUTION_ENGINE": "PRIMARY", "CONTROLLED_MEMORY": int64(0),
+			"THREAD_ID": int64(1), "NAME": "thread/sql/main", "TYPE": "BACKGROUND", "PROCESSLIST_ID": nil,
+			"PROCESSLIST_USER": nil, "PROCESSLIST_HOST": nil, "PROCESSLIST_DB": "mysql", "PROCESSLIST_COMMAND": nil,
+			"PROCESSLIST_TIME": e.performanceSchemaMainThreadProcesslistTime(), "PROCESSLIST_STATE": nil, "PROCESSLIST_INFO": nil, "PARENT_THREAD_ID": nil,
+			"ROLE": nil, "INSTRUMENTED": performanceSchemaYesNo(mainThreadSetting.Enabled), "HISTORY": performanceSchemaYesNo(mainThreadSetting.History), "CONNECTION_TYPE": nil, "THREAD_OS_ID": nil,
+			"RESOURCE_GROUP": "SYS_default", "EXECUTION_ENGINE": "PRIMARY", "CONTROLLED_MEMORY": int64(0),
 			"MAX_CONTROLLED_MEMORY": int64(0), "TOTAL_MEMORY": int64(0), "MAX_TOTAL_MEMORY": int64(0), "TELEMETRY_ACTIVE": "NO",
 		}
 		if performanceSchemaLockValuesMatch(query, values) {
 			rows = [][]interface{}{projectInformationSchemaRow(columns, values)}
 		}
 	}
-	return newInformationSchemaSelectResult("performance_schema.threads", columns, rows)
+	return e.performanceSchemaThreadsResult(columns, rows)
 }
 
 func nullableInformationSchemaString(value interface{}) interface{} {
@@ -10812,6 +12573,30 @@ func nullableInformationSchemaString(value interface{}) interface{} {
 		return nil
 	}
 	return text
+}
+
+func nullableInformationSchemaStringPtr(value *string) interface{} {
+	if value == nil {
+		return nil
+	}
+	return nullableInformationSchemaString(*value)
+}
+
+func nullableInformationSchemaInt64(value *int64) interface{} {
+	if value == nil {
+		return nil
+	}
+	return strconv.FormatInt(*value, 10)
+}
+
+func nullableInformationSchemaBoolFlag(value *bool) interface{} {
+	if value == nil {
+		return nil
+	}
+	if *value {
+		return "Y"
+	}
+	return "N"
 }
 
 // performanceSchemaThreadOSID returns the OS-thread identity captured at the
@@ -10839,6 +12624,10 @@ func (e *XMySQLExecutor) executePerformanceSchemaSetupThreadsSelect(query string
 		names = append(names, name)
 	}
 	sort.Strings(names)
+	capacity := e.performanceSchemaThreadClassCapacity()
+	if capacity < len(names) {
+		names = names[:capacity]
+	}
 	rawRows := make([][]interface{}, 0, len(names))
 	for _, name := range names {
 		setting := e.performanceSchemaThreads[name]
@@ -10899,7 +12688,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaSessionConnectAttrsSelect(query
 		if hasProcesslistID && (id < 0 || uint64(id) != processlistID) {
 			continue
 		}
-		attributes := performanceSchemaSessionAttributes(listed.GetParamByName("connection_attributes"))
+		attributes := e.performanceSchemaSessionAttributesWithLimit(listed)
 		keys := make([]string, 0, len(attributes))
 		for key := range attributes {
 			keys = append(keys, key)
@@ -10939,20 +12728,51 @@ func (e *XMySQLExecutor) executePerformanceSchemaSessionAccountConnectAttrsSelec
 	if current == nil {
 		return newInformationSchemaSelectResult("performance_schema.session_account_connect_attrs", columns, nil)
 	}
-	attributes := performanceSchemaSessionAttributes(current.GetParamByName("connection_attributes"))
-	keys := make([]string, 0, len(attributes))
-	for key := range attributes {
-		keys = append(keys, key)
+	_, currentUser, currentHost := performanceSchemaSessionIdentity(current)
+	type attrRow struct {
+		processlistID int64
+		name          string
+		value         string
+		ordinal       int64
 	}
-	sort.Strings(keys)
-	processlistID := int64Param(current.GetParamByName("connection_id"))
-	rows := make([][]interface{}, 0, len(keys))
-	for ordinal, key := range keys {
-		values := map[string]interface{}{
-			"PROCESSLIST_ID": processlistID, "ATTR_NAME": key, "ATTR_VALUE": attributes[key], "ORDINAL_POSITION": int64(ordinal),
-		}
-		if !performanceSchemaLockValuesMatch(query, values) {
+	attrRows := make([]attrRow, 0)
+	for _, listed := range e.performanceSchemaLiveSessions(current) {
+		if listed == nil {
 			continue
+		}
+		threadID, user, host := performanceSchemaSessionIdentity(listed)
+		// MySQL exposes attributes for the current account, not all accounts.
+		// If the current session has no authenticated user identity, retain the
+		// safe behavior of exposing only that session.
+		if listed != current && (currentUser == "" || user != currentUser || !strings.EqualFold(host, currentHost)) {
+			continue
+		}
+		attributes := e.performanceSchemaSessionAttributesWithLimit(listed)
+		keys := make([]string, 0, len(attributes))
+		for key := range attributes {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for ordinal, key := range keys {
+			values := map[string]interface{}{
+				"PROCESSLIST_ID": threadID, "ATTR_NAME": key, "ATTR_VALUE": attributes[key], "ORDINAL_POSITION": int64(ordinal),
+			}
+			if !performanceSchemaLockValuesMatch(query, values) {
+				continue
+			}
+			attrRows = append(attrRows, attrRow{processlistID: threadID, name: key, value: attributes[key], ordinal: int64(ordinal)})
+		}
+	}
+	sort.SliceStable(attrRows, func(i, j int) bool {
+		if attrRows[i].processlistID != attrRows[j].processlistID {
+			return attrRows[i].processlistID < attrRows[j].processlistID
+		}
+		return attrRows[i].ordinal < attrRows[j].ordinal
+	})
+	rows := make([][]interface{}, 0, len(attrRows))
+	for _, attr := range attrRows {
+		values := map[string]interface{}{
+			"PROCESSLIST_ID": attr.processlistID, "ATTR_NAME": attr.name, "ATTR_VALUE": attr.value, "ORDINAL_POSITION": attr.ordinal,
 		}
 		rows = append(rows, projectInformationSchemaRow(columns, values))
 	}
@@ -10976,9 +12796,144 @@ func performanceSchemaSessionAttributes(raw interface{}) map[string]string {
 	}
 }
 
+// performanceSchemaSessionAttributesWithLimit projects the per-session
+// connection attributes into the bounded Performance Schema buffer. The
+// current runtime receives already-decoded key/value attributes rather than
+// the original protocol payload, so the compatibility boundary accounts for
+// length-encoded key/value bytes and preserves deterministic key order. When
+// the buffer can hold it, MySQL also exposes a _truncated attribute with the
+// number of source bytes not retained.
+
+func (e *XMySQLExecutor) performanceSchemaSessionAttributesWithLimit(session server.MySQLServerSession) map[string]string {
+	if session == nil {
+		return nil
+	}
+	raw := session.GetParamByName("connection_attributes")
+	attributes := performanceSchemaSessionAttributes(raw)
+	if e != nil {
+		e.recordPerformanceSchemaSessionConnectAttrsLongestSeen(attributes)
+	}
+	limit := e.performanceSchemaSessionConnectAttrsLimit()
+	if limit <= 0 || len(attributes) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(attributes))
+	for key := range attributes {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	totalSize := int64(0)
+	for key, value := range attributes {
+		totalSize += performanceSchemaLengthEncodedStringSize(len(key))
+		totalSize += performanceSchemaLengthEncodedStringSize(len(value))
+	}
+	if totalSize <= int64(limit) {
+		return attributes
+	}
+	truncated := true
+	markerKey := "_truncated"
+	markerValueUpperBound := strconv.FormatInt(totalSize, 10)
+	markerReserve := performanceSchemaLengthEncodedStringSize(len(markerKey)) +
+		performanceSchemaLengthEncodedStringSize(len(markerValueUpperBound))
+	ordinaryLimit := int64(limit)
+	if markerReserve < ordinaryLimit {
+		ordinaryLimit -= markerReserve
+	} else {
+		markerReserve = 0
+	}
+	remaining := ordinaryLimit
+	retainedSize := int64(0)
+	result := make(map[string]string, len(keys)+1)
+	for _, key := range keys {
+		if remaining <= 0 {
+			break
+		}
+		value := attributes[key]
+		valueBytes := []byte(value)
+		keySize := performanceSchemaLengthEncodedStringSize(len(key))
+		valueSize := performanceSchemaLengthEncodedStringSize(len(valueBytes))
+		if keySize+valueSize <= remaining {
+			result[key] = value
+			remaining -= keySize + valueSize
+			retainedSize += keySize + valueSize
+			continue
+		}
+		if keySize >= remaining {
+			break
+		}
+		maxValueBytes := remaining - keySize - 1
+		if maxValueBytes <= 0 {
+			break
+		}
+		if maxValueBytes > int64(len(valueBytes)) {
+			maxValueBytes = int64(len(valueBytes))
+		}
+		for maxValueBytes > 0 && keySize+performanceSchemaLengthEncodedStringSize(int(maxValueBytes)) > remaining {
+			maxValueBytes--
+		}
+		if maxValueBytes <= 0 {
+			break
+		}
+		result[key] = strings.ToValidUTF8(string(valueBytes[:maxValueBytes]), "")
+		retainedValueSize := performanceSchemaLengthEncodedStringSize(len([]byte(result[key])))
+		remaining -= keySize + retainedValueSize
+		retainedSize += keySize + retainedValueSize
+		break
+	}
+	if markerReserve > 0 {
+		lost := totalSize - retainedSize
+		markerValue := strconv.FormatInt(lost, 10)
+		markerSize := performanceSchemaLengthEncodedStringSize(len(markerKey)) +
+			performanceSchemaLengthEncodedStringSize(len(markerValue))
+		if int64(limit)-retainedSize >= markerSize {
+			result[markerKey] = markerValue
+		}
+	}
+	if truncated && !sessionBoolParam(session, "__performance_schema_session_connect_attrs_truncated") {
+		session.SetParamByName("__performance_schema_session_connect_attrs_truncated", true)
+		if e != nil {
+			e.performanceSchemaSessionConnectAttrsLost.Add(1)
+		}
+	}
+	return result
+}
+
+func (e *XMySQLExecutor) recordPerformanceSchemaSessionConnectAttrsLongestSeen(attributes map[string]string) {
+	if e == nil || len(attributes) == 0 {
+		return
+	}
+	var size int64
+	for key, value := range attributes {
+		size += performanceSchemaLengthEncodedStringSize(len(key))
+		size += performanceSchemaLengthEncodedStringSize(len(value))
+	}
+	for {
+		current := e.performanceSchemaSessionConnectAttrsLongestSeen.Load()
+		if size <= current || e.performanceSchemaSessionConnectAttrsLongestSeen.CompareAndSwap(current, size) {
+			return
+		}
+	}
+}
+
+func performanceSchemaLengthEncodedStringSize(length int) int64 {
+	if length < 251 {
+		return int64(length + 1)
+	}
+	if length < 1<<16 {
+		return int64(length + 3)
+	}
+	if int64(length) < 1<<24 {
+		return int64(length + 4)
+	}
+	return int64(length + 9)
+}
+
 func (e *XMySQLExecutor) executePerformanceSchemaSocketInstancesSelect(query string, current server.MySQLServerSession) *SelectResult {
 	defaults := []string{"EVENT_NAME", "OBJECT_INSTANCE_BEGIN", "THREAD_ID", "SOCKET_ID", "IP", "PORT", "STATE"}
 	columns := requestedInformationSchemaColumns(query, defaults)
+	if e != nil && !e.performanceSchemaInstrumentClassLoaded(performanceSchemaSocketInstrumentNames[0]) {
+		return newInformationSchemaSelectResult("performance_schema.socket_instances", columns, nil)
+	}
 	sessions := make([]server.MySQLServerSession, 0)
 	if e != nil && e.processlistProvider != nil {
 		sessions = append(sessions, e.processlistProvider()...)
@@ -10995,8 +12950,31 @@ func (e *XMySQLExecutor) executePerformanceSchemaSocketInstancesSelect(query str
 			sessions = append(sessions, current)
 		}
 	}
-	rows := make([][]interface{}, 0, len(sessions))
+	socketIDs := make([]int64, 0, len(sessions))
 	for _, listed := range sessions {
+		if listed != nil {
+			socketIDs = append(socketIDs, int64Param(listed.GetParamByName("connection_id")))
+		}
+	}
+	e.recordPerformanceSchemaSocketLoss(socketIDs)
+	orderedSessions := make([]server.MySQLServerSession, 0, len(sessions))
+	for _, listed := range sessions {
+		if listed != nil {
+			orderedSessions = append(orderedSessions, listed)
+		}
+	}
+	sort.SliceStable(orderedSessions, func(i, j int) bool {
+		return int64Param(orderedSessions[i].GetParamByName("connection_id")) < int64Param(orderedSessions[j].GetParamByName("connection_id"))
+	})
+	visibleSessions := orderedSessions
+	capacity := e.performanceSchemaSocketCapacity()
+	if capacity >= 0 && len(visibleSessions) > capacity {
+		// Capacity is applied to the live socket set before SQL predicates, so
+		// a filtered query cannot resurrect an evicted socket instance.
+		visibleSessions = visibleSessions[:capacity]
+	}
+	rows := make([][]interface{}, 0, len(visibleSessions))
+	for _, listed := range visibleSessions {
 		if listed == nil {
 			continue
 		}
@@ -11016,6 +12994,46 @@ func (e *XMySQLExecutor) executePerformanceSchemaSocketInstancesSelect(query str
 		rows = append(rows, projectInformationSchemaRow(columns, values))
 	}
 	return newInformationSchemaSelectResult("performance_schema.socket_instances", columns, rows)
+}
+
+func (e *XMySQLExecutor) recordPerformanceSchemaSocketLoss(socketIDs []int64) {
+	if e == nil {
+		return
+	}
+	capacity := e.performanceSchemaSocketCapacity()
+	if capacity < 0 {
+		return
+	}
+	ids := append([]int64(nil), socketIDs...)
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	unique := ids[:0]
+	for _, id := range ids {
+		if len(unique) == 0 || unique[len(unique)-1] != id {
+			unique = append(unique, id)
+		}
+	}
+	lostKeys := make(map[string]struct{})
+	if capacity < len(unique) {
+		for _, id := range unique[capacity:] {
+			lostKeys[strconv.FormatInt(id, 10)] = struct{}{}
+		}
+	}
+	e.performanceSchemaMu.Lock()
+	if e.performanceSchemaSocketInstanceLostKeys == nil {
+		e.performanceSchemaSocketInstanceLostKeys = make(map[string]struct{})
+	}
+	for key := range lostKeys {
+		if _, exists := e.performanceSchemaSocketInstanceLostKeys[key]; !exists {
+			e.performanceSchemaSocketInstanceLostKeys[key] = struct{}{}
+			e.performanceSchemaSocketInstancesLost.Add(1)
+		}
+	}
+	for key := range e.performanceSchemaSocketInstanceLostKeys {
+		if _, exists := lostKeys[key]; !exists {
+			delete(e.performanceSchemaSocketInstanceLostKeys, key)
+		}
+	}
+	e.performanceSchemaMu.Unlock()
 }
 
 func performanceSchemaSocketEndpoint(session server.MySQLServerSession) (string, int64) {
@@ -11060,6 +13078,9 @@ func (e *XMySQLExecutor) executePerformanceSchemaSocketSummarySelect(query strin
 		defaults = instanceColumns
 	}
 	columns := requestedInformationSchemaColumns(query, defaults)
+	if e != nil && !e.performanceSchemaInstrumentClassLoaded(performanceSchemaSocketInstrumentNames[0]) {
+		return newInformationSchemaSelectResult(name, columns, nil)
+	}
 	sessions := make([]server.MySQLServerSession, 0)
 	if e != nil && e.processlistProvider != nil {
 		sessions = append(sessions, e.processlistProvider()...)
@@ -11186,6 +13207,9 @@ func performanceSchemaSocketAggregateValues(summaries []observabilitymetrics.Soc
 
 func (e *XMySQLExecutor) executePerformanceSchemaFileInstancesSelect(query string) *SelectResult {
 	columns := requestedInformationSchemaColumns(query, []string{"FILE_NAME", "EVENT_NAME", "OPEN_COUNT"})
+	if e != nil && !e.performanceSchemaInstrumentClassLoaded(performanceSchemaFileInstrumentNames[0]) {
+		return newInformationSchemaSelectResult("performance_schema.file_instances", columns, nil)
+	}
 	dataDir := "data"
 	if e != nil {
 		dataDir = e.getDataDir()
@@ -11194,8 +13218,23 @@ func (e *XMySQLExecutor) executePerformanceSchemaFileInstancesSelect(query strin
 	if e != nil {
 		instances = performanceSchemaFileInstanceSnapshot(dataDir, e.metricsRecorder)
 	}
-	rows := make([][]interface{}, 0, len(instances))
-	for _, instance := range instances {
+	e.recordPerformanceSchemaFileLoss(instances)
+	orderedInstances := append([]performanceSchemaFileInstance(nil), instances...)
+	sort.SliceStable(orderedInstances, func(i, j int) bool {
+		if orderedInstances[i].name != orderedInstances[j].name {
+			return orderedInstances[i].name < orderedInstances[j].name
+		}
+		return orderedInstances[i].event < orderedInstances[j].event
+	})
+	visibleInstances := orderedInstances
+	capacity := e.performanceSchemaFileCapacity()
+	if capacity >= 0 && len(visibleInstances) > capacity {
+		// Capacity is applied to the complete live file-instance set before
+		// SQL predicates, matching MySQL's Performance Schema buffer behavior.
+		visibleInstances = visibleInstances[:capacity]
+	}
+	rows := make([][]interface{}, 0, len(visibleInstances))
+	for _, instance := range visibleInstances {
 		if !performanceSchemaSummaryFilterMatches(query, "file_name", instance.name) ||
 			!performanceSchemaSummaryFilterMatches(query, "event_name", instance.event) {
 			continue
@@ -11213,6 +13252,45 @@ type performanceSchemaFileInstance struct {
 	event     string
 	openCount int64
 	summary   *observabilitymetrics.FileSummaryRow
+}
+
+func (e *XMySQLExecutor) recordPerformanceSchemaFileLoss(instances []performanceSchemaFileInstance) {
+	if e == nil {
+		return
+	}
+	capacity := e.performanceSchemaFileCapacity()
+	if capacity < 0 {
+		return
+	}
+	ordered := append([]performanceSchemaFileInstance(nil), instances...)
+	sort.Slice(ordered, func(i, j int) bool {
+		if ordered[i].name != ordered[j].name {
+			return ordered[i].name < ordered[j].name
+		}
+		return ordered[i].event < ordered[j].event
+	})
+	lostKeys := make(map[string]struct{})
+	if capacity < len(ordered) {
+		for _, instance := range ordered[capacity:] {
+			lostKeys[instance.name+"\x00"+instance.event] = struct{}{}
+		}
+	}
+	e.performanceSchemaMu.Lock()
+	if e.performanceSchemaFileInstanceLostKeys == nil {
+		e.performanceSchemaFileInstanceLostKeys = make(map[string]struct{})
+	}
+	for key := range lostKeys {
+		if _, exists := e.performanceSchemaFileInstanceLostKeys[key]; !exists {
+			e.performanceSchemaFileInstanceLostKeys[key] = struct{}{}
+			e.performanceSchemaFileInstancesLost.Add(1)
+		}
+	}
+	for key := range e.performanceSchemaFileInstanceLostKeys {
+		if _, exists := lostKeys[key]; !exists {
+			delete(e.performanceSchemaFileInstanceLostKeys, key)
+		}
+	}
+	e.performanceSchemaMu.Unlock()
 }
 
 func performanceSchemaFileInstances(dataDir string) []performanceSchemaFileInstance {
@@ -11295,6 +13373,9 @@ func (e *XMySQLExecutor) executePerformanceSchemaFileSummarySelect(query string,
 		defaults = instanceColumns
 	}
 	columns := requestedInformationSchemaColumns(query, defaults)
+	if e != nil && !e.performanceSchemaInstrumentClassLoaded(performanceSchemaFileInstrumentNames[0]) {
+		return newInformationSchemaSelectResult(name, columns, nil)
+	}
 	dataDir := "data"
 	if e != nil {
 		dataDir = e.getDataDir()
@@ -11546,6 +13627,9 @@ type performanceSchemaConnectionSummary struct {
 }
 
 func (e *XMySQLExecutor) executePerformanceSchemaConnectionSummarySelect(query, name string, current server.MySQLServerSession) *SelectResult {
+	table := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(name)), "performance_schema.")
+	capacityVariable := performanceSchemaConnectionSummaryVariable(table)
+	capacity := e.performanceSchemaConnectionSummaryCapacity(capacityVariable)
 	sessions := make([]server.MySQLServerSession, 0)
 	if e != nil && e.processlistProvider != nil {
 		sessions = append(sessions, e.processlistProvider()...)
@@ -11569,6 +13653,9 @@ func (e *XMySQLExecutor) executePerformanceSchemaConnectionSummarySelect(query, 
 			continue
 		}
 		user, _ := session.GetParamByName("user").(string)
+		if strings.TrimSpace(user) == "" {
+			continue
+		}
 		host, _ := session.GetParamByName("host").(string)
 		if strings.TrimSpace(host) == "" {
 			host = "localhost"
@@ -11600,6 +13687,9 @@ func (e *XMySQLExecutor) executePerformanceSchemaConnectionSummarySelect(query, 
 		// mark survives a client disconnect and remains available to the
 		// historical accounts/hosts/users rows.
 		for _, memory := range e.metricsRecorder.MemorySummaryForDimension("account") {
+			if strings.TrimSpace(memory.User) == "" {
+				continue
+			}
 			key := memory.User + "\x00" + memory.Host
 			summary := byKey[key]
 			if summary == nil {
@@ -11646,8 +13736,16 @@ func (e *XMySQLExecutor) executePerformanceSchemaConnectionSummarySelect(query, 
 			userValues = append(userValues, *summary)
 		}
 		sort.Slice(userValues, func(i, j int) bool { return userValues[i].user < userValues[j].user })
-		rows := make([][]interface{}, 0, len(userValues))
+		allKeys := make([]string, 0, len(userValues))
 		for _, summary := range userValues {
+			allKeys = append(allKeys, summary.user)
+		}
+		e.recordPerformanceSchemaConnectionSummaryLoss(table, allKeys, capacity)
+		rows := make([][]interface{}, 0, len(userValues))
+		for index, summary := range userValues {
+			if capacity >= 0 && index >= capacity {
+				break
+			}
 			if !performanceSchemaSummaryFilterMatches(query, "user", summary.user) {
 				continue
 			}
@@ -11667,7 +13765,15 @@ func (e *XMySQLExecutor) executePerformanceSchemaConnectionSummarySelect(query, 
 	switch name {
 	case "performance_schema.accounts":
 		columns = []string{"USER", "HOST", "CURRENT_CONNECTIONS", "TOTAL_CONNECTIONS", "MAX_SESSION_CONTROLLED_MEMORY", "MAX_SESSION_TOTAL_MEMORY"}
+		allKeys := make([]string, 0, len(values))
 		for _, summary := range values {
+			allKeys = append(allKeys, summary.user+"\x00"+summary.host)
+		}
+		e.recordPerformanceSchemaConnectionSummaryLoss(table, allKeys, capacity)
+		for index, summary := range values {
+			if capacity >= 0 && index >= capacity {
+				break
+			}
 			if !performanceSchemaSummaryFilterMatches(query, "user", summary.user) || !performanceSchemaSummaryFilterMatches(query, "host", summary.host) {
 				continue
 			}
@@ -11698,7 +13804,15 @@ func (e *XMySQLExecutor) executePerformanceSchemaConnectionSummarySelect(query, 
 			hostValues = append(hostValues, *summary)
 		}
 		sort.Slice(hostValues, func(i, j int) bool { return hostValues[i].host < hostValues[j].host })
+		allKeys := make([]string, 0, len(hostValues))
 		for _, summary := range hostValues {
+			allKeys = append(allKeys, summary.host)
+		}
+		e.recordPerformanceSchemaConnectionSummaryLoss(table, allKeys, capacity)
+		for index, summary := range hostValues {
+			if capacity >= 0 && index >= capacity {
+				break
+			}
 			if !performanceSchemaSummaryFilterMatches(query, "host", summary.host) {
 				continue
 			}
@@ -11707,9 +13821,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaConnectionSummarySelect(query, 
 				"MAX_SESSION_CONTROLLED_MEMORY": summary.maxControlled, "MAX_SESSION_TOTAL_MEMORY": summary.maxAll,
 			}
 			if performanceSchemaLockValuesMatch(query, row) {
-				if performanceSchemaLockValuesMatch(query, row) {
-					rows = append(rows, projectInformationSchemaRow(columns, row))
-				}
+				rows = append(rows, projectInformationSchemaRow(columns, row))
 			}
 		}
 	}
@@ -11726,7 +13838,57 @@ func (e *XMySQLExecutor) executePerformanceSchemaConnectionSummarySelect(query, 
 	return newInformationSchemaSelectResult(name, columns, rows)
 }
 
+func (e *XMySQLExecutor) recordPerformanceSchemaConnectionSummaryLoss(table string, keys []string, capacity int) {
+	if e == nil || capacity < 0 {
+		return
+	}
+	sort.Strings(keys)
+	unique := keys[:0]
+	for _, key := range keys {
+		if len(unique) == 0 || unique[len(unique)-1] != key {
+			unique = append(unique, key)
+		}
+	}
+	lostKeys := make(map[string]struct{})
+	if capacity < len(unique) {
+		for _, key := range unique[capacity:] {
+			lostKeys[key] = struct{}{}
+		}
+	}
+	var counter *atomic.Int64
+	var stored *map[string]struct{}
+	switch table {
+	case "accounts":
+		counter, stored = &e.performanceSchemaAccountsLost, &e.performanceSchemaAccountLostKeys
+	case "hosts":
+		counter, stored = &e.performanceSchemaHostsLost, &e.performanceSchemaHostLostKeys
+	case "users":
+		counter, stored = &e.performanceSchemaUsersLost, &e.performanceSchemaUserLostKeys
+	default:
+		return
+	}
+	e.performanceSchemaMu.Lock()
+	if *stored == nil {
+		*stored = make(map[string]struct{})
+	}
+	for key := range lostKeys {
+		if _, exists := (*stored)[key]; !exists {
+			(*stored)[key] = struct{}{}
+			counter.Add(1)
+		}
+	}
+	for key := range *stored {
+		if _, exists := lostKeys[key]; !exists {
+			delete(*stored, key)
+		}
+	}
+	e.performanceSchemaMu.Unlock()
+}
+
 func performanceSchemaSummaryFilterMatches(query, column, value string) bool {
+	if !performanceSchemaSummaryNullFilterMatches(query, column, strings.EqualFold(strings.TrimSpace(value), "<nil>")) {
+		return false
+	}
 	inPattern := regexp.MustCompile(`(?is)\b` + regexp.QuoteMeta(column) + `\s+(not\s+)?in\s*\(([^)]*)\)`)
 	for _, match := range inPattern.FindAllStringSubmatch(query, -1) {
 		contains := false
@@ -11764,6 +13926,17 @@ func performanceSchemaSummaryFilterMatches(query, column, value string) bool {
 	return true
 }
 
+func performanceSchemaSummaryNullFilterMatches(query, column string, valueIsNull bool) bool {
+	nullPattern := regexp.MustCompile(`(?is)\b` + regexp.QuoteMeta(column) + `\s+is\s+(not\s+)?null\b`)
+	for _, match := range nullPattern.FindAllStringSubmatch(query, -1) {
+		wantsNull := strings.TrimSpace(match[1]) == ""
+		if wantsNull != valueIsNull {
+			return false
+		}
+	}
+	return true
+}
+
 func (e *XMySQLExecutor) performanceSchemaWaitEdges() []manager.WaitEdge {
 	if e == nil || e.lockManager == nil {
 		return nil
@@ -11778,6 +13951,41 @@ func (e *XMySQLExecutor) performanceSchemaMetadataWaitEdges() []MetadataLockWait
 	return e.getDDLCoordinator().MetadataLockWaitEdges()
 }
 
+// performanceSchemaTransactionThreadID resolves the SQL connection that owns
+// a storage transaction. LockManager intentionally stores transaction
+// identity, not session identity, so the live session registry is the
+// authoritative bridge for Performance Schema's THREAD_ID columns.
+func (e *XMySQLExecutor) performanceSchemaTransactionThreadID(transactionID uint64) interface{} {
+	if e == nil || e.processlistProvider == nil || transactionID == 0 {
+		return nil
+	}
+	for _, session := range e.processlistProvider() {
+		if session == nil {
+			continue
+		}
+		for _, key := range []string{clientStorageTransactionContextKey, replicationStorageTransactionContextKey} {
+			txn, ok := session.GetParamByName(key).(*StorageTransactionContext)
+			if !ok || txn == nil || txn.TransactionID != transactionID {
+				continue
+			}
+			threadID, _, _ := performanceSchemaSessionIdentity(session)
+			if threadID != 0 {
+				return threadID
+			}
+		}
+	}
+	return nil
+}
+
+func (e *XMySQLExecutor) performanceSchemaTransactionThreadIDOrFallback(transactionID uint64) int64 {
+	if threadID, ok := e.performanceSchemaTransactionThreadID(transactionID).(int64); ok {
+		return threadID
+	}
+	// Keep manager-only projections usable for callers without a live session
+	// registry; real sessions take the authoritative mapping above.
+	return int64(transactionID)
+}
+
 func (e *XMySQLExecutor) executePerformanceSchemaDataLockWaitsSelect(query string) *SelectResult {
 	defaults := []string{"ENGINE", "REQUESTING_ENGINE_LOCK_ID", "REQUESTING_ENGINE_TRANSACTION_ID", "REQUESTING_THREAD_ID", "REQUESTING_EVENT_ID", "REQUESTING_OBJECT_INSTANCE_BEGIN", "BLOCKING_ENGINE_LOCK_ID", "BLOCKING_ENGINE_TRANSACTION_ID", "BLOCKING_THREAD_ID", "BLOCKING_EVENT_ID", "BLOCKING_OBJECT_INSTANCE_BEGIN"}
 	columns := requestedInformationSchemaColumns(query, defaults)
@@ -11789,9 +13997,9 @@ func (e *XMySQLExecutor) executePerformanceSchemaDataLockWaitsSelect(query strin
 		}
 		values := map[string]interface{}{
 			"ENGINE": "INNODB", "REQUESTING_ENGINE_LOCK_ID": fmt.Sprintf("%s:%d", edge.ResourceID, edge.WaitingTxID), "REQUESTING_ENGINE_TRANSACTION_ID": int64(edge.WaitingTxID),
-			"REQUESTING_THREAD_ID": int64(edge.WaitingTxID), "REQUESTING_EVENT_ID": int64(0), "REQUESTING_OBJECT_INSTANCE_BEGIN": int64(0),
+			"REQUESTING_THREAD_ID": e.performanceSchemaTransactionThreadID(edge.WaitingTxID), "REQUESTING_EVENT_ID": int64(0), "REQUESTING_OBJECT_INSTANCE_BEGIN": int64(0),
 			"BLOCKING_ENGINE_LOCK_ID": fmt.Sprintf("%s:%d", edge.ResourceID, edge.BlockingTxID), "BLOCKING_ENGINE_TRANSACTION_ID": int64(edge.BlockingTxID),
-			"BLOCKING_THREAD_ID": int64(edge.BlockingTxID), "BLOCKING_EVENT_ID": int64(0), "BLOCKING_OBJECT_INSTANCE_BEGIN": int64(0),
+			"BLOCKING_THREAD_ID": e.performanceSchemaTransactionThreadID(edge.BlockingTxID), "BLOCKING_EVENT_ID": int64(0), "BLOCKING_OBJECT_INSTANCE_BEGIN": int64(0),
 			"REQUESTING_LOCK_ID": fmt.Sprintf("%s:%d", edge.ResourceID, edge.WaitingTxID), "BLOCKING_LOCK_ID": fmt.Sprintf("%s:%d", edge.ResourceID, edge.BlockingTxID),
 		}
 		if !performanceSchemaLockValuesMatch(query, values) {
@@ -11847,7 +14055,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaDataLocksSelect(query string) *
 			}
 			values := map[string]interface{}{
 				"ENGINE": "INNODB", "ENGINE_LOCK_ID": fmt.Sprintf("%s:%d", lock.ResourceID, lock.TransactionID), "ENGINE_TRANSACTION_ID": int64(lock.TransactionID),
-				"THREAD_ID": int64(lock.TransactionID), "EVENT_ID": int64(0), "OBJECT_SCHEMA": nil, "OBJECT_NAME": lock.ResourceID,
+				"THREAD_ID": e.performanceSchemaTransactionThreadID(lock.TransactionID), "EVENT_ID": int64(0), "OBJECT_SCHEMA": nil, "OBJECT_NAME": lock.ResourceID,
 				"PARTITION_NAME": nil, "SUBPARTITION_NAME": nil, "INDEX_NAME": nil, "OBJECT_INSTANCE_BEGIN": int64(0),
 				"LOCK_TYPE": performanceSchemaLockType(lock.LockType), "LOCK_MODE": performanceSchemaLockMode(lock.LockType, lock.Mode),
 				"LOCK_STATUS": lockStatus, "LOCK_DATA": nil,
@@ -11919,11 +14127,23 @@ func (e *XMySQLExecutor) executePerformanceSchemaMetadataLocksSelect(query strin
 	if e == nil {
 		return newInformationSchemaSelectResult("performance_schema.metadata_locks", columns, rows)
 	}
-	for _, lock := range e.getDDLCoordinator().MetadataLocks() {
+	allCandidateKeys := make([]string, 0)
+	locks := e.getDDLCoordinator().MetadataLocks()
+	capacity := e.performanceSchemaMetadataLockCapacity()
+	for _, lock := range locks {
+		allCandidateKeys = append(allCandidateKeys, performanceSchemaMetadataLockKey(lock))
+	}
+	e.recordPerformanceSchemaMetadataLockLoss(allCandidateKeys)
+	if capacity == 0 {
+		locks = nil
+	} else if capacity >= 0 && len(locks) > capacity {
+		locks = locks[:capacity]
+	}
+	for _, lock := range locks {
 		schema, table := compatibilityQualifiedTable(lock.Table, "")
 		values := map[string]interface{}{
 			"OBJECT_TYPE": "TABLE", "OBJECT_SCHEMA": schema, "OBJECT_NAME": table, "COLUMN_NAME": nil, "OBJECT_INSTANCE_BEGIN": nil,
-			"LOCK_TYPE": "SHARED", "LOCK_DURATION": "TRANSACTION", "LOCK_STATUS": lock.Status,
+			"LOCK_TYPE": "SHARED", "LOCK_DURATION": normalizeMetadataLockDuration(lock.Duration), "LOCK_STATUS": lock.Status,
 			"SOURCE": "xmysql-server/ddl_lock_coordinator.go", "OWNER_THREAD_ID": metadataLockThreadID(lock.Owner),
 			"OWNER_EVENT_ID": int64(0), "INSTRUMENTED": "YES",
 		}
@@ -11940,10 +14160,57 @@ func (e *XMySQLExecutor) executePerformanceSchemaMetadataLocksSelect(query strin
 	return newInformationSchemaSelectResult("performance_schema.metadata_locks", columns, rows)
 }
 
+func performanceSchemaMetadataLockKey(lock MetadataLockSnapshot) string {
+	return strings.Join([]string{lock.Table, lock.Owner, lock.Status, string(lock.Mode)}, "\x00")
+}
+
+func (e *XMySQLExecutor) recordPerformanceSchemaMetadataLockLoss(keys []string) {
+	if e == nil {
+		return
+	}
+	capacity := e.performanceSchemaMetadataLockCapacity()
+	if capacity < 0 {
+		return
+	}
+	unique := append([]string(nil), keys...)
+	sort.Strings(unique)
+	deduped := unique[:0]
+	for _, key := range unique {
+		if len(deduped) == 0 || deduped[len(deduped)-1] != key {
+			deduped = append(deduped, key)
+		}
+	}
+	lostKeys := make(map[string]struct{})
+	if capacity < len(deduped) {
+		for _, key := range deduped[capacity:] {
+			lostKeys[key] = struct{}{}
+		}
+	}
+	e.performanceSchemaMu.Lock()
+	if e.performanceSchemaMetadataLockLostKeys == nil {
+		e.performanceSchemaMetadataLockLostKeys = make(map[string]struct{})
+	}
+	for key := range lostKeys {
+		if _, exists := e.performanceSchemaMetadataLockLostKeys[key]; !exists {
+			e.performanceSchemaMetadataLockLostKeys[key] = struct{}{}
+			e.performanceSchemaMetadataLockLost.Add(1)
+		}
+	}
+	for key := range e.performanceSchemaMetadataLockLostKeys {
+		if _, exists := lostKeys[key]; !exists {
+			delete(e.performanceSchemaMetadataLockLostKeys, key)
+		}
+	}
+	e.performanceSchemaMu.Unlock()
+}
+
 func performanceSchemaLockValuesMatch(query string, values map[string]interface{}) bool {
 	filterQuery := performanceSchemaFilterQuery(query)
 	for column, value := range values {
 		if value == nil {
+			if !performanceSchemaSummaryNullFilterMatches(filterQuery, strings.ToLower(column), true) {
+				return false
+			}
 			// SQL comparisons against NULL do not match.  Keep IS NULL/IS NOT
 			// NULL predicates for the regular expression/expression path, but do
 			// not let an explicit equality or LIKE predicate accidentally keep a
@@ -12005,11 +14272,6 @@ func (e *XMySQLExecutor) executePerformanceSchemaEventsWaitsSelectWithSession(qu
 		return newInformationSchemaSelectResult(viewName, columns, nil)
 	}
 	rows := make([][]interface{}, 0)
-	threadScopedHistory := viewName == "performance_schema.events_waits_history" && session != nil
-	currentThreadID := int64(0)
-	if threadScopedHistory {
-		currentThreadID = int64(sessionConnectionID(session))
-	}
 	eventSequence := int64(0)
 	buildWaitValues := func(threadID int64, eventName, source, objectName, operation string, started time.Time, wait time.Duration, timed, current bool) map[string]interface{} {
 		eventSequence++
@@ -12018,21 +14280,33 @@ func (e *XMySQLExecutor) executePerformanceSchemaEventsWaitsSelectWithSession(qu
 		if current {
 			endEventID = nil
 		}
+		objectNameValue := interface{}(objectName)
+		objectTypeValue := interface{}("TABLE")
+		objectInstanceValue := interface{}(eventSequence)
+		if strings.HasPrefix(eventName, "wait/synch/") {
+			objectNameValue = nil
+			objectTypeValue = nil
+			if e != nil && eventName == performanceSchemaGlobalReadLockConditionInstrument {
+				for _, instance := range e.performanceSchemaConditionInstances() {
+					if instance.name == eventName {
+						objectInstanceValue = instance.objectInstanceBegin
+						break
+					}
+				}
+			}
+			if e != nil && strings.HasPrefix(eventName, "wait/synch/mutex/") {
+				objectInstanceValue = e.performanceSchemaMutexObjectInstance(eventName)
+			}
+		}
 		return map[string]interface{}{
 			"THREAD_ID": threadID, "EVENT_ID": eventSequence, "END_EVENT_ID": endEventID, "EVENT_NAME": eventName,
 			"SOURCE": source, "TIMER_START": timerStart, "TIMER_END": timerEnd, "TIMER_WAIT": timerWait,
-			"SPINS": int64(0), "OBJECT_SCHEMA": nil, "OBJECT_NAME": objectName, "INDEX_NAME": nil, "OBJECT_TYPE": "TABLE",
-			"OBJECT_INSTANCE_BEGIN": eventSequence, "NESTING_EVENT_ID": nil, "NESTING_EVENT_TYPE": nil, "OPERATION": operation,
+			"SPINS": int64(0), "OBJECT_SCHEMA": nil, "OBJECT_NAME": objectNameValue, "INDEX_NAME": nil, "OBJECT_TYPE": objectTypeValue,
+			"OBJECT_INSTANCE_BEGIN": objectInstanceValue, "NESTING_EVENT_ID": nil, "NESTING_EVENT_TYPE": nil, "OPERATION": operation,
 			"NUMBER_OF_BYTES": nil, "FLAGS": int64(0),
 		}
 	}
 	appendRow := func(values map[string]interface{}) {
-		if threadScopedHistory {
-			threadID, ok := values["THREAD_ID"].(int64)
-			if !ok || threadID != currentThreadID {
-				return
-			}
-		}
 		if performanceSchemaLockValuesMatch(query, values) {
 			rows = append(rows, projectInformationSchemaRow(columns, values))
 		}
@@ -12043,7 +14317,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaEventsWaitsSelectWithSession(qu
 			continue
 		}
 		_, timed := e.performanceSchemaInstrumentSetting("wait/lock/table/sql/handler")
-		values := buildWaitValues(int64(edge.WaitingTxID), "wait/lock/table/sql/handler", "xmysql/lock_manager.go", edge.ResourceID, "lock", edge.Since, wait, timed, true)
+		values := buildWaitValues(e.performanceSchemaTransactionThreadIDOrFallback(edge.WaitingTxID), "wait/lock/table/sql/handler", "xmysql/lock_manager.go", edge.ResourceID, "lock", edge.Since, wait, timed, true)
 		appendRow(values)
 	}
 	for _, edge := range e.performanceSchemaMetadataWaitEdges() {
@@ -12059,6 +14333,27 @@ func (e *XMySQLExecutor) executePerformanceSchemaEventsWaitsSelectWithSession(qu
 		values := buildWaitValues(threadID.(int64), "wait/lock/metadata/sql/mdl", "xmysql/ddl_lock_coordinator.go", edge.Table, "metadata lock", edge.WaitStarted, wait, timed, true)
 		appendRow(values)
 	}
+	if e != nil {
+		current, _ := e.performanceSchemaGlobalReadLockWaitSnapshots(false)
+		for _, wait := range current {
+			included, observed := e.performanceSchemaObservedWait(performanceSchemaGlobalReadLockConditionInstrument, wait.waitDuration)
+			if !included {
+				continue
+			}
+			_, timed := e.performanceSchemaInstrumentSetting(performanceSchemaGlobalReadLockConditionInstrument)
+			values := buildWaitValues(wait.threadID, performanceSchemaGlobalReadLockConditionInstrument, "xmysql/global_read_lock.go", "global_read_lock", "wait", wait.started, observed, timed, true)
+			appendRow(values)
+		}
+		mutexCurrent, _ := e.performanceSchemaMutexWaitSnapshots(false, false)
+		for _, wait := range mutexCurrent {
+			included, observed := performanceSchemaRecordedWait(wait.instrumented, wait.timed, time.Since(wait.started))
+			if !included {
+				continue
+			}
+			values := buildWaitValues(wait.threadID, wait.eventName, "xmysql/performance_schema_mutex.go", "", "lock", wait.started, observed, wait.timed, true)
+			appendRow(values)
+		}
+	}
 	if viewName != "performance_schema.events_waits_current" {
 		rows = rows[:0]
 		if e != nil && e.lockManager != nil {
@@ -12071,7 +14366,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaEventsWaitsSelectWithSession(qu
 				if !included {
 					continue
 				}
-				values := buildWaitValues(int64(edge.WaitingTxID), "wait/lock/table/sql/handler", "xmysql/lock_manager.go", edge.ResourceID, "lock", edge.Since, wait, edge.Timed, false)
+				values := buildWaitValues(e.performanceSchemaTransactionThreadIDOrFallback(edge.WaitingTxID), "wait/lock/table/sql/handler", "xmysql/lock_manager.go", edge.ResourceID, "lock", edge.Since, wait, edge.Timed, false)
 				appendRow(values)
 			}
 		}
@@ -12092,6 +14387,24 @@ func (e *XMySQLExecutor) executePerformanceSchemaEventsWaitsSelectWithSession(qu
 				values := buildWaitValues(threadID.(int64), "wait/lock/metadata/sql/mdl", "xmysql/ddl_lock_coordinator.go", edge.Table, "metadata lock", edge.WaitStarted, wait, edge.Timed, false)
 				appendRow(values)
 			}
+			globalReadLockHistory := e.performanceSchemaGlobalReadLockWaitHistorySnapshot(viewName == "performance_schema.events_waits_history_long")
+			for _, wait := range globalReadLockHistory {
+				included, observed := performanceSchemaRecordedWait(wait.instrumented, wait.timed, wait.waitDuration)
+				if !included {
+					continue
+				}
+				values := buildWaitValues(wait.threadID, performanceSchemaGlobalReadLockConditionInstrument, "xmysql/global_read_lock.go", "global_read_lock", "wait", wait.started, observed, wait.timed, false)
+				appendRow(values)
+			}
+			_, mutexHistory := e.performanceSchemaMutexWaitSnapshots(true, viewName == "performance_schema.events_waits_history_long")
+			for _, wait := range mutexHistory {
+				included, observed := performanceSchemaRecordedWait(wait.instrumented, wait.timed, wait.waitDuration)
+				if !included {
+					continue
+				}
+				values := buildWaitValues(wait.threadID, wait.eventName, "xmysql/performance_schema_mutex.go", "", "lock", wait.started, observed, wait.timed, false)
+				appendRow(values)
+			}
 		}
 	}
 	return newInformationSchemaSelectResult(viewName, columns, rows)
@@ -12100,6 +14413,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaEventsWaitsSelectWithSession(qu
 type performanceSchemaWaitSummary struct {
 	threadID int64
 	event    string
+	hasWait  bool
 	count    int64
 	sum      int64
 	min      int64
@@ -12123,6 +14437,8 @@ func (e *XMySQLExecutor) executePerformanceSchemaWaitSummarySelectWithDimension(
 	byKey := make(map[string]*performanceSchemaWaitSummary)
 	resetEvents := make([]performanceSchemaWaitSummaryResetEvent, 0)
 	dimensionReset := map[string]struct{}(nil)
+	globalReadLockSummaryResetSequence := e.performanceSchemaGlobalReadLockWaitSummaryResetCutoff()
+	mutexSummaryResetSequence := e.performanceSchemaMutexWaitSummaryResetCutoff()
 	if e != nil {
 		e.performanceSchemaMu.RLock()
 		resetEvents = append(resetEvents, e.performanceSchemaWaitSummaryReset...)
@@ -12152,18 +14468,19 @@ func (e *XMySQLExecutor) executePerformanceSchemaWaitSummarySelectWithDimension(
 		}
 		summary.count++
 		summary.sum += timer
-		if timer < summary.min {
+		if !summary.hasWait || timer < summary.min {
 			summary.min = timer
 		}
-		if timer > summary.max {
+		if !summary.hasWait || timer > summary.max {
 			summary.max = timer
 		}
+		summary.hasWait = true
 	}
 	if e != nil && e.lockManager != nil {
 		for _, edge := range e.lockManager.WaitSummarySnapshot() {
 			included, wait := performanceSchemaRecordedWait(edge.Instrumented, edge.Timed, edge.WaitDuration)
 			if included {
-				add(int64(edge.WaitingTxID), "wait/lock/table/sql/handler", edge.ResourceID, edge.Since, wait, true)
+				add(e.performanceSchemaTransactionThreadIDOrFallback(edge.WaitingTxID), "wait/lock/table/sql/handler", edge.ResourceID, edge.Since, wait, true)
 			}
 		}
 	}
@@ -12180,7 +14497,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaWaitSummarySelectWithDimension(
 	for _, edge := range e.performanceSchemaWaitEdges() {
 		included, wait := e.performanceSchemaObservedWait("wait/lock/table/sql/handler", edge.WaitDuration)
 		if included {
-			add(int64(edge.WaitingTxID), "wait/lock/table/sql/handler", edge.ResourceID, edge.Since, wait, false)
+			add(e.performanceSchemaTransactionThreadIDOrFallback(edge.WaitingTxID), "wait/lock/table/sql/handler", edge.ResourceID, edge.Since, wait, false)
 		}
 	}
 	for _, edge := range e.performanceSchemaMetadataWaitEdges() {
@@ -12189,6 +14506,40 @@ func (e *XMySQLExecutor) executePerformanceSchemaWaitSummarySelectWithDimension(
 			threadID := metadataLockThreadID(edge.WaitingOwner)
 			if id, ok := threadID.(int64); ok {
 				add(id, "wait/lock/metadata/sql/mdl", edge.Table, edge.WaitStarted, wait, false)
+			}
+		}
+	}
+	if e != nil {
+		current, history := e.performanceSchemaGlobalReadLockWaitSnapshots(true)
+		for _, wait := range current {
+			included, observed := e.performanceSchemaObservedWait(performanceSchemaGlobalReadLockConditionInstrument, wait.waitDuration)
+			if included {
+				add(wait.threadID, performanceSchemaGlobalReadLockConditionInstrument, "global_read_lock", wait.started, observed, false)
+			}
+		}
+		for _, wait := range history {
+			if wait.sequence <= globalReadLockSummaryResetSequence {
+				continue
+			}
+			included, observed := performanceSchemaRecordedWait(wait.instrumented, wait.timed, wait.waitDuration)
+			if included {
+				add(wait.threadID, performanceSchemaGlobalReadLockConditionInstrument, "global_read_lock", wait.started, observed, true)
+			}
+		}
+		mutexCurrent, mutexHistory := e.performanceSchemaMutexWaitSnapshots(true, true)
+		for _, wait := range mutexCurrent {
+			included, observed := performanceSchemaRecordedWait(wait.instrumented, wait.timed, time.Since(wait.started))
+			if included {
+				add(wait.threadID, wait.eventName, strconv.FormatInt(wait.objectInstanceBegin, 10), wait.started, observed, false)
+			}
+		}
+		for _, wait := range mutexHistory {
+			if wait.sequence <= mutexSummaryResetSequence {
+				continue
+			}
+			included, observed := performanceSchemaRecordedWait(wait.instrumented, wait.timed, wait.waitDuration)
+			if included {
+				add(wait.threadID, wait.eventName, strconv.FormatInt(wait.objectInstanceBegin, 10), wait.started, observed, true)
 			}
 		}
 	}
@@ -12210,6 +14561,17 @@ func (e *XMySQLExecutor) executePerformanceSchemaWaitSummarySelectWithDimension(
 					threadID: event.ThreadID, event: event.Event,
 				}
 				liveEvents[event.Event] = struct{}{}
+			}
+		}
+	}
+	if byThread && dimension == "thread" && e != nil {
+		e.performanceSchemaMu.RLock()
+		dimensionRows := append([]performanceSchemaWaitSummaryResetEvent(nil), e.performanceSchemaWaitSummaryDimensionRows[dimension]...)
+		e.performanceSchemaMu.RUnlock()
+		for _, event := range dimensionRows {
+			key := fmt.Sprintf("%d\x00%s", event.ThreadID, event.Event)
+			if _, exists := byKey[key]; !exists {
+				byKey[key] = &performanceSchemaWaitSummary{threadID: event.ThreadID, event: event.Event}
 			}
 		}
 	}
@@ -12247,16 +14609,19 @@ func (e *XMySQLExecutor) executePerformanceSchemaWaitSummarySelectWithDimension(
 	for _, summary := range values {
 		combined := global[summary.event]
 		if combined == nil {
-			combined = &performanceSchemaWaitSummary{event: summary.event, min: summary.min, max: summary.max}
+			combined = &performanceSchemaWaitSummary{event: summary.event}
 			global[summary.event] = combined
 		}
 		combined.count += summary.count
 		combined.sum += summary.sum
-		if summary.min < combined.min {
-			combined.min = summary.min
-		}
-		if summary.max > combined.max {
-			combined.max = summary.max
+		if summary.hasWait {
+			if !combined.hasWait || summary.min < combined.min {
+				combined.min = summary.min
+			}
+			if !combined.hasWait || summary.max > combined.max {
+				combined.max = summary.max
+			}
+			combined.hasWait = true
 		}
 	}
 	globalValues := make([]performanceSchemaWaitSummary, 0, len(global))
@@ -12281,6 +14646,7 @@ type performanceSchemaTableLockWaitSummary struct {
 	objectType   string
 	objectSchema string
 	objectName   string
+	hasWait      bool
 	count        int64
 	sum          int64
 	min          int64
@@ -12299,6 +14665,48 @@ type performanceSchemaTableLockWaitSummary struct {
 	miscMax      int64
 }
 
+func (e *XMySQLExecutor) recordPerformanceSchemaTableLockStatLoss(values []performanceSchemaTableLockWaitSummary) {
+	if e == nil {
+		return
+	}
+	capacity := e.performanceSchemaTableLockStatCapacity()
+	if capacity < 0 {
+		return
+	}
+	ordered := append([]performanceSchemaTableLockWaitSummary(nil), values...)
+	sort.Slice(ordered, func(i, j int) bool {
+		if ordered[i].objectSchema != ordered[j].objectSchema {
+			return ordered[i].objectSchema < ordered[j].objectSchema
+		}
+		if ordered[i].objectName != ordered[j].objectName {
+			return ordered[i].objectName < ordered[j].objectName
+		}
+		return ordered[i].objectType < ordered[j].objectType
+	})
+	lostKeys := make(map[string]struct{})
+	if capacity < len(ordered) {
+		for _, summary := range ordered[capacity:] {
+			lostKeys[summary.objectType+"\x00"+summary.objectSchema+"\x00"+summary.objectName] = struct{}{}
+		}
+	}
+	e.performanceSchemaMu.Lock()
+	if e.performanceSchemaTableLockStatLostKeys == nil {
+		e.performanceSchemaTableLockStatLostKeys = make(map[string]struct{})
+	}
+	for key := range lostKeys {
+		if _, exists := e.performanceSchemaTableLockStatLostKeys[key]; !exists {
+			e.performanceSchemaTableLockStatLostKeys[key] = struct{}{}
+			e.performanceSchemaTableLockStatLost.Add(1)
+		}
+	}
+	for key := range e.performanceSchemaTableLockStatLostKeys {
+		if _, exists := lostKeys[key]; !exists {
+			delete(e.performanceSchemaTableLockStatLostKeys, key)
+		}
+	}
+	e.performanceSchemaMu.Unlock()
+}
+
 // executePerformanceSchemaTableLockWaitSummarySelect projects completed and
 // currently observable table-lock waits into MySQL's table summary shape.
 // Completed record-lock and owner-aware metadata-lock waits come from their
@@ -12308,9 +14716,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaTableLockWaitSummarySelect(quer
 	columns := requestedInformationSchemaColumns(query, defaults)
 	byKey := make(map[string]*performanceSchemaTableLockWaitSummary)
 	ensure := func(objectType, objectSchema, objectName string) {
-		if objectName == "" || !performanceSchemaSummaryFilterMatches(query, "OBJECT_TYPE", objectType) ||
-			!performanceSchemaSummaryFilterMatches(query, "OBJECT_SCHEMA", objectSchema) ||
-			!performanceSchemaSummaryFilterMatches(query, "OBJECT_NAME", objectName) {
+		if objectName == "" {
 			return
 		}
 		if objectType == "TABLE" {
@@ -12327,9 +14733,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaTableLockWaitSummarySelect(quer
 		}
 	}
 	add := func(objectType, objectSchema, objectName string, wait time.Duration, mode manager.LockType, metadata bool) {
-		if objectName == "" || !performanceSchemaSummaryFilterMatches(query, "OBJECT_TYPE", objectType) ||
-			!performanceSchemaSummaryFilterMatches(query, "OBJECT_SCHEMA", objectSchema) ||
-			!performanceSchemaSummaryFilterMatches(query, "OBJECT_NAME", objectName) {
+		if objectName == "" {
 			return
 		}
 		untimed := false
@@ -12359,19 +14763,20 @@ func (e *XMySQLExecutor) executePerformanceSchemaTableLockWaitSummarySelect(quer
 		}
 		summary.count++
 		summary.sum += timer
-		if timer < summary.min {
+		if !summary.hasWait || timer < summary.min {
 			summary.min = timer
 		}
-		if timer > summary.max {
+		if !summary.hasWait || timer > summary.max {
 			summary.max = timer
 		}
+		summary.hasWait = true
 		if metadata {
 			summary.miscCount++
 			summary.miscSum += timer
-			if timer < summary.miscMin {
+			if summary.miscCount == 1 || timer < summary.miscMin {
 				summary.miscMin = timer
 			}
-			if timer > summary.miscMax {
+			if summary.miscCount == 1 || timer > summary.miscMax {
 				summary.miscMax = timer
 			}
 			return
@@ -12379,20 +14784,20 @@ func (e *XMySQLExecutor) executePerformanceSchemaTableLockWaitSummarySelect(quer
 		if mode == manager.LOCK_S {
 			summary.readCount++
 			summary.readSum += timer
-			if timer < summary.readMin {
+			if summary.readCount == 1 || timer < summary.readMin {
 				summary.readMin = timer
 			}
-			if timer > summary.readMax {
+			if summary.readCount == 1 || timer > summary.readMax {
 				summary.readMax = timer
 			}
 			return
 		}
 		summary.writeCount++
 		summary.writeSum += timer
-		if timer < summary.writeMin {
+		if summary.writeCount == 1 || timer < summary.writeMin {
 			summary.writeMin = timer
 		}
-		if timer > summary.writeMax {
+		if summary.writeCount == 1 || timer > summary.writeMax {
 			summary.writeMax = timer
 		}
 	}
@@ -12444,8 +14849,13 @@ func (e *XMySQLExecutor) executePerformanceSchemaTableLockWaitSummarySelect(quer
 		}
 		return values[i].objectName < values[j].objectName
 	})
+	e.recordPerformanceSchemaTableLockStatLoss(values)
+	capacity := e.performanceSchemaTableLockStatCapacity()
 	rows := make([][]interface{}, 0, len(values))
-	for _, summary := range values {
+	for index, summary := range values {
+		if capacity >= 0 && index >= capacity {
+			break
+		}
 		row := map[string]interface{}{
 			"OBJECT_TYPE": summary.objectType, "OBJECT_SCHEMA": summary.objectSchema, "OBJECT_NAME": summary.objectName,
 			"COUNT_STAR": summary.count, "SUM_TIMER_WAIT": summary.sum, "MIN_TIMER_WAIT": summary.min,
@@ -12502,6 +14912,9 @@ func averagePerformanceSchemaTimer(sum, count int64) int64 {
 func (e *XMySQLExecutor) executePerformanceSchemaMemorySummarySelect(query string) *SelectResult {
 	defaults := []string{"EVENT_NAME", "COUNT_ALLOC", "COUNT_FREE", "SUM_NUMBER_OF_BYTES_ALLOC", "SUM_NUMBER_OF_BYTES_FREE", "LOW_COUNT_USED", "CURRENT_COUNT_USED", "HIGH_COUNT_USED", "LOW_NUMBER_OF_BYTES_USED", "CURRENT_NUMBER_OF_BYTES_USED", "HIGH_NUMBER_OF_BYTES_USED"}
 	columns := requestedInformationSchemaColumns(query, defaults)
+	if e != nil && !e.performanceSchemaInstrumentClassLoaded(performanceSchemaMemoryInstrumentNames[0]) {
+		return newInformationSchemaSelectResult("performance_schema.memory_summary_global_by_event_name", columns, nil)
+	}
 	if e == nil || e.metricsRecorder == nil {
 		values := map[string]interface{}{
 			"EVENT_NAME": "memory/sql/THD::main_mem_root", "COUNT_ALLOC": int64(0), "COUNT_FREE": int64(0),
@@ -12581,7 +14994,28 @@ func (e *XMySQLExecutor) executeShowProcesslist(ctx *ExecutionContext, session s
 		query = ctx.RawQuery
 	}
 	result := e.executeProcesslistSelect(session, query)
+	if e.performanceSchemaShowProcesslistEnabled() {
+		result = e.executePerformanceSchemaShowProcesslist(session)
+	}
 	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: result, Message: fmt.Sprintf("processlist returned %d rows", result.RowCount)}
+}
+
+// executePerformanceSchemaShowProcesslist projects the Performance Schema
+// processlist table into the legacy SHOW PROCESSLIST result shape. The
+// source-backed session visibility and row data remain shared with the table
+// implementation, while this path models MySQL's alternate implementation.
+func (e *XMySQLExecutor) executePerformanceSchemaShowProcesslist(session server.MySQLServerSession) *SelectResult {
+	base := e.executePerformanceSchemaProcesslistSelect("select * from performance_schema.processlist", session)
+	columns := []string{"Id", "User", "Host", "db", "Command", "Time", "State", "Info", "Rows_sent", "Rows_examined"}
+	rows := make([][]interface{}, 0, len(base.Records))
+	for _, record := range base.Records {
+		values := record.GetValues()
+		if len(values) < 10 {
+			continue
+		}
+		rows = append(rows, []interface{}{values[0].Raw(), values[1].Raw(), values[2].Raw(), values[3].Raw(), values[4].Raw(), values[5].Raw(), values[6].Raw(), values[7].Raw(), values[8].Raw(), values[9].Raw()})
+	}
+	return newInformationSchemaSelectResult("processlist", columns, rows)
 }
 
 func (e *XMySQLExecutor) executeProcesslistSelect(session server.MySQLServerSession, query string) *SelectResult {
@@ -13045,6 +15479,19 @@ func (e *XMySQLExecutor) executeInformationSchemaEnabledRolesSelect(query string
 		return newInformationSchemaSelectResult("information_schema.enabled_roles", columns, nil)
 	}
 	roles, ok := session.GetParamByName("active_roles").([]string)
+	if !ok {
+		// Authenticated network sessions carry active_roles explicitly. A
+		// synthetic metadata session may omit it; in that case MySQL starts the
+		// connection with its persisted default roles, not with every granted
+		// role. Keep an explicit empty slice authoritative for SET ROLE NONE.
+		if file, err := e.accountFileForSession(&ExecutionContext{Session: session}); err == nil {
+			if account := sessionAccount(file, session); account != nil {
+				roles = append([]string(nil), account.DefaultRoles...)
+				roles = e.addMandatoryRoles(file, roles)
+				ok = true
+			}
+		}
+	}
 	if !ok || len(roles) == 0 {
 		return newInformationSchemaSelectResult("information_schema.enabled_roles", columns, nil)
 	}
@@ -13074,17 +15521,47 @@ func (e *XMySQLExecutor) executeInformationSchemaEnabledRolesSelect(query string
 	return newInformationSchemaSelectResult("information_schema.enabled_roles", columns, rows)
 }
 
-var informationSchemaRoleFilterPattern = regexp.MustCompile(`(?i)\b(grantor|grantor_host|grantee|grantee_host|role_name|role_host|default_role|is_default|is_mandatory|is_grantable|table_catalog|table_schema|table_name|column_name|privilege_type|specific_catalog|specific_schema|specific_name|routine_catalog|routine_schema|routine_name)\b\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)")`)
+var informationSchemaRoleFilterPattern = regexp.MustCompile(`(?i)\b(user|host|grantor|grantor_host|grantee|grantee_host|role_name|role_host|default_role|is_default|is_mandatory|is_grantable|table_catalog|table_schema|table_name|column_name|privilege_type|specific_catalog|specific_schema|specific_name|routine_catalog|routine_schema|routine_name)\b\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)")`)
+
+var informationSchemaRoleInFilterPattern = regexp.MustCompile(`(?is)\b(user|host|grantor|grantor_host|grantee|grantee_host|role_name|role_host|default_role|is_default|is_mandatory|is_grantable|table_catalog|table_schema|table_name|column_name|privilege_type|specific_catalog|specific_schema|specific_name|routine_catalog|routine_schema|routine_name)\b\s+(not\s+)?in\s*\(([^)]*)\)`)
+
+var informationSchemaRoleNullFilterPattern = regexp.MustCompile(`(?is)\b(user|host|grantor|grantor_host|grantee|grantee_host|role_name|role_host|default_role|is_default|is_mandatory|is_grantable|table_catalog|table_schema|table_name|column_name|privilege_type|specific_catalog|specific_schema|specific_name|routine_catalog|routine_schema|routine_name)\b\s+is\s+(not\s+)?null`)
 
 func informationSchemaRoleQueryMatches(query string, values map[string]interface{}) bool {
-	for _, match := range informationSchemaRoleFilterPattern.FindAllStringSubmatch(query, -1) {
+	filterQuery := performanceSchemaFilterQuery(query)
+	for _, match := range informationSchemaRoleFilterPattern.FindAllStringSubmatch(filterQuery, -1) {
 		field := strings.ToUpper(match[1])
 		pattern := match[2]
 		if pattern == "" {
 			pattern = match[3]
 		}
 		value := fmt.Sprint(values[field])
-		if !metadataPatternMatches(value, pattern) {
+		if !metadataPatternMatchesAllowEmpty(value, pattern) {
+			return false
+		}
+	}
+	for _, match := range informationSchemaRoleInFilterPattern.FindAllStringSubmatch(filterQuery, -1) {
+		field := strings.ToUpper(match[1])
+		value := fmt.Sprint(values[field])
+		contains := false
+		for _, raw := range splitTopLevelComma(match[3]) {
+			candidate := strings.Trim(strings.TrimSpace(raw), "'\"")
+			if strings.EqualFold(candidate, value) {
+				contains = true
+				break
+			}
+		}
+		notIn := strings.TrimSpace(match[2]) != ""
+		if notIn == contains {
+			return false
+		}
+	}
+	for _, match := range informationSchemaRoleNullFilterPattern.FindAllStringSubmatch(filterQuery, -1) {
+		field := strings.ToUpper(match[1])
+		_, exists := values[field]
+		isNull := !exists || values[field] == nil
+		isNotNull := strings.TrimSpace(match[2]) != ""
+		if isNotNull == isNull {
 			return false
 		}
 	}
@@ -13282,7 +15759,12 @@ func enabledRoleReferences(account persistedAccount, session server.MySQLServerS
 			return active
 		}
 	}
-	return account.Roles
+	// Authenticated network sessions always carry active_roles, including an
+	// explicit empty slice. Synthetic metadata sessions may omit that parameter;
+	// in that case mirror MySQL's connection default rather than treating every
+	// granted role as active. A role grant becomes visible here only when it is
+	// a default role or the session explicitly activates it with SET ROLE.
+	return account.DefaultRoles
 }
 
 func (e *XMySQLExecutor) executeInformationSchemaRoleTableGrantsSelect(query string, session server.MySQLServerSession) *SelectResult {
@@ -13559,6 +16041,23 @@ func (e *XMySQLExecutor) executeInformationSchemaTablesSelect(query string, sess
 			rows = append(rows, projectInformationSchemaRow(columns, values))
 		}
 	}
+	for qualified := range mysqlSystemTableVirtualDefinitions() {
+		parts := strings.SplitN(qualified, ".", 2)
+		if len(parts) != 2 || !informationSchemaMetadataQueryMatches(query, "table_schema", parts[0], schemaPattern) || !informationSchemaMetadataQueryMatches(query, "table_name", parts[1], tablePattern) {
+			continue
+		}
+		values := map[string]interface{}{
+			"TABLE_CATALOG": "def", "TABLE_SCHEMA": parts[0], "TABLE_NAME": parts[1],
+			"TABLE_TYPE": "BASE TABLE", "ENGINE": "InnoDB", "VERSION": int64(10), "ROW_FORMAT": "Dynamic",
+			"TABLE_ROWS": int64(0), "AVG_ROW_LENGTH": int64(0), "DATA_LENGTH": int64(0), "MAX_DATA_LENGTH": nil,
+			"INDEX_LENGTH": int64(0), "DATA_FREE": int64(0), "AUTO_INCREMENT": nil, "CREATE_TIME": nil,
+			"UPDATE_TIME": nil, "CHECK_TIME": nil, "TABLE_COLLATION": "utf8mb3_general_ci", "CHECKSUM": nil,
+			"CREATE_OPTIONS": "", "TABLE_COMMENT": nil, "TABLE_CAT": parts[0], "TABLE_SCHEM": nil, "REMARKS": "",
+		}
+		if performanceSchemaLockValuesMatch(query, values) {
+			rows = append(rows, projectInformationSchemaRow(columns, values))
+		}
+	}
 	schemaEntries, _ := os.ReadDir(e.getDataDir())
 	for _, schemaEntry := range schemaEntries {
 		if !schemaEntry.IsDir() || !metadataPatternMatches(schemaEntry.Name(), schemaPattern) {
@@ -13816,6 +16315,32 @@ func (e *XMySQLExecutor) executeInformationSchemaColumnsSelect(query string, ses
 				"COLUMN_SIZE": columnSize, "NULLABLE": map[bool]int64{true: 1, false: 0}[nullable], "REMARKS": nil,
 				"COLUMN_KEY": column.columnKey, "EXTRA": "", "PRIVILEGES": "select", "COLUMN_COMMENT": nil,
 				"GENERATION_EXPRESSION": nil, "SRS_ID": nil,
+			}
+			if performanceSchemaLockValuesMatch(query, values) {
+				rows = append(rows, projectInformationSchemaRow(columns, values))
+			}
+		}
+	}
+	for qualified, virtualColumns := range mysqlSystemTableVirtualDefinitions() {
+		parts := strings.SplitN(qualified, ".", 2)
+		if len(parts) != 2 || !informationSchemaMetadataQueryMatches(query, "table_schema", parts[0], schemaPattern) || !informationSchemaMetadataQueryMatches(query, "table_name", parts[1], tablePattern) {
+			continue
+		}
+		for ordinal, columnName := range virtualColumns {
+			if !metadataPatternMatches(columnName, columnPattern) {
+				continue
+			}
+			column := mysqlSystemTableVirtualColumnMetadata(parts[1], columnName)
+			typeName, nullable := column.typeName, column.nullable
+			dataType := interface{}(informationSchemaBaseDataType(typeName))
+			values := map[string]interface{}{
+				"TABLE_CATALOG": "def", "TABLE_SCHEMA": parts[0], "TABLE_NAME": parts[1], "COLUMN_NAME": columnName,
+				"ORDINAL_POSITION": int64(ordinal + 1), "COLUMN_DEFAULT": column.defaultValue, "IS_NULLABLE": map[bool]string{true: "YES", false: "NO"}[nullable],
+				"DATA_TYPE": dataType, "COLUMN_TYPE": formatInformationSchemaColumnTypeWithPrecision(column),
+				"CHARACTER_MAXIMUM_LENGTH": informationSchemaCharacterLength(column), "CHARACTER_OCTET_LENGTH": informationSchemaCharacterOctetLength(column),
+				"NUMERIC_PRECISION": informationSchemaNumericPrecision(column), "NUMERIC_SCALE": informationSchemaNumericScale(column), "DATETIME_PRECISION": informationSchemaDateTimePrecision(column),
+				"CHARACTER_SET_NAME": informationSchemaColumnCharacterSet(column), "COLLATION_NAME": informationSchemaColumnCollation(column),
+				"COLUMN_KEY": "", "EXTRA": "", "PRIVILEGES": "select", "COLUMN_COMMENT": nil, "GENERATION_EXPRESSION": nil, "SRS_ID": nil,
 			}
 			if performanceSchemaLockValuesMatch(query, values) {
 				rows = append(rows, projectInformationSchemaRow(columns, values))
@@ -14227,10 +16752,12 @@ func (e *XMySQLExecutor) executeInformationSchemaViewsSelect(query string, sessi
 				continue
 			}
 			var info struct {
-				Definition  string `json:"definition"`
-				Definer     string `json:"definer"`
-				SQLSecurity string `json:"sql_security"`
-				CheckOption string `json:"check_option"`
+				Definition          string `json:"definition"`
+				Definer             string `json:"definer"`
+				SQLSecurity         string `json:"sql_security"`
+				CheckOption         string `json:"check_option"`
+				CharacterSetClient  string `json:"character_set_client"`
+				CollationConnection string `json:"collation_connection"`
 			}
 			if json.Unmarshal(raw, &info) != nil {
 				continue
@@ -14249,10 +16776,18 @@ func (e *XMySQLExecutor) executeInformationSchemaViewsSelect(query string, sessi
 			if securityType == "" {
 				securityType = "DEFINER"
 			}
+			characterSetClient := info.CharacterSetClient
+			if characterSetClient == "" {
+				characterSetClient = "utf8mb4"
+			}
+			collationConnection := info.CollationConnection
+			if collationConnection == "" {
+				collationConnection = "utf8mb4_general_ci"
+			}
 			row := map[string]interface{}{
 				"TABLE_CATALOG": "def", "TABLE_SCHEMA": schemaEntry.Name(), "TABLE_NAME": tableName,
-				"VIEW_DEFINITION": info.Definition, "CHECK_OPTION": checkOption, "IS_UPDATABLE": "NO",
-				"DEFINER": definer, "SECURITY_TYPE": securityType, "CHARACTER_SET_CLIENT": "utf8mb4", "COLLATION_CONNECTION": "utf8mb4_general_ci",
+				"VIEW_DEFINITION": info.Definition, "CHECK_OPTION": checkOption, "IS_UPDATABLE": informationSchemaViewUpdatability(info.Definition),
+				"DEFINER": definer, "SECURITY_TYPE": securityType, "CHARACTER_SET_CLIENT": characterSetClient, "COLLATION_CONNECTION": collationConnection,
 			}
 			if performanceSchemaLockValuesMatch(query, row) {
 				rows = append(rows, projectInformationSchemaRow(columns, row))
@@ -14260,6 +16795,37 @@ func (e *XMySQLExecutor) executeInformationSchemaViewsSelect(query string, sessi
 		}
 	}
 	return newInformationSchemaSelectResult("information_schema_views", columns, rows)
+}
+
+// informationSchemaViewUpdatability implements the conservative portion of
+// MySQL's view updatability contract that can be established from the
+// persisted SELECT definition. A single-table projection without set
+// operations, grouping, aggregation, joins, or subqueries is updatable;
+// complex definitions remain NO rather than being advertised as writable
+// without an authoritative mapping to one base table.
+func informationSchemaViewUpdatability(definition string) string {
+	lower := strings.ToLower(strings.TrimSpace(strings.TrimSuffix(definition, ";")))
+	if lower == "" || !strings.HasPrefix(lower, "select ") {
+		return "NO"
+	}
+	for _, marker := range []string{" union ", " distinct ", " group by ", " having ", " limit ", " join ", " over(", " over (", "select ("} {
+		if strings.Contains(lower, marker) {
+			return "NO"
+		}
+	}
+	if regexp.MustCompile(`(?i)\b(count|sum|avg|min|max|json_arrayagg|json_objectagg|group_concat)\s*\(`).MatchString(lower) {
+		return "NO"
+	}
+	from := regexp.MustCompile(`(?is)^select\s+(.+?)\s+from\s+(.+)$`).FindStringSubmatch(lower)
+	if len(from) != 3 {
+		return "NO"
+	}
+	selectList := strings.TrimSpace(from[1])
+	fromClause := strings.TrimSpace(from[2])
+	if selectList == "" || strings.Contains(selectList, "(") || strings.Contains(fromClause, ",") {
+		return "NO"
+	}
+	return "YES"
 }
 
 func (e *XMySQLExecutor) checkViewMetadataPrivilege(ctx *ExecutionContext, schema string) error {
@@ -15361,30 +17927,53 @@ func informationSchemaMetadataFilters(query string) map[string]string {
 		if value == "" {
 			value = match[3]
 		}
+		if value == "" {
+			// Keep an explicit `= ''`/`LIKE ''` distinguishable from an
+			// omitted predicate. The latter is represented by a missing map
+			// entry and must match every row; the former only matches an empty
+			// metadata value.
+			value = informationSchemaExplicitEmptyPattern
+		}
 		filters[strings.ToLower(match[1])] = value
 	}
 	return filters
 }
 
-var informationSchemaMetadataInFilterPattern = regexp.MustCompile(`(?is)\b(table_schema|table_name|schema_name|column_name|constraint_name|constraint_type)\b\s+in\s*\(([^)]*)\)`)
+const informationSchemaExplicitEmptyPattern = "\x00"
+
+var informationSchemaMetadataInFilterPattern = regexp.MustCompile(`(?is)\b(table_schema|table_name|schema_name|column_name|constraint_name|constraint_type)\b\s+(not\s+)?in\s*\(([^)]*)\)`)
+var informationSchemaMetadataNullFilterPattern = regexp.MustCompile(`(?is)\b(table_schema|table_name|schema_name|column_name|constraint_name|constraint_type)\b\s+is\s+(not\s+)?null`)
+var informationSchemaParameterInFilterPattern = regexp.MustCompile(`(?is)\b(ordinal_position|parameter_name|parameter_mode)\b\s+(not\s+)?in\s*\(([^)]*)\)`)
 
 func informationSchemaMetadataQueryMatches(query, column, value, equalityPattern string) bool {
 	if strings.TrimSpace(equalityPattern) != "" && !metadataPatternMatches(value, equalityPattern) {
 		return false
+	}
+	for _, match := range informationSchemaMetadataNullFilterPattern.FindAllStringSubmatch(query, -1) {
+		if !strings.EqualFold(match[1], column) {
+			continue
+		}
+		wantNull := strings.TrimSpace(match[2]) == ""
+		if wantNull {
+			return false
+		}
 	}
 	for _, match := range informationSchemaMetadataInFilterPattern.FindAllStringSubmatch(query, -1) {
 		if !strings.EqualFold(match[1], column) {
 			continue
 		}
 		matched := false
-		for _, raw := range splitTopLevelComma(match[2]) {
+		for _, raw := range splitTopLevelComma(match[3]) {
 			candidate := strings.Trim(strings.TrimSpace(raw), "'\"")
+			candidate = strings.ReplaceAll(candidate, "''", "'")
+			candidate = strings.ReplaceAll(candidate, `""`, `"`)
 			if strings.EqualFold(candidate, value) {
 				matched = true
 				break
 			}
 		}
-		if !matched {
+		notIn := strings.TrimSpace(match[2]) != ""
+		if notIn == matched {
 			return false
 		}
 	}
@@ -15392,9 +17981,16 @@ func informationSchemaMetadataQueryMatches(query, column, value, equalityPattern
 }
 
 func metadataPatternMatches(value, pattern string) bool {
+	if pattern == informationSchemaExplicitEmptyPattern {
+		return value == ""
+	}
 	if strings.TrimSpace(pattern) == "" {
 		return true
 	}
+	return metadataPatternMatchesAllowEmpty(value, pattern)
+}
+
+func metadataPatternMatchesAllowEmpty(value, pattern string) bool {
 	quoted := regexp.QuoteMeta(pattern)
 	quoted = strings.ReplaceAll(quoted, "%", ".*")
 	quoted = strings.ReplaceAll(quoted, "_", ".")
@@ -15420,6 +18016,23 @@ func (e *XMySQLExecutor) executeInformationSchemaParametersSelect(query string, 
 		key := strings.ToLower(strings.TrimSpace(strings.Fields(strings.ToLower(match[0]))[0]))
 		filters[key] = value
 	}
+	parameterFilterPattern := regexp.MustCompile(`(?i)\b(ordinal_position|parameter_name|parameter_mode)\b\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)"|([0-9]+))`)
+	parameterNullFilterPattern := regexp.MustCompile(`(?i)\b(ordinal_position|parameter_name|parameter_mode)\b\s+is\s+(not\s+)?null`)
+	parameterFilters := map[string]string{}
+	parameterNullFilters := map[string]bool{}
+	for _, match := range parameterFilterPattern.FindAllStringSubmatch(query, -1) {
+		value := match[2]
+		if value == "" {
+			value = match[3]
+		}
+		if value == "" {
+			value = match[4]
+		}
+		parameterFilters[strings.ToLower(match[1])] = value
+	}
+	for _, match := range parameterNullFilterPattern.FindAllStringSubmatch(query, -1) {
+		parameterNullFilters[strings.ToLower(match[1])] = strings.TrimSpace(match[2]) == ""
+	}
 	rows := make([][]interface{}, 0)
 	objects := append(e.scanStoredObjects("procedure"), e.scanStoredObjects("function")...)
 	lockCtx := &ExecutionContext{Context: context.Background(), Session: session}
@@ -15433,14 +18046,49 @@ func (e *XMySQLExecutor) executeInformationSchemaParametersSelect(query string, 
 		if !visible {
 			continue
 		}
-		if !metadataFilterMatches(object.Schema, filters["specific_schema"], filters["routine_schema"]) {
+		if pattern, ok := filters["specific_schema"]; ok && !metadataPatternMatchesAllowEmpty(object.Schema, pattern) {
 			continue
 		}
-		if !metadataFilterMatches(object.Name, filters["specific_name"], filters["routine_name"]) {
+		if pattern, ok := filters["routine_schema"]; ok && !metadataPatternMatchesAllowEmpty(object.Schema, pattern) {
+			continue
+		}
+		if pattern, ok := filters["specific_name"]; ok && !metadataPatternMatchesAllowEmpty(object.Name, pattern) {
+			continue
+		}
+		if pattern, ok := filters["routine_name"]; ok && !metadataPatternMatchesAllowEmpty(object.Name, pattern) {
 			continue
 		}
 		for index, parameter := range object.Parameters {
 			mode, name, typeName := parseStoredRoutineParameterMetadata(parameter)
+			if parameterNullFilter, ok := parameterNullFilters["ordinal_position"]; ok {
+				if parameterNullFilter {
+					continue
+				}
+			}
+			if parameterNullFilter, ok := parameterNullFilters["parameter_name"]; ok {
+				if parameterNullFilter {
+					continue
+				}
+			}
+			if parameterNullFilter, ok := parameterNullFilters["parameter_mode"]; ok {
+				if parameterNullFilter {
+					continue
+				}
+			}
+			if pattern, ok := parameterFilters["ordinal_position"]; ok && !metadataPatternMatchesAllowEmpty(strconv.Itoa(index+1), pattern) {
+				continue
+			}
+			if pattern, ok := parameterFilters["parameter_name"]; ok && !metadataPatternMatchesAllowEmpty(name, pattern) {
+				continue
+			}
+			if pattern, ok := parameterFilters["parameter_mode"]; ok && !metadataPatternMatchesAllowEmpty(mode, pattern) {
+				continue
+			}
+			if !informationSchemaParameterInFilterMatches(query, "ordinal_position", strconv.Itoa(index+1), false) ||
+				!informationSchemaParameterInFilterMatches(query, "parameter_name", name, false) ||
+				!informationSchemaParameterInFilterMatches(query, "parameter_mode", mode, false) {
+				continue
+			}
 			typeMetadata := informationSchemaRoutineTypeMetadata(typeName)
 			dataType := interface{}(strings.ToLower(strings.SplitN(typeName, "(", 2)[0]))
 			if jdbcProjection {
@@ -15464,6 +18112,29 @@ func (e *XMySQLExecutor) executeInformationSchemaParametersSelect(query string, 
 			rows = append(rows, projectInformationSchemaRow(columns, values))
 		}
 		if strings.EqualFold(object.ObjectType, "function") {
+			if parameterNullFilter, ok := parameterNullFilters["ordinal_position"]; ok && parameterNullFilter {
+				continue
+			}
+			if parameterNullFilter, ok := parameterNullFilters["parameter_name"]; ok && !parameterNullFilter {
+				continue
+			}
+			if parameterNullFilter, ok := parameterNullFilters["parameter_mode"]; ok && !parameterNullFilter {
+				continue
+			}
+			if pattern, ok := parameterFilters["ordinal_position"]; ok && !metadataPatternMatchesAllowEmpty("0", pattern) {
+				continue
+			}
+			if _, ok := parameterFilters["parameter_name"]; ok {
+				continue
+			}
+			if _, ok := parameterFilters["parameter_mode"]; ok {
+				continue
+			}
+			if !informationSchemaParameterInFilterMatches(query, "ordinal_position", "0", false) ||
+				!informationSchemaParameterInFilterMatches(query, "parameter_name", nil, true) ||
+				!informationSchemaParameterInFilterMatches(query, "parameter_mode", nil, true) {
+				continue
+			}
 			typeMetadata := informationSchemaRoutineTypeMetadata(object.ReturnType)
 			dataType := interface{}(strings.ToLower(strings.SplitN(object.ReturnType, "(", 2)[0]))
 			if jdbcProjection {
@@ -15471,7 +18142,11 @@ func (e *XMySQLExecutor) executeInformationSchemaParametersSelect(query string, 
 			}
 			values := map[string]interface{}{
 				"SPECIFIC_CATALOG": "def", "SPECIFIC_SCHEMA": object.Schema, "SPECIFIC_NAME": object.Name,
-				"ORDINAL_POSITION": int64(0), "PARAMETER_MODE": nil, "PARAMETER_NAME": "RETURN_VALUE",
+				// INFORMATION_SCHEMA.PARAMETERS uses a native NULL name for a
+				// function return row. The JDBC projection below still exposes
+				// RETURN_VALUE through COLUMN_NAME for compatibility with
+				// DatabaseMetaData.getProcedureColumns().
+				"ORDINAL_POSITION": int64(0), "PARAMETER_MODE": nil, "PARAMETER_NAME": nil,
 				"DATA_TYPE": dataType, "CHARACTER_MAXIMUM_LENGTH": informationSchemaCharacterLength(typeMetadata),
 				"CHARACTER_OCTET_LENGTH": informationSchemaCharacterOctetLength(typeMetadata), "NUMERIC_PRECISION": informationSchemaNumericPrecision(typeMetadata), "NUMERIC_SCALE": informationSchemaNumericScale(typeMetadata),
 				"DATETIME_PRECISION": informationSchemaDateTimePrecision(typeMetadata), "CHARACTER_SET_NAME": informationSchemaColumnCharacterSet(typeMetadata), "COLLATION_NAME": informationSchemaColumnCollation(typeMetadata),
@@ -15494,6 +18169,33 @@ func metadataFilterMatches(value string, patterns ...string) bool {
 	for _, pattern := range patterns {
 		if strings.TrimSpace(pattern) != "" {
 			return metadataPatternMatches(value, pattern)
+		}
+	}
+	return true
+}
+
+func informationSchemaParameterInFilterMatches(query, field string, value interface{}, isNull bool) bool {
+	for _, match := range informationSchemaParameterInFilterPattern.FindAllStringSubmatch(query, -1) {
+		if !strings.EqualFold(match[1], field) {
+			continue
+		}
+		if isNull {
+			return false
+		}
+		valueText := fmt.Sprint(value)
+		matched := false
+		for _, raw := range splitTopLevelComma(match[3]) {
+			candidate := strings.Trim(strings.TrimSpace(raw), "'\"")
+			candidate = strings.ReplaceAll(candidate, "''", "'")
+			candidate = strings.ReplaceAll(candidate, `""`, `"`)
+			if strings.EqualFold(candidate, valueText) {
+				matched = true
+				break
+			}
+		}
+		notIn := strings.TrimSpace(match[2]) != ""
+		if notIn == matched {
+			return false
 		}
 	}
 	return true
@@ -15947,6 +18649,9 @@ func (s *showLogicalPlan) String() string {
 
 // optimizeToPhysicalPlan 逻辑计划优化为物理计划
 func (e *XMySQLExecutor) optimizeToPhysicalPlan(logicalPlan plan.LogicalPlan) (plan.PhysicalPlan, error) {
+	if err := e.ensureOptimizerCostModelLoaded(); err != nil {
+		return nil, newExecutorErrorf("load-optimizer-costs", ExecutionErrorCodeOptimizer, "", "", "", err, "failed to load optimizer cost model")
+	}
 	// 获取优化器管理器
 	var optimizerManager *manager.OptimizerManager
 	if e.optimizerManager != nil {
@@ -17459,6 +20164,13 @@ func (e *XMySQLExecutor) setGlobalVariable(session server.MySQLServerSession, na
 		if err := e.validateCompressionMonitorVariable(cleanName, value); err != nil {
 			return err
 		}
+		if cleanName == "performance_schema_show_processlist" {
+			if boolishToInt(value) != 0 {
+				value = "ON"
+			} else {
+				value = "OFF"
+			}
+		}
 		if strings.EqualFold(cleanName, "innodb_monitor_reset_all") {
 			if err := e.validateInnoDBMonitorResetAll(value); err != nil {
 				return err
@@ -17467,10 +20179,14 @@ func (e *XMySQLExecutor) setGlobalVariable(session server.MySQLServerSession, na
 		if err := sysVars.SetVariable("", cleanName, value, manager.GlobalScope); err != nil {
 			return err
 		}
+		if cleanName == "performance_schema_max_digest_sample_age" {
+			e.syncPerformanceSchemaDigestSampleAge()
+		}
 		e.syncCompressionPerIndexEnabled(cleanName)
 		e.syncInnoDBMonitorVariable(cleanName, value)
 		e.syncCompressionMonitorVariable(cleanName, value)
 	}
+	e.refreshPerformanceSchemaHistoryLimits()
 	return nil
 }
 
@@ -18216,6 +20932,26 @@ func sessionHasRoleAdmin(session server.MySQLServerSession) bool {
 		}
 	}
 	return false
+}
+
+func (e *XMySQLExecutor) prepareRolesGraphMLSession(session server.MySQLServerSession) {
+	if session == nil {
+		return
+	}
+	graph := emptyRolesGraphML
+	if e != nil {
+		file, err := e.accountFileForSession(&ExecutionContext{Session: session})
+		if err == nil {
+			if account := sessionAccount(file, session); account != nil {
+				if informationSchemaRoleAdminAvailable(file, *account, session) {
+					graph = rolesGraphMLForAccounts(file)
+				}
+			} else if sessionHasRoleAdmin(session) {
+				graph = rolesGraphMLForAccounts(file)
+			}
+		}
+	}
+	session.SetParamByName("__xmysql_roles_graphml", graph)
 }
 
 func boolishToInt(value interface{}) int64 {
@@ -19185,7 +21921,35 @@ func (e *XMySQLExecutor) syncPerformanceSchemaWaitInstrumentation() {
 // SetReplicationStatusProvider attaches the runtime status source used by
 // SHOW REPLICA STATUS and SHOW SLAVE STATUS.
 func (e *XMySQLExecutor) SetReplicationStatusProvider(provider func() replication.StatusSnapshot) {
+	if e == nil {
+		return
+	}
 	e.replicationStatus = provider
+	// Tests and embedders frequently replace the default provider after engine
+	// initialization. Do not let a previously wired channel snapshot provider
+	// mask that replacement; production wiring installs the channel provider
+	// explicitly afterwards.
+	e.replicationChannelStatuses = nil
+}
+
+// SetReplicationChannelStatusProvider attaches the complete channel snapshot
+// used by Performance Schema replication views.
+func (e *XMySQLExecutor) SetReplicationChannelStatusProvider(provider func() []replication.StatusSnapshot) {
+	if e == nil {
+		return
+	}
+	e.replicationChannelStatuses = provider
+}
+
+// SetReplicationChannelProviders attaches named-channel status and stream
+// providers while preserving the default-channel callbacks above.
+func (e *XMySQLExecutor) SetReplicationChannelProviders(status func(string) (replication.StatusSnapshot, error), source func(string) *replication.Source, replica func(string) *replication.Replica) {
+	if e == nil {
+		return
+	}
+	e.replicationStatusForChannel = status
+	e.replicationSourceForChannel = source
+	e.replicationReplicaForChannel = replica
 }
 
 // SetReplicationSourceProvider attaches the source stream used by SHOW
@@ -19211,12 +21975,29 @@ func (e *XMySQLExecutor) SetReplicationControl(start func() error, stop func() e
 	e.replicationStop = stop
 }
 
+// SetReplicationChannelControl attaches START/STOP operations for named
+// replication channels.
+func (e *XMySQLExecutor) SetReplicationChannelControl(start func(string) error, stop func(string) error) {
+	if e == nil {
+		return
+	}
+	e.replicationStartForChannel = start
+	e.replicationStopForChannel = stop
+}
+
 // SetReplicationSourceControl attaches CHANGE REPLICATION SOURCE support.
 func (e *XMySQLExecutor) SetReplicationSourceControl(change func(string) error) {
 	if e == nil {
 		return
 	}
 	e.replicationChangeSource = change
+}
+
+func (e *XMySQLExecutor) SetReplicationChannelSourceControl(change func(string, string) error) {
+	if e == nil {
+		return
+	}
+	e.replicationChangeSourceForChannel = change
 }
 
 // SetReplicationFilterControl attaches CHANGE REPLICATION FILTER support.
@@ -19227,6 +22008,13 @@ func (e *XMySQLExecutor) SetReplicationFilterControl(change func(replication.Rep
 	e.replicationChangeFilter = change
 }
 
+func (e *XMySQLExecutor) SetReplicationChannelFilterControl(change func(string, replication.ReplicationFilterConfig) error) {
+	if e == nil {
+		return
+	}
+	e.replicationChangeFilterForChannel = change
+}
+
 // SetReplicationResetControl attaches RESET REPLICA support.
 func (e *XMySQLExecutor) SetReplicationResetControl(reset func() error) {
 	if e == nil {
@@ -19235,12 +22023,26 @@ func (e *XMySQLExecutor) SetReplicationResetControl(reset func() error) {
 	e.replicationReset = reset
 }
 
+func (e *XMySQLExecutor) SetReplicationChannelResetControl(reset func(string) error) {
+	if e == nil {
+		return
+	}
+	e.replicationResetForChannel = reset
+}
+
 // SetReplicationResetAllControl attaches RESET REPLICA ALL support.
 func (e *XMySQLExecutor) SetReplicationResetAllControl(resetAll func() error) {
 	if e == nil {
 		return
 	}
 	e.replicationResetAll = resetAll
+}
+
+func (e *XMySQLExecutor) SetReplicationChannelResetAllControl(resetAll func(string) error) {
+	if e == nil {
+		return
+	}
+	e.replicationResetAllForChannel = resetAll
 }
 
 // SetReplicationSourceAdminControl attaches source-side binlog maintenance
@@ -21128,7 +23930,16 @@ func (e *XMySQLExecutor) executeShowTriggers(ctx *ExecutionContext, rawQuery str
 		if strings.TrimSpace(definer) == "" {
 			definer = "root@localhost"
 		}
-		rows = append(rows, []interface{}{object.Name, event, tableName, action, timing, object.CreatedAt, "", definer, "utf8mb4", "utf8mb4_0900_ai_ci", collation})
+		sqlMode := object.SQLMode
+		characterSetClient := object.CharacterSetClient
+		if characterSetClient == "" {
+			characterSetClient = "utf8mb4"
+		}
+		collationConnection := object.CollationConnection
+		if collationConnection == "" {
+			collationConnection = "utf8mb4_0900_ai_ci"
+		}
+		rows = append(rows, []interface{}{object.Name, event, tableName, action, timing, object.CreatedAt, sqlMode, definer, characterSetClient, collationConnection, collation})
 	}
 	if schemaPrivilegeErr != nil && len(rows) == 0 {
 		ctx.Results <- &Result{Err: schemaPrivilegeErr, ResultType: common.RESULT_TYPE_QUERY}
@@ -21197,7 +24008,19 @@ func (e *XMySQLExecutor) executeShowEvents(ctx *ExecutionContext, rawQuery strin
 		if object.Disabled {
 			status = "DISABLED"
 		}
-		rows = append(rows, []interface{}{databaseName, object.Name, definer, "SYSTEM", eventType, executeAt, intervalValue, intervalField, starts, ends, status, int64(0), "utf8mb4", "utf8mb4_0900_ai_ci", "utf8mb4_0900_ai_ci"})
+		timeZone := object.TimeZone
+		if timeZone == "" {
+			timeZone = "SYSTEM"
+		}
+		characterSetClient := object.CharacterSetClient
+		if characterSetClient == "" {
+			characterSetClient = "utf8mb4"
+		}
+		collationConnection := object.CollationConnection
+		if collationConnection == "" {
+			collationConnection = "utf8mb4_0900_ai_ci"
+		}
+		rows = append(rows, []interface{}{databaseName, object.Name, definer, timeZone, eventType, executeAt, intervalValue, intervalField, starts, ends, status, int64(0), characterSetClient, collationConnection, "utf8mb4_0900_ai_ci"})
 	}
 	sort.Slice(rows, func(i, j int) bool {
 		return strings.ToLower(fmt.Sprint(rows[i][1])) < strings.ToLower(fmt.Sprint(rows[j][1]))
@@ -22515,7 +25338,8 @@ func (e *XMySQLExecutor) executeViewDDL(ctx *ExecutionContext, query, databaseNa
 		ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_DDL}
 		return true
 	}
-	viewInfo := map[string]interface{}{"view_name": viewName, "definition": definition, "schema": schemaName, "created_at": time.Now().UTC().Format(time.RFC3339)}
+	_, _, characterSetClient, collationConnection := storedObjectSessionMetadata(ctx.Session)
+	viewInfo := map[string]interface{}{"view_name": viewName, "definition": definition, "schema": schemaName, "created_at": time.Now().UTC().Format(time.RFC3339), "character_set_client": characterSetClient, "collation_connection": collationConnection}
 	if algorithmMatch := regexp.MustCompile(`(?is)\balgorithm\s*=\s*(undefined|merge|temptable)`).FindStringSubmatch(trimmedQuery); len(algorithmMatch) == 2 {
 		viewInfo["algorithm"] = strings.ToUpper(algorithmMatch[1])
 	}
@@ -22630,11 +25454,13 @@ func (e *XMySQLExecutor) executeShowCreateView(ctx *ExecutionContext, query, dat
 		return true
 	}
 	var info struct {
-		Definition  string `json:"definition"`
-		Algorithm   string `json:"algorithm"`
-		Definer     string `json:"definer"`
-		SQLSecurity string `json:"sql_security"`
-		CheckOption string `json:"check_option"`
+		Definition          string `json:"definition"`
+		Algorithm           string `json:"algorithm"`
+		Definer             string `json:"definer"`
+		SQLSecurity         string `json:"sql_security"`
+		CheckOption         string `json:"check_option"`
+		CharacterSetClient  string `json:"character_set_client"`
+		CollationConnection string `json:"collation_connection"`
 	}
 	if err := json.Unmarshal(raw, &info); err != nil {
 		ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
@@ -22655,9 +25481,17 @@ func (e *XMySQLExecutor) executeShowCreateView(ctx *ExecutionContext, query, dat
 	if checkOption := strings.ToUpper(strings.TrimSpace(info.CheckOption)); checkOption != "" {
 		createSQL += " WITH " + strings.ToLower(checkOption) + " CHECK OPTION"
 	}
+	characterSetClient := info.CharacterSetClient
+	if characterSetClient == "" {
+		characterSetClient = "utf8mb4"
+	}
+	collationConnection := info.CollationConnection
+	if collationConnection == "" {
+		collationConnection = "utf8mb4_general_ci"
+	}
 	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: map[string]interface{}{
 		"columns": []string{"View", "Create View", "character_set_client", "collation_connection"},
-		"rows":    [][]interface{}{{viewName, createSQL, "utf8mb4", "utf8mb4_general_ci"}},
+		"rows":    [][]interface{}{{viewName, createSQL, characterSetClient, collationConnection}},
 	}, Message: fmt.Sprintf("View '%s' definition returned", viewName)}
 	return true
 }

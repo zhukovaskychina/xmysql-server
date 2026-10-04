@@ -328,13 +328,13 @@ func (d *NativeBinlogDecoder) Decode(events []NativeBinlogEvent) ([]RowChange, e
 				return nil, err
 			}
 			decoded = append(decoded, changes...)
-		case 23, 24, 25, 30, 31, 32, 39:
+		case 20, 21, 22, 23, 24, 25, 30, 31, 32, 39:
 			changes, err := d.decodeNativeRows(frame[4], body)
 			if err != nil {
 				return nil, err
 			}
 			decoded = append(decoded, changes...)
-		case 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 20, 21, 22, 26, 27, 28, 29, 33, 34, 36, 37, 38, 41, 42:
+		case 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 26, 27, 28, 29, 33, 34, 36, 37, 38, 41, 42:
 			// STOP/ROTATE/FORMAT_DESCRIPTION and the remaining replication
 			// control events carry no row image for this decoder. They are
 			// nevertheless known event types and must be consumed so a complete
@@ -444,10 +444,13 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 							GTID:      nativeAnonymousGTID(event, frame),
 						}
 					}
+					if _, xid, ok := nativeXALifecycleIdentity(statement); ok {
+						current.XA = &xid
+					}
 					if statement != "" {
 						current.Statements = append(current.Statements, Statement{Database: database, SQL: statement})
 					}
-				case 23, 24, 25, 30, 31, 32, 39:
+				case 20, 21, 22, 23, 24, 25, 30, 31, 32, 39:
 					changes, err := d.decodeNativeRows(nestedFrame[4], nestedBody)
 					if err != nil {
 						return nil, err
@@ -468,6 +471,7 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 					if err != nil {
 						return nil, err
 					}
+					xid = nativeXAPrepareIdentityWithLifecycle(xid, current)
 					if !onePhase {
 						if current == nil {
 							return nil, fmt.Errorf("native payload XA_PREPARE_EVENT has no active transaction")
@@ -490,7 +494,7 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 				case 35:
 					// PREVIOUS_GTIDS_EVENT is file metadata and is not part of the
 					// transaction payload in valid MySQL binlogs.
-				case 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 20, 21, 22, 26, 27, 28, 29, 36, 37, 41:
+				case 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 26, 27, 28, 29, 36, 37, 41:
 					// STOP/ROTATE/FORMAT_DESCRIPTION, INCIDENT, HEARTBEAT,
 					// IGNORE, ROWS_QUERY, TRANSACTION_CONTEXT, VIEW_CHANGE and
 					// HEARTBEAT_LOG_EVENT_V2 carry no row images. They are safe to
@@ -504,6 +508,7 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 			if err != nil {
 				return nil, err
 			}
+			xid = nativeXAPrepareIdentityWithLifecycle(xid, current)
 			if !onePhase {
 				if current == nil {
 					return nil, fmt.Errorf("native XA_PREPARE_EVENT has no active transaction")
@@ -600,10 +605,13 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 					GTID:      nativeAnonymousGTID(event, frame),
 				}
 			}
+			if _, xid, ok := nativeXALifecycleIdentity(statement); ok {
+				current.XA = &xid
+			}
 			if nativeQueryBoundary(statement) != "begin" && statement != "" {
 				current.Statements = append(current.Statements, Statement{Database: database, SQL: statement})
 			}
-		case 23, 24, 25, 30, 31, 32, 39:
+		case 20, 21, 22, 23, 24, 25, 30, 31, 32, 39:
 			changes, err := d.decodeNativeRows(frame[4], body)
 			if err != nil {
 				return nil, err
@@ -619,7 +627,7 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 			current.Type = EventCommit
 			transactions = append(transactions, *current)
 			current = nil
-		case 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 20, 21, 22, 26, 27, 28, 29, 36, 37, 41:
+		case 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 26, 27, 28, 29, 36, 37, 41:
 			// Known non-transactional control events. They are validated above
 			// and do not change the logical transaction state.
 		default:
@@ -1192,6 +1200,8 @@ func decodeNativeXAPrepareIdentity(body []byte) (XAIdentity, bool, error) {
 	if len(body) < 13 {
 		return XAIdentity{}, false, fmt.Errorf("truncated XA_PREPARE_EVENT")
 	}
+	// MySQL 5.7 through 8.4 encode the physical event as
+	// one_phase + format_id + gtrid_length + bqual_length + XID bytes.
 	formatID := binary.LittleEndian.Uint32(body[1:5])
 	gtridLength := uint64(binary.LittleEndian.Uint32(body[5:9]))
 	bqualLength := uint64(binary.LittleEndian.Uint32(body[9:13]))
@@ -1205,6 +1215,13 @@ func decodeNativeXAPrepareIdentity(body []byte) (XAIdentity, bool, error) {
 	gtrid := body[13 : 13+int(gtridLength)]
 	bqual := body[13+int(gtridLength) : 13+int(dataLength)]
 	return XAIdentity{GTRID: string(gtrid), BQUAL: string(bqual), FormatID: formatID}, body[0] != 0, nil
+}
+
+func nativeXAPrepareIdentityWithLifecycle(xid XAIdentity, current *BinlogEvent) XAIdentity {
+	if current != nil && current.XA != nil && current.XA.GTRID == xid.GTRID && current.XA.BQUAL == xid.BQUAL {
+		xid.FormatID = current.XA.FormatID
+	}
+	return xid
 }
 
 func decodeNativeTransactionPayload(event NativeBinlogEvent) ([]NativeBinlogEvent, error) {
@@ -1389,6 +1406,32 @@ func nativeXAQuery(statement string) (action, key string, ok bool) {
 		return "", "", false
 	}
 	return action, nativeXAKey(uint32(formatID), []byte(unquoteNativeXAArgument(arguments[0])), []byte(unquoteNativeXAArgument(arguments[1]))), true
+}
+
+func nativeXALifecycleIdentity(statement string) (action string, xid XAIdentity, ok bool) {
+	fields := strings.Fields(strings.TrimSpace(strings.TrimSuffix(statement, ";")))
+	if len(fields) < 3 || !strings.EqualFold(fields[0], "XA") {
+		return "", XAIdentity{}, false
+	}
+	action = strings.ToUpper(fields[1])
+	if action != "START" && action != "END" {
+		return "", XAIdentity{}, false
+	}
+	argumentText := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(strings.TrimSuffix(statement, ";")), fields[0]))
+	argumentText = strings.TrimSpace(strings.TrimPrefix(argumentText, fields[1]))
+	arguments := splitNativeXAArguments(argumentText)
+	if len(arguments) != 3 {
+		return "", XAIdentity{}, false
+	}
+	formatID, err := strconv.ParseUint(strings.TrimSpace(arguments[2]), 10, 32)
+	if err != nil {
+		return "", XAIdentity{}, false
+	}
+	return action, XAIdentity{
+		GTRID:    unquoteNativeXAArgument(arguments[0]),
+		BQUAL:    unquoteNativeXAArgument(arguments[1]),
+		FormatID: uint32(formatID),
+	}, true
 }
 
 func splitNativeXAArguments(raw string) []string {
@@ -1742,7 +1785,7 @@ func (d *NativeBinlogDecoder) decodeNativeRows(eventType byte, body []byte) ([]R
 	// v1 row events have only the table-id/flags post-header; v2 adds a
 	// two-byte total length followed by extra-row-info before the column count.
 	// Accepting both layouts lets the decoder consume older upstream binlogs.
-	legacy := eventType == 23 || eventType == 24 || eventType == 25
+	legacy := eventType == 20 || eventType == 21 || eventType == 22 || eventType == 23 || eventType == 24 || eventType == 25
 	if !legacy {
 		if len(body)-offset < 2 {
 			return nil, fmt.Errorf("truncated ROWS_EVENT extra data length")
@@ -1769,7 +1812,7 @@ func (d *NativeBinlogDecoder) decodeNativeRows(eventType byte, body []byte) ([]R
 		offset = next
 		afterBitmap := beforeBitmap
 		var beforeNulls, afterNulls []byte
-		isUpdate := eventType == 24 || eventType == 31 || eventType == 39
+		isUpdate := eventType == 21 || eventType == 24 || eventType == 31 || eventType == 39
 		if isUpdate {
 			beforeNulls, next, err = readNativeNullBitmap(body, offset, table, beforeBitmap)
 			if err != nil {
@@ -1822,16 +1865,16 @@ func (d *NativeBinlogDecoder) decodeNativeRows(eventType byte, body []byte) ([]R
 			return nil, err
 		}
 		offset = imageEnd
-		if isUpdate || eventType == 23 || eventType == 30 {
+		if isUpdate || eventType == 22 || eventType == 23 || eventType == 30 {
 			after, partial, next = decodedImage, decodedPartial, imageEnd
 		} else {
 			before, partial, next = decodedImage, decodedPartial, imageEnd
 		}
 		action := "insert"
 		switch eventType {
-		case 24, 31, 39:
+		case 21, 24, 31, 39:
 			action = "update"
-		case 25, 32:
+		case 20, 25, 32:
 			action = "delete"
 		}
 		change := RowChange{Table: table.database + "." + table.table, Action: action, Columns: append([]string(nil), table.columns...), Before: before, After: after, ExtraRowInfo: extra}
@@ -1839,7 +1882,7 @@ func (d *NativeBinlogDecoder) decodeNativeRows(eventType byte, body []byte) ([]R
 		for index, column := range table.columns {
 			change.ColumnTypes[column] = nativeDecoderColumnType(table, index)
 		}
-		if eventType == 25 || eventType == 32 {
+		if eventType == 20 || eventType == 25 || eventType == 32 {
 			change.After = nil
 		}
 		if len(partial) > 0 {

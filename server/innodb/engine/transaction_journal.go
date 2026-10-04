@@ -246,6 +246,12 @@ func (e *XMySQLExecutor) transactionJournalMetadata(session server.MySQLServerSe
 	if transactionID == "<nil>" {
 		transactionID = ""
 	}
+	if transactionID == "" {
+		transactionID = strings.TrimSpace(fmt.Sprint(session.GetParamByName("xa_xid")))
+		if transactionID == "<nil>" {
+			transactionID = ""
+		}
+	}
 	state := e.sessionTransactionState(session)
 	if transactionID == "" && state != nil {
 		transactionID = strings.TrimSpace(state.CommitKey)
@@ -332,6 +338,11 @@ func (e *XMySQLExecutor) syncTransactionJournal(session server.MySQLServerSessio
 func (e *XMySQLExecutor) syncTransactionJournalID(journalID string) error {
 	if e == nil || strings.TrimSpace(journalID) == "" {
 		return nil
+	}
+	if e.transactionJournalSyncHook != nil {
+		if err := e.transactionJournalSyncHook(journalID); err != nil {
+			return err
+		}
 	}
 	path := transactionJournalPath(e.getDataDir(), journalID)
 	transactionJournalMu.Lock()
@@ -548,7 +559,25 @@ func journalReplicationCommitRecord(raw []byte) (string, []replication.Statement
 }
 
 func (e *XMySQLExecutor) recoverPendingReplicationCommit(journalID, transactionID string, statements []replication.Statement, raw []byte) error {
-	if e == nil || strings.TrimSpace(transactionID) == "" || strings.HasPrefix(journalID, "replication-") {
+	if e == nil || strings.TrimSpace(transactionID) == "" {
+		return nil
+	}
+	if strings.HasPrefix(journalID, "replication-") {
+		// Replication replay journals have no upstream publisher to invoke during
+		// local recovery. Their commit record is written after the storage commit,
+		// so recovery only needs to finish the applied/GTID marker boundary. This
+		// prevents a marker-write failure from leaving an already-applied replay
+		// permanently suspended in active/.
+		if _, err := os.Stat(replicationCommitMarkerPath(e.getDataDir(), transactionID)); err == nil {
+			e.clearTransactionJournalID(journalID)
+			return nil
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+		if err := e.markReplicationTransactionCommitted(transactionID); err != nil {
+			return err
+		}
+		e.clearTransactionJournalID(journalID)
 		return nil
 	}
 	if e.replicationCommitTransactionHookWithID == nil && e.replicationCommitTransactionHook == nil {

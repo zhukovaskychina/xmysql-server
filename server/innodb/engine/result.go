@@ -28,6 +28,7 @@ type statementExecutionSummary struct {
 	threadID            int64
 	user                string
 	host                string
+	statementType       string
 	status              string
 	latency             time.Duration
 	rowsExamined        int64
@@ -41,6 +42,9 @@ type statementExecutionSummary struct {
 	sortRows            int64
 	sortScan            int64
 	sortRange           int64
+	cpuTime             int64
+	cpuTimeCaptured     bool
+	indexNames          []string
 }
 
 func statementResultAccountingFor(result *Result) statementResultAccounting {

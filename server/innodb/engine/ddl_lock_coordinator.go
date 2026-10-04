@@ -25,6 +25,8 @@ type tableDDLCoordinator struct {
 	locks            map[string]*tableDDLTableLock
 	waitInstrumented bool
 	waitTimed        bool
+	historyLimit     int
+	historyLongLimit int
 }
 
 type tableDDLTableLock struct {
@@ -35,24 +37,33 @@ type tableDDLTableLock struct {
 	waiters          map[string]metadataLockWaiter
 	history          []MetadataLockWaitEdge
 	historyLong      []MetadataLockWaitEdge
+	historyLimit     int
+	historyLongLimit int
 	waitSummary      []MetadataLockWaitEdge
 	tableLockSummary []MetadataLockWaitEdge
 	waitInstrumented bool
 	waitTimed        bool
 }
 
-const metadataLockWaitHistoryLimit = 128
+// Keep the short and long wait histories on the MySQL default windows. The
+// coordinator stores owner-aware edges rather than a full PSI per-thread
+// buffer, so this is a retention correction, not a claim of complete wait
+// event lifecycle compatibility.
+const metadataLockWaitHistoryLimit = 10
+const metadataLockWaitHistoryLongLimit = 10000
 
 type metadataLockOwner struct {
 	mode       tableLockMode
 	count      int
 	acquiredAt time.Time
+	duration   string
 }
 
 type metadataLockWaiter struct {
 	mode        tableLockMode
 	waitStarted time.Time
 	blockers    map[string]tableLockMode
+	duration    string
 }
 
 // MetadataLockSnapshot is the coordinator's real-time owner/waiter view for
@@ -64,6 +75,7 @@ type MetadataLockSnapshot struct {
 	Owner       string
 	Mode        tableLockMode
 	Status      string
+	Duration    string
 	AcquiredAt  time.Time
 	WaitStarted time.Time
 }
@@ -139,7 +151,7 @@ func (l *sessionTableLockLease) release() {
 }
 
 func newTableDDLCoordinator() *tableDDLCoordinator {
-	return &tableDDLCoordinator{locks: make(map[string]*tableDDLTableLock), waitInstrumented: true, waitTimed: true}
+	return &tableDDLCoordinator{locks: make(map[string]*tableDDLTableLock), waitInstrumented: true, waitTimed: true, historyLimit: metadataLockWaitHistoryLimit, historyLongLimit: metadataLockWaitHistoryLongLimit}
 }
 
 func (c *tableDDLCoordinator) lockFor(table string) *tableDDLTableLock {
@@ -155,6 +167,7 @@ func (c *tableDDLCoordinator) lockFor(table string) *tableDDLTableLock {
 	lock := &tableDDLTableLock{
 		owners: make(map[string]metadataLockOwner), waiters: make(map[string]metadataLockWaiter),
 		waitInstrumented: c.waitInstrumented, waitTimed: c.waitTimed,
+		historyLimit: c.historyLimit, historyLongLimit: c.historyLongLimit,
 	}
 	c.locks[key] = lock
 	return lock
@@ -186,6 +199,52 @@ func (c *tableDDLCoordinator) SetPerformanceSchemaWaitInstrumentation(enabled, t
 	}
 }
 
+// SetPerformanceSchemaWaitHistoryLimits applies the live short and long
+// retention windows to metadata-lock wait history. Existing rows are trimmed
+// immediately when a global Performance Schema size variable is reduced.
+func (c *tableDDLCoordinator) SetPerformanceSchemaWaitHistoryLimits(short, long int) {
+	if c == nil {
+		return
+	}
+	if short < 0 {
+		short = 0
+	}
+	if long < 0 {
+		long = 0
+	}
+	c.mu.Lock()
+	c.historyLimit = short
+	c.historyLongLimit = long
+	locks := make([]*tableDDLTableLock, 0, len(c.locks))
+	for _, lock := range c.locks {
+		locks = append(locks, lock)
+	}
+	c.mu.Unlock()
+	for _, lock := range locks {
+		if lock == nil {
+			continue
+		}
+		lock.stateMu.Lock()
+		lock.historyLimit = short
+		lock.historyLongLimit = long
+		if len(lock.history) > short {
+			if short == 0 {
+				lock.history = lock.history[:0]
+			} else {
+				lock.history = append([]MetadataLockWaitEdge(nil), lock.history[len(lock.history)-short:]...)
+			}
+		}
+		if len(lock.historyLong) > long {
+			if long == 0 {
+				lock.historyLong = lock.historyLong[:0]
+			} else {
+				lock.historyLong = append([]MetadataLockWaitEdge(nil), lock.historyLong[len(lock.historyLong)-long:]...)
+			}
+		}
+		lock.stateMu.Unlock()
+	}
+}
+
 func (l *tableDDLTableLock) RLock()        { l.readBarrier.RLock() }
 func (l *tableDDLTableLock) RUnlock()      { l.readBarrier.RUnlock() }
 func (l *tableDDLTableLock) DMLRLock()     { l.writeBarrier.RLock() }
@@ -202,9 +261,31 @@ func (l *tableDDLTableLock) lockWithContext(ctx context.Context, mode tableLockM
 }
 
 func (l *tableDDLTableLock) lockWithContextOwned(ctx context.Context, mode tableLockMode, owner string) error {
+	return l.lockWithContextOwnedDuration(ctx, mode, owner, metadataLockDurationTransaction)
+}
+
+const (
+	metadataLockDurationStatement   = "STATEMENT"
+	metadataLockDurationTransaction = "TRANSACTION"
+	metadataLockDurationExplicit    = "EXPLICIT"
+)
+
+func normalizeMetadataLockDuration(duration string) string {
+	switch strings.ToUpper(strings.TrimSpace(duration)) {
+	case metadataLockDurationStatement:
+		return metadataLockDurationStatement
+	case metadataLockDurationExplicit:
+		return metadataLockDurationExplicit
+	default:
+		return metadataLockDurationTransaction
+	}
+}
+
+func (l *tableDDLTableLock) lockWithContextOwnedDuration(ctx context.Context, mode tableLockMode, owner, duration string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	duration = normalizeMetadataLockDuration(duration)
 	waitStarted := time.Now()
 	upgradeFromShared := false
 	ownerCount := 1
@@ -233,7 +314,7 @@ func (l *tableDDLTableLock) lockWithContextOwned(ctx context.Context, mode table
 				if l.waiters == nil {
 					l.waiters = make(map[string]metadataLockWaiter)
 				}
-				l.waiters[owner] = metadataLockWaiter{mode: mode, waitStarted: waitStarted}
+				l.waiters[owner] = metadataLockWaiter{mode: mode, waitStarted: waitStarted, duration: duration}
 			default:
 				l.stateMu.Unlock()
 				return fmt.Errorf("metadata lock owner %s already holds %s lock and cannot acquire %s lock", owner, existing.mode, mode)
@@ -246,7 +327,7 @@ func (l *tableDDLTableLock) lockWithContextOwned(ctx context.Context, mode table
 		if l.waiters == nil {
 			l.waiters = make(map[string]metadataLockWaiter)
 		}
-		l.waiters[owner] = metadataLockWaiter{mode: mode, waitStarted: waitStarted}
+		l.waiters[owner] = metadataLockWaiter{mode: mode, waitStarted: waitStarted, duration: duration}
 		l.stateMu.Unlock()
 	}
 	acquiredAndRecorded := false
@@ -293,7 +374,7 @@ func (l *tableDDLTableLock) lockWithContextOwned(ctx context.Context, mode table
 				if l.owners == nil {
 					l.owners = make(map[string]metadataLockOwner)
 				}
-				l.owners[owner] = metadataLockOwner{mode: mode, count: ownerCount, acquiredAt: time.Now()}
+				l.owners[owner] = metadataLockOwner{mode: mode, count: ownerCount, acquiredAt: time.Now(), duration: duration}
 				l.stateMu.Unlock()
 				acquiredAndRecorded = true
 			}
@@ -333,12 +414,16 @@ func (l *tableDDLTableLock) recordWaitHistoryLocked(waitingOwner string, waiting
 		l.waitSummary = append(l.waitSummary, edge)
 		l.tableLockSummary = append(l.tableLockSummary, edge)
 		l.history = append(l.history, edge)
-		if len(l.history) > metadataLockWaitHistoryLimit {
-			l.history = append([]MetadataLockWaitEdge(nil), l.history[len(l.history)-metadataLockWaitHistoryLimit:]...)
+		if l.historyLimit <= 0 {
+			l.history = l.history[:0]
+		} else if len(l.history) > l.historyLimit {
+			l.history = append([]MetadataLockWaitEdge(nil), l.history[len(l.history)-l.historyLimit:]...)
 		}
 		l.historyLong = append(l.historyLong, edge)
-		if len(l.historyLong) > metadataLockWaitHistoryLimit {
-			l.historyLong = append([]MetadataLockWaitEdge(nil), l.historyLong[len(l.historyLong)-metadataLockWaitHistoryLimit:]...)
+		if l.historyLongLimit <= 0 {
+			l.historyLong = l.historyLong[:0]
+		} else if len(l.historyLong) > l.historyLongLimit {
+			l.historyLong = append([]MetadataLockWaitEdge(nil), l.historyLong[len(l.historyLong)-l.historyLongLimit:]...)
 		}
 	}
 }
@@ -432,7 +517,8 @@ func (c *tableDDLCoordinator) MetadataLocks() []MetadataLockSnapshot {
 		sort.Strings(ownerNames)
 		for _, owner := range ownerNames {
 			state := owners[owner]
-			result = append(result, MetadataLockSnapshot{Table: table, Owner: owner, Mode: state.mode, Status: "GRANTED", AcquiredAt: state.acquiredAt})
+			duration := normalizeMetadataLockDuration(state.duration)
+			result = append(result, MetadataLockSnapshot{Table: table, Owner: owner, Mode: state.mode, Status: "GRANTED", Duration: duration, AcquiredAt: state.acquiredAt})
 		}
 		waiterNames := make([]string, 0, len(waiters))
 		for owner := range waiters {
@@ -441,7 +527,8 @@ func (c *tableDDLCoordinator) MetadataLocks() []MetadataLockSnapshot {
 		sort.Strings(waiterNames)
 		for _, owner := range waiterNames {
 			state := waiters[owner]
-			result = append(result, MetadataLockSnapshot{Table: table, Owner: owner, Mode: state.mode, Status: "PENDING", WaitStarted: state.waitStarted})
+			duration := normalizeMetadataLockDuration(state.duration)
+			result = append(result, MetadataLockSnapshot{Table: table, Owner: owner, Mode: state.mode, Status: "PENDING", Duration: duration, WaitStarted: state.waitStarted})
 		}
 	}
 	return result
@@ -549,9 +636,9 @@ func (c *tableDDLCoordinator) MetadataLockWaitHistory() []MetadataLockWaitEdge {
 }
 
 // MetadataLockWaitHistoryLong returns the independent bounded history exposed
-// by performance_schema.events_waits_history_long. The compatibility server
-// uses the same retention bound as the short history, but keeps a separate
-// lifecycle so TRUNCATE of either view does not erase the other.
+// by performance_schema.events_waits_history_long. The long history has its
+// own larger retention window and lifecycle so TRUNCATE of either view does
+// not erase the other.
 func (c *tableDDLCoordinator) MetadataLockWaitHistoryLong() []MetadataLockWaitEdge {
 	if c == nil {
 		return nil
@@ -872,7 +959,7 @@ func (e *XMySQLExecutor) acquireSessionTableLocks(ctx context.Context, session s
 		if request.mode == "write" {
 			mode = tableLockWrite
 		}
-		if err := lock.lockWithContextOwned(ctx, mode, owner); err != nil {
+		if err := lock.lockWithContextOwnedDuration(ctx, mode, owner, metadataLockDurationExplicit); err != nil {
 			e.releaseSessionTableLocks(session)
 			return err
 		}
@@ -947,7 +1034,11 @@ func (e *XMySQLExecutor) acquireStatementTableLocks(ctx *ExecutionContext, sessi
 			continue
 		}
 		lock := e.getDDLCoordinator().lockFor(table)
-		if err := lock.lockWithContextOwned(lockContext, lockMode, owner); err != nil {
+		duration := metadataLockDurationStatement
+		if holdForTransaction {
+			duration = metadataLockDurationTransaction
+		}
+		if err := lock.lockWithContextOwnedDuration(lockContext, lockMode, owner, duration); err != nil {
 			for i := len(acquired) - 1; i >= 0; i-- {
 				acquired[i].lock.unlockOwned(tableLockMode(acquired[i].mode), acquired[i].owner)
 			}
@@ -968,7 +1059,17 @@ func (e *XMySQLExecutor) acquireStatementTableLocks(ctx *ExecutionContext, sessi
 		return func() {}, nil
 	}
 	e.recordTableHandleOpen(len(acquired))
+	var statementLease *sessionTableLockLease
+	if session != nil {
+		statementLease = &sessionTableLockLease{entries: append([]sessionTableLockLeaseEntry(nil), acquired...)}
+		session.SetParamByName("__statement_table_lock_lease", statementLease)
+	}
 	return func() {
+		if session != nil && statementLease != nil {
+			if current, ok := session.GetParamByName("__statement_table_lock_lease").(*sessionTableLockLease); ok && current == statementLease {
+				session.SetParamByName("__statement_table_lock_lease", nil)
+			}
+		}
 		e.recordTableHandleClose(len(acquired))
 		for i := len(acquired) - 1; i >= 0; i-- {
 			acquired[i].lock.unlockOwned(tableLockMode(acquired[i].mode), acquired[i].owner)
@@ -1236,7 +1337,7 @@ func (e *XMySQLExecutor) acquireDDLWriteLock(ctx *ExecutionContext, table string
 		mode = tableLockShared
 	}
 	owner := ddlMetadataLockOwner(session)
-	if err := lock.lockWithContextOwned(lockContext, mode, owner); err != nil {
+	if err := lock.lockWithContextOwnedDuration(lockContext, mode, owner, metadataLockDurationStatement); err != nil {
 		cancel()
 		if ctx != nil {
 			ctx.mu.Lock()

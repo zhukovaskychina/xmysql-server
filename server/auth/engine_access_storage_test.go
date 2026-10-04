@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
@@ -70,6 +71,39 @@ func TestPersistedAccountToUserInfoIncludesStandaloneGlobalGrants(t *testing.T) 
 	}
 	if len(info.DynamicPrivileges) != 1 || info.DynamicPrivileges[0] != "BACKUP_ADMIN" {
 		t.Fatalf("expected persisted global grant in dynamic privileges, got %#v", info.DynamicPrivileges)
+	}
+}
+
+func TestPersistedAccountToUserInfoMapsPasswordLifetimeMetadata(t *testing.T) {
+	const changed = "2026-09-30T12:00:00Z"
+	var account persistedAccountForAuth
+	err := json.Unmarshal([]byte(`{"user":"lifetime","host":"localhost","password_last_changed":"`+changed+`","password_lifetime":30}`), &account)
+	if err != nil {
+		t.Fatalf("unmarshal persisted account: %v", err)
+	}
+
+	info := persistedAccountToUserInfo(&account)
+	if info == nil || info.PasswordLifetime == nil || *info.PasswordLifetime != 30 {
+		t.Fatalf("expected password lifetime 30, got %#v", info)
+	}
+	expected, _ := time.Parse(time.RFC3339, changed)
+	if !info.PasswordLastChanged.Equal(expected) {
+		t.Fatalf("expected password last changed %s, got %s", expected, info.PasswordLastChanged)
+	}
+}
+
+func TestPersistedAccountToUserInfoMapsFailedLoginPolicy(t *testing.T) {
+	var account persistedAccountForAuth
+	err := json.Unmarshal([]byte(`{"user":"locked","host":"localhost","failed_login_attempts":3,"password_lock_time":2,"password_lock_unbounded":false,"failed_login_count":2,"password_locked_until":"2026-10-03T12:00:00Z"}`), &account)
+	if err != nil {
+		t.Fatalf("unmarshal failed-login metadata: %v", err)
+	}
+	info := persistedAccountToUserInfo(&account)
+	if info == nil || info.FailedLoginAttempts == nil || *info.FailedLoginAttempts != 3 || info.PasswordLockTime == nil || *info.PasswordLockTime != 2 {
+		t.Fatalf("failed-login policy did not map: %#v", info)
+	}
+	if info.FailedLoginCount != 2 || info.PasswordLockedUntil == nil {
+		t.Fatalf("failed-login runtime state did not map: %#v", info)
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,26 +20,49 @@ import (
 )
 
 type persistedAccount struct {
-	User             string              `json:"user"`
-	Host             string              `json:"host"`
-	Password         string              `json:"password"`
-	Plugin           string              `json:"plugin,omitempty"`
-	TLSRequired      bool                `json:"tls_required,omitempty"`
-	X509Required     bool                `json:"x509_required,omitempty"`
-	AccountLocked    bool                `json:"account_locked"`
-	PasswordExpired  bool                `json:"password_expired"`
-	Roles            []string            `json:"roles,omitempty"`
-	RoleAdminOptions []string            `json:"role_admin_options,omitempty"`
-	DefaultRoles     []string            `json:"default_roles,omitempty"`
-	GlobalGrants     []string            `json:"global_grants,omitempty"`
-	Grants           map[string][]string `json:"grants,omitempty"`
-	ColumnGrants     map[string][]string `json:"column_grants,omitempty"`
-	Grantors         map[string]string   `json:"grantors,omitempty"`
-	ColumnGrantors   map[string]string   `json:"column_grantors,omitempty"`
-	RoleGrantors     map[string]string   `json:"role_grantors,omitempty"`
-	Restrictions     map[string][]string `json:"restrictions,omitempty"`
-	UserAttributes   string              `json:"user_attributes,omitempty"`
-	UpdatedAt        string              `json:"updated_at"`
+	User                   string                     `json:"user"`
+	Host                   string                     `json:"host"`
+	Password               string                     `json:"password"`
+	Plugin                 string                     `json:"plugin,omitempty"`
+	TLSRequired            bool                       `json:"tls_required,omitempty"`
+	X509Required           bool                       `json:"x509_required,omitempty"`
+	SSLCipher              string                     `json:"ssl_cipher,omitempty"`
+	X509Issuer             string                     `json:"x509_issuer,omitempty"`
+	X509Subject            string                     `json:"x509_subject,omitempty"`
+	MaxQuestions           *int64                     `json:"max_questions,omitempty"`
+	MaxUpdates             *int64                     `json:"max_updates,omitempty"`
+	MaxConnections         *int64                     `json:"max_connections,omitempty"`
+	MaxUserConnections     *int64                     `json:"max_user_connections,omitempty"`
+	AccountLocked          bool                       `json:"account_locked"`
+	PasswordExpired        bool                       `json:"password_expired"`
+	PasswordLastChanged    *string                    `json:"password_last_changed,omitempty"`
+	PasswordLifetime       *int64                     `json:"password_lifetime,omitempty"`
+	PasswordReuseHistory   *int64                     `json:"password_reuse_history,omitempty"`
+	PasswordReuseTime      *int64                     `json:"password_reuse_time,omitempty"`
+	PasswordRequireCurrent *bool                      `json:"password_require_current,omitempty"`
+	FailedLoginAttempts    *int64                     `json:"failed_login_attempts,omitempty"`
+	PasswordLockTime       *int64                     `json:"password_lock_time,omitempty"`
+	PasswordLockUnbounded  bool                       `json:"password_lock_unbounded,omitempty"`
+	FailedLoginCount       int64                      `json:"failed_login_count,omitempty"`
+	PasswordLockedUntil    *string                    `json:"password_locked_until,omitempty"`
+	PasswordHistory        []persistedPasswordHistory `json:"password_history,omitempty"`
+	Roles                  []string                   `json:"roles,omitempty"`
+	RoleAdminOptions       []string                   `json:"role_admin_options,omitempty"`
+	DefaultRoles           []string                   `json:"default_roles,omitempty"`
+	GlobalGrants           []string                   `json:"global_grants,omitempty"`
+	Grants                 map[string][]string        `json:"grants,omitempty"`
+	ColumnGrants           map[string][]string        `json:"column_grants,omitempty"`
+	Grantors               map[string]string          `json:"grantors,omitempty"`
+	ColumnGrantors         map[string]string          `json:"column_grantors,omitempty"`
+	RoleGrantors           map[string]string          `json:"role_grantors,omitempty"`
+	Restrictions           map[string][]string        `json:"restrictions,omitempty"`
+	UserAttributes         string                     `json:"user_attributes,omitempty"`
+	UpdatedAt              string                     `json:"updated_at"`
+}
+
+type persistedPasswordHistory struct {
+	Password          string `json:"password"`
+	PasswordTimestamp string `json:"password_timestamp"`
 }
 
 type persistedAccountFile struct {
@@ -118,21 +142,22 @@ func (e *XMySQLExecutor) commitSessionAccountChanges(session server.MySQLServerS
 	}
 	raw := session.GetParamByName(pendingAccountFileParam)
 	file, ok := raw.(*persistedAccountFile)
-	if !ok || file == nil {
-		return nil
+	if ok && file != nil {
+		e.lockPerformanceSchemaMutex(&e.accountMu, "wait/synch/mutex/sql/xmysql/account", int64(sessionConnectionID(session)))
+		if err := e.savePersistedAccounts(*file); err != nil {
+			e.unlockPerformanceSchemaMutex(&e.accountMu, "wait/synch/mutex/sql/xmysql/account")
+			return err
+		}
+		e.unlockPerformanceSchemaMutex(&e.accountMu, "wait/synch/mutex/sql/xmysql/account")
+		session.SetParamByName(pendingAccountFileParam, nil)
 	}
-	e.accountMu.Lock()
-	defer e.accountMu.Unlock()
-	if err := e.savePersistedAccounts(*file); err != nil {
-		return err
-	}
-	session.SetParamByName(pendingAccountFileParam, nil)
-	return nil
+	return e.commitSessionOptimizerCostChanges(session)
 }
 
 func (e *XMySQLExecutor) discardSessionAccountChanges(session server.MySQLServerSession) {
 	if session != nil {
 		session.SetParamByName(pendingAccountFileParam, nil)
+		e.discardSessionOptimizerCostChanges(session)
 	}
 }
 
@@ -160,6 +185,334 @@ func passwordHashForPlugin(plugin, password string) string {
 	default:
 		return nativePasswordHash(password)
 	}
+}
+
+func appendPasswordHistory(account *persistedAccount) {
+	if account == nil || account.Password == "" {
+		return
+	}
+	account.PasswordHistory = append(account.PasswordHistory, persistedPasswordHistory{
+		Password:          account.Password,
+		PasswordTimestamp: time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+func parsePasswordHistoryOption(query string) (*int64, bool, error) {
+	match := regexp.MustCompile(`(?is)\bpassword\s+history\s+(default|[0-9]+)\b`).FindStringSubmatch(query)
+	if len(match) != 2 {
+		return nil, false, nil
+	}
+	if strings.EqualFold(match[1], "default") {
+		return nil, true, nil
+	}
+	value, err := strconv.ParseInt(match[1], 10, 64)
+	if err != nil || value < 0 {
+		return nil, true, fmt.Errorf("invalid PASSWORD HISTORY value %q", match[1])
+	}
+	return &value, true, nil
+}
+
+func parsePasswordReuseIntervalOption(query string) (*int64, bool, error) {
+	match := regexp.MustCompile(`(?is)\bpassword\s+reuse\s+interval\s+(default|[0-9]+)\s+day\b`).FindStringSubmatch(query)
+	if len(match) != 2 {
+		return nil, false, nil
+	}
+	if strings.EqualFold(match[1], "default") {
+		return nil, true, nil
+	}
+	value, err := strconv.ParseInt(match[1], 10, 64)
+	if err != nil || value < 0 {
+		return nil, true, fmt.Errorf("invalid PASSWORD REUSE INTERVAL value %q", match[1])
+	}
+	return &value, true, nil
+}
+
+func parsePasswordRequireCurrentOption(query string) (*bool, bool, error) {
+	match := regexp.MustCompile(`(?is)\bpassword\s+require\s+current\b(?:\s+(default|optional))?`).FindStringSubmatch(query)
+	if len(match) != 2 {
+		return nil, false, nil
+	}
+	if strings.EqualFold(match[1], "default") {
+		return nil, true, nil
+	}
+	value := !strings.EqualFold(match[1], "optional")
+	return &value, true, nil
+}
+
+func parsePasswordLifetimeOption(query string) (*int64, bool, error) {
+	match := regexp.MustCompile(`(?is)\bpassword\s+expire\s+interval\s+([0-9]+)\s+day\b`).FindStringSubmatch(query)
+	if len(match) != 2 {
+		return nil, false, nil
+	}
+	value, err := strconv.ParseInt(match[1], 10, 64)
+	if err != nil || value < 0 || value > 65535 {
+		return nil, true, fmt.Errorf("invalid PASSWORD EXPIRE INTERVAL value %q", match[1])
+	}
+	return &value, true, nil
+}
+
+func parseFailedLoginPolicyOptions(query string) (attempts *int64, lockTime *int64, unbounded bool, hasAttempts, hasLockTime bool, err error) {
+	if match := regexp.MustCompile(`(?is)\bfailed_login_attempts\s+([0-9]+)\b`).FindStringSubmatch(query); len(match) == 2 {
+		value, parseErr := strconv.ParseInt(match[1], 10, 64)
+		if parseErr != nil || value < 0 || value > 32767 {
+			return nil, nil, false, true, false, fmt.Errorf("invalid FAILED_LOGIN_ATTEMPTS value %q", match[1])
+		}
+		attempts = &value
+		hasAttempts = true
+	}
+	if match := regexp.MustCompile(`(?is)\bpassword_lock_time\s+(unbounded|[0-9]+)\b`).FindStringSubmatch(query); len(match) == 2 {
+		hasLockTime = true
+		if strings.EqualFold(match[1], "unbounded") {
+			unbounded = true
+			return attempts, nil, unbounded, hasAttempts, hasLockTime, nil
+		}
+		value, parseErr := strconv.ParseInt(match[1], 10, 64)
+		if parseErr != nil || value < 0 || value > 32767 {
+			return nil, nil, false, hasAttempts, true, fmt.Errorf("invalid PASSWORD_LOCK_TIME value %q", match[1])
+		}
+		lockTime = &value
+	}
+	return attempts, lockTime, unbounded, hasAttempts, hasLockTime, nil
+}
+
+type accountResourceOptions struct {
+	MaxQuestions       *int64
+	MaxUpdates         *int64
+	MaxConnections     *int64
+	MaxUserConnections *int64
+}
+
+func parseAccountResourceOptions(query string) (accountResourceOptions, bool, error) {
+	options := accountResourceOptions{}
+	hasOption := false
+	definitions := []struct {
+		name   string
+		target **int64
+	}{
+		{"max_queries_per_hour", &options.MaxQuestions},
+		{"max_updates_per_hour", &options.MaxUpdates},
+		{"max_connections_per_hour", &options.MaxConnections},
+		{"max_user_connections", &options.MaxUserConnections},
+	}
+	for _, definition := range definitions {
+		pattern := regexp.MustCompile(`(?is)\b` + definition.name + `\s+([0-9]+)\b`)
+		match := pattern.FindStringSubmatch(query)
+		if len(match) != 2 {
+			continue
+		}
+		value, err := strconv.ParseInt(match[1], 10, 64)
+		if err != nil || value < 0 || value > 4294967295 {
+			return accountResourceOptions{}, true, fmt.Errorf("invalid %s value %q", strings.ToUpper(definition.name), match[1])
+		}
+		valueCopy := value
+		*definition.target = &valueCopy
+		hasOption = true
+	}
+	return options, hasOption, nil
+}
+
+func parseTLSAccountOptions(query string) (tlsRequired, x509Required bool, cipher, issuer, subject string, hasRequirement bool) {
+	lower := strings.ToLower(query)
+	requirement := regexp.MustCompile(`(?is)\brequire\s+(none|ssl|x509)\b`).FindStringSubmatch(lower)
+	if len(requirement) == 2 {
+		hasRequirement = true
+		switch requirement[1] {
+		case "ssl":
+			tlsRequired = true
+		case "x509":
+			tlsRequired, x509Required = true, true
+		}
+	}
+	for _, item := range []struct {
+		name   string
+		target *string
+	}{
+		{"cipher", &cipher},
+		{"issuer", &issuer},
+		{"subject", &subject},
+	} {
+		pattern := regexp.MustCompile(`(?is)\b` + item.name + `\s+'((?:''|[^'])*)'`)
+		match := pattern.FindStringSubmatch(query)
+		if len(match) == 2 {
+			*item.target = strings.ReplaceAll(match[1], "''", "'")
+			tlsRequired = true
+			hasRequirement = true
+		}
+	}
+	return
+}
+
+// parseUserAttributeOption parses the JSON object accepted by CREATE/ALTER
+// USER ... ATTRIBUTE.  MySQL stores this value in mysql.user.User_attributes
+// and exposes the same document through INFORMATION_SCHEMA.USER_ATTRIBUTES.
+func parseUserAttributeOption(query string) (string, bool, error) {
+	if !regexp.MustCompile(`(?is)\battribute\s+default\b`).MatchString(query) {
+		match := regexp.MustCompile(`(?is)\battribute\s+'((?:''|[^'])*)'`).FindStringSubmatch(query)
+		if len(match) != 2 {
+			return "", false, nil
+		}
+		value := strings.ReplaceAll(match[1], "''", "'")
+		var document interface{}
+		if err := json.Unmarshal([]byte(value), &document); err != nil {
+			return "", true, fmt.Errorf("invalid user ATTRIBUTE JSON: %w", err)
+		}
+		if _, ok := document.(map[string]interface{}); !ok {
+			return "", true, fmt.Errorf("user ATTRIBUTE must be a JSON object")
+		}
+		return value, true, nil
+	}
+	return "", true, nil
+}
+
+func parseUserCommentOption(query string) (string, bool, error) {
+	match := regexp.MustCompile(`(?is)\bcomment\s+'((?:''|[^'])*)'`).FindStringSubmatch(query)
+	if len(match) != 2 {
+		return "", false, nil
+	}
+	return strings.ReplaceAll(match[1], "''", "'"), true, nil
+}
+
+func userAttributesWithComment(existing, comment string) (string, error) {
+	attributes := map[string]interface{}{}
+	if strings.TrimSpace(existing) != "" {
+		if err := json.Unmarshal([]byte(existing), &attributes); err != nil {
+			return "", err
+		}
+	}
+	attributes["comment"] = comment
+	raw, err := json.Marshal(attributes)
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+func passwordChangedAt(password string) *string {
+	if password == "" {
+		return nil
+	}
+	value := time.Now().UTC().Format(time.RFC3339)
+	return &value
+}
+
+func (e *XMySQLExecutor) globalPasswordReusePolicy() (int64, int64) {
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return 0, 0
+	}
+	managerValue := e.storageManager.GetSystemVariablesManager()
+	read := func(name string) int64 {
+		value, err := managerValue.GetVariable("", name, manager.GlobalScope)
+		if err != nil {
+			return 0
+		}
+		switch typed := value.(type) {
+		case int64:
+			if typed > 0 {
+				return typed
+			}
+		case int:
+			if typed > 0 {
+				return int64(typed)
+			}
+		case uint64:
+			if typed > 0 {
+				return int64(typed)
+			}
+		case string:
+			parsed, _ := strconv.ParseInt(strings.TrimSpace(typed), 10, 64)
+			if parsed > 0 {
+				return parsed
+			}
+		}
+		return 0
+	}
+	return read("password_history"), read("password_reuse_interval")
+}
+
+func (e *XMySQLExecutor) globalPasswordRequireCurrent() bool {
+	if e == nil || e.storageManager == nil || e.storageManager.GetSystemVariablesManager() == nil {
+		return false
+	}
+	value, err := e.storageManager.GetSystemVariablesManager().GetVariable("", "password_require_current", manager.GlobalScope)
+	if err != nil {
+		return false
+	}
+	return sessionBoolValue(value)
+}
+
+func (e *XMySQLExecutor) passwordRequireCurrent(account persistedAccount) bool {
+	if account.PasswordRequireCurrent != nil {
+		return *account.PasswordRequireCurrent
+	}
+	return e.globalPasswordRequireCurrent()
+}
+
+func parsePasswordReplace(query string) (string, bool) {
+	match := regexp.MustCompile(`(?is)\breplace\s+'([^']*)'`).FindStringSubmatch(query)
+	if len(match) != 2 {
+		return "", false
+	}
+	return match[1], true
+}
+
+func (e *XMySQLExecutor) validateCurrentPasswordForSelf(session server.MySQLServerSession, account persistedAccount, query string) error {
+	if session == nil || !sessionOwnsAccount(session, account.User, account.Host) || strings.EqualFold(strings.TrimSpace(fmt.Sprint(session.GetParamByName("user"))), "root") {
+		return nil
+	}
+	if !e.passwordRequireCurrent(account) {
+		return nil
+	}
+	current, ok := parsePasswordReplace(query)
+	if !ok || passwordHashForPlugin(account.Plugin, current) != account.Password {
+		return fmt.Errorf("Current password is required for '%s'@'%s'", account.User, account.Host)
+	}
+	return nil
+}
+
+func (e *XMySQLExecutor) passwordReusePolicy(account persistedAccount) (int64, int64) {
+	history, interval := e.globalPasswordReusePolicy()
+	if account.PasswordReuseHistory != nil {
+		history = *account.PasswordReuseHistory
+	}
+	if account.PasswordReuseTime != nil {
+		interval = *account.PasswordReuseTime
+	}
+	return history, interval
+}
+
+func (e *XMySQLExecutor) validatePasswordReuse(account persistedAccount, passwordHash string) error {
+	if passwordHash == "" {
+		return nil
+	}
+	historyLimit, intervalDays := e.passwordReusePolicy(account)
+	if historyLimit <= 0 && intervalDays <= 0 {
+		return nil
+	}
+	if account.Password != "" && account.Password == passwordHash {
+		return fmt.Errorf("Password reuse is not allowed for '%s'@'%s'", account.User, account.Host)
+	}
+	if historyLimit > 0 {
+		seen := int64(0)
+		for index := len(account.PasswordHistory) - 1; index >= 0 && seen < historyLimit; index-- {
+			seen++
+			if account.PasswordHistory[index].Password == passwordHash {
+				return fmt.Errorf("Password reuse is not allowed for '%s'@'%s'", account.User, account.Host)
+			}
+		}
+	}
+	if intervalDays > 0 {
+		cutoff := time.Now().UTC().Add(-time.Duration(intervalDays) * 24 * time.Hour)
+		for _, history := range account.PasswordHistory {
+			if history.Password != passwordHash {
+				continue
+			}
+			when, err := time.Parse(time.RFC3339, history.PasswordTimestamp)
+			if err == nil && !when.Before(cutoff) {
+				return fmt.Errorf("Password reuse is not allowed for '%s'@'%s'", account.User, account.Host)
+			}
+		}
+	}
+	return nil
 }
 
 func accountTargetFromQuery(query string) (user, host string, ok bool) {
@@ -371,10 +724,11 @@ func (e *XMySQLExecutor) checkGlobalPrivilege(ctx *ExecutionContext, required st
 		return nil
 	}
 	allowSuper := strings.EqualFold(strings.TrimSpace(required), "REPLICATION_SLAVE_ADMIN")
+	allowReload := strings.EqualFold(strings.TrimSpace(required), "RELOAD") || strings.EqualFold(strings.TrimSpace(required), "FLUSH_OPTIMIZER_COSTS")
 	if privileges, ok := ctx.Session.GetParamByName("global_privileges").([]common.PrivilegeType); ok {
 		for _, privilege := range privileges {
 			if privilege == common.AllPriv || (allowSuper && privilege == common.SuperPriv) ||
-				(strings.EqualFold(required, "RELOAD") && privilege == common.ReloadPriv) {
+				(allowReload && privilege == common.ReloadPriv) {
 				return nil
 			}
 		}
@@ -489,6 +843,35 @@ func sessionOwnsAccount(session server.MySQLServerSession, user, host string) bo
 	currentUser, _ := session.GetParamByName("user").(string)
 	currentHost, _ := session.GetParamByName("host").(string)
 	return strings.EqualFold(currentUser, user) && (currentHost == "" || strings.EqualFold(currentHost, host))
+}
+
+// showCreateUserVisibility applies the two separate visibility rules used by
+// SHOW CREATE USER: looking up another account requires SELECT on the mysql
+// system schema, while the current account may inspect its own definition.
+// The authentication hash is an additional protected field and is only
+// rendered when the session has SELECT on mysql.user (or an equivalent
+// broader grant). Nil sessions are internal/root execution paths.
+func showCreateUserVisibility(file persistedAccountFile, session server.MySQLServerSession, targetUser, targetHost string) (bool, bool, error) {
+	if session == nil {
+		return true, true, nil
+	}
+	if sessionOwnsAccount(session, targetUser, targetHost) {
+		account := sessionAccount(file, session)
+		if account == nil {
+			return true, false, nil
+		}
+		grants := effectiveAccountGrants(file, *account, session)
+		return true, grantsContain(grants, "mysql.user", "SELECT"), nil
+	}
+	account := sessionAccount(file, session)
+	if account == nil {
+		return false, false, fmt.Errorf("Access denied; user does not have the SELECT privilege for this operation")
+	}
+	grants := effectiveAccountGrants(file, *account, session)
+	if !grantsContain(grants, "mysql.*", "SELECT") {
+		return false, false, fmt.Errorf("Access denied; you need the SELECT privilege for this operation")
+	}
+	return true, grantsContain(grants, "mysql.user", "SELECT"), nil
 }
 
 func accountCanManage(file persistedAccountFile, session server.MySQLServerSession, privilege string, targetUser, targetHost string) bool {
@@ -1024,8 +1407,12 @@ func syncPartialRevokeUserAttributes(account *persistedAccount) {
 // needed by clients and authentication. It deliberately keeps grant state in a
 // small durable file until mysql system-table writes are transaction-aware.
 func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query string) bool {
-	e.accountMu.Lock()
-	defer e.accountMu.Unlock()
+	owner := int64(0)
+	if ctx != nil {
+		owner = int64(sessionConnectionID(ctx.Session))
+	}
+	e.lockPerformanceSchemaMutex(&e.accountMu, "wait/synch/mutex/sql/xmysql/account", owner)
+	defer e.unlockPerformanceSchemaMutex(&e.accountMu, "wait/synch/mutex/sql/xmysql/account")
 	lower := strings.ToLower(strings.TrimSpace(strings.TrimSuffix(query, ";")))
 	if lower == "flush privileges" {
 		accountResult(ctx, nil, nil, "Privileges flushed")
@@ -1041,13 +1428,18 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 	}
 	if strings.HasPrefix(lower, "show create user") {
 		user, host, ok := accountTargetFromQuery(query)
-		if !ok {
-			ctx.Results <- &Result{Err: fmt.Errorf("SHOW CREATE USER requires an account"), ResultType: common.RESULT_TYPE_QUERY}
-			return true
-		}
 		file, err := e.accountFileForSession(ctx)
 		if err != nil {
 			ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		if !ok && regexp.MustCompile(`(?is)^show\s+create\s+user\s+current_user\s*\(?(?:\s*\))?\s*$`).MatchString(lower) {
+			if current := sessionAccount(file, ctx.Session); current != nil {
+				user, host, ok = current.User, current.Host, true
+			}
+		}
+		if !ok {
+			ctx.Results <- &Result{Err: fmt.Errorf("SHOW CREATE USER requires an account"), ResultType: common.RESULT_TYPE_QUERY}
 			return true
 		}
 		idx := -1
@@ -1061,22 +1453,93 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 			ctx.Results <- &Result{Err: fmt.Errorf("SHOW CREATE USER failed for '%s'@'%s': user does not exist", user, host), ResultType: common.RESULT_TYPE_QUERY}
 			return true
 		}
+		visible, showHash, visibilityErr := showCreateUserVisibility(file, ctx.Session, user, host)
+		if !visible {
+			ctx.Results <- &Result{Err: visibilityErr, ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
 		account := file.Accounts[idx]
 		plugin := account.Plugin
 		if plugin == "" {
 			plugin = "mysql_native_password"
 		}
-		createSQL := fmt.Sprintf("CREATE USER '%s'@'%s' IDENTIFIED WITH '%s' AS '%s'", escapeAccountSQL(account.User), escapeAccountSQL(account.Host), escapeAccountSQL(plugin), escapeAccountSQL(account.Password))
+		password := "<secret>"
+		if showHash {
+			password = account.Password
+		}
+		createSQL := fmt.Sprintf("CREATE USER '%s'@'%s' IDENTIFIED WITH '%s' AS '%s'", escapeAccountSQL(account.User), escapeAccountSQL(account.Host), escapeAccountSQL(plugin), escapeAccountSQL(password))
 		if account.X509Required {
 			createSQL += " REQUIRE X509"
 		} else if account.TLSRequired {
 			createSQL += " REQUIRE SSL"
+		} else {
+			createSQL += " REQUIRE NONE"
+		}
+		if account.SSLCipher != "" {
+			createSQL += fmt.Sprintf(" AND CIPHER '%s'", escapeAccountSQL(account.SSLCipher))
+		}
+		if account.X509Issuer != "" {
+			createSQL += fmt.Sprintf(" AND ISSUER '%s'", escapeAccountSQL(account.X509Issuer))
+		}
+		if account.X509Subject != "" {
+			createSQL += fmt.Sprintf(" AND SUBJECT '%s'", escapeAccountSQL(account.X509Subject))
+		}
+		resourceClauses := make([]string, 0, 4)
+		for _, resource := range []struct {
+			name  string
+			value *int64
+		}{
+			{"MAX_QUERIES_PER_HOUR", account.MaxQuestions},
+			{"MAX_UPDATES_PER_HOUR", account.MaxUpdates},
+			{"MAX_CONNECTIONS_PER_HOUR", account.MaxConnections},
+			{"MAX_USER_CONNECTIONS", account.MaxUserConnections},
+		} {
+			if resource.value != nil {
+				resourceClauses = append(resourceClauses, fmt.Sprintf("%s %d", resource.name, *resource.value))
+			}
+		}
+		if len(resourceClauses) > 0 {
+			createSQL += " WITH " + strings.Join(resourceClauses, " ")
 		}
 		if account.AccountLocked {
 			createSQL += " ACCOUNT LOCK"
+		} else {
+			createSQL += " ACCOUNT UNLOCK"
 		}
-		if account.PasswordExpired {
+		if account.PasswordLifetime != nil {
+			createSQL += fmt.Sprintf(" PASSWORD EXPIRE INTERVAL %d DAY", *account.PasswordLifetime)
+		} else if account.PasswordExpired {
 			createSQL += " PASSWORD EXPIRE"
+		} else {
+			createSQL += " PASSWORD EXPIRE DEFAULT"
+		}
+		if account.PasswordReuseHistory != nil {
+			createSQL += fmt.Sprintf(" PASSWORD HISTORY %d", *account.PasswordReuseHistory)
+		} else {
+			createSQL += " PASSWORD HISTORY DEFAULT"
+		}
+		if account.PasswordReuseTime != nil {
+			createSQL += fmt.Sprintf(" PASSWORD REUSE INTERVAL %d DAY", *account.PasswordReuseTime)
+		} else {
+			createSQL += " PASSWORD REUSE INTERVAL DEFAULT"
+		}
+		if account.PasswordRequireCurrent == nil {
+			createSQL += " PASSWORD REQUIRE CURRENT DEFAULT"
+		} else if *account.PasswordRequireCurrent {
+			createSQL += " PASSWORD REQUIRE CURRENT"
+		} else {
+			createSQL += " PASSWORD REQUIRE CURRENT OPTIONAL"
+		}
+		if account.FailedLoginAttempts != nil {
+			createSQL += fmt.Sprintf(" FAILED_LOGIN_ATTEMPTS %d", *account.FailedLoginAttempts)
+		}
+		if account.PasswordLockUnbounded {
+			createSQL += " PASSWORD_LOCK_TIME UNBOUNDED"
+		} else if account.PasswordLockTime != nil {
+			createSQL += fmt.Sprintf(" PASSWORD_LOCK_TIME %d", *account.PasswordLockTime)
+		}
+		if strings.TrimSpace(account.UserAttributes) != "" {
+			createSQL += fmt.Sprintf(" ATTRIBUTE '%s'", escapeAccountSQL(account.UserAttributes))
 		}
 		accountResult(ctx, []string{"User", "Create User"}, [][]interface{}{{fmt.Sprintf("'%s'@'%s'", account.User, account.Host), createSQL}}, "SHOW CREATE USER completed")
 		return true
@@ -1106,10 +1569,19 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 	}
 	if strings.HasPrefix(lower, "set password") {
 		user, host, ok := accountTargetFromQuery(query)
+		if !ok && regexp.MustCompile(`(?is)\bset\s+password\s+for\s+(?:user|current_user)\s*\(\s*\)`).MatchString(lower) {
+			if current := sessionAccount(file, ctx.Session); current != nil {
+				user, host, ok = current.User, current.Host, true
+			}
+		}
 		if !ok && ctx.Session != nil {
-			user, _ = ctx.Session.GetParamByName("user").(string)
-			host, _ = ctx.Session.GetParamByName("host").(string)
-			ok = user != ""
+			if current := sessionAccount(file, ctx.Session); current != nil {
+				user, host, ok = current.User, current.Host, true
+			} else {
+				user, _ = ctx.Session.GetParamByName("user").(string)
+				host, _ = ctx.Session.GetParamByName("host").(string)
+				ok = user != ""
+			}
 		}
 		if !ok {
 			ctx.Results <- &Result{Err: fmt.Errorf("SET PASSWORD requires an account"), ResultType: common.RESULT_TYPE_QUERY}
@@ -1119,7 +1591,7 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 			ctx.Results <- &Result{Err: fmt.Errorf("access denied: current account cannot change password for '%s'@'%s'", user, host), ResultType: common.RESULT_TYPE_QUERY}
 			return true
 		}
-		passwordMatch := regexp.MustCompile(`(?is)set\s+password(?:\s+for\s+'[^']*'\s*@\s*'[^']*')?\s*=\s*'([^']*)'`).FindStringSubmatch(query)
+		passwordMatch := regexp.MustCompile(`(?is)set\s+password(?:\s+for\s+(?:'[^']*'\s*@\s*'[^']*'|(?:user|current_user)\s*\(\s*\)))?\s*=\s*'([^']*)'`).FindStringSubmatch(query)
 		if len(passwordMatch) != 2 {
 			ctx.Results <- &Result{Err: fmt.Errorf("invalid SET PASSWORD syntax"), ResultType: common.RESULT_TYPE_QUERY}
 			return true
@@ -1135,8 +1607,21 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 			ctx.Results <- &Result{Err: fmt.Errorf("account '%s'@'%s' does not exist", user, host), ResultType: common.RESULT_TYPE_QUERY}
 			return true
 		}
-		file.Accounts[idx].Password = passwordHashForPlugin(file.Accounts[idx].Plugin, passwordMatch[1])
+		if err := e.validateCurrentPasswordForSelf(ctx.Session, file.Accounts[idx], query); err != nil {
+			ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		newPassword := passwordHashForPlugin(file.Accounts[idx].Plugin, passwordMatch[1])
+		if err := e.validatePasswordReuse(file.Accounts[idx], newPassword); err != nil {
+			ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		appendPasswordHistory(&file.Accounts[idx])
+		file.Accounts[idx].Password = newPassword
+		file.Accounts[idx].PasswordLastChanged = passwordChangedAt(newPassword)
 		file.Accounts[idx].PasswordExpired = false
+		file.Accounts[idx].FailedLoginCount = 0
+		file.Accounts[idx].PasswordLockedUntil = nil
 		if err := e.stageOrSaveAccountFile(ctx.Session, file); err != nil {
 			ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
 			return true
@@ -1227,6 +1712,11 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 		return true
 	}
 	user, host, ok := accountTargetFromQuery(query)
+	if !ok && regexp.MustCompile(`(?is)^alter\s+user\s+(?:user|current_user)\s*\(\s*\)`).MatchString(lower) {
+		if current := sessionAccount(file, ctx.Session); current != nil {
+			user, host, ok = current.User, current.Host, true
+		}
+	}
 	if !ok {
 		ctx.Results <- &Result{Err: fmt.Errorf("account must use 'user'@'host' syntax"), ResultType: common.RESULT_TYPE_QUERY}
 		return true
@@ -1267,8 +1757,61 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 		if match := regexp.MustCompile(`(?is)identified\s+with\s+([a-z0-9_]+)`).FindStringSubmatch(query); len(match) == 2 {
 			plugin = strings.ToLower(match[1])
 		}
-		x509Required := strings.Contains(lower, "require x509")
-		passwordExpired := strings.Contains(lower, "password expire") && !strings.Contains(lower, "password expire never") && !strings.Contains(lower, "password expire default")
+		tlsRequired, parsedX509Required, sslCipher, x509Issuer, x509Subject, hasTLSRequirement := parseTLSAccountOptions(query)
+		x509Required := parsedX509Required || strings.Contains(lower, "require x509")
+		passwordExpired := strings.Contains(lower, "password expire") && !strings.Contains(lower, "password expire never") && !strings.Contains(lower, "password expire default") && !strings.Contains(lower, "password expire interval")
+		passwordHistory, hasPasswordHistory, policyErr := parsePasswordHistoryOption(query)
+		if policyErr != nil {
+			ctx.Results <- &Result{Err: policyErr, ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		passwordReuseTime, hasPasswordReuseTime, policyErr := parsePasswordReuseIntervalOption(query)
+		if policyErr != nil {
+			ctx.Results <- &Result{Err: policyErr, ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		passwordRequireCurrent, hasPasswordRequireCurrent, policyErr := parsePasswordRequireCurrentOption(query)
+		if policyErr != nil {
+			ctx.Results <- &Result{Err: policyErr, ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		passwordLifetime, hasPasswordLifetime, policyErr := parsePasswordLifetimeOption(query)
+		if policyErr != nil {
+			ctx.Results <- &Result{Err: policyErr, ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		resources, hasResources, resourceErr := parseAccountResourceOptions(query)
+		if resourceErr != nil {
+			ctx.Results <- &Result{Err: resourceErr, ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		failedLoginAttempts, passwordLockTime, passwordLockUnbounded, hasFailedLoginAttempts, hasPasswordLockTime, policyErr := parseFailedLoginPolicyOptions(query)
+		if policyErr != nil {
+			ctx.Results <- &Result{Err: policyErr, ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		userAttributes, hasUserAttributes, attributeErr := parseUserAttributeOption(query)
+		if attributeErr != nil {
+			ctx.Results <- &Result{Err: attributeErr, ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		userComment, hasUserComment, commentErr := parseUserCommentOption(query)
+		if commentErr != nil {
+			ctx.Results <- &Result{Err: commentErr, ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		if hasUserAttributes && hasUserComment {
+			ctx.Results <- &Result{Err: fmt.Errorf("COMMENT and ATTRIBUTE cannot be used together"), ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		if hasUserComment {
+			userAttributes, commentErr = userAttributesWithComment("", userComment)
+			if commentErr != nil {
+				ctx.Results <- &Result{Err: commentErr, ResultType: common.RESULT_TYPE_QUERY}
+				return true
+			}
+			hasUserAttributes = true
+		}
 		for _, target := range accountTargets {
 			alreadyExists := false
 			for _, account := range file.Accounts {
@@ -1278,7 +1821,40 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 				}
 			}
 			if !alreadyExists {
-				file.Accounts = append(file.Accounts, persistedAccount{User: target[0], Host: target[1], Password: passwordHashForPlugin(plugin, password), Plugin: plugin, TLSRequired: strings.Contains(lower, "require ssl") || x509Required, X509Required: x509Required, PasswordExpired: passwordExpired, Grants: map[string][]string{}, ColumnGrants: map[string][]string{}, UpdatedAt: time.Now().UTC().Format(time.RFC3339)})
+				passwordHash := passwordHashForPlugin(plugin, password)
+				account := persistedAccount{User: target[0], Host: target[1], Password: passwordHash, Plugin: plugin, TLSRequired: tlsRequired || strings.Contains(lower, "require ssl") || x509Required, X509Required: x509Required, SSLCipher: sslCipher, X509Issuer: x509Issuer, X509Subject: x509Subject, PasswordExpired: passwordExpired, PasswordLastChanged: passwordChangedAt(passwordHash), Grants: map[string][]string{}, ColumnGrants: map[string][]string{}, UpdatedAt: time.Now().UTC().Format(time.RFC3339)}
+				if hasResources {
+					account.MaxQuestions = resources.MaxQuestions
+					account.MaxUpdates = resources.MaxUpdates
+					account.MaxConnections = resources.MaxConnections
+					account.MaxUserConnections = resources.MaxUserConnections
+				}
+				if hasFailedLoginAttempts {
+					account.FailedLoginAttempts = failedLoginAttempts
+				}
+				if hasPasswordLockTime {
+					account.PasswordLockTime = passwordLockTime
+					account.PasswordLockUnbounded = passwordLockUnbounded
+				}
+				if hasTLSRequirement && !tlsRequired && !x509Required {
+					account.TLSRequired = false
+				}
+				if hasUserAttributes {
+					account.UserAttributes = userAttributes
+				}
+				if hasPasswordHistory {
+					account.PasswordReuseHistory = passwordHistory
+				}
+				if hasPasswordReuseTime {
+					account.PasswordReuseTime = passwordReuseTime
+				}
+				if hasPasswordRequireCurrent {
+					account.PasswordRequireCurrent = passwordRequireCurrent
+				}
+				if hasPasswordLifetime {
+					account.PasswordLifetime = passwordLifetime
+				}
+				file.Accounts = append(file.Accounts, account)
 			}
 		}
 	case strings.HasPrefix(lower, "create role"):
@@ -1313,6 +1889,9 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 		}
 	case strings.HasPrefix(lower, "alter user"):
 		accountTargets := accountTargetsFromQuery(query)
+		if len(accountTargets) == 0 && regexp.MustCompile(`(?is)^alter\s+user\s+(?:user|current_user)\s*\(\s*\)`).MatchString(lower) && ok {
+			accountTargets = [][2]string{{user, host}}
+		}
 		if len(accountTargets) == 0 {
 			ctx.Results <- &Result{Err: fmt.Errorf("ALTER USER requires an account"), ResultType: common.RESULT_TYPE_QUERY}
 			return true
@@ -1339,15 +1918,129 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 		if match := regexp.MustCompile(`(?is)identified\s+with\s+([a-z0-9_]+)`).FindStringSubmatch(query); len(match) == 2 {
 			plugin = strings.ToLower(match[1])
 		}
+		passwordHistory, hasPasswordHistory, policyErr := parsePasswordHistoryOption(query)
+		if policyErr != nil {
+			ctx.Results <- &Result{Err: policyErr, ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		passwordReuseTime, hasPasswordReuseTime, policyErr := parsePasswordReuseIntervalOption(query)
+		if policyErr != nil {
+			ctx.Results <- &Result{Err: policyErr, ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		passwordRequireCurrent, hasPasswordRequireCurrent, policyErr := parsePasswordRequireCurrentOption(query)
+		if policyErr != nil {
+			ctx.Results <- &Result{Err: policyErr, ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		passwordLifetime, hasPasswordLifetime, policyErr := parsePasswordLifetimeOption(query)
+		if policyErr != nil {
+			ctx.Results <- &Result{Err: policyErr, ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		resources, hasResources, resourceErr := parseAccountResourceOptions(query)
+		if resourceErr != nil {
+			ctx.Results <- &Result{Err: resourceErr, ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		failedLoginAttempts, passwordLockTime, passwordLockUnbounded, hasFailedLoginAttempts, hasPasswordLockTime, policyErr := parseFailedLoginPolicyOptions(query)
+		if policyErr != nil {
+			ctx.Results <- &Result{Err: policyErr, ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		tlsRequired, x509Required, sslCipher, x509Issuer, x509Subject, hasTLSRequirement := parseTLSAccountOptions(query)
+		userAttributes, hasUserAttributes, attributeErr := parseUserAttributeOption(query)
+		if attributeErr != nil {
+			ctx.Results <- &Result{Err: attributeErr, ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		userComment, hasUserComment, commentErr := parseUserCommentOption(query)
+		if commentErr != nil {
+			ctx.Results <- &Result{Err: commentErr, ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		if hasUserAttributes && hasUserComment {
+			ctx.Results <- &Result{Err: fmt.Errorf("COMMENT and ATTRIBUTE cannot be used together"), ResultType: common.RESULT_TYPE_QUERY}
+			return true
+		}
+		if hasUserComment {
+			userAttributes, commentErr = userAttributesWithComment("", userComment)
+			if commentErr != nil {
+				ctx.Results <- &Result{Err: commentErr, ResultType: common.RESULT_TYPE_QUERY}
+				return true
+			}
+			hasUserAttributes = true
+		}
 		if match := regexp.MustCompile(`(?is)identified(?:\s+with\s+[a-z0-9_]+)?\s+by\s+'([^']*)'`).FindStringSubmatch(query); len(match) == 2 {
 			for _, idx := range indices {
 				if idx >= 0 {
+					if err := e.validateCurrentPasswordForSelf(ctx.Session, file.Accounts[idx], query); err != nil {
+						ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
+						return true
+					}
 					hashPlugin := plugin
 					if hashPlugin == "" {
 						hashPlugin = file.Accounts[idx].Plugin
 					}
-					file.Accounts[idx].Password = passwordHashForPlugin(hashPlugin, match[1])
+					newPassword := passwordHashForPlugin(hashPlugin, match[1])
+					if err := e.validatePasswordReuse(file.Accounts[idx], newPassword); err != nil {
+						ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
+						return true
+					}
+					appendPasswordHistory(&file.Accounts[idx])
+					file.Accounts[idx].Password = newPassword
+					file.Accounts[idx].PasswordLastChanged = passwordChangedAt(newPassword)
 					file.Accounts[idx].PasswordExpired = false
+					file.Accounts[idx].FailedLoginCount = 0
+					file.Accounts[idx].PasswordLockedUntil = nil
+				}
+			}
+		}
+		if hasPasswordHistory || hasPasswordReuseTime || hasPasswordRequireCurrent || hasPasswordLifetime || hasResources || hasFailedLoginAttempts || hasPasswordLockTime {
+			for _, idx := range indices {
+				if idx < 0 {
+					continue
+				}
+				if hasPasswordHistory {
+					file.Accounts[idx].PasswordReuseHistory = passwordHistory
+				}
+				if hasPasswordReuseTime {
+					file.Accounts[idx].PasswordReuseTime = passwordReuseTime
+				}
+				if hasPasswordRequireCurrent {
+					file.Accounts[idx].PasswordRequireCurrent = passwordRequireCurrent
+				}
+				if hasPasswordLifetime {
+					file.Accounts[idx].PasswordLifetime = passwordLifetime
+				}
+				if hasResources {
+					file.Accounts[idx].MaxQuestions = resources.MaxQuestions
+					file.Accounts[idx].MaxUpdates = resources.MaxUpdates
+					file.Accounts[idx].MaxConnections = resources.MaxConnections
+					file.Accounts[idx].MaxUserConnections = resources.MaxUserConnections
+				}
+				if hasFailedLoginAttempts {
+					file.Accounts[idx].FailedLoginAttempts = failedLoginAttempts
+				}
+				if hasPasswordLockTime {
+					file.Accounts[idx].PasswordLockTime = passwordLockTime
+					file.Accounts[idx].PasswordLockUnbounded = passwordLockUnbounded
+				}
+			}
+		}
+		if hasUserAttributes {
+			for _, idx := range indices {
+				if idx >= 0 {
+					value := userAttributes
+					if hasUserComment {
+						value, attributeErr = userAttributesWithComment(file.Accounts[idx].UserAttributes, userComment)
+						if attributeErr != nil {
+							ctx.Results <- &Result{Err: attributeErr, ResultType: common.RESULT_TYPE_QUERY}
+							return true
+						}
+					}
+					file.Accounts[idx].UserAttributes = value
+					syncPartialRevokeUserAttributes(&file.Accounts[idx])
 				}
 			}
 		}
@@ -1362,22 +2055,16 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 		// REQUIRE NONE must be able to clear a previous REQUIRE SSL/X509
 		// setting; otherwise a user cannot be brought back to the default
 		// password-authentication policy without editing the grant tables.
-		if requirement := regexp.MustCompile(`(?is)\brequire\s+(none|ssl|x509)\b`).FindStringSubmatch(lower); len(requirement) == 2 {
+		if hasTLSRequirement {
 			for _, idx := range indices {
 				if idx < 0 {
 					continue
 				}
-				switch requirement[1] {
-				case "none":
-					file.Accounts[idx].TLSRequired = false
-					file.Accounts[idx].X509Required = false
-				case "ssl":
-					file.Accounts[idx].TLSRequired = true
-					file.Accounts[idx].X509Required = false
-				case "x509":
-					file.Accounts[idx].TLSRequired = true
-					file.Accounts[idx].X509Required = true
-				}
+				file.Accounts[idx].TLSRequired = tlsRequired
+				file.Accounts[idx].X509Required = x509Required
+				file.Accounts[idx].SSLCipher = sslCipher
+				file.Accounts[idx].X509Issuer = x509Issuer
+				file.Accounts[idx].X509Subject = x509Subject
 			}
 		}
 		for _, idx := range indices {
@@ -1387,9 +2074,14 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 			file.Accounts[idx].AccountLocked = strings.Contains(lower, "account lock") && !strings.Contains(lower, "account unlock")
 			if strings.Contains(lower, "account unlock") {
 				file.Accounts[idx].AccountLocked = false
+				file.Accounts[idx].FailedLoginCount = 0
+				file.Accounts[idx].PasswordLockedUntil = nil
 			}
-			if strings.Contains(lower, "password expire never") || strings.Contains(lower, "password expire default") {
+			if strings.Contains(lower, "password expire never") || strings.Contains(lower, "password expire default") || strings.Contains(lower, "password expire interval") {
 				file.Accounts[idx].PasswordExpired = false
+				if !hasPasswordLifetime {
+					file.Accounts[idx].PasswordLifetime = nil
+				}
 			} else if strings.Contains(lower, "password expire") {
 				file.Accounts[idx].PasswordExpired = true
 			}

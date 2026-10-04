@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
+	"github.com/zhukovaskychina/xmysql-server/server/replication"
 )
 
 func TestXMySQLEngine_resolveDmlDatabaseName(t *testing.T) {
@@ -56,6 +57,37 @@ func TestXMySQLEngineCloseStopsUtilityBackgroundManagers(t *testing.T) {
 	require.NoError(t, engine.Close())
 
 	assert.False(t, engine.ibufManager.IsBackgroundMergeRunning())
+}
+
+func TestEngineDerivesNativeEndpointFromConcreteSQLListener(t *testing.T) {
+	engine := NewXMySQLEngine(&conf.Cfg{
+		DataDir:                  t.TempDir(),
+		InnodbBufferPoolSize:     16 * 1024 * 1024,
+		ReplicationRole:          "source",
+		ReplicationListenAddress: "127.0.0.1:4419",
+		BindAddress:              "127.0.0.1",
+		Port:                     3319,
+	})
+	t.Cleanup(func() { require.NoError(t, engine.Close()) })
+
+	status, ok := engine.ReplicationStatus().(replication.StatusSnapshot)
+	require.True(t, ok)
+	assert.Equal(t, "mysql://127.0.0.1:3319", status.NativeEndpoint)
+}
+
+func TestEngineDoesNotAdvertiseWildcardNativeEndpoint(t *testing.T) {
+	engine := NewXMySQLEngine(&conf.Cfg{
+		DataDir:              t.TempDir(),
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+		ReplicationRole:      "source",
+		BindAddress:          "0.0.0.0",
+		Port:                 3319,
+	})
+	t.Cleanup(func() { require.NoError(t, engine.Close()) })
+
+	status, ok := engine.ReplicationStatus().(replication.StatusSnapshot)
+	require.True(t, ok)
+	assert.Empty(t, status.NativeEndpoint)
 }
 
 func TestXMySQLEngine_extractTableExprSchema(t *testing.T) {

@@ -8,6 +8,8 @@ param(
     [string]$User = "root",
     [string]$Password = "",
     [string]$ReportDirectory = "reports/compatibility/client-matrix",
+    [switch]$UseTLS,
+    [string]$TLSCAFile = "",
     [switch]$UseDockerMySqlCli,
     [string]$MySqlCliDockerImage = "mysql:8.4.11",
     [string]$MySqlCliDockerHost = "host.docker.internal"
@@ -24,12 +26,16 @@ $serverProcess = $null
 $serverStartedHere = $false
 $serverDir = Join-Path $resolvedReport "server"
 $caseSpecPath = Join-Path $workspaceRoot "scripts/compatibility/client_matrix_cases.json"
+$caseDefinitions = @()
 $requiredRunnerCases = @(
     "connection-auth", "database-ddl-dml", "prepared-statements", "transactions",
     "null-and-types", "metadata", "multi-result-and-error", "reconnect"
 )
 if (Test-Path -LiteralPath $caseSpecPath) {
-    $requiredRunnerCases = @((Get-Content -LiteralPath $caseSpecPath -Raw | ConvertFrom-Json) | ForEach-Object { $_.name })
+    $caseDefinitions = @((Get-Content -LiteralPath $caseSpecPath -Raw | ConvertFrom-Json))
+    $requiredRunnerCases = @($caseDefinitions | Where-Object {
+        -not $_.requires_tls -or $UseTLS
+    } | ForEach-Object { $_.name })
 }
 
 function Add-Result([string]$name, [string]$status, [int]$exitCode, [string]$output, [string]$errorMessage = $null) {
@@ -84,7 +90,12 @@ function Invoke-Client([string]$name, [string]$command, [string[]]$arguments, [h
                         Add-Result $name "FAIL" 1 $text "client runner did not return a cases map"
                         return
                     }
-                    $missing = @($requiredRunnerCases | Where-Object {
+                    $requiredForClient = @($caseDefinitions | Where-Object {
+                        ($null -eq $_.clients -or @($_.clients) -contains $name) -and
+                        (-not $_.requires_tls -or $UseTLS)
+                    } | ForEach-Object { $_.name })
+                    if ($requiredForClient.Count -eq 0) { $requiredForClient = $requiredRunnerCases }
+                    $missing = @($requiredForClient | Where-Object {
                         $case = $_
                         $null -eq $runner.cases.$case -or [string]$runner.cases.$case -ne "PASS"
                     })
@@ -114,7 +125,19 @@ function Invoke-MySqlCliMatrix([string]$password) {
     $oldPassword = [Environment]::GetEnvironmentVariable("MYSQL_PWD")
     [Environment]::SetEnvironmentVariable("MYSQL_PWD", $password)
     $cliHost = if ($UseDockerMySqlCli) { $MySqlCliDockerHost } else { "127.0.0.1" }
-    $commonArguments = @("--protocol=TCP", "-h", $cliHost, "-P", "$Port", "-u", $User, "--batch", "--raw", "--skip-column-names")
+    function Get-MySqlCliArguments([string]$cliUser) {
+        $arguments = @("--protocol=TCP", "-h", $cliHost, "-P", "$Port", "-u", $cliUser, "--batch", "--raw", "--skip-column-names")
+        if ($UseTLS) {
+            if ($UseDockerMySqlCli) {
+                $arguments += @("--ssl-mode=REQUIRED")
+            } else {
+                if ([string]::IsNullOrWhiteSpace($TLSCAFile)) { throw "-TLSCAFile is required with -UseTLS" }
+                $arguments += @("--ssl-mode=VERIFY_CA", "--ssl-ca", [IO.Path]::GetFullPath($TLSCAFile))
+            }
+        }
+        return $arguments
+    }
+    $commonArguments = Get-MySqlCliArguments $User
     $cases = [ordered]@{}
     try {
         function Invoke-MySqlCommand([string[]]$arguments) {
@@ -198,8 +221,46 @@ function Invoke-MySqlCliMatrix([string]$password) {
         if ($errorText -notmatch "(?i)table|doesn't exist|unknown table") { throw "multi-result-and-error returned an unexpected error: $errorText" }
         $cases["multi-result-and-error"] = "PASS"
 
+        $negativeOutput = Invoke-MySqlCommand ($commonArguments + @("-e", "SELECT * FROM client_matrix_missing_table"))
+        $negativeCode = $LASTEXITCODE
+        $negativeText = (($negativeOutput | Out-String).Trim())
+        if ($negativeCode -eq 0) { throw "expected mysql CLI error 1146 but command succeeded" }
+        if ($negativeText -notmatch "(?i)(1146|ER_NO_SUCH_TABLE)") { throw "negative-error-code returned an unexpected error: $negativeText" }
+        $cases["negative-error-code"] = "PASS"
+
+        Invoke-MySqlCase "CREATE TABLE IF NOT EXISTS client_matrix.type_rows(id BIGINT PRIMARY KEY, decimal_value DECIMAL(10,2), double_value DOUBLE, text_value TEXT, blob_value BLOB, created_at TIMESTAMP)" | Out-Null
+        $typeMetadata = Invoke-MySqlCase "SELECT DATA_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='client_matrix' AND TABLE_NAME='type_rows' ORDER BY ORDINAL_POSITION"
+        if ($typeMetadata -notmatch "(?is)bigint.*decimal.*double.*text.*blob.*timestamp") { throw "extended-types-metadata returned unexpected types: $typeMetadata" }
+        $cases["extended-types-metadata"] = "PASS"
+
+        Invoke-MySqlCase "CREATE TABLE IF NOT EXISTS client_matrix.wire_rows(id INT PRIMARY KEY, decimal_value DECIMAL(10,2), double_value DOUBLE, binary_value BLOB, date_value DATE)" | Out-Null
+        Invoke-MySqlCase "DELETE FROM client_matrix.wire_rows WHERE id = 1" | Out-Null
+        Invoke-MySqlCase "INSERT INTO client_matrix.wire_rows(id, decimal_value, double_value, binary_value, date_value) VALUES (1, 12.34, 1.5, _binary'xy', '2026-09-28')" | Out-Null
+        $wireValues = Invoke-MySqlCase "SELECT decimal_value, double_value, HEX(binary_value), date_value FROM client_matrix.wire_rows WHERE id = 1"
+        if ($wireValues -notmatch "(?m)^12\.34\s+1\.5\s+7879\s+2026-09-28$") { throw "wire-value-types returned unexpected values: $wireValues" }
+        $cases["wire-value-types"] = "PASS"
+
         if ((Invoke-MySqlCase "SELECT 1") -notmatch "(^|\r?\n)1(\r?\n|$)") { throw "reconnect failed" }
         $cases["reconnect"] = "PASS"
+
+        if ($UseTLS) {
+            $pluginPassword = [guid]::NewGuid().ToString("N")
+            Invoke-MySqlCase "DROP USER IF EXISTS 'xmysql_cache_client'@'%'; DROP USER IF EXISTS 'xmysql_sha_client'@'%'; CREATE USER 'xmysql_cache_client'@'%' IDENTIFIED WITH caching_sha2_password BY '$pluginPassword'; GRANT SELECT ON *.* TO 'xmysql_cache_client'@'%'; CREATE USER 'xmysql_sha_client'@'%' IDENTIFIED WITH sha256_password BY '$pluginPassword'; GRANT SELECT ON *.* TO 'xmysql_sha_client'@'%'" | Out-Null
+            $oldPluginPassword = [Environment]::GetEnvironmentVariable("MYSQL_PWD")
+            try {
+                [Environment]::SetEnvironmentVariable("MYSQL_PWD", $pluginPassword)
+                foreach ($pluginUser in @("xmysql_cache_client", "xmysql_sha_client")) {
+                    $pluginOutput = Invoke-MySqlCommand ((Get-MySqlCliArguments $pluginUser) + @("-e", "SELECT 1"))
+                    $pluginCode = $LASTEXITCODE
+                    $pluginText = (($pluginOutput | Out-String).Trim())
+                    if ($pluginCode -ne 0 -or $pluginText -notmatch "(^|\r?\n)1(\r?\n|$)") { throw "auth-plugins failed for $pluginUser" }
+                }
+                $cases["auth-plugins"] = "PASS"
+            } finally {
+                [Environment]::SetEnvironmentVariable("MYSQL_PWD", $oldPluginPassword)
+                Invoke-MySqlCase "DROP USER IF EXISTS 'xmysql_cache_client'@'%'; DROP USER IF EXISTS 'xmysql_sha_client'@'%'" | Out-Null
+            }
+        }
         Add-Result "mysql-cli" "PASS" 0 (([ordered]@{ client = "mysql-cli"; cases = $cases } | ConvertTo-Json -Compress))
     } catch {
         Add-Result "mysql-cli" "FAIL" 1 (([ordered]@{ client = "mysql-cli"; cases = $cases } | ConvertTo-Json -Compress)) $_.Exception.Message
@@ -238,6 +299,8 @@ try {
     } else {
         if ([string]::IsNullOrWhiteSpace($Password)) { $Password = [Environment]::GetEnvironmentVariable("XMYSQL_CLIENT_PASSWORD") }
         if ([string]::IsNullOrWhiteSpace($Password)) { throw "set XMYSQL_CLIENT_PASSWORD or pass -Password through a protected invocation" }
+        if ($UseTLS -and [string]::IsNullOrWhiteSpace($TLSCAFile)) { throw "-TLSCAFile is required with -UseTLS" }
+        if ($UseTLS -and -not (Test-Path -LiteralPath $TLSCAFile)) { throw "TLS CA file not found: $TLSCAFile" }
         if (-not $SkipServerStart) {
             if (-not (Test-Path -LiteralPath $ServerConfig)) { throw "server config not found: $ServerConfig" }
             New-Item -ItemType Directory -Force -Path $serverDir | Out-Null
@@ -272,15 +335,26 @@ try {
                 }
                 "go" {
                     if (-not (Test-CommandAvailable "go")) { Add-Result $name "SKIPPED_ENVIRONMENT" 125 "go executable not found"; continue }
-                    Invoke-Client $name "go" @("run", "./client_compatibility/go") @{ XMYSQL_CLIENT_DSN = "$User`:$Password@tcp(127.0.0.1`:$Port)/mysql?charset=utf8mb4&parseTime=true&multiStatements=true" }
+                    $goDsn = "$User`:$Password@tcp(127.0.0.1`:$Port)/mysql?charset=utf8mb4&parseTime=true&multiStatements=true&timeout=10s&readTimeout=10s&writeTimeout=10s"
+                    if ($UseTLS) { $goDsn += "&tls=xmysql" }
+                    $goEnvironment = @{ XMYSQL_CLIENT_DSN = $goDsn }
+                    if ($UseTLS) { $goEnvironment.XMYSQL_CLIENT_TLS_CA = [IO.Path]::GetFullPath($TLSCAFile) }
+                    if ($UseTLS) { $goEnvironment.XMYSQL_CLIENT_AUTH_PLUGINS = "1" }
+                    Invoke-Client $name "go" @("run", "./client_compatibility/go") $goEnvironment
                 }
                 "python" {
                     if (-not (Test-CommandAvailable "python")) { Add-Result $name "SKIPPED_ENVIRONMENT" 125 "python executable not found"; continue }
-                    Invoke-Client $name "python" @("client_compatibility/python/runner.py") @{ XMYSQL_CLIENT_DSN = $dsn; XMYSQL_CLIENT_USER = $User; XMYSQL_CLIENT_PASSWORD = $Password }
+                    $pythonEnvironment = @{ XMYSQL_CLIENT_DSN = $dsn; XMYSQL_CLIENT_USER = $User; XMYSQL_CLIENT_PASSWORD = $Password }
+                    if ($UseTLS) { $pythonEnvironment.XMYSQL_CLIENT_TLS_CA = [IO.Path]::GetFullPath($TLSCAFile) }
+                    if ($UseTLS) { $pythonEnvironment.XMYSQL_CLIENT_AUTH_PLUGINS = "1" }
+                    Invoke-Client $name "python" @("client_compatibility/python/runner.py") $pythonEnvironment
                 }
                 "node" {
                     if (-not (Test-CommandAvailable "node")) { Add-Result $name "SKIPPED_ENVIRONMENT" 125 "node executable not found"; continue }
-                    Invoke-Client $name "node" @("client_compatibility/node/runner.js") @{ XMYSQL_CLIENT_HOST = "127.0.0.1"; XMYSQL_CLIENT_PORT = "$Port"; XMYSQL_CLIENT_USER = $User; XMYSQL_CLIENT_PASSWORD = $Password }
+                    $nodeEnvironment = @{ XMYSQL_CLIENT_HOST = "127.0.0.1"; XMYSQL_CLIENT_PORT = "$Port"; XMYSQL_CLIENT_USER = $User; XMYSQL_CLIENT_PASSWORD = $Password }
+                    if ($UseTLS) { $nodeEnvironment.XMYSQL_CLIENT_TLS_CA = [IO.Path]::GetFullPath($TLSCAFile) }
+                    if ($UseTLS) { $nodeEnvironment.XMYSQL_CLIENT_AUTH_PLUGINS = "1" }
+                    Invoke-Client $name "node" @("client_compatibility/node/runner.js") $nodeEnvironment
                 }
             }
         }

@@ -183,6 +183,20 @@ func TestSessionMetadataFunctionsThroughSessionSQL(t *testing.T) {
 	require.Equal(t, [][]interface{}{{"app", "app", "alice@127.0.0.1", "alice@127.0.0.1", "alice@127.0.0.1", "alice@127.0.0.1", "app_reader,app_writer", "8.0.32", "42"}}, rows)
 }
 
+func TestCurrentRoleFormatsQualifiedActiveRoles(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "role_format_user")
+	session.SetParamByName("host", "localhost")
+	session.SetParamByName("active_roles", []string{"report_reader@localhost", "audit_reader@%"})
+
+	rows := mustQuerySessionSQL(t, executor, session, "", "select current_role()")
+	require.Equal(t, [][]interface{}{{"`report_reader`@`localhost`,`audit_reader`@`%`"}}, rows)
+	mustExecSessionSQL(t, executor, session, "", "set session sql_quote_show_create = off")
+	rows = mustQuerySessionSQL(t, executor, session, "", "select current_role()")
+	require.Equal(t, [][]interface{}{{"report_reader@localhost,audit_reader@%"}}, rows)
+}
+
 func TestSessionMetadataFunctionsPropagateThroughDerivedProjection(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	mustExecSQL(t, executor, "", "create database app")

@@ -106,6 +106,12 @@ func informationSchemaCatalogFilter(query, column string) string {
 		if match[4] != "" {
 			return match[4]
 		}
+		if match[5] == "" {
+			// Preserve an explicit empty string. An omitted filter is a
+			// wildcard, whereas `= ''`/`LIKE ''` must match only an empty
+			// catalog value.
+			return informationSchemaExplicitEmptyPattern
+		}
 		return match[5]
 	}
 	return ""
@@ -142,7 +148,7 @@ func (e *XMySQLExecutor) executeInformationSchemaSTSpatialReferenceSystemsSelect
 	descriptionFilter := informationSchemaCatalogFilter(query, "description")
 	rows := make([][]interface{}, 0, len(informationSchemaBuiltInSRS))
 	for _, srs := range informationSchemaBuiltInSRS {
-		if idFilter != "" && strconv.FormatUint(srs.id, 10) != idFilter {
+		if idFilter != "" && !metadataPatternMatches(strconv.FormatUint(srs.id, 10), idFilter) {
 			continue
 		}
 		if nameFilter != "" && !metadataPatternMatches(srs.name, nameFilter) {

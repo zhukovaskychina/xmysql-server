@@ -85,6 +85,7 @@ func TestNativeRuntimeTracksHeartbeatFramesForStatus(t *testing.T) {
 type scriptedNativeSource struct {
 	mu      sync.Mutex
 	batches [][]NativeBinlogEvent
+	errors  []error
 	index   int
 	uuid    string
 }
@@ -100,7 +101,11 @@ func (source *scriptedNativeSource) Dump(_ context.Context, maxEvents int) ([]Na
 	if maxEvents > 0 && len(batch) > maxEvents {
 		batch = batch[:maxEvents]
 	}
-	return batch, nil
+	var err error
+	if source.index-1 < len(source.errors) {
+		err = source.errors[source.index-1]
+	}
+	return batch, err
 }
 
 func (source *scriptedNativeSource) SourceUUID(context.Context) (string, error) {
@@ -182,6 +187,251 @@ func TestNativeRuntimePullAppliesSplitTransactionAndPersistsPosition(t *testing.
 	require.NotContains(t, string(identity), "secret", "source identity persistence must not copy source credentials")
 }
 
+func TestNativeRuntimeRecoversAfterPartialBatchTransportErrorWithoutDuplicateApply(t *testing.T) {
+	upstream, err := NewSource(t.TempDir(), "native-runtime-network-upstream", 43)
+	require.NoError(t, err)
+	_, err = upstream.AppendTransaction(1, []RowChange{{
+		Table:   "app.docs",
+		Action:  "insert",
+		Columns: []string{"id", "value"},
+		After:   map[string]interface{}{"id": int64(7), "value": "network-retry"},
+	}}, nil)
+	require.NoError(t, err)
+	native, err := upstream.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(native), 2)
+	split := len(native) - 1
+	transportErr := errors.New("injected native transport reset after partial batch")
+	source := &scriptedNativeSource{
+		batches: [][]NativeBinlogEvent{native[:split], native[split:]},
+		errors:  []error{transportErr, nil},
+		uuid:    "native-runtime-network-upstream",
+	}
+
+	var mu sync.Mutex
+	var applied []RowChange
+	runtime, err := NewRuntime(RuntimeConfig{
+		Role:         RoleReplica,
+		DataDir:      t.TempDir(),
+		UUID:         "native-runtime-network-replica",
+		ServerID:     44,
+		SourceURL:    "mysql://root:secret@127.0.0.1:3306/?server_id=44&binlog_file=binlog.000001&binlog_pos=4",
+		NativeSource: source,
+		PollInterval: 5 * time.Millisecond,
+		ApplyRows: func(changes []RowChange) error {
+			mu.Lock()
+			defer mu.Unlock()
+			applied = append(applied, changes...)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	require.NoError(t, runtime.Start(ctx))
+	defer runtime.Close()
+
+	completed := assert.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		value, ok := appliedValueBytes(applied, "value")
+		return len(applied) == 1 && ok && string(value) == "network-retry" &&
+			runtime.Status().SourcePosition > 4
+	}, 2*time.Second, 5*time.Millisecond)
+	if !completed {
+		mu.Lock()
+		t.Logf("applied after transport retry: %#v", applied)
+		mu.Unlock()
+		t.Logf("runtime status after transport retry: %+v", runtime.Status())
+	}
+	require.True(t, completed)
+
+	mu.Lock()
+	require.Len(t, applied, 1, "a transport retry after a partial native batch must not duplicate storage apply")
+	mu.Unlock()
+	status := runtime.Status()
+	require.NotEmpty(t, status.ExecutedGTIDs)
+	require.Greater(t, status.SourcePosition, uint64(4))
+	require.Contains(t, status.LastIOError, "injected native transport reset")
+}
+
+func TestRuntimeNamedChannelsPersistIsolatedSourceAndStatus(t *testing.T) {
+	dataDir := t.TempDir()
+	runtime, err := NewRuntime(RuntimeConfig{
+		Role:      RoleReplica,
+		DataDir:   dataDir,
+		UUID:      "named-channel-runtime",
+		ServerID:  81,
+		SourceURL: "http://127.0.0.1:1",
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, runtime.ChangeSourceForChannel("west", "http://127.0.0.1:2"))
+	status, err := runtime.StatusForChannel("west")
+	require.NoError(t, err)
+	require.Equal(t, "west", status.ChannelName)
+	require.Equal(t, "http://127.0.0.1:2", status.SourceURL)
+	require.NotEqual(t, runtime.Status().SourceURL, status.SourceURL)
+	require.FileExists(t, filepath.Join(dataDir, "replication", "channels.json"))
+	require.FileExists(t, filepath.Join(dataDir, "channels", "west", "replication", "source.json"))
+
+	reloaded, err := NewRuntime(RuntimeConfig{
+		Role:      RoleReplica,
+		DataDir:   dataDir,
+		UUID:      "named-channel-runtime",
+		ServerID:  81,
+		SourceURL: "http://127.0.0.1:1",
+	})
+	require.NoError(t, err)
+	reloadedStatus, err := reloaded.StatusForChannel("west")
+	require.NoError(t, err)
+	require.Equal(t, "west", reloadedStatus.ChannelName)
+	require.Equal(t, "http://127.0.0.1:2", reloadedStatus.SourceURL)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	require.NoError(t, reloaded.Start(ctx))
+	defer reloaded.Close()
+	require.NoError(t, reloaded.StopReplicaForChannel("west"))
+	require.NoError(t, reloaded.ResetReplicaAllForChannel("west"))
+	resetStatus, err := reloaded.StatusForChannel("west")
+	require.NoError(t, err)
+	require.Empty(t, resetStatus.SourceURL)
+}
+
+func TestRuntimeNamedChannelsInheritClusterFailoverConfiguration(t *testing.T) {
+	runtime, err := NewRuntime(RuntimeConfig{
+		Role:           RoleReplica,
+		DataDir:        t.TempDir(),
+		UUID:           "named-channel-failover-config",
+		ServerID:       82,
+		SourceURL:      "http://127.0.0.1:1",
+		NativeEndpoint: "mysql://127.0.0.1:3306",
+		Peers:          []string{"http://127.0.0.1:29001", "http://127.0.0.1:29002"},
+		AutoFailover:   true,
+		FailureTimeout: 17 * time.Second,
+		PollInterval:   23 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	defer runtime.Close()
+
+	channel, err := runtime.channelRuntime("west")
+	require.NoError(t, err)
+	require.Equal(t, runtime.cfg.Peers, channel.cfg.Peers)
+	require.Equal(t, runtime.cfg.AutoFailover, channel.cfg.AutoFailover)
+	require.Equal(t, runtime.cfg.FailureTimeout, channel.cfg.FailureTimeout)
+	require.Equal(t, runtime.cfg.PollInterval, channel.cfg.PollInterval)
+	require.Equal(t, runtime.cfg.NativeEndpoint, channel.cfg.NativeEndpoint)
+}
+
+func TestRuntimeNamedNativeChannelsPollIndependently(t *testing.T) {
+	westUpstream, err := NewSource(t.TempDir(), "west-native-upstream", 141)
+	require.NoError(t, err)
+	_, err = westUpstream.AppendTransaction(1, []RowChange{{
+		Table:   "app.channel_rows",
+		Action:  "insert",
+		Columns: []string{"id", "value"},
+		After:   map[string]interface{}{"id": int64(1), "value": "west"},
+	}}, nil)
+	require.NoError(t, err)
+	westEvents, err := westUpstream.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+
+	eastUpstream, err := NewSource(t.TempDir(), "east-native-upstream", 142)
+	require.NoError(t, err)
+	_, err = eastUpstream.AppendTransaction(1, []RowChange{{
+		Table:   "app.channel_rows",
+		Action:  "insert",
+		Columns: []string{"id", "value"},
+		After:   map[string]interface{}{"id": int64(2), "value": "east"},
+	}}, nil)
+	require.NoError(t, err)
+	eastEvents, err := eastUpstream.Writer.NativeEvents("binlog.000001")
+	require.NoError(t, err)
+
+	var mu sync.Mutex
+	applied := make(map[string][]RowChange)
+	runtime, err := NewRuntime(RuntimeConfig{
+		Role:         RoleReplica,
+		DataDir:      t.TempDir(),
+		UUID:         "named-native-channel-runtime",
+		ServerID:     143,
+		SourceURL:    "http://127.0.0.1:1",
+		PollInterval: 5 * time.Millisecond,
+		ApplyRowsWithID: func(gtid string, changes []RowChange) error {
+			mu.Lock()
+			defer mu.Unlock()
+			applied[gtid] = append(applied[gtid], changes...)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	defer runtime.Close()
+
+	require.NoError(t, runtime.ChangeSourceForChannel("west", "mysql://repl@127.0.0.1:3306/?binlog_file=binlog.000001&gtid_auto_position=false"))
+	require.NoError(t, runtime.ChangeSourceForChannel("east", "mysql://repl@127.0.0.1:3307/?binlog_file=binlog.000001&gtid_auto_position=false"))
+
+	west, err := runtime.channelRuntime("west")
+	require.NoError(t, err)
+	east, err := runtime.channelRuntime("east")
+	require.NoError(t, err)
+	west.mu.Lock()
+	west.nativeSource = &scriptedNativeSource{batches: [][]NativeBinlogEvent{westEvents}, uuid: "west-native-source-uuid"}
+	west.mu.Unlock()
+	east.mu.Lock()
+	east.nativeSource = &scriptedNativeSource{batches: [][]NativeBinlogEvent{eastEvents}, uuid: "east-native-source-uuid"}
+	east.mu.Unlock()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	require.NoError(t, west.Start(ctx))
+	require.NoError(t, east.Start(ctx))
+
+	ready := assert.Eventually(t, func() bool {
+		westStatus := west.Status()
+		eastStatus := east.Status()
+		mu.Lock()
+		appliedCount := len(applied)
+		mu.Unlock()
+		return westStatus.SourceUUID == "west-native-source-uuid" &&
+			eastStatus.SourceUUID == "east-native-source-uuid" &&
+			westStatus.SourcePosition > 4 &&
+			eastStatus.SourcePosition > 4 &&
+			appliedCount == 2
+	}, 2*time.Second, 5*time.Millisecond)
+	if !ready {
+		mu.Lock()
+		t.Logf("applied=%#v", applied)
+		mu.Unlock()
+		t.Logf("west status=%+v", west.Status())
+		t.Logf("east status=%+v", east.Status())
+	}
+	require.True(t, ready)
+
+	westStatus := west.Status()
+	eastStatus := east.Status()
+	require.Equal(t, "west", westStatus.ChannelName)
+	require.Equal(t, "east", eastStatus.ChannelName)
+	require.NotEqual(t, westStatus.SourceUUID, eastStatus.SourceUUID)
+	require.NotEqual(t, westStatus.ExecutedGTIDs, eastStatus.ExecutedGTIDs)
+	require.Contains(t, westStatus.SourceURL, "127.0.0.1:3306")
+	require.Contains(t, eastStatus.SourceURL, "127.0.0.1:3307")
+
+	mu.Lock()
+	defer mu.Unlock()
+	var values []string
+	for _, changes := range applied {
+		for _, change := range changes {
+			switch value := change.After["value"].(type) {
+			case []byte:
+				values = append(values, string(value))
+			case string:
+				values = append(values, value)
+			}
+		}
+	}
+	require.ElementsMatch(t, []string{"west", "east"}, values)
+}
+
 func TestNativeRuntimeRestoresPersistedGTIDForAutoPosition(t *testing.T) {
 	dataDir := t.TempDir()
 	stateDir := filepath.Join(dataDir, "replication")
@@ -202,6 +452,13 @@ func TestNativeRuntimeRestoresPersistedGTIDForAutoPosition(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "00112233-4455-6677-8899-aabbccddeeff:7", runtime.nativeConfig.GTIDSet)
 	require.True(t, runtime.nativeConfig.GTIDAutoPosition)
+}
+
+func TestNativeRecoveryPrefersPersistedFilePositionBeforeGTID(t *testing.T) {
+	require.True(t, nativeRecoveryUsesPersistedFilePosition("binlog.000003", 1973, false))
+	require.False(t, nativeRecoveryUsesPersistedFilePosition("", 0, false))
+	require.False(t, nativeRecoveryUsesPersistedFilePosition("binlog.000003", 1973, true),
+		"a pending relay transaction must keep its file-replay path")
 }
 
 func TestNativeRuntimePreservesConfiguredGTIDBaselineBeforeFirstPull(t *testing.T) {
@@ -533,6 +790,38 @@ func TestRuntimePromotionPreservesNativePreparedXA(t *testing.T) {
 	require.True(t, runtime.source.Executed.Contains(GTID{UUID: upstream.UUID, Seq: 1}))
 }
 
+func TestRuntimePromotionPreservesCommittedNativeRelayHistory(t *testing.T) {
+	upstream, err := NewSource(t.TempDir(), "00112233-4455-6677-8899-aabbccddeeff", 23)
+	require.NoError(t, err)
+	_, err = upstream.Append(1, []RowChange{{
+		Table:       "app.docs",
+		Action:      "insert",
+		Columns:     []string{"id", "value"},
+		ColumnTypes: map[string]string{"id": "INT", "value": "VARCHAR"},
+		After:       map[string]interface{}{"id": int32(17), "value": "before-promotion"},
+	}})
+	require.NoError(t, err)
+
+	runtime, err := NewRuntime(RuntimeConfig{
+		Role:      RoleReplica,
+		DataDir:   t.TempDir(),
+		UUID:      "11223344-5566-7788-99aa-bbccddeeff00",
+		ServerID:  24,
+		SourceURL: "http://127.0.0.1:1",
+	})
+	require.NoError(t, err)
+	_, err = runtime.replica.ReplicateNativeFrom(upstream, "binlog.000001", 4)
+	require.NoError(t, err)
+	require.NotEmpty(t, runtime.replica.nativeRelayEvents)
+
+	require.NoError(t, runtime.Promote())
+	transactions, err := runtime.source.DecodeNativeDumpFrom("binlog.000001", 4, nil)
+	require.NoError(t, err)
+	require.Len(t, transactions, 1, "promotion must preserve committed native relay history for downstream consumers")
+	require.Equal(t, GTID{UUID: upstream.UUID, Seq: 1}, transactions[0].GTID)
+	require.Equal(t, "before-promotion", transactions[0].Changes[0].After["value"])
+}
+
 func TestRuntimeFenceStopsSourceWritesAndHidesBinlogSource(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -609,6 +898,85 @@ func TestRuntimeFencingStateSurvivesRestartAndRejectsStaleEpoch(t *testing.T) {
 	require.Equal(t, uint64(7), status.FencingEpoch)
 	require.Equal(t, "winner-a", status.FencedBy)
 	require.ErrorContains(t, reloaded.AppendCommitted([]Statement{{SQL: "insert into t values (1)"}}), "fenced")
+}
+
+func TestRuntimePromotionCannotClearAConcurrentHigherEpochFence(t *testing.T) {
+	runtime, err := NewRuntime(RuntimeConfig{
+		Role:      RoleReplica,
+		DataDir:   t.TempDir(),
+		UUID:      "candidate-replica",
+		ServerID:  72,
+		SourceURL: "http://127.0.0.1:1",
+	})
+	require.NoError(t, err)
+
+	runtime.mu.Lock()
+	runtime.fencingEpoch = 9
+	runtime.fenced = true
+	runtime.fencedBy = "lower-winner"
+	runtime.mu.Unlock()
+
+	require.ErrorContains(t, runtime.acquirePromotionFence(context.Background()), "promotion fencing lost to lower-winner")
+	status := runtime.Status()
+	require.True(t, status.Fenced)
+	require.Equal(t, uint64(9), status.FencingEpoch)
+	require.Equal(t, "lower-winner", status.FencedBy)
+}
+
+func TestRuntimeConcurrentFencesPersistMonotonicEpoch(t *testing.T) {
+	runtime, err := NewRuntime(RuntimeConfig{
+		Role:     RoleSource,
+		DataDir:  t.TempDir(),
+		UUID:     "fence-order-source",
+		ServerID: 73,
+	})
+	require.NoError(t, err)
+
+	const requests = 24
+	errs := make(chan error, requests)
+	for epoch := uint64(1); epoch <= requests; epoch++ {
+		epoch := epoch
+		go func() {
+			errs <- runtime.applyFence(fenceRequest{Epoch: epoch, CandidateUUID: fmt.Sprintf("winner-%03d", epoch)})
+		}()
+	}
+	for index := 0; index < requests; index++ {
+		err := <-errs
+		if err != nil && !strings.Contains(err.Error(), "fencing epoch already owned") && !strings.Contains(err.Error(), "stale fencing epoch") {
+			t.Fatalf("unexpected concurrent fencing error: %v", err)
+		}
+	}
+
+	reloaded, err := NewRuntime(RuntimeConfig{
+		Role:     RoleSource,
+		DataDir:  runtime.cfg.DataDir,
+		UUID:     "fence-order-source",
+		ServerID: 73,
+	})
+	require.NoError(t, err)
+	status := reloaded.Status()
+	require.Equal(t, uint64(requests), status.FencingEpoch)
+	require.True(t, status.Fenced)
+	require.Equal(t, "winner-024", status.FencedBy)
+}
+
+func TestRuntimeFenceStateRollsBackWhenPersistenceFails(t *testing.T) {
+	runtime, err := NewRuntime(RuntimeConfig{
+		Role:     RoleSource,
+		DataDir:  t.TempDir(),
+		UUID:     "fence-rollback-source",
+		ServerID: 74,
+	})
+	require.NoError(t, err)
+	blocker := filepath.Join(t.TempDir(), "fencing-parent")
+	require.NoError(t, os.WriteFile(blocker, []byte("not a directory"), 0644))
+	runtime.fencingPath = filepath.Join(blocker, "fencing.json")
+
+	require.Error(t, runtime.applyFence(fenceRequest{Epoch: 3, CandidateUUID: "rollback-winner"}))
+	status := runtime.Status()
+	require.Zero(t, status.FencingEpoch)
+	require.False(t, status.Fenced)
+	require.Empty(t, status.FencedBy)
 }
 
 func TestReplicaRuntimeDoesNotAdvanceGTIDWhenApplyFails(t *testing.T) {
@@ -775,6 +1143,159 @@ func TestRuntimeAutoFailoverElectsSingleReplicaWithQuorum(t *testing.T) {
 	require.Equal(t, RoleReplica, third.Status().Role)
 }
 
+func TestRuntimeAutoFailoverPreservesReplicatedDataWithTwoReplicas(t *testing.T) {
+	sourceAddress := reserveRuntimeAddress(t)
+	firstAddress := reserveRuntimeAddress(t)
+	secondAddress := reserveRuntimeAddress(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sourceURL := "http://" + sourceAddress
+	firstURL := "http://" + firstAddress
+	secondURL := "http://" + secondAddress
+
+	source, err := NewRuntime(RuntimeConfig{
+		Role:       RoleSource,
+		DataDir:    t.TempDir(),
+		UUID:       "data-topology-source",
+		ServerID:   1,
+		ListenAddr: sourceAddress,
+	})
+	require.NoError(t, err)
+	_, err = source.source.Append(1, []RowChange{{
+		Table:  "app.items",
+		Action: "insert",
+		After:  map[string]interface{}{"id": int64(1), "value": "before-source-loss"},
+	}})
+	require.NoError(t, err)
+
+	newReplica := func(dataDir, uuid, listenAddr, peerURL string, serverID uint32) *Runtime {
+		runtime, runtimeErr := NewRuntime(RuntimeConfig{
+			Role:           RoleReplica,
+			DataDir:        dataDir,
+			UUID:           uuid,
+			ServerID:       serverID,
+			ListenAddr:     listenAddr,
+			SourceURL:      sourceURL,
+			Peers:          []string{sourceURL, peerURL},
+			AutoFailover:   true,
+			FailureTimeout: 120 * time.Millisecond,
+			PollInterval:   20 * time.Millisecond,
+		})
+		require.NoError(t, runtimeErr)
+		return runtime
+	}
+	first := newReplica(t.TempDir(), "data-topology-first", firstAddress, secondURL, 10)
+	second := newReplica(t.TempDir(), "data-topology-second", secondAddress, firstURL, 20)
+	require.NoError(t, source.Start(ctx))
+	require.NoError(t, first.Start(ctx))
+	require.NoError(t, second.Start(ctx))
+	t.Cleanup(func() {
+		require.NoError(t, first.Close())
+		require.NoError(t, second.Close())
+		require.NoError(t, source.Close())
+	})
+
+	require.Eventually(t, func() bool {
+		first.replica.mu.Lock()
+		firstRows := len(first.replica.AppliedRows)
+		first.replica.mu.Unlock()
+		second.replica.mu.Lock()
+		secondRows := len(second.replica.AppliedRows)
+		second.replica.mu.Unlock()
+		return firstRows == 1 && secondRows == 1
+	}, 5*time.Second, 20*time.Millisecond)
+
+	require.NoError(t, source.Close())
+	require.Eventually(t, func() bool {
+		return first.Status().Role == RoleSource && second.Status().Role == RoleReplica
+	}, 5*time.Second, 20*time.Millisecond)
+	require.Equal(t, RoleSource, first.Status().Role)
+	require.Equal(t, RoleReplica, second.Status().Role)
+	first.replica.mu.Lock()
+	firstRows := append([]RowChange(nil), first.replica.AppliedRows...)
+	first.replica.mu.Unlock()
+	second.replica.mu.Lock()
+	secondRows := append([]RowChange(nil), second.replica.AppliedRows...)
+	second.replica.mu.Unlock()
+	require.Len(t, firstRows, 1)
+	require.Len(t, secondRows, 1)
+	require.Equal(t, float64(1), firstRows[0].After["id"])
+	require.Equal(t, float64(1), secondRows[0].After["id"])
+	require.Eventually(t, func() bool {
+		return strings.TrimRight(second.Status().SourceURL, "/") == strings.TrimRight(firstURL, "/")
+	}, 5*time.Second, 20*time.Millisecond, "the surviving replica must repoint to the promoted source")
+	_, err = first.source.Append(1, []RowChange{{
+		Table:  "app.items",
+		Action: "insert",
+		After:  map[string]interface{}{"id": int64(2), "value": "after-repoint"},
+	}})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		second.replica.mu.Lock()
+		defer second.replica.mu.Unlock()
+		return len(second.replica.AppliedRows) == 2 && second.replica.AppliedRows[1].After["id"] == float64(2)
+	}, 5*time.Second, 20*time.Millisecond, "the repointed replica must apply a transaction from the promoted source")
+}
+
+func TestRuntimeNativeSourceRepointUsesPromotedEndpointAndPreservesCredentialsInMemoryOnly(t *testing.T) {
+	runtime, err := NewRuntime(RuntimeConfig{
+		Role:           RoleReplica,
+		DataDir:        t.TempDir(),
+		UUID:           "native-repoint-replica",
+		ServerID:       77,
+		SourceURL:      "mysql://repl:secret@old-source.example:3306/?gtid_auto_position=true",
+		NativeSource:   &scriptedNativeSource{},
+		NativeEndpoint: "mysql://replica.example:3307",
+	})
+	require.NoError(t, err)
+
+	observed := peerStatus{StatusSnapshot: StatusSnapshot{Role: RoleSource, NativeEndpoint: "mysql://promoted.example:3310"}, URL: "http://control-promoted.example:4401"}
+	require.NoError(t, runtime.repointSourceDuringPoll(observed))
+	require.Equal(t, "mysql://repl@promoted.example:3310?gtid_auto_position=true", runtime.cfg.SourceURL)
+	require.Equal(t, "promoted.example", runtime.nativeConfig.Host)
+	require.Equal(t, uint16(3310), runtime.nativeConfig.Port)
+	require.Equal(t, "repl", runtime.nativeConfig.User)
+	require.Equal(t, "secret", runtime.nativeConfig.Password)
+	persisted, err := os.ReadFile(runtime.sourcePath)
+	require.NoError(t, err)
+	require.NotContains(t, string(persisted), "secret")
+}
+
+func TestRuntimeNativeSourceRepointPublishesOnlyAfterPersistence(t *testing.T) {
+	runtime, err := NewRuntime(RuntimeConfig{
+		Role:         RoleReplica,
+		DataDir:      t.TempDir(),
+		UUID:         "native-repoint-persistence-replica",
+		ServerID:     78,
+		SourceURL:    "mysql://repl:secret@old-source.example:3306/?gtid_auto_position=true",
+		NativeSource: &scriptedNativeSource{},
+	})
+	require.NoError(t, err)
+	oldSourceURL := runtime.cfg.SourceURL
+	oldHost := runtime.nativeConfig.Host
+	runtime.nativeSourceUUID = "old-source-uuid"
+	require.NoError(t, persistReplicationSourceURL(runtime.sourcePath, redactNativeSourcePassword(oldSourceURL)))
+
+	identityDirectory := filepath.Join(runtime.cfg.DataDir, "identity-directory")
+	require.NoError(t, os.MkdirAll(identityDirectory, 0755))
+	runtime.sourceIdentityPath = identityDirectory
+
+	observed := peerStatus{StatusSnapshot: StatusSnapshot{
+		Role:           RoleSource,
+		NativeEndpoint: "mysql://promoted.example:3310",
+	}}
+	require.Error(t, runtime.repointSourceDuringPoll(observed))
+	require.Equal(t, oldSourceURL, runtime.cfg.SourceURL,
+		"a failed identity persistence must not publish the new endpoint in memory")
+	require.Equal(t, oldHost, runtime.nativeConfig.Host)
+	require.Equal(t, "old-source-uuid", runtime.nativeSourceUUID)
+	persisted, err := os.ReadFile(runtime.sourcePath)
+	require.NoError(t, err)
+	require.Contains(t, string(persisted), "old-source.example")
+	require.NotContains(t, string(persisted), "promoted.example")
+}
+
 func TestRuntimeMembersCanBeUpdatedPersistedAndProbed(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -824,6 +1345,106 @@ func TestRuntimeMembersCanBeUpdatedPersistedAndProbed(t *testing.T) {
 	require.Error(t, first.UpdatePeers([]string{"not-a-url"}))
 }
 
+func TestRuntimeNativeEndpointDiscoveryRepointsFromPeerStatus(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	peer, err := NewRuntime(RuntimeConfig{
+		Role:           RoleSource,
+		DataDir:        t.TempDir(),
+		UUID:           "native-discovery-source",
+		ServerID:       501,
+		ListenAddr:     reserveRuntimeAddress(t),
+		NativeEndpoint: "mysql://promoted.example:3310",
+	})
+	require.NoError(t, err)
+	require.NoError(t, peer.Start(ctx))
+	defer peer.Close()
+
+	replica, err := NewRuntime(RuntimeConfig{
+		Role:       RoleReplica,
+		DataDir:    t.TempDir(),
+		UUID:       "native-discovery-replica",
+		ServerID:   502,
+		SourceURL:  "mysql://repl:secret@old-source.example:3306/?gtid_auto_position=true",
+		NativeSource: &scriptedNativeSource{uuid: "old-source-uuid"},
+		Peers:      []string{"http://" + peer.Address()},
+	})
+	require.NoError(t, err)
+
+	members, err := replica.Members(ctx)
+	require.NoError(t, err)
+	require.Len(t, members, 2)
+	require.Equal(t, "mysql://promoted.example:3310", members[1].Status.NativeEndpoint)
+	require.True(t, members[1].Reachable)
+	require.Equal(t, "repl", replica.nativeConfig.User)
+	require.Equal(t, "secret", replica.nativeConfig.Password)
+
+	require.NoError(t, replica.tryAutoPromote(ctx))
+	require.Equal(t, "mysql://repl@promoted.example:3310?gtid_auto_position=true", replica.cfg.SourceURL)
+	require.Equal(t, "mysql://promoted.example:3310?gtid_auto_position=true", replica.Status().SourceURL)
+	require.Empty(t, replica.nativeSourceUUID, "a discovered endpoint must invalidate the previous source identity")
+}
+
+func TestRuntimeRejectsConfiguredSelfPeerBeforeQuorumCalculations(t *testing.T) {
+	_, err := NewRuntime(RuntimeConfig{
+		Role:       RoleSource,
+		DataDir:    t.TempDir(),
+		UUID:       "self-peer-source",
+		ListenAddr: "127.0.0.1:4401",
+		Peers:      []string{"http://127.0.0.1:4401/"},
+	})
+	require.ErrorContains(t, err, "cannot include local replication endpoint")
+}
+
+func TestRuntimeRejectsSelfPeerAfterEphemeralListenerStarts(t *testing.T) {
+	runtime, err := NewRuntime(RuntimeConfig{
+		Role:       RoleSource,
+		DataDir:    t.TempDir(),
+		UUID:       "ephemeral-self-peer-source",
+		ListenAddr: "127.0.0.1:0",
+	})
+	require.NoError(t, err)
+	require.NoError(t, runtime.Start(context.Background()))
+	defer runtime.Close()
+
+	require.ErrorContains(t, runtime.UpdatePeers([]string{"http://" + runtime.Address()}), "cannot include local replication endpoint")
+}
+
+func TestRuntimeRejectsPersistedSelfPeerBeforeQuorumCalculations(t *testing.T) {
+	dataDir := t.TempDir()
+	membersPath := filepath.Join(dataDir, "replication", "members.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(membersPath), 0755))
+	require.NoError(t, os.WriteFile(membersPath, []byte(`["http://127.0.0.1:4402"]`), 0644))
+
+	_, err := NewRuntime(RuntimeConfig{
+		Role:       RoleSource,
+		DataDir:    dataDir,
+		UUID:       "persisted-self-peer-source",
+		ListenAddr: "127.0.0.1:4402",
+	})
+	require.ErrorContains(t, err, "cannot include local replication endpoint")
+}
+
+func TestRuntimeUpdatePeersDoesNotPublishWhenPersistenceFails(t *testing.T) {
+	runtime, err := NewRuntime(RuntimeConfig{
+		Role:       RoleSource,
+		DataDir:    t.TempDir(),
+		UUID:       "members-rollback-source",
+		ListenAddr: "127.0.0.1:4403",
+		Peers:      []string{"http://127.0.0.1:4404"},
+	})
+	require.NoError(t, err)
+	blocker := filepath.Join(t.TempDir(), "members-parent")
+	require.NoError(t, os.WriteFile(blocker, []byte("not a directory"), 0644))
+	runtime.membersPath = filepath.Join(blocker, "members.json")
+
+	require.Error(t, runtime.UpdatePeers([]string{"http://127.0.0.1:4405"}))
+	runtime.mu.RLock()
+	peers := append([]string(nil), runtime.cfg.Peers...)
+	runtime.mu.RUnlock()
+	require.Equal(t, []string{"http://127.0.0.1:4404"}, peers)
+}
+
 func TestRuntimeStartAndStopReplicaControlsPolling(t *testing.T) {
 	source, err := NewRuntime(RuntimeConfig{Role: RoleSource, DataDir: t.TempDir(), ListenAddr: "127.0.0.1:0"})
 	require.NoError(t, err)
@@ -868,6 +1489,23 @@ func TestRuntimeChangeSourceUpdatesReplicaEndpointAndPersists(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "http://127.0.0.1:3307", reloaded.cfg.SourceURL)
 	require.Error(t, runtime.ChangeSource("127.0.0.1:3307"))
+}
+
+func TestRuntimeChangeSourceDoesNotPublishWhenPersistenceFails(t *testing.T) {
+	runtime, err := NewRuntime(RuntimeConfig{
+		Role:      RoleReplica,
+		DataDir:   t.TempDir(),
+		UUID:      "change-source-rollback",
+		SourceURL: "http://127.0.0.1:3301",
+	})
+	require.NoError(t, err)
+	blocker := filepath.Join(t.TempDir(), "source-parent")
+	require.NoError(t, os.WriteFile(blocker, []byte("not a directory"), 0644))
+	runtime.sourcePath = filepath.Join(blocker, "source.json")
+
+	require.Error(t, runtime.ChangeSource("http://127.0.0.1:3307"))
+	require.Equal(t, "http://127.0.0.1:3301", runtime.cfg.SourceURL)
+	require.Equal(t, "http://127.0.0.1:3301", runtime.Status().SourceURL)
 }
 
 func TestRuntimeResetReplicaRequiresStoppedLoopAndClearsState(t *testing.T) {

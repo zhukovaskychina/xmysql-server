@@ -1,13 +1,19 @@
 package main
 
 import (
+	"context"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	mysqlDriver "github.com/go-sql-driver/mysql"
 )
 
 type result struct {
@@ -21,6 +27,19 @@ func main() {
 		fmt.Fprintln(os.Stderr, "XMYSQL_CLIENT_DSN is required")
 		os.Exit(2)
 	}
+	if caFile := os.Getenv("XMYSQL_CLIENT_TLS_CA"); caFile != "" {
+		caPEM, err := os.ReadFile(caFile)
+		if err != nil {
+			fail(fmt.Errorf("read TLS CA: %w", err))
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caPEM) {
+			fail(errors.New("parse TLS CA: no certificates found"))
+		}
+		if err := mysqlDriver.RegisterTLSConfig("xmysql", &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12, ServerName: "localhost"}); err != nil {
+			fail(fmt.Errorf("register TLS config: %w", err))
+		}
+	}
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		fail(err)
@@ -30,6 +49,9 @@ func main() {
 		fail(err)
 	}
 	out := result{Client: "go-mysql-driver", Cases: map[string]string{}}
+	// database/sql Ping is implemented by go-sql-driver/mysql with a real
+	// COM_PING round trip, so keep this protocol case separate from SQL SELECT 1.
+	out.Cases["protocol-ping"] = "PASS"
 	var rows *sql.Rows
 	check := func(name, query string) {
 		if _, err := db.Exec(query); err != nil {
@@ -188,12 +210,157 @@ func main() {
 		fail(fmt.Errorf("multi-result-and-error: expected table error, got %v", err))
 	}
 	out.Cases["multi-result-and-error"] = "PASS"
+	var mysqlErr *mysqlDriver.MySQLError
+	if _, err = db.Exec("SELECT * FROM client_matrix_missing_table"); err == nil || !errors.As(err, &mysqlErr) || mysqlErr.Number != 1146 {
+		fail(fmt.Errorf("negative-error-code: expected MySQL error 1146, got %v", err))
+	}
+	out.Cases["negative-error-code"] = "PASS"
+	check("extended-types-metadata", "CREATE TABLE IF NOT EXISTS client_matrix.type_rows(id BIGINT PRIMARY KEY, decimal_value DECIMAL(10,2), double_value DOUBLE, text_value TEXT, blob_value BLOB, created_at TIMESTAMP)")
+	rows, err = db.Query("SELECT DATA_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='client_matrix' AND TABLE_NAME='type_rows' ORDER BY ORDINAL_POSITION")
+	if err != nil {
+		fail(fmt.Errorf("extended-types-metadata: query failed: %w", err))
+	}
+	expectedTypes := []string{"bigint", "decimal", "double", "text", "blob", "timestamp"}
+	for _, expectedType := range expectedTypes {
+		if !rows.Next() {
+			fail(fmt.Errorf("extended-types-metadata: missing type %s", expectedType))
+		}
+		var dataType string
+		if err = rows.Scan(&dataType); err != nil || strings.ToLower(dataType) != expectedType {
+			fail(fmt.Errorf("extended-types-metadata: got %q, want %q, err=%v", dataType, expectedType, err))
+		}
+	}
+	if rows.Next() {
+		fail(fmt.Errorf("extended-types-metadata: returned more columns than expected"))
+	}
+	if err = rows.Err(); err != nil {
+		fail(fmt.Errorf("extended-types-metadata: rows failed: %w", err))
+	}
+	if err = rows.Close(); err != nil {
+		fail(fmt.Errorf("extended-types-metadata: close failed: %w", err))
+	}
+	out.Cases["extended-types-metadata"] = "PASS"
+	var decimalValue string
+	var doubleValue float64
+	var binaryValue []byte
+	var dateValue time.Time
+	check("wire-value-types-table", "CREATE TABLE IF NOT EXISTS client_matrix.wire_rows(id INT PRIMARY KEY, decimal_value DECIMAL(10,2), double_value DOUBLE, binary_value BLOB, date_value DATE)")
+	check("wire-value-types-reset", "DELETE FROM client_matrix.wire_rows WHERE id = 1")
+	check("wire-value-types-write", "INSERT INTO client_matrix.wire_rows(id, decimal_value, double_value, binary_value, date_value) VALUES (1, 12.34, 1.5, _binary'xy', '2026-09-28')")
+	if err = db.QueryRow("SELECT decimal_value, double_value, binary_value, date_value FROM client_matrix.wire_rows WHERE id = 1").Scan(&decimalValue, &doubleValue, &binaryValue, &dateValue); err != nil || decimalValue != "12.34" || doubleValue != 1.5 || string(binaryValue) != "xy" || dateValue.Format("2006-01-02") != "2026-09-28" {
+		fail(fmt.Errorf("wire-value-types: decimal=%q double=%v binary=%q date=%v err=%v", decimalValue, doubleValue, binaryValue, dateValue, err))
+	}
+	out.Cases["wire-value-types"] = "PASS"
+	db.SetMaxOpenConns(4)
+	db.SetMaxIdleConns(2)
+	firstConn, err := db.Conn(context.Background())
+	if err != nil {
+		fail(fmt.Errorf("multi-session-pool: first connection failed: %w", err))
+	}
+	secondConn, err := db.Conn(context.Background())
+	if err != nil {
+		firstConn.Close()
+		fail(fmt.Errorf("multi-session-pool: second connection failed: %w", err))
+	}
+	var firstPoolValue, secondPoolValue int64
+	if err = firstConn.QueryRowContext(context.Background(), "SELECT 1").Scan(&firstPoolValue); err != nil || firstPoolValue != 1 {
+		fail(fmt.Errorf("multi-session-pool: first query value=%d err=%v", firstPoolValue, err))
+	}
+	if err = secondConn.QueryRowContext(context.Background(), "SELECT 2").Scan(&secondPoolValue); err != nil || secondPoolValue != 2 {
+		fail(fmt.Errorf("multi-session-pool: second query value=%d err=%v", secondPoolValue, err))
+	}
+	out.Cases["multi-session-pool"] = "PASS"
+	if err = secondConn.Close(); err != nil {
+		fail(fmt.Errorf("multi-session-pool: second connection close failed: %w", err))
+	}
+	if err = firstConn.Close(); err != nil {
+		fail(fmt.Errorf("multi-session-pool: first connection close failed: %w", err))
+	}
+	if err = db.Close(); err != nil {
+		fail(fmt.Errorf("reconnect: initial close failed: %w", err))
+	}
+	db, err = sql.Open("mysql", dsn)
+	if err != nil {
+		fail(fmt.Errorf("reconnect: reopen failed: %w", err))
+	}
 	if err = db.Ping(); err != nil {
-		fail(err)
+		fail(fmt.Errorf("reconnect: ping failed: %w", err))
+	}
+	var reconnectValue int64
+	if err = db.QueryRow("SELECT 1").Scan(&reconnectValue); err != nil || reconnectValue != 1 {
+		fail(fmt.Errorf("reconnect: value=%d err=%v", reconnectValue, err))
 	}
 	out.Cases["reconnect"] = "PASS"
+	if os.Getenv("XMYSQL_CLIENT_AUTH_PLUGINS") == "1" {
+		runAuthPluginCase(db, dsn, out)
+	}
 	encoded, _ := json.Marshal(out)
 	fmt.Println(string(encoded))
+}
+
+func runAuthPluginCase(rootDB *sql.DB, rootDSN string, out result) {
+	password := os.Getenv("XMYSQL_CLIENT_AUTH_PLUGIN_PASSWORD")
+	if password == "" {
+		bytes := make([]byte, 24)
+		if _, err := rand.Read(bytes); err != nil {
+			fail(fmt.Errorf("auth-plugins: generate ephemeral password: %w", err))
+		}
+		password = fmt.Sprintf("%x", bytes)
+	}
+	accounts := []struct {
+		user   string
+		plugin string
+	}{
+		{user: "xmysql_cache_client", plugin: "caching_sha2_password"},
+		{user: "xmysql_sha_client", plugin: "sha256_password"},
+	}
+	for _, account := range accounts {
+		if _, err := rootDB.Exec(fmt.Sprintf("DROP USER IF EXISTS '%s'@'%%'", account.user)); err != nil {
+			fail(fmt.Errorf("auth-plugins: drop %s: %w", account.user, err))
+		}
+		createSQL := fmt.Sprintf("CREATE USER '%s'@'%%' IDENTIFIED WITH %s BY '%s'", account.user, account.plugin, password)
+		if _, err := rootDB.Exec(createSQL); err != nil {
+			fail(fmt.Errorf("auth-plugins: create %s: %w", account.user, err))
+		}
+		if _, err := rootDB.Exec(fmt.Sprintf("GRANT SELECT ON *.* TO '%s'@'%%'", account.user)); err != nil {
+			fail(fmt.Errorf("auth-plugins: grant %s: %w", account.user, err))
+		}
+	}
+	defer func() {
+		for _, account := range accounts {
+			_, _ = rootDB.Exec(fmt.Sprintf("DROP USER IF EXISTS '%s'@'%%'", account.user))
+		}
+	}()
+	for _, account := range accounts {
+		pluginDB, err := sql.Open("mysql", authPluginDSN(rootDSN, account.user, password))
+		if err != nil {
+			fail(fmt.Errorf("auth-plugins: open %s: %w", account.user, err))
+		}
+		var value int
+		err = pluginDB.QueryRow("SELECT 1").Scan(&value)
+		closeErr := pluginDB.Close()
+		if err != nil || closeErr != nil || value != 1 {
+			fail(fmt.Errorf("auth-plugins: connect %s value=%d query=%v close=%v", account.user, value, err, closeErr))
+		}
+	}
+	out.Cases["auth-plugins"] = "PASS"
+}
+
+func authPluginDSN(base, user, password string) string {
+	at := strings.Index(base, "@tcp(")
+	if at < 0 {
+		return base
+	}
+	rest := base[at:]
+	databaseMarker := strings.Index(rest, ")/")
+	if databaseMarker < 0 {
+		return user + ":" + password + rest
+	}
+	query := ""
+	if queryOffset := strings.Index(rest[databaseMarker+2:], "?"); queryOffset >= 0 {
+		query = rest[databaseMarker+2+queryOffset:]
+	}
+	return user + ":" + password + rest[:databaseMarker+2] + query
 }
 
 func fail(err error) {

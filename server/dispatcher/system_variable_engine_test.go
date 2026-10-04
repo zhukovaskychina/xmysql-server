@@ -143,12 +143,33 @@ func TestSystemVariableEngine_CurrentRoleReflectsConnectionRoleState(t *testing.
 	require.NotNil(t, result)
 	require.NoError(t, result.Err)
 	require.Equal(t, []string{"active_role"}, result.Columns)
+	require.Equal(t, [][]interface{}{{"`report_reader`@`localhost`,`audit_reader`@`localhost`"}}, result.Rows)
+
+	session.SetParamByName("sql_quote_show_create", int64(0))
+	result = engine.executeSystemFunctionQuery(session, "SELECT CURRENT_ROLE() AS active_role", "app")
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
 	require.Equal(t, [][]interface{}{{"report_reader@localhost,audit_reader@localhost"}}, result.Rows)
 
 	session.SetParamByName("active_roles", []string{})
 	result = engine.executeSystemFunctionQuery(session, "SELECT CURRENT_ROLE()", "app")
 	require.NotNil(t, result)
 	require.Equal(t, [][]interface{}{{"NONE"}}, result.Rows)
+}
+
+func TestSystemVariableEngine_RolesGraphMLUsesPreparedSessionValue(t *testing.T) {
+	engine := &SystemVariableEngine{
+		name:          "system_variable",
+		sysVarManager: manager.NewSystemVariablesManager(),
+	}
+	session := newTestDispatcherSession()
+	session.SetParamByName("__xmysql_roles_graphml", "<?xml version=\"1.0\" encoding=\"UTF-8\"?><graphml><graph id=\"roles\" /></graphml>")
+
+	result := engine.executeSystemFunctionQuery(session, "SELECT ROLES_GRAPHML() AS role_graph", "app")
+
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	require.Equal(t, [][]interface{}{{"<?xml version=\"1.0\" encoding=\"UTF-8\"?><graphml><graph id=\"roles\" /></graphml>"}}, result.Rows)
 }
 
 func TestSystemVariableEngine_LastInsertIDReadsAndSetsSessionValue(t *testing.T) {

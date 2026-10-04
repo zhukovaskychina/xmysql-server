@@ -356,7 +356,7 @@ func (a *compiledExpressionAdapter) Children() []Expression { return nil }
 func isCompiledFunction(name string) bool {
 	switch strings.ToUpper(strings.TrimSpace(name)) {
 	case "CONCAT", "CONCAT_WS", "SUBSTRING", "LOWER", "LCASE", "UPPER", "UCASE",
-		"DATABASE", "SCHEMA", "USER", "CURRENT_USER", "SESSION_USER", "SYSTEM_USER", "CURRENT_ROLE", "VERSION", "CONNECTION_ID",
+		"DATABASE", "SCHEMA", "USER", "CURRENT_USER", "SESSION_USER", "SYSTEM_USER", "CURRENT_ROLE", "ROLES_GRAPHML", "VERSION", "CONNECTION_ID",
 		"LAST_INSERT_ID", "ROW_COUNT",
 		"LENGTH", "OCTET_LENGTH", "CHAR_LENGTH", "CHARACTER_LENGTH", "TRIM", "LTRIM", "RTRIM", "REPLACE",
 		"LEFT", "RIGHT", "LPAD", "RPAD", "REPEAT", "REVERSE", "ABS", "CEIL", "CEILING",

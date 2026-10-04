@@ -20,6 +20,7 @@ package net
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -750,11 +751,33 @@ func (s *session) handleTCPPackage() error {
 				logger.Debugf("[session.handleTCPPackage] 解析返回nil包，等待更多数据\n")
 				break
 			}
+			tlsUpgrade := false
+			if mysqlPkg, isMySQLPackage := pkg.(*MySQLPackage); isMySQLPackage && isMySQLSSLRequest(mysqlPkg) {
+				if tlsConfig, configured := s.GetAttribute(mysqlTLSServerConfigAttribute).(*tls.Config); configured && tlsConfig != nil {
+					bufferedTLSData := append([]byte(nil), pktBuf.Bytes()[pkgLen:]...)
+					if err = conn.upgradeTLSWithBufferedData(tlsConfig, bufferedTLSData); err != nil {
+						log.Warn("%s, MySQL SSLRequest TLS upgrade failed: %+v", s.sessionToken(), jerrors.ErrorStack(err))
+						exit = true
+						break
+					}
+					s.SetAttribute("tls_active", true)
+					tlsUpgrade = true
+				}
+			}
+			if exit {
+				break
+			}
 			// handle case 4
 			logger.Debugf("[session.handleTCPPackage] 包解析成功，长度: %d，调用addTask\n", pkgLen)
 			s.UpdateActive()
 			s.addTask(pkg)
-			pktBuf.Next(pkgLen)
+			if tlsUpgrade {
+				// Bytes after SSLRequest are TLS ClientHello data already moved
+				// into mysqlBufferedNetConn; do not parse them as MySQL packets.
+				pktBuf.Reset()
+			} else {
+				pktBuf.Next(pkgLen)
+			}
 			if pendingReader, ok := s.reader.(interface {
 				ReadPending(Session) (interface{}, bool, error)
 			}); ok {

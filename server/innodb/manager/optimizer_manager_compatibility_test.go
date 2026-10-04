@@ -53,6 +53,19 @@ func TestOptimizerRecognizesTupleEqualityIndexPrefix(t *testing.T) {
 	}
 }
 
+func TestOptimizerCostModelReloadChangesSequentialScanCost(t *testing.T) {
+	optimizer := NewOptimizerManager(nil)
+	baseline := optimizer.generateAccessPaths("app.items", nil, &TableStats{RowCount: 10})[0].Cost
+	optimizer.SetCostModel(map[string]float64{"row_evaluate_cost": 2}, nil)
+	updated := optimizer.generateAccessPaths("app.items", nil, &TableStats{RowCount: 10})[0].Cost
+	if baseline != 1000 {
+		t.Fatalf("default sequential scan cost = %v, want 1000", baseline)
+	}
+	if updated != 20000 {
+		t.Fatalf("reloaded sequential scan cost = %v, want 20000", updated)
+	}
+}
+
 func TestOptimizerJoinOrderFollowsJoinGraph(t *testing.T) {
 	optimizer := &OptimizerManager{}
 	got := optimizer.OptimizeJoinOrder(

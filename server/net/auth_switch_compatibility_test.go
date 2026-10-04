@@ -89,7 +89,11 @@ func TestCachingSHA2AccountUsesAuthSwitchAndAcceptsFastResponse(t *testing.T) {
 	second := &MySQLPackage{Header: MySQLPkgHeader{PacketId: 3}, Body: response}
 	require.NoError(t, handler.handleAuthentication(session, &mysqlSession, second))
 	require.Equal(t, "success", session.GetAttribute("auth_status"))
-	require.Len(t, session.written, 2)
+	require.Len(t, session.written, 3)
+	require.Equal(t, byte(4), session.written[1][3])
+	require.Equal(t, byte(0x01), session.written[1][4])
+	require.Equal(t, byte(0x03), session.written[1][5])
+	require.Equal(t, byte(5), session.written[2][3])
 }
 
 func TestChangeUserCachingSHA2UsesAuthSwitchAndResetsSession(t *testing.T) {
@@ -159,7 +163,7 @@ func TestChangeUserCachingSHA2UsesAuthSwitchAndResetsSession(t *testing.T) {
 	if got := handler.preparedStmtMgrFromSession(session).Count(); got != 0 {
 		t.Fatalf("prepared statements survived auth-switch change user: %d", got)
 	}
-	if len(session.written) != 2 || session.written[1][3] != 3 || session.written[1][4] != 0x00 {
+	if len(session.written) != 3 || session.written[1][3] != 3 || session.written[1][4] != 0x01 || session.written[1][5] != 0x03 || session.written[2][3] != 4 || session.written[2][4] != 0x00 {
 		t.Fatalf("auth-switch completion response = %v, want OK sequence 3", session.written)
 	}
 }

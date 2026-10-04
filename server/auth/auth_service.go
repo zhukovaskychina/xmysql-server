@@ -41,11 +41,35 @@ type AuthResult struct {
 	User              string
 	Host              string
 	Database          string
+	PasswordExpired   bool
 	Privileges        []common.PrivilegeType
 	DynamicPrivileges []string
 	ActiveRoles       []string
 	ErrorCode         uint16
 	ErrorMessage      string
+}
+
+type expiredPasswordCapabilityKey struct{}
+
+// WithExpiredPasswordSupport marks an authentication attempt as coming from
+// a client that negotiated CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS.  The marker
+// is deliberately carried by context so existing AuthService callers retain
+// MySQL's default reject-on-login behavior.
+func WithExpiredPasswordSupport(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, expiredPasswordCapabilityKey{}, true)
+}
+
+// SupportsExpiredPassword reports whether the authentication context allows
+// MySQL's restricted expired-password session.
+func SupportsExpiredPassword(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	enabled, _ := ctx.Value(expiredPasswordCapabilityKey{}).(bool)
+	return enabled
 }
 
 // ResolveProxyUser resolves a PROXY grant for an authenticated account.  It
@@ -63,24 +87,34 @@ func (as *AuthServiceImpl) ResolveProxyUser(ctx context.Context, user, host stri
 
 // UserInfo 用户信息
 type UserInfo struct {
-	User               string
-	Host               string
-	Password           string
-	AuthPlugin         string
-	TLSRequired        bool
-	X509Required       bool
-	PasswordExpired    bool
-	AccountLocked      bool
-	MaxConnections     int
-	MaxUserConnections int
-	GlobalPrivileges   []common.PrivilegeType
-	DynamicPrivileges  []string
-	DatabasePrivileges map[string][]common.PrivilegeType
-	TablePrivileges    map[string]map[string][]common.PrivilegeType
-	ColumnPrivileges   map[string][]common.PrivilegeType
-	Restrictions       map[string][]common.PrivilegeType
-	Roles              []string
-	DefaultRoles       []string
+	User                    string
+	Host                    string
+	Password                string
+	AuthPlugin              string
+	TLSRequired             bool
+	X509Required            bool
+	PasswordExpired         bool
+	PasswordLastChanged     time.Time
+	PasswordLifetime        *int64
+	AccountLocked           bool
+	FailedLoginAttempts     *int64
+	PasswordLockTime        *int64
+	PasswordLockUnbounded   bool
+	FailedLoginCount        int64
+	PasswordLockedUntil     *time.Time
+	PasswordLockedUnbounded bool
+	MaxQuestions            int
+	MaxUpdates              int
+	MaxConnections          int
+	MaxUserConnections      int
+	GlobalPrivileges        []common.PrivilegeType
+	DynamicPrivileges       []string
+	DatabasePrivileges      map[string][]common.PrivilegeType
+	TablePrivileges         map[string]map[string][]common.PrivilegeType
+	ColumnPrivileges        map[string][]common.PrivilegeType
+	Restrictions            map[string][]common.PrivilegeType
+	Roles                   []string
+	DefaultRoles            []string
 }
 
 // DatabaseInfo 数据库信息
@@ -118,6 +152,11 @@ type EngineAccess interface {
 
 	// 查询表权限
 	QueryTablePrivileges(ctx context.Context, user, host, database, table string) ([]common.PrivilegeType, error)
+}
+
+type authenticationStateRecorder interface {
+	RecordAuthenticationFailure(user, host string) error
+	ResetAuthenticationFailures(user, host string) error
 }
 
 // NewAuthService 创建认证服务
@@ -172,7 +211,18 @@ func (as *AuthServiceImpl) AuthenticateUser(ctx context.Context, user, password,
 		}
 		validator = candidate
 	}
+	if userInfo.PasswordLockedUnbounded || (userInfo.PasswordLockedUntil != nil && time.Now().UTC().Before(userInfo.PasswordLockedUntil.UTC())) {
+		return &AuthResult{
+			Success:      false,
+			ErrorCode:    common.ER_ACCESS_DENIED_ERROR,
+			ErrorMessage: fmt.Sprintf("Account '%s'@'%s' is temporarily locked", user, host),
+		}, nil
+	}
 	if !validator.ValidatePassword(password, userInfo.Password, challenge) {
+		if recorder, ok := as.engineAccess.(authenticationStateRecorder); ok {
+			_ = recorder.RecordAuthenticationFailure(user, host)
+			as.invalidateCachedUser(user, host)
+		}
 		return &AuthResult{
 			Success:      false,
 			ErrorCode:    common.ER_ACCESS_DENIED_ERROR,
@@ -189,12 +239,17 @@ func (as *AuthServiceImpl) AuthenticateUser(ctx context.Context, user, password,
 		}, nil
 	}
 
-	if userInfo.PasswordExpired {
+	passwordExpired := as.PasswordExpired(ctx, userInfo)
+	if passwordExpired && !SupportsExpiredPassword(ctx) {
 		return &AuthResult{
 			Success:      false,
-			ErrorCode:    common.ER_ACCESS_DENIED_ERROR,
+			ErrorCode:    common.ErrMustChangePasswordLogin,
 			ErrorMessage: "Your password has expired. To log in you must change it using a client that supports expired passwords.",
 		}, nil
+	}
+	if recorder, ok := as.engineAccess.(authenticationStateRecorder); ok {
+		_ = recorder.ResetAuthenticationFailures(user, host)
+		as.invalidateCachedUser(user, host)
 	}
 
 	// Password authentication belongs to the proxy account, while database
@@ -271,10 +326,37 @@ func (as *AuthServiceImpl) AuthenticateUser(ctx context.Context, user, password,
 		User:              user,
 		Host:              host,
 		Database:          database,
+		PasswordExpired:   passwordExpired,
 		Privileges:        privileges,
 		DynamicPrivileges: append([]string(nil), userInfo.DynamicPrivileges...),
 		ActiveRoles:       normalizeAuthRoleList(activeRoles),
 	}, nil
+}
+
+// PasswordExpired applies both the account's explicit PASSWORD EXPIRE state
+// and the configured password-lifetime policy.  It is exported as an
+// additive helper for protocol handlers that perform challenge-response
+// authentication directly instead of calling AuthenticateUser.
+func (as *AuthServiceImpl) PasswordExpired(ctx context.Context, userInfo *UserInfo) bool {
+	return userInfo != nil && (userInfo.PasswordExpired || as.passwordExpiredByLifetime(ctx, userInfo))
+}
+
+func (as *AuthServiceImpl) passwordExpiredByLifetime(ctx context.Context, userInfo *UserInfo) bool {
+	if userInfo == nil || userInfo.PasswordLastChanged.IsZero() {
+		return false
+	}
+	lifetime := int64(0)
+	if userInfo.PasswordLifetime != nil {
+		lifetime = *userInfo.PasswordLifetime
+	} else if provider, ok := as.engineAccess.(interface {
+		DefaultPasswordLifetime(context.Context) int64
+	}); ok {
+		lifetime = provider.DefaultPasswordLifetime(ctx)
+	}
+	if lifetime <= 0 {
+		return false
+	}
+	return !time.Now().UTC().Before(userInfo.PasswordLastChanged.UTC().Add(time.Duration(lifetime) * 24 * time.Hour))
 }
 
 func normalizeAuthRoleList(roles []string) []string {
@@ -432,6 +514,18 @@ func hasPrivilege(privileges []common.PrivilegeType, required common.PrivilegeTy
 // GetUserInfo 获取用户信息
 func (as *AuthServiceImpl) GetUserInfo(ctx context.Context, user, host string) (*UserInfo, error) {
 	return as.getUserInfo(ctx, user, host)
+}
+
+func (as *AuthServiceImpl) invalidateCachedUser(user, host string) {
+	if as == nil {
+		return
+	}
+	prefix := fmt.Sprintf("%s@%s", user, host)
+	for key := range as.userCache {
+		if key == prefix || strings.HasPrefix(key, prefix+"#roles=") {
+			delete(as.userCache, key)
+		}
+	}
 }
 
 // FlushPrivileges 刷新权限缓存

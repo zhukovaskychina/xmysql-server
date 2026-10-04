@@ -23,6 +23,7 @@ type PreparedStatementSnapshot struct {
 	RowsAffected     uint64
 	RowsSent         uint64
 	RowsExamined     uint64
+	CPUTimeTotal     uint64
 }
 
 // PreparedStatementExecutionStats is the runtime accounting recorded for one
@@ -30,10 +31,12 @@ type PreparedStatementSnapshot struct {
 // protocol manager can publish authoritative observations without depending on
 // the SQL engine's result types.
 type PreparedStatementExecutionStats struct {
-	Duration     time.Duration
-	Failed       bool
-	Warnings     uint64
-	RowsAffected uint64
-	RowsSent     uint64
-	RowsExamined uint64
+	Duration        time.Duration
+	Failed          bool
+	Warnings        uint64
+	RowsAffected    uint64
+	RowsSent        uint64
+	RowsExamined    uint64
+	CPUTime         uint64
+	CPUTimeCaptured bool
 }

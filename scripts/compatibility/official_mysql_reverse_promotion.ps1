@@ -18,6 +18,28 @@ $sourceContainer = "xmysql-reverse-official-source-$runId"
 $targetContainer = "xmysql-reverse-official-target-$runId"
 $databaseName = "reverse_promote_$($runId.Replace('-', '_'))"
 $xmysqlProcess = $null
+$replicationUpdateOption = if ($MySQLImage -match '(?i)(?:^|:)5\.') {
+    # MySQL 5.7 uses the pre-8.0 option spelling. The replication behavior is
+    # the same; only the server option name changed in later releases.
+    '--log-slave-updates=ON'
+} else {
+    '--log-replica-updates=ON'
+}
+$changeSourceStatement = if ($MySQLImage -match '(?i)(?:^|:)5\.') {
+    'CHANGE MASTER TO'
+} else {
+    'CHANGE REPLICATION SOURCE TO'
+}
+$startReplicaStatement = if ($MySQLImage -match '(?i)(?:^|:)5\.') {
+    'START SLAVE'
+} else {
+    'START REPLICA'
+}
+$replicaStatusStatement = if ($MySQLImage -match '(?i)(?:^|:)5\.') {
+    'SHOW SLAVE STATUS\G'
+} else {
+    'SHOW REPLICA STATUS\G'
+}
 
 New-Item -ItemType Directory -Force -Path $taskDir | Out-Null
 
@@ -47,8 +69,11 @@ function Wait-OfficialMySQL([string]$container) {
     throw "official MySQL container did not become ready: $container"
 }
 
-function Wait-XMySQL([int]$port, [int]$controlPort, [string]$expectedRole = "replica") {
+function Wait-XMySQL([int]$port, [int]$controlPort, [string]$expectedRole = "replica", [System.Diagnostics.Process]$Process = $null) {
     for ($attempt = 0; $attempt -lt 120; $attempt++) {
+        if ($null -ne $Process -and $Process.HasExited) {
+            throw "xmysql process exited before becoming ready: exit_code=$($Process.ExitCode)"
+        }
         $sqlReady = $null -ne (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue)
         try {
             $status = Invoke-RestMethod -Method Get -Uri ("http://127.0.0.1:{0}/replication/status" -f $controlPort) -TimeoutSec 2
@@ -60,10 +85,20 @@ function Wait-XMySQL([int]$port, [int]$controlPort, [string]$expectedRole = "rep
 }
 
 function Get-BinlogStatus([string]$container, [switch]$FromXMySQL) {
-    $rows = @(Invoke-ContainerSql $container "SHOW BINARY LOG STATUS" $FromXMySQL)
-    if ($rows.Count -lt 1) { throw "SHOW BINARY LOG STATUS returned no row" }
+    $statusQuery = "SHOW BINARY LOG STATUS"
+    try {
+        $rows = @(Invoke-ContainerSql $container $statusQuery -ToXMySQL:$FromXMySQL)
+    } catch {
+        if ($FromXMySQL) { throw }
+        # MySQL 8.0 exposes the same file/position contract under its
+        # pre-8.4 name. Keep the official-version fixture portable while
+        # preserving the native xmysql query above.
+        $statusQuery = "SHOW MASTER STATUS"
+        $rows = @(Invoke-ContainerSql $container $statusQuery)
+    }
+    if ($rows.Count -lt 1) { throw "$statusQuery returned no row" }
     $parts = $rows[0] -split "`t"
-    if ($parts.Count -lt 2) { throw "invalid binary log status: $($rows[0])" }
+    if ($parts.Count -lt 2) { throw "invalid $statusQuery result: $($rows[0])" }
     return [ordered]@{ file = $parts[0]; position = [uint64]$parts[1] }
 }
 
@@ -80,7 +115,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "xmysql build failed" }
     }
 
-    & docker run -d --name $sourceContainer -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -p ("{0}:3306" -f $OfficialSourcePort) $MySQLImage --server-id=3371 --log-bin=binlog --binlog-format=ROW --binlog-row-image=FULL --gtid-mode=ON --enforce-gtid-consistency=ON --log-replica-updates=ON | Out-Null
+    & docker run -d --name $sourceContainer -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -p ("{0}:3306" -f $OfficialSourcePort) $MySQLImage --server-id=3371 --log-bin=binlog --binlog-format=ROW --binlog-row-image=FULL --gtid-mode=ON --enforce-gtid-consistency=ON $replicationUpdateOption | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "failed to start official source" }
     Wait-OfficialMySQL $sourceContainer
     $sourceStart = Get-BinlogStatus $sourceContainer
@@ -115,59 +150,113 @@ read_only = true
     $stdoutPath = Join-Path $taskDir "xmysql.stdout.log"
     $stderrPath = Join-Path $taskDir "xmysql.stderr.log"
     $xmysqlProcess = Start-Process -FilePath $XMySQLBinary -ArgumentList '-configPath', $configPath -WorkingDirectory $workspaceRoot -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -WindowStyle Hidden -PassThru
-    Wait-XMySQL $XMySQLPort $XMySQLControlPort "replica"
+    Wait-XMySQL $XMySQLPort $XMySQLControlPort "replica" $xmysqlProcess
 
     Invoke-ContainerSql $sourceContainer ("INSERT INTO {0}.rows VALUES (1, 'official-before-promote')" -f $databaseName) | Out-Null
     Invoke-ContainerSql $sourceContainer ("XA START 'reverse-xa-$runId', 'branch', 1; INSERT INTO {0}.rows VALUES (2, 'official-xa-before-promote'); XA END 'reverse-xa-$runId', 'branch', 1; XA PREPARE 'reverse-xa-$runId', 'branch', 1; XA COMMIT 'reverse-xa-$runId', 'branch', 1" -f $databaseName) | Out-Null
+    Invoke-ContainerSql $sourceContainer ("XA START 'reverse-one-phase-xa-$runId', 'branch', 1; INSERT INTO {0}.rows VALUES (3, 'official-one-phase-before-promote'); XA END 'reverse-one-phase-xa-$runId', 'branch', 1; XA COMMIT 'reverse-one-phase-xa-$runId', 'branch', 1 ONE PHASE" -f $databaseName) | Out-Null
 
     $xmysqlRows = @()
     for ($attempt = 0; $attempt -lt 160; $attempt++) {
         try {
             $xmysqlRows = Invoke-ContainerSql $sourceContainer ("SELECT id,value FROM {0}.rows ORDER BY id" -f $databaseName) -ToXMySQL
-            if (($xmysqlRows -join "`n") -match '1\tofficial-before-promote' -and ($xmysqlRows -join "`n") -match '2\tofficial-xa-before-promote') { break }
+            $xmysqlText = $xmysqlRows -join "`n"
+            if ($xmysqlText -match '1\tofficial-before-promote' -and $xmysqlText -match '2\tofficial-xa-before-promote' -and $xmysqlText -match '3\tofficial-one-phase-before-promote') { break }
         } catch { }
         Start-Sleep -Milliseconds 500
     }
-    if (($xmysqlRows -join "`n") -notmatch '1\tofficial-before-promote' -or ($xmysqlRows -join "`n") -notmatch '2\tofficial-xa-before-promote') {
+    $xmysqlText = $xmysqlRows -join "`n"
+    if ($xmysqlText -notmatch '1\tofficial-before-promote' -or $xmysqlText -notmatch '2\tofficial-xa-before-promote' -or $xmysqlText -notmatch '3\tofficial-one-phase-before-promote') {
         throw "xmysql did not apply official rows before promotion: $($xmysqlRows -join ' | ')"
+    }
+
+    # Restart xmysql while the official source is still available. The
+    # restarted replica must retain the applied GTID/state and must not
+    # duplicate the ordinary or XA rows when it reconnects.
+    if ($null -ne $xmysqlProcess) {
+        $live = Get-Process -Id $xmysqlProcess.Id -ErrorAction SilentlyContinue
+        if ($null -ne $live) {
+            Stop-Process -Id $xmysqlProcess.Id -Force
+            $live.WaitForExit(10000) | Out-Null
+        }
+    }
+    $restartStdoutPath = Join-Path $taskDir "xmysql.restart.stdout.log"
+    $restartStderrPath = Join-Path $taskDir "xmysql.restart.stderr.log"
+    $xmysqlProcess = Start-Process -FilePath $XMySQLBinary -ArgumentList '-configPath', $configPath -WorkingDirectory $workspaceRoot -RedirectStandardOutput $restartStdoutPath -RedirectStandardError $restartStderrPath -WindowStyle Hidden -PassThru
+    Wait-XMySQL $XMySQLPort $XMySQLControlPort "replica" $xmysqlProcess
+    $xmysqlRowsAfterRestart = @()
+    for ($attempt = 0; $attempt -lt 160; $attempt++) {
+        try {
+            $xmysqlRowsAfterRestart = Invoke-ContainerSql $sourceContainer ("SELECT id,value FROM {0}.rows ORDER BY id" -f $databaseName) -ToXMySQL
+            $restartText = $xmysqlRowsAfterRestart -join "`n"
+            if ($restartText -match '1\tofficial-before-promote' -and $restartText -match '2\tofficial-xa-before-promote' -and $restartText -match '3\tofficial-one-phase-before-promote') { break }
+        } catch { }
+        Start-Sleep -Milliseconds 500
+    }
+    $restartText = $xmysqlRowsAfterRestart -join "`n"
+    if ($restartText -notmatch '1\tofficial-before-promote' -or $restartText -notmatch '2\tofficial-xa-before-promote' -or $restartText -notmatch '3\tofficial-one-phase-before-promote') {
+        throw "xmysql did not retain official rows after restart: $($xmysqlRowsAfterRestart -join ' | ')"
     }
 
     & docker stop $sourceContainer | Out-Null
     $promoted = Invoke-RestMethod -Method Post -Uri ("http://127.0.0.1:{0}/replication/promote" -f $XMySQLControlPort) -TimeoutSec 5
     if ($promoted.role -ne "source") { throw "xmysql promotion did not return role=source" }
 
-    & docker run -d --name $targetContainer -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -p ("{0}:3306" -f $OfficialTargetPort) $MySQLImage --server-id=3372 --log-bin=binlog --binlog-format=ROW --binlog-row-image=FULL --gtid-mode=ON --enforce-gtid-consistency=ON --log-replica-updates=ON | Out-Null
+    & docker run -d --name $targetContainer -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -p ("{0}:3306" -f $OfficialTargetPort) $MySQLImage --server-id=3372 --log-bin=binlog --binlog-format=ROW --binlog-row-image=FULL --gtid-mode=ON --enforce-gtid-consistency=ON $replicationUpdateOption | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "failed to start official target" }
     Wait-OfficialMySQL $targetContainer
     Invoke-ContainerSql $targetContainer ("CREATE DATABASE {0}" -f $databaseName) | Out-Null
-    Invoke-ContainerSql $targetContainer ("CREATE TABLE {0}.rows (id INT PRIMARY KEY, value VARCHAR(128))" -f $databaseName) | Out-Null
+    # Match xmysql's default InnoDB table character set so the official
+    # target's TABLE_MAP metadata has the same VARCHAR byte width. MySQL 5.7
+    # defaults to latin1 in this fixture, while xmysql persists utf8mb4.
+    Invoke-ContainerSql $targetContainer ("CREATE TABLE {0}.rows (id INT PRIMARY KEY, value VARCHAR(128)) DEFAULT CHARACTER SET utf8mb4" -f $databaseName) | Out-Null
     $promotedStatus = Get-BinlogStatus $targetContainer -FromXMySQL
-    $changeSource = "CHANGE REPLICATION SOURCE TO SOURCE_HOST='host.docker.internal', SOURCE_PORT=$XMySQLPort, SOURCE_USER='root', SOURCE_PASSWORD='', SOURCE_LOG_FILE='$($promotedStatus.file)', SOURCE_LOG_POS=$($promotedStatus.position), SOURCE_AUTO_POSITION=0"
+    if ($MySQLImage -match '(?i)(?:^|:)5\.') {
+        $changeSource = "$changeSourceStatement MASTER_HOST='host.docker.internal', MASTER_PORT=$XMySQLPort, MASTER_USER='root', MASTER_PASSWORD='', MASTER_LOG_FILE='$($promotedStatus.file)', MASTER_LOG_POS=$($promotedStatus.position), MASTER_AUTO_POSITION=0"
+    } else {
+        $changeSource = "$changeSourceStatement SOURCE_HOST='host.docker.internal', SOURCE_PORT=$XMySQLPort, SOURCE_USER='root', SOURCE_PASSWORD='', SOURCE_LOG_FILE='$($promotedStatus.file)', SOURCE_LOG_POS=$($promotedStatus.position), SOURCE_AUTO_POSITION=0"
+    }
     Invoke-ContainerSql $targetContainer $changeSource | Out-Null
-    Invoke-ContainerSql $targetContainer "START REPLICA" | Out-Null
-    Invoke-ContainerSql $targetContainer ("INSERT INTO {0}.rows VALUES (3, 'xmysql-after-promote')" -f $databaseName) -ToXMySQL | Out-Null
+    Invoke-ContainerSql $targetContainer $startReplicaStatement | Out-Null
+    Invoke-ContainerSql $targetContainer ("INSERT INTO {0}.rows VALUES (4, 'xmysql-after-promote')" -f $databaseName) -ToXMySQL | Out-Null
+    Invoke-ContainerSql $targetContainer ("XA START 'reverse-xa-after-promote-$runId', 'branch', 1; INSERT INTO {0}.rows VALUES (5, 'xmysql-xa-after-promote'); XA END 'reverse-xa-after-promote-$runId', 'branch', 1; XA PREPARE 'reverse-xa-after-promote-$runId', 'branch', 1; XA COMMIT 'reverse-xa-after-promote-$runId', 'branch', 1" -f $databaseName) -ToXMySQL | Out-Null
+    Invoke-ContainerSql $targetContainer ("XA START 'reverse-one-phase-xa-after-promote-$runId', 'branch', 1; INSERT INTO {0}.rows VALUES (6, 'xmysql-one-phase-after-promote'); XA END 'reverse-one-phase-xa-after-promote-$runId', 'branch', 1; XA COMMIT 'reverse-one-phase-xa-after-promote-$runId', 'branch', 1 ONE PHASE" -f $databaseName) -ToXMySQL | Out-Null
 
     $targetRows = @()
     for ($attempt = 0; $attempt -lt 160; $attempt++) {
         try {
             $targetRows = Invoke-ContainerSql $targetContainer ("SELECT id,value FROM {0}.rows ORDER BY id" -f $databaseName)
-            if (($targetRows -join "`n") -match '3\txmysql-after-promote') { break }
+            $targetText = $targetRows -join "`n"
+            if ($targetText -match '4\txmysql-after-promote' -and $targetText -match '5\txmysql-xa-after-promote' -and $targetText -match '6\txmysql-one-phase-after-promote') { break }
         } catch { }
         Start-Sleep -Milliseconds 500
     }
-    if (($targetRows -join "`n") -notmatch '3\txmysql-after-promote') {
-        $replicaStatus = Invoke-ContainerSql $targetContainer "SHOW REPLICA STATUS"
-        throw "official target did not apply post-promotion row: rows=$($targetRows -join ' | '); status=$($replicaStatus -join ' | ')"
+    $targetText = $targetRows -join "`n"
+    if ($targetText -notmatch '4\txmysql-after-promote' -or $targetText -notmatch '5\txmysql-xa-after-promote' -or $targetText -notmatch '6\txmysql-one-phase-after-promote') {
+        $replicaStatus = Invoke-ContainerSql $targetContainer $replicaStatusStatement
+        throw "official target did not apply post-promotion ordinary and XA rows: rows=$($targetRows -join ' | '); status=$($replicaStatus -join ' | ')"
     }
     [ordered]@{
         status = "PASS"
         official_source_rows_applied_to_xmysql = $xmysqlRows
+        official_source_rows_after_xmysql_restart = $xmysqlRowsAfterRestart
         promoted_role = $promoted.role
         official_target_rows_applied_from_xmysql = $targetRows
+        official_target_xa_row_applied_from_xmysql = $true
         report_directory = $taskDir
     } | ConvertTo-Json -Depth 8
 } catch {
     Write-Error $_
+    if ($null -ne $targetContainer) {
+        $targetExists = & docker ps -a --format '{{.Names}}' | Where-Object { $_ -eq $targetContainer }
+        if ($targetExists) {
+            Write-Error ("official target docker log: " + ((& docker logs $targetContainer 2>&1 | Select-Object -Last 120) -join ' | '))
+            $workerSql = "SELECT WORKER_ID, LAST_ERROR_NUMBER, LAST_ERROR_MESSAGE, LAST_ERROR_TIMESTAMP FROM performance_schema.replication_applier_status_by_worker"
+            try {
+                Write-Error ("official target worker status: " + ((Invoke-ContainerSql $targetContainer $workerSql) -join ' | '))
+            } catch { }
+        }
+    }
     if (Test-Path (Join-Path $taskDir "xmysql.stderr.log")) { Get-Content (Join-Path $taskDir "xmysql.stderr.log") -Tail 100 }
     if (Test-Path (Join-Path $taskDir "error.log")) { Get-Content (Join-Path $taskDir "error.log") -Tail 100 }
     exit 1

@@ -147,6 +147,19 @@ func (replica *Replica) applyWithPreparedXAAndNativeRelayAtSourceAndTableMaps(ev
 	if preparedXA != nil {
 		nextPreparedXA = cloneNativePreparedXA(preparedXA)
 	}
+	// An applied marker means the storage callback already committed and the
+	// only missing step is promotion of the durable marker into Executed. This
+	// can happen when the final state replacement fails after the marker was
+	// written. Promote such markers before rebuilding a later retry so a
+	// same-process retry is as idempotent as a restart.
+	for marker := range nextAppliedTransactions {
+		markerSet, err := ParseGTIDSet(marker)
+		if err != nil {
+			continue
+		}
+		nextExecuted.Merge(markerSet)
+		delete(nextAppliedTransactions, marker)
+	}
 	// A network reconnect can split one transaction across Apply calls. The
 	// relay log is durable, so rebuild any transaction that has BEGIN/ROW
 	// events but no committed GTID before consuming the next batch.
@@ -177,11 +190,33 @@ func (replica *Replica) applyWithPreparedXAAndNativeRelayAtSourceAndTableMaps(ev
 	// retry. Row-aware storage can converge from the durable row image; the
 	// statement-only path still relies on its callback's transaction semantics.
 	persistRelayBeforeApply := func() error {
-		return replica.persistStateLocked(nextExecuted, nextRows, nextPreparedXA, nextRelayEvents, nextNativeRelayEvents, nextNativeTableMaps, nextAppliedTransactions, nil)
+		if err := replica.persistStateLocked(nextExecuted, nextRows, nextPreparedXA, nextRelayEvents, nextNativeRelayEvents, nextNativeTableMaps, nextAppliedTransactions, nil); err != nil {
+			return err
+		}
+		// Keep the in-memory retry view aligned with the durable relay boundary.
+		// Executed is intentionally not advanced until the final replacement.
+		replica.AppliedRows = append([]RowChange(nil), nextRows...)
+		replica.relayEvents = append([]BinlogEvent(nil), nextRelayEvents...)
+		replica.nativeRelayEvents = cloneNativeRelayEvents(nextNativeRelayEvents)
+		replica.nativeTableMaps = cloneNativeRelayEvents(nextNativeTableMaps)
+		replica.preparedXA = cloneNativePreparedXA(nextPreparedXA)
+		replica.appliedTransactions = cloneAppliedTransactions(nextAppliedTransactions)
+		return nil
 	}
 	persistAppliedMarker := func(gtid GTID) error {
 		nextAppliedTransactions[gtid.String()] = true
-		return replica.persistStateLocked(nextExecuted, nextRows, nextPreparedXA, nextRelayEvents, nextNativeRelayEvents, nextNativeTableMaps, nextAppliedTransactions, nil)
+		if err := replica.persistStateLocked(nextExecuted, nextRows, nextPreparedXA, nextRelayEvents, nextNativeRelayEvents, nextNativeTableMaps, nextAppliedTransactions, nil); err != nil {
+			return err
+		}
+		// The marker is now durable. Publish the retry state without advancing
+		// Executed; a later call will promote the marker before applying again.
+		replica.AppliedRows = append([]RowChange(nil), nextRows...)
+		replica.relayEvents = append([]BinlogEvent(nil), nextRelayEvents...)
+		replica.nativeRelayEvents = cloneNativeRelayEvents(nextNativeRelayEvents)
+		replica.nativeTableMaps = cloneNativeRelayEvents(nextNativeTableMaps)
+		replica.preparedXA = cloneNativePreparedXA(nextPreparedXA)
+		replica.appliedTransactions = cloneAppliedTransactions(nextAppliedTransactions)
+		return nil
 	}
 	applyCommitted := func(event BinlogEvent, relayEvent BinlogEvent) error {
 		key := event.GTID.String()
@@ -205,6 +240,25 @@ func (replica *Replica) applyWithPreparedXAAndNativeRelayAtSourceAndTableMaps(ev
 		}
 		if len(event.Statements) > 0 {
 			pendingStatements[key] = append(pendingStatements[key], event.Statements...)
+		}
+		// Native decoding may return one aggregated committed event with the
+		// complete row/statement image instead of separate BEGIN/ROW relay
+		// events. Keep the durable logical relay self-contained so promotion can
+		// regenerate a valid native transaction rather than only an XID_EVENT.
+		if event.Type == EventCommit {
+			if !relayEventTypeExists(nextRelayEvents, event.GTID, EventBegin) {
+				appendRelayEvent(BinlogEvent{
+					Timestamp: event.Timestamp, Type: EventBegin, ServerID: event.ServerID,
+					GTID: event.GTID, TransactionKey: event.TransactionKey,
+				})
+			}
+			if (len(event.Changes) > 0 || len(event.Statements) > 0) && !relayEventTypeExists(nextRelayEvents, event.GTID, EventRow) {
+				appendRelayEvent(BinlogEvent{
+					Timestamp: event.Timestamp, Type: EventRow, ServerID: event.ServerID,
+					GTID: event.GTID, TransactionKey: event.TransactionKey,
+					Changes: append([]RowChange(nil), event.Changes...), Statements: append([]Statement(nil), event.Statements...),
+				})
+			}
 		}
 		appendRelayEvent(relayEvent)
 		if err := persistRelayBeforeApply(); err != nil {
@@ -346,6 +400,10 @@ func (replica *Replica) applyWithPreparedXAAndNativeRelayAtSourceAndTableMaps(ev
 				}
 			}
 			nextRows = append(nextRows, filteredChanges...)
+			// The terminal event has completed this prepared branch. Remove the
+			// durable prepared record before publishing the applied marker so a
+			// same-process retry cannot retain stale XA metadata.
+			delete(nextPreparedXA, xaKey)
 			if err := persistAppliedMarker(prepared.GTID); err != nil {
 				return err
 			}
@@ -353,7 +411,6 @@ func (replica *Replica) applyWithPreparedXAAndNativeRelayAtSourceAndTableMaps(ev
 			if event.TerminalGTID != nil {
 				nextExecuted.Add(*event.TerminalGTID)
 			}
-			delete(nextPreparedXA, xaKey)
 		case EventXARollback:
 			if event.XA != nil {
 				delete(nextPreparedXA, event.XA.Key())
@@ -510,6 +567,15 @@ func relayEventExists(events []BinlogEvent, candidate BinlogEvent) bool {
 			continue
 		}
 		return true
+	}
+	return false
+}
+
+func relayEventTypeExists(events []BinlogEvent, gtid GTID, eventType EventType) bool {
+	for _, event := range events {
+		if event.Type == eventType && event.GTID == gtid {
+			return true
+		}
 	}
 	return false
 }

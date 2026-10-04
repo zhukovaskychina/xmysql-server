@@ -2,23 +2,63 @@ package manager
 
 import (
 	"context"
+	"math"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
-	"math"
 )
 
 // OptimizerManager 查询优化器管理器
 type OptimizerManager struct {
 	schemaManager metadata.InfoSchemaManager
+	costMu        sync.RWMutex
+	serverCosts   map[string]float64
+	engineCosts   map[string]float64
 }
 
 // NewOptimizerManager 创建优化器管理器
 func NewOptimizerManager(schemaManager metadata.InfoSchemaManager) *OptimizerManager {
 	return &OptimizerManager{
 		schemaManager: schemaManager,
+		serverCosts:   map[string]float64{},
+		engineCosts:   map[string]float64{},
 	}
+}
+
+// SetCostModel publishes the optimizer cost snapshot loaded from mysql.* cost
+// tables. The maps are copied so a later table mutation cannot change the
+// runtime model until FLUSH OPTIMIZER_COSTS explicitly reloads it.
+func (om *OptimizerManager) SetCostModel(serverCosts, engineCosts map[string]float64) {
+	if om == nil {
+		return
+	}
+	serverCopy := make(map[string]float64, len(serverCosts))
+	for name, value := range serverCosts {
+		serverCopy[strings.ToLower(strings.TrimSpace(name))] = value
+	}
+	engineCopy := make(map[string]float64, len(engineCosts))
+	for name, value := range engineCosts {
+		engineCopy[strings.ToLower(strings.TrimSpace(name))] = value
+	}
+	om.costMu.Lock()
+	om.serverCosts = serverCopy
+	om.engineCosts = engineCopy
+	om.costMu.Unlock()
+}
+
+func (om *OptimizerManager) serverCost(name string, fallback float64) float64 {
+	if om == nil {
+		return fallback
+	}
+	om.costMu.RLock()
+	value, ok := om.serverCosts[strings.ToLower(strings.TrimSpace(name))]
+	om.costMu.RUnlock()
+	if !ok || value <= 0 {
+		return fallback
+	}
+	return value
 }
 
 // PlanType 计划类型
@@ -198,7 +238,10 @@ func (om *OptimizerManager) generateAccessPaths(tableName string, conditions []s
 	// 1. 全表扫描路径
 	seqScanPath := AccessPath{
 		PlanType: PLAN_TYPE_SEQUENTIAL_SCAN,
-		Cost:     float64(stats.RowCount) * 100.0, // 假设每行100个单位的代价
+		// MySQL's row_evaluate_cost is a small floating-point estimate. Keep
+		// the historical xmysql scale (100 units per row at the 0.1 default)
+		// while allowing mysql.server_cost to change the relative plan cost.
+		Cost:     float64(stats.RowCount) * om.serverCost("row_evaluate_cost", 0.1) * 1000.0,
 		RowCount: stats.RowCount,
 	}
 	paths = append(paths, seqScanPath)

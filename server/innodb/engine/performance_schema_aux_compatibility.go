@@ -45,6 +45,18 @@ func (e *XMySQLExecutor) executePerformanceSchemaHostCacheSelect(query string, c
 		if ip != host {
 			count += failedByHost[ip]
 		}
+		// Authentication failures are the authoritative host-cache observation
+		// for hosts that have no separate connection-lifecycle timestamp yet.
+		// Use those timestamps for FIRST_SEEN/LAST_SEEN rather than returning a
+		// NULL pair on an otherwise source-backed host row.
+		firstSeen := firstErrorByHost[host]
+		lastSeen := lastErrorByHost[host]
+		if firstSeen.IsZero() && ip != host {
+			firstSeen = firstErrorByHost[ip]
+		}
+		if lastSeen.IsZero() && ip != host {
+			lastSeen = lastErrorByHost[ip]
+		}
 		values := map[string]interface{}{
 			"IP": ip, "HOST": host, "HOST_VALIDATED": "YES", "SUM_CONNECT_ERRORS": count,
 			"COUNT_HOST_BLOCKED_ERRORS": int64(0), "COUNT_NAMEINFO_TRANSIENT_ERRORS": int64(0), "COUNT_NAMEINFO_PERMANENT_ERRORS": int64(0),
@@ -54,7 +66,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaHostCacheSelect(query string, c
 			"COUNT_PROXY_USER_ACL_ERRORS": int64(0), "COUNT_AUTHENTICATION_ERRORS": count, "COUNT_SSL_ERRORS": int64(0),
 			"COUNT_MAX_USER_CONNECTIONS_ERRORS": int64(0), "COUNT_MAX_USER_CONNECTIONS_PER_HOUR_ERRORS": int64(0),
 			"COUNT_DEFAULT_DATABASE_ERRORS": int64(0), "COUNT_INIT_CONNECT_ERRORS": int64(0), "COUNT_LOCAL_ERRORS": int64(0),
-			"COUNT_UNKNOWN_ERRORS": int64(0), "FIRST_SEEN": nil, "LAST_SEEN": nil,
+			"COUNT_UNKNOWN_ERRORS": int64(0), "FIRST_SEEN": nullableHostCacheTime(firstSeen), "LAST_SEEN": nullableHostCacheTime(lastSeen),
 			"FIRST_ERROR_SEEN": firstErrorByHost[host], "LAST_ERROR_SEEN": lastErrorByHost[host],
 		}
 		if !performanceSchemaLockValuesMatch(query, values) {
@@ -81,13 +93,78 @@ func (e *XMySQLExecutor) executePerformanceSchemaHostCacheSelect(query string, c
 	return newInformationSchemaSelectResult("performance_schema.host_cache", columns, rows)
 }
 
+func nullableHostCacheTime(value time.Time) interface{} {
+	if value.IsZero() {
+		return nil
+	}
+	return value
+}
+
 func (e *XMySQLExecutor) executePerformanceSchemaSyncInstancesSelect(query, name string) *SelectResult {
 	defaults := []string{"NAME", "OBJECT_INSTANCE_BEGIN", "LOCKED_BY_THREAD_ID"}
+	if name == "performance_schema.cond_instances" {
+		defaults = []string{"NAME", "OBJECT_INSTANCE_BEGIN"}
+	}
 	if name == "performance_schema.rwlock_instances" {
 		defaults = []string{"NAME", "OBJECT_INSTANCE_BEGIN", "WRITE_LOCKED_BY_THREAD_ID", "READ_LOCKED_BY_COUNT"}
 	}
 	columns := requestedInformationSchemaColumns(query, defaults)
-	return newInformationSchemaSelectResult(name, columns, nil)
+	if name == "performance_schema.cond_instances" {
+		if e == nil {
+			return newInformationSchemaSelectResult(name, columns, nil)
+		}
+		rows := make([][]interface{}, 0)
+		for _, instance := range e.performanceSchemaConditionInstancesForQuery() {
+			values := map[string]interface{}{
+				"NAME":                  instance.name,
+				"OBJECT_INSTANCE_BEGIN": instance.objectInstanceBegin,
+			}
+			if !performanceSchemaLockValuesMatch(query, values) {
+				continue
+			}
+			rows = append(rows, projectInformationSchemaRow(columns, values))
+		}
+		return newInformationSchemaSelectResult(name, columns, rows)
+	}
+	if name == "performance_schema.mutex_instances" {
+		if e == nil {
+			return newInformationSchemaSelectResult(name, columns, nil)
+		}
+		rows := make([][]interface{}, 0)
+		for _, instance := range e.performanceSchemaMutexInstancesForQuery() {
+			values := map[string]interface{}{
+				"NAME":                  instance.name,
+				"OBJECT_INSTANCE_BEGIN": instance.objectInstanceBegin,
+				"LOCKED_BY_THREAD_ID":   instance.lockedByThreadID,
+			}
+			if !performanceSchemaLockValuesMatch(query, values) {
+				continue
+			}
+			rows = append(rows, projectInformationSchemaRow(columns, values))
+		}
+		return newInformationSchemaSelectResult(name, columns, rows)
+	}
+	if name != "performance_schema.rwlock_instances" || e == nil || e.ddlCoordinator == nil {
+		return newInformationSchemaSelectResult(name, columns, nil)
+	}
+	enabled, _ := e.performanceSchemaInstrumentSetting(performanceSchemaDDLCoordinatorRWLockInstrument)
+	if !enabled {
+		return newInformationSchemaSelectResult(name, columns, nil)
+	}
+	rows := make([][]interface{}, 0)
+	for _, instance := range e.performanceSchemaRWLockInstancesForQuery() {
+		values := map[string]interface{}{
+			"NAME":                      instance.name,
+			"OBJECT_INSTANCE_BEGIN":     instance.objectInstanceBegin,
+			"WRITE_LOCKED_BY_THREAD_ID": instance.writeLockedByThreadID,
+			"READ_LOCKED_BY_COUNT":      instance.readLockedByCount,
+		}
+		if !performanceSchemaLockValuesMatch(query, values) {
+			continue
+		}
+		rows = append(rows, projectInformationSchemaRow(columns, values))
+	}
+	return newInformationSchemaSelectResult(name, columns, rows)
 }
 
 func (e *XMySQLExecutor) executePerformanceSchemaObjectsSummarySelect(query string) *SelectResult {

@@ -19,6 +19,114 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/replication"
 )
 
+func TestEngineReplicationConfigEnablesQuorumAutoFailover(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sourceAddress := reserveTCPAddress(t)
+	firstAddress := reserveTCPAddress(t)
+	secondAddress := reserveTCPAddress(t)
+	sourceURL := "http://" + sourceAddress
+	firstURL := "http://" + firstAddress
+	secondURL := "http://" + secondAddress
+
+	newConfig := func(role, uuid string, serverID uint32, listenAddress, source string, peers []string) *conf.Cfg {
+		dataDir := t.TempDir()
+		return &conf.Cfg{
+			DataDir:                           dataDir,
+			InnodbDataDir:                     dataDir,
+			InnodbBufferPoolSize:              16 * 1024 * 1024,
+			ReplicationRole:                   role,
+			ReplicationUUID:                   uuid,
+			ReplicationServerID:               serverID,
+			ReplicationListenAddress:          listenAddress,
+			ReplicationSourceURL:              source,
+			ReplicationPeers:                  peers,
+			ReplicationAutoFailover:           role == replication.RoleReplica,
+			ReplicationFailureTimeoutDuration: 150 * time.Millisecond,
+			ReplicationPollIntervalDuration:   20 * time.Millisecond,
+		}
+	}
+
+	source := NewXMySQLEngine(newConfig(replication.RoleSource, "config-source", 1, sourceAddress, "", nil))
+	first := NewXMySQLEngine(newConfig(replication.RoleReplica, "config-first", 10, firstAddress, sourceURL, []string{sourceURL, secondURL}))
+	second := NewXMySQLEngine(newConfig(replication.RoleReplica, "config-second", 20, secondAddress, sourceURL, []string{sourceURL, firstURL}))
+	sourceClosed := false
+	t.Cleanup(func() {
+		if !sourceClosed {
+			require.NoError(t, source.Close())
+		}
+		require.NoError(t, first.Close())
+		require.NoError(t, second.Close())
+	})
+	require.NoError(t, source.Start(ctx))
+	require.NoError(t, first.Start(ctx))
+	require.NoError(t, second.Start(ctx))
+
+	require.Eventually(t, func() bool {
+		return source.ReplicationStatus().(replication.StatusSnapshot).Role == replication.RoleSource &&
+			first.ReplicationStatus().(replication.StatusSnapshot).Role == replication.RoleReplica &&
+			second.ReplicationStatus().(replication.StatusSnapshot).Role == replication.RoleReplica
+	}, 3*time.Second, 20*time.Millisecond)
+
+	require.NoError(t, source.Close())
+	sourceClosed = true
+	require.Eventually(t, func() bool {
+		firstStatus := first.ReplicationStatus().(replication.StatusSnapshot)
+		secondStatus := second.ReplicationStatus().(replication.StatusSnapshot)
+		return firstStatus.Role == replication.RoleSource && secondStatus.Role == replication.RoleReplica
+	}, 5*time.Second, 20*time.Millisecond)
+}
+
+func TestEngineReplicationConfigRequiresQuorumBeforeAutoFailover(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sourceAddress := reserveTCPAddress(t)
+	replicaAddress := reserveTCPAddress(t)
+	unreachablePeerAddress := reserveTCPAddress(t)
+	sourceURL := "http://" + sourceAddress
+	unreachablePeerURL := "http://" + unreachablePeerAddress
+
+	newConfig := func(role, uuid string, serverID uint32, listenAddress, source string, peers []string) *conf.Cfg {
+		dataDir := t.TempDir()
+		return &conf.Cfg{
+			DataDir:                           dataDir,
+			InnodbDataDir:                     dataDir,
+			InnodbBufferPoolSize:              16 * 1024 * 1024,
+			ReplicationRole:                   role,
+			ReplicationUUID:                   uuid,
+			ReplicationServerID:               serverID,
+			ReplicationListenAddress:          listenAddress,
+			ReplicationSourceURL:              source,
+			ReplicationPeers:                  peers,
+			ReplicationAutoFailover:           role == replication.RoleReplica,
+			ReplicationFailureTimeoutDuration: 100 * time.Millisecond,
+			ReplicationPollIntervalDuration:   20 * time.Millisecond,
+		}
+	}
+
+	source := NewXMySQLEngine(newConfig(replication.RoleSource, "quorum-source", 1, sourceAddress, "", nil))
+	replica := NewXMySQLEngine(newConfig(replication.RoleReplica, "quorum-replica", 10, replicaAddress, sourceURL, []string{sourceURL, unreachablePeerURL}))
+	t.Cleanup(func() {
+		require.NoError(t, replica.Close())
+		require.NoError(t, source.Close())
+	})
+	require.NoError(t, source.Start(ctx))
+	require.NoError(t, replica.Start(ctx))
+
+	require.Eventually(t, func() bool {
+		return source.ReplicationStatus().(replication.StatusSnapshot).Role == replication.RoleSource &&
+			replica.ReplicationStatus().(replication.StatusSnapshot).Role == replication.RoleReplica
+	}, 3*time.Second, 20*time.Millisecond)
+
+	require.NoError(t, source.Close())
+	require.Eventually(t, func() bool {
+		return replica.ReplicationStatus().(replication.StatusSnapshot).Role == replication.RoleReplica
+	}, 2*time.Second, 20*time.Millisecond,
+		"an isolated replica must not self-promote without a majority of configured members")
+}
+
 func TestEngineSourceRejectsClientWritesWhenFenced(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -187,6 +295,26 @@ func TestReplicationStatementApplyIsIdempotentAcrossCommitStateRecovery(t *testi
 	require.Equal(t, [][]interface{}{{"1", "replayed"}}, rows)
 }
 
+func TestReplicationStatementApplyCreatesQualifiedDDLVisibleToQueries(t *testing.T) {
+	cfg := &conf.Cfg{
+		DataDir:              t.TempDir(),
+		InnodbDataDir:        t.TempDir(),
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+	}
+	cfg.InnodbDataDir = cfg.DataDir
+	engine := NewXMySQLEngine(cfg)
+	t.Cleanup(func() { require.NoError(t, engine.Close()) })
+
+	require.NoError(t, engine.applyReplicationStatementsWithID("source-a:ddl-db", []replication.Statement{{
+		SQL: "CREATE DATABASE replication_ddl_visible",
+	}}))
+	require.NoError(t, engine.applyReplicationStatementsWithID("source-a:ddl-table", []replication.Statement{{
+		SQL: "CREATE TABLE replication_ddl_visible.rows (id INT PRIMARY KEY, value VARCHAR(64))",
+	}}))
+
+	require.Equal(t, [][]interface{}{}, mustQuerySQL(t, engine, "", "SELECT id, value FROM replication_ddl_visible.rows ORDER BY id"))
+}
+
 func TestReplicationReplayUsesSharedStorageTransactionBoundary(t *testing.T) {
 	cfg := &conf.Cfg{
 		DataDir:              t.TempDir(),
@@ -241,11 +369,16 @@ func TestReplicationCommitMarkerFailureLeavesJournalRecoverable(t *testing.T) {
 
 	rows := mustQuerySQL(t, engine, "app", "select id from items where id = 2")
 	require.Len(t, rows, 1, "the storage commit happened before the marker failure")
-	require.NoError(t, engine.QueryExecutor.RecoverOrphanedTransactions())
+	require.ErrorContains(t, engine.QueryExecutor.RecoverOrphanedTransactions(), "injected replication commit marker failure")
 	rows = mustQuerySQL(t, engine, "app", "select id from items where id = 2")
 	require.Len(t, rows, 1, "the durable commit record must protect a completed storage transaction")
+	_, markerErr := os.Stat(replicationCommitMarkerPath(engine.QueryExecutor.getDataDir(), transactionID))
+	require.ErrorIs(t, markerErr, os.ErrNotExist, "a failed marker hook must leave the marker pending until recovery can complete it")
 
 	engine.QueryExecutor.replicationCommitMarkerHook = nil
+	require.NoError(t, engine.QueryExecutor.RecoverOrphanedTransactions())
+	_, markerErr = os.Stat(replicationCommitMarkerPath(engine.QueryExecutor.getDataDir(), transactionID))
+	require.NoError(t, markerErr, "recovery must finalize the applied marker after the storage commit is durable")
 	require.NoError(t, engine.applyReplicationStatementsWithID(transactionID, []replication.Statement{statement}))
 	rows = mustQuerySQL(t, engine, "app", "select id from items where id = 2")
 	require.Len(t, rows, 1, "retry must be idempotent after the active journal records commit")
@@ -256,6 +389,52 @@ func TestReplicationCommitMarkerFailureLeavesJournalRecoverable(t *testing.T) {
 	require.NoError(t, engine.applyReplicationStatementsWithID(transactionID, []replication.Statement{statement}))
 	rows = mustQuerySQL(t, engine, "app", "select id from items where id = 2")
 	require.Len(t, rows, 1, "restart must preserve the committed transaction and suppress duplicate replay")
+}
+
+func TestReplicationStorageCommitMarkerFailureCanRetrySameCommittedContext(t *testing.T) {
+	cfg := &conf.Cfg{
+		DataDir:              t.TempDir(),
+		InnodbDataDir:        t.TempDir(),
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+	}
+	cfg.InnodbDataDir = cfg.DataDir
+	executor := newTestStorageIntegratedExecutor(t, cfg.DataDir)
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table retry_marker (id int primary key, value varchar(64))")
+
+	transactionID := "source-a:same-context-retry"
+	session := newReplicationSession()
+	session.SetParamByName("replication_replay", true)
+	session.SetParamByName("replication_transaction_id", transactionID)
+	session.SetParamByName("transaction_journal_id", replicationTransactionJournalID(transactionID))
+	session.SetParamByName("autocommit", "0")
+	require.NoError(t, executor.QueryExecutor.beginReplicationStorageTransaction(session))
+	require.NoError(t, executeReplicationQuery(executor, session, "insert into retry_marker values (1, 'committed')", "app"))
+
+	markerFailures := 0
+	executor.QueryExecutor.replicationCommitMarkerHook = func(string) error {
+		markerFailures++
+		if markerFailures == 1 {
+			return errors.New("injected transient replication commit marker failure")
+		}
+		return nil
+	}
+	firstErr := executor.QueryExecutor.commitReplicationStorageTransaction(session)
+	require.ErrorContains(t, firstErr, "injected transient replication commit marker failure")
+	shared, ok := session.GetParamByName(replicationStorageTransactionContextKey).(*StorageTransactionContext)
+	require.True(t, ok)
+	require.Equal(t, "COMMITTED", shared.Status)
+
+	// The storage/WAL commit is already authoritative. Retrying the same
+	// context must finish the publication marker without calling Commit again.
+	require.NoError(t, executor.QueryExecutor.commitReplicationStorageTransaction(session))
+	require.Nil(t, session.GetParamByName(replicationStorageTransactionContextKey))
+	require.Equal(t, 2, markerFailures)
+	require.True(t, func() bool {
+		committed, err := executor.QueryExecutor.replicationTransactionCommitted(transactionID)
+		return err == nil && committed
+	}())
+	require.Equal(t, [][]interface{}{{"1", "committed"}}, mustQuerySQL(t, executor, "app", "select id, value from retry_marker"))
 }
 
 func TestReplicationStorageCommitFlushFailureLeavesDurableCommitRecord(t *testing.T) {
@@ -331,6 +510,38 @@ func TestClientCommitPublishesAfterStorageAndRetriesByStableTransactionKey(t *te
 	events, err := source.DecodeNativeDumpFrom("binlog.000001", 4, replication.GTIDIntervals{})
 	require.NoError(t, err)
 	require.Len(t, events, 1)
+}
+
+func TestClientCommitSyncsRecoveryJournalBeforePhysicalCommit(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table journal_sync_order (id int primary key, value varchar(32))")
+
+	session := newTestMySQLSession()
+	mustExecSessionSQL(t, executor, session, "app", "start transaction")
+	mustExecSessionSQL(t, executor, session, "app", "insert into journal_sync_order values (1, 'pending')")
+	shared, ok := session.GetParamByName(clientStorageTransactionContextKey).(*StorageTransactionContext)
+	require.True(t, ok)
+	require.NotNil(t, shared)
+	require.NotNil(t, shared.RealTransaction)
+
+	syncCalls := 0
+	executor.QueryExecutor.transactionJournalSyncHook = func(string) error {
+		syncCalls++
+		return errors.New("injected pre-commit journal sync failure")
+	}
+	commit := <-executor.ExecuteQuery(session, "commit", "app")
+	require.ErrorContains(t, commit.Err, "injected pre-commit journal sync failure")
+	require.Equal(t, 1, syncCalls)
+	require.Same(t, shared, session.GetParamByName(clientStorageTransactionContextKey), "the storage transaction must remain retryable")
+	require.Equal(t, "ACTIVE", shared.Status, "physical storage commit must not outrun the recovery journal")
+	committed, err := executor.QueryExecutor.txManager.GetRedoLogManager().HasCommittedTransaction(shared.RealTransaction.ID)
+	require.NoError(t, err)
+	require.False(t, committed)
+
+	executor.QueryExecutor.transactionJournalSyncHook = nil
+	mustExecSessionSQL(t, executor, session, "app", "commit")
+	require.Equal(t, [][]interface{}{{"1", "pending"}}, mustQuerySQL(t, executor, "app", "select id, value from journal_sync_order"))
 }
 
 func TestClientCommitRecoveryPreservesStorageAfterPublisherErrorAndRestart(t *testing.T) {
@@ -557,6 +768,93 @@ func TestEngineSourceReplicaReplicatesCommittedDML(t *testing.T) {
 	mustExecSessionSQL(t, replica, promotedSession, "app", "insert into items (id, value) values (3, 'after-promote')")
 	promotedRows := mustQuerySQL(t, replica, "app", "select id from items where id = 3")
 	require.Len(t, promotedRows, 1)
+}
+
+func TestEngineSourceReplicaReconnectsAfterSourceRestartWithoutDuplicateTransactions(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sourceCfg := &conf.Cfg{
+		DataDir:                         t.TempDir(),
+		InnodbDataDir:                   t.TempDir(),
+		InnodbBufferPoolSize:            16 * 1024 * 1024,
+		ReplicationRole:                 "source",
+		ReplicationUUID:                 "restartable-engine-source",
+		ReplicationServerID:             111,
+		ReplicationListenAddress:        reserveTCPAddress(t),
+		ReplicationPollIntervalDuration: 10 * time.Millisecond,
+	}
+	sourceCfg.InnodbDataDir = sourceCfg.DataDir
+	var source *XMySQLEngine
+	startSource := func() {
+		source = NewXMySQLEngine(sourceCfg)
+		require.NoError(t, source.Start(ctx))
+	}
+	startSource()
+	t.Cleanup(func() {
+		if source != nil {
+			require.NoError(t, source.Close())
+		}
+	})
+	mustExecSQL(t, source, "", "create database app")
+	mustExecSQL(t, source, "app", "create table items (id int primary key, value varchar(64))")
+
+	replicaCfg := &conf.Cfg{
+		DataDir:                         t.TempDir(),
+		InnodbDataDir:                   t.TempDir(),
+		InnodbBufferPoolSize:            16 * 1024 * 1024,
+		ReplicationRole:                 "replica",
+		ReplicationUUID:                 "restartable-engine-replica",
+		ReplicationServerID:             112,
+		ReplicationListenAddress:        reserveTCPAddress(t),
+		ReplicationSourceURL:            "http://" + source.replicationRuntime.Address(),
+		ReplicationPollIntervalDuration: 10 * time.Millisecond,
+		ReplicationReadOnly:             false,
+	}
+	replicaCfg.InnodbDataDir = replicaCfg.DataDir
+	replica := NewXMySQLEngine(replicaCfg)
+	t.Cleanup(func() { require.NoError(t, replica.Close()) })
+	mustExecSQL(t, replica, "", "create database app")
+	mustExecSQL(t, replica, "app", "create table items (id int primary key, value varchar(64))")
+	require.NoError(t, replica.Start(ctx))
+
+	firstSession := newTestMySQLSession()
+	t.Cleanup(func() {
+		if source != nil {
+			source.QueryExecutor.clearSessionTransactionState(firstSession)
+		}
+	})
+	mustExecSessionSQLFully(t, source, firstSession, "app", "insert into items values (1, 'before-restart')")
+	require.Eventually(t, func() bool {
+		return len(mustQuerySQL(t, replica, "app", "select id from items where id = 1")) == 1
+	}, 5*time.Second, 20*time.Millisecond)
+
+	// Keep the replica alive while the source endpoint disappears. The source
+	// is restarted with the same data directory and UUID so its next GTID and
+	// durable native history continue from the previous process.
+	require.NoError(t, source.Close())
+	source = nil
+	time.Sleep(100 * time.Millisecond)
+	startSource()
+	secondSession := newTestMySQLSession()
+	t.Cleanup(func() {
+		if source != nil {
+			source.QueryExecutor.clearSessionTransactionState(secondSession)
+		}
+	})
+	mustExecSessionSQLFully(t, source, secondSession, "app", "insert into items values (2, 'after-restart')")
+	mustExecSessionSQLFully(t, source, secondSession, "app", "xa start 'restart-xa', 'branch', 1")
+	mustExecSessionSQLFully(t, source, secondSession, "app", "insert into items values (3, 'xa-after-restart')")
+	mustExecSessionSQLFully(t, source, secondSession, "app", "xa end 'restart-xa', 'branch', 1")
+	mustExecSessionSQLFully(t, source, secondSession, "app", "xa prepare 'restart-xa', 'branch', 1")
+	mustExecSessionSQLFully(t, source, secondSession, "app", "xa commit 'restart-xa', 'branch', 1")
+
+	require.Eventually(t, func() bool {
+		rows := mustQuerySQL(t, replica, "app", "select id, value from items order by id")
+		return len(rows) == 3 && rows[0][0] == "1" && rows[1][0] == "2" && rows[2][0] == "3"
+	}, 8*time.Second, 20*time.Millisecond)
+	rows := mustQuerySQL(t, replica, "app", "select id, value from items order by id")
+	require.Equal(t, [][]interface{}{{"1", "before-restart"}, {"2", "after-restart"}, {"3", "xa-after-restart"}}, rows)
 }
 
 func TestEngineSourceReplicaReplicatesCommittedDDL(t *testing.T) {

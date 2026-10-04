@@ -27,6 +27,60 @@ type performanceSchemaTableIOSummary struct {
 	delete       performanceSchemaTableIOCounters
 }
 
+// refreshPerformanceSchemaTableInstancesLost derives table-instance capacity
+// accounting from the runtime recorder's table-I/O summaries. These summaries
+// are the authoritative table objects currently instrumented by this server;
+// the counter is cumulative while the identity set tracks only currently
+// overflowing objects so a table that becomes visible again can be counted if
+// it overflows later.
+func (e *XMySQLExecutor) refreshPerformanceSchemaTableInstancesLost() {
+	if e == nil || e.metricsRecorder == nil {
+		return
+	}
+	keys := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, summary := range e.metricsRecorder.TableIOSummary() {
+		if strings.TrimSpace(summary.ObjectSchema) == "" || strings.TrimSpace(summary.ObjectName) == "" {
+			continue
+		}
+		setting, configured := e.performanceSchemaObjectSettingFor("TABLE", summary.ObjectSchema, summary.ObjectName)
+		if configured && !setting.Enabled {
+			continue
+		}
+		key := summary.ObjectType + "\x00" + summary.ObjectSchema + "\x00" + summary.ObjectName
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	capacity := e.performanceSchemaCapacity("performance_schema_max_table_instances")
+	overflow := make(map[string]struct{})
+	if capacity < len(keys) {
+		for _, key := range keys[capacity:] {
+			overflow[key] = struct{}{}
+		}
+	}
+	e.performanceSchemaMu.Lock()
+	if e.performanceSchemaTableInstanceLostKeys == nil {
+		e.performanceSchemaTableInstanceLostKeys = make(map[string]struct{})
+	}
+	for key := range overflow {
+		if _, exists := e.performanceSchemaTableInstanceLostKeys[key]; exists {
+			continue
+		}
+		e.performanceSchemaTableInstanceLostKeys[key] = struct{}{}
+		e.performanceSchemaTableInstancesLost.Add(1)
+	}
+	for key := range e.performanceSchemaTableInstanceLostKeys {
+		if _, exists := overflow[key]; !exists {
+			delete(e.performanceSchemaTableInstanceLostKeys, key)
+		}
+	}
+	e.performanceSchemaMu.Unlock()
+}
+
 var performanceSchemaTableReferencePattern = regexp.MustCompile("(?i)\\b(?:from|join|into|update)\\s+([[:alnum:]_$`.-]+)")
 
 func performanceSchemaTableReferences(query, defaultSchema string) [][2]string {
@@ -125,14 +179,6 @@ func (e *XMySQLExecutor) executePerformanceSchemaTableIOSummarySelect(query stri
 			if strings.EqualFold(ref[0], "performance_schema") || strings.EqualFold(ref[0], "information_schema") {
 				continue
 			}
-			if !performanceSchemaSummaryFilterMatches(query, "OBJECT_TYPE", "TABLE") ||
-				!performanceSchemaSummaryFilterMatches(query, "OBJECT_SCHEMA", ref[0]) ||
-				!performanceSchemaSummaryFilterMatches(query, "OBJECT_NAME", ref[1]) {
-				continue
-			}
-			if byIndex && !performanceSchemaSummaryFilterMatches(query, "INDEX_NAME", "") {
-				continue
-			}
 			indexName := ""
 			key := ref[0] + "\x00" + ref[1]
 			if byIndex {
@@ -174,6 +220,9 @@ func (e *XMySQLExecutor) executePerformanceSchemaTableIOSummarySelect(query stri
 		}
 		return values[i].objectName < values[j].objectName
 	})
+	if byIndex {
+		values = e.applyPerformanceSchemaIndexStatCapacity(values)
+	}
 	rows := make([][]interface{}, 0, len(values))
 	for _, summary := range values {
 		row := map[string]interface{}{
@@ -215,6 +264,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaTableIOSummarySelect(query stri
 }
 
 func (e *XMySQLExecutor) executePerformanceSchemaTableIOSummaryFromRecorder(query string, byIndex bool, columns []string) *SelectResult {
+	e.refreshPerformanceSchemaTableInstancesLost()
 	source := e.metricsRecorder.TableIOSummary()
 	if byIndex {
 		source = e.metricsRecorder.TableIOIndexSummary()
@@ -239,14 +289,6 @@ func (e *XMySQLExecutor) executePerformanceSchemaTableIOSummaryFromRecorder(quer
 	for _, event := range source {
 		objectSetting, objectConfigured := e.performanceSchemaObjectSettingFor("TABLE", event.ObjectSchema, event.ObjectName)
 		if !objectConfigured || !objectSetting.Enabled {
-			continue
-		}
-		if !performanceSchemaSummaryFilterMatches(query, "OBJECT_TYPE", event.ObjectType) ||
-			!performanceSchemaSummaryFilterMatches(query, "OBJECT_SCHEMA", event.ObjectSchema) ||
-			!performanceSchemaSummaryFilterMatches(query, "OBJECT_NAME", event.ObjectName) {
-			continue
-		}
-		if byIndex && !performanceSchemaSummaryFilterMatches(query, "INDEX_NAME", event.IndexName) {
 			continue
 		}
 		current := performanceSchemaTableIOSummary{
@@ -300,6 +342,10 @@ func (e *XMySQLExecutor) executePerformanceSchemaTableIOSummaryFromRecorder(quer
 		}
 		return values[i].indexName < values[j].indexName
 	})
+	if byIndex {
+		values = e.applyPerformanceSchemaIndexStatCapacity(values)
+	}
+	values = e.applyPerformanceSchemaTableInstanceCapacity(values)
 	rows := make([][]interface{}, 0, len(values))
 	for _, summary := range values {
 		row := map[string]interface{}{
@@ -338,4 +384,62 @@ func (e *XMySQLExecutor) executePerformanceSchemaTableIOSummaryFromRecorder(quer
 		name = "performance_schema.table_io_waits_summary_by_index_usage"
 	}
 	return newInformationSchemaSelectResult(name, columns, rows)
+}
+
+// applyPerformanceSchemaTableInstanceCapacity projects max_table_instances
+// over the table identities represented by the already aggregated I/O rows.
+// Values are sorted by table identity before this helper is called, making the
+// retained set deterministic for compatibility tests and diagnostics.
+func (e *XMySQLExecutor) applyPerformanceSchemaTableInstanceCapacity(values []performanceSchemaTableIOSummary) []performanceSchemaTableIOSummary {
+	if e == nil || len(values) == 0 {
+		return values
+	}
+	capacity := e.performanceSchemaCapacity("performance_schema_max_table_instances")
+	retained := make(map[string]struct{})
+	for _, value := range values {
+		key := value.objectType + "\x00" + value.objectSchema + "\x00" + value.objectName
+		if _, exists := retained[key]; exists {
+			continue
+		}
+		if len(retained) >= capacity {
+			break
+		}
+		retained[key] = struct{}{}
+	}
+	if len(retained) >= len(values) {
+		return values
+	}
+	filtered := make([]performanceSchemaTableIOSummary, 0, len(values))
+	for _, value := range values {
+		key := value.objectType + "\x00" + value.objectSchema + "\x00" + value.objectName
+		if _, exists := retained[key]; exists {
+			filtered = append(filtered, value)
+		}
+	}
+	return filtered
+}
+
+// applyPerformanceSchemaIndexStatCapacity projects the configured MySQL
+// index-statistics table capacity and records each distinct row that could not
+// be retained. Callers apply query predicates only after this helper so an
+// evicted index row cannot be resurrected by a selective read.
+func (e *XMySQLExecutor) applyPerformanceSchemaIndexStatCapacity(values []performanceSchemaTableIOSummary) []performanceSchemaTableIOSummary {
+	if e == nil {
+		return values
+	}
+	capacity := e.performanceSchemaIndexStatCapacity()
+	if capacity < len(values) {
+		e.performanceSchemaMu.Lock()
+		for _, summary := range values[capacity:] {
+			key := summary.objectSchema + "\x00" + summary.objectName + "\x00" + summary.indexName
+			if _, exists := e.performanceSchemaIndexStatLostKeys[key]; exists {
+				continue
+			}
+			e.performanceSchemaIndexStatLostKeys[key] = struct{}{}
+			e.performanceSchemaIndexStatLost.Add(1)
+		}
+		e.performanceSchemaMu.Unlock()
+		values = values[:capacity]
+	}
+	return values
 }

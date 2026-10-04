@@ -686,6 +686,42 @@ func TestInformationSchemaCatalogColumnsUseDefaultCatalog(t *testing.T) {
 	}
 }
 
+func TestInformationSchemaMetadataPredicatesSupportInNotInAndNull(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table metadata_predicates (id int primary key)")
+
+	matched := mustQuerySQL(t, executor, "", "select table_name from information_schema.tables where table_schema in ('app') and table_name in ('metadata_predicates')")
+	require.Equal(t, [][]interface{}{{"metadata_predicates"}}, matched)
+
+	notIn := mustQuerySQL(t, executor, "", "select table_name from information_schema.tables where table_schema not in ('missing') and table_name in ('metadata_predicates', 'other') and table_name not in ('other')")
+	require.Equal(t, [][]interface{}{{"metadata_predicates"}}, notIn)
+
+	require.Empty(t, mustQuerySQL(t, executor, "", "select table_name from information_schema.tables where table_name is null"))
+	require.NotEmpty(t, mustQuerySQL(t, executor, "", "select table_name from information_schema.tables where table_name is not null and table_name='metadata_predicates'"))
+}
+
+func TestInformationSchemaMetadataEmptyStringPredicatesDoNotRestoreRows(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table metadata_empty (id int primary key)")
+
+	require.Empty(t, mustQuerySQL(t, executor, "", "select table_name from information_schema.tables where table_schema = ''"))
+	require.Empty(t, mustQuerySQL(t, executor, "", "select table_name from information_schema.tables where table_name like ''"))
+	require.Empty(t, mustQuerySQL(t, executor, "", "select table_name, column_name from information_schema.columns where table_schema = ''"))
+}
+
+func TestInformationSchemaPrivilegeEmptyStringPredicatesDoNotRestoreRows(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table privilege_empty (id int primary key)")
+	mustExecSQL(t, executor, "", "create user 'privilege_reader'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant select on app.privilege_empty to 'privilege_reader'@'localhost'")
+
+	require.Empty(t, mustQuerySQL(t, executor, "", "select table_name from information_schema.table_privileges where table_schema = ''"))
+	require.Empty(t, mustQuerySQL(t, executor, "", "select table_name from information_schema.table_privileges where privilege_type like ''"))
+}
+
 func TestInformationSchemaNativeMetadataRefreshesAfterRenameAndDrop(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	mustExecSQL(t, executor, "", "create database app")
@@ -814,6 +850,8 @@ func TestInformationSchemaSpatialAndResourceCatalogsExposeNativeRows(t *testing.
 	require.Equal(t, []interface{}{"metre", "LINEAR", "1", ""}, metre)
 	metreByFactor := mustSelectResultSQL(t, executor, "", "select unit_name from information_schema.st_units_of_measure where conversion_factor = 1")
 	require.Equal(t, [][]interface{}{{"metre"}}, selectResultRows(metreByFactor))
+	emptyUnitName := mustQuerySQL(t, executor, "", "select unit_name from information_schema.st_units_of_measure where unit_name = ''")
+	require.Empty(t, emptyUnitName)
 	missingFactor := mustSelectResultSQL(t, executor, "", "select unit_name from information_schema.st_units_of_measure where conversion_factor = 999")
 	require.Empty(t, missingFactor.Records)
 
@@ -837,6 +875,10 @@ func TestInformationSchemaSpatialAndResourceCatalogsExposeNativeRows(t *testing.
 	require.Len(t, epsg.Records, 2)
 	mercator := mustSelectResultSQL(t, executor, "", "select srs_name, srs_id from information_schema.st_spatial_reference_systems where organization_coordsys_id = 3857")
 	require.Equal(t, [][]interface{}{{"WGS 84 / Pseudo-Mercator", "3857"}}, selectResultRows(mercator))
+	epsgByLike := mustSelectResultSQL(t, executor, "", "select srs_id from information_schema.st_spatial_reference_systems where srs_id like '4%'")
+	require.Equal(t, [][]interface{}{{"4326"}}, selectResultRows(epsgByLike))
+	emptySRSName := mustQuerySQL(t, executor, "", "select srs_name from information_schema.st_spatial_reference_systems where srs_name like ''")
+	require.Equal(t, [][]interface{}{{""}}, emptySRSName)
 	missingDefinition := mustSelectResultSQL(t, executor, "", "select srs_id from information_schema.st_spatial_reference_systems where definition = 'not-a-real-definition'")
 	require.Empty(t, missingDefinition.Records)
 
@@ -856,6 +898,8 @@ func TestInformationSchemaSpatialAndResourceCatalogsExposeNativeRows(t *testing.
 		require.Equal(t, []interface{}{expected.name, expected.groupType, "1", found[3], "0"}, found)
 		require.NotEmpty(t, found[3])
 	}
+	emptyResourceGroup := mustQuerySQL(t, executor, "", "select resource_group_name from information_schema.resource_groups where resource_group_name = ''")
+	require.Empty(t, emptyResourceGroup)
 	groupMetadata := mustSelectResultSQL(t, executor, "", "select column_name, data_type, character_maximum_length, column_type, is_nullable from information_schema.columns where table_schema='information_schema' and table_name='resource_groups' order by ordinal_position")
 	require.Equal(t, [][]interface{}{
 		{"RESOURCE_GROUP_NAME", "VARCHAR", "64", "VARCHAR(64)", "NO"},
@@ -929,6 +973,8 @@ func TestInformationSchemaKeywordsApplyWordAndReservedFilters(t *testing.T) {
 
 	nonReserved := mustSelectResultSQL(t, executor, "", "select word from information_schema.keywords where not reserved")
 	require.Equal(t, [][]interface{}{{"FULLTEXT"}}, filterRowsByFirstColumn(selectResultRows(nonReserved), "FULLTEXT"))
+	emptyWord := mustQuerySQL(t, executor, "", "select word from information_schema.keywords where word = ''")
+	require.Empty(t, emptyWord)
 }
 
 func filterRowsByFirstColumn(rows [][]interface{}, value string) [][]interface{} {
@@ -1079,6 +1125,8 @@ func TestInformationSchemaExtensionViewsReuseNativeMetadata(t *testing.T) {
 	usage := mustSelectResultSQL(t, executor, "app", "select view_schema, view_name, table_schema, table_name from information_schema.view_table_usage where view_schema='app' and view_name='extension_view'")
 	require.Equal(t, []string{"VIEW_SCHEMA", "VIEW_NAME", "TABLE_SCHEMA", "TABLE_NAME"}, usage.Columns)
 	require.Contains(t, selectResultRows(usage), []interface{}{"app", "extension_view", "app", "extension_rows"})
+	emptySchema := mustQuerySQL(t, executor, "", "select view_name from information_schema.view_table_usage where view_schema = ''")
+	require.Empty(t, emptySchema)
 }
 
 func TestInformationSchemaExtensionViewsApplyNullableAttributePredicates(t *testing.T) {
@@ -1190,6 +1238,8 @@ func TestInformationSchemaViewRoutineUsageReflectsStoredFunctions(t *testing.T) 
 	usage := mustSelectResultSQL(t, executor, "app", "select table_catalog, table_schema, table_name, specific_catalog, specific_schema, specific_name from information_schema.view_routine_usage where table_schema='app' and specific_name='add_one'")
 	require.Equal(t, []string{"TABLE_CATALOG", "TABLE_SCHEMA", "TABLE_NAME", "SPECIFIC_CATALOG", "SPECIFIC_SCHEMA", "SPECIFIC_NAME"}, usage.Columns)
 	require.Contains(t, selectResultRows(usage), []interface{}{"def", "app", "function_view", "def", "app", "add_one"})
+	emptySchema := mustQuerySQL(t, executor, "", "select table_name from information_schema.view_routine_usage where table_schema = ''")
+	require.Empty(t, emptySchema)
 }
 
 func TestInformationSchemaViewRoutineUsageUsesSomePrivilegeInsteadOfShowView(t *testing.T) {
@@ -1266,6 +1316,8 @@ func TestInformationSchemaSTGeometryColumnsReflectsPersistedGeometryMetadata(t *
 	require.Equal(t, "location", result.Records[0].GetValues()[2].String())
 	require.Equal(t, "GEOMETRY", result.Records[0].GetValues()[3].String())
 	require.Nil(t, result.Records[0].GetValues()[4].Raw())
+	emptySRS := mustQuerySQL(t, executor, "", "select column_name from information_schema.st_geometry_columns where table_schema = 'app' and srs_id = ''")
+	require.Empty(t, emptySRS)
 	metadata := mustSelectResultSQL(t, executor, "", "select column_name, data_type, character_maximum_length, numeric_precision, column_type, is_nullable from information_schema.columns where table_schema='information_schema' and table_name='st_geometry_columns' order by ordinal_position")
 	require.Equal(t, [][]interface{}{
 		{"TABLE_CATALOG", "VARCHAR", "64", "", "VARCHAR(64)", "NO"},
@@ -1431,7 +1483,7 @@ func TestInformationSchemaPrivilegeViewsRespectSessionVisibility(t *testing.T) {
 	require.NotContains(t, schemaPrivileges, []interface{}{"'priv_other'@'localhost'", "app"})
 
 	userPrivileges := mustQuerySessionSQL(t, executor, session, "", "select grantee, privilege_type from information_schema.user_privileges")
-	require.Empty(t, userPrivileges)
+	require.Equal(t, [][]interface{}{{"'priv_reader'@'localhost'", "USAGE"}}, userPrivileges)
 }
 
 func TestInformationSchemaPrivilegeViewsHonorGlobalMySQLUserVisibility(t *testing.T) {
@@ -1461,6 +1513,8 @@ func TestInformationSchemaPrivilegeViewsApplyPrivilegePredicates(t *testing.T) {
 
 	tableRows := mustQuerySQL(t, executor, "", "select privilege_type from information_schema.table_privileges where grantee = \"'filtered_reader'@'localhost'\" and privilege_type = 'SELECT'")
 	require.Equal(t, [][]interface{}{{"SELECT"}}, tableRows)
+	tableInRows := mustQuerySQL(t, executor, "", "select privilege_type from information_schema.table_privileges where grantee = \"'filtered_reader'@'localhost'\" and privilege_type in ('SELECT')")
+	require.Equal(t, [][]interface{}{{"SELECT"}}, tableInRows)
 
 	schemaRows := mustQuerySQL(t, executor, "", "select privilege_type from information_schema.schema_privileges where grantee = \"'filtered_reader'@'localhost'\" and privilege_type like 'INS%'")
 	require.Equal(t, [][]interface{}{{"INSERT"}}, schemaRows)
@@ -1470,6 +1524,23 @@ func TestInformationSchemaPrivilegeViewsApplyPrivilegePredicates(t *testing.T) {
 
 	missingRows := mustQuerySQL(t, executor, "", "select privilege_type from information_schema.user_privileges where grantee = \"'filtered_reader'@'localhost'\" and privilege_type = 'DOES_NOT_EXIST'")
 	require.Empty(t, missingRows)
+}
+
+func TestInformationSchemaPrivilegeViewsApplyNullPredicates(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database null_privileges")
+	mustExecSQL(t, executor, "null_privileges", "create table records (id int primary key)")
+	mustExecSQL(t, executor, "", "create user 'null_reader'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant select on null_privileges.records to 'null_reader'@'localhost'")
+
+	notNull := mustQuerySQL(t, executor, "", "select privilege_type from information_schema.table_privileges where grantee = \"'null_reader'@'localhost'\" and privilege_type is not null")
+	require.Equal(t, [][]interface{}{{"SELECT"}}, notNull)
+
+	nullRows := mustQuerySQL(t, executor, "", "select privilege_type from information_schema.table_privileges where grantee = \"'null_reader'@'localhost'\" and privilege_type is null")
+	require.Empty(t, nullRows)
+
+	schemaNullRows := mustQuerySQL(t, executor, "", "select privilege_type from information_schema.table_privileges where grantee = \"'null_reader'@'localhost'\" and table_schema is null")
+	require.Empty(t, schemaNullRows)
 }
 
 func TestInformationSchemaUserPrivilegesIncludesPersistedDynamicGlobalGrants(t *testing.T) {
@@ -1488,6 +1559,17 @@ func TestInformationSchemaUserPrivilegesIncludesPersistedDynamicGlobalGrants(t *
 	session.SetParamByName("host", "localhost")
 	rows := mustQuerySessionSQL(t, executor, session, "", "select grantee, privilege_type from information_schema.user_privileges")
 	require.Contains(t, rows, []interface{}{"'dynamic_viewer'@'localhost'", "BACKUP_ADMIN"})
+}
+
+func TestInformationSchemaUserPrivilegesIncludesUsageForUnprivilegedAccount(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'usage_only'@'localhost' identified by 'secret'")
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "usage_only")
+	session.SetParamByName("host", "localhost")
+	rows := mustQuerySessionSQL(t, executor, session, "", "select grantee, table_catalog, privilege_type, is_grantable from information_schema.user_privileges")
+	require.Equal(t, [][]interface{}{{"'usage_only'@'localhost'", "def", "USAGE", "NO"}}, rows)
 }
 
 func TestInformationSchemaPrivilegeVisibilityHonorsDynamicSystemUserGrant(t *testing.T) {

@@ -82,7 +82,7 @@ func (e *XMySQLExecutor) executeXACompatibility(ctx *ExecutionContext, session s
 	case "START":
 		if hasXAOption(options, "RESUME") || hasXAOption(options, "JOIN") {
 			if state == "SUSPENDED" && currentKey == xid.key() {
-				suspended := e.takeSuspendedXA(xid.key())
+				suspended := e.takeSuspendedXA(xid.key(), session)
 				session.SetParamByName("xa_state", "ACTIVE")
 				if suspended != nil {
 					if err := e.removeSuspendedXAManifest(suspended); err != nil {
@@ -92,9 +92,9 @@ func (e *XMySQLExecutor) executeXACompatibility(ctx *ExecutionContext, session s
 				return true, nil
 			}
 			if state == "" && !sessionBoolParam(session, "in_transaction") {
-				if suspended := e.takeSuspendedXA(xid.key()); suspended != nil {
+				if suspended := e.takeSuspendedXA(xid.key(), session); suspended != nil {
 					if err := e.attachSuspendedXA(suspended, session); err != nil {
-						e.restoreSuspendedXA(suspended)
+						e.restoreSuspendedXA(suspended, session)
 						return true, err
 					}
 					if err := e.removeSuspendedXAManifest(suspended); err != nil {
@@ -111,10 +111,10 @@ func (e *XMySQLExecutor) executeXACompatibility(ctx *ExecutionContext, session s
 		if len(options) > 0 {
 			return true, fmt.Errorf("XAER_NOTA: XA START %s requires a suspended XA transaction in this session", strings.Join(options, " "))
 		}
-		e.xaMu.Lock()
+		e.lockXAMutex(session)
 		_, duplicatePrepared := e.xaPrepared[xid.key()]
 		_, duplicateSuspended := e.xaSuspended[xid.key()]
-		e.xaMu.Unlock()
+		e.unlockXAMutex()
 		if duplicatePrepared || duplicateSuspended {
 			return true, fmt.Errorf("XAER_DUPID: XA transaction already exists")
 		}
@@ -139,7 +139,7 @@ func (e *XMySQLExecutor) executeXACompatibility(ctx *ExecutionContext, session s
 				return true, fmt.Errorf("XAER_RMFAIL: persist suspended XA transaction: %w", err)
 			}
 		} else {
-			e.takeSuspendedXA(xid.key())
+			e.takeSuspendedXA(xid.key(), session)
 			session.SetParamByName("xa_state", "IDLE")
 		}
 		return true, nil
@@ -161,8 +161,8 @@ func (e *XMySQLExecutor) executeXACompatibility(ctx *ExecutionContext, session s
 			journalID:         e.transactionJournalID(session),
 			preparedAtPrepare: true,
 		}
-		e.xaMu.Lock()
-		defer e.xaMu.Unlock()
+		e.lockXAMutex(session)
+		defer e.unlockXAMutex()
 		if e.xaPrepared == nil {
 			e.xaPrepared = make(map[string]*xaPreparedTransaction)
 		}
@@ -192,12 +192,12 @@ func (e *XMySQLExecutor) executeXACompatibility(ctx *ExecutionContext, session s
 			}
 			return true, e.finishXATransaction(xid, session, false, true)
 		}
-		prepared, exists := e.takePreparedXA(xid.key())
+		prepared, exists := e.takePreparedXA(xid.key(), session)
 		if !exists {
 			return true, fmt.Errorf("XAER_NOTA: XA COMMIT references an unknown prepared XID")
 		}
 		if err := e.finishPreparedXATransaction(prepared, false); err != nil {
-			e.restorePreparedXA(prepared)
+			e.restorePreparedXA(prepared, session)
 			return true, err
 		}
 		return true, nil
@@ -209,12 +209,12 @@ func (e *XMySQLExecutor) executeXACompatibility(ctx *ExecutionContext, session s
 			}
 			return true, e.finishXATransaction(xid, session, true, false)
 		}
-		prepared, exists := e.takePreparedXA(xid.key())
+		prepared, exists := e.takePreparedXA(xid.key(), session)
 		if !exists {
 			return true, fmt.Errorf("XAER_NOTA: XA ROLLBACK references an unknown prepared XID")
 		}
 		if err := e.finishPreparedXATransaction(prepared, true); err != nil {
-			e.restorePreparedXA(prepared)
+			e.restorePreparedXA(prepared, session)
 			return true, err
 		}
 		return true, nil
@@ -250,9 +250,9 @@ func sessionHasXARecoverPrivilege(session server.MySQLServerSession) bool {
 	return false
 }
 
-func (e *XMySQLExecutor) takePreparedXA(key string) (*xaPreparedTransaction, bool) {
-	e.xaMu.Lock()
-	defer e.xaMu.Unlock()
+func (e *XMySQLExecutor) takePreparedXA(key string, session server.MySQLServerSession) (*xaPreparedTransaction, bool) {
+	e.lockXAMutex(session)
+	defer e.unlockXAMutex()
 	prepared, ok := e.xaPrepared[key]
 	if ok {
 		delete(e.xaPrepared, key)
@@ -260,16 +260,16 @@ func (e *XMySQLExecutor) takePreparedXA(key string) (*xaPreparedTransaction, boo
 	return prepared, ok
 }
 
-func (e *XMySQLExecutor) restorePreparedXA(prepared *xaPreparedTransaction) {
+func (e *XMySQLExecutor) restorePreparedXA(prepared *xaPreparedTransaction, session server.MySQLServerSession) {
 	if prepared == nil {
 		return
 	}
-	e.xaMu.Lock()
+	e.lockXAMutex(session)
 	if e.xaPrepared == nil {
 		e.xaPrepared = make(map[string]*xaPreparedTransaction)
 	}
 	e.xaPrepared[prepared.xid.key()] = prepared
-	e.xaMu.Unlock()
+	e.unlockXAMutex()
 }
 
 func (e *XMySQLExecutor) finishXATransaction(xid xaIdentifier, session server.MySQLServerSession, rollback bool, onePhase bool) error {
@@ -449,21 +449,21 @@ func (e *XMySQLExecutor) rememberSuspendedXA(xid xaIdentifier, session server.My
 	if err := e.persistSuspendedXAManifest(suspended); err != nil {
 		return err
 	}
-	e.xaMu.Lock()
+	e.lockXAMutex(session)
 	if e.xaSuspended == nil {
 		e.xaSuspended = make(map[string]*xaSuspendedTransaction)
 	}
 	e.xaSuspended[xid.key()] = suspended
-	e.xaMu.Unlock()
+	e.unlockXAMutex()
 	return nil
 }
 
-func (e *XMySQLExecutor) takeSuspendedXA(key string) *xaSuspendedTransaction {
+func (e *XMySQLExecutor) takeSuspendedXA(key string, session server.MySQLServerSession) *xaSuspendedTransaction {
 	if e == nil {
 		return nil
 	}
-	e.xaMu.Lock()
-	defer e.xaMu.Unlock()
+	e.lockXAMutex(session)
+	defer e.unlockXAMutex()
 	if e.xaSuspended == nil {
 		return nil
 	}
@@ -474,16 +474,16 @@ func (e *XMySQLExecutor) takeSuspendedXA(key string) *xaSuspendedTransaction {
 	return suspended
 }
 
-func (e *XMySQLExecutor) restoreSuspendedXA(suspended *xaSuspendedTransaction) {
+func (e *XMySQLExecutor) restoreSuspendedXA(suspended *xaSuspendedTransaction, session server.MySQLServerSession) {
 	if e == nil || suspended == nil {
 		return
 	}
-	e.xaMu.Lock()
+	e.lockXAMutex(session)
 	if e.xaSuspended == nil {
 		e.xaSuspended = make(map[string]*xaSuspendedTransaction)
 	}
 	e.xaSuspended[suspended.xid.key()] = suspended
-	e.xaMu.Unlock()
+	e.unlockXAMutex()
 }
 
 func (e *XMySQLExecutor) attachSuspendedXA(suspended *xaSuspendedTransaction, session server.MySQLServerSession) error {
@@ -537,14 +537,18 @@ func appendXASession(participants []server.MySQLServerSession, session server.My
 
 func (e *XMySQLExecutor) executeXARecover(ctx *ExecutionContext, convertXID bool) error {
 	columns := []string{"formatID", "gtrid_length", "bqual_length", "data"}
-	e.xaMu.Lock()
+	var session server.MySQLServerSession
+	if ctx != nil {
+		session = ctx.Session
+	}
+	e.lockXAMutex(session)
 	rows := make([][]interface{}, 0, len(e.xaPrepared))
 	for _, prepared := range e.xaPrepared {
 		if prepared != nil {
 			rows = append(rows, prepared.xid.recoverRow(convertXID))
 		}
 	}
-	e.xaMu.Unlock()
+	e.unlockXAMutex()
 	sortXARecoverRows(rows)
 	ctx.Results <- &Result{Data: newInformationSchemaSelectResult("XA RECOVER", columns, rows), ResultType: innodbcommon.RESULT_TYPE_SELECT, Message: fmt.Sprintf("XA RECOVER returned %d prepared transactions", len(rows))}
 	return nil

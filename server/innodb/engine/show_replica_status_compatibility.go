@@ -85,10 +85,7 @@ func (e *XMySQLExecutor) checkShowReplicaStatusPrivilege(ctx *ExecutionContext) 
 }
 
 func (e *XMySQLExecutor) executeShowReplicaStatus(ctx *ExecutionContext) {
-	if channel, matched := parseShowReplicaStatusChannel(ctx.RawQuery); matched && channel != "" {
-		ctx.Results <- &Result{Err: fmt.Errorf("only the default replication channel is supported"), ResultType: common.RESULT_TYPE_QUERY}
-		return
-	}
+	channel, channelSyntax := parseShowReplicaStatusChannel(ctx.RawQuery)
 	if err := e.checkShowReplicaStatusPrivilege(ctx); err != nil {
 		ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
 		return
@@ -108,11 +105,25 @@ func (e *XMySQLExecutor) executeShowReplicaStatus(ctx *ExecutionContext) {
 		"Retrieved_Gtid_Set", "Executed_Gtid_Set", "Auto_Position", "Replicate_Rewrite_DB", "Channel_Name",
 		"Source_TLS_Version", "Source_public_key_path", "Get_Source_public_key", "Network_Namespace",
 	}
-	if e == nil || e.replicationStatus == nil {
-		ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: newInformationSchemaSelectResult("replica_status", columns, nil), Message: "No replication status available"}
-		return
+	var status replication.StatusSnapshot
+	if channelSyntax && channel != "" {
+		if e == nil || e.replicationStatusForChannel == nil {
+			ctx.Results <- &Result{Err: fmt.Errorf("only the default replication channel is supported"), ResultType: common.RESULT_TYPE_QUERY}
+			return
+		}
+		var err error
+		status, err = e.replicationStatusForChannel(channel)
+		if err != nil {
+			ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
+			return
+		}
+	} else {
+		if e == nil || e.replicationStatus == nil {
+			ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: newInformationSchemaSelectResult("replica_status", columns, nil), Message: "No replication status available"}
+			return
+		}
+		status = e.replicationStatus()
 	}
-	status := e.replicationStatus()
 	if status.Role != replication.RoleReplica {
 		ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: newInformationSchemaSelectResult("replica_status", columns, nil), Message: "No replication status available"}
 		return
@@ -177,7 +188,14 @@ func (e *XMySQLExecutor) executeShowReplicaStatus(ctx *ExecutionContext) {
 		status.ExecutedGTIDs, status.ExecutedGTIDs, autoPosition, nil, "",
 		nil, nil, int64(0), nil,
 	}
-	row[54] = replicationRewriteDBStatusValue(status)
+	for index, column := range columns {
+		switch column {
+		case "Replicate_Rewrite_DB":
+			row[index] = replicationRewriteDBStatusValue(status)
+		case "Channel_Name":
+			row[index] = status.ChannelName
+		}
+	}
 	result := newInformationSchemaSelectResult("replica_status", columns, [][]interface{}{row})
 	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: result, Message: "Replication status returned"}
 }

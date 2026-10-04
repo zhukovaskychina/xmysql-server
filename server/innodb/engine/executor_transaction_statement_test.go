@@ -1117,3 +1117,24 @@ func TestResetSessionRollsBackRuntimeTransactionState(t *testing.T) {
 	require.False(t, session.SessionContext().GetInTransaction())
 	require.Empty(t, session.GetParamByName("user_variables"))
 }
+
+func TestResetSessionClearsDirectUserVariableParameters(t *testing.T) {
+	executor := NewXMySQLExecutor(nil, &conf.Cfg{InnodbDataDir: t.TempDir()})
+	xengine := &XMySQLEngine{conf: &conf.Cfg{InnodbDataDir: t.TempDir()}, QueryExecutor: executor}
+	session := newTestMySQLSession()
+
+	result := <-xengine.ExecuteQuery(session, "set @reset_answer = 42", "")
+	require.NoError(t, result.Err)
+	variables, ok := session.GetParamByName("user_variables").(map[string]interface{})
+	require.True(t, ok)
+	require.Equal(t, int64(42), variables["reset_answer"])
+	require.Equal(t, int64(42), session.GetParamByName("@reset_answer"))
+	require.Equal(t, int64(42), session.GetParamByName("reset_answer"))
+
+	require.NoError(t, executor.ResetSession(session))
+	variables, ok = session.GetParamByName("user_variables").(map[string]interface{})
+	require.True(t, ok)
+	require.Empty(t, variables)
+	require.Nil(t, session.GetParamByName("@reset_answer"))
+	require.Nil(t, session.GetParamByName("reset_answer"))
+}

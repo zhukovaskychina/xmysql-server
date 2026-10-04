@@ -112,7 +112,7 @@ func TestShowBinlogEventsFiltersRotatedFile(t *testing.T) {
 	require.NoError(t, result.Err)
 	selectResult, ok := result.Data.(*SelectResult)
 	require.True(t, ok)
-	require.Len(t, selectResult.Records, 3)
+	require.Len(t, selectResult.Records, 4)
 	for _, record := range selectResult.Records {
 		require.Equal(t, "binlog.000002", record.GetValues()[0].String())
 		require.NotContains(t, record.GetValues()[5].String(), "values (1)")
@@ -153,8 +153,8 @@ func TestShowBinlogEventsUsesNativePhysicalPositions(t *testing.T) {
 	require.NoError(t, err)
 	native, err := source.Writer.NativeEvents("binlog.000001")
 	require.NoError(t, err)
-	require.Len(t, native, 5)
-	queryPosition := native[3].Position // FDE, PREVIOUS_GTIDS, GTID, QUERY
+	require.Len(t, native, 6)
+	queryPosition := native[4].Position // FDE, PREVIOUS_GTIDS, GTID, BEGIN, QUERY, XID
 
 	executor := &XMySQLExecutor{}
 	executor.SetReplicationSourceProvider(func() *replication.Source { return source })

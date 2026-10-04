@@ -98,7 +98,7 @@ func ClassifyGoError(err error) *common.SQLError {
 		code = common.ErrBadNull
 	case strings.Contains(lower, "no database selected"):
 		code = common.ErrNoDB
-	case strings.Contains(lower, "does not exist") && strings.Contains(lower, "table"):
+	case (strings.Contains(lower, "does not exist") || strings.Contains(lower, "doesn't exist") || strings.Contains(lower, "not found")) && strings.Contains(lower, "table"):
 		code = common.ErrNoSuchTable
 	case strings.Contains(lower, "access denied") || strings.Contains(lower, "permission"):
 		code = common.ErrAccessDenied

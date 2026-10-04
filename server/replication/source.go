@@ -3,6 +3,7 @@ package replication
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -45,6 +46,11 @@ type sourceDurableState struct {
 // boundary between writing a replacement state file and renaming it into
 // place.
 var replicationFileSyncHook func(*os.File) error
+
+// replicationDirectorySyncHook is test-only fault injection for the
+// directory-entry durability boundary after an atomic replacement is renamed
+// into place.
+var replicationDirectorySyncHook func(string) error
 
 func NewSource(dataDir, uuid string, serverID uint32) (*Source, error) {
 	statePath := filepath.Join(dataDir, "replication", "source_gtid.json")
@@ -189,6 +195,12 @@ func (source *Source) appendTransactionLockedWithKey(seq uint64, changes []RowCh
 	}
 	gtid := GTID{UUID: source.UUID, Seq: seq}
 	if source.Executed.Contains(gtid) {
+		// The binlog may have been durable while the state replacement failed.
+		// Re-persist on an idempotent retry so the same process converges too;
+		// startup reconciliation is only the crash-recovery fallback.
+		if err := source.persistDurableState(); err != nil {
+			return nil, err
+		}
 		return nil, nil
 	}
 	events, err := source.Writer.AppendTransactionWithKey(gtid, changes, statements, key)
@@ -239,6 +251,9 @@ func (source *Source) AppendCommittedTransactionWithKey(key string, changes []Ro
 	source.mu.Lock()
 	defer source.mu.Unlock()
 	if gtid, ok := source.transactionKeys[key]; ok && source.Executed.Contains(gtid) {
+		if err := source.persistDurableState(); err != nil {
+			return nil, err
+		}
 		return nil, nil
 	}
 	if gtid, ok := source.transactionKeys[key]; ok && !source.Executed.Contains(gtid) {
@@ -266,7 +281,7 @@ func (source *Source) AppendOnePhaseXATransaction(key string, xid XAIdentity, ch
 	defer source.mu.Unlock()
 	if key != "" {
 		if gtid, ok := source.transactionKeys[key]; ok && source.Executed.Contains(gtid) {
-			return nil
+			return source.persistDurableState()
 		}
 		if _, ok := source.transactionKeys[key]; ok {
 			delete(source.transactionKeys, key)
@@ -302,7 +317,7 @@ func (source *Source) PrepareXATransaction(key string, xid XAIdentity, changes [
 	key = strings.TrimSpace(key)
 	if gtid, ok := source.preparedXA[xaKey]; ok {
 		if key == "" || source.preparedKeys[key] == gtid {
-			return nil
+			return source.persistDurableState()
 		}
 		return fmt.Errorf("XA transaction %s is already prepared", xaKey)
 	}
@@ -464,7 +479,7 @@ func (source *Source) CommitXATransaction(key string, xid XAIdentity) error {
 	if !ok {
 		if strings.TrimSpace(key) != "" {
 			if committed, exists := source.transactionKeys[key]; exists && source.Executed.Contains(committed) {
-				return nil
+				return source.persistDurableState()
 			}
 		}
 		return fmt.Errorf("XA transaction %s is not prepared", xid.Key())
@@ -499,7 +514,7 @@ func (source *Source) RollbackXATransaction(key string, xid XAIdentity) error {
 	if !ok {
 		if key != "" {
 			if rolledBack, exists := source.transactionKeys[key]; exists && source.Executed.Contains(rolledBack) {
-				return nil
+				return source.persistDurableState()
 			}
 		}
 		return fmt.Errorf("XA transaction %s is not prepared", xid.Key())
@@ -723,6 +738,20 @@ func nativeEventTypeName(eventType byte) string {
 }
 
 func nativePhysicalEventCount(event BinlogEvent) int {
+	switch event.Type {
+	case EventBegin:
+		// A logical begin is projected as GTID_EVENT followed by the
+		// QUERY_EVENT that opens the transaction (BEGIN or XA START).
+		return 2
+	case EventXAPrepare:
+		if event.XA != nil {
+			// XA END QUERY_EVENT plus XA_PREPARE_EVENT.
+			return 2
+		}
+	case EventXACommit, EventXARollback:
+		// Terminal XA events carry a GTID_EVENT and the terminal query.
+		return 2
+	}
 	if event.Type == EventRow && len(event.Changes) > 0 {
 		groups := 0
 		for index := 0; index < len(event.Changes); {
@@ -771,9 +800,31 @@ func (source *Source) NativeDumpFileWithIntervals(logName string, position uint6
 	}
 	next := position
 	currentGTID := uint64(0)
+	currentGTIDKind := byte(0)
+	currentGTIDBody := []byte(nil)
+	currentObservedGTID := GTID{}
 	skipTransaction := false
 	partialTransaction := false
 	skipByPosition := false
+	recordCurrentGTID := func(allowPartial bool) {
+		if executed == nil || currentGTID == 0 || (!allowPartial && partialTransaction) {
+			return
+		}
+		switch currentGTIDKind {
+		case 33:
+			addNativeGTIDToSetBody(executed, source.UUID, currentGTIDBody, currentGTID)
+		case 34, 42:
+			executed.Add(currentObservedGTID.UUID, currentObservedGTID.Seq)
+		}
+	}
+	clearCurrentGTID := func() {
+		currentGTID = 0
+		currentGTIDKind = 0
+		currentGTIDBody = nil
+		currentObservedGTID = GTID{}
+		partialTransaction = false
+		skipByPosition = false
+	}
 	result := make([]NativeBinlogEvent, 0, len(events))
 	for _, event := range events {
 		if event.EndPosition > next {
@@ -792,14 +843,13 @@ func (source *Source) NativeDumpFileWithIntervals(logName string, position uint6
 				return nil, next, fmt.Errorf("invalid native GTID event at position %d", event.Position)
 			}
 			currentGTID = seq
+			currentGTIDKind = 33
+			currentGTIDBody = append([]byte(nil), body...)
 			partialTransaction = position > event.Position
 			skipByPosition = partialTransaction
 			skipTransaction = partialTransaction || nativeGTIDSetContainsBody(executed, body, seq)
 			if !skipTransaction {
 				result = appendNativeEventAtPosition(result, event, position)
-			}
-			if executed != nil {
-				addNativeGTIDToSetBody(executed, source.UUID, body, seq)
 			}
 		case 42: // GTID_TAGGED_LOG_EVENT
 			gtid, err := decodeNativeTaggedGTID(nativeEventBody(event), source.UUID)
@@ -807,26 +857,24 @@ func (source *Source) NativeDumpFileWithIntervals(logName string, position uint6
 				return nil, next, err
 			}
 			currentGTID = gtid.Seq
+			currentGTIDKind = 42
+			currentObservedGTID = gtid
 			partialTransaction = position > event.Position
 			skipByPosition = partialTransaction
 			skipTransaction = partialTransaction || logicalGTIDSetContains(executed, gtid)
 			if !skipTransaction {
 				result = appendNativeEventAtPosition(result, event, position)
-			}
-			if executed != nil {
-				executed.Add(gtid.UUID, gtid.Seq)
 			}
 		case 34: // ANONYMOUS_GTID_EVENT
 			gtid := nativeAnonymousGTID(event, event.Raw)
 			currentGTID = gtid.Seq
+			currentGTIDKind = 34
+			currentObservedGTID = gtid
 			partialTransaction = position > event.Position
 			skipByPosition = partialTransaction
 			skipTransaction = partialTransaction || logicalGTIDSetContains(executed, gtid)
 			if !skipTransaction {
 				result = appendNativeEventAtPosition(result, event, position)
-			}
-			if executed != nil {
-				executed.Add(gtid.UUID, gtid.Seq)
 			}
 		case 2: // QUERY_EVENT, including the terminal query of a native XA branch.
 			body := nativeEventBody(event)
@@ -843,10 +891,13 @@ func (source *Source) NativeDumpFileWithIntervals(logName string, position uint6
 				if !(skipTransaction && !skipByPosition) || skipByPosition {
 					result = appendNativeEventAtPosition(result, event, position)
 				}
-				currentGTID = 0
+				// XA COMMIT/ROLLBACK is a complete terminal action even when the
+				// requested position starts after its GTID_EVENT.  The terminal
+				// query is deliberately included in that resume case, so its GTID
+				// must advance the caller's executed set as well.
+				recordCurrentGTID(true)
+				clearCurrentGTID()
 				skipTransaction = false
-				partialTransaction = false
-				skipByPosition = false
 				continue
 			}
 			if currentGTID == 0 || skipTransaction {
@@ -857,10 +908,9 @@ func (source *Source) NativeDumpFileWithIntervals(logName string, position uint6
 			if !skipTransaction {
 				result = appendNativeEventAtPosition(result, event, position)
 			}
-			currentGTID = 0
+			recordCurrentGTID(false)
+			clearCurrentGTID()
 			skipTransaction = false
-			partialTransaction = false
-			skipByPosition = false
 		default:
 			if currentGTID != 0 && skipTransaction {
 				continue
@@ -1011,7 +1061,13 @@ func addNativeGTIDToSetBody(set GTIDIntervals, sourceUUID string, body []byte, s
 	sid := body[1 : 1+16]
 	if bytes.Equal(nativeGTIDSID(sourceUUID), sid) {
 		set.Add(sourceUUID, sequence)
+		return
 	}
+	// A promoted source re-encodes imported relay history with its own
+	// server-id but retains the upstream GTID SID.  The source UUID therefore
+	// cannot be used as the observed GTID identity; preserve the wire SID as
+	// its canonical UUID so a subsequent rotated-file dump can filter it.
+	set.Add(nativeGTIDUUID(hex.EncodeToString(sid)), sequence)
 }
 
 func nativeBinlogFileIndex(logName string) (uint64, error) {
@@ -1318,5 +1374,8 @@ func writeReplicationFileAtomic(path string, raw []byte) error {
 		_ = os.Remove(temporary)
 		return err
 	}
-	return nil
+	if replicationDirectorySyncHook != nil {
+		return replicationDirectorySyncHook(filepath.Dir(path))
+	}
+	return syncReplicationDirectory(filepath.Dir(path))
 }

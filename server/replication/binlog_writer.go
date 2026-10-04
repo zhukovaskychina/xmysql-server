@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"hash/fnv"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -83,6 +84,10 @@ type nativeBinlogRetentionState struct {
 // nativeAppendHook is test-only fault injection for the window after the
 // logical binlog has been synced but before the native binlog is complete.
 var nativeAppendHook func([]BinlogEvent) error
+
+// nativeRotateAppendHook is test-only fault injection for the same window on
+// a logical ROTATE boundary, before its native ROTATE_EVENT is appended.
+var nativeRotateAppendHook func(BinlogEvent, string) error
 
 // Position returns the last logical stream position currently allocated by
 // the writer. Call NextPosition when the next append position is required.
@@ -249,6 +254,10 @@ func (writer *BinlogWriter) NativeEvents(logName string) ([]NativeBinlogEvent, e
 	}
 	writer.mu.Lock()
 	defer writer.mu.Unlock()
+	return writer.nativeEventsLocked(logName)
+}
+
+func (writer *BinlogWriter) nativeEventsLocked(logName string) ([]NativeBinlogEvent, error) {
 	index, err := nativeBinlogFileIndex(logName)
 	if err != nil {
 		return nil, err
@@ -369,15 +378,44 @@ func NewBinlogWriter(path string, serverID uint32) (*BinlogWriter, error) {
 
 func (writer *BinlogWriter) nativeFilesMatchLogicalEvents(events []BinlogEvent, files []NativeBinlogFile) bool {
 	expected := [][]byte{{15, 35}}
+	expectedGTIDs := [][]GTID{{}}
+	// Keep the deterministic physical payload alongside the type projection.
+	// A checksum only proves that a frame is self-consistent; it does not prove
+	// that its TABLE_MAP/ROWS/QUERY/XA body still represents the durable logical
+	// event. Physical log positions and checksums are intentionally excluded
+	// below, while timestamp/server-id/flags remain part of header integrity.
+	nativeHeaderFrames := func(previous GTIDSet) [][]byte {
+		format := buildNativeFormatDescriptionEvent(writer.serverID, 4)
+		previousFrame := buildNativePreviousGTIDsEvent(writer.serverID, uint64(4+len(format)), previous)
+		return [][]byte{format, previousFrame}
+	}
+	expectedFrames := [][][]byte{nativeHeaderFrames(GTIDSet{})}
+	executedBeforeFile := GTIDSet{}
 	for _, event := range events {
 		if event.Type == EventRotate {
 			expected[len(expected)-1] = append(expected[len(expected)-1], 4)
+			currentFileIndex := writer.nativeFirstIndex + uint32(len(expectedFrames)) - 1
+			rotateEvent := event
+			rotateEvent.ServerID = writer.serverID
+			rotateFrame := buildNativeEvent(4, buildNativeRotateBody(fmt.Sprintf("binlog.%06d", currentFileIndex+1)), rotateEvent)
+			expectedFrames[len(expectedFrames)-1] = append(expectedFrames[len(expectedFrames)-1], rotateFrame)
 			expected = append(expected, []byte{15, 35})
+			expectedGTIDs = append(expectedGTIDs, []GTID{})
+			expectedFrames = append(expectedFrames, nativeHeaderFrames(cloneGTIDSet(executedBeforeFile)))
 			continue
 		}
 		switch event.Type {
 		case EventBegin:
-			expected[len(expected)-1] = append(expected[len(expected)-1], 33)
+			// buildNativeEventPayloadsForLogical emits the GTID frame followed
+			// by the lifecycle QUERY_EVENT (BEGIN or XA START).
+			gtidEventType := byte(33)
+			if _, _, tagged := nativeGTIDParts(event.GTID.UUID); tagged {
+				gtidEventType = 42
+			}
+			expected[len(expected)-1] = append(expected[len(expected)-1], gtidEventType, 2)
+			if event.GTID.UUID != "" && event.GTID.Seq != 0 {
+				expectedGTIDs[len(expectedGTIDs)-1] = append(expectedGTIDs[len(expectedGTIDs)-1], event.GTID)
+			}
 		case EventRow:
 			if len(event.Changes) == 0 {
 				expected[len(expected)-1] = append(expected[len(expected)-1], 2)
@@ -394,18 +432,42 @@ func (writer *BinlogWriter) nativeFilesMatchLogicalEvents(events []BinlogEvent, 
 		case EventCommit:
 			expected[len(expected)-1] = append(expected[len(expected)-1], 16)
 		case EventXAPrepare:
-			expected[len(expected)-1] = append(expected[len(expected)-1], 38)
+			// XA PREPARE first emits XA END as a QUERY_EVENT and then the
+			// native XA_PREPARE_EVENT.
+			expected[len(expected)-1] = append(expected[len(expected)-1], 2, 38)
 		case EventXACommit, EventXARollback:
-			expected[len(expected)-1] = append(expected[len(expected)-1], 2)
+			// Terminal XA events carry their terminal GTID followed by the
+			// XA COMMIT/ROLLBACK query.
+			terminalGTID := event.GTID
+			if event.TerminalGTID != nil {
+				terminalGTID = *event.TerminalGTID
+			}
+			gtidEventType := byte(33)
+			if _, _, tagged := nativeGTIDParts(terminalGTID.UUID); tagged {
+				gtidEventType = 42
+			}
+			expected[len(expected)-1] = append(expected[len(expected)-1], gtidEventType, 2)
+			if terminalGTID.UUID != "" && terminalGTID.Seq != 0 {
+				expectedGTIDs[len(expectedGTIDs)-1] = append(expectedGTIDs[len(expectedGTIDs)-1], terminalGTID)
+			}
 		default:
 			return false
 		}
+		for _, payload := range buildNativeEventPayloadsForLogical(event, 4) {
+			if len(payload) < nativeEventHeaderLength+nativeChecksumLength {
+				return false
+			}
+			expectedFrames[len(expectedFrames)-1] = append(expectedFrames[len(expectedFrames)-1], append([]byte(nil), payload...))
+		}
+		addExecutedGTIDs(executedBeforeFile, event)
 	}
 	firstOffset := int(writer.nativeFirstIndex) - 1
 	if firstOffset < 0 || firstOffset >= len(expected) {
 		return false
 	}
 	expected = expected[firstOffset:]
+	expectedGTIDs = expectedGTIDs[firstOffset:]
+	expectedFrames = expectedFrames[firstOffset:]
 	if len(expected) != len(files) {
 		return false
 	}
@@ -413,7 +475,7 @@ func (writer *BinlogWriter) nativeFilesMatchLogicalEvents(events []BinlogEvent, 
 		if file.Name != fmt.Sprintf("binlog.%06d", uint32(index)+writer.nativeFirstIndex) {
 			return false
 		}
-		physical, err := writer.NativeEvents(file.Name)
+		physical, err := writer.nativeEventsLocked(file.Name)
 		if err != nil {
 			return false
 		}
@@ -424,8 +486,74 @@ func (writer *BinlogWriter) nativeFilesMatchLogicalEvents(events []BinlogEvent, 
 		if !bytes.Equal(actual, expected[index]) {
 			return false
 		}
+		if len(expectedFrames[index]) != len(physical) {
+			return false
+		}
+		for physicalIndex, expectedFrame := range expectedFrames[index] {
+			if expectedFrame == nil {
+				continue
+			}
+			actualFrame := physical[physicalIndex].Raw
+			if len(actualFrame) < nativeEventHeaderLength+nativeChecksumLength || len(expectedFrame) < nativeEventHeaderLength+nativeChecksumLength {
+				return false
+			}
+			if (physicalIndex >= 2 && !bytes.Equal(actualFrame[0:4], expectedFrame[0:4])) ||
+				!bytes.Equal(actualFrame[5:9], expectedFrame[5:9]) ||
+				!bytes.Equal(actualFrame[17:19], expectedFrame[17:19]) {
+				return false
+			}
+			if binary.LittleEndian.Uint32(actualFrame[13:17]) != uint32(physical[physicalIndex].EndPosition) {
+				return false
+			}
+			if !bytes.Equal(nativeEventBody(physical[physicalIndex]), expectedFrame[nativeEventHeaderLength:len(expectedFrame)-nativeChecksumLength]) {
+				return false
+			}
+		}
+		identityIndex := 0
+		for _, event := range physical {
+			if event.Type != 33 && event.Type != 42 {
+				continue
+			}
+			if identityIndex >= len(expectedGTIDs[index]) {
+				return false
+			}
+			sid, tag, sequence, ok := nativePhysicalGTIDIdentity(event)
+			if !ok {
+				return false
+			}
+			expectedSID, expectedTag, tagged := nativeGTIDParts(expectedGTIDs[index][identityIndex].UUID)
+			if !bytes.Equal(sid, expectedSID) || sequence != expectedGTIDs[index][identityIndex].Seq || (tagged && tag != expectedTag) || (!tagged && tag != "") {
+				return false
+			}
+			identityIndex++
+		}
+		if identityIndex != len(expectedGTIDs[index]) {
+			return false
+		}
 	}
 	return true
+}
+
+func nativePhysicalGTIDIdentity(event NativeBinlogEvent) ([]byte, string, uint64, bool) {
+	body := nativeEventBody(event)
+	if event.Type == 33 {
+		if len(body) < 1+16+8 {
+			return nil, "", 0, false
+		}
+		sequence, ok := nativeGTIDSequenceBody(body)
+		if !ok {
+			return nil, "", 0, false
+		}
+		return append([]byte(nil), body[1:1+16]...), "", sequence, true
+	}
+	if event.Type == 42 {
+		fields, err := decodeNativeTaggedGTIDIndexFields(body)
+		if err != nil {
+			return nil, "", 0, false
+		}
+		return fields.sid, fields.tag, fields.sequence, true
+	}
+	return nil, "", 0, false
 }
 
 func (writer *BinlogWriter) Append(gtid GTID, changes []RowChange) ([]BinlogEvent, error) {
@@ -497,13 +625,38 @@ func (writer *BinlogWriter) ImportEvents(events []BinlogEvent) error {
 		imported = append(imported, copyOfEvent)
 	}
 	if len(imported) == 0 {
-		return nil
+		// The logical relay may already be durable even when the native append
+		// failed after that logical sync. A same-process retry must repair the
+		// physical stream just like a newly opened writer does at startup;
+		// treating the existing logical events as a complete no-op would leave
+		// the promoted source exposing only the native file prefix.
+		if !writer.nativeFilesMatchLogicalEvents(existing, writer.nativeFilesLocked()) {
+			return writer.rebuildNativeFiles(existing)
+		}
+		// The logical/native projection can already be complete even when the
+		// separate durable GTID index was the only publication that failed.
+		// Rebuild and persist that index before acknowledging an idempotent
+		// import retry; otherwise a promoted source can serve the transaction
+		// but lose its durable GTID lookup after restart.
+		return writer.rebuildNativeGTIDIndexLocked()
 	}
 	if err := writer.appendLogicalEventsLocked(imported); err != nil {
 		return err
 	}
 	for _, event := range imported {
 		addExecutedGTIDs(writer.executedGTIDs, event)
+	}
+	// A relay retry may complete a logical transaction whose earlier batch was
+	// durable in JSONL but never made it into native binlog frames. Appending
+	// only the newly arrived COMMIT/XA terminal would produce an orphan native
+	// suffix, so compare the complete logical stream and rebuild when the
+	// physical projection is incomplete.
+	allEvents, err := writer.readLogicalEventsLocked(4)
+	if err != nil {
+		return err
+	}
+	if !writer.nativeFilesMatchLogicalEvents(allEvents, writer.nativeFilesLocked()) {
+		return writer.rebuildNativeFiles(allEvents)
 	}
 	return nil
 }
@@ -544,6 +697,13 @@ func logicalEventExists(events []BinlogEvent, candidate BinlogEvent) bool {
 func (writer *BinlogWriter) AppendXAPrepare(gtid GTID, changes []RowChange, statements []Statement, xid XAIdentity, transactionKey string) ([]BinlogEvent, error) {
 	writer.mu.Lock()
 	defer writer.mu.Unlock()
+	recovered, err := writer.recoverLogicalPreparedXALocked(gtid, xid, transactionKey)
+	if err != nil {
+		return nil, err
+	}
+	if recovered {
+		return nil, nil
+	}
 	changes = nativeChangesWithDerivedPartialJSON(changes)
 	xidCopy := xid
 	events := []BinlogEvent{
@@ -568,6 +728,14 @@ func (writer *BinlogWriter) AppendXAPrepare(gtid GTID, changes []RowChange, stat
 func (writer *BinlogWriter) AppendOnePhaseXATransaction(gtid GTID, changes []RowChange, statements []Statement, xid XAIdentity, transactionKey string) ([]BinlogEvent, error) {
 	writer.mu.Lock()
 	defer writer.mu.Unlock()
+	recovered, err := writer.recoverLogicalOnePhaseXALocked(gtid, xid, transactionKey)
+	if err != nil {
+		return nil, err
+	}
+	if recovered {
+		writer.executedGTIDs.Add(gtid)
+		return nil, nil
+	}
 	changes = nativeChangesWithDerivedPartialJSON(changes)
 	xidCopy := xid
 	events := []BinlogEvent{
@@ -703,6 +871,48 @@ func (writer *BinlogWriter) recoverLogicalTerminalLocked(gtid GTID, terminalType
 	return true, nil
 }
 
+func (writer *BinlogWriter) recoverLogicalOnePhaseXALocked(gtid GTID, xid XAIdentity, transactionKey string) (bool, error) {
+	events, err := writer.readLogicalEventsLocked(4)
+	if err != nil {
+		return false, err
+	}
+	for _, event := range events {
+		if event.Type != EventXAPrepare || !event.OnePhase || event.GTID != gtid {
+			continue
+		}
+		if event.XA == nil || event.XA.Key() != xid.Key() || event.TransactionKey != transactionKey {
+			continue
+		}
+		if err := writer.rebuildNativeFiles(events); err != nil {
+			return false, err
+		}
+		writer.reconcileGTIDs(events)
+		return true, nil
+	}
+	return false, nil
+}
+
+func (writer *BinlogWriter) recoverLogicalPreparedXALocked(gtid GTID, xid XAIdentity, transactionKey string) (bool, error) {
+	events, err := writer.readLogicalEventsLocked(4)
+	if err != nil {
+		return false, err
+	}
+	for _, event := range events {
+		if event.Type != EventXAPrepare || event.OnePhase || event.GTID != gtid {
+			continue
+		}
+		if event.XA == nil || event.XA.Key() != xid.Key() || event.TransactionKey != transactionKey {
+			continue
+		}
+		if err := writer.rebuildNativeFiles(events); err != nil {
+			return false, err
+		}
+		writer.reconcileGTIDs(events)
+		return true, nil
+	}
+	return false, nil
+}
+
 func nativeChangesWithDerivedPartialJSON(changes []RowChange) []RowChange {
 	if len(changes) == 0 {
 		return nil
@@ -742,6 +952,23 @@ func nativeChangesWithDerivedPartialJSON(changes []RowChange) []RowChange {
 func (writer *BinlogWriter) Rotate() (BinlogEvent, error) {
 	writer.mu.Lock()
 	defer writer.mu.Unlock()
+	logical, err := writer.readLogicalEventsLocked(4)
+	if err != nil {
+		return BinlogEvent{}, err
+	}
+	if len(logical) > 0 && logical[len(logical)-1].Type == EventRotate {
+		filesMatch := writer.nativeFilesMatchLogicalEvents(logical, writer.nativeFilesLocked())
+		if !filesMatch || !writer.nativeIndexMatchesFiles() {
+			if !filesMatch {
+				if err := writer.rebuildNativeFiles(logical); err != nil {
+					return BinlogEvent{}, err
+				}
+			} else if err := writer.ensureNativeIndex(); err != nil {
+				return BinlogEvent{}, err
+			}
+			return logical[len(logical)-1], nil
+		}
+	}
 	file, err := os.OpenFile(writer.path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return BinlogEvent{}, err
@@ -946,15 +1173,15 @@ func (writer *BinlogWriter) ensureNativeFile() error {
 		return err
 	}
 	if info.Size() == 0 {
-		if _, err := file.Write([]byte{nativeBinlogMagic, 'b', 'i', 'n'}); err != nil {
+		if err := writeNativeFrame(file, []byte{nativeBinlogMagic, 'b', 'i', 'n'}); err != nil {
 			return err
 		}
 		format := buildNativeFormatDescriptionEvent(writer.serverID, 4)
-		if _, err := file.Write(format); err != nil {
+		if err := writeNativeFrame(file, format); err != nil {
 			return err
 		}
 		previous := buildNativePreviousGTIDsEvent(writer.serverID, uint64(4+len(format)), writer.previousGTIDs)
-		if _, err := file.Write(previous); err != nil {
+		if err := writeNativeFrame(file, previous); err != nil {
 			return err
 		}
 		return file.Sync()
@@ -1080,13 +1307,33 @@ func (writer *BinlogWriter) ensureNativeIndex() error {
 	return writeReplicationFileAtomic(writer.nativeIndexPath, raw)
 }
 
+func (writer *BinlogWriter) nativeIndexMatchesFiles() bool {
+	if writer == nil || writer.nativeIndexPath == "" {
+		return true
+	}
+	raw, err := os.ReadFile(writer.nativeIndexPath)
+	if err != nil {
+		return false
+	}
+	files := writer.nativeFilesLocked()
+	lines := make([]string, 0, len(files))
+	for _, file := range files {
+		lines = append(lines, filepath.Join(filepath.Dir(writer.path), file.Name))
+	}
+	expected := strings.Join(lines, "\n")
+	if expected != "" {
+		expected += "\n"
+	}
+	return string(raw) == expected
+}
+
 func (writer *BinlogWriter) rebuildNativeGTIDIndexLocked() error {
 	if writer == nil {
 		return nil
 	}
 	index := make(map[string]NativeGTIDIndexEntry)
 	for _, file := range writer.nativeFilesLocked() {
-		events, err := writer.NativeEvents(file.Name)
+		events, err := writer.nativeEventsLocked(file.Name)
 		if err != nil {
 			return err
 		}
@@ -1157,7 +1404,7 @@ func (writer *BinlogWriter) appendNativeTransaction(events []BinlogEvent) error 
 		eventStart := uint64(position)
 		for _, payload := range payloads {
 			patchNativeEventLogPosition(payload, uint64(position)+uint64(len(payload)))
-			if _, err := file.Write(payload); err != nil {
+			if err := writeNativeFrame(file, payload); err != nil {
 				return err
 			}
 			position += int64(len(payload))
@@ -1169,7 +1416,12 @@ func (writer *BinlogWriter) appendNativeTransaction(events []BinlogEvent) error 
 			if writer.nativeGTIDIndex == nil {
 				writer.nativeGTIDIndex = make(map[string]NativeGTIDIndexEntry)
 			}
-			writer.nativeGTIDIndex[nativeGTIDIndexKey(sid, sequence)] = NativeGTIDIndexEntry{SID: sid, Sequence: sequence, File: filepath.Base(writer.nativePath), Position: eventStart, End: uint64(position)}
+			// The index describes the physical GTID_EVENT itself.  A normal
+			// transaction now also emits QUERY_EVENT(BEGIN) and possibly row
+			// events after the GTID; using the transaction's final position
+			// here would disagree with the index rebuilt from native files.
+			gtidEnd := eventStart + uint64(len(payloads[0]))
+			writer.nativeGTIDIndex[nativeGTIDIndexKey(sid, sequence)] = NativeGTIDIndexEntry{SID: sid, Sequence: sequence, File: filepath.Base(writer.nativePath), Position: eventStart, End: gtidEnd}
 		}
 	}
 	if err := file.Sync(); err != nil {
@@ -1183,6 +1435,11 @@ func (writer *BinlogWriter) appendNativeEvent(event BinlogEvent) error {
 }
 
 func (writer *BinlogWriter) appendNativeRotate(event BinlogEvent, nextName string) error {
+	if nativeRotateAppendHook != nil {
+		if err := nativeRotateAppendHook(event, nextName); err != nil {
+			return err
+		}
+	}
 	file, err := os.OpenFile(writer.nativePath, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
@@ -1192,14 +1449,29 @@ func (writer *BinlogWriter) appendNativeRotate(event BinlogEvent, nextName strin
 	if err != nil {
 		return err
 	}
-	body := make([]byte, 8, 8+len(nextName))
-	binary.LittleEndian.PutUint64(body, 4)
-	body = append(body, []byte(nextName)...)
+	body := buildNativeRotateBody(nextName)
 	payload := buildNativeEvent(4, body, eventWithNativePosition(event, uint64(info.Size())))
-	if _, err := file.Write(payload); err != nil {
+	if err := writeNativeFrame(file, payload); err != nil {
 		return err
 	}
 	return file.Sync()
+}
+
+func buildNativeRotateBody(nextName string) []byte {
+	body := make([]byte, 8, 8+len(nextName))
+	binary.LittleEndian.PutUint64(body, 4)
+	return append(body, []byte(nextName)...)
+}
+
+func writeNativeFrame(dst io.Writer, payload []byte) error {
+	written, err := dst.Write(payload)
+	if err != nil {
+		return err
+	}
+	if written != len(payload) {
+		return io.ErrShortWrite
+	}
+	return nil
 }
 
 func (writer *BinlogWriter) rebuildNativeFiles(events []BinlogEvent) error {
@@ -1462,6 +1734,16 @@ func buildNativeEventPayloadsForLogical(event BinlogEvent, position uint64) [][]
 		gtid := buildNativeEvent(gtidEventType, body, eventWithNativePosition(event, position))
 		start := buildNativeQueryEvent(event, position, nativeXALifecycleQuery("START", *event.XA))
 		return [][]byte{gtid, start}
+	}
+	if event.Type == EventBegin {
+		gtidEventType, body := nativeGTIDEvent(event)
+		gtid := buildNativeEvent(gtidEventType, body, eventWithNativePosition(event, position))
+		// Official MySQL emits a QUERY_EVENT containing BEGIN after every
+		// ordinary GTID transaction. A native replica uses this boundary to
+		// enter row-apply mode before TABLE_MAP/ROWS events arrive; omitting it
+		// makes a replica reject the first row event when it starts mid-file.
+		begin := buildNativeQueryEvent(event, position, "BEGIN")
+		return [][]byte{gtid, begin}
 	}
 	if event.Type == EventXAPrepare && event.XA != nil {
 		end := buildNativeQueryEvent(event, position, nativeXALifecycleQuery("END", *event.XA))
@@ -1873,10 +2155,13 @@ func nativeColumnMetadataForTypeName(raw string, typeCode byte) []byte {
 			return []byte{4}
 		case 15, 253:
 			// A bare VARCHAR/VARBINARY type hint does not carry the DDL
-			// length. Use the native two-byte metadata form with a 256-byte
-			// ceiling (the utf8mb4 width of VARCHAR(64)), rather than deriving
+			// length. Use the native two-byte metadata form with a conservative
+			// utf8mb4 byte ceiling for VARCHAR, rather than deriving
 			// the TABLE_MAP width from the current row value. The latter makes
 			// an otherwise valid replica reject a row as a schema conversion.
+			if typeCode == 15 && strings.HasPrefix(typeBase, "VARCHAR") {
+				return []byte{0, 2}
+			}
 			return []byte{0, 1}
 		case 249, 250, 251, 252:
 			fields := strings.Fields(typeName)
@@ -1929,6 +2214,18 @@ func nativeColumnMetadataForTypeName(raw string, typeCode byte) []byte {
 	}
 	if typeCode == 15 || typeCode == 253 {
 		if length, err := strconv.ParseUint(strings.TrimSpace(arguments[0]), 10, 16); err == nil {
+			// TABLE_MAP_EVENT stores the maximum byte width for VARCHAR,
+			// not the declared character count.  The engine does not carry
+			// a per-column charset alongside ColumnTypes, so use the
+			// utf8mb4 upper bound (four bytes per character) for VARCHAR.
+			// VARBINARY keeps its declared byte width unchanged.
+			if typeCode == 15 && strings.HasPrefix(typeBase, "VARCHAR") {
+				if length <= ^uint64(0)/4 && length*4 <= 0xFFFF {
+					length *= 4
+				} else {
+					length = 0xFFFF
+				}
+			}
 			metadata := make([]byte, 2)
 			binary.LittleEndian.PutUint16(metadata, uint16(length))
 			return metadata
@@ -3715,7 +4012,10 @@ func nativeXAPrepareBody(event BinlogEvent) []byte {
 	bqual := []byte(event.XA.BQUAL)
 	body := make([]byte, 13+len(gtrid)+len(bqual))
 	// one_phase distinguishes XA COMMIT ONE PHASE from a durable two-phase
-	// prepare in MySQL's XA_PREPARE_EVENT body.
+	// prepare in MySQL's XA_PREPARE_EVENT body.  The remaining fixed fields
+	// follow the official MySQL 5.7/8.x layout: format_id, gtrid length, and
+	// bqual length.  The format id is part of the physical XID identity; the
+	// XA lifecycle SQL carries the same value for SQL-level interoperability.
 	if event.OnePhase {
 		body[0] = 1
 	}
@@ -3754,7 +4054,20 @@ func escapeNativeXAQueryValue(value string) string {
 func buildNativeQueryEvent(event BinlogEvent, position uint64, query string) []byte {
 	databaseBytes := []byte("")
 	queryBytes := []byte(query)
-	body := make([]byte, 13, 13+1+len(queryBytes))
+	// Official MySQL 5.7 emits this portable status-variable prefix for
+	// lifecycle QUERY_EVENTs.  Keep the variable encodings exact: Q_CHARSET_CODE
+	// is code 4 followed by three 2-byte collation ids (there is no length byte).
+	// A malformed extra length byte is accepted by loose readers but makes the
+	// official 5.7 relay parser reject the following XA_PREPARE_EVENT.
+	statusVars := []byte{
+		0, 0, 0, 0, 0, // Q_FLAGS2_CODE + flags2
+		1, 0x20, 0x00, 0x55, 0x00, 0x00, 0x00, 0x00, 0x00, // Q_SQL_MODE_CODE
+		6, 3, 's', 't', 'd', // Q_TIME_ZONE_CODE
+		4, 8, 0, 8, 0, 8, 0, // Q_CHARSET_CODE: latin1_swedish_ci
+	}
+	body := make([]byte, 13, 13+len(statusVars)+1+len(queryBytes))
+	binary.LittleEndian.PutUint16(body[11:13], uint16(len(statusVars)))
+	body = append(body, statusVars...)
 	body[8] = byte(len(databaseBytes))
 	body = append(body, databaseBytes...)
 	body = append(body, 0)
@@ -3768,23 +4081,35 @@ func eventWithNativePosition(event BinlogEvent, position uint64) BinlogEvent {
 }
 
 func nativeGTIDBody(event BinlogEvent) []byte {
-	body := make([]byte, 56)
-	body[0] = 0
+	body := make([]byte, 0, 54)
+	// MySQL 8.4 clients expect the post-header metadata after the logical
+	// timestamps: transaction length and immediate server version. Without
+	// these fields, a native replica interprets timestamp bytes as a
+	// length-encoded integer and rejects the following event stream.
+	body = append(body, 0)
 	sid, _, _ := nativeGTIDParts(event.GTID.UUID)
-	copy(body[1:17], sid)
-	binary.LittleEndian.PutUint64(body[17:25], event.GTID.Seq)
-	body[25] = 2
+	body = append(body, sid...)
+	var encoded [8]byte
+	binary.LittleEndian.PutUint64(encoded[:], event.GTID.Seq)
+	body = append(body, encoded[:]...)
+	body = append(body, 2)
 	lastCommitted := uint64(0)
 	if event.GTID.Seq > 0 {
 		lastCommitted = event.GTID.Seq - 1
 	}
-	binary.LittleEndian.PutUint64(body[26:34], lastCommitted)
-	binary.LittleEndian.PutUint64(body[34:42], event.GTID.Seq)
+	binary.LittleEndian.PutUint64(encoded[:], lastCommitted)
+	body = append(body, encoded[:]...)
+	binary.LittleEndian.PutUint64(encoded[:], event.GTID.Seq)
+	body = append(body, encoded[:]...)
 	micros := uint64(event.Timestamp.UnixNano() / int64(time.Microsecond))
+	timestamp := make([]byte, 7)
 	for index := 0; index < 7; index++ {
-		body[42+index] = byte(micros >> uint(8*index))
-		body[49+index] = byte(micros >> uint(8*index))
+		timestamp[index] = byte(micros >> uint(8*index))
 	}
+	timestamp[6] &= 0x7f // no separate original-commit timestamp follows
+	body = append(body, timestamp...)
+	body = appendNativeLenencInt(body, 0) // transaction length is filled by no later consumer
+	body = append(body, 0, 0, 0, 0)       // immediate server version
 	return body
 }
 

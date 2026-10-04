@@ -10,8 +10,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -27,6 +30,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
+	observabilitymetrics "github.com/zhukovaskychina/xmysql-server/server/observability/metrics"
 	"github.com/zhukovaskychina/xmysql-server/server/replication"
 )
 
@@ -475,8 +479,10 @@ func (e *XMySQLEngine) initQueryExecutor() {
 			e.storageMgr,
 			tableStorageManager, // 创建新的表存储映射管理器
 		)
+		e.QueryExecutor.applyConfiguredPerformanceSchemaVariables()
 		e.QueryExecutor.SetTransactionManager(e.txManager)
 		e.QueryExecutor.applyPersistedSystemVariables()
+		e.QueryExecutor.syncPerformanceSchemaDigestSampleAge()
 
 		// 将管理器注入 StorageManager，供集成层等通过 GetTableManager/GetTableStorageManager 等统一获取
 		e.storageMgr.SetTableManager(tableManager)
@@ -497,6 +503,10 @@ func (e *XMySQLEngine) initReplicationLayer() {
 	if role == "" {
 		role = replication.RoleStandalone
 	}
+	nativeEndpoint := strings.TrimRight(strings.TrimSpace(e.conf.ReplicationNativeEndpoint), "/")
+	if nativeEndpoint == "" {
+		nativeEndpoint = derivedNativeEndpoint(e.conf.BindAddress, e.conf.Port)
+	}
 	runtime, err := replication.NewRuntime(replication.RuntimeConfig{
 		Role:            role,
 		DataDir:         e.GetDataDir(),
@@ -504,6 +514,10 @@ func (e *XMySQLEngine) initReplicationLayer() {
 		ServerID:        e.conf.ReplicationServerID,
 		ListenAddr:      e.conf.ReplicationListenAddress,
 		SourceURL:       e.conf.ReplicationSourceURL,
+		NativeEndpoint:  nativeEndpoint,
+		Peers:           e.conf.ReplicationPeers,
+		AutoFailover:    e.conf.ReplicationAutoFailover,
+		FailureTimeout:  e.conf.ReplicationFailureTimeoutDuration,
 		PollInterval:    e.conf.ReplicationPollIntervalDuration,
 		ApplyRows:       e.applyReplicationRows,
 		ApplyRowsWithID: e.applyReplicationRowsWithID,
@@ -516,18 +530,31 @@ func (e *XMySQLEngine) initReplicationLayer() {
 	}
 	e.replicationRuntime = runtime
 	e.QueryExecutor.SetReplicationStatusProvider(runtime.Status)
+	e.QueryExecutor.SetReplicationChannelStatusProvider(runtime.ChannelStatuses)
+	e.QueryExecutor.SetReplicationChannelProviders(runtime.StatusForChannel, runtime.SourceForChannel, runtime.ReplicaForChannel)
 	e.QueryExecutor.SetReplicationSourceProvider(runtime.Source)
 	e.QueryExecutor.SetReplicationReplicaProvider(runtime.Replica)
 	e.QueryExecutor.SetReplicationControl(runtime.StartReplica, runtime.StopReplica)
+	e.QueryExecutor.SetReplicationChannelControl(runtime.StartReplicaForChannel, runtime.StopReplicaForChannel)
 	e.QueryExecutor.SetReplicationSourceControl(runtime.ChangeSource)
+	e.QueryExecutor.SetReplicationChannelSourceControl(runtime.ChangeSourceForChannel)
 	e.QueryExecutor.SetReplicationFilterControl(runtime.ChangeReplicationFilter)
+	e.QueryExecutor.SetReplicationChannelFilterControl(runtime.ChangeReplicationFilterForChannel)
 	e.QueryExecutor.SetReplicationResetControl(runtime.ResetReplica)
+	e.QueryExecutor.SetReplicationChannelResetControl(runtime.ResetReplicaForChannel)
 	e.QueryExecutor.SetReplicationResetAllControl(runtime.ResetReplicaAll)
+	e.QueryExecutor.SetReplicationChannelResetAllControl(runtime.ResetReplicaAllForChannel)
 	e.QueryExecutor.SetReplicationSourceAdminControl(runtime.FlushBinaryLogs, runtime.ResetMaster)
 	e.QueryExecutor.SetReplicationResetBinaryLogsAndGTIDsControl(runtime.ResetMasterTo)
 	e.QueryExecutor.SetReplicationSourcePurgeControl(runtime.PurgeBinaryLogsTo)
 	e.QueryExecutor.SetReplicationSourcePurgeBeforeControl(runtime.PurgeBinaryLogsBefore)
-	if role == replication.RoleSource {
+	// Bind the hooks for source/replica runtimes. The callbacks re-check the
+	// runtime role on each commit, so a replica remains read-only before
+	// promotion while a runtime promotion can immediately publish subsequent
+	// SQL/XA commits into the new source binlog without rebuilding the engine.
+	// Standalone engines deliberately keep these hooks unset so embedders and
+	// tests can inject their own commit/XA publishers.
+	if runtime.Status().Role != replication.RoleStandalone {
 		e.QueryExecutor.SetReplicationCommitTransactionHook(e.appendReplicationTransaction)
 		e.QueryExecutor.SetReplicationCommitTransactionHookWithID(e.appendReplicationTransactionWithID)
 		e.QueryExecutor.SetReplicationXAPrepareHook(e.appendReplicationXAPrepare)
@@ -535,6 +562,21 @@ func (e *XMySQLEngine) initReplicationLayer() {
 		e.QueryExecutor.SetReplicationXACommitHook(e.appendReplicationXACommit)
 		e.QueryExecutor.SetReplicationXARollbackHook(e.appendReplicationXARollback)
 	}
+}
+
+// derivedNativeEndpoint advertises the SQL listener as the native MySQL
+// replication endpoint when the listener is bound to a concrete address. A
+// wildcard bind address cannot be used by peers, so deployments using it must
+// provide replication.native_endpoint explicitly.
+func derivedNativeEndpoint(bindAddress string, port int) string {
+	host := strings.TrimSpace(bindAddress)
+	if port <= 0 || host == "" || host == "0.0.0.0" || host == "::" || host == "[::]" {
+		return ""
+	}
+	if parsed := net.ParseIP(strings.Trim(host, "[]")); parsed != nil && parsed.IsUnspecified() {
+		return ""
+	}
+	return "mysql://" + net.JoinHostPort(strings.Trim(host, "[]"), strconv.Itoa(port))
 }
 
 func (e *XMySQLEngine) appendReplicationStatements(statements []replication.Statement) error {
@@ -545,45 +587,57 @@ func (e *XMySQLEngine) appendReplicationStatements(statements []replication.Stat
 }
 
 func (e *XMySQLEngine) appendReplicationTransaction(changes []replication.RowChange, statements []replication.Statement) error {
-	if e == nil || e.replicationRuntime == nil {
+	if !e.replicationPublishEnabled() {
 		return nil
 	}
 	return e.replicationRuntime.AppendCommittedTransaction(changes, statements)
 }
 
 func (e *XMySQLEngine) appendReplicationTransactionWithID(transactionID string, changes []replication.RowChange, statements []replication.Statement) error {
-	if e == nil || e.replicationRuntime == nil {
+	if !e.replicationPublishEnabled() {
 		return nil
 	}
 	return e.replicationRuntime.AppendCommittedTransactionWithKey(transactionID, changes, statements)
 }
 
 func (e *XMySQLEngine) appendReplicationXAPrepare(transactionID string, xid replication.XAIdentity, changes []replication.RowChange, statements []replication.Statement) error {
-	if e == nil || e.replicationRuntime == nil {
+	if !e.replicationPublishEnabled() {
 		return nil
 	}
 	return e.replicationRuntime.PrepareXATransaction(transactionID, xid, changes, statements)
 }
 
 func (e *XMySQLEngine) appendReplicationXAOnePhaseCommit(transactionID string, xid replication.XAIdentity, changes []replication.RowChange, statements []replication.Statement) error {
-	if e == nil || e.replicationRuntime == nil {
+	if !e.replicationPublishEnabled() {
 		return nil
 	}
 	return e.replicationRuntime.AppendOnePhaseXATransaction(transactionID, xid, changes, statements)
 }
 
 func (e *XMySQLEngine) appendReplicationXACommit(transactionID string, xid replication.XAIdentity) error {
-	if e == nil || e.replicationRuntime == nil {
+	if !e.replicationPublishEnabled() {
 		return nil
 	}
 	return e.replicationRuntime.CommitXATransaction(transactionID, xid)
 }
 
 func (e *XMySQLEngine) appendReplicationXARollback(transactionID string, xid replication.XAIdentity) error {
-	if e == nil || e.replicationRuntime == nil {
+	if !e.replicationPublishEnabled() {
 		return nil
 	}
 	return e.replicationRuntime.RollbackXATransaction(transactionID, xid)
+}
+
+// replicationPublishEnabled keeps transaction hooks installed across a
+// runtime promotion without making replica-side local commits fail.  A
+// replica still needs the hooks available so the same engine can publish
+// immediately after promotion, but before promotion commit hooks are a
+// no-op rather than a source-role error.
+func (e *XMySQLEngine) replicationPublishEnabled() bool {
+	if e == nil || e.replicationRuntime == nil {
+		return false
+	}
+	return e.replicationRuntime.Status().Role == replication.RoleSource
 }
 
 // ReplicationStatus returns the local runtime status for operational probes.
@@ -677,12 +731,16 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 		summary := <-statementSummary
 		if metricsEnabled {
 			actorSetting := e.QueryExecutor.performanceSchemaStatementSettingForSession(session)
-			instrumentEnabled, instrumentTimed := e.QueryExecutor.performanceSchemaInstrumentSetting("statement/sql/" + strings.ToLower(metricStatementType(query)))
+			statementType := summary.statementType
+			if statementType == "" {
+				statementType = metricStatementType(query)
+			}
+			instrumentEnabled, instrumentTimed := e.QueryExecutor.performanceSchemaInstrumentSetting("statement/sql/" + strings.ToLower(statementType))
 			stageInstrumented, stageTimed := e.QueryExecutor.performanceSchemaInstrumentSetting("stage/sql/execute")
 			actorSetting.Enabled = actorSetting.Enabled && instrumentEnabled
-			e.QueryExecutor.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccountingWithRowsExaminedAndScanAndIndexUsageAndSortRowsAndScanAndRangeAndJoinWithTimer(
-				summary.threadID, summary.user, summary.host, databaseName, strings.TrimSpace(query), metricStatementType(query), summary.status, summary.latency,
-				accounting.rowsAffected, accounting.rowsSent, summary.rowsExamined, summary.selectScan, summary.selectRange, summary.selectFullJoin, summary.selectFullRangeJoin, summary.selectRangeCheck, summary.noIndexUsed, summary.noGoodIndexUsed, summary.sortRows, summary.sortScan, summary.sortRange, accounting.warnings, actorSetting.Enabled, actorSetting.History, instrumentTimed, stageInstrumented, stageTimed,
+			e.QueryExecutor.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccountingWithRowsExaminedAndScanAndIndexUsageAndSortRowsAndScanAndRangeAndJoinWithTimerAndCPUAndIndexNames(
+				summary.threadID, summary.user, summary.host, databaseName, strings.TrimSpace(query), statementType, summary.status, summary.latency,
+				accounting.rowsAffected, accounting.rowsSent, summary.rowsExamined, summary.selectScan, summary.selectRange, summary.selectFullJoin, summary.selectFullRangeJoin, summary.selectRangeCheck, summary.noIndexUsed, summary.noGoodIndexUsed, summary.sortRows, summary.sortScan, summary.sortRange, accounting.warnings, summary.cpuTime, summary.cpuTimeCaptured, actorSetting.Enabled, actorSetting.History, instrumentTimed, stageInstrumented, stageTimed, summary.indexNames,
 			)
 		}
 		for _, result := range pending {
@@ -725,7 +783,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			e.logSlowQuery(session, query, time.Since(start), rowsAffected, txnID, stage, status, execErr)
 			if metricsEnabled {
 				latency := time.Since(start)
-				e.QueryExecutor.metricsRecorder.RecordQuery(databaseName, metricStatementType(query), status, latency)
+				e.QueryExecutor.metricsRecorder.RecordQuery(databaseName, metricStatementTypeForContext(statementContext, query), status, latency)
 				threadID := int64(0)
 				user, host := "", ""
 				if session != nil {
@@ -767,7 +825,16 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 					selectFullRangeJoin = statementContext.statementSelectFullRangeJoin.Load()
 					selectRangeCheck = statementContext.statementSelectRangeCheck.Load()
 				}
-				statementSummary <- statementExecutionSummary{threadID: threadID, user: user, host: host, status: status, latency: latency, rowsExamined: rowsExamined, selectScan: selectScan, selectRange: selectRange, selectFullJoin: selectFullJoin, selectFullRangeJoin: selectFullRangeJoin, selectRangeCheck: selectRangeCheck, noIndexUsed: noIndexUsed, noGoodIndexUsed: noGoodIndexUsed, sortRows: sortRows, sortScan: sortScan, sortRange: sortRange}
+				cpuTime, cpuTimeCaptured := int64(0), false
+				if statementContext != nil {
+					cpuTime = statementContext.statementCPUTime.Load()
+					cpuTimeCaptured = statementContext.statementCPUTimeCaptured.Load()
+				}
+				var indexNames []string
+				if statementContext != nil {
+					indexNames = statementContext.indexNames()
+				}
+				statementSummary <- statementExecutionSummary{threadID: threadID, user: user, host: host, statementType: metricStatementTypeForContext(statementContext, query), status: status, latency: latency, rowsExamined: rowsExamined, selectScan: selectScan, selectRange: selectRange, selectFullJoin: selectFullJoin, selectFullRangeJoin: selectFullRangeJoin, selectRangeCheck: selectRangeCheck, noIndexUsed: noIndexUsed, noGoodIndexUsed: noGoodIndexUsed, sortRows: sortRows, sortScan: sortScan, sortRange: sortRange, cpuTime: cpuTime, cpuTimeCaptured: cpuTimeCaptured, indexNames: indexNames}
 			}
 			if !metricsEnabled {
 				rowsExamined := int64(0)
@@ -796,7 +863,11 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 					selectFullRangeJoin = statementContext.statementSelectFullRangeJoin.Load()
 					selectRangeCheck = statementContext.statementSelectRangeCheck.Load()
 				}
-				statementSummary <- statementExecutionSummary{status: status, latency: time.Since(start), rowsExamined: rowsExamined, selectScan: selectScan, selectRange: selectRange, selectFullJoin: selectFullJoin, selectFullRangeJoin: selectFullRangeJoin, selectRangeCheck: selectRangeCheck, noIndexUsed: noIndexUsed, noGoodIndexUsed: noGoodIndexUsed, sortRows: sortRows, sortScan: sortScan, sortRange: sortRange}
+				var indexNames []string
+				if statementContext != nil {
+					indexNames = statementContext.indexNames()
+				}
+				statementSummary <- statementExecutionSummary{statementType: metricStatementTypeForContext(statementContext, query), status: status, latency: time.Since(start), rowsExamined: rowsExamined, selectScan: selectScan, selectRange: selectRange, selectFullJoin: selectFullJoin, selectFullRangeJoin: selectFullRangeJoin, selectRangeCheck: selectRangeCheck, noIndexUsed: noIndexUsed, noGoodIndexUsed: noGoodIndexUsed, sortRows: sortRows, sortScan: sortScan, sortRange: sortRange, indexNames: indexNames}
 			}
 		}()
 
@@ -815,6 +886,24 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			Session:      session,
 		}
 		statementContext = ctx
+		if metricsEnabled && e.QueryExecutor != nil && e.QueryExecutor.performanceSchemaConsumerEnabled("events_statements_cpu") {
+			runtime.LockOSThread()
+			cpuStart, cpuSupported := observabilitymetrics.CurrentThreadCPUTimeNanos()
+			defer func() {
+				if cpuSupported {
+					cpuEnd, ok := observabilitymetrics.CurrentThreadCPUTimeNanos()
+					if ok && cpuEnd >= cpuStart {
+						cpuTime := (cpuEnd - cpuStart) * 1000
+						if cpuTime <= 0 {
+							cpuTime = 1
+						}
+						statementContext.statementCPUTime.Store(cpuTime)
+						statementContext.statementCPUTimeCaptured.Store(true)
+					}
+				}
+				runtime.UnlockOSThread()
+			}()
+		}
 		if session != nil {
 			previousProcesslistQuery := session.GetParamByName("processlist_query")
 			previousProcesslistStart := session.GetParamByName("processlist_start_time")
@@ -829,6 +918,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			ctx.Context = queryContext
 		}
 		if e.QueryExecutor != nil {
+			e.QueryExecutor.prepareRolesGraphMLSession(session)
 			if result, handled, err2 := e.QueryExecutor.executeDirectSystemVariableSelect(query, session); handled {
 				stage = "system-variable-compatibility"
 				if err2 != nil {
@@ -1001,6 +1091,17 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			}
 			if ctx.AdminResult != nil {
 				results <- ctx.AdminResult
+				return
+			}
+			results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Message: "statement executed successfully"}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeMySQLOptimizerCostMutation(ctx, session, query); handled {
+			stage = "mysql-optimizer-cost-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_QUERY, Message: err2.Error()}
 				return
 			}
 			results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Message: "statement executed successfully"}
@@ -1435,6 +1536,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 
 		stmt, err := sqlparser.Parse(query)
 		if err != nil {
+			ctx.statementParseError = true
 			logger.Errorf(" [XMySQLEngine.ExecuteQuery] SQL解析错误: %v", err)
 			execErr = fmt.Errorf("parse error: %v", err)
 			status = "failed"

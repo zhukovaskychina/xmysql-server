@@ -3,6 +3,7 @@ package engine
 import (
 	"hash/fnv"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
@@ -70,6 +71,36 @@ func (e *XMySQLExecutor) executePerformanceSchemaTableHandlesSelect(query string
 		}
 		return handles[i].threadID < handles[j].threadID
 	})
+	capacity := e.performanceSchemaTableHandleCapacity()
+	if capacity >= 0 {
+		lostKeys := make(map[string]struct{})
+		if capacity < len(handles) {
+			for _, handle := range handles[capacity:] {
+				lostKeys[handle.schema+"\x00"+handle.table+"\x00"+strconv.FormatInt(handle.threadID, 10)] = struct{}{}
+			}
+		}
+		e.performanceSchemaMu.Lock()
+		if e.performanceSchemaTableHandleLostKeys == nil {
+			e.performanceSchemaTableHandleLostKeys = make(map[string]struct{})
+		}
+		for key := range lostKeys {
+			if _, exists := e.performanceSchemaTableHandleLostKeys[key]; !exists {
+				e.performanceSchemaTableHandleLostKeys[key] = struct{}{}
+				e.performanceSchemaTableHandlesLost.Add(1)
+			}
+		}
+		for key := range e.performanceSchemaTableHandleLostKeys {
+			if _, exists := lostKeys[key]; !exists {
+				delete(e.performanceSchemaTableHandleLostKeys, key)
+			}
+		}
+		e.performanceSchemaMu.Unlock()
+	}
+	if capacity == 0 {
+		handles = nil
+	} else if capacity >= 0 && len(handles) > capacity {
+		handles = handles[:capacity]
+	}
 	rows := make([][]interface{}, 0, len(handles))
 	for _, handle := range handles {
 		values := map[string]interface{}{
@@ -110,6 +141,27 @@ func performanceSchemaTableHandleEntries(session server.MySQLServerSession) []pe
 	}
 	appendLease(session.GetParamByName("__table_lock_lease"))
 	appendLease(session.GetParamByName("__transaction_table_lock_lease"))
+	// The metadata view itself is executed through the same statement lock
+	// path. Do not expose virtual INFORMATION_SCHEMA/PERFORMANCE_SCHEMA
+	// accesses as user table handles, otherwise observing table_handles creates
+	// a self-row and inflates *_table_handles_lost.
+	appendStatementLease := func(value interface{}) {
+		lease, ok := value.(*sessionTableLockLease)
+		if !ok || lease == nil {
+			return
+		}
+		for _, entry := range lease.entries {
+			name := strings.ToLower(strings.TrimSpace(entry.table))
+			if strings.HasPrefix(name, "information_schema.") || strings.HasPrefix(name, "performance_schema.") {
+				continue
+			}
+			if strings.TrimSpace(entry.table) == "" {
+				continue
+			}
+			entries = append(entries, performanceSchemaTableHandleEntry{name: entry.table, mode: entry.mode})
+		}
+	}
+	appendStatementLease(session.GetParamByName("__statement_table_lock_lease"))
 	if len(entries) > 0 {
 		return entries
 	}

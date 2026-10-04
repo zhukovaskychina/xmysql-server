@@ -594,7 +594,7 @@ func (r *DefaultSQLRouter) isSystemVariableQuery(query string) bool {
 	// 检查常见的系统函数
 	systemFunctions := []string{
 		"USER()", "DATABASE()", "VERSION()", "CONNECTION_ID()",
-		"CURRENT_USER()", "SESSION_USER()", "SYSTEM_USER()", "CURRENT_ROLE()", "LAST_INSERT_ID(", "ROW_COUNT(",
+		"CURRENT_USER()", "SESSION_USER()", "SYSTEM_USER()", "CURRENT_ROLE()", "ROLES_GRAPHML()", "LAST_INSERT_ID(", "ROW_COUNT(",
 	}
 
 	for _, function := range systemFunctions {
@@ -638,7 +638,7 @@ func (r *DefaultSQLRouter) containsSystemVariableExpression(query string) bool {
 	// 检查系统函数调用
 	systemFunctions := []string{
 		"USER()", "DATABASE()", "VERSION()", "CONNECTION_ID()",
-		"CURRENT_USER()", "SESSION_USER()", "SYSTEM_USER()", "CURRENT_ROLE()", "LAST_INSERT_ID(", "ROW_COUNT(",
+		"CURRENT_USER()", "SESSION_USER()", "SYSTEM_USER()", "CURRENT_ROLE()", "ROLES_GRAPHML()", "LAST_INSERT_ID(", "ROW_COUNT(",
 	}
 
 	for _, function := range systemFunctions {

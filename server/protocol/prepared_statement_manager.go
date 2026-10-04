@@ -48,6 +48,7 @@ type PreparedStatement struct {
 	RowsAffected     uint64
 	RowsSent         uint64
 	RowsExamined     uint64
+	CPUTimeTotal     uint64
 	CursorResult     *MessageQueryResult
 	CursorOffset     int
 }
@@ -305,6 +306,9 @@ func (m *PreparedStatementManager) RecordExecution(stmtID uint32, stats compatib
 	stmt.RowsAffected += stats.RowsAffected
 	stmt.RowsSent += stats.RowsSent
 	stmt.RowsExamined += stats.RowsExamined
+	if stats.CPUTimeCaptured {
+		stmt.CPUTimeTotal += stats.CPUTime
+	}
 	return nil
 }
 
@@ -371,6 +375,7 @@ func (m *PreparedStatementManager) Snapshot() []compatibility.PreparedStatementS
 			RowsAffected:     stmt.RowsAffected,
 			RowsSent:         stmt.RowsSent,
 			RowsExamined:     stmt.RowsExamined,
+			CPUTimeTotal:     stmt.CPUTimeTotal,
 		})
 	}
 	sort.Slice(snapshots, func(i, j int) bool { return snapshots[i].ID < snapshots[j].ID })

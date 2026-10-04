@@ -471,12 +471,227 @@ func TestShowTriggersReturnsTriggerMetadata(t *testing.T) {
 	require.Equal(t, "BEFORE", fmt.Sprint(rows[0][4]))
 }
 
+func TestInformationSchemaTriggersExposeActionOrder(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table ordered_trigger_rows (id int primary key)")
+	mustExecSQL(t, executor, "app", "create trigger z_first before insert on ordered_trigger_rows for each row set @first = 1")
+	mustExecSQL(t, executor, "app", "create trigger a_second before insert on ordered_trigger_rows for each row follows z_first set @second = 1")
+
+	result := mustSelectResultSQL(t, executor, "app", "select trigger_name, action_order, action_statement from information_schema.triggers where event_object_table = 'ordered_trigger_rows' order by trigger_name")
+	require.Len(t, result.Records, 2)
+	require.Equal(t, "a_second", result.Records[0].GetValues()[0].String())
+	require.Equal(t, int64(2), result.Records[0].GetValues()[1].Int())
+	require.Equal(t, "set @second = 1", result.Records[0].GetValues()[2].String())
+	require.Equal(t, "z_first", result.Records[1].GetValues()[0].String())
+	require.Equal(t, int64(1), result.Records[1].GetValues()[1].Int())
+	require.Equal(t, "set @first = 1", result.Records[1].GetValues()[2].String())
+}
+
 func TestInformationSchemaEventsReturnsScheduleMetadata(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	mustExecSQL(t, executor, "", "create database app")
 	mustExecSQL(t, executor, "app", "create event refresh_event on schedule every 2 hour starts '2030-01-02 03:04:05' do select 1")
 	rows := mustQuerySQL(t, executor, "app", "select event_type, interval_value, interval_field, status from information_schema.events where event_name = 'refresh_event'")
 	require.Equal(t, [][]interface{}{{"RECURRING", "2", "HOUR", "ENABLED"}}, rows)
+}
+
+func TestInformationSchemaEventsExposeBodyDefinition(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create event body_event on schedule every 1 hour do insert into event_log values (1)")
+
+	rows := mustQuerySQL(t, executor, "app", "select event_definition from information_schema.events where event_name = 'body_event'")
+	require.Equal(t, [][]interface{}{{"insert into event_log values (1)"}}, rows)
+}
+
+func TestInformationSchemaEventsReflectDisabledStatus(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create event status_event on schedule every 1 hour do select 1")
+	mustExecSQL(t, executor, "app", "alter event status_event disable")
+
+	rows := mustQuerySQL(t, executor, "app", "select status from information_schema.events where event_name = 'status_event'")
+	require.Equal(t, [][]interface{}{{"DISABLED"}}, rows)
+
+	mustExecSQL(t, executor, "app", "alter event status_event enable")
+	rows = mustQuerySQL(t, executor, "app", "select status from information_schema.events where event_name = 'status_event'")
+	require.Equal(t, [][]interface{}{{"ENABLED"}}, rows)
+}
+
+func TestInformationSchemaEventsReflectStartAndEndSchedule(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create event bounded_event on schedule every 1 hour starts '2030-01-02 03:04:05' ends '2030-01-03 04:05:06' do select 1")
+
+	rows := mustQuerySQL(t, executor, "app", "select starts, ends from information_schema.events where event_name = 'bounded_event'")
+	require.Equal(t, [][]interface{}{{"2030-01-02 03:04:05", "2030-01-03 04:05:06"}}, rows)
+}
+
+func TestInformationSchemaEventsReflectCompletionPolicy(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create event preserve_event on schedule every 1 hour on completion preserve do select 1")
+
+	rows := mustQuerySQL(t, executor, "app", "select on_completion from information_schema.events where event_name = 'preserve_event'")
+	require.Equal(t, [][]interface{}{{"PRESERVE"}}, rows)
+
+	mustExecSQL(t, executor, "app", "alter event preserve_event on completion not preserve")
+	rows = mustQuerySQL(t, executor, "app", "select on_completion from information_schema.events where event_name = 'preserve_event'")
+	require.Equal(t, [][]interface{}{{"NOT PRESERVE"}}, rows)
+}
+
+func TestInformationSchemaEventsReflectCommentAndDefiner(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.conf.ReplicationServerID = 37
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "", "create user 'event_owner'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "app", "create definer='event_owner'@'localhost' event metadata_event on schedule every 1 hour comment 'scheduled job' do select 1")
+
+	rows := mustQuerySQL(t, executor, "app", "select definer, event_comment from information_schema.events where event_name = 'metadata_event'")
+	require.Equal(t, [][]interface{}{{"event_owner@localhost", "scheduled job"}}, rows)
+}
+
+func TestInformationSchemaEventsExposeOriginatorServerID(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	executor.QueryExecutor.conf.ReplicationServerID = 37
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create event originator_event on schedule every 1 hour do select 1")
+	// A later server_id change must not rewrite the event's creator identity.
+	executor.QueryExecutor.conf.ReplicationServerID = 99
+
+	result := mustSelectResultSQL(t, executor, "app", "select originator from information_schema.events where event_name = 'originator_event'")
+	require.Len(t, result.Records, 1)
+	require.Equal(t, int64(37), result.Records[0].GetValues()[0].Int())
+}
+
+func TestInformationSchemaEventsExposeCreationAndAlterTimes(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create event timestamp_event on schedule every 1 hour do select 1")
+
+	rows := mustQuerySQL(t, executor, "app", "select created, last_altered from information_schema.events where event_name = 'timestamp_event'")
+	require.Len(t, rows, 1)
+	require.NotNil(t, rows[0][0])
+	require.Equal(t, rows[0][0], rows[0][1])
+	createdAt := fmt.Sprint(rows[0][0])
+
+	time.Sleep(1100 * time.Millisecond)
+	mustExecSQL(t, executor, "app", "alter event timestamp_event disable")
+	rows = mustQuerySQL(t, executor, "app", "select created, last_altered from information_schema.events where event_name = 'timestamp_event'")
+	require.Len(t, rows, 1)
+	require.Equal(t, createdAt, fmt.Sprint(rows[0][0]))
+	require.NotNil(t, rows[0][1])
+	require.NotEqual(t, createdAt, fmt.Sprint(rows[0][1]))
+}
+
+func TestInformationSchemaEventsExposeLastExecutedAfterSchedulerRun(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table event_log (id int primary key)")
+	scheduler := NewEventScheduler(true)
+	executor.SetEventScheduler(scheduler)
+	require.NoError(t, executor.StartEventScheduler(context.Background()))
+	defer executor.StopEventScheduler()
+
+	mustExecSQL(t, executor, "app", "create event executed_event on schedule at current_timestamp on completion preserve do insert into event_log values (1)")
+	require.Eventually(t, func() bool {
+		rows := mustQuerySQL(t, executor, "app", "select last_executed from information_schema.events where event_name = 'executed_event'")
+		return len(rows) == 1 && rows[0][0] != nil
+	}, 2*time.Second, 20*time.Millisecond)
+	require.Equal(t, [][]interface{}{{"1"}}, mustQuerySQL(t, executor, "app", "select id from event_log"))
+}
+
+func TestInformationSchemaRoutinesExposeCreationAndAlterTimes(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create procedure timestamp_routine() begin select 1; end")
+
+	rows := mustQuerySQL(t, executor, "app", "select created, last_altered from information_schema.routines where routine_name = 'timestamp_routine'")
+	require.Len(t, rows, 1)
+	require.NotNil(t, rows[0][0])
+	require.Equal(t, rows[0][0], rows[0][1])
+	createdAt := fmt.Sprint(rows[0][0])
+
+	time.Sleep(1100 * time.Millisecond)
+	mustExecSQL(t, executor, "app", "alter procedure timestamp_routine comment 'updated routine'")
+	rows = mustQuerySQL(t, executor, "app", "select created, last_altered from information_schema.routines where routine_name = 'timestamp_routine'")
+	require.Len(t, rows, 1)
+	require.Equal(t, createdAt, fmt.Sprint(rows[0][0]))
+	require.NotEqual(t, createdAt, fmt.Sprint(rows[0][1]))
+}
+
+func TestInformationSchemaRoutinesExposeRoutineBodyDefinition(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create procedure body_routine() begin select 1; end")
+
+	rows := mustQuerySQL(t, executor, "app", "select routine_definition from information_schema.routines where routine_name = 'body_routine'")
+	require.Equal(t, [][]interface{}{{"begin select 1; end"}}, rows)
+}
+
+func TestInformationSchemaStoredObjectsPersistSessionMetadata(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	session := newTestMySQLSession()
+	session.SetParamByName("sql_mode", "ANSI_QUOTES")
+	session.SetParamByName("time_zone", "Asia/Shanghai")
+	session.SetParamByName("character_set_client", "latin1")
+	session.SetParamByName("collation_connection", "latin1_swedish_ci")
+	mustExecSessionSQL(t, executor, session, "", "create database app")
+	mustExecSessionSQL(t, executor, session, "app", "create table metadata_rows (id int primary key)")
+	mustExecSessionSQL(t, executor, session, "app", "create procedure metadata_routine() begin select 1; end")
+	mustExecSessionSQL(t, executor, session, "app", "create trigger metadata_trigger before insert on metadata_rows for each row set @metadata_seen = 1")
+	mustExecSessionSQL(t, executor, session, "app", "create event metadata_event on schedule every 1 hour do select 1")
+
+	routineRows := mustQuerySessionSQL(t, executor, session, "app", "select sql_mode, character_set_client, collation_connection from information_schema.routines where routine_name = 'metadata_routine'")
+	require.Equal(t, [][]interface{}{{"ANSI_QUOTES", "latin1", "latin1_swedish_ci"}}, routineRows)
+	eventRows := mustQuerySessionSQL(t, executor, session, "app", "select sql_mode, time_zone, character_set_client, collation_connection from information_schema.events where event_name = 'metadata_event'")
+	require.Equal(t, [][]interface{}{{"ANSI_QUOTES", "Asia/Shanghai", "latin1", "latin1_swedish_ci"}}, eventRows)
+	triggerRows := mustQuerySessionSQL(t, executor, session, "app", "select sql_mode, character_set_client, collation_connection from information_schema.triggers where trigger_name = 'metadata_trigger'")
+	require.Equal(t, [][]interface{}{{"ANSI_QUOTES", "latin1", "latin1_swedish_ci"}}, triggerRows)
+	showEvents := <-executor.ExecuteQuery(session, "show events from app like 'metadata_event'", "app")
+	require.NoError(t, showEvents.Err)
+	showEventsData := showEvents.Data.(map[string]interface{})
+	showEventsRows := showEventsData["rows"].([][]interface{})
+	require.Len(t, showEventsRows, 1)
+	require.Equal(t, "Asia/Shanghai", showEventsRows[0][3])
+	require.Equal(t, "latin1", showEventsRows[0][12])
+	require.Equal(t, "latin1_swedish_ci", showEventsRows[0][13])
+	showCreateEvent := <-executor.ExecuteQuery(session, "show create event metadata_event", "app")
+	require.NoError(t, showCreateEvent.Err)
+	showCreateEventResult := showCreateEvent.Data.(*SelectResult)
+	require.Len(t, showCreateEventResult.Records, 1)
+	showCreateEventValues := showCreateEventResult.Records[0].GetValues()
+	require.Equal(t, "ANSI_QUOTES", showCreateEventValues[1].String())
+	require.Equal(t, "Asia/Shanghai", showCreateEventValues[2].String())
+	require.Equal(t, "latin1", showCreateEventValues[4].String())
+	require.Equal(t, "latin1_swedish_ci", showCreateEventValues[5].String())
+	showTriggers := <-executor.ExecuteQuery(session, "show triggers from app like 'metadata_trigger'", "app")
+	require.NoError(t, showTriggers.Err)
+	showTriggersData := showTriggers.Data.(map[string]interface{})
+	showTriggersRows := showTriggersData["rows"].([][]interface{})
+	require.Len(t, showTriggersRows, 1)
+	require.Equal(t, "ANSI_QUOTES", showTriggersRows[0][6])
+	require.Equal(t, "latin1", showTriggersRows[0][8])
+	require.Equal(t, "latin1_swedish_ci", showTriggersRows[0][9])
+}
+
+func TestInformationSchemaViewsPersistSessionMetadata(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	session := newTestMySQLSession()
+	session.SetParamByName("character_set_client", "latin1")
+	session.SetParamByName("collation_connection", "latin1_swedish_ci")
+	mustExecSessionSQL(t, executor, session, "", "create database app")
+	mustExecSessionSQL(t, executor, session, "app", "create view metadata_view as select 1 as id")
+
+	viewRows := mustQuerySessionSQL(t, executor, session, "app", "select character_set_client, collation_connection from information_schema.views where table_name = 'metadata_view'")
+	require.Equal(t, [][]interface{}{{"latin1", "latin1_swedish_ci"}}, viewRows)
+	showCreate := <-executor.ExecuteQuery(session, "show create view metadata_view", "app")
+	require.NoError(t, showCreate.Err)
+	showData := showCreate.Data.(map[string]interface{})
+	showRows := showData["rows"].([][]interface{})
+	require.Equal(t, "latin1", showRows[0][2])
+	require.Equal(t, "latin1_swedish_ci", showRows[0][3])
 }
 
 func TestShowEventsReturnsScheduleMetadata(t *testing.T) {
@@ -2311,10 +2526,16 @@ func TestMySQLProcsPrivReflectsRoutineExecuteGrant(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	mustExecSQL(t, executor, "", "create database app")
 	mustExecSQL(t, executor, "app", "create procedure report() begin select 1; end")
+	mustExecSQL(t, executor, "app", "create procedure audit() begin select 2; end")
 	mustExecSQL(t, executor, "", "create user 'reader'@'localhost' identified by 'secret'")
 	mustExecSQL(t, executor, "", "grant execute on app.report to 'reader'@'localhost'")
+	mustExecSQL(t, executor, "", "grant execute on app.audit to 'reader'@'localhost'")
 	rows := mustQuerySQL(t, executor, "", "select Host, User, Db, Routine_name, Proc_priv, Routine_type = 'PROCEDURE' as is_proc from mysql.procs_priv where Db = 'app' and Routine_name = 'report'")
 	require.Equal(t, [][]interface{}{{"localhost", "reader", "app", "report", "EXECUTE", "1"}}, rows)
+	inRows := mustQuerySQL(t, executor, "", "select Routine_name from mysql.procs_priv where Routine_name in ('report')")
+	require.Equal(t, [][]interface{}{{"report"}}, inRows)
+	notInRows := mustQuerySQL(t, executor, "", "select Routine_name from mysql.procs_priv where Routine_name in ('report', 'audit') and Routine_name not in ('audit')")
+	require.Equal(t, [][]interface{}{{"report"}}, notInRows)
 }
 
 func TestDropTableProtectsStoredObjectDependencies(t *testing.T) {
@@ -2347,6 +2568,52 @@ func TestInformationSchemaParametersReturnsStoredRoutineMetadata(t *testing.T) {
 	mustExecSQL(t, executor, "app", "create function add_one(input_value INT) returns INT begin return input_value + 1; end")
 	rows := mustQuerySQL(t, executor, "", "select specific_name, column_name, column_type, data_type, type_name from information_schema.parameters where specific_schema = 'app' and specific_name = 'add_one'")
 	require.Equal(t, [][]interface{}{{"add_one", "input_value", "1", "4", "INT"}, {"add_one", "RETURN_VALUE", "5", "4", "INT"}}, rows)
+}
+
+func TestInformationSchemaParametersReturnValueUsesNativeNullName(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create function add_one(input_value INT) returns INT deterministic begin return input_value + 1; end")
+
+	rows := mustQuerySQL(t, executor, "", "select ordinal_position, parameter_mode, parameter_name from information_schema.parameters where specific_schema = 'app' and specific_name = 'add_one' order by ordinal_position")
+	require.Len(t, rows, 2)
+	require.Nil(t, rows[1][1])
+	require.Nil(t, rows[1][2])
+	returnRows := mustQuerySQL(t, executor, "", "select parameter_name, parameter_mode from information_schema.parameters where specific_schema = 'app' and specific_name = 'add_one' and ordinal_position = 0")
+	require.Equal(t, [][]interface{}{{nil, nil}}, returnRows)
+
+	jdbcRows := mustQuerySQL(t, executor, "", "select column_name from information_schema.parameters where specific_schema = 'app' and specific_name = 'add_one' order by ordinal_position")
+	require.Len(t, jdbcRows, 2)
+	require.Equal(t, "RETURN_VALUE", fmt.Sprint(jdbcRows[1][0]))
+}
+
+func TestInformationSchemaParametersSupportsNullPredicates(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create function add_one(input_value INT) returns INT deterministic begin return input_value + 1; end")
+
+	returnRows := mustQuerySQL(t, executor, "", "select parameter_name, parameter_mode from information_schema.parameters where specific_schema='app' and specific_name='add_one' and parameter_name is null")
+	require.Equal(t, [][]interface{}{{nil, nil}}, returnRows)
+
+	inputRows := mustQuerySQL(t, executor, "", "select parameter_name, parameter_mode from information_schema.parameters where specific_schema='app' and specific_name='add_one' and parameter_name is not null")
+	require.Equal(t, [][]interface{}{{"input_value", "IN"}}, inputRows)
+
+	returnModeRows := mustQuerySQL(t, executor, "", "select parameter_name from information_schema.parameters where specific_schema='app' and specific_name='add_one' and parameter_mode is null")
+	require.Equal(t, [][]interface{}{{nil}}, returnModeRows)
+
+	require.Empty(t, mustQuerySQL(t, executor, "", "select parameter_name from information_schema.parameters where specific_schema='app' and specific_name='add_one' and ordinal_position is null"))
+	ordinalRows := mustQuerySQL(t, executor, "", "select parameter_name from information_schema.parameters where specific_schema='app' and specific_name='add_one' and ordinal_position is not null")
+	require.Equal(t, [][]interface{}{{"input_value"}, {nil}}, ordinalRows)
+
+	parameterInRows := mustQuerySQL(t, executor, "", "select parameter_name from information_schema.parameters where specific_schema='app' and specific_name='add_one' and parameter_name in ('input_value')")
+	require.Equal(t, [][]interface{}{{"input_value"}}, parameterInRows)
+	parameterNotInRows := mustQuerySQL(t, executor, "", "select parameter_name from information_schema.parameters where specific_schema='app' and specific_name='add_one' and parameter_name in ('input_value', 'other') and parameter_name not in ('other')")
+	require.Equal(t, [][]interface{}{{"input_value"}}, parameterNotInRows)
+	require.Empty(t, mustQuerySQL(t, executor, "", "select parameter_name from information_schema.parameters where specific_schema='app' and specific_name='add_one' and parameter_name = ''"))
+	require.Empty(t, mustQuerySQL(t, executor, "", "select parameter_name from information_schema.parameters where specific_schema='app' and specific_name='add_one' and parameter_name like ''"))
+
+	require.Empty(t, mustQuerySQL(t, executor, "", "select parameter_name from information_schema.parameters where specific_schema = ''"))
+	require.Empty(t, mustQuerySQL(t, executor, "", "select parameter_name from information_schema.parameters where specific_name like ''"))
 }
 
 func TestInformationSchemaRoutinesReturnsNativeRoutineColumns(t *testing.T) {
@@ -2518,7 +2785,8 @@ func TestSQLEventProgramSummaryTracksExecutionResults(t *testing.T) {
 	require.NoError(t, result.Err)
 	require.Eventually(t, func() bool {
 		rows := mustQuerySQL(t, executor, "app", "select note from event_log")
-		return len(rows) == 1 && rows[0][0] == "fired"
+		program := mustQuerySQL(t, executor, "", "select object_type, object_schema, object_name, sum_rows_affected from performance_schema.events_statements_summary_by_program where object_type='EVENT' and object_schema='app' and object_name='accounting_event'")
+		return len(rows) == 1 && rows[0][0] == "fired" && len(program) == 1
 	}, 2*time.Second, 20*time.Millisecond)
 
 	program := mustQuerySQL(t, executor, "", "select object_type, object_schema, object_name, sum_rows_affected from performance_schema.events_statements_summary_by_program where object_type='EVENT' and object_schema='app' and object_name='accounting_event'")

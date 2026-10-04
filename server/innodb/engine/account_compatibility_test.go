@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 )
 
@@ -203,6 +204,28 @@ func TestDropUserRemovesMultipleAccountsAtomically(t *testing.T) {
 	require.Equal(t, [][]interface{}{{"keep_a"}}, mustQuerySQL(t, executor, "", "select User from mysql.user where User = 'keep_a'"))
 }
 
+func TestMySQLUserPrivilegeMetadataSupportsInAndNotInFilters(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'system_filter_a'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "create user 'system_filter_b'@'localhost' identified by 'secret'")
+
+	inRows := mustQuerySQL(t, executor, "", "select User from mysql.user where User in ('system_filter_a')")
+	require.Equal(t, [][]interface{}{{"system_filter_a"}}, inRows)
+
+	notInRows := mustQuerySQL(t, executor, "", "select User from mysql.user where User in ('system_filter_a', 'system_filter_b') and User not in ('system_filter_b')")
+	require.Equal(t, [][]interface{}{{"system_filter_a"}}, notInRows)
+
+	mustExecSQL(t, executor, "", "create database system_filter_db")
+	mustExecSQL(t, executor, "system_filter_db", "create table system_filter_table (id int primary key, label varchar(16))")
+	mustExecSQL(t, executor, "", "grant select on system_filter_db.* to 'system_filter_a'@'localhost'")
+	mustExecSQL(t, executor, "", "grant select on system_filter_db.system_filter_table to 'system_filter_a'@'localhost'")
+	mustExecSQL(t, executor, "", "grant select (id) on system_filter_db.system_filter_table to 'system_filter_a'@'localhost'")
+
+	require.Equal(t, [][]interface{}{{"system_filter_a", "system_filter_db"}}, mustQuerySQL(t, executor, "", "select User, Db from mysql.db where User in ('system_filter_a') and Db in ('system_filter_db')"))
+	require.Equal(t, [][]interface{}{{"system_filter_a", "system_filter_db", "system_filter_table"}}, mustQuerySQL(t, executor, "", "select User, Db, Table_name from mysql.tables_priv where User in ('system_filter_a') and Table_name not in ('other_table')"))
+	require.Equal(t, [][]interface{}{{"system_filter_a", "system_filter_db", "system_filter_table", "id"}}, mustQuerySQL(t, executor, "", "select User, Db, Table_name, Column_name from mysql.columns_priv where User in ('system_filter_a') and Column_name in ('id')"))
+}
+
 func TestDropRoleRemovesMultipleRolesAndBindingsAtomically(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	mustExecSQL(t, executor, "", "create role 'drop_role_a'@'localhost'")
@@ -340,13 +363,22 @@ func TestMySQLRoleGrantTablesProjectDurableRoleEdgesAndDefaultRoles(t *testing.T
 	mustExecSessionSQL(t, executor, session, "", "set default role 'report_reader'@'localhost' to 'bob'@'localhost'")
 
 	roleEdges := mustQuerySQL(t, executor, "", "select from_host, from_user, to_host, to_user, with_admin_option from mysql.role_edges")
-	require.Equal(t, [][]interface{}{{"localhost", "bob", "localhost", "report_reader", "Y"}}, roleEdges)
+	require.Equal(t, [][]interface{}{{"localhost", "report_reader", "localhost", "bob", "Y"}}, roleEdges)
 
 	defaultRoles := mustQuerySQL(t, executor, "", "select host, user, default_role_host, default_role_user from mysql.default_roles")
 	require.Equal(t, [][]interface{}{{"localhost", "bob", "localhost", "report_reader"}}, defaultRoles)
 
-	filtered := mustQuerySQL(t, executor, "", "select to_user from mysql.role_edges where from_user = 'bob' and with_admin_option = 'Y'")
+	filtered := mustQuerySQL(t, executor, "", "select from_user from mysql.role_edges where to_user = 'bob' and with_admin_option = 'Y'")
 	require.Equal(t, [][]interface{}{{"report_reader"}}, filtered)
+
+	mustExecSQL(t, executor, "", "create role 'audit_reader'@'localhost'")
+	mustExecSQL(t, executor, "", "grant 'audit_reader'@'localhost' to 'bob'@'localhost' with admin option")
+	roleIn := mustQuerySQL(t, executor, "", "select from_user from mysql.role_edges where from_user in ('report_reader')")
+	require.Equal(t, [][]interface{}{{"report_reader"}}, roleIn)
+	roleNotIn := mustQuerySQL(t, executor, "", "select from_user from mysql.role_edges where from_user in ('report_reader', 'audit_reader') and from_user not in ('audit_reader')")
+	require.Equal(t, [][]interface{}{{"report_reader"}}, roleNotIn)
+	emptyRole := mustQuerySQL(t, executor, "", "select from_user from mysql.role_edges where from_user = ''")
+	require.Empty(t, emptyRole)
 }
 
 func TestRoleMetadataResolvesWildcardHostAccountLikePrivilegeChecks(t *testing.T) {
@@ -379,14 +411,23 @@ func TestRoleMetadataHonorsProjectionAndFilters(t *testing.T) {
 	session := newTestMySQLSession()
 	session.SetParamByName("user", "bob")
 	session.SetParamByName("host", "localhost")
+	session.SetParamByName("active_roles", []string{"report_reader@localhost", "audit_reader@localhost"})
 
 	applicable := mustQuerySessionSQL(t, executor, session, "", "select role_name, role_host from information_schema.applicable_roles where role_name = 'report_reader'")
 	require.Equal(t, [][]interface{}{{"report_reader", "localhost"}}, applicable)
+	applicableIn := mustQuerySessionSQL(t, executor, session, "", "select role_name, role_host from information_schema.applicable_roles where role_name in ('report_reader')")
+	require.Equal(t, [][]interface{}{{"report_reader", "localhost"}}, applicableIn)
+	applicableNull := mustQuerySessionSQL(t, executor, session, "", "select role_name from information_schema.applicable_roles where role_name is null")
+	require.Empty(t, applicableNull)
+	applicableNotNull := mustQuerySessionSQL(t, executor, session, "", "select role_name from information_schema.applicable_roles where role_name is not null")
+	require.ElementsMatch(t, [][]interface{}{{"report_reader"}, {"audit_reader"}}, applicableNotNull)
 
 	tableGrants := mustQuerySessionSQL(t, executor, session, "", "select table_name, privilege_type from information_schema.role_table_grants where table_schema = 'app' and table_name = 'users'")
 	require.Equal(t, [][]interface{}{{"users", "SELECT"}}, tableGrants)
 	catalogGrants := mustQuerySessionSQL(t, executor, session, "", "select table_name from information_schema.role_table_grants where table_catalog = 'def'")
 	require.Equal(t, [][]interface{}{{"users"}}, catalogGrants)
+	privilegeIn := mustQuerySessionSQL(t, executor, session, "", "select privilege_type from information_schema.role_table_grants where privilege_type in ('SELECT')")
+	require.Equal(t, [][]interface{}{{"SELECT"}}, privilegeIn)
 	require.Empty(t, mustQuerySessionSQL(t, executor, session, "", "select table_name from information_schema.role_table_grants where table_catalog = 'wrong'"))
 	require.Equal(t, [][]interface{}{{"users"}}, mustQuerySessionSQL(t, executor, session, "", "select table_name from information_schema.role_table_grants where grantor = 'root' and grantor_host = 'localhost'"))
 	require.Empty(t, mustQuerySessionSQL(t, executor, session, "", "select table_name from information_schema.role_table_grants where grantor = 'other'"))
@@ -395,6 +436,41 @@ func TestRoleMetadataHonorsProjectionAndFilters(t *testing.T) {
 	active.SetParamByName("active_roles", []string{"report_reader@localhost", "audit_reader@localhost"})
 	enabled := mustQuerySessionSQL(t, executor, active, "", "select role_name from information_schema.enabled_roles where role_name = 'audit_reader'")
 	require.Equal(t, [][]interface{}{{"audit_reader"}}, enabled)
+}
+
+func TestRoleTableGrantsExcludeGrantedButInactiveRoles(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database inactive_role_metadata")
+	mustExecSQL(t, executor, "inactive_role_metadata", "create table users (id int primary key)")
+	mustExecSQL(t, executor, "", "create role 'inactive_reader'@'localhost'")
+	mustExecSQL(t, executor, "", "create user 'inactive_bob'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant select on inactive_role_metadata.users to 'inactive_reader'@'localhost'")
+	mustExecSQL(t, executor, "", "grant 'inactive_reader'@'localhost' to 'inactive_bob'@'localhost'")
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "inactive_bob")
+	session.SetParamByName("host", "localhost")
+
+	rows := mustQuerySessionSQL(t, executor, session, "", "select table_name, privilege_type from information_schema.role_table_grants where table_schema = 'inactive_role_metadata'")
+	require.Empty(t, rows, "a granted role without a default or active role must not expose role table grants")
+}
+
+func TestEnabledRolesUsePersistedDefaultRolesWhenSessionOmitsActiveRoles(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create role 'default_reader'@'localhost'")
+	mustExecSQL(t, executor, "", "create user 'default_bob'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant 'default_reader'@'localhost' to 'default_bob'@'localhost'")
+	admin := newTestMySQLSession()
+	admin.SetParamByName("user", "root")
+	admin.SetParamByName("host", "localhost")
+	mustExecSessionSQL(t, executor, admin, "", "set default role 'default_reader'@'localhost' to 'default_bob'@'localhost'")
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "default_bob")
+	session.SetParamByName("host", "localhost")
+
+	rows := mustQuerySessionSQL(t, executor, session, "", "select role_name, role_host, is_default, is_mandatory from information_schema.enabled_roles")
+	require.Equal(t, [][]interface{}{{"default_reader", "localhost", "YES", "NO"}}, rows)
 }
 
 func TestApplicableRolesExposeMandatoryRoleAndMySQL84Shape(t *testing.T) {
@@ -569,6 +645,27 @@ func TestPersistedRoleAdminGrantMakesApplicableRoleGrantable(t *testing.T) {
 	require.Equal(t, [][]interface{}{{"persisted_role_admin_target", "YES"}}, admin)
 }
 
+func TestRoleMetadataFiltersApplyToAccountAndDefaultRoleFields(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create role 'role_metadata_filter_target'@'localhost'")
+	mustExecSQL(t, executor, "", "create user 'role_metadata_filter_user'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant 'role_metadata_filter_target'@'localhost' to 'role_metadata_filter_user'@'localhost'")
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "role_metadata_filter_user")
+	session.SetParamByName("host", "localhost")
+	mustExecSessionSQL(t, executor, session, "", "set default role 'role_metadata_filter_target'@'localhost' to 'role_metadata_filter_user'@'localhost'")
+
+	wrongUser := mustQuerySessionSQL(t, executor, session, "", "select user, host, role_name, default_role from information_schema.applicable_roles where user = 'someone_else'")
+	require.Empty(t, wrongUser)
+	wrongHost := mustQuerySessionSQL(t, executor, session, "", "select user, host, role_name, default_role from information_schema.applicable_roles where host = 'remote'")
+	require.Empty(t, wrongHost)
+	wrongGranteeHost := mustQuerySessionSQL(t, executor, session, "", "select grantee, grantee_host, role_name from information_schema.applicable_roles where grantee_host = 'remote'")
+	require.Empty(t, wrongGranteeHost)
+	defaultRole := mustQuerySessionSQL(t, executor, session, "", "select role_name, default_role from information_schema.applicable_roles where default_role = 'YES'")
+	require.Equal(t, [][]interface{}{{"role_metadata_filter_target", "YES"}}, defaultRole)
+}
+
 func TestNestedRoleAdminOptionDoesNotOvergrantInheritedRole(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	mustExecSQL(t, executor, "", "create role 'nested_role_admin_parent'@'localhost'")
@@ -587,6 +684,60 @@ func TestNestedRoleAdminOptionDoesNotOvergrantInheritedRole(t *testing.T) {
 	require.Equal(t, [][]interface{}{{"nested_role_admin_parent", "YES"}}, admin)
 }
 
+func TestNestedRoleActivationSeparatesEnabledRoleFromInheritedPrivileges(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create role 'nested_activation_parent'@'localhost'")
+	mustExecSQL(t, executor, "", "create role 'nested_activation_child'@'localhost'")
+	mustExecSQL(t, executor, "", "create user 'nested_activation_user'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant select on app.users to 'nested_activation_child'@'localhost'")
+	mustExecSQL(t, executor, "", "grant 'nested_activation_child'@'localhost' to 'nested_activation_parent'@'localhost'")
+	mustExecSQL(t, executor, "", "grant 'nested_activation_parent'@'localhost' to 'nested_activation_user'@'localhost'")
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "nested_activation_user")
+	session.SetParamByName("host", "localhost")
+	mustExecSessionSQL(t, executor, session, "", "set role all")
+
+	// MySQL exposes the directly activated role in ENABLED_ROLES while its
+	// nested role contributes privileges through the active role graph.
+	roles := mustQuerySessionSQL(t, executor, session, "", "select role_name, role_host from information_schema.enabled_roles")
+	require.Equal(t, [][]interface{}{{"nested_activation_parent", "localhost"}}, roles)
+	privileges := mustQuerySessionSQL(t, executor, session, "", "select grantee, table_name, privilege_type from information_schema.role_table_grants where table_schema = 'app'")
+	require.Equal(t, [][]interface{}{{"'nested_activation_child'@'localhost'", "users", "SELECT"}}, privileges)
+}
+
+func TestRolesGraphMLHidesRoleGraphWithoutRoleAdmin(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create role 'graph_reader'@'localhost'")
+	mustExecSQL(t, executor, "", "create user 'graph_user'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant 'graph_reader'@'localhost' to 'graph_user'@'localhost'")
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "graph_user")
+	session.SetParamByName("host", "localhost")
+	rows := mustQuerySessionSQL(t, executor, session, "", "select roles_graphml()")
+	require.Equal(t, [][]interface{}{{"<?xml version=\"1.0\" encoding=\"UTF-8\"?><graphml />"}}, rows)
+}
+
+func TestRolesGraphMLShowsDirectRoleEdgesToRoleAdmin(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create role 'graph_admin_reader'@'localhost'")
+	mustExecSQL(t, executor, "", "create user 'graph_admin_user'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant 'graph_admin_reader'@'localhost' to 'graph_admin_user'@'localhost'")
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "graph_admin_user")
+	session.SetParamByName("host", "localhost")
+	session.SetParamByName("dynamic_privileges", []string{"ROLE_ADMIN"})
+	rows := mustQuerySessionSQL(t, executor, session, "", "select roles_graphml()")
+	require.Len(t, rows, 1)
+	graph := rows[0][0].(string)
+	require.Contains(t, graph, "<node")
+	require.Contains(t, graph, "graph_admin_reader@localhost")
+	require.Contains(t, graph, "graph_admin_user@localhost")
+	require.Contains(t, graph, "<edge")
+}
+
 func TestRoleTableGrantsReflectRoleAccountPrivileges(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	mustExecSQL(t, executor, "", "create role 'report_reader'@'localhost'")
@@ -596,6 +747,7 @@ func TestRoleTableGrantsReflectRoleAccountPrivileges(t *testing.T) {
 	session := newTestMySQLSession()
 	session.SetParamByName("user", "bob")
 	session.SetParamByName("host", "localhost")
+	session.SetParamByName("active_roles", []string{"report_reader@localhost"})
 
 	rows := mustQuerySessionSQL(t, executor, session, "", "select grantee, table_schema, table_name, privilege_type, is_grantable from information_schema.role_table_grants")
 	require.Equal(t, [][]interface{}{{"'report_reader'@'localhost'", "app", "users", "SELECT", "NO"}}, rows)
@@ -610,6 +762,7 @@ func TestRolePrivilegeViewsExpandAllGrants(t *testing.T) {
 	session := newTestMySQLSession()
 	session.SetParamByName("user", "all_privilege_user")
 	session.SetParamByName("host", "localhost")
+	session.SetParamByName("active_roles", []string{"all_privilege_role@localhost"})
 
 	rows := mustQuerySessionSQL(t, executor, session, "", "select privilege_type, is_grantable from information_schema.role_table_grants where table_schema = 'app' and table_name = 'users'")
 	require.Len(t, rows, 12)
@@ -636,6 +789,7 @@ func TestRoleTableGrantsPreserveNonRootGrantor(t *testing.T) {
 	bob := newTestMySQLSession()
 	bob.SetParamByName("user", "bob")
 	bob.SetParamByName("host", "localhost")
+	bob.SetParamByName("active_roles", []string{"report_reader@localhost"})
 	rows := mustQuerySessionSQL(t, executor, bob, "", "select grantor, grantor_host, table_name from information_schema.role_table_grants")
 	require.Equal(t, [][]interface{}{{"grant_admin", "localhost", "users"}}, rows)
 }
@@ -649,6 +803,7 @@ func TestRoleColumnGrantsReflectRoleAccountPrivileges(t *testing.T) {
 	session := newTestMySQLSession()
 	session.SetParamByName("user", "bob")
 	session.SetParamByName("host", "localhost")
+	session.SetParamByName("active_roles", []string{"report_reader@localhost"})
 
 	rows := mustQuerySessionSQL(t, executor, session, "", "select grantee, table_schema, table_name, column_name, privilege_type, is_grantable from information_schema.role_column_grants")
 	require.Equal(t, [][]interface{}{{"'report_reader'@'localhost'", "app", "users", "email", "SELECT", "NO"}}, rows)
@@ -665,6 +820,7 @@ func TestRoleTableGrantsIncludeNestedRolePrivileges(t *testing.T) {
 	session := newTestMySQLSession()
 	session.SetParamByName("user", "bob")
 	session.SetParamByName("host", "localhost")
+	session.SetParamByName("active_roles", []string{"report_admin@localhost"})
 
 	rows := mustQuerySessionSQL(t, executor, session, "", "select grantee, table_schema, table_name, privilege_type, is_grantable from information_schema.role_table_grants")
 	require.Equal(t, [][]interface{}{{"'report_reader'@'localhost'", "app", "users", "SELECT", "NO"}}, rows)
@@ -682,6 +838,7 @@ func TestRoleRoutineGrantsReflectProcedureAndFunctionPrivileges(t *testing.T) {
 	session := newTestMySQLSession()
 	session.SetParamByName("user", "bob")
 	session.SetParamByName("host", "localhost")
+	session.SetParamByName("active_roles", []string{"routine_reader@localhost"})
 
 	rows := mustQuerySessionSQL(t, executor, session, "", "select grantee, grantee_host, specific_schema, specific_name, routine_name, privilege_type, is_grantable from information_schema.role_routine_grants")
 	require.Equal(t, [][]interface{}{
@@ -707,6 +864,7 @@ func TestRoleRoutineGrantsIncludeNestedRolePrivileges(t *testing.T) {
 	session := newTestMySQLSession()
 	session.SetParamByName("user", "bob")
 	session.SetParamByName("host", "localhost")
+	session.SetParamByName("active_roles", []string{"routine_admin@localhost"})
 
 	rows := mustQuerySessionSQL(t, executor, session, "", "select grantee, specific_name, privilege_type from information_schema.role_routine_grants")
 	require.Equal(t, [][]interface{}{{"routine_reader", "report", "EXECUTE"}}, rows)
@@ -1041,6 +1199,23 @@ func TestProxyPrivilegeIsAcceptedAsStaticGrant(t *testing.T) {
 	require.Equal(t, [][]interface{}{{"localhost", "proxy_user", "localhost", "proxied", "N"}}, proxyRows)
 }
 
+func TestMySQLProxiesPrivFiltersApplyToProxyTargetColumns(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'proxied_a'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "create user 'proxied_b'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "create user 'proxy_a'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "create user 'proxy_b'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant proxy on 'proxied_a'@'localhost' to 'proxy_a'@'localhost'")
+	mustExecSQL(t, executor, "", "grant proxy on 'proxied_b'@'localhost' to 'proxy_b'@'localhost'")
+
+	rows := mustQuerySQL(t, executor, "", "select User, Proxied_user from mysql.proxies_priv where Proxied_user in ('proxied_b')")
+	require.Equal(t, [][]interface{}{{"proxy_b", "proxied_b"}}, rows)
+	rows = mustQuerySQL(t, executor, "", "select User, Proxied_user from mysql.proxies_priv where Proxied_user not in ('proxied_b')")
+	require.Equal(t, [][]interface{}{{"proxy_a", "proxied_a"}}, rows)
+	rows = mustQuerySQL(t, executor, "", "select User, Proxied_user from mysql.proxies_priv where Proxied_host is not null")
+	require.Len(t, rows, 2)
+}
+
 func TestDropUserCleansRoleAndProxyReferences(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	mustExecSQL(t, executor, "", "create role 'report_role'@'localhost'")
@@ -1080,6 +1255,53 @@ func TestShowCreateUserReflectsPersistedAuthenticationState(t *testing.T) {
 	require.Contains(t, rows[0][1], "IDENTIFIED WITH 'mysql_native_password'")
 	require.Contains(t, rows[0][1], "REQUIRE X509")
 	require.Contains(t, rows[0][1], "PASSWORD EXPIRE")
+
+	mustExecSQL(t, executor, "", "create user 'default_options'@'localhost' identified by 'secret'")
+	defaults := mustQuerySQL(t, executor, "", "show create user 'default_options'@'localhost'")
+	createSQL := fmt.Sprint(defaults[0][1])
+	require.Contains(t, createSQL, "REQUIRE NONE")
+	require.Contains(t, createSQL, "ACCOUNT UNLOCK")
+	require.Contains(t, createSQL, "PASSWORD EXPIRE DEFAULT")
+	require.Contains(t, createSQL, "PASSWORD HISTORY DEFAULT")
+	require.Contains(t, createSQL, "PASSWORD REUSE INTERVAL DEFAULT")
+	require.Contains(t, createSQL, "PASSWORD REQUIRE CURRENT DEFAULT")
+}
+
+func TestShowCreateUserEnforcesSystemSchemaAndHashVisibility(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'show_operator'@'localhost' identified by 'operator-secret'")
+	mustExecSQL(t, executor, "", "create user 'show_target'@'localhost' identified by 'target-secret'")
+
+	operator := newTestMySQLSession()
+	operator.SetParamByName("user", "show_operator")
+	operator.SetParamByName("host", "localhost")
+
+	// A user can inspect its own definition, but the authentication hash is
+	// masked until SELECT on mysql.user is granted.
+	self := <-executor.ExecuteQuery(operator, "show create user 'show_operator'@'localhost'", "")
+	require.NoError(t, self.Err)
+	selfRows := self.Data.(*SelectResult).Records
+	require.Contains(t, selfRows[0].GetValues()[1].String(), "AS '<secret>'")
+	currentUser := <-executor.ExecuteQuery(operator, "show create user current_user()", "")
+	require.NoError(t, currentUser.Err)
+	require.Contains(t, currentUser.Data.(*SelectResult).Records[0].GetValues()[0].String(), "'show_operator'@'localhost'")
+
+	denied := <-executor.ExecuteQuery(operator, "show create user 'show_target'@'localhost'", "")
+	require.Error(t, denied.Err)
+	require.Contains(t, denied.Err.Error(), "SELECT")
+
+	mustExecSQL(t, executor, "", "grant select on mysql.* to 'show_operator'@'localhost'")
+	allowed := <-executor.ExecuteQuery(operator, "show create user 'show_target'@'localhost'", "")
+	require.NoError(t, allowed.Err)
+	allowedRows := allowed.Data.(*SelectResult).Records
+	require.NotContains(t, allowedRows[0].GetValues()[1].String(), "<secret>")
+
+	mustExecSQL(t, executor, "", "revoke select on mysql.* from 'show_operator'@'localhost'")
+	mustExecSQL(t, executor, "", "grant select on mysql.user to 'show_operator'@'localhost'")
+	selfWithTableSelect := <-executor.ExecuteQuery(operator, "show create user 'show_operator'@'localhost'", "")
+	require.NoError(t, selfWithTableSelect.Err)
+	selfWithTableRows := selfWithTableSelect.Data.(*SelectResult).Records
+	require.NotContains(t, selfWithTableRows[0].GetValues()[1].String(), "<secret>")
 }
 
 func TestRoleAuthorizationRequiresAdminOption(t *testing.T) {
@@ -1186,6 +1408,53 @@ func TestAlterUserRequireNoneClearsPreviousTransportRequirement(t *testing.T) {
 	require.Len(t, rows, 1)
 	require.NotContains(t, rows[0][1], "REQUIRE SSL")
 	require.NotContains(t, rows[0][1], "REQUIRE X509")
+}
+
+func TestAccountTLSAttributesAndResourceLimitsPersistAndProject(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'bounded_user'@'localhost' identified by 'secret' require x509 and cipher 'TLS_AES_256_GCM_SHA384' and issuer 'CN=Test CA' and subject 'CN=bounded' with max_queries_per_hour 60 max_updates_per_hour 7 max_connections_per_hour 8 max_user_connections 2")
+
+	rows := mustQuerySQL(t, executor, "", "select ssl_type, ssl_cipher, x509_issuer, x509_subject, max_questions, max_updates, max_connections, max_user_connections from mysql.user where User = 'bounded_user'")
+	require.Equal(t, [][]interface{}{{"X509", "TLS_AES_256_GCM_SHA384", "CN=Test CA", "CN=bounded", "60", "7", "8", "2"}}, rows)
+	require.Len(t, mustQuerySQL(t, executor, "", "select User from mysql.user where max_user_connections = '2'"), 1)
+	require.Empty(t, mustQuerySQL(t, executor, "", "select User from mysql.user where max_user_connections = '3'"))
+
+	file, err := executor.QueryExecutor.loadPersistedAccounts()
+	require.NoError(t, err)
+	account := findPersistedAccount(file, "bounded_user", "localhost")
+	require.NotNil(t, account)
+	require.Equal(t, int64(60), *account.MaxQuestions)
+	require.Equal(t, int64(2), *account.MaxUserConnections)
+
+	show := mustQuerySQL(t, executor, "", "show create user 'bounded_user'@'localhost'")
+	require.Contains(t, fmt.Sprint(show[0][1]), "CIPHER 'TLS_AES_256_GCM_SHA384'")
+	require.Contains(t, fmt.Sprint(show[0][1]), "MAX_QUERIES_PER_HOUR 60")
+	require.Contains(t, fmt.Sprint(show[0][1]), "MAX_USER_CONNECTIONS 2")
+
+	mustExecSQL(t, executor, "", "alter user 'bounded_user'@'localhost' require none with max_user_connections 0")
+	rows = mustQuerySQL(t, executor, "", "select ssl_type, ssl_cipher, x509_issuer, x509_subject, max_user_connections from mysql.user where User = 'bounded_user'")
+	require.Equal(t, [][]interface{}{{"", "", "", "", "0"}}, rows)
+}
+
+func TestAccountFailedLoginPolicyPersistsAndProjects(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'lock_policy'@'localhost' identified by 'secret' failed_login_attempts 2 password_lock_time 3")
+
+	rows := mustQuerySQL(t, executor, "", "select failed_login_attempts, password_lock_time from mysql.user where User = 'lock_policy'")
+	require.Equal(t, [][]interface{}{{"2", "3"}}, rows)
+	show := mustQuerySQL(t, executor, "", "show create user 'lock_policy'@'localhost'")
+	require.Contains(t, fmt.Sprint(show[0][1]), "FAILED_LOGIN_ATTEMPTS 2")
+	require.Contains(t, fmt.Sprint(show[0][1]), "PASSWORD_LOCK_TIME 3")
+
+	mustExecSQL(t, executor, "", "alter user 'lock_policy'@'localhost' failed_login_attempts 4 password_lock_time unbounded")
+	file, err := executor.QueryExecutor.loadPersistedAccounts()
+	require.NoError(t, err)
+	account := findPersistedAccount(file, "lock_policy", "localhost")
+	require.NotNil(t, account)
+	require.Equal(t, int64(4), *account.FailedLoginAttempts)
+	require.True(t, account.PasswordLockUnbounded)
+	show = mustQuerySQL(t, executor, "", "show create user 'lock_policy'@'localhost'")
+	require.Contains(t, fmt.Sprint(show[0][1]), "PASSWORD_LOCK_TIME UNBOUNDED")
 }
 
 func TestConcurrentGrantUpdatesAreSerializedAndDurable(t *testing.T) {
@@ -1397,4 +1666,305 @@ func TestPartialRevokesApplyThroughRoleInheritance(t *testing.T) {
 	require.True(t, grantsContain(effective, "other.table", "INSERT"))
 	require.False(t, grantsContain(effective, "app.table", "INSERT"))
 	require.True(t, grantsContain(effective, "app.table", "SELECT"))
+}
+
+func TestMySQLSystemCostAndComponentTablesExposeMySQL84ReadShapes(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+
+	serverCost := mustSelectResultSQL(t, executor, "", "select cost_name, cost_value, last_update, comment, default_value from mysql.server_cost order by cost_name")
+	require.Equal(t, []string{"COST_NAME", "COST_VALUE", "LAST_UPDATE", "COMMENT", "DEFAULT_VALUE"}, serverCost.Columns)
+	require.Len(t, serverCost.Records, 6)
+	serverRows := mustQuerySQL(t, executor, "", "select cost_name, default_value from mysql.server_cost where cost_name in ('row_evaluate_cost', 'missing_cost') order by cost_name")
+	require.Equal(t, [][]interface{}{{"row_evaluate_cost", "0.1"}}, serverRows)
+
+	engineRows := mustQuerySQL(t, executor, "", "select engine_name, device_type, cost_name, default_value from mysql.engine_cost where cost_name = 'io_block_read_cost'")
+	require.Equal(t, [][]interface{}{{"default", "0", "io_block_read_cost", "1"}}, engineRows)
+
+	passwordHistory := mustSelectResultSQL(t, executor, "", "select Host, User, Password_timestamp, Password from mysql.password_history")
+	require.Equal(t, []string{"HOST", "USER", "PASSWORD_TIMESTAMP", "PASSWORD"}, passwordHistory.Columns)
+	require.Empty(t, passwordHistory.Records)
+
+	component := mustSelectResultSQL(t, executor, "", "select component_id, component_group_id, component_urn from mysql.component")
+	require.Equal(t, []string{"COMPONENT_ID", "COMPONENT_GROUP_ID", "COMPONENT_URN"}, component.Columns)
+	require.Empty(t, component.Records)
+
+	tables := mustQuerySQL(t, executor, "", "select table_name from information_schema.tables where table_schema = 'mysql' and table_name in ('component', 'engine_cost', 'password_history', 'server_cost') order by table_name")
+	require.Equal(t, [][]interface{}{{"component"}, {"engine_cost"}, {"password_history"}, {"server_cost"}}, tables)
+	columns := mustQuerySQL(t, executor, "", "select table_name, column_name from information_schema.columns where table_schema = 'mysql' and table_name = 'component' order by ordinal_position")
+	require.Equal(t, [][]interface{}{{"component", "component_id"}, {"component", "component_group_id"}, {"component", "component_urn"}}, columns)
+}
+
+func TestMySQLPasswordHistoryTracksPasswordChanges(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+
+	mustExecSQL(t, executor, "", "create user 'history_user'@'localhost' identified by 'old-secret'")
+	mustExecSQL(t, executor, "", "alter user 'history_user'@'localhost' identified by 'new-secret'")
+	mustExecSQL(t, executor, "", "set password for 'history_user'@'localhost' = 'final-secret'")
+
+	history := mustQuerySQL(t, executor, "", "select Host, User, Password_timestamp, Password from mysql.password_history where User = 'history_user'")
+	require.Len(t, history, 2)
+	require.Equal(t, "localhost", history[0][0])
+	require.Equal(t, "history_user", history[0][1])
+	require.NotEmpty(t, history[0][2])
+	require.Equal(t, nativePasswordHash("old-secret"), history[0][3])
+	require.Equal(t, nativePasswordHash("new-secret"), history[1][3])
+
+	filtered := mustQuerySQL(t, executor, "", "select User, Password from mysql.password_history where Password = '"+nativePasswordHash("new-secret")+"'")
+	require.Equal(t, [][]interface{}{{"history_user", nativePasswordHash("new-secret")}}, filtered)
+}
+
+func TestMySQLComponentInstallAndUninstallPersistRegistryRows(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+
+	mustExecSQL(t, executor, "", "install component 'file://component_test'")
+	installed := mustQuerySQL(t, executor, "", "select component_id, component_group_id, component_urn from mysql.component where component_urn = 'file://component_test'")
+	require.Len(t, installed, 1)
+	require.Equal(t, "file://component_test", installed[0][2])
+	require.NotEmpty(t, installed[0][0])
+	require.NotEmpty(t, installed[0][1])
+
+	mustExecSQL(t, executor, "", "uninstall component 'file://component_test'")
+	require.Empty(t, mustQuerySQL(t, executor, "", "select component_urn from mysql.component where component_urn = 'file://component_test'"))
+}
+
+func TestMySQLComponentLifecycleRequiresTablePrivileges(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'component_operator'@'localhost' identified by 'secret'")
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "component_operator")
+	session.SetParamByName("host", "localhost")
+
+	deniedInstall := <-executor.ExecuteQuery(session, "install component 'file://component_denied'", "")
+	require.Error(t, deniedInstall.Err)
+	require.Contains(t, deniedInstall.Err.Error(), "lacks INSERT privilege on table 'mysql.component'")
+
+	mustExecSQL(t, executor, "", "grant insert, select on mysql.component to 'component_operator'@'localhost'")
+	mustExecSessionSQL(t, executor, session, "", "install component 'file://component_allowed'")
+
+	deniedUninstall := <-executor.ExecuteQuery(session, "uninstall component 'file://component_allowed'", "")
+	require.Error(t, deniedUninstall.Err)
+	require.Contains(t, deniedUninstall.Err.Error(), "lacks DELETE privilege on table 'mysql.component'")
+
+	mustExecSQL(t, executor, "", "grant delete on mysql.component to 'component_operator'@'localhost'")
+	mustExecSessionSQL(t, executor, session, "", "uninstall component 'file://component_allowed'")
+}
+
+func TestFlushOptimizerCostsRequiresDedicatedPrivilege(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'cost_operator'@'localhost' identified by 'secret'")
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "cost_operator")
+	session.SetParamByName("host", "localhost")
+
+	denied := <-executor.ExecuteQuery(session, "flush optimizer_costs", "")
+	require.Error(t, denied.Err)
+	require.Contains(t, denied.Err.Error(), "FLUSH_OPTIMIZER_COSTS")
+
+	session.SetParamByName("dynamic_privileges", []string{"FLUSH_OPTIMIZER_COSTS"})
+	require.NoError(t, (<-executor.ExecuteQuery(session, "flush optimizer_costs", "")).Err)
+	session.SetParamByName("dynamic_privileges", nil)
+	session.SetParamByName("global_privileges", []common.PrivilegeType{common.ReloadPriv})
+	require.NoError(t, (<-executor.ExecuteQuery(session, "flush local optimizer_costs", "")).Err)
+}
+
+func TestMySQLOptimizerCostTablesSupportDurableDMLAndFlush(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	queryExecutor := executor.QueryExecutor
+	require.NoError(t, queryExecutor.ensureOptimizerCostModelLoaded())
+	initial, ok := queryExecutor.optimizerCostSnapshotValue("row_evaluate_cost")
+	require.True(t, ok)
+	require.Equal(t, 0.1, initial)
+
+	mustExecSQL(t, executor, "", "insert into mysql.server_cost (cost_name, cost_value, comment) values ('custom_cost', 2.5, 'custom')")
+	mustExecSQL(t, executor, "", "update mysql.server_cost set cost_value = 3.5, comment = 'updated' where cost_name = 'row_evaluate_cost'")
+	mustExecSQL(t, executor, "", "insert into mysql.engine_cost (engine_name, device_type, cost_name, cost_value) values ('InnoDB', 0, 'custom_io_cost', 4.25)")
+
+	serverRows := mustQuerySQL(t, executor, "", "select cost_name, cost_value, comment from mysql.server_cost where cost_name in ('custom_cost', 'row_evaluate_cost') order by cost_name")
+	require.ElementsMatch(t, [][]interface{}{{"custom_cost", "2.5", "custom"}, {"row_evaluate_cost", "3.5", "updated"}}, serverRows)
+	engineRows := mustQuerySQL(t, executor, "", "select engine_name, device_type, cost_name, cost_value from mysql.engine_cost where cost_name = 'custom_io_cost'")
+	require.Equal(t, [][]interface{}{{"InnoDB", "0", "custom_io_cost", "4.25"}}, engineRows)
+
+	beforeFlush, ok := queryExecutor.optimizerCostSnapshotValue("row_evaluate_cost")
+	require.True(t, ok)
+	require.Equal(t, initial, beforeFlush)
+	mustExecSQL(t, executor, "", "flush optimizer_costs")
+	afterFlush, ok := queryExecutor.optimizerCostSnapshotValue("row_evaluate_cost")
+	require.True(t, ok)
+	require.Equal(t, 3.5, afterFlush)
+
+	mustExecSQL(t, executor, "", "delete from mysql.server_cost where cost_name = 'custom_cost'")
+	mustExecSQL(t, executor, "", "delete from mysql.engine_cost where engine_name = 'InnoDB' and device_type = 0 and cost_name = 'custom_io_cost'")
+	require.Empty(t, mustQuerySQL(t, executor, "", "select cost_name from mysql.server_cost where cost_name = 'custom_cost'"))
+	require.Empty(t, mustQuerySQL(t, executor, "", "select cost_name from mysql.engine_cost where cost_name = 'custom_io_cost'"))
+}
+
+func TestMySQLOptimizerCostDMLRollsBackWithSessionTransaction(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	session := newTestMySQLSession()
+	otherSession := newTestMySQLSession()
+	mustExecSessionSQL(t, executor, session, "", "start transaction")
+	mustExecSessionSQL(t, executor, session, "", "insert into mysql.server_cost (cost_name, cost_value) values ('transaction_cost', 1.75)")
+	require.Len(t, mustQuerySessionSQL(t, executor, session, "", "select cost_name from mysql.server_cost where cost_name = 'transaction_cost'"), 1)
+	require.Empty(t, mustQuerySessionSQL(t, executor, otherSession, "", "select cost_name from mysql.server_cost where cost_name = 'transaction_cost'"))
+	mustExecSessionSQL(t, executor, session, "", "rollback")
+	require.Empty(t, mustQuerySQL(t, executor, "", "select cost_name from mysql.server_cost where cost_name = 'transaction_cost'"))
+}
+
+func TestMySQLOptimizerCostNullValuesFollowNotInUnknownSemantics(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "insert into mysql.server_cost (cost_name, cost_value, comment) values ('null_cost', null, null)")
+
+	rows := mustQuerySQL(t, executor, "", "select cost_name from mysql.server_cost where cost_name = 'null_cost' and cost_value is null")
+	require.Equal(t, [][]interface{}{{"null_cost"}}, rows)
+
+	inRows := mustQuerySQL(t, executor, "", "select cost_name from mysql.server_cost where cost_name = 'null_cost' and cost_value in (1.0)")
+	require.Empty(t, inRows)
+	notInRows := mustQuerySQL(t, executor, "", "select cost_name from mysql.server_cost where cost_name = 'null_cost' and cost_value not in (1.0)")
+	require.Empty(t, notInRows)
+}
+
+func TestMySQLSystemTableEmptyStringPredicatesDoNotRestoreRows(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+
+	rows := mustQuerySQL(t, executor, "", "select cost_name from mysql.server_cost where cost_name = ''")
+	require.Empty(t, rows)
+	likeRows := mustQuerySQL(t, executor, "", "select cost_name from mysql.server_cost where cost_name like ''")
+	require.Empty(t, likeRows)
+}
+
+func TestPasswordReusePolicyBlocksRecentAndConfiguredGlobalHistory(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "root")
+	session.SetParamByName("host", "localhost")
+	session.SetParamByName("dynamic_privileges", []string{"SYSTEM_VARIABLES_ADMIN"})
+
+	mustExecSQL(t, executor, "", "create user 'policy_user'@'localhost' identified by 'first-secret' password history 2 password reuse interval 30 day")
+	policyRows := mustQuerySQL(t, executor, "", "select User, password_reuse_history, password_reuse_time from mysql.user where User = 'policy_user'")
+	require.Equal(t, [][]interface{}{{"policy_user", "2", "30"}}, policyRows)
+	mustExecSQL(t, executor, "", "alter user 'policy_user'@'localhost' identified by 'second-secret'")
+	blocked := <-executor.ExecuteQuery(nil, "alter user 'policy_user'@'localhost' identified by 'first-secret'", "")
+	require.Error(t, blocked.Err)
+	require.Contains(t, blocked.Err.Error(), "Password reuse is not allowed")
+
+	mustExecSessionSQL(t, executor, session, "", "set global password_history = 1")
+	mustExecSQL(t, executor, "", "create user 'global_policy_user'@'localhost' identified by 'global-first'")
+	mustExecSQL(t, executor, "", "alter user 'global_policy_user'@'localhost' identified by 'global-second'")
+	globalBlocked := <-executor.ExecuteQuery(nil, "alter user 'global_policy_user'@'localhost' identified by 'global-first'", "")
+	require.Error(t, globalBlocked.Err)
+	require.Contains(t, globalBlocked.Err.Error(), "Password reuse is not allowed")
+}
+
+func TestPasswordReusePolicyIsVisibleInShowCreateUserAndSetPassword(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'set_password_policy'@'localhost' identified by 'first-secret' password history 1")
+	mustExecSQL(t, executor, "", "set password for 'set_password_policy'@'localhost' = 'second-secret'")
+
+	show := mustQuerySQL(t, executor, "", "show create user 'set_password_policy'@'localhost'")
+	require.Len(t, show, 1)
+	require.Contains(t, fmt.Sprint(show[0][1]), "PASSWORD HISTORY 1")
+
+	blocked := <-executor.ExecuteQuery(nil, "set password for 'set_password_policy'@'localhost' = 'first-secret'", "")
+	require.Error(t, blocked.Err)
+	require.Contains(t, blocked.Err.Error(), "Password reuse is not allowed")
+}
+
+func TestPasswordRequireCurrentPolicyAndReplaceSyntax(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'verify_password'@'localhost' identified by 'first-secret' password require current")
+
+	rows := mustQuerySQL(t, executor, "", "select User, password_require_current from mysql.user where User = 'verify_password'")
+	require.Equal(t, [][]interface{}{{"verify_password", "Y"}}, rows)
+	show := mustQuerySQL(t, executor, "", "show create user 'verify_password'@'localhost'")
+	require.Contains(t, fmt.Sprint(show[0][1]), "PASSWORD REQUIRE CURRENT")
+
+	session := newTestMySQLSession()
+	session.SetParamByName("user", "verify_password")
+	session.SetParamByName("host", "localhost")
+	missingCurrent := <-executor.ExecuteQuery(session, "alter user 'verify_password'@'localhost' identified by 'second-secret'", "")
+	require.Error(t, missingCurrent.Err)
+	require.Contains(t, missingCurrent.Err.Error(), "Current password is required")
+
+	mustExecSessionSQL(t, executor, session, "", "alter user 'verify_password'@'localhost' identified by 'second-secret' replace 'first-secret'")
+	mustExecSessionSQL(t, executor, session, "", "alter user 'verify_password'@'localhost' password require current optional")
+	mustExecSessionSQL(t, executor, session, "", "set password for 'verify_password'@'localhost' = 'third-secret'")
+
+	admin := newTestMySQLSession()
+	admin.SetParamByName("user", "root")
+	admin.SetParamByName("host", "localhost")
+	admin.SetParamByName("dynamic_privileges", []string{"SYSTEM_VARIABLES_ADMIN"})
+	mustExecSessionSQL(t, executor, admin, "", "set global password_require_current = on")
+	mustExecSQL(t, executor, "", "create user 'global_verify_password'@'localhost' identified by 'first-secret'")
+	globalSession := newTestMySQLSession()
+	globalSession.SetParamByName("user", "global_verify_password")
+	globalSession.SetParamByName("host", "localhost")
+	globalBlocked := <-executor.ExecuteQuery(globalSession, "alter user 'global_verify_password'@'localhost' identified by 'second-secret'", "")
+	require.Error(t, globalBlocked.Err)
+	require.Contains(t, globalBlocked.Err.Error(), "Current password is required")
+}
+
+func TestPasswordLifetimeAndLastChangedAreProjected(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'lifetime_user'@'localhost' identified by 'secret' password expire interval 90 day")
+
+	rows := mustQuerySQL(t, executor, "", "select User, password_lifetime, password_last_changed from mysql.user where User = 'lifetime_user'")
+	require.Len(t, rows, 1)
+	require.Equal(t, "lifetime_user", rows[0][0])
+	require.Equal(t, "90", rows[0][1])
+	require.NotEmpty(t, rows[0][2])
+	show := mustQuerySQL(t, executor, "", "show create user 'lifetime_user'@'localhost'")
+	require.Contains(t, fmt.Sprint(show[0][1]), "PASSWORD EXPIRE INTERVAL 90 DAY")
+
+	mustExecSQL(t, executor, "", "alter user 'lifetime_user'@'localhost' password expire never")
+	rows = mustQuerySQL(t, executor, "", "select password_lifetime from mysql.user where User = 'lifetime_user'")
+	require.Equal(t, [][]interface{}{{nil}}, rows)
+}
+
+func TestMySQLUserProjectsCompleteStaticPrivilegeColumns(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create user 'static_privilege_columns'@'localhost' identified by 'secret'")
+	mustExecSQL(t, executor, "", "grant reload on *.* to 'static_privilege_columns'@'localhost'")
+
+	rows := mustQuerySQL(t, executor, "", "select Reload_priv, Shutdown_priv, Process_priv, File_priv, References_priv, Show_db_priv, Super_priv, Create_tmp_table_priv, Lock_tables_priv, Execute_priv, Repl_slave_priv, Repl_client_priv, Create_view_priv, Show_view_priv, Create_routine_priv, Alter_routine_priv, Event_priv, Trigger_priv, Create_tablespace_priv from mysql.user where User = 'static_privilege_columns'")
+	require.Equal(t, [][]interface{}{{"Y", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N"}}, rows)
+}
+
+func TestUserAttributesAccountSyntaxPersistsAndProjects(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", `create user 'attribute_sql'@'localhost' identified by 'secret' attribute '{"team":"compatibility","tier":1}'`)
+
+	rows := mustQuerySQL(t, executor, "", "select user, user_attributes from mysql.user where user = 'attribute_sql'")
+	require.Equal(t, [][]interface{}{{"attribute_sql", `{"team":"compatibility","tier":1}`}}, rows)
+	info := mustQuerySQL(t, executor, "", "select user, host, attribute from information_schema.user_attributes where user = 'attribute_sql'")
+	require.Equal(t, [][]interface{}{{"attribute_sql", "localhost", `{"team":"compatibility","tier":1}`}}, info)
+	show := mustQuerySQL(t, executor, "", "show create user 'attribute_sql'@'localhost'")
+	require.Contains(t, fmt.Sprint(show[0][1]), `ATTRIBUTE '{"team":"compatibility","tier":1}'`)
+
+	mustExecSQL(t, executor, "", `alter user 'attribute_sql'@'localhost' attribute '{"owner":"platform"}'`)
+	require.Equal(t, [][]interface{}{{`{"owner":"platform"}`}}, mustQuerySQL(t, executor, "", "select user_attributes from mysql.user where user = 'attribute_sql'"))
+	mustExecSQL(t, executor, "", `alter user 'attribute_sql'@'localhost' comment 'owned by platform'`)
+	commentRows := mustQuerySQL(t, executor, "", "select user_attributes from mysql.user where user = 'attribute_sql'")
+	var commentAttributes map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(commentRows[0][0].(string)), &commentAttributes))
+	require.Equal(t, "owned by platform", commentAttributes["comment"])
+	require.Equal(t, "platform", commentAttributes["owner"])
+
+	mustExecSQL(t, executor, "", `create user 'comment_sql'@'localhost' identified by 'secret' comment 'created by test'`)
+	commentCreate := mustQuerySQL(t, executor, "", "select user_attributes from mysql.user where user = 'comment_sql'")
+	require.Equal(t, [][]interface{}{{`{"comment":"created by test"}`}}, commentCreate)
+	conflict := <-executor.ExecuteQuery(nil, `create user 'comment_conflict'@'localhost' identified by 'secret' comment 'x' attribute '{"team":"y"}'`, "")
+	require.Error(t, conflict.Err)
+	require.Contains(t, conflict.Err.Error(), "COMMENT and ATTRIBUTE")
+	mustExecSQL(t, executor, "", "alter user 'attribute_sql'@'localhost' attribute default")
+	require.Equal(t, [][]interface{}{{nil}}, mustQuerySQL(t, executor, "", "select user_attributes from mysql.user where user = 'attribute_sql'"))
+	current := newTestMySQLSession()
+	current.SetParamByName("user", "attribute_sql")
+	current.SetParamByName("host", "localhost")
+	mustExecSessionSQL(t, executor, current, "", `alter user user() attribute '{"via":"current_user"}'`)
+	require.Equal(t, [][]interface{}{{`{"via":"current_user"}`}}, mustQuerySQL(t, executor, "", "select user_attributes from mysql.user where user = 'attribute_sql'"))
+	mustExecSessionSQL(t, executor, current, "", "set password for user() = 'new-secret'")
+
+	invalid := <-executor.ExecuteQuery(nil, `alter user 'attribute_sql'@'localhost' attribute '{"broken":'`, "")
+	require.Error(t, invalid.Err)
+	require.Contains(t, invalid.Err.Error(), "ATTRIBUTE JSON")
 }

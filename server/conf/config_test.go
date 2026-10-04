@@ -117,6 +117,10 @@ uuid = node-2
 server_id = 2
 listen_address = 127.0.0.1:4402
 source_url = http://127.0.0.1:4401
+native_endpoint = mysql://127.0.0.1:3309
+peers = http://127.0.0.1:4403/, http://127.0.0.1:4404, http://127.0.0.1:4403/
+auto_failover = true
+failure_timeout = 120ms
 poll_interval = 25ms
 read_only = true
 `
@@ -130,8 +134,34 @@ read_only = true
 	assert.Equal(t, uint32(2), cfg.ReplicationServerID)
 	assert.Equal(t, "127.0.0.1:4402", cfg.ReplicationListenAddress)
 	assert.Equal(t, "http://127.0.0.1:4401", cfg.ReplicationSourceURL)
+	assert.Equal(t, "mysql://127.0.0.1:3309", cfg.ReplicationNativeEndpoint)
+	assert.Equal(t, []string{"http://127.0.0.1:4403", "http://127.0.0.1:4404"}, cfg.ReplicationPeers)
+	assert.True(t, cfg.ReplicationAutoFailover)
+	assert.Equal(t, 120*time.Millisecond, cfg.ReplicationFailureTimeoutDuration)
 	assert.Equal(t, 25*time.Millisecond, cfg.ReplicationPollIntervalDuration)
 	assert.True(t, cfg.ReplicationReadOnly)
+}
+
+func TestCfg_ParseTLSConfig(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "tls.ini")
+	content := `
+[mysqld]
+ssl = true
+ssl-cert = certs/server.crt
+ssl-key = certs/server.key
+ssl-ca = certs/ca.crt
+ssl_require_client_cert = true
+`
+	require.NoError(t, os.WriteFile(cfgPath, []byte(content), 0o644))
+
+	cfg := NewCfg()
+	cfg.Load(&CommandLineArgs{ConfigPath: cfgPath})
+
+	assert.True(t, cfg.TLSEnabled)
+	assert.Equal(t, "certs/server.crt", cfg.TLSCertificateFile)
+	assert.Equal(t, "certs/server.key", cfg.TLSKeyFile)
+	assert.Equal(t, "certs/ca.crt", cfg.TLSCAFile)
+	assert.True(t, cfg.TLSRequireClientCert)
 }
 
 func TestCfg_ParseInnodbCompressionConfig(t *testing.T) {

@@ -321,6 +321,12 @@ func informationSchemaKeywordFilters(query string) map[string]string {
 		if value == "" {
 			value = match[4]
 		}
+		if value == "" && strings.EqualFold(match[1], "word") {
+			// An omitted WORD predicate is a wildcard; WORD = ''/LIKE '' is
+			// an explicit empty-string predicate and must match no normal
+			// keyword row.
+			value = informationSchemaExplicitEmptyPattern
+		}
 		filters[strings.ToUpper(match[1])] = value
 	}
 	return filters
@@ -475,6 +481,12 @@ func informationSchemaViewUsageFilters(query string) map[string]string {
 		value := match[2]
 		if value == "" {
 			value = match[3]
+		}
+		if value == "" {
+			// Preserve the distinction between an omitted predicate and an
+			// explicit empty string. A missing map entry is a wildcard, while
+			// `= ''`/`LIKE ''` must match only an actually empty metadata value.
+			value = informationSchemaExplicitEmptyPattern
 		}
 		filters[strings.ToUpper(match[1])] = value
 	}
@@ -1972,6 +1984,26 @@ func informationSchemaCanonicalVirtualColumnSpec(table, column string) (performa
 			return characterMax("VARCHAR", 80, 26, false, utf8mb3, general, ""), true
 		case "TRANSACTIONS", "XA", "SAVEPOINTS":
 			return characterMax("VARCHAR", 3, 1, true, utf8mb3, general, ""), true
+		}
+	case "mysql_firewall_users":
+		// The Enterprise Firewall plugin is not part of xmysql, so this
+		// compatibility surface remains an empty virtual table. Keep the
+		// discoverable column contract explicit instead of exposing generic
+		// NAME-derived metadata when clients inspect INFORMATION_SCHEMA.COLUMNS.
+		switch column {
+		case "USERHOST":
+			return character("VARCHAR", 80, false, utf8mb3, general, nil), true
+		case "MODE":
+			return character("ENUM('OFF','DETECTING','PROTECTING','RECORDING','RESET')", 10, false, utf8mb3, binary, "OFF"), true
+		}
+	case "mysql_firewall_whitelist":
+		// See mysql_firewall_users above: shape is exposed, runtime rows are
+		// intentionally absent because the Enterprise component is absent.
+		switch column {
+		case "USERHOST":
+			return character("VARCHAR", 80, false, utf8mb3, general, nil), true
+		case "RULE":
+			return character("TEXT", 65535, false, utf8mb3, binary, nil), true
 		}
 	case "check_constraints":
 		switch column {

@@ -19,6 +19,7 @@ func GetCapabilities(hs HandsharkProtocol) uint32 {
 	capabilities |= common.CLIENT_IGNORE_SIGPIPE
 	capabilities |= common.CLIENT_TRANSACTIONS
 	capabilities |= common.CLIENT_SECURE_CONNECTION
+	capabilities |= common.CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS
 
 	return capabilities
 }
@@ -35,6 +36,7 @@ func GetCapabilitiesWithoutParams() uint32 {
 	capabilities |= common.CLIENT_IGNORE_SIGPIPE
 	capabilities |= common.CLIENT_TRANSACTIONS
 	capabilities |= common.CLIENT_SECURE_CONNECTION
+	capabilities |= common.CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS
 	//capabilities |=common.CLIENT_SSL
 	return capabilities
 }

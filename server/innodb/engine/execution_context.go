@@ -6,6 +6,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -65,15 +66,71 @@ type ExecutionContext struct {
 	statementSortScan            atomic.Int64
 	statementSortRange           atomic.Int64
 	statementWarnings            atomic.Int64
+	statementCPUTime             atomic.Int64
+	statementCPUTimeCaptured     atomic.Bool
 	// statementMetricsDeferred is used by ExecuteWithQuery, whose result
 	// forwarding goroutine owns result accounting. The worker must not publish
 	// statement history before that accounting has completed.
 	statementMetricsDeferred bool
+	// statementResultObserver is used by internal statement owners that need
+	// to publish a lifecycle boundary before executeQuery finishes its
+	// deferred metrics cleanup. It is intentionally unexported so normal
+	// client result delivery keeps its existing behavior.
+	statementResultObserver func(*Result)
 	// errorMetricsDeferred is used by stored-routine child statements. The
 	// routine boundary records the raised/handled error with its final SQL
 	// handler outcome, while the child still publishes its statement summary.
-	errorMetricsDeferred  bool
+	errorMetricsDeferred bool
+	// statementParseError selects MySQL's dedicated statement/sql/error
+	// instrument for parser failures. Execution errors remain attributed to
+	// their parsed statement instrument.
+	statementParseError   bool
 	statementMetricStatus string
+	statementIndexNames   []string
+}
+
+func (ctx *ExecutionContext) recordIndexAccessPath(path string) {
+	if ctx == nil {
+		return
+	}
+	path = strings.TrimSpace(path)
+	if path == "" || path == "table_scan" || path == "partitioned_table_scan" {
+		return
+	}
+	if colon := strings.IndexByte(path, ':'); colon >= 0 {
+		path = path[colon+1:]
+	}
+	path = strings.TrimSuffix(path, "_skip_scan")
+	for _, name := range strings.Split(path, ",") {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		seen := false
+		for _, existing := range ctx.statementIndexNames {
+			if strings.EqualFold(existing, name) {
+				seen = true
+				break
+			}
+		}
+		if !seen {
+			ctx.statementIndexNames = append(ctx.statementIndexNames, name)
+		}
+	}
+}
+
+func (ctx *ExecutionContext) indexNames() []string {
+	if ctx == nil || len(ctx.statementIndexNames) == 0 {
+		return nil
+	}
+	return append([]string(nil), ctx.statementIndexNames...)
+}
+
+func (ctx *ExecutionContext) observeStatementResult(result *Result) {
+	if ctx == nil || ctx.statementResultObserver == nil {
+		return
+	}
+	ctx.statementResultObserver(result)
 }
 
 func (ctx *ExecutionContext) recordStatementResult(result *Result) {
