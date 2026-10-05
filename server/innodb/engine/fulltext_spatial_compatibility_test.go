@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -48,6 +49,117 @@ func TestFullTextTokenizerSegmentRebuildDropAndRestart(t *testing.T) {
 	require.Contains(t, reloaded, "fulltext_segments_idx_content")
 	delete(reloaded, "fulltext_segments_idx_content")
 	require.NotContains(t, reloaded, "fulltext_segments_idx_content", "DROP INDEX must remove the persisted segment")
+}
+
+func TestFullTextIndexStateTracksDML(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table docs (id int primary key, content text, fulltext index idx_content (content))")
+	mustExecSQL(t, executor, "app", "insert into docs values (1, 'mysql compatibility'), (2, 'legacy engine')")
+
+	readSegments := func() map[string][]interface{} {
+		info, err := readTableMetadataMap(filepath.Join(executor.GetDataDir(), "app", "docs.frm"))
+		require.NoError(t, err)
+		state, ok := info["fulltext_segments_idx_content"].(map[string]interface{})
+		require.True(t, ok, "fulltext state = %T", info["fulltext_segments_idx_content"])
+		segments, ok := state["segments"].(map[string]interface{})
+		require.True(t, ok, "fulltext segments = %T", state["segments"])
+		result := make(map[string][]interface{}, len(segments))
+		for token, raw := range segments {
+			values, ok := raw.([]interface{})
+			require.True(t, ok, "segment %s = %T", token, raw)
+			result[token] = values
+		}
+		return result
+	}
+
+	segments := readSegments()
+	require.Equal(t, []interface{}{"1"}, segments["mysql"])
+	require.Equal(t, []interface{}{"2"}, segments["legacy"])
+
+	mustExecSQL(t, executor, "app", "update docs set content = 'mysql updated' where id = 2")
+	segments = readSegments()
+	require.NotContains(t, segments, "legacy")
+	require.Equal(t, []interface{}{"1", "2"}, segments["mysql"])
+
+	mustExecSQL(t, executor, "app", "delete from docs where id = 1")
+	segments = readSegments()
+	require.Equal(t, []interface{}{"2"}, segments["mysql"])
+}
+
+func TestFullTextAlterAndStandaloneDDLBuildPersistedSegments(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table docs (id int primary key, content text)")
+	mustExecSQL(t, executor, "app", "insert into docs values (1, 'mysql compatibility')")
+	mustExecSQL(t, executor, "app", "alter table docs add fulltext index idx_content (content)")
+
+	info, err := readTableMetadataMap(filepath.Join(executor.GetDataDir(), "app", "docs.frm"))
+	require.NoError(t, err)
+	state, ok := info["fulltext_segments_idx_content"].(map[string]interface{})
+	require.True(t, ok, "fulltext state = %T", info["fulltext_segments_idx_content"])
+	segments, ok := state["segments"].(map[string]interface{})
+	require.True(t, ok, "fulltext segments = %T", state["segments"])
+	require.Equal(t, []interface{}{"1"}, segments["mysql"])
+
+	mustExecSQL(t, executor, "app", "create fulltext index idx_content_2 on docs (content)")
+	info, err = readTableMetadataMap(filepath.Join(executor.GetDataDir(), "app", "docs.frm"))
+	require.NoError(t, err)
+	require.Contains(t, advancedIndexNames(info), "idx_content_2")
+}
+
+func TestFullTextBooleanModeAndIndexValidation(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table docs (id int primary key, content text, fulltext index idx_content (content))")
+	mustExecSQL(t, executor, "app", "insert into docs values (1, 'mysql legacy'), (2, 'mysql modern'), (3, 'legacy only')")
+	require.True(t, fullTextAgainstPattern.MatchString("select id from docs where match(content) against('+mysql -legacy' in boolean mode)"))
+	score, matched := fullTextMatches("mysql modern", "+mysql -legacy", true)
+	require.True(t, matched)
+	require.Positive(t, score)
+
+	rows := mustQuerySQL(t, executor, "app", "select id from docs where match(content) against('+mysql -legacy' in boolean mode) order by id")
+	require.Equal(t, [][]interface{}{{"2"}}, rows)
+
+	rows = mustQuerySQL(t, executor, "app", "select id from docs where match(content) against('mysql legacy' in natural language mode) order by id")
+	require.Equal(t, [][]interface{}{{"1"}, {"2"}, {"3"}}, rows)
+
+	mustExecSQL(t, executor, "app", "create table no_search (id int primary key, content text)")
+	err := execSQLExpectError(t, executor, "app", "select id from no_search where match(content) against('mysql')")
+	require.Error(t, err)
+	require.Contains(t, strings.ToLower(err.Error()), "fulltext")
+}
+
+func TestFullTextIndexStateFollowsTransactionCommitAndRollback(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table docs (id int primary key, content text, fulltext index idx_content (content))")
+	mustExecSQL(t, executor, "app", "insert into docs values (1, 'original')")
+	session := newTestMySQLSession()
+
+	readSegments := func() map[string]interface{} {
+		info, err := readTableMetadataMap(filepath.Join(executor.GetDataDir(), "app", "docs.frm"))
+		require.NoError(t, err)
+		state, ok := info["fulltext_segments_idx_content"].(map[string]interface{})
+		require.True(t, ok)
+		segments, ok := state["segments"].(map[string]interface{})
+		require.True(t, ok)
+		return segments
+	}
+
+	mustExecSessionSQL(t, executor, session, "app", "begin")
+	mustExecSessionSQL(t, executor, session, "app", "update docs set content = 'rolled back' where id = 1")
+	mustExecSessionSQL(t, executor, session, "app", "rollback")
+	segments := readSegments()
+	require.Contains(t, segments, "original")
+	require.NotContains(t, segments, "rolled")
+
+	mustExecSessionSQL(t, executor, session, "app", "begin")
+	mustExecSessionSQL(t, executor, session, "app", "update docs set content = 'committed' where id = 1")
+	mustExecSessionSQL(t, executor, session, "app", "commit")
+	segments = readSegments()
+	require.Contains(t, segments, "committed")
+	require.NotContains(t, segments, "original")
 }
 
 func TestAdvancedIndexDDLRemovesAndRenamesPersistedAuxiliaryState(t *testing.T) {

@@ -322,6 +322,7 @@ type sessionTransactionState struct {
 	// replication source to make commit retries idempotent.
 	CommitKey        string
 	StorageCommitted bool
+	FullTextTables   map[string]string
 }
 
 type sessionSavepoint struct {
@@ -1452,6 +1453,7 @@ func (e *XMySQLExecutor) executeTransactionCommand(ctx *ExecutionContext, cmd st
 			pendingReadOnly := session.GetParamByName("next_transaction_read_only")
 			pendingReadOnlySet := pendingReadOnly != nil
 			if wasInTransaction {
+				previousState := e.sessionTransactionState(session)
 				// START TRANSACTION implicitly commits the previous transaction.
 				// Do this before replacing its state so account changes,
 				// replication statements, history, and active-transaction metrics
@@ -1473,6 +1475,7 @@ func (e *XMySQLExecutor) executeTransactionCommand(ctx *ExecutionContext, cmd st
 					ctx.Results <- &Result{Err: err, ResultType: innodbcommon.RESULT_TYPE_ERROR, Message: err.Error()}
 					return
 				}
+				e.refreshQueuedFullTextIndexes(previousState)
 				e.recordPerformanceSchemaTransactionHistory(session, "COMMITTED")
 				e.recordActiveTransactionDelta(session, -1)
 			}
@@ -1561,6 +1564,7 @@ func (e *XMySQLExecutor) executeTransactionCommand(ctx *ExecutionContext, cmd st
 					ctx.Results <- &Result{Err: err, ResultType: innodbcommon.RESULT_TYPE_ERROR, Message: err.Error()}
 					return
 				}
+				e.refreshQueuedFullTextIndexes(e.sessionTransactionState(session))
 				if sessionBoolParam(session, "replication_replay") {
 					transactionID := strings.TrimSpace(fmt.Sprint(session.GetParamByName("replication_transaction_id")))
 					if transactionID != "" && transactionID != "<nil>" {
@@ -1725,6 +1729,7 @@ func (e *XMySQLExecutor) commitAutocommitTransaction(session server.MySQLServerS
 	if err := e.commitReplicationStatements(session); err != nil {
 		return err
 	}
+	e.refreshQueuedFullTextIndexes(e.sessionTransactionState(session))
 	isolation := transactionIsolation(session)
 	hadInsertUpdate := sessionTransactionHasInsertUpdate(session)
 	e.recordPerformanceSchemaTransactionHistory(session, "COMMITTED")
@@ -2022,6 +2027,37 @@ func (e *XMySQLExecutor) sessionTransactionState(session server.MySQLServerSessi
 	return state
 }
 
+func (e *XMySQLExecutor) queueFullTextIndexRefresh(session server.MySQLServerSession, databaseName, tableName string) {
+	if e == nil || session == nil || strings.TrimSpace(databaseName) == "" || strings.TrimSpace(tableName) == "" {
+		return
+	}
+	state := e.sessionTransactionState(session)
+	if state == nil {
+		return
+	}
+	if state.FullTextTables == nil {
+		state.FullTextTables = make(map[string]string)
+	}
+	key := strings.ToLower(strings.TrimSpace(databaseName) + "\x00" + strings.TrimSpace(tableName))
+	state.FullTextTables[key] = strings.TrimSpace(databaseName) + "\x00" + strings.TrimSpace(tableName)
+	session.SetParamByName("transaction_dml_state", state)
+}
+
+func (e *XMySQLExecutor) refreshQueuedFullTextIndexes(state *sessionTransactionState) {
+	if e == nil || state == nil {
+		return
+	}
+	for _, target := range state.FullTextTables {
+		parts := strings.SplitN(target, "\x00", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		if err := e.refreshFullTextIndexStateForTable(parts[0], parts[1]); err != nil {
+			logger.Warnf("refresh FULLTEXT index state after COMMIT for %s.%s failed: %v", parts[0], parts[1], err)
+		}
+	}
+}
+
 // ensureTransactionCommitKey assigns one durable-publisher identity to the
 // current client transaction. It must not be derived from the session alone:
 // the same connection can commit many transactions over its lifetime.
@@ -2171,6 +2207,7 @@ func (e *XMySQLExecutor) clearSessionTransactionState(session server.MySQLServer
 	state.IsolationLevel = ""
 	state.CommitKey = ""
 	state.StorageCommitted = false
+	state.FullTextTables = nil
 	session.SetParamByName("transaction_dml_state", state)
 	session.SetParamByName(clientStorageTransactionContextKey, nil)
 	session.SetParamByName("savepoints", []string{})
@@ -5633,14 +5670,16 @@ func (e *XMySQLExecutor) executeAlterTableStatement(ctx *ExecutionContext, curre
 
 func (e *XMySQLExecutor) alterTableIndexDDL(dbName, tableName, query string, foreignKeyChecksEnabled bool) (bool, error) {
 	addPattern := regexp.MustCompile(`(?is)^\s*alter\s+table\s+.*?\s+add\s+(unique\s+)?(?:index|key)\s+` + "`?([a-zA-Z0-9_$]+)`?" + `\s*\(([^)]+)\)(?:\s+(visible|invisible))?\s*$`)
+	fullTextAddPattern := regexp.MustCompile(`(?is)^\s*alter\s+table\s+.*?\s+add\s+fulltext\s+(?:index|key)\s+` + "`?([a-zA-Z0-9_$]+)`?" + `\s*\(([^)]+)\)\s*$`)
 	spatialAddPattern := regexp.MustCompile(`(?is)^\s*alter\s+table\s+.*?\s+add\s+spatial\s+(?:index|key)\s+` + "`?([a-zA-Z0-9_$]+)`?" + `\s*\(([^)]+)\)\s*$`)
 	dropPattern := regexp.MustCompile(`(?is)^\s*alter\s+table\s+.*?\s+drop\s+(?:index|key)\s+` + "`?([a-zA-Z0-9_$]+)`?")
 	renamePattern := regexp.MustCompile(`(?is)^\s*alter\s+table\s+.*?\s+rename\s+(?:index|key)\s+` + "`?([a-zA-Z0-9_$]+)`?" + `\s+to\s+` + "`?([a-zA-Z0-9_$]+)`?")
 	add := addPattern.FindStringSubmatch(query)
+	fullTextAdd := fullTextAddPattern.FindStringSubmatch(query)
 	spatialAdd := spatialAddPattern.FindStringSubmatch(query)
 	drop := dropPattern.FindStringSubmatch(query)
 	rename := renamePattern.FindStringSubmatch(query)
-	if len(add) == 0 && len(spatialAdd) == 0 && len(drop) == 0 && len(rename) == 0 {
+	if len(add) == 0 && len(fullTextAdd) == 0 && len(spatialAdd) == 0 && len(drop) == 0 && len(rename) == 0 {
 		return false, nil
 	}
 	frmPath := filepath.Join(e.getDataDir(), dbName, tableName+".frm")
@@ -5653,13 +5692,18 @@ func (e *XMySQLExecutor) alterTableIndexDDL(dbName, tableName, query string, for
 		return true, fmt.Errorf("parse table metadata failed: %v", err)
 	}
 	indexes, _ := tableInfo["indexes"].([]interface{})
-	if len(add) > 0 || len(spatialAdd) > 0 {
+	if len(add) > 0 || len(fullTextAdd) > 0 || len(spatialAdd) > 0 {
 		name := ""
 		columnsText := ""
 		indexType := "INDEX"
 		unique := false
 		advanced := false
-		if len(spatialAdd) > 0 {
+		if len(fullTextAdd) > 0 {
+			name = fullTextAdd[1]
+			columnsText = fullTextAdd[2]
+			indexType = "FULLTEXT"
+			advanced = true
+		} else if len(spatialAdd) > 0 {
 			name = spatialAdd[1]
 			columnsText = spatialAdd[2]
 			indexType = "SPATIAL"
@@ -5765,6 +5809,11 @@ func (e *XMySQLExecutor) alterTableIndexDDL(dbName, tableName, query string, for
 	}
 	if len(spatialAdd) > 0 {
 		if err := e.refreshSpatialIndexStateForTable(dbName, tableName); err != nil {
+			return true, err
+		}
+	}
+	if len(fullTextAdd) > 0 {
+		if err := e.refreshFullTextIndexStateForTable(dbName, tableName); err != nil {
 			return true, err
 		}
 	}
@@ -19275,6 +19324,13 @@ func (e *XMySQLExecutor) executeInsertStatement(ctx *ExecutionContext, stmt *sql
 	}
 	setSessionWarnings(ctx, result.Warnings)
 	e.invalidateTableStatistics(targetSchema, tableName)
+	if session == nil || autocommitBoundary {
+		if err := e.refreshFullTextIndexStateForTable(targetSchema, tableName); err != nil {
+			logger.Warnf("refresh FULLTEXT index state after INSERT for %s.%s failed: %v", targetSchema, tableName, err)
+		}
+	} else {
+		e.queueFullTextIndexRefresh(session, targetSchema, tableName)
+	}
 
 	return result, nil
 }
@@ -19406,6 +19462,13 @@ func (e *XMySQLExecutor) executeUpdateStatement(ctx *ExecutionContext, stmt *sql
 	}
 	setSessionWarnings(ctx, result.Warnings)
 	e.invalidateTableStatistics(targetSchema, tableName)
+	if session == nil || autocommitBoundary {
+		if err := e.refreshFullTextIndexStateForTable(targetSchema, tableName); err != nil {
+			logger.Warnf("refresh FULLTEXT index state after UPDATE for %s.%s failed: %v", targetSchema, tableName, err)
+		}
+	} else {
+		e.queueFullTextIndexRefresh(session, targetSchema, tableName)
+	}
 
 	return result, nil
 }
@@ -19534,6 +19597,13 @@ func (e *XMySQLExecutor) executeDeleteStatement(ctx *ExecutionContext, stmt *sql
 	}
 	setSessionWarnings(ctx, result.Warnings)
 	e.invalidateTableStatistics(targetSchema, tableName)
+	if session == nil || autocommitBoundary {
+		if err := e.refreshFullTextIndexStateForTable(targetSchema, tableName); err != nil {
+			logger.Warnf("refresh FULLTEXT index state after DELETE for %s.%s failed: %v", targetSchema, tableName, err)
+		}
+	} else {
+		e.queueFullTextIndexRefresh(session, targetSchema, tableName)
+	}
 
 	return result, nil
 }

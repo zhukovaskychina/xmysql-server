@@ -32,6 +32,7 @@ type AlterOperation struct {
 	IndexName     string
 	Columns       []string
 	Unique        bool
+	FullText      bool
 	IfExists      bool
 	IfNotExists   bool
 	Visible       bool
@@ -120,8 +121,8 @@ func parseSingleAlterOperation(raw string) (AlterOperation, error) {
 	if match := regexp.MustCompile(`(?is)^alter\s+(?:index|key)\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s+(visible|invisible)\s*$`).FindStringSubmatch(raw); len(match) > 0 {
 		return AlterOperation{Kind: AlterAlterIndexVisibility, IndexName: match[1], Visible: strings.EqualFold(match[2], "visible")}, nil
 	}
-	if match := regexp.MustCompile(`(?is)^add\s+(unique\s+)?(?:index|key)\s+(if\s+not\s+exists\s+)?` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s*\(([^)]+)\)\s*(visible|invisible)?\s*$`).FindStringSubmatch(raw); len(match) > 0 {
-		return AlterOperation{Kind: AlterAddIndex, IndexName: match[3], Columns: splitIdentifierList(match[4]), Unique: strings.TrimSpace(match[1]) != "", IfNotExists: strings.TrimSpace(match[2]) != "", Visible: !strings.EqualFold(strings.TrimSpace(match[5]), "invisible"), VisibilitySet: strings.TrimSpace(match[5]) != ""}, nil
+	if match := regexp.MustCompile(`(?is)^add\s+(fulltext\s+)?(unique\s+)?(?:index|key)\s+(if\s+not\s+exists\s+)?` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s*\(([^)]+)\)\s*(visible|invisible)?\s*$`).FindStringSubmatch(raw); len(match) > 0 {
+		return AlterOperation{Kind: AlterAddIndex, IndexName: match[4], Columns: splitIdentifierList(match[5]), Unique: strings.TrimSpace(match[2]) != "", FullText: strings.TrimSpace(match[1]) != "", IfNotExists: strings.TrimSpace(match[3]) != "", Visible: !strings.EqualFold(strings.TrimSpace(match[6]), "invisible"), VisibilitySet: strings.TrimSpace(match[6]) != ""}, nil
 	}
 	if match := regexp.MustCompile(`(?is)^add\s+(?:column\s+)?(if\s+not\s+exists\s+)?` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s+(.+)$`).FindStringSubmatch(raw); len(match) > 0 {
 		definition, first, after := parseColumnPosition(match[3])
@@ -614,7 +615,14 @@ func applyAlterOperationsWithForeignKeyChecks(tableInfo map[string]interface{}, 
 			for _, column := range operation.Columns {
 				indexColumns = append(indexColumns, column)
 			}
-			index := map[string]interface{}{"name": operation.IndexName, "columns": indexColumns, "unique": operation.Unique, "primary": false, "type": "INDEX"}
+			indexType := "INDEX"
+			if operation.FullText {
+				indexType = "FULLTEXT"
+			}
+			index := map[string]interface{}{"name": operation.IndexName, "columns": indexColumns, "unique": operation.Unique, "primary": false, "type": indexType}
+			if operation.FullText {
+				index["advanced"] = true
+			}
 			if operation.VisibilitySet {
 				index["visible"] = operation.Visible
 				index["visibility_set"] = true

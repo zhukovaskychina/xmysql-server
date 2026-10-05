@@ -11,6 +11,7 @@ import (
 const optionalIndexIdentifier = "`?([a-zA-Z0-9_$]+)`?"
 
 var standaloneCreateIndexPattern = regexp.MustCompile(`(?is)^\s*create\s+(unique\s+)?index\s+(if\s+not\s+exists\s+)?` + optionalIndexIdentifier + `\s+on\s+(?:` + optionalIndexIdentifier + `\s*\.\s*)?` + optionalIndexIdentifier + `\s*\(([^)]*)\)(?:\s+(visible|invisible))?\s*$`)
+var standaloneCreateFullTextIndexPattern = regexp.MustCompile(`(?is)^\s*create\s+fulltext\s+(?:index|key)\s+(if\s+not\s+exists\s+)?` + optionalIndexIdentifier + `\s+on\s+(?:` + optionalIndexIdentifier + `\s*\.\s*)?` + optionalIndexIdentifier + `\s*\(([^)]*)\)\s*$`)
 var standaloneDropIndexPattern = regexp.MustCompile(`(?is)^\s*drop\s+index\s+(if\s+exists\s+)?` + optionalIndexIdentifier + `\s+on\s+(?:` + optionalIndexIdentifier + `\s*\.\s*)?` + optionalIndexIdentifier + `(?:\s+.*)?$`)
 
 // executeRawStandaloneIndexCompatibility handles CREATE/DROP INDEX before
@@ -19,6 +20,28 @@ var standaloneDropIndexPattern = regexp.MustCompile(`(?is)^\s*drop\s+index\s+(if
 // row index rebuilding, and foreign-key validation remain identical.
 func (e *XMySQLExecutor) executeRawStandaloneIndexCompatibility(ctx *ExecutionContext, query, databaseName string) (bool, error) {
 	trimmed := strings.TrimSpace(strings.TrimSuffix(query, ";"))
+	if match := standaloneCreateFullTextIndexPattern.FindStringSubmatch(trimmed); len(match) == 6 {
+		ignoreExisting := strings.TrimSpace(match[1]) != ""
+		indexName := trimIndexIdentifier(match[2])
+		schema := trimIndexIdentifier(match[3])
+		if schema == "" {
+			schema = strings.TrimSpace(databaseName)
+		}
+		table := trimIndexIdentifier(match[4])
+		columns := strings.TrimSpace(match[5])
+		if schema == "" || table == "" || indexName == "" || columns == "" {
+			return true, fmt.Errorf("CREATE FULLTEXT INDEX requires database, table, index name, and columns")
+		}
+		if err := e.checkTablePrivilege(ctx, schema, table, "INDEX"); err != nil {
+			return true, err
+		}
+		translated := fmt.Sprintf("alter table `%s`.`%s` add fulltext index `%s` (%s)", schema, table, indexName, columns)
+		_, err := e.alterTableIndexDDL(schema, table, translated, sessionForeignKeyChecksEnabled(sessionFromExecutionContext(ctx)))
+		if ignoreExisting && err != nil && strings.Contains(strings.ToLower(err.Error()), "duplicate index") {
+			return true, nil
+		}
+		return true, err
+	}
 	if match := standaloneCreateIndexPattern.FindStringSubmatch(trimmed); len(match) == 8 {
 		unique := strings.TrimSpace(match[1]) != ""
 		ignoreExisting := strings.TrimSpace(match[2]) != ""
