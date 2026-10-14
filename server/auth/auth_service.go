@@ -1,9 +1,11 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
@@ -129,6 +131,8 @@ type DatabaseInfo struct {
 type AuthServiceImpl struct {
 	config            *conf.Cfg
 	engineAccess      EngineAccess
+	cacheMu           sync.RWMutex
+	cacheGeneration   uint64
 	userCache         map[string]*UserInfo
 	dbCache           map[string]*DatabaseInfo
 	cacheExpiry       time.Time
@@ -189,19 +193,20 @@ func (as *AuthServiceImpl) AuthenticateUser(ctx context.Context, user, password,
 
 	// 2. 验证密码
 	sessionKey := fmt.Sprintf("%s@%s", user, host)
+	as.cacheMu.RLock()
 	challenge := as.challengeCache[sessionKey]
-	usedExactSessionKey := challenge != nil
 	challengeSessionKey := sessionKey
 	if len(challenge) == 0 && len(as.challengeCache) > 0 {
 		for k, c := range as.challengeCache {
 			if len(c) > 0 {
 				challenge = c
 				challengeSessionKey = k
-				usedExactSessionKey = false
 				break
 			}
 		}
 	}
+	challenge = append([]byte(nil), challenge...)
+	as.cacheMu.RUnlock()
 
 	validator := as.passwordValidator
 	if userInfo.AuthPlugin != "" {
@@ -212,6 +217,9 @@ func (as *AuthServiceImpl) AuthenticateUser(ctx context.Context, user, password,
 		validator = candidate
 	}
 	if userInfo.PasswordLockedUnbounded || (userInfo.PasswordLockedUntil != nil && time.Now().UTC().Before(userInfo.PasswordLockedUntil.UTC())) {
+		// A denied login must not pin a lock snapshot after an administrator
+		// resets the account's failed-login state.
+		as.invalidateCachedUser(user, host)
 		return &AuthResult{
 			Success:      false,
 			ErrorCode:    common.ER_ACCESS_DENIED_ERROR,
@@ -295,19 +303,17 @@ func (as *AuthServiceImpl) AuthenticateUser(ctx context.Context, user, password,
 
 	// 5. 认证成功，清理挑战缓存
 	if len(challengeSessionKey) > 0 {
-		if usedExactSessionKey {
+		as.cacheMu.Lock()
+		// Remove only the challenge used by this attempt. Another connection
+		// may have generated or replaced a challenge while authentication ran.
+		if bytes.Equal(as.challengeCache[challengeSessionKey], challenge) {
 			delete(as.challengeCache, challengeSessionKey)
-		} else {
-			for k := range as.challengeCache {
-				if len(as.challengeCache[k]) > 0 {
-					delete(as.challengeCache, k)
-				}
-			}
 		}
+		as.cacheMu.Unlock()
 	}
 
 	// 6. 获取用户权限
-	privileges := userInfo.GlobalPrivileges
+	privileges := append([]common.PrivilegeType(nil), userInfo.GlobalPrivileges...)
 	if database != "" && userInfo.DatabasePrivileges[database] != nil {
 		privileges = append(privileges, userInfo.DatabasePrivileges[database]...)
 	}
@@ -400,28 +406,35 @@ func (as *AuthServiceImpl) CheckDynamicPrivilege(ctx context.Context, user, host
 
 // ValidateDatabase 验证数据库是否存在
 func (as *AuthServiceImpl) ValidateDatabase(ctx context.Context, database string) error {
-	// 检查缓存
-	if dbInfo, exists := as.dbCache[database]; exists && time.Now().Before(as.cacheExpiry) {
+	for {
+		as.cacheMu.RLock()
+		dbInfo, cached := as.dbCache[database]
+		valid := cached && time.Now().Before(as.cacheExpiry)
+		generation := as.cacheGeneration
+		as.cacheMu.RUnlock()
+		if !valid {
+			queried, err := as.engineAccess.QueryDatabase(ctx, database)
+			if err != nil {
+				return err
+			}
+			snapshot := *queried
+			dbInfo = &snapshot
+			as.cacheMu.Lock()
+			if generation != as.cacheGeneration {
+				as.cacheMu.Unlock()
+				if ctx != nil && ctx.Err() != nil {
+					return ctx.Err()
+				}
+				continue
+			}
+			as.dbCache[database] = dbInfo
+			as.cacheMu.Unlock()
+		}
 		if !dbInfo.Exists {
 			return fmt.Errorf("database '%s' does not exist", database)
 		}
 		return nil
 	}
-
-	// 从引擎查询
-	dbInfo, err := as.engineAccess.QueryDatabase(ctx, database)
-	if err != nil {
-		return err
-	}
-
-	// 更新缓存
-	as.dbCache[database] = dbInfo
-
-	if !dbInfo.Exists {
-		return fmt.Errorf("database '%s' does not exist", database)
-	}
-
-	return nil
 }
 
 // CheckPrivilege 检查用户权限
@@ -520,6 +533,9 @@ func (as *AuthServiceImpl) invalidateCachedUser(user, host string) {
 	if as == nil {
 		return
 	}
+	as.cacheMu.Lock()
+	defer as.cacheMu.Unlock()
+	as.cacheGeneration++
 	prefix := fmt.Sprintf("%s@%s", user, host)
 	for key := range as.userCache {
 		if key == prefix || strings.HasPrefix(key, prefix+"#roles=") {
@@ -530,6 +546,9 @@ func (as *AuthServiceImpl) invalidateCachedUser(user, host string) {
 
 // FlushPrivileges 刷新权限缓存
 func (as *AuthServiceImpl) FlushPrivileges(ctx context.Context) error {
+	as.cacheMu.Lock()
+	defer as.cacheMu.Unlock()
+	as.cacheGeneration++
 	as.userCache = make(map[string]*UserInfo)
 	as.dbCache = make(map[string]*DatabaseInfo)
 	as.cacheExpiry = time.Now().Add(5 * time.Minute)
@@ -543,27 +562,38 @@ func (as *AuthServiceImpl) getUserInfo(ctx context.Context, user, host string) (
 		key += "#roles=" + fmt.Sprint(roles)
 	}
 
-	// 检查缓存
-	if userInfo, exists := as.userCache[key]; exists && time.Now().Before(as.cacheExpiry) {
-		return userInfo, nil
+	for {
+		as.cacheMu.RLock()
+		userInfo, cached := as.userCache[key]
+		valid := cached && time.Now().Before(as.cacheExpiry)
+		generation := as.cacheGeneration
+		as.cacheMu.RUnlock()
+		if valid {
+			return cloneCachedUserInfo(userInfo), nil
+		}
+
+		queried, err := as.engineAccess.QueryUser(ctx, user, host)
+		if err != nil {
+			return nil, err
+		}
+		userInfo = cloneCachedUserInfo(queried)
+		globalPrivs, err := as.engineAccess.QueryUserPrivileges(ctx, user, host)
+		if err == nil {
+			userInfo.GlobalPrivileges = append([]common.PrivilegeType(nil), globalPrivs...)
+		}
+
+		as.cacheMu.Lock()
+		if generation != as.cacheGeneration {
+			as.cacheMu.Unlock()
+			if ctx != nil && ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			continue
+		}
+		as.userCache[key] = userInfo
+		as.cacheMu.Unlock()
+		return cloneCachedUserInfo(userInfo), nil
 	}
-
-	// 从引擎查询
-	userInfo, err := as.engineAccess.QueryUser(ctx, user, host)
-	if err != nil {
-		return nil, err
-	}
-
-	// 查询权限
-	globalPrivs, err := as.engineAccess.QueryUserPrivileges(ctx, user, host)
-	if err == nil {
-		userInfo.GlobalPrivileges = globalPrivs
-	}
-
-	// 更新缓存
-	as.userCache[key] = userInfo
-
-	return userInfo, nil
 }
 
 // GenerateChallenge 为会话生成挑战字符串
@@ -574,12 +604,16 @@ func (as *AuthServiceImpl) GenerateChallenge(sessionID string) ([]byte, error) {
 	}
 
 	// 缓存挑战字符串
-	as.challengeCache[sessionID] = challenge
+	as.cacheMu.Lock()
+	as.challengeCache[sessionID] = append([]byte(nil), challenge...)
+	as.cacheMu.Unlock()
 
 	return challenge, nil
 }
 
 // GetChallenge 获取会话的挑战字符串
 func (as *AuthServiceImpl) GetChallenge(sessionID string) []byte {
-	return as.challengeCache[sessionID]
+	as.cacheMu.RLock()
+	defer as.cacheMu.RUnlock()
+	return append([]byte(nil), as.challengeCache[sessionID]...)
 }
