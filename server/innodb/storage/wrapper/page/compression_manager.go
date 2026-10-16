@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/zlib"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"io"
 	"sync"
 	"time"
@@ -46,7 +47,7 @@ const (
 
 	// 压缩阈值
 	MinCompressionRatio = 30.0 // 最小压缩率30%才保存压缩结果
-	PageSize            = 16384
+	PageSize            = common.PageSize
 
 	// 压缩缓存大小
 	CompressionCacheSize = 1024
@@ -151,7 +152,7 @@ func (cm *CompressionManager) CompressPage(pageNo uint32, data []byte) ([]byte, 
 		return data, nil
 	}
 
-	if len(data) != PageSize {
+	if len(data) != common.PageSize {
 		return nil, fmt.Errorf("invalid page size: %d", len(data))
 	}
 

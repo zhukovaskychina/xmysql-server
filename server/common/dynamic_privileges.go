@@ -60,6 +60,7 @@ var mysqlDynamicPrivileges = map[string]struct{}{
 }
 
 var dynamicPrivilegeMu sync.RWMutex
+var dynamicPrivilegeNamePattern = regexp.MustCompile(`^[A-Z][A-Z0-9_]*$`)
 
 // IsRegisteredDynamicPrivilege reports whether name is a known MySQL dynamic
 // privilege. Comparison is case-insensitive and ignores surrounding spaces.
@@ -88,7 +89,7 @@ func RegisteredDynamicPrivileges() []string {
 // MySQL's component privilege registry.
 func RegisterDynamicPrivilege(name string) error {
 	name = normalizeDynamicPrivilegeName(name)
-	if !regexp.MustCompile(`^[A-Z][A-Z0-9_]*$`).MatchString(name) {
+	if !dynamicPrivilegeNamePattern.MatchString(name) {
 		return fmt.Errorf("invalid dynamic privilege name %q", name)
 	}
 	dynamicPrivilegeMu.Lock()
@@ -100,7 +101,7 @@ func RegisterDynamicPrivilege(name string) error {
 // UnregisterDynamicPrivilege removes a runtime component/plugin privilege.
 func UnregisterDynamicPrivilege(name string) error {
 	name = normalizeDynamicPrivilegeName(name)
-	if !regexp.MustCompile(`^[A-Z][A-Z0-9_]*$`).MatchString(name) {
+	if !dynamicPrivilegeNamePattern.MatchString(name) {
 		return fmt.Errorf("invalid dynamic privilege name %q", name)
 	}
 	dynamicPrivilegeMu.Lock()

@@ -529,7 +529,7 @@ func buildNativeTableMapEvent(event replication.BinlogEvent, tableID uint64, dat
 	body = appendNativeLenencInt(body, len(metadata))
 	body = append(body, metadata...)
 	body = append(body, make([]byte, (len(columns)+7)/8)...)
-	return buildNativeEvent(19, body, event)
+	return buildNativeEvent(common.BinlogEventTableMap, body, event)
 }
 
 func nativeColumnMetadata(typeCode byte, value interface{}) []byte {
@@ -558,20 +558,20 @@ func eventChangeForTable(event replication.BinlogEvent, tableID uint64) replicat
 }
 
 func buildNativeRowsEvent(event replication.BinlogEvent, tableID uint64, columns []string, change replication.RowChange) []byte {
-	rowType := byte(30) // WRITE_ROWS_EVENTv2
+	rowType := byte(common.BinlogEventWriteRowsV2)
 	action := strings.ToLower(strings.TrimSpace(change.Action))
 	switch action {
 	case "update":
-		rowType = 31
+		rowType = common.BinlogEventUpdateRowsV2
 	case "delete":
-		rowType = 32
+		rowType = common.BinlogEventDeleteRowsV2
 	}
 	body := make([]byte, 0, 48)
 	body = appendNativeUint48(body, tableID)
 	body = append(body, 0, 0) // flags
 	body = append(body, 2, 0) // extra-data length, no extra data
 	body = appendNativeLenencInt(body, len(columns))
-	if rowType == 31 {
+	if rowType == common.BinlogEventUpdateRowsV2 {
 		beforeBitmap, beforeImage := nativeRowImage(columns, change.Before)
 		afterBitmap, afterImage := nativeRowImage(columns, change.After)
 		body = append(body, beforeBitmap...)
@@ -580,7 +580,7 @@ func buildNativeRowsEvent(event replication.BinlogEvent, tableID uint64, columns
 		body = append(body, afterImage...)
 	} else {
 		image := change.After
-		if rowType == 32 {
+		if rowType == common.BinlogEventDeleteRowsV2 {
 			image = change.Before
 		}
 		bitmap, encoded := nativeRowImage(columns, image)
@@ -691,9 +691,9 @@ func encodeNativeBinlogEvent(event replication.BinlogEvent) ([]byte, error) {
 		event.Timestamp = timeNowForBinlog()
 	}
 	const (
-		queryEventType  = 2
-		rotateEventType = 4
-		xidEventType    = 16
+		queryEventType  = common.BinlogEventQuery
+		rotateEventType = common.BinlogEventRotate
+		xidEventType    = common.BinlogEventXid
 	)
 	if event.Type == replication.EventBegin {
 		gtidEventType, body := nativeGTIDEvent(event)
@@ -750,8 +750,8 @@ func encodeNativeBinlogEvent(event replication.BinlogEvent) ([]byte, error) {
 }
 
 func buildNativeEvent(eventType byte, body []byte, event replication.BinlogEvent) []byte {
-	const eventHeaderLength = 19
-	const checksumLength = 4
+	const eventHeaderLength = common.BinlogEventHeaderLength
+	const checksumLength = common.BinlogChecksumLength
 	raw := make([]byte, eventHeaderLength+len(body)+checksumLength)
 	binary.LittleEndian.PutUint32(raw[0:4], uint32(event.Timestamp.Unix()))
 	raw[4] = eventType
@@ -788,9 +788,9 @@ func nativeGTIDBody(event replication.BinlogEvent) []byte {
 func nativeGTIDEvent(event replication.BinlogEvent) (byte, []byte) {
 	sid, tag, tagged := nativeGTIDParts(event.GTID.UUID)
 	if tagged {
-		return 42, nativeTaggedGTIDBody(event, sid, tag)
+		return common.BinlogEventGtidTagged, nativeTaggedGTIDBody(event, sid, tag)
 	}
-	return 33, nativeGTIDBody(event)
+	return common.BinlogEventGtid, nativeGTIDBody(event)
 }
 
 func nativeTaggedGTIDBody(event replication.BinlogEvent, sid []byte, tag string) []byte {
@@ -941,7 +941,7 @@ func dumpBinlogEvents(session Session, body []byte) error {
 			return session.WriteBytes(protocol.EncodeErrorFromGoError(err))
 		}
 		for _, event := range rawEvents {
-			if skipDuplicateGTIDMetadata && (event.Type == 15 || event.Type == 35) {
+			if skipDuplicateGTIDMetadata && (event.Type == common.BinlogEventFormatDescription || event.Type == common.BinlogEventPreviousGtids) {
 				continue
 			}
 			streamPayload := append([]byte{0x00}, event.Raw...)
@@ -958,7 +958,7 @@ func dumpBinlogEvents(session Session, body []byte) error {
 		}
 		if !blocking {
 			if len(rawEvents) == 0 {
-				return session.WriteBytes(protocol.EncodeOKPacketWithSeq(0, 0, protocol.SERVER_STATUS_AUTOCOMMIT, 0, 0))
+				return session.WriteBytes(protocol.EncodeOKPacketWithSeq(0, 0, common.SERVER_STATUS_AUTOCOMMIT, 0, 0))
 			}
 			return nil
 		}
@@ -969,7 +969,7 @@ func dumpBinlogEvents(session Session, body []byte) error {
 		// physical file. Without this transition a replica that starts before a
 		// rotation would wait forever at the old file's end position and never
 		// observe transactions appended after the rotation.
-		if len(rawEvents) > 0 && rawEvents[len(rawEvents)-1].Type == 4 {
+		if len(rawEvents) > 0 && rawEvents[len(rawEvents)-1].Type == common.BinlogEventRotate {
 			if nextFile, ok := nextNativeBinlogFile(source, logName); ok {
 				logName = nextFile
 				nextPosition = 4
@@ -1018,12 +1018,12 @@ func nextNativeBinlogFile(source *replication.Source, current string) (string, b
 
 func encodeNativeFormatDescriptionEvent(source *replication.Source) ([]byte, error) {
 	const (
-		formatDescriptionEventType = 15
-		eventHeaderLength          = 19
+		formatDescriptionEventType = common.BinlogEventFormatDescription
+		eventHeaderLength          = common.BinlogEventHeaderLength
 		serverVersionLength        = 50
 		// UNKNOWN_EVENT is not represented in the format table. MySQL 8.4
 		// therefore carries post-header lengths for event types 1..42.
-		eventTypeCount        = 42
+		eventTypeCount        = common.BinlogEventGtidTagged
 		checksumAlgorithmSize = 1
 	)
 	body := make([]byte, 2+serverVersionLength+4+1+eventTypeCount+checksumAlgorithmSize)
@@ -1032,13 +1032,7 @@ func encodeNativeFormatDescriptionEvent(source *replication.Source) ([]byte, err
 	copy(body[2:2+serverVersionLength], serverVersion)
 	body[2+serverVersionLength+4] = eventHeaderLength
 	postHeaderLengths := body[2+serverVersionLength+5:]
-	// This is the MySQL 8.4 FDE table, including the UNKNOWN_EVENT slot at
-	// index 0 and the checksum algorithm byte at the end.
-	copy(postHeaderLengths, []byte{
-		0, 13, 0, 8, 0, 0, 0, 0, 4, 0, 4, 0, 0, 0, 99, 0,
-		4, 26, 8, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 10, 10, 10,
-		42, 42, 0, 18, 52, 0, 10, 40, 0, 0, 1,
-	})
+	copy(postHeaderLengths, common.BinlogPostHeaderLengths())
 	postHeaderLengths[eventTypeCount] = 1 // CRC32 checksum algorithm
 	serverID := uint32(0)
 	if source != nil {
@@ -1103,7 +1097,7 @@ func (h *DecoupledMySQLMessageHandler) handleRegisterSlave(session Session, pack
 			MasterID:   info.MasterID,
 		})
 	}
-	return session.WriteBytes(protocol.EncodeOKPacketWithSeq(0, 0, protocol.SERVER_STATUS_AUTOCOMMIT, 0, packet.Header.PacketId+1))
+	return session.WriteBytes(protocol.EncodeOKPacketWithSeq(0, 0, common.SERVER_STATUS_AUTOCOMMIT, 0, packet.Header.PacketId+1))
 }
 
 func (h *DecoupledMySQLMessageHandler) unregisterReplicaSession(session Session) {

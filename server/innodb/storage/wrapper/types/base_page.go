@@ -44,14 +44,14 @@ func NewBasePage(spaceID, pageNo uint32, pageType PageType) *BasePage {
 // durable provider. NewBasePage remains source-compatible for old callers.
 func NewBasePageWithStorage(spaceID, pageNo uint32, pageType PageType, storage basic.StorageProvider) *BasePage {
 	page := &BasePage{
-		rawPage: NewPageHeader(16384), // 默认16KB页面大小
+		rawPage: NewPageHeader(common.PageSize), // 默认16KB页面大小
 		storage: storage,
 	}
 
 	// 设置页面头
-	binary.BigEndian.PutUint32(page.rawPage.FileHeader[FHeaderSpaceID:], spaceID)
-	binary.BigEndian.PutUint32(page.rawPage.FileHeader[FHeaderPageNo:], pageNo)
-	binary.BigEndian.PutUint16(page.rawPage.FileHeader[FHeaderPageType:], uint16(pageType))
+	binary.BigEndian.PutUint32(page.rawPage.FileHeader[common.LegacyBasePageHeaderSpaceIDOffset:], spaceID)
+	binary.BigEndian.PutUint32(page.rawPage.FileHeader[common.LegacyBasePageHeaderPageNoOffset:], pageNo)
+	binary.BigEndian.PutUint16(page.rawPage.FileHeader[common.LegacyBasePageHeaderPageTypeOffset:], uint16(pageType))
 
 	// 初始化统计信息
 	page.stats.LastAccessAt = uint64(time.Now().UnixNano())
@@ -79,27 +79,27 @@ func (p *BasePage) GetFileTrailer() []byte {
 func (p *BasePage) GetSpaceID() uint32 {
 	p.lock.RLock()
 	defer p.lock.RUnlock()
-	return binary.BigEndian.Uint32(p.rawPage.FileHeader[FHeaderSpaceID:])
+	return binary.BigEndian.Uint32(p.rawPage.FileHeader[common.LegacyBasePageHeaderSpaceIDOffset:])
 }
 
 // GetPageNo 获取页号
 func (p *BasePage) GetPageNo() uint32 {
-	return binary.BigEndian.Uint32(p.rawPage.FileHeader[FHeaderPageNo:])
+	return binary.BigEndian.Uint32(p.rawPage.FileHeader[common.LegacyBasePageHeaderPageNoOffset:])
 }
 
 // GetPageType 获取页面类型
 func (p *BasePage) GetPageType() uint16 {
-	return binary.BigEndian.Uint16(p.rawPage.FileHeader[FHeaderPageType:])
+	return binary.BigEndian.Uint16(p.rawPage.FileHeader[common.LegacyBasePageHeaderPageTypeOffset:])
 }
 
 // GetLSN 获取LSN
 func (p *BasePage) GetLSN() uint64 {
-	return binary.BigEndian.Uint64(p.rawPage.FileHeader[FHeaderLSN:])
+	return binary.BigEndian.Uint64(p.rawPage.FileHeader[common.LegacyBasePageHeaderLSNOffset:])
 }
 
 // SetLSN 设置LSN
 func (p *BasePage) SetLSN(lsn uint64) {
-	binary.BigEndian.PutUint64(p.rawPage.FileHeader[FHeaderLSN:], lsn)
+	binary.BigEndian.PutUint64(p.rawPage.FileHeader[common.LegacyBasePageHeaderLSNOffset:], lsn)
 }
 
 // IsDirty 是否脏页
@@ -147,7 +147,7 @@ func (p *BasePage) Read() error {
 	if err != nil {
 		return err
 	}
-	if len(data) < 16384 {
+	if len(data) < common.PageSize {
 		return ErrInvalidPageSize
 	}
 
@@ -173,7 +173,7 @@ func (p *BasePage) Write() error {
 	}
 	spaceID, pageNo := p.GetSpaceID(), p.GetPageNo()
 	p.lock.RLock()
-	data := make([]byte, 0, 16384)
+	data := make([]byte, 0, common.PageSize)
 	data = append(data, p.rawPage.FileHeader...)
 	data = append(data, p.rawPage.FileBody...)
 	data = append(data, p.rawPage.FileTrailer...)

@@ -18,20 +18,20 @@ var (
 
 // File header field offsets
 const (
-	FHeaderSpaceID      = 34
-	FHeaderPageNo       = 4
-	FHeaderPreviousPage = 8
-	FHeaderNextPage     = 12
-	FHeaderLSN          = 16
-	FHeaderPageType     = 24
-	FHeaderFileSequence = 26
-	FHeaderPageVersion  = 28
+	FHeaderSpaceID      = common.LegacyPageBaseHeaderSpaceIDOffset
+	FHeaderPageNo       = common.LegacyPageBaseHeaderPageNoOffset
+	FHeaderPreviousPage = common.LegacyPageBaseHeaderPrevOffset
+	FHeaderNextPage     = common.LegacyPageBaseHeaderNextOffset
+	FHeaderLSN          = common.LegacyPageBaseHeaderLSNOffset
+	FHeaderPageType     = common.LegacyPageBaseHeaderPageTypeOffset
+	FHeaderFileSequence = common.LegacyPageBaseHeaderFileSequenceOffset
+	FHeaderPageVersion  = common.LegacyPageBaseHeaderPageVersionOffset
 )
 
 // File trailer field offsets
 const (
-	FTrailerChecksum = 0
-	FTrailerLSN      = 4
+	FTrailerChecksum = common.LegacyPageBaseTrailerChecksumOffset
+	FTrailerLSN      = common.LegacyPageBaseTrailerLSNOffset
 )
 
 // BasePage 基础页面实现
@@ -89,9 +89,9 @@ func NewBasePageWithStorage(spaceID, pageNo uint32, pageType common.PageType, st
 	}
 
 	// 初始化文件头信息
-	binary.BigEndian.PutUint32(bp.rawPage.FileHeader[FHeaderSpaceID:], spaceID)
-	binary.BigEndian.PutUint32(bp.rawPage.FileHeader[FHeaderPageNo:], pageNo)
-	binary.BigEndian.PutUint16(bp.rawPage.FileHeader[FHeaderPageType:], uint16(pageType))
+	binary.BigEndian.PutUint32(bp.rawPage.FileHeader[common.LegacyPageBaseHeaderSpaceIDOffset:], spaceID)
+	binary.BigEndian.PutUint32(bp.rawPage.FileHeader[common.LegacyPageBaseHeaderPageNoOffset:], pageNo)
+	binary.BigEndian.PutUint16(bp.rawPage.FileHeader[common.LegacyPageBaseHeaderPageTypeOffset:], uint16(pageType))
 
 	// 初始化状态
 	atomic.StoreUint32(&bp.state, uint32(common.PageStateInit))
@@ -112,27 +112,27 @@ func (bp *BasePage) GetPageID() uint32 {
 
 // GetSpaceID 实现IPageWrapper接口
 func (bp *BasePage) GetSpaceID() uint32 {
-	return binary.BigEndian.Uint32(bp.rawPage.FileHeader[FHeaderSpaceID:])
+	return binary.BigEndian.Uint32(bp.rawPage.FileHeader[common.LegacyPageBaseHeaderSpaceIDOffset:])
 }
 
 // GetPageNo 实现IPageWrapper接口
 func (bp *BasePage) GetPageNo() uint32 {
-	return binary.BigEndian.Uint32(bp.rawPage.FileHeader[FHeaderPageNo:])
+	return binary.BigEndian.Uint32(bp.rawPage.FileHeader[common.LegacyPageBaseHeaderPageNoOffset:])
 }
 
 // GetPageType 实现IPageWrapper接口
 func (bp *BasePage) GetPageType() common.PageType {
-	return common.PageType(binary.BigEndian.Uint16(bp.rawPage.FileHeader[FHeaderPageType:]))
+	return common.PageType(binary.BigEndian.Uint16(bp.rawPage.FileHeader[common.LegacyPageBaseHeaderPageTypeOffset:]))
 }
 
 // GetLSN 实现Page接口
 func (bp *BasePage) GetLSN() uint64 {
-	return binary.BigEndian.Uint64(bp.rawPage.FileHeader[FHeaderLSN:])
+	return binary.BigEndian.Uint64(bp.rawPage.FileHeader[common.LegacyPageBaseHeaderLSNOffset:])
 }
 
 // SetLSN 实现Page接口
 func (bp *BasePage) SetLSN(lsn uint64) {
-	binary.BigEndian.PutUint64(bp.rawPage.FileHeader[FHeaderLSN:], lsn)
+	binary.BigEndian.PutUint64(bp.rawPage.FileHeader[common.LegacyPageBaseHeaderLSNOffset:], lsn)
 	bp.MarkDirty()
 }
 
@@ -380,7 +380,7 @@ func (bp *BasePage) UpdateChecksum() {
 	for _, b := range bp.content[:len(bp.content)-common.FileTrailerSize] {
 		sum += uint64(b)
 	}
-	binary.BigEndian.PutUint64(bp.rawPage.FileTrailer[FTrailerChecksum:], sum)
+	binary.BigEndian.PutUint64(bp.rawPage.FileTrailer[common.LegacyPageBaseTrailerChecksumOffset:], sum)
 	copy(bp.content[len(bp.content)-common.FileTrailerSize:], bp.rawPage.FileTrailer)
 }
 
@@ -390,6 +390,6 @@ func (bp *BasePage) ValidateChecksum() bool {
 	for _, b := range bp.content[:len(bp.content)-common.FileTrailerSize] {
 		sum += uint64(b)
 	}
-	stored := binary.BigEndian.Uint64(bp.rawPage.FileTrailer[FTrailerChecksum:])
+	stored := binary.BigEndian.Uint64(bp.rawPage.FileTrailer[common.LegacyPageBaseTrailerChecksumOffset:])
 	return sum == stored
 }

@@ -1,5 +1,7 @@
 package manager
 
+import "github.com/zhukovaskychina/xmysql-server/server/common"
+
 import (
 	"context"
 	"crypto/sha256"
@@ -180,7 +182,7 @@ func TestP0C_LongTransaction_Consistency(t *testing.T) {
 	const txCount = 10
 	transactions := make([]*Transaction, 0, txCount)
 	for i := 0; i < txCount; i++ {
-		trx, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+		trx, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 		require.NoError(t, err)
 		startAt := time.Now().Add(-(config.CriticalThreshold + time.Duration(i+1)*time.Millisecond))
 		setTransactionStartTime(tm, trx.ID, startAt)

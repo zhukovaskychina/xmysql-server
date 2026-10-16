@@ -461,7 +461,7 @@ func (h *MySQLProtocolHandler) cursorColumnDefinitions(result *QueryResult) []*C
 			value = result.Rows[0][index]
 		}
 		if value == nil {
-			definitions = append(definitions, h.encoder.CreateColumnDefinition(name, MYSQL_TYPE_VAR_STRING, 0))
+			definitions = append(definitions, h.encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_VAR_STRING, 0))
 			continue
 		}
 		definitions = append(definitions, h.encoder.CreateColumnDefinitionFromValue(name, value))
@@ -481,7 +481,7 @@ func (h *MySQLProtocolHandler) sendCursorMetadata(conn net.Conn, result *QueryRe
 		}
 		seqID++
 	}
-	_, err := conn.Write(EncodeEOFPacketWithSeq(0, SERVER_STATUS_AUTOCOMMIT|SERVER_STATUS_CURSOR_EXISTS, seqID))
+	_, err := conn.Write(EncodeEOFPacketWithSeq(0, common.SERVER_STATUS_AUTOCOMMIT|common.SERVER_STATUS_CURSOR_EXISTS, seqID))
 	return err
 }
 
@@ -494,11 +494,11 @@ func (h *MySQLProtocolHandler) sendCursorRows(conn net.Conn, result *MessageQuer
 		}
 		seqID++
 	}
-	status := uint16(SERVER_STATUS_AUTOCOMMIT)
+	status := uint16(common.SERVER_STATUS_AUTOCOMMIT)
 	if done {
-		status |= SERVER_STATUS_LAST_ROW_SENT
+		status |= common.SERVER_STATUS_LAST_ROW_SENT
 	} else {
-		status |= SERVER_STATUS_CURSOR_EXISTS
+		status |= common.SERVER_STATUS_CURSOR_EXISTS
 	}
 	_, err := conn.Write(EncodeEOFPacketWithSeq(result.WarningCount, status, seqID))
 	return err

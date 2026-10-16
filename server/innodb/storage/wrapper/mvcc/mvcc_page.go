@@ -47,7 +47,7 @@ func NewMVCCIndexPage(id, spaceID uint32) *MVCCIndexPage {
 	return &MVCCIndexPage{
 		id:        id,
 		spaceID:   spaceID,
-		pageType:  common.FILE_PAGE_INDEX,
+		pageType:  common.FIL_PAGE_INDEX,
 		records:   make(map[uint16]*formatmvcc.RecordVersion),
 		freeSlots: make([]uint16, 0),
 		locks:     make(map[uint64]LockMode),

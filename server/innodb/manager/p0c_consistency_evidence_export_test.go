@@ -1,5 +1,7 @@
 package manager
 
+import "github.com/zhukovaskychina/xmysql-server/server/common"
+
 import (
 	"encoding/json"
 	"errors"
@@ -11,12 +13,12 @@ import (
 )
 
 type p0cConsistencyEvidenceDocument struct {
-	EvidenceType string                       `json:"evidence_type"`
-	GeneratedAt  string                       `json:"generated_at"`
-	Status       string                       `json:"status"`
-	Scenario     string                       `json:"scenario"`
+	EvidenceType string                        `json:"evidence_type"`
+	GeneratedAt  string                        `json:"generated_at"`
+	Status       string                        `json:"status"`
+	Scenario     string                        `json:"scenario"`
 	Checks       []p0cConsistencyEvidenceCheck `json:"checks"`
-	Limitations  []string                     `json:"limitations"`
+	Limitations  []string                      `json:"limitations"`
 }
 
 type p0cConsistencyEvidenceCheck struct {
@@ -132,13 +134,13 @@ func exportP0CIsolationMatrix(t *testing.T) p0cConsistencyEvidenceCheck {
 	}
 	defer tm.Close()
 
-	t1, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+	t1, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	if err != nil {
 		t.Fatalf("begin t1: %v", err)
 	}
 	versionT1 := t1.ID
 
-	t2, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+	t2, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	if err != nil {
 		t.Fatalf("begin t2: %v", err)
 	}
@@ -149,7 +151,7 @@ func exportP0CIsolationMatrix(t *testing.T) p0cConsistencyEvidenceCheck {
 	}
 	rrAfterCommit := tm.IsVisible(t2, versionT1)
 
-	t3, err := tm.Begin(false, TRX_ISO_READ_COMMITTED)
+	t3, err := tm.Begin(false, common.TRX_ISO_READ_COMMITTED)
 	if err != nil {
 		t.Fatalf("begin t3: %v", err)
 	}
@@ -186,7 +188,7 @@ func exportP0CLongTransactionMetrics(t *testing.T) p0cConsistencyEvidenceCheck {
 	defer tm.Close()
 
 	startedAt := time.Now()
-	tx, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+	tx, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	if err != nil {
 		t.Fatalf("begin long transaction candidate: %v", err)
 	}

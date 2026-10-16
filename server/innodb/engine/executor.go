@@ -1911,13 +1911,13 @@ func transactionContextForSession(ctx context.Context, session server.MySQLServe
 	var isolationLevel uint8
 	switch strings.ReplaceAll(isolation, "-", " ") {
 	case "READ UNCOMMITTED":
-		isolationLevel = manager.TRX_ISO_READ_UNCOMMITTED
+		isolationLevel = common.TRX_ISO_READ_UNCOMMITTED
 	case "READ COMMITTED":
-		isolationLevel = manager.TRX_ISO_READ_COMMITTED
+		isolationLevel = common.TRX_ISO_READ_COMMITTED
 	case "SERIALIZABLE":
-		isolationLevel = manager.TRX_ISO_SERIALIZABLE
+		isolationLevel = common.TRX_ISO_SERIALIZABLE
 	default:
-		isolationLevel = manager.TRX_ISO_REPEATABLE_READ
+		isolationLevel = common.TRX_ISO_REPEATABLE_READ
 	}
 	ctx = context.WithValue(ctx, "isolation_level", isolationLevel)
 	ctx = context.WithValue(ctx, "read_only", readOnly)
@@ -18347,24 +18347,20 @@ func executeInformationSchemaCollationsSelect(query string) *SelectResult {
 		}
 		filters[strings.ToLower(match[1])] = value
 	}
-	for _, collation := range []struct {
-		name, charset, isDefault, isCompiled, padAttribute string
-		id, sortLen                                        int64
-	}{
-		{"utf8mb4_0900_ai_ci", "utf8mb4", "YES", "YES", "PAD SPACE", 255, 1},
-		{"utf8mb4_general_ci", "utf8mb4", "NO", "YES", "PAD SPACE", 45, 1},
-		{"utf8mb4_bin", "utf8mb4", "NO", "YES", "PAD SPACE", 46, 1},
-		{"latin1_swedish_ci", "latin1", "YES", "YES", "PAD SPACE", 8, 1},
-	} {
-		if !metadataFilterMatches(collation.name, filters["collation_name"]) ||
-			!metadataFilterMatches(collation.charset, filters["character_set_name"]) ||
-			(strings.TrimSpace(filters["is_default"]) != "" && !strings.EqualFold(collation.isDefault, filters["is_default"])) {
+	for _, collation := range common.InformationSchemaCollations() {
+		isDefault := "NO"
+		if collation.IsDefault {
+			isDefault = "YES"
+		}
+		if !metadataFilterMatches(collation.Name, filters["collation_name"]) ||
+			!metadataFilterMatches(collation.Charset, filters["character_set_name"]) ||
+			(strings.TrimSpace(filters["is_default"]) != "" && !strings.EqualFold(isDefault, filters["is_default"])) {
 			continue
 		}
 		rows = append(rows, projectInformationSchemaRow(columns, map[string]interface{}{
-			"COLLATION_NAME": collation.name, "CHARACTER_SET_NAME": collation.charset, "ID": collation.id,
-			"IS_DEFAULT": collation.isDefault, "IS_COMPILED": collation.isCompiled, "SORTLEN": collation.sortLen,
-			"PAD_ATTRIBUTE": collation.padAttribute,
+			"COLLATION_NAME": collation.Name, "CHARACTER_SET_NAME": collation.Charset, "ID": int64(collation.ID),
+			"IS_DEFAULT": isDefault, "IS_COMPILED": "YES", "SORTLEN": collation.SortLen,
+			"PAD_ATTRIBUTE": collation.PadAttribute,
 		}))
 	}
 	return newInformationSchemaSelectResult("information_schema_collations", columns, rows)
@@ -18381,19 +18377,12 @@ func executeInformationSchemaCharacterSetsSelect(query string) *SelectResult {
 			pattern = filter[2]
 		}
 	}
-	for _, charset := range []struct {
-		name, collation, description string
-		maxLen                       int64
-	}{
-		{"utf8mb4", "utf8mb4_0900_ai_ci", "UTF-8 Unicode", 4},
-		{"utf8", "utf8_general_ci", "UTF-8 Unicode", 3},
-		{"latin1", "latin1_swedish_ci", "cp1252 West European", 1},
-	} {
-		if !metadataFilterMatches(charset.name, pattern) {
+	for _, charset := range common.InformationSchemaCharsets() {
+		if !metadataFilterMatches(charset.Name, pattern) {
 			continue
 		}
 		values := map[string]interface{}{
-			"CHARACTER_SET_NAME": charset.name, "DEFAULT_COLLATE_NAME": charset.collation, "DESCRIPTION": charset.description, "MAXLEN": fmt.Sprintf("%d", charset.maxLen),
+			"CHARACTER_SET_NAME": charset.Name, "DEFAULT_COLLATE_NAME": charset.MetadataCollationName(), "DESCRIPTION": charset.Description, "MAXLEN": fmt.Sprintf("%d", charset.MaxLen),
 		}
 		if !performanceSchemaLockValuesMatch(query, values) {
 			continue
@@ -23860,11 +23849,9 @@ func isShowCollationQuery(query string) bool {
 
 func (e *XMySQLExecutor) executeShowCharacterSet(ctx *ExecutionContext, rawQuery string) {
 	columns := []string{"Charset", "Description", "Default collation", "Maxlen"}
-	rows := [][]interface{}{
-		{"utf8mb4", "UTF-8 Unicode", "utf8mb4_0900_ai_ci", int64(4)},
-		{"utf8mb3", "UTF-8 Unicode", "utf8mb3_general_ci", int64(3)},
-		{"utf8", "UTF-8 Unicode", "utf8_general_ci", int64(3)},
-		{"binary", "Binary pseudo charset", "binary", int64(1)},
+	rows := make([][]interface{}, 0, 4)
+	for _, charset := range common.ShowCharsets() {
+		rows = append(rows, []interface{}{charset.Name, charset.Description, charset.MetadataCollationName(), charset.MaxLen})
 	}
 	rows = filterShowRowsByLike(rows, ResolveShowLikePattern("character set", nil, rawQuery))
 	rows = filterShowRowsByWhere(rows, columns, ResolveShowWhereExpr("character set", nil, rawQuery))
@@ -23873,12 +23860,13 @@ func (e *XMySQLExecutor) executeShowCharacterSet(ctx *ExecutionContext, rawQuery
 
 func (e *XMySQLExecutor) executeShowCollation(ctx *ExecutionContext, rawQuery string) {
 	columns := []string{"Collation", "Charset", "Id", "Default", "Compiled", "Sortlen", "Pad_attribute"}
-	rows := [][]interface{}{
-		{"utf8mb4_0900_ai_ci", "utf8mb4", int64(255), "Yes", "Yes", int64(0), "NO PAD"},
-		{"utf8mb4_general_ci", "utf8mb4", int64(45), "", "Yes", int64(1), "PAD SPACE"},
-		{"utf8mb3_general_ci", "utf8mb3", int64(33), "Yes", "Yes", int64(1), "PAD SPACE"},
-		{"utf8_general_ci", "utf8", int64(33), "Yes", "Yes", int64(1), "PAD SPACE"},
-		{"binary", "binary", int64(63), "Yes", "Yes", int64(1), "PAD SPACE"},
+	rows := make([][]interface{}, 0, 5)
+	for _, collation := range common.ShowCollations() {
+		isDefault := ""
+		if collation.IsDefault {
+			isDefault = "Yes"
+		}
+		rows = append(rows, []interface{}{collation.Name, collation.Charset, int64(collation.ID), isDefault, "Yes", collation.SortLen, collation.PadAttribute})
 	}
 	rows = filterShowRowsByLike(rows, ResolveShowLikePattern("collation", nil, rawQuery))
 	rows = filterShowRowsByWhere(rows, columns, ResolveShowWhereExpr("collation", nil, rawQuery))

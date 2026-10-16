@@ -80,10 +80,10 @@ func NewBasePageWrapper(id, spaceID uint32, typ common.PageType) *BasePageWrappe
 		id:       id,
 		spaceID:  spaceID,
 		pageType: typ,
-		size:     16384, // 标准InnoDB页面大小
+		size:     common.PageSize, // 标准InnoDB页面大小
 		header:   &header,
 		trailer:  &trailer,
-		content:  make([]byte, 16384),
+		content:  make([]byte, common.PageSize),
 		state:    basic.PageStateClean,
 	}
 }
@@ -120,9 +120,9 @@ func (p *BasePageWrapper) GetPageType() common.PageType {
 func (p *BasePageWrapper) GetFileHeader() []byte {
 	p.RLock()
 	defer p.RUnlock()
-	result := make([]byte, pages.FileHeaderSize)
-	if len(p.content) >= pages.FileHeaderSize {
-		copy(result, p.content[:pages.FileHeaderSize])
+	result := make([]byte, common.FileHeaderSize)
+	if len(p.content) >= common.FileHeaderSize {
+		copy(result, p.content[:common.FileHeaderSize])
 	}
 	return result
 }
@@ -154,7 +154,7 @@ func (p *BasePageWrapper) parseFromBytesLocked(content []byte) error {
 	}
 
 	// 解析文件头
-	if err := p.header.ParseFileHeader(content[:pages.FileHeaderSize]); err != nil {
+	if err := p.header.ParseFileHeader(content[:common.FileHeaderSize]); err != nil {
 		return err
 	}
 
@@ -189,7 +189,7 @@ func (p *BasePageWrapper) serializeLocked() ([]byte, error) {
 
 	// 更新文件头
 	headerBytes := p.header.GetSerialBytes()
-	copy(p.content[:pages.FileHeaderSize], headerBytes)
+	copy(p.content[:common.FileHeaderSize], headerBytes)
 
 	// 更新文件尾
 	trailerOffset := len(p.content) - 8
@@ -246,7 +246,7 @@ func (p *BasePageWrapper) UpdateChecksum() {
 	p.Lock()
 	defer p.Unlock()
 
-	if len(p.content) < pages.FileHeaderSize+8 {
+	if len(p.content) < common.FileHeaderSize+8 {
 		return
 	}
 
@@ -278,7 +278,7 @@ func (p *BasePageWrapper) ValidateChecksum() bool {
 // calculateChecksum 计算校验和
 // 使用CRC32算法计算页面校验和，符合InnoDB标准
 func (p *BasePageWrapper) calculateChecksum() uint64 {
-	if len(p.content) < pages.FileHeaderSize+8 {
+	if len(p.content) < common.FileHeaderSize+8 {
 		return 0
 	}
 
@@ -429,16 +429,16 @@ func (p *BasePageWrapper) Read() error {
 }
 
 func (p *BasePageWrapper) loadContentLocked(content []byte) error {
-	if len(content) < int(p.size) || len(content) < pages.FileHeaderSize+pages.FileTrailerSize {
+	if len(content) < int(p.size) || len(content) < common.FileHeaderSize+common.FileTrailerSize {
 		return ErrInvalidPageSize
 	}
 	p.content = make([]byte, int(p.size))
 	copy(p.content, content[:int(p.size)])
-	if err := p.header.ParseFileHeader(p.content[:pages.FileHeaderSize]); err != nil {
+	if err := p.header.ParseFileHeader(p.content[:common.FileHeaderSize]); err != nil {
 		return err
 	}
 
-	trailerOffset := len(p.content) - pages.FileTrailerSize
+	trailerOffset := len(p.content) - common.FileTrailerSize
 	copy(p.trailer.FileTrailer[:], p.content[trailerOffset:])
 	p.pageType = common.PageType(p.header.GetPageType())
 	p.spaceID = p.header.GetFilePageArch()

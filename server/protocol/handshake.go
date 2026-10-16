@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
@@ -32,25 +33,25 @@ func NewHandshakePacket(connectionID uint32) *HandshakePacket {
 
 	// MySQL 8.0 推荐能力组合（简化版，足够支撑 JDBC 8.x）
 	var caps uint32 = 0
-	caps |= CLIENT_LONG_PASSWORD
-	caps |= CLIENT_LONG_FLAG
-	caps |= CLIENT_CONNECT_WITH_DB
-	caps |= CLIENT_PROTOCOL_41
-	caps |= CLIENT_TRANSACTIONS
-	caps |= CLIENT_SECURE_CONNECTION
-	caps |= CLIENT_COMPRESS
-	caps |= CLIENT_MULTI_STATEMENTS
-	caps |= CLIENT_MULTI_RESULTS
-	caps |= CLIENT_PS_MULTI_RESULTS
-	caps |= CLIENT_PLUGIN_AUTH
-	caps |= CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA
+	caps |= common.CLIENT_LONG_PASSWORD
+	caps |= common.CLIENT_LONG_FLAG
+	caps |= common.CLIENT_CONNECT_WITH_DB
+	caps |= common.CLIENT_PROTOCOL_41
+	caps |= common.CLIENT_TRANSACTIONS
+	caps |= common.CLIENT_SECURE_CONNECTION
+	caps |= common.CLIENT_COMPRESS
+	caps |= common.CLIENT_MULTI_STATEMENTS
+	caps |= common.CLIENT_MULTI_RESULTS
+	caps |= common.CLIENT_PS_MULTI_RESULTS
+	caps |= common.CLIENT_PLUGIN_AUTH
+	caps |= common.CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA
 	// MySQL 8.x clients, including the 8.4 replication I/O thread, use OK
 	// packets instead of EOF packets when this capability is negotiated. The
 	// result-set writer already implements both forms, so advertise the
 	// capability instead of silently interpreting a client's raw flag without
 	// negotiating it in the handshake.
-	caps |= CLIENT_DEPRECATE_EOF
-	caps |= CLIENT_OPTIONAL_RESULTSET_METADATA
+	caps |= common.CLIENT_DEPRECATE_EOF
+	caps |= common.CLIENT_OPTIONAL_RESULTSET_METADATA
 
 	capFlags1 := uint16(caps & 0xFFFF)
 	capFlags2 := uint16((caps >> 16) & 0xFFFF)
@@ -74,7 +75,7 @@ func NewHandshakePacket(connectionID uint32) *HandshakePacket {
 		CharacterSet: 0x21,
 
 		// SERVER_STATUS_AUTOCOMMIT
-		StatusFlags: 0x0002,
+		StatusFlags: common.SERVER_STATUS_AUTOCOMMIT,
 
 		CapabilityFlags2:    capFlags2,
 		AuthPluginDataLen:   authPluginDataLen,
@@ -251,7 +252,7 @@ func (g *HandshakeGenerator) GenerateHandshakeWithChallenge(challenge []byte) (*
 		Filler:              0x00,
 		CapabilityFlags1:    0xFFFF,
 		CharacterSet:        0x21,
-		StatusFlags:         0x0002,
+		StatusFlags:         common.SERVER_STATUS_AUTOCOMMIT,
 		CapabilityFlags2:    0x807F,
 		AuthPluginDataLen:   21,
 		Reserved:            make([]byte, 10),

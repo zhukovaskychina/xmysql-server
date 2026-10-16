@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"hash/crc32"
 	"hash/fnv"
 	"io"
@@ -282,7 +283,7 @@ func (writer *BinlogWriter) nativeEventsLocked(logName string) ([]NativeBinlogEv
 			return nil, fmt.Errorf("invalid native binlog event size %d at position %d", eventSize, offset)
 		}
 		frame := append([]byte(nil), raw[offset:offset+eventSize]...)
-		if frame[4] == 15 && offset == 4 {
+		if frame[4] == common.BinlogEventFormatDescription && offset == 4 {
 			if eventSize >= nativeEventHeaderLength+nativeChecksumLength && nativeFrameHasChecksum(frame, nativeChecksumLength) {
 				checksumLength = nativeChecksumLength
 			} else if eventSize >= nativeEventHeaderLength+1 && frame[eventSize-1] == 0 {
@@ -397,7 +398,7 @@ func (writer *BinlogWriter) nativeFilesMatchLogicalEvents(events []BinlogEvent, 
 			currentFileIndex := writer.nativeFirstIndex + uint32(len(expectedFrames)) - 1
 			rotateEvent := event
 			rotateEvent.ServerID = writer.serverID
-			rotateFrame := buildNativeEvent(4, buildNativeRotateBody(fmt.Sprintf("binlog.%06d", currentFileIndex+1)), rotateEvent)
+			rotateFrame := buildNativeEvent(common.BinlogEventRotate, buildNativeRotateBody(fmt.Sprintf("binlog.%06d", currentFileIndex+1)), rotateEvent)
 			expectedFrames[len(expectedFrames)-1] = append(expectedFrames[len(expectedFrames)-1], rotateFrame)
 			expected = append(expected, []byte{15, 35})
 			expectedGTIDs = append(expectedGTIDs, []GTID{})
@@ -408,11 +409,11 @@ func (writer *BinlogWriter) nativeFilesMatchLogicalEvents(events []BinlogEvent, 
 		case EventBegin:
 			// buildNativeEventPayloadsForLogical emits the GTID frame followed
 			// by the lifecycle QUERY_EVENT (BEGIN or XA START).
-			gtidEventType := byte(33)
+			gtidEventType := byte(common.BinlogEventGtid)
 			if _, _, tagged := nativeGTIDParts(event.GTID.UUID); tagged {
-				gtidEventType = 42
+				gtidEventType = common.BinlogEventGtidTagged
 			}
-			expected[len(expected)-1] = append(expected[len(expected)-1], gtidEventType, 2)
+			expected[len(expected)-1] = append(expected[len(expected)-1], gtidEventType, common.BinlogEventQuery)
 			if event.GTID.UUID != "" && event.GTID.Seq != 0 {
 				expectedGTIDs[len(expectedGTIDs)-1] = append(expectedGTIDs[len(expectedGTIDs)-1], event.GTID)
 			}
@@ -422,7 +423,7 @@ func (writer *BinlogWriter) nativeFilesMatchLogicalEvents(events []BinlogEvent, 
 			} else {
 				for index := 0; index < len(event.Changes); {
 					change := event.Changes[index]
-					expected[len(expected)-1] = append(expected[len(expected)-1], 19, nativeRowEventTypeForChange(change))
+					expected[len(expected)-1] = append(expected[len(expected)-1], common.BinlogEventTableMap, nativeRowEventTypeForChange(change))
 					index++
 					for index < len(event.Changes) && nativeChangesCanShareRowEvent(change, event.Changes[index]) {
 						index++
@@ -442,11 +443,11 @@ func (writer *BinlogWriter) nativeFilesMatchLogicalEvents(events []BinlogEvent, 
 			if event.TerminalGTID != nil {
 				terminalGTID = *event.TerminalGTID
 			}
-			gtidEventType := byte(33)
+			gtidEventType := byte(common.BinlogEventGtid)
 			if _, _, tagged := nativeGTIDParts(terminalGTID.UUID); tagged {
-				gtidEventType = 42
+				gtidEventType = common.BinlogEventGtidTagged
 			}
-			expected[len(expected)-1] = append(expected[len(expected)-1], gtidEventType, 2)
+			expected[len(expected)-1] = append(expected[len(expected)-1], gtidEventType, common.BinlogEventQuery)
 			if terminalGTID.UUID != "" && terminalGTID.Seq != 0 {
 				expectedGTIDs[len(expectedGTIDs)-1] = append(expectedGTIDs[len(expectedGTIDs)-1], terminalGTID)
 			}
@@ -511,7 +512,7 @@ func (writer *BinlogWriter) nativeFilesMatchLogicalEvents(events []BinlogEvent, 
 		}
 		identityIndex := 0
 		for _, event := range physical {
-			if event.Type != 33 && event.Type != 42 {
+			if event.Type != common.BinlogEventGtid && event.Type != common.BinlogEventGtidTagged {
 				continue
 			}
 			if identityIndex >= len(expectedGTIDs[index]) {
@@ -536,7 +537,7 @@ func (writer *BinlogWriter) nativeFilesMatchLogicalEvents(events []BinlogEvent, 
 
 func nativePhysicalGTIDIdentity(event NativeBinlogEvent) ([]byte, string, uint64, bool) {
 	body := nativeEventBody(event)
-	if event.Type == 33 {
+	if event.Type == common.BinlogEventGtid {
 		if len(body) < 1+16+8 {
 			return nil, "", 0, false
 		}
@@ -546,7 +547,7 @@ func nativePhysicalGTIDIdentity(event NativeBinlogEvent) ([]byte, string, uint64
 		}
 		return append([]byte(nil), body[1:1+16]...), "", sequence, true
 	}
-	if event.Type == 42 {
+	if event.Type == common.BinlogEventGtidTagged {
 		fields, err := decodeNativeTaggedGTIDIndexFields(body)
 		if err != nil {
 			return nil, "", 0, false
@@ -1158,8 +1159,8 @@ var timeNow = func() time.Time { return time.Now().UTC() }
 
 const (
 	nativeBinlogMagic       byte = 0xfe
-	nativeEventHeaderLength      = 19
-	nativeChecksumLength         = 4
+	nativeEventHeaderLength      = common.BinlogEventHeaderLength
+	nativeChecksumLength         = common.BinlogChecksumLength
 )
 
 func (writer *BinlogWriter) ensureNativeFile() error {
@@ -1338,13 +1339,13 @@ func (writer *BinlogWriter) rebuildNativeGTIDIndexLocked() error {
 			return err
 		}
 		for _, event := range events {
-			if event.Type == 33 && len(event.Raw) >= nativeEventHeaderLength+1+16+8 {
+			if event.Type == common.BinlogEventGtid && len(event.Raw) >= nativeEventHeaderLength+1+16+8 {
 				sid := hex.EncodeToString(event.Raw[nativeEventHeaderLength+1 : nativeEventHeaderLength+1+16])
 				sequence := binary.LittleEndian.Uint64(event.Raw[nativeEventHeaderLength+1+16 : nativeEventHeaderLength+1+16+8])
 				index[nativeGTIDIndexKey(sid, sequence)] = NativeGTIDIndexEntry{SID: sid, Sequence: sequence, File: event.File, Position: event.Position, End: event.EndPosition}
 				continue
 			}
-			if event.Type == 42 && len(event.Raw) >= nativeEventHeaderLength+nativeChecksumLength {
+			if event.Type == common.BinlogEventGtidTagged && len(event.Raw) >= nativeEventHeaderLength+nativeChecksumLength {
 				fields, parseErr := decodeNativeTaggedGTIDIndexFields(nativeEventBody(event))
 				if parseErr != nil {
 					return parseErr
@@ -1450,7 +1451,7 @@ func (writer *BinlogWriter) appendNativeRotate(event BinlogEvent, nextName strin
 		return err
 	}
 	body := buildNativeRotateBody(nextName)
-	payload := buildNativeEvent(4, body, eventWithNativePosition(event, uint64(info.Size())))
+	payload := buildNativeEvent(common.BinlogEventRotate, body, eventWithNativePosition(event, uint64(info.Size())))
 	if err := writeNativeFrame(file, payload); err != nil {
 		return err
 	}
@@ -1549,11 +1550,11 @@ func (writer *BinlogWriter) nativeHeaderSize() uint64 {
 
 func buildNativeFormatDescriptionEvent(serverID uint32, position uint64) []byte {
 	const (
-		formatDescriptionType = 15
+		formatDescriptionType = common.BinlogEventFormatDescription
 		serverVersionLength   = 50
 		// UNKNOWN_EVENT is not part of the format table. MySQL 8.4's
 		// ENUM_END_EVENT - 1 therefore describes event types 1..42.
-		eventTypeCount        = 42
+		eventTypeCount        = common.BinlogEventGtidTagged
 		checksumAlgorithmSize = 1
 	)
 	body := make([]byte, 2+serverVersionLength+4+1+eventTypeCount+checksumAlgorithmSize)
@@ -1561,39 +1562,7 @@ func buildNativeFormatDescriptionEvent(serverID uint32, position uint64) []byte 
 	copy(body[2:2+serverVersionLength], []byte("8.4.0-xmysql"))
 	body[2+serverVersionLength+4] = nativeEventHeaderLength
 	postHeaderLengths := body[2+serverVersionLength+5:]
-	// MySQL includes the UNKNOWN_EVENT slot at index 0. Keep event type
-	// values aligned with this table; shifting them makes native replicas
-	// parse the following event with the wrong post-header length.
-	postHeaderLengths[1] = 56  // START_EVENT_V3
-	postHeaderLengths[2] = 13  // QUERY_EVENT
-	postHeaderLengths[4] = 8   // ROTATE_EVENT
-	postHeaderLengths[8] = 4   // CREATE_FILE_EVENT
-	postHeaderLengths[10] = 4  // EXEC_LOAD_EVENT
-	postHeaderLengths[16] = 4  // BEGIN_LOAD_QUERY_EVENT
-	postHeaderLengths[17] = 26 // EXECUTE_LOAD_QUERY_EVENT
-	postHeaderLengths[15] = 99 // FORMAT_DESCRIPTION_EVENT for 8.4
-	postHeaderLengths[19] = 8  // TABLE_MAP_EVENT
-	postHeaderLengths[23] = 8  // WRITE_ROWS_EVENTv1
-	postHeaderLengths[24] = 8  // UPDATE_ROWS_EVENTv1
-	postHeaderLengths[25] = 8  // DELETE_ROWS_EVENTv1
-	postHeaderLengths[30] = 10 // WRITE_ROWS_EVENTv2
-	postHeaderLengths[31] = 10 // UPDATE_ROWS_EVENTv2
-	postHeaderLengths[32] = 10 // DELETE_ROWS_EVENTv2
-	postHeaderLengths[33] = 42 // GTID_EVENT
-	postHeaderLengths[34] = 42 // ANONYMOUS_GTID_EVENT
-	postHeaderLengths[36] = 18 // TRANSACTION_CONTEXT_EVENT
-	postHeaderLengths[37] = 52 // VIEW_CHANGE_EVENT
-	postHeaderLengths[39] = 40 // TRANSACTION_PAYLOAD_EVENT in 8.4
-	// The final byte is the checksum algorithm descriptor, not a
-	// post-header length. CRC32 is used by buildNativeEvent.
-	postHeaderLengths[eventTypeCount] = 1
-	// Match the MySQL 8.4 table exactly. It includes UNKNOWN_EVENT at index
-	// 0 and the checksum algorithm descriptor after the 42 event slots.
-	copy(postHeaderLengths, []byte{
-		0, 13, 0, 8, 0, 0, 0, 0, 4, 0, 4, 0, 0, 0, 99, 0,
-		4, 26, 8, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 10, 10, 10,
-		42, 42, 0, 18, 52, 0, 10, 40, 0, 0, 1,
-	})
+	copy(postHeaderLengths, common.BinlogPostHeaderLengths())
 	return buildNativeEvent(formatDescriptionType, body, BinlogEvent{
 		Timestamp: timeNow(),
 		ServerID:  serverID,
@@ -1602,7 +1571,7 @@ func buildNativeFormatDescriptionEvent(serverID uint32, position uint64) []byte 
 }
 
 func buildNativePreviousGTIDsEvent(serverID uint32, position uint64, set GTIDSet) []byte {
-	const previousGTIDsEventType = 35
+	const previousGTIDsEventType = common.BinlogEventPreviousGtids
 	body := buildNativeGTIDSetBody(set)
 	return buildNativeEvent(previousGTIDsEventType, body, BinlogEvent{
 		Timestamp: timeNow(),
@@ -1747,7 +1716,7 @@ func buildNativeEventPayloadsForLogical(event BinlogEvent, position uint64) [][]
 	}
 	if event.Type == EventXAPrepare && event.XA != nil {
 		end := buildNativeQueryEvent(event, position, nativeXALifecycleQuery("END", *event.XA))
-		prepare := buildNativeEvent(38, nativeXAPrepareBody(event), eventWithNativePosition(event, position))
+		prepare := buildNativeEvent(common.BinlogEventXaPrepare, nativeXAPrepareBody(event), eventWithNativePosition(event, position))
 		return [][]byte{end, prepare}
 	}
 	if event.Type != EventRow || len(event.Changes) == 0 {
@@ -1838,17 +1807,17 @@ func nativeRowColumnsForChanges(changes []RowChange) []string {
 func nativeRowEventType(action string) byte {
 	switch strings.ToLower(strings.TrimSpace(action)) {
 	case "update":
-		return 31 // UPDATE_ROWS_EVENTv2
+		return common.BinlogEventUpdateRowsV2 // UPDATE_ROWS_EVENTv2
 	case "delete":
-		return 32 // DELETE_ROWS_EVENTv2
+		return common.BinlogEventDeleteRowsV2 // DELETE_ROWS_EVENTv2
 	default:
-		return 30 // WRITE_ROWS_EVENTv2
+		return common.BinlogEventWriteRowsV2 // WRITE_ROWS_EVENTv2
 	}
 }
 
 func nativeRowEventTypeForChange(change RowChange) byte {
 	if strings.EqualFold(strings.TrimSpace(change.Action), "update") && len(nativePartialJSONColumns(change)) > 0 {
-		return 39 // PARTIAL_UPDATE_ROWS_EVENT
+		return common.BinlogEventPartialUpdateRows // PARTIAL_UPDATE_ROWS_EVENT
 	}
 	return nativeRowEventType(change.Action)
 }
@@ -2369,7 +2338,7 @@ func buildNativeTableMapEventForChange(event BinlogEvent, position, tableID uint
 	body = append(body, metadata...)
 	body = append(body, make([]byte, (len(columns)+7)/8)...)
 	body = append(body, nativeTableMapOptionalMetadata(change, columns, typeCodes)...)
-	return buildNativeEvent(19, body, eventWithNativePosition(event, position))
+	return buildNativeEvent(common.BinlogEventTableMap, body, eventWithNativePosition(event, position))
 }
 
 // nativeTableMapOptionalMetadata emits the optional signedness TLV when the
@@ -2660,19 +2629,19 @@ func buildNativeRowsEventForChanges(event BinlogEvent, position, tableID uint64,
 	body = appendNativeLenencInt(body, len(columns))
 	for _, change := range changes {
 		eventType := nativeRowEventTypeForChange(change)
-		if eventType == 31 || eventType == 39 {
+		if eventType == common.BinlogEventUpdateRowsV2 || eventType == common.BinlogEventPartialUpdateRows {
 			beforeBitmap, beforeImage := nativeRowImageForChange(change, columns, change.Before)
-			afterBitmap, afterImage := nativeRowImageForChangeMode(change, columns, change.After, eventType == 39)
+			afterBitmap, afterImage := nativeRowImageForChangeMode(change, columns, change.After, eventType == common.BinlogEventPartialUpdateRows)
 			body = append(body, beforeBitmap...)
 			body = append(body, afterBitmap...)
 			body = append(body, beforeImage...)
-			if eventType == 39 {
+			if eventType == common.BinlogEventPartialUpdateRows {
 				body = append(body, nativePartialJSONSharedImage(change, columns)...)
 			}
 			body = append(body, afterImage...)
 		} else {
 			values := change.After
-			if nativeRowEventType(change.Action) == 32 {
+			if nativeRowEventType(change.Action) == common.BinlogEventDeleteRowsV2 {
 				values = change.Before
 			}
 			bitmap, image := nativeRowImageForChange(change, columns, values)
@@ -3955,9 +3924,9 @@ func nativeValueBytesForChange(value interface{}) []byte {
 
 func buildNativeEventForLogical(event BinlogEvent, position uint64) []byte {
 	const (
-		queryEventType  = 2
-		rotateEventType = 4
-		xidEventType    = 16
+		queryEventType  = common.BinlogEventQuery
+		rotateEventType = common.BinlogEventRotate
+		xidEventType    = common.BinlogEventXid
 	)
 	switch event.Type {
 	case EventBegin:
@@ -3968,7 +3937,7 @@ func buildNativeEventForLogical(event BinlogEvent, position uint64) []byte {
 		binary.LittleEndian.PutUint64(body, event.GTID.Seq)
 		return buildNativeEvent(xidEventType, body, eventWithNativePosition(event, position))
 	case EventXAPrepare:
-		return buildNativeEvent(38, nativeXAPrepareBody(event), eventWithNativePosition(event, position))
+		return buildNativeEvent(common.BinlogEventXaPrepare, nativeXAPrepareBody(event), eventWithNativePosition(event, position))
 	case EventXACommit, EventXARollback:
 		query := nativeXATerminalQuery(event)
 		return buildNativeQueryEvent(event, position, query)
@@ -4072,7 +4041,7 @@ func buildNativeQueryEvent(event BinlogEvent, position uint64, query string) []b
 	body = append(body, databaseBytes...)
 	body = append(body, 0)
 	body = append(body, queryBytes...)
-	return buildNativeEvent(2, body, eventWithNativePosition(event, position))
+	return buildNativeEvent(common.BinlogEventQuery, body, eventWithNativePosition(event, position))
 }
 
 func eventWithNativePosition(event BinlogEvent, position uint64) BinlogEvent {
@@ -4116,9 +4085,9 @@ func nativeGTIDBody(event BinlogEvent) []byte {
 func nativeGTIDEvent(event BinlogEvent) (byte, []byte) {
 	sid, tag, tagged := nativeGTIDParts(event.GTID.UUID)
 	if tagged {
-		return 42, nativeTaggedGTIDBody(event, sid, tag)
+		return common.BinlogEventGtidTagged, nativeTaggedGTIDBody(event, sid, tag)
 	}
-	return 33, nativeGTIDBody(event)
+	return common.BinlogEventGtid, nativeGTIDBody(event)
 }
 
 func nativeTaggedGTIDBody(event BinlogEvent, sid []byte, tag string) []byte {

@@ -39,10 +39,10 @@ import (
 
 // 插入缓冲空闲列表页面常量
 const (
-	IBufFreeListHeaderSize = 32                                       // IBuf空闲列表头部大小
-	IBufFreeListDataSize   = 16306                                    // IBuf空闲列表数据区大小 (16384 - 38 - 32 - 8)
-	IBufPageEntrySize      = 8                                        // 每个页面条目大小 (4字节页号 + 4字节状态)
-	MaxIBufFreeEntries     = IBufFreeListDataSize / IBufPageEntrySize // 最大条目数
+	IBufFreeListHeaderSize = common.IBufFreeListHeaderSize                   // IBuf空闲列表头部大小
+	IBufFreeListDataSize   = common.IBufFreeListDataSize                     // IBuf空闲列表数据区大小 (16384 - 38 - 32 - 8)
+	IBufPageEntrySize      = 8                                               // 每个页面条目大小 (4字节页号 + 4字节状态)
+	MaxIBufFreeEntries     = common.IBufFreeListDataSize / IBufPageEntrySize // 最大条目数
 )
 
 // 插入缓冲页面状态
@@ -284,11 +284,11 @@ func (iflp *IBufFreeListPage) Serialize() []byte {
 
 	// 序列化文件头部
 	copy(data[offset:], iflp.serializeFileHeader())
-	offset += FileHeaderSize
+	offset += common.FileHeaderSize
 
 	// 序列化IBuf空闲列表头部
 	copy(data[offset:], iflp.serializeIBufFreeListHeader())
-	offset += IBufFreeListHeaderSize
+	offset += common.IBufFreeListHeaderSize
 
 	// 序列化页面条目
 	entriesData := iflp.serializePageEntries()
@@ -296,7 +296,7 @@ func (iflp *IBufFreeListPage) Serialize() []byte {
 	offset += len(entriesData)
 
 	// 填充剩余空间
-	remainingSpace := common.PageSize - FileHeaderSize - IBufFreeListHeaderSize - FileTrailerSize - len(entriesData)
+	remainingSpace := common.PageSize - common.FileHeaderSize - common.IBufFreeListHeaderSize - common.FileTrailerSize - len(entriesData)
 	if remainingSpace > 0 {
 		// 填充零字节
 		for i := 0; i < remainingSpace; i++ {
@@ -320,20 +320,20 @@ func (iflp *IBufFreeListPage) Deserialize(data []byte) error {
 	offset := 0
 
 	// 反序列化文件头部
-	if err := iflp.deserializeFileHeader(data[offset : offset+FileHeaderSize]); err != nil {
+	if err := iflp.deserializeFileHeader(data[offset : offset+common.FileHeaderSize]); err != nil {
 		return err
 	}
-	offset += FileHeaderSize
+	offset += common.FileHeaderSize
 
 	// 反序列化IBuf空闲列表头部
-	if err := iflp.deserializeIBufFreeListHeader(data[offset : offset+IBufFreeListHeaderSize]); err != nil {
+	if err := iflp.deserializeIBufFreeListHeader(data[offset : offset+common.IBufFreeListHeaderSize]); err != nil {
 		return err
 	}
-	offset += IBufFreeListHeaderSize
+	offset += common.IBufFreeListHeaderSize
 
 	// 反序列化页面条目
 	entriesDataSize := int(iflp.IBufFreeListHeader.TotalCount) * IBufPageEntrySize
-	if entriesDataSize > IBufFreeListDataSize {
+	if entriesDataSize > common.IBufFreeListDataSize {
 		return ErrInvalidIBufPageEntry
 	}
 
@@ -351,7 +351,7 @@ func (iflp *IBufFreeListPage) serializeFileHeader() []byte {
 
 // serializeIBufFreeListHeader 序列化IBuf空闲列表头部
 func (iflp *IBufFreeListPage) serializeIBufFreeListHeader() []byte {
-	data := make([]byte, IBufFreeListHeaderSize)
+	data := make([]byte, common.IBufFreeListHeaderSize)
 
 	binary.LittleEndian.PutUint32(data[0:], iflp.IBufFreeListHeader.FreeCount)
 	binary.LittleEndian.PutUint32(data[4:], iflp.IBufFreeListHeader.UsedCount)
@@ -389,7 +389,7 @@ func (iflp *IBufFreeListPage) deserializeFileHeader(data []byte) error {
 
 // deserializeIBufFreeListHeader 反序列化IBuf空闲列表头部
 func (iflp *IBufFreeListPage) deserializeIBufFreeListHeader(data []byte) error {
-	if len(data) < IBufFreeListHeaderSize {
+	if len(data) < common.IBufFreeListHeaderSize {
 		return ErrInvalidPageSize
 	}
 

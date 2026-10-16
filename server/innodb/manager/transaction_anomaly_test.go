@@ -1,5 +1,7 @@
 package manager
 
+import "github.com/zhukovaskychina/xmysql-server/server/common"
+
 import (
 	"testing"
 
@@ -8,11 +10,11 @@ import (
 
 func TestTransactionIsolationAnomalyMatrix(t *testing.T) {
 	mvcc := NewMVCCManager(&MVCCConfig{MaxActiveTxs: 64})
-	writer, err := mvcc.BeginTransactionWithIsolation(TRX_ISO_READ_COMMITTED)
+	writer, err := mvcc.BeginTransactionWithIsolation(common.TRX_ISO_READ_COMMITTED)
 	require.NoError(t, err)
-	rrReader, err := mvcc.BeginTransactionWithIsolation(TRX_ISO_REPEATABLE_READ)
+	rrReader, err := mvcc.BeginTransactionWithIsolation(common.TRX_ISO_REPEATABLE_READ)
 	require.NoError(t, err)
-	ruReader, err := mvcc.BeginTransactionWithIsolation(TRX_ISO_READ_UNCOMMITTED)
+	ruReader, err := mvcc.BeginTransactionWithIsolation(common.TRX_ISO_READ_UNCOMMITTED)
 	require.NoError(t, err)
 
 	visible, err := mvcc.IsVisible(rrReader, writer)
@@ -26,7 +28,7 @@ func TestTransactionIsolationAnomalyMatrix(t *testing.T) {
 	visible, err = mvcc.IsVisible(rrReader, writer)
 	require.NoError(t, err)
 	require.False(t, visible, "RR keeps the snapshot taken before commit")
-	rcReader, err := mvcc.BeginTransactionWithIsolation(TRX_ISO_READ_COMMITTED)
+	rcReader, err := mvcc.BeginTransactionWithIsolation(common.TRX_ISO_READ_COMMITTED)
 	require.NoError(t, err)
 	visible, err = mvcc.IsVisible(rcReader, writer)
 	require.NoError(t, err)

@@ -1,5 +1,7 @@
 package manager
 
+import "github.com/zhukovaskychina/xmysql-server/server/common"
+
 import (
 	"sync"
 	"testing"
@@ -56,7 +58,7 @@ func TestLongTransactionDetection(t *testing.T) {
 	tm.SetLongTransactionConfig(config)
 
 	// 创建一个长事务
-	trx, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+	trx, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	if err != nil {
 		t.Fatalf("Failed to begin transaction: %v", err)
 	}
@@ -119,7 +121,7 @@ func TestLongTransactionAutoRollback(t *testing.T) {
 	}
 
 	// 创建事务
-	trx, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+	trx, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	if err != nil {
 		t.Fatalf("Failed to begin transaction: %v", err)
 	}
@@ -143,15 +145,15 @@ func TestLongTransactionAutoRollback(t *testing.T) {
 	if tm.GetTransaction(trxID) != nil {
 		t.Errorf("Expected transaction %d to be removed after auto rollback", trxID)
 	}
-	if trx.State != TRX_STATE_ROLLED_BACK {
-		t.Errorf("Expected transaction state %d, got %d", TRX_STATE_ROLLED_BACK, trx.State)
+	if trx.State != common.TRX_STATE_ROLLED_BACK {
+		t.Errorf("Expected transaction state %d, got %d", common.TRX_STATE_ROLLED_BACK, trx.State)
 	}
 
 	alerts := drainLongTransactionAlerts(tm.GetAlertChannel())
 	if len(alerts) == 0 {
 		t.Fatal("Expected critical alert to be sent")
 	}
-	if alerts[0].Level != LONG_TXN_LEVEL_CRITICAL {
+	if alerts[0].Level != common.LONG_TXN_LEVEL_CRITICAL {
 		t.Fatalf("Expected critical alert, got %s", alerts[0].Level)
 	}
 }
@@ -168,9 +170,9 @@ func TestGetLongTransactions(t *testing.T) {
 	defer tm.Close()
 
 	// 创建多个事务
-	trx1, _ := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
-	trx2, _ := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
-	trx3, _ := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+	trx1, _ := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
+	trx2, _ := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
+	trx3, _ := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 
 	now := time.Now()
 	setTransactionStartTime(tm, trx1.ID, now.Add(-250*time.Millisecond))
@@ -217,7 +219,7 @@ func TestUpdateTransactionMetrics(t *testing.T) {
 	tm.StopLongTransactionMonitor()
 
 	// 创建事务
-	trx, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+	trx, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	if err != nil {
 		t.Fatalf("Failed to begin transaction: %v", err)
 	}
@@ -328,7 +330,7 @@ func TestConcurrentLongTransactionDetection(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 
-			trx, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+			trx, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 			if err != nil {
 				t.Errorf("Failed to begin transaction %d: %v", id, err)
 				return

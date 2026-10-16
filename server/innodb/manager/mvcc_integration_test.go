@@ -1,5 +1,7 @@
 package manager
 
+import "github.com/zhukovaskychina/xmysql-server/server/common"
+
 import (
 	"testing"
 )
@@ -20,7 +22,7 @@ func TestMVCC_ReadCommitted_Visibility(t *testing.T) {
 
 	// 步骤 1: 事务 T1 开始并写入数据版本 V1
 	t.Log("Step 1: T1 begins and writes version V1")
-	t1, err := tm.Begin(false, TRX_ISO_READ_COMMITTED)
+	t1, err := tm.Begin(false, common.TRX_ISO_READ_COMMITTED)
 	if err != nil {
 		t.Fatalf("Failed to begin T1: %v", err)
 	}
@@ -32,7 +34,7 @@ func TestMVCC_ReadCommitted_Visibility(t *testing.T) {
 
 	// 步骤 2: 事务 T2 (RC 隔离级别) 开始，在 T1 提交前读取
 	t.Log("Step 2: T2 (RC) begins before T1 commits")
-	t2, err := tm.Begin(false, TRX_ISO_READ_COMMITTED)
+	t2, err := tm.Begin(false, common.TRX_ISO_READ_COMMITTED)
 	if err != nil {
 		t.Fatalf("Failed to begin T2: %v", err)
 	}
@@ -84,7 +86,7 @@ func TestMVCC_RepeatableRead_Visibility(t *testing.T) {
 
 	// 步骤 1: 事务 T1 开始并写入数据版本 V1
 	t.Log("Step 1: T1 begins and writes version V1")
-	t1, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+	t1, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	if err != nil {
 		t.Fatalf("Failed to begin T1: %v", err)
 	}
@@ -96,7 +98,7 @@ func TestMVCC_RepeatableRead_Visibility(t *testing.T) {
 
 	// 步骤 2: 事务 T3 (RR 隔离级别) 在 T1 提交前开始
 	t.Log("Step 2: T3 (RR) begins before T1 commits")
-	t3, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+	t3, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	if err != nil {
 		t.Fatalf("Failed to begin T3: %v", err)
 	}
@@ -148,7 +150,7 @@ func TestMVCC_RepeatableRead_CanSeeCommittedBeforeStart(t *testing.T) {
 
 	// 步骤 1: 事务 T1 开始、写入并提交
 	t.Log("Step 1: T1 begins, writes V1, and commits")
-	t1, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+	t1, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	if err != nil {
 		t.Fatalf("Failed to begin T1: %v", err)
 	}
@@ -162,7 +164,7 @@ func TestMVCC_RepeatableRead_CanSeeCommittedBeforeStart(t *testing.T) {
 
 	// 步骤 2: 事务 T2 (RR) 在 T1 提交后开始
 	t.Log("Step 2: T2 (RR) begins after T1 commits")
-	t2, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+	t2, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	if err != nil {
 		t.Fatalf("Failed to begin T2: %v", err)
 	}
@@ -197,7 +199,7 @@ func TestMVCC_TransactionCanSeeOwnChanges(t *testing.T) {
 
 	// 测试 RC 隔离级别
 	t.Log("Testing RC isolation level")
-	t1, err := tm.Begin(false, TRX_ISO_READ_COMMITTED)
+	t1, err := tm.Begin(false, common.TRX_ISO_READ_COMMITTED)
 	if err != nil {
 		t.Fatalf("Failed to begin T1: %v", err)
 	}
@@ -211,7 +213,7 @@ func TestMVCC_TransactionCanSeeOwnChanges(t *testing.T) {
 
 	// 测试 RR 隔离级别
 	t.Log("Testing RR isolation level")
-	t2, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+	t2, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	if err != nil {
 		t.Fatalf("Failed to begin T2: %v", err)
 	}
@@ -247,21 +249,21 @@ func TestMVCC_MultipleTransactions_ComplexScenario(t *testing.T) {
 	// 6. 验证各事务的可见性
 
 	t.Log("Step 1: T1 (RR) begins")
-	t1, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+	t1, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	if err != nil {
 		t.Fatalf("Failed to begin T1: %v", err)
 	}
 	t.Logf("T1 (RR) started with ID=%d", t1.ID)
 
 	t.Log("Step 2: T2 (RC) begins")
-	t2, err := tm.Begin(false, TRX_ISO_READ_COMMITTED)
+	t2, err := tm.Begin(false, common.TRX_ISO_READ_COMMITTED)
 	if err != nil {
 		t.Fatalf("Failed to begin T2: %v", err)
 	}
 	t.Logf("T2 (RC) started with ID=%d", t2.ID)
 
 	t.Log("Step 3: T3 (RR) begins and writes V3")
-	t3, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+	t3, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	if err != nil {
 		t.Fatalf("Failed to begin T3: %v", err)
 	}
@@ -269,7 +271,7 @@ func TestMVCC_MultipleTransactions_ComplexScenario(t *testing.T) {
 	t.Logf("T3 (RR) started with ID=%d, writes V3=%d", t3.ID, versionV3)
 
 	t.Log("Step 4: T4 (RC) begins")
-	t4, err := tm.Begin(false, TRX_ISO_READ_COMMITTED)
+	t4, err := tm.Begin(false, common.TRX_ISO_READ_COMMITTED)
 	if err != nil {
 		t.Fatalf("Failed to begin T4: %v", err)
 	}
@@ -335,14 +337,14 @@ func TestMVCC_ReadUncommitted_Visibility(t *testing.T) {
 	defer tm.Close()
 
 	// T1 开始并写入
-	t1, err := tm.Begin(false, TRX_ISO_READ_UNCOMMITTED)
+	t1, err := tm.Begin(false, common.TRX_ISO_READ_UNCOMMITTED)
 	if err != nil {
 		t.Fatalf("Failed to begin T1: %v", err)
 	}
 	versionV1 := t1.ID
 
 	// T2 (RU) 开始
-	t2, err := tm.Begin(false, TRX_ISO_READ_UNCOMMITTED)
+	t2, err := tm.Begin(false, common.TRX_ISO_READ_UNCOMMITTED)
 	if err != nil {
 		t.Fatalf("Failed to begin T2: %v", err)
 	}
@@ -379,7 +381,7 @@ func TestMVCC_ConcurrentTransactions(t *testing.T) {
 
 	// 所有事务都使用 RR 隔离级别
 	for i := 0; i < numTxs; i++ {
-		tx, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+		tx, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 		if err != nil {
 			t.Fatalf("Failed to begin transaction %d: %v", i, err)
 		}
@@ -426,7 +428,7 @@ func BenchmarkMVCC_IsVisible(b *testing.B) {
 	defer tm.Close()
 
 	// 创建测试事务
-	tx, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+	tx, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	if err != nil {
 		b.Fatalf("Failed to begin transaction: %v", err)
 	}
@@ -456,7 +458,7 @@ func BenchmarkMVCC_BeginCommit(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tx, err := tm.Begin(true, TRX_ISO_REPEATABLE_READ)
+		tx, err := tm.Begin(true, common.TRX_ISO_REPEATABLE_READ)
 		if err != nil {
 			b.Fatalf("Failed to begin transaction: %v", err)
 		}

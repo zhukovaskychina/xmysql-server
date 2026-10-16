@@ -15,13 +15,13 @@ import (
 
 const (
 	// FileHeaderSize is the size of file header in bytes
-	FileHeaderSize = 38
+	FileHeaderSize = common.FileHeaderSize
 
 	// PageHeaderSize is the size of page header in bytes
-	PageHeaderSize = 56
+	PageHeaderSize = common.PageHeaderSize
 
 	// FileTrailerSize is the size of file trailer in bytes
-	FileTrailerSize = 8
+	FileTrailerSize = common.FileTrailerSize
 )
 
 var (
@@ -486,26 +486,26 @@ func (ip *IndexPage) GetLevel() uint16 {
 
 // readFileHeader reads the file header from content
 func (ip *IndexPage) readFileHeader() error {
-	if len(ip.content) < FileHeaderSize {
+	if len(ip.content) < common.FileHeaderSize {
 		return fmt.Errorf("content too short for file header: %d", len(ip.content))
 	}
-	ip.fileHeader.ParseBytes(ip.content[:FileHeaderSize])
+	ip.fileHeader.ParseBytes(ip.content[:common.FileHeaderSize])
 	return nil
 }
 
 // readPageHeader reads the page header from content
 func (ip *IndexPage) readPageHeader() error {
-	offset := FileHeaderSize
-	if len(ip.content) < offset+PageHeaderSize {
+	offset := common.FileHeaderSize
+	if len(ip.content) < offset+common.PageHeaderSize {
 		return fmt.Errorf("content too short for page header: %d", len(ip.content))
 	}
-	ip.pageHeader.ParseBytes(ip.content[offset : offset+PageHeaderSize])
+	ip.pageHeader.ParseBytes(ip.content[offset : offset+common.PageHeaderSize])
 	return nil
 }
 
 // readIndexEntries reads the index entries from content
 func (ip *IndexPage) readIndexEntries() error {
-	offset := FileHeaderSize + PageHeaderSize
+	offset := common.FileHeaderSize + common.PageHeaderSize
 	for offset+14 <= len(ip.content) {
 		allZero := true
 		for _, b := range ip.content[offset : offset+14] {

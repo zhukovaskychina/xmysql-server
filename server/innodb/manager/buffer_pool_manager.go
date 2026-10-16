@@ -2,6 +2,7 @@ package manager
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -12,13 +13,13 @@ import (
 )
 
 const (
-	DEFAULT_BUFFER_POOL_SIZE = 16384       // 默认缓冲池大小（页数）
-	PAGE_SIZE                = 16384       // 页大小（字节）
-	FLUSH_INTERVAL           = time.Second // 刷新间隔
-	MAX_DIRTY_RATIO          = 0.25        // 最大脏页比例
-	YOUNG_LIST_RATIO         = 0.75        // young list比例
-	OLD_LIST_RATIO           = 0.25        // old list比例
-	OLD_BLOCK_TIME           = 1000        // old区块时间（毫秒）
+	DEFAULT_BUFFER_POOL_SIZE = 16384           // 默认缓冲池大小（页数）
+	PAGE_SIZE                = common.PageSize // 页大小（字节）
+	FLUSH_INTERVAL           = time.Second     // 刷新间隔
+	MAX_DIRTY_RATIO          = 0.25            // 最大脏页比例
+	YOUNG_LIST_RATIO         = 0.75            // young list比例
+	OLD_LIST_RATIO           = 0.25            // old list比例
+	OLD_BLOCK_TIME           = 1000            // old区块时间（毫秒）
 
 	// 自适应刷新参数
 	MIN_FLUSH_INTERVAL      = 100 * time.Millisecond // 最小刷新间隔
@@ -106,7 +107,7 @@ func NewBufferPoolManager(config *BufferPoolConfig) (*BufferPoolManager, error) 
 		config.PoolSize = DEFAULT_BUFFER_POOL_SIZE
 	}
 	if config.PageSize == 0 {
-		config.PageSize = PAGE_SIZE
+		config.PageSize = common.PageSize
 	}
 	if config.FlushInterval == 0 {
 		config.FlushInterval = FLUSH_INTERVAL

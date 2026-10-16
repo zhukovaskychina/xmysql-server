@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"strconv"
 )
 
@@ -126,43 +127,43 @@ func (g *ColumnsGenerator) getNullable(nullable bool) string {
 
 func (g *ColumnsGenerator) getDataType(typ uint8) string {
 	switch typ {
-	case MYSQL_TYPE_TINY:
+	case common.COLUMN_TYPE_TINY:
 		return "tinyint"
-	case MYSQL_TYPE_SHORT:
+	case common.COLUMN_TYPE_SHORT:
 		return "smallint"
-	case MYSQL_TYPE_LONG:
+	case common.COLUMN_TYPE_LONG:
 		return "int"
-	case MYSQL_TYPE_FLOAT:
+	case common.COLUMN_TYPE_FLOAT:
 		return "float"
-	case MYSQL_TYPE_DOUBLE:
+	case common.COLUMN_TYPE_DOUBLE:
 		return "double"
-	case MYSQL_TYPE_TIMESTAMP:
+	case common.COLUMN_TYPE_TIMESTAMP:
 		return "timestamp"
-	case MYSQL_TYPE_LONGLONG:
+	case common.COLUMN_TYPE_LONGLONG:
 		return "bigint"
-	case MYSQL_TYPE_INT24:
+	case common.COLUMN_TYPE_INT24:
 		return "mediumint"
-	case MYSQL_TYPE_DATE:
+	case common.COLUMN_TYPE_DATE:
 		return "date"
-	case MYSQL_TYPE_TIME:
+	case common.COLUMN_TYPE_TIME:
 		return "time"
-	case MYSQL_TYPE_DATETIME:
+	case common.COLUMN_TYPE_DATETIME:
 		return "datetime"
-	case MYSQL_TYPE_YEAR:
+	case common.COLUMN_TYPE_YEAR:
 		return "year"
-	case MYSQL_TYPE_VARCHAR:
+	case common.COLUMN_TYPE_VARCHAR:
 		return "varchar"
-	case MYSQL_TYPE_BIT:
+	case common.COLUMN_TYPE_BIT:
 		return "bit"
-	case MYSQL_TYPE_JSON:
+	case common.COLUMN_TYPE_JSON:
 		return "json"
-	case MYSQL_TYPE_NEWDECIMAL:
+	case common.COLUMN_TYPE_NEWDECIMAL:
 		return "decimal"
-	case MYSQL_TYPE_ENUM:
+	case common.COLUMN_TYPE_ENUM:
 		return "enum"
-	case MYSQL_TYPE_SET:
+	case common.COLUMN_TYPE_SET:
 		return "set"
-	case MYSQL_TYPE_TINY_BLOB:
+	case common.COLUMN_TYPE_TINY_BLOB:
 		return "tinyblob"
 	default:
 		return "unknown"

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"hash/crc32"
 	"math"
 	"strconv"
@@ -306,19 +307,19 @@ func (d *NativeBinlogDecoder) Decode(events []NativeBinlogEvent) ([]RowChange, e
 		frame := event.Raw
 		body := nativeEventBody(event)
 		switch frame[4] {
-		case 19:
+		case common.BinlogEventTableMap:
 			table, tableID, err := d.decodeTableMap(body)
 			if err != nil {
 				return nil, err
 			}
 			d.installTableMap(event, tableID, table)
-		case 35:
+		case common.BinlogEventPreviousGtids:
 			previous, err := decodeNativePreviousGTIDs(body, d.sourceUUID)
 			if err != nil {
 				return nil, err
 			}
 			d.previousGTIDs = previous
-		case 40:
+		case common.BinlogEventTransactionPayload:
 			inner, err := decodeNativeTransactionPayload(event)
 			if err != nil {
 				return nil, err
@@ -328,13 +329,25 @@ func (d *NativeBinlogDecoder) Decode(events []NativeBinlogEvent) ([]RowChange, e
 				return nil, err
 			}
 			decoded = append(decoded, changes...)
-		case 20, 21, 22, 23, 24, 25, 30, 31, 32, 39:
+		case common.BinlogEventWriteRowsPreGA, common.BinlogEventUpdateRowsPreGA, common.BinlogEventDeleteRowsPreGA,
+			common.BinlogEventWriteRowsV1, common.BinlogEventUpdateRowsV1, common.BinlogEventDeleteRowsV1,
+			common.BinlogEventWriteRowsV2, common.BinlogEventUpdateRowsV2, common.BinlogEventDeleteRowsV2,
+			common.BinlogEventPartialUpdateRows:
 			changes, err := d.decodeNativeRows(frame[4], body)
 			if err != nil {
 				return nil, err
 			}
 			decoded = append(decoded, changes...)
-		case 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 26, 27, 28, 29, 33, 34, 36, 37, 38, 41, 42:
+		case common.BinlogEventStartV3, common.BinlogEventQuery, common.BinlogEventStop,
+			common.BinlogEventRotate, common.BinlogEventIntvar, common.BinlogEventLoad,
+			common.BinlogEventSlave, common.BinlogEventCreateFile, common.BinlogEventAppendBlock,
+			common.BinlogEventExecLoad, common.BinlogEventDeleteFile, common.BinlogEventNewLoad,
+			common.BinlogEventRand, common.BinlogEventUserVar, common.BinlogEventFormatDescription,
+			common.BinlogEventXid, common.BinlogEventBeginLoadQuery, common.BinlogEventExecuteLoadQuery,
+			common.BinlogEventIncident, common.BinlogEventHeartbeat, common.BinlogEventIgnorable,
+			common.BinlogEventRowsQuery, common.BinlogEventGtid, common.BinlogEventAnonymousGtid,
+			common.BinlogEventTransactionContext, common.BinlogEventViewChange, common.BinlogEventXaPrepare,
+			common.BinlogEventHeartbeatV2, common.BinlogEventGtidTagged:
 			// STOP/ROTATE/FORMAT_DESCRIPTION and the remaining replication
 			// control events carry no row image for this decoder. They are
 			// nevertheless known event types and must be consumed so a complete
@@ -382,19 +395,19 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 		body := nativeEventBody(event)
 		timestamp := time.Unix(int64(binary.LittleEndian.Uint32(frame[0:4])), 0).UTC()
 		switch frame[4] {
-		case 19:
+		case common.BinlogEventTableMap:
 			table, tableID, err := d.decodeTableMap(body)
 			if err != nil {
 				return nil, err
 			}
 			d.installTableMap(event, tableID, table)
-		case 35:
+		case common.BinlogEventPreviousGtids:
 			previous, err := decodeNativePreviousGTIDs(body, d.sourceUUID)
 			if err != nil {
 				return nil, err
 			}
 			d.previousGTIDs = previous
-		case 40:
+		case common.BinlogEventTransactionPayload:
 			inner, err := decodeNativeTransactionPayload(event)
 			if err != nil {
 				return nil, err
@@ -404,13 +417,13 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 				nestedBody := nativeEventBody(nested)
 				nestedTimestamp := time.Unix(int64(binary.LittleEndian.Uint32(nestedFrame[0:4])), 0).UTC()
 				switch nestedFrame[4] {
-				case 19:
+				case common.BinlogEventTableMap:
 					table, tableID, err := d.decodeTableMap(nestedBody)
 					if err != nil {
 						return nil, err
 					}
 					d.installTableMap(nested, tableID, table)
-				case 2:
+				case common.BinlogEventQuery:
 					statement, database, err := decodeNativeQuery(nestedBody)
 					if err != nil {
 						return nil, err
@@ -450,7 +463,10 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 					if statement != "" {
 						current.Statements = append(current.Statements, Statement{Database: database, SQL: statement})
 					}
-				case 20, 21, 22, 23, 24, 25, 30, 31, 32, 39:
+				case common.BinlogEventWriteRowsPreGA, common.BinlogEventUpdateRowsPreGA, common.BinlogEventDeleteRowsPreGA,
+					common.BinlogEventWriteRowsV1, common.BinlogEventUpdateRowsV1, common.BinlogEventDeleteRowsV1,
+					common.BinlogEventWriteRowsV2, common.BinlogEventUpdateRowsV2, common.BinlogEventDeleteRowsV2,
+					common.BinlogEventPartialUpdateRows:
 					changes, err := d.decodeNativeRows(nestedFrame[4], nestedBody)
 					if err != nil {
 						return nil, err
@@ -459,14 +475,14 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 						return nil, fmt.Errorf("native payload ROWS_EVENT has no active GTID transaction")
 					}
 					current.Changes = append(current.Changes, changes...)
-				case 16:
+				case common.BinlogEventXid:
 					if current == nil {
 						return nil, fmt.Errorf("native payload XID_EVENT has no active transaction")
 					}
 					current.Type = EventCommit
 					transactions = append(transactions, *current)
 					current = nil
-				case 38:
+				case common.BinlogEventXaPrepare:
 					xid, onePhase, err := decodeNativeXAPrepareIdentity(nestedBody)
 					if err != nil {
 						return nil, err
@@ -491,10 +507,17 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 					current.OnePhase = true
 					transactions = append(transactions, *current)
 					current = nil
-				case 35:
+				case common.BinlogEventPreviousGtids:
 					// PREVIOUS_GTIDS_EVENT is file metadata and is not part of the
 					// transaction payload in valid MySQL binlogs.
-				case 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 26, 27, 28, 29, 36, 37, 41:
+				case common.BinlogEventStartV3, common.BinlogEventStop, common.BinlogEventRotate,
+					common.BinlogEventIntvar, common.BinlogEventLoad, common.BinlogEventSlave,
+					common.BinlogEventCreateFile, common.BinlogEventAppendBlock, common.BinlogEventExecLoad,
+					common.BinlogEventDeleteFile, common.BinlogEventNewLoad, common.BinlogEventRand,
+					common.BinlogEventUserVar, common.BinlogEventFormatDescription, common.BinlogEventBeginLoadQuery,
+					common.BinlogEventExecuteLoadQuery, common.BinlogEventIncident, common.BinlogEventHeartbeat,
+					common.BinlogEventIgnorable, common.BinlogEventRowsQuery, common.BinlogEventTransactionContext,
+					common.BinlogEventViewChange, common.BinlogEventHeartbeatV2:
 					// STOP/ROTATE/FORMAT_DESCRIPTION, INCIDENT, HEARTBEAT,
 					// IGNORE, ROWS_QUERY, TRANSACTION_CONTEXT, VIEW_CHANGE and
 					// HEARTBEAT_LOG_EVENT_V2 carry no row images. They are safe to
@@ -503,7 +526,7 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 					return nil, fmt.Errorf("unsupported event %d inside TRANSACTION_PAYLOAD_EVENT", nestedFrame[4])
 				}
 			}
-		case 38:
+		case common.BinlogEventXaPrepare:
 			xid, onePhase, err := decodeNativeXAPrepareIdentity(body)
 			if err != nil {
 				return nil, err
@@ -528,7 +551,7 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 			current.OnePhase = true
 			transactions = append(transactions, *current)
 			current = nil
-		case 33:
+		case common.BinlogEventGtid:
 			gtid, err := decodeNativeGTID(body)
 			if err != nil {
 				return nil, err
@@ -551,7 +574,7 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 				}
 			}
 			current = &BinlogEvent{Timestamp: timestamp, Type: EventBegin, ServerID: binary.LittleEndian.Uint32(frame[5:9]), Position: event.Position, GTID: gtid}
-		case 42:
+		case common.BinlogEventGtidTagged:
 			gtid, err := decodeNativeTaggedGTID(body, d.sourceUUID)
 			if err != nil {
 				return nil, err
@@ -560,7 +583,7 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 				return nil, fmt.Errorf("native GTID_TAGGED_LOG_EVENT started before prior transaction committed")
 			}
 			current = &BinlogEvent{Timestamp: timestamp, Type: EventBegin, ServerID: binary.LittleEndian.Uint32(frame[5:9]), Position: event.Position, GTID: gtid}
-		case 34:
+		case common.BinlogEventAnonymousGtid:
 			if current != nil {
 				return nil, fmt.Errorf("native ANONYMOUS_GTID_EVENT started before prior transaction committed")
 			}
@@ -571,7 +594,7 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 				Position:  event.Position,
 				GTID:      nativeAnonymousGTID(event, frame),
 			}
-		case 2:
+		case common.BinlogEventQuery:
 			statement, database, err := decodeNativeQuery(body)
 			if err != nil {
 				return nil, err
@@ -611,7 +634,10 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 			if nativeQueryBoundary(statement) != "begin" && statement != "" {
 				current.Statements = append(current.Statements, Statement{Database: database, SQL: statement})
 			}
-		case 20, 21, 22, 23, 24, 25, 30, 31, 32, 39:
+		case common.BinlogEventWriteRowsPreGA, common.BinlogEventUpdateRowsPreGA, common.BinlogEventDeleteRowsPreGA,
+			common.BinlogEventWriteRowsV1, common.BinlogEventUpdateRowsV1, common.BinlogEventDeleteRowsV1,
+			common.BinlogEventWriteRowsV2, common.BinlogEventUpdateRowsV2, common.BinlogEventDeleteRowsV2,
+			common.BinlogEventPartialUpdateRows:
 			changes, err := d.decodeNativeRows(frame[4], body)
 			if err != nil {
 				return nil, err
@@ -620,14 +646,21 @@ func (d *NativeBinlogDecoder) DecodeTransactions(events []NativeBinlogEvent) ([]
 				return nil, fmt.Errorf("native ROWS_EVENT has no active GTID transaction")
 			}
 			current.Changes = append(current.Changes, changes...)
-		case 16:
+		case common.BinlogEventXid:
 			if current == nil {
 				return nil, fmt.Errorf("native XID_EVENT has no active transaction")
 			}
 			current.Type = EventCommit
 			transactions = append(transactions, *current)
 			current = nil
-		case 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 26, 27, 28, 29, 36, 37, 41:
+		case common.BinlogEventStartV3, common.BinlogEventStop, common.BinlogEventRotate,
+			common.BinlogEventIntvar, common.BinlogEventLoad, common.BinlogEventSlave,
+			common.BinlogEventCreateFile, common.BinlogEventAppendBlock, common.BinlogEventExecLoad,
+			common.BinlogEventDeleteFile, common.BinlogEventNewLoad, common.BinlogEventRand,
+			common.BinlogEventUserVar, common.BinlogEventFormatDescription, common.BinlogEventBeginLoadQuery,
+			common.BinlogEventExecuteLoadQuery, common.BinlogEventIncident, common.BinlogEventHeartbeat,
+			common.BinlogEventIgnorable, common.BinlogEventRowsQuery, common.BinlogEventTransactionContext,
+			common.BinlogEventViewChange, common.BinlogEventHeartbeatV2:
 			// Known non-transactional control events. They are validated above
 			// and do not change the logical transaction state.
 		default:
@@ -1785,7 +1818,7 @@ func (d *NativeBinlogDecoder) decodeNativeRows(eventType byte, body []byte) ([]R
 	// v1 row events have only the table-id/flags post-header; v2 adds a
 	// two-byte total length followed by extra-row-info before the column count.
 	// Accepting both layouts lets the decoder consume older upstream binlogs.
-	legacy := eventType == 20 || eventType == 21 || eventType == 22 || eventType == 23 || eventType == 24 || eventType == 25
+	legacy := eventType == common.BinlogEventWriteRowsPreGA || eventType == common.BinlogEventUpdateRowsPreGA || eventType == common.BinlogEventDeleteRowsPreGA || eventType == common.BinlogEventWriteRowsV1 || eventType == common.BinlogEventUpdateRowsV1 || eventType == common.BinlogEventDeleteRowsV1
 	if !legacy {
 		if len(body)-offset < 2 {
 			return nil, fmt.Errorf("truncated ROWS_EVENT extra data length")
@@ -1812,7 +1845,7 @@ func (d *NativeBinlogDecoder) decodeNativeRows(eventType byte, body []byte) ([]R
 		offset = next
 		afterBitmap := beforeBitmap
 		var beforeNulls, afterNulls []byte
-		isUpdate := eventType == 21 || eventType == 24 || eventType == 31 || eventType == 39
+		isUpdate := eventType == common.BinlogEventUpdateRowsPreGA || eventType == common.BinlogEventUpdateRowsV1 || eventType == common.BinlogEventUpdateRowsV2 || eventType == common.BinlogEventPartialUpdateRows
 		if isUpdate {
 			beforeNulls, next, err = readNativeNullBitmap(body, offset, table, beforeBitmap)
 			if err != nil {
@@ -1840,7 +1873,7 @@ func (d *NativeBinlogDecoder) decodeNativeRows(eventType byte, body []byte) ([]R
 			offset = next
 		}
 		partialColumns := make([]bool, len(table.types))
-		if eventType == 39 {
+		if eventType == common.BinlogEventPartialUpdateRows {
 			if len(body)-offset < 1+len(beforeBitmap) {
 				return nil, fmt.Errorf("truncated PARTIAL_UPDATE_ROWS_EVENT options")
 			}
@@ -1865,16 +1898,16 @@ func (d *NativeBinlogDecoder) decodeNativeRows(eventType byte, body []byte) ([]R
 			return nil, err
 		}
 		offset = imageEnd
-		if isUpdate || eventType == 22 || eventType == 23 || eventType == 30 {
+		if isUpdate || eventType == common.BinlogEventDeleteRowsPreGA || eventType == common.BinlogEventWriteRowsV1 || eventType == common.BinlogEventWriteRowsV2 {
 			after, partial, next = decodedImage, decodedPartial, imageEnd
 		} else {
 			before, partial, next = decodedImage, decodedPartial, imageEnd
 		}
 		action := "insert"
 		switch eventType {
-		case 21, 24, 31, 39:
+		case common.BinlogEventUpdateRowsPreGA, common.BinlogEventUpdateRowsV1, common.BinlogEventUpdateRowsV2, common.BinlogEventPartialUpdateRows:
 			action = "update"
-		case 20, 25, 32:
+		case common.BinlogEventWriteRowsPreGA, common.BinlogEventDeleteRowsV1, common.BinlogEventDeleteRowsV2:
 			action = "delete"
 		}
 		change := RowChange{Table: table.database + "." + table.table, Action: action, Columns: append([]string(nil), table.columns...), Before: before, After: after, ExtraRowInfo: extra}
@@ -1882,7 +1915,7 @@ func (d *NativeBinlogDecoder) decodeNativeRows(eventType byte, body []byte) ([]R
 		for index, column := range table.columns {
 			change.ColumnTypes[column] = nativeDecoderColumnType(table, index)
 		}
-		if eventType == 20 || eventType == 25 || eventType == 32 {
+		if eventType == common.BinlogEventWriteRowsPreGA || eventType == common.BinlogEventDeleteRowsV1 || eventType == common.BinlogEventDeleteRowsV2 {
 			change.After = nil
 		}
 		if len(partial) > 0 {

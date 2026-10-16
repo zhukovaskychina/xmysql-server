@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
@@ -814,76 +815,76 @@ func (im *InfoSchemaManager) convertTableDefToMetadataTable(tableDef *TableDef) 
 func (im *InfoSchemaManager) convertDataTypeToMySQLType(dataType metadata.DataType) uint8 {
 	switch dataType {
 	case metadata.TypeTinyInt:
-		return MYSQL_TYPE_TINY
+		return common.COLUMN_TYPE_TINY
 	case metadata.TypeSmallInt:
-		return MYSQL_TYPE_SHORT
+		return common.COLUMN_TYPE_SHORT
 	case metadata.TypeInt:
-		return MYSQL_TYPE_LONG
+		return common.COLUMN_TYPE_LONG
 	case metadata.TypeBigInt:
-		return MYSQL_TYPE_LONGLONG
+		return common.COLUMN_TYPE_LONGLONG
 	case metadata.TypeFloat:
-		return MYSQL_TYPE_FLOAT
+		return common.COLUMN_TYPE_FLOAT
 	case metadata.TypeDouble:
-		return MYSQL_TYPE_DOUBLE
+		return common.COLUMN_TYPE_DOUBLE
 	case metadata.TypeDecimal:
-		return MYSQL_TYPE_NEWDECIMAL
+		return common.COLUMN_TYPE_NEWDECIMAL
 	case metadata.TypeDate:
-		return MYSQL_TYPE_DATE
+		return common.COLUMN_TYPE_DATE
 	case metadata.TypeTime:
-		return MYSQL_TYPE_TIME
+		return common.COLUMN_TYPE_TIME
 	case metadata.TypeDateTime:
-		return MYSQL_TYPE_DATETIME
+		return common.COLUMN_TYPE_DATETIME
 	case metadata.TypeTimestamp:
-		return MYSQL_TYPE_TIMESTAMP
+		return common.COLUMN_TYPE_TIMESTAMP
 	case metadata.TypeYear:
-		return MYSQL_TYPE_YEAR
+		return common.COLUMN_TYPE_YEAR
 	case metadata.TypeChar:
-		return MYSQL_TYPE_STRING
+		return common.COLUMN_TYPE_STRING
 	case metadata.TypeVarchar:
-		return MYSQL_TYPE_VARCHAR
+		return common.COLUMN_TYPE_VARCHAR
 	case metadata.TypeText:
-		return MYSQL_TYPE_BLOB
+		return common.COLUMN_TYPE_BLOB
 	case metadata.TypeJSON:
-		return MYSQL_TYPE_JSON
+		return common.COLUMN_TYPE_JSON
 	default:
-		return MYSQL_TYPE_VARCHAR
+		return common.COLUMN_TYPE_VARCHAR
 	}
 }
 
 // convertMySQLTypeToDataType 转换MySQL类型到DataType
 func (im *InfoSchemaManager) convertMySQLTypeToDataType(mysqlType uint8) metadata.DataType {
 	switch mysqlType {
-	case MYSQL_TYPE_TINY:
+	case common.COLUMN_TYPE_TINY:
 		return metadata.TypeTinyInt
-	case MYSQL_TYPE_SHORT:
+	case common.COLUMN_TYPE_SHORT:
 		return metadata.TypeSmallInt
-	case MYSQL_TYPE_LONG:
+	case common.COLUMN_TYPE_LONG:
 		return metadata.TypeInt
-	case MYSQL_TYPE_LONGLONG:
+	case common.COLUMN_TYPE_LONGLONG:
 		return metadata.TypeBigInt
-	case MYSQL_TYPE_FLOAT:
+	case common.COLUMN_TYPE_FLOAT:
 		return metadata.TypeFloat
-	case MYSQL_TYPE_DOUBLE:
+	case common.COLUMN_TYPE_DOUBLE:
 		return metadata.TypeDouble
-	case MYSQL_TYPE_NEWDECIMAL:
+	case common.COLUMN_TYPE_NEWDECIMAL:
 		return metadata.TypeDecimal
-	case MYSQL_TYPE_DATE:
+	case common.COLUMN_TYPE_DATE:
 		return metadata.TypeDate
-	case MYSQL_TYPE_TIME:
+	case common.COLUMN_TYPE_TIME:
 		return metadata.TypeTime
-	case MYSQL_TYPE_DATETIME:
+	case common.COLUMN_TYPE_DATETIME:
 		return metadata.TypeDateTime
-	case MYSQL_TYPE_TIMESTAMP:
+	case common.COLUMN_TYPE_TIMESTAMP:
 		return metadata.TypeTimestamp
-	case MYSQL_TYPE_YEAR:
+	case common.COLUMN_TYPE_YEAR:
 		return metadata.TypeYear
-	case MYSQL_TYPE_STRING:
+	case common.COLUMN_TYPE_STRING:
 		return metadata.TypeChar
-	case MYSQL_TYPE_VARCHAR:
+	case common.COLUMN_TYPE_VARCHAR:
 		return metadata.TypeVarchar
-	case MYSQL_TYPE_BLOB: // MYSQL_TYPE_BLOB 和 MYSQL_TYPE_LONGTEXT 都是 252
+	case common.COLUMN_TYPE_BLOB: // MYSQL_TYPE_BLOB 和 MYSQL_TYPE_LONGTEXT 都是 252
 		return metadata.TypeText
-	case MYSQL_TYPE_JSON:
+	case common.COLUMN_TYPE_JSON:
 		return metadata.TypeJSON
 	default:
 		return metadata.TypeVarchar
@@ -974,11 +975,11 @@ func (im *InfoSchemaManager) InitializeTables() error {
 	im.tables["SCHEMATA"] = &InfoSchemaTable{
 		Name: "SCHEMATA",
 		Columns: []InfoSchemaColumn{
-			{Name: "CATALOG_NAME", Type: MYSQL_TYPE_VARCHAR, Length: 512, Nullable: true},
-			{Name: "SCHEMA_NAME", Type: MYSQL_TYPE_VARCHAR, Length: 64, Nullable: false},
-			{Name: "DEFAULT_CHARACTER_SET_NAME", Type: MYSQL_TYPE_VARCHAR, Length: 32, Nullable: false},
-			{Name: "DEFAULT_COLLATION_NAME", Type: MYSQL_TYPE_VARCHAR, Length: 32, Nullable: false},
-			{Name: "SQL_PATH", Type: MYSQL_TYPE_VARCHAR, Length: 512, Nullable: true},
+			{Name: "CATALOG_NAME", Type: common.COLUMN_TYPE_VARCHAR, Length: 512, Nullable: true},
+			{Name: "SCHEMA_NAME", Type: common.COLUMN_TYPE_VARCHAR, Length: 64, Nullable: false},
+			{Name: "DEFAULT_CHARACTER_SET_NAME", Type: common.COLUMN_TYPE_VARCHAR, Length: 32, Nullable: false},
+			{Name: "DEFAULT_COLLATION_NAME", Type: common.COLUMN_TYPE_VARCHAR, Length: 32, Nullable: false},
+			{Name: "SQL_PATH", Type: common.COLUMN_TYPE_VARCHAR, Length: 512, Nullable: true},
 		},
 		Generator: &SchemataGenerator{infoSchemaManager: im},
 	}
@@ -987,27 +988,27 @@ func (im *InfoSchemaManager) InitializeTables() error {
 	im.tables["TABLES"] = &InfoSchemaTable{
 		Name: "TABLES",
 		Columns: []InfoSchemaColumn{
-			{Name: "TABLE_CATALOG", Type: MYSQL_TYPE_VARCHAR, Length: 512, Nullable: true},
-			{Name: "TABLE_SCHEMA", Type: MYSQL_TYPE_VARCHAR, Length: 64, Nullable: false},
-			{Name: "TABLE_NAME", Type: MYSQL_TYPE_VARCHAR, Length: 64, Nullable: false},
-			{Name: "TABLE_TYPE", Type: MYSQL_TYPE_VARCHAR, Length: 64, Nullable: false},
-			{Name: "ENGINE", Type: MYSQL_TYPE_VARCHAR, Length: 64, Nullable: true},
-			{Name: "VERSION", Type: MYSQL_TYPE_LONGLONG, Length: 21, Nullable: true},
-			{Name: "ROW_FORMAT", Type: MYSQL_TYPE_VARCHAR, Length: 10, Nullable: true},
-			{Name: "TABLE_ROWS", Type: MYSQL_TYPE_LONGLONG, Length: 21, Nullable: true},
-			{Name: "AVG_ROW_LENGTH", Type: MYSQL_TYPE_LONGLONG, Length: 21, Nullable: true},
-			{Name: "DATA_LENGTH", Type: MYSQL_TYPE_LONGLONG, Length: 21, Nullable: true},
-			{Name: "MAX_DATA_LENGTH", Type: MYSQL_TYPE_LONGLONG, Length: 21, Nullable: true},
-			{Name: "INDEX_LENGTH", Type: MYSQL_TYPE_LONGLONG, Length: 21, Nullable: true},
-			{Name: "DATA_FREE", Type: MYSQL_TYPE_LONGLONG, Length: 21, Nullable: true},
-			{Name: "AUTO_INCREMENT", Type: MYSQL_TYPE_LONGLONG, Length: 21, Nullable: true},
-			{Name: "CREATE_TIME", Type: MYSQL_TYPE_DATETIME, Length: 0, Nullable: true},
-			{Name: "UPDATE_TIME", Type: MYSQL_TYPE_DATETIME, Length: 0, Nullable: true},
-			{Name: "CHECK_TIME", Type: MYSQL_TYPE_DATETIME, Length: 0, Nullable: true},
-			{Name: "TABLE_COLLATION", Type: MYSQL_TYPE_VARCHAR, Length: 32, Nullable: true},
-			{Name: "CHECKSUM", Type: MYSQL_TYPE_LONGLONG, Length: 21, Nullable: true},
-			{Name: "CREATE_OPTIONS", Type: MYSQL_TYPE_VARCHAR, Length: 255, Nullable: true},
-			{Name: "TABLE_COMMENT", Type: MYSQL_TYPE_VARCHAR, Length: 2048, Nullable: false},
+			{Name: "TABLE_CATALOG", Type: common.COLUMN_TYPE_VARCHAR, Length: 512, Nullable: true},
+			{Name: "TABLE_SCHEMA", Type: common.COLUMN_TYPE_VARCHAR, Length: 64, Nullable: false},
+			{Name: "TABLE_NAME", Type: common.COLUMN_TYPE_VARCHAR, Length: 64, Nullable: false},
+			{Name: "TABLE_TYPE", Type: common.COLUMN_TYPE_VARCHAR, Length: 64, Nullable: false},
+			{Name: "ENGINE", Type: common.COLUMN_TYPE_VARCHAR, Length: 64, Nullable: true},
+			{Name: "VERSION", Type: common.COLUMN_TYPE_LONGLONG, Length: 21, Nullable: true},
+			{Name: "ROW_FORMAT", Type: common.COLUMN_TYPE_VARCHAR, Length: 10, Nullable: true},
+			{Name: "TABLE_ROWS", Type: common.COLUMN_TYPE_LONGLONG, Length: 21, Nullable: true},
+			{Name: "AVG_ROW_LENGTH", Type: common.COLUMN_TYPE_LONGLONG, Length: 21, Nullable: true},
+			{Name: "DATA_LENGTH", Type: common.COLUMN_TYPE_LONGLONG, Length: 21, Nullable: true},
+			{Name: "MAX_DATA_LENGTH", Type: common.COLUMN_TYPE_LONGLONG, Length: 21, Nullable: true},
+			{Name: "INDEX_LENGTH", Type: common.COLUMN_TYPE_LONGLONG, Length: 21, Nullable: true},
+			{Name: "DATA_FREE", Type: common.COLUMN_TYPE_LONGLONG, Length: 21, Nullable: true},
+			{Name: "AUTO_INCREMENT", Type: common.COLUMN_TYPE_LONGLONG, Length: 21, Nullable: true},
+			{Name: "CREATE_TIME", Type: common.COLUMN_TYPE_DATETIME, Length: 0, Nullable: true},
+			{Name: "UPDATE_TIME", Type: common.COLUMN_TYPE_DATETIME, Length: 0, Nullable: true},
+			{Name: "CHECK_TIME", Type: common.COLUMN_TYPE_DATETIME, Length: 0, Nullable: true},
+			{Name: "TABLE_COLLATION", Type: common.COLUMN_TYPE_VARCHAR, Length: 32, Nullable: true},
+			{Name: "CHECKSUM", Type: common.COLUMN_TYPE_LONGLONG, Length: 21, Nullable: true},
+			{Name: "CREATE_OPTIONS", Type: common.COLUMN_TYPE_VARCHAR, Length: 255, Nullable: true},
+			{Name: "TABLE_COMMENT", Type: common.COLUMN_TYPE_VARCHAR, Length: 2048, Nullable: false},
 		},
 		Generator: &TablesGenerator{dictManager: im.dictManager},
 	}
@@ -1016,26 +1017,26 @@ func (im *InfoSchemaManager) InitializeTables() error {
 	im.tables["COLUMNS"] = &InfoSchemaTable{
 		Name: "COLUMNS",
 		Columns: []InfoSchemaColumn{
-			{Name: "TABLE_CATALOG", Type: MYSQL_TYPE_VARCHAR, Length: 512, Nullable: true},
-			{Name: "TABLE_SCHEMA", Type: MYSQL_TYPE_VARCHAR, Length: 64, Nullable: false},
-			{Name: "TABLE_NAME", Type: MYSQL_TYPE_VARCHAR, Length: 64, Nullable: false},
-			{Name: "COLUMN_NAME", Type: MYSQL_TYPE_VARCHAR, Length: 64, Nullable: false},
-			{Name: "ORDINAL_POSITION", Type: MYSQL_TYPE_LONGLONG, Length: 21, Nullable: false},
-			{Name: "COLUMN_DEFAULT", Type: MYSQL_TYPE_LONGTEXT, Length: 0, Nullable: true},
-			{Name: "IS_NULLABLE", Type: MYSQL_TYPE_VARCHAR, Length: 3, Nullable: false},
-			{Name: "DATA_TYPE", Type: MYSQL_TYPE_VARCHAR, Length: 64, Nullable: false},
-			{Name: "CHARACTER_MAXIMUM_LENGTH", Type: MYSQL_TYPE_LONGLONG, Length: 21, Nullable: true},
-			{Name: "CHARACTER_OCTET_LENGTH", Type: MYSQL_TYPE_LONGLONG, Length: 21, Nullable: true},
-			{Name: "NUMERIC_PRECISION", Type: MYSQL_TYPE_LONGLONG, Length: 21, Nullable: true},
-			{Name: "NUMERIC_SCALE", Type: MYSQL_TYPE_LONGLONG, Length: 21, Nullable: true},
-			{Name: "DATETIME_PRECISION", Type: MYSQL_TYPE_LONGLONG, Length: 21, Nullable: true},
-			{Name: "CHARACTER_SET_NAME", Type: MYSQL_TYPE_VARCHAR, Length: 32, Nullable: true},
-			{Name: "COLLATION_NAME", Type: MYSQL_TYPE_VARCHAR, Length: 32, Nullable: true},
-			{Name: "COLUMN_TYPE", Type: MYSQL_TYPE_LONGTEXT, Length: 0, Nullable: false},
-			{Name: "COLUMN_KEY", Type: MYSQL_TYPE_VARCHAR, Length: 3, Nullable: false},
-			{Name: "EXTRA", Type: MYSQL_TYPE_VARCHAR, Length: 30, Nullable: false},
-			{Name: "PRIVILEGES", Type: MYSQL_TYPE_VARCHAR, Length: 80, Nullable: false},
-			{Name: "COLUMN_COMMENT", Type: MYSQL_TYPE_VARCHAR, Length: 1024, Nullable: false},
+			{Name: "TABLE_CATALOG", Type: common.COLUMN_TYPE_VARCHAR, Length: 512, Nullable: true},
+			{Name: "TABLE_SCHEMA", Type: common.COLUMN_TYPE_VARCHAR, Length: 64, Nullable: false},
+			{Name: "TABLE_NAME", Type: common.COLUMN_TYPE_VARCHAR, Length: 64, Nullable: false},
+			{Name: "COLUMN_NAME", Type: common.COLUMN_TYPE_VARCHAR, Length: 64, Nullable: false},
+			{Name: "ORDINAL_POSITION", Type: common.COLUMN_TYPE_LONGLONG, Length: 21, Nullable: false},
+			{Name: "COLUMN_DEFAULT", Type: common.COLUMN_TYPE_BLOB, Length: 0, Nullable: true},
+			{Name: "IS_NULLABLE", Type: common.COLUMN_TYPE_VARCHAR, Length: 3, Nullable: false},
+			{Name: "DATA_TYPE", Type: common.COLUMN_TYPE_VARCHAR, Length: 64, Nullable: false},
+			{Name: "CHARACTER_MAXIMUM_LENGTH", Type: common.COLUMN_TYPE_LONGLONG, Length: 21, Nullable: true},
+			{Name: "CHARACTER_OCTET_LENGTH", Type: common.COLUMN_TYPE_LONGLONG, Length: 21, Nullable: true},
+			{Name: "NUMERIC_PRECISION", Type: common.COLUMN_TYPE_LONGLONG, Length: 21, Nullable: true},
+			{Name: "NUMERIC_SCALE", Type: common.COLUMN_TYPE_LONGLONG, Length: 21, Nullable: true},
+			{Name: "DATETIME_PRECISION", Type: common.COLUMN_TYPE_LONGLONG, Length: 21, Nullable: true},
+			{Name: "CHARACTER_SET_NAME", Type: common.COLUMN_TYPE_VARCHAR, Length: 32, Nullable: true},
+			{Name: "COLLATION_NAME", Type: common.COLUMN_TYPE_VARCHAR, Length: 32, Nullable: true},
+			{Name: "COLUMN_TYPE", Type: common.COLUMN_TYPE_BLOB, Length: 0, Nullable: false},
+			{Name: "COLUMN_KEY", Type: common.COLUMN_TYPE_VARCHAR, Length: 3, Nullable: false},
+			{Name: "EXTRA", Type: common.COLUMN_TYPE_VARCHAR, Length: 30, Nullable: false},
+			{Name: "PRIVILEGES", Type: common.COLUMN_TYPE_VARCHAR, Length: 80, Nullable: false},
+			{Name: "COLUMN_COMMENT", Type: common.COLUMN_TYPE_VARCHAR, Length: 1024, Nullable: false},
 		},
 		Generator: &ColumnsGenerator{dictManager: im.dictManager},
 	}
@@ -1044,22 +1045,22 @@ func (im *InfoSchemaManager) InitializeTables() error {
 	im.tables["STATISTICS"] = &InfoSchemaTable{
 		Name: "STATISTICS",
 		Columns: []InfoSchemaColumn{
-			{Name: "TABLE_CATALOG", Type: MYSQL_TYPE_VARCHAR, Length: 512, Nullable: true},
-			{Name: "TABLE_SCHEMA", Type: MYSQL_TYPE_VARCHAR, Length: 64, Nullable: false},
-			{Name: "TABLE_NAME", Type: MYSQL_TYPE_VARCHAR, Length: 64, Nullable: false},
-			{Name: "NON_UNIQUE", Type: MYSQL_TYPE_LONGLONG, Length: 1, Nullable: false},
-			{Name: "INDEX_SCHEMA", Type: MYSQL_TYPE_VARCHAR, Length: 64, Nullable: false},
-			{Name: "INDEX_NAME", Type: MYSQL_TYPE_VARCHAR, Length: 64, Nullable: false},
-			{Name: "SEQ_IN_INDEX", Type: MYSQL_TYPE_LONGLONG, Length: 21, Nullable: false},
-			{Name: "COLUMN_NAME", Type: MYSQL_TYPE_VARCHAR, Length: 64, Nullable: false},
-			{Name: "COLLATION", Type: MYSQL_TYPE_VARCHAR, Length: 1, Nullable: true},
-			{Name: "CARDINALITY", Type: MYSQL_TYPE_LONGLONG, Length: 21, Nullable: true},
-			{Name: "SUB_PART", Type: MYSQL_TYPE_LONGLONG, Length: 21, Nullable: true},
-			{Name: "PACKED", Type: MYSQL_TYPE_VARCHAR, Length: 10, Nullable: true},
-			{Name: "NULLABLE", Type: MYSQL_TYPE_VARCHAR, Length: 3, Nullable: false},
-			{Name: "INDEX_TYPE", Type: MYSQL_TYPE_VARCHAR, Length: 16, Nullable: false},
-			{Name: "COMMENT", Type: MYSQL_TYPE_VARCHAR, Length: 16, Nullable: true},
-			{Name: "INDEX_COMMENT", Type: MYSQL_TYPE_VARCHAR, Length: 1024, Nullable: false},
+			{Name: "TABLE_CATALOG", Type: common.COLUMN_TYPE_VARCHAR, Length: 512, Nullable: true},
+			{Name: "TABLE_SCHEMA", Type: common.COLUMN_TYPE_VARCHAR, Length: 64, Nullable: false},
+			{Name: "TABLE_NAME", Type: common.COLUMN_TYPE_VARCHAR, Length: 64, Nullable: false},
+			{Name: "NON_UNIQUE", Type: common.COLUMN_TYPE_LONGLONG, Length: 1, Nullable: false},
+			{Name: "INDEX_SCHEMA", Type: common.COLUMN_TYPE_VARCHAR, Length: 64, Nullable: false},
+			{Name: "INDEX_NAME", Type: common.COLUMN_TYPE_VARCHAR, Length: 64, Nullable: false},
+			{Name: "SEQ_IN_INDEX", Type: common.COLUMN_TYPE_LONGLONG, Length: 21, Nullable: false},
+			{Name: "COLUMN_NAME", Type: common.COLUMN_TYPE_VARCHAR, Length: 64, Nullable: false},
+			{Name: "COLLATION", Type: common.COLUMN_TYPE_VARCHAR, Length: 1, Nullable: true},
+			{Name: "CARDINALITY", Type: common.COLUMN_TYPE_LONGLONG, Length: 21, Nullable: true},
+			{Name: "SUB_PART", Type: common.COLUMN_TYPE_LONGLONG, Length: 21, Nullable: true},
+			{Name: "PACKED", Type: common.COLUMN_TYPE_VARCHAR, Length: 10, Nullable: true},
+			{Name: "NULLABLE", Type: common.COLUMN_TYPE_VARCHAR, Length: 3, Nullable: false},
+			{Name: "INDEX_TYPE", Type: common.COLUMN_TYPE_VARCHAR, Length: 16, Nullable: false},
+			{Name: "COMMENT", Type: common.COLUMN_TYPE_VARCHAR, Length: 16, Nullable: true},
+			{Name: "INDEX_COMMENT", Type: common.COLUMN_TYPE_VARCHAR, Length: 1024, Nullable: false},
 		},
 		Generator: &StatisticsGenerator{indexManager: im.indexManager},
 	}
@@ -1136,32 +1137,32 @@ func (im *InfoSchemaManager) Close() error {
 	return nil
 }
 
-// MySQL数据类型常量
+// MySQL数据类型兼容名称。保留公开uint8 API，新代码使用common.COLUMN_TYPE_*。
 const (
-	MYSQL_TYPE_DECIMAL    uint8 = 0
-	MYSQL_TYPE_TINY       uint8 = 1
-	MYSQL_TYPE_SHORT      uint8 = 2
-	MYSQL_TYPE_LONG       uint8 = 3
-	MYSQL_TYPE_FLOAT      uint8 = 4
-	MYSQL_TYPE_DOUBLE     uint8 = 5
-	MYSQL_TYPE_NULL       uint8 = 6
-	MYSQL_TYPE_TIMESTAMP  uint8 = 7
-	MYSQL_TYPE_LONGLONG   uint8 = 8
-	MYSQL_TYPE_INT24      uint8 = 9
-	MYSQL_TYPE_DATE       uint8 = 10
-	MYSQL_TYPE_TIME       uint8 = 11
-	MYSQL_TYPE_DATETIME   uint8 = 12
-	MYSQL_TYPE_YEAR       uint8 = 13
-	MYSQL_TYPE_VARCHAR    uint8 = 15
-	MYSQL_TYPE_BIT        uint8 = 16
-	MYSQL_TYPE_JSON       uint8 = 245
-	MYSQL_TYPE_NEWDECIMAL uint8 = 246
-	MYSQL_TYPE_ENUM       uint8 = 247
-	MYSQL_TYPE_SET        uint8 = 248
-	MYSQL_TYPE_TINY_BLOB  uint8 = 249
-	MYSQL_TYPE_BLOB       uint8 = 252
-	MYSQL_TYPE_VAR_STRING uint8 = 253
-	MYSQL_TYPE_STRING     uint8 = 254
-	MYSQL_TYPE_GEOMETRY   uint8 = 255
-	MYSQL_TYPE_LONGTEXT   uint8 = 252
+	MYSQL_TYPE_DECIMAL    uint8 = common.COLUMN_TYPE_DECIMAL
+	MYSQL_TYPE_TINY       uint8 = common.COLUMN_TYPE_TINY
+	MYSQL_TYPE_SHORT      uint8 = common.COLUMN_TYPE_SHORT
+	MYSQL_TYPE_LONG       uint8 = common.COLUMN_TYPE_LONG
+	MYSQL_TYPE_FLOAT      uint8 = common.COLUMN_TYPE_FLOAT
+	MYSQL_TYPE_DOUBLE     uint8 = common.COLUMN_TYPE_DOUBLE
+	MYSQL_TYPE_NULL       uint8 = common.COLUMN_TYPE_NULL
+	MYSQL_TYPE_TIMESTAMP  uint8 = common.COLUMN_TYPE_TIMESTAMP
+	MYSQL_TYPE_LONGLONG   uint8 = common.COLUMN_TYPE_LONGLONG
+	MYSQL_TYPE_INT24      uint8 = common.COLUMN_TYPE_INT24
+	MYSQL_TYPE_DATE       uint8 = common.COLUMN_TYPE_DATE
+	MYSQL_TYPE_TIME       uint8 = common.COLUMN_TYPE_TIME
+	MYSQL_TYPE_DATETIME   uint8 = common.COLUMN_TYPE_DATETIME
+	MYSQL_TYPE_YEAR       uint8 = common.COLUMN_TYPE_YEAR
+	MYSQL_TYPE_VARCHAR    uint8 = common.COLUMN_TYPE_VARCHAR
+	MYSQL_TYPE_BIT        uint8 = common.COLUMN_TYPE_BIT
+	MYSQL_TYPE_JSON       uint8 = common.COLUMN_TYPE_JSON
+	MYSQL_TYPE_NEWDECIMAL uint8 = common.COLUMN_TYPE_NEWDECIMAL
+	MYSQL_TYPE_ENUM       uint8 = common.COLUMN_TYPE_ENUM
+	MYSQL_TYPE_SET        uint8 = common.COLUMN_TYPE_SET
+	MYSQL_TYPE_TINY_BLOB  uint8 = common.COLUMN_TYPE_TINY_BLOB
+	MYSQL_TYPE_BLOB       uint8 = common.COLUMN_TYPE_BLOB
+	MYSQL_TYPE_VAR_STRING uint8 = common.COLUMN_TYPE_VAR_STRING
+	MYSQL_TYPE_STRING     uint8 = common.COLUMN_TYPE_STRING
+	MYSQL_TYPE_GEOMETRY   uint8 = common.COLUMN_TYPE_GEOMETRY
+	MYSQL_TYPE_LONGTEXT   uint8 = common.COLUMN_TYPE_BLOB
 )

@@ -56,7 +56,7 @@ type FSPPageWrapper struct {
 
 // NewFSPPageWrapper 创建表空间页面包装器
 func NewFSPPageWrapper(id uint32, spaceID uint32, bp *buffer_pool.BufferPool) *FSPPageWrapper {
-	base := NewBasePageWrapper(id, spaceID, common.FIL_PAGE_FSP_HDR)
+	base := NewBasePageWrapper(id, spaceID, common.FIL_PAGE_TYPE_FSP_HDR)
 	fspPage := pages.NewFspHrdPage(spaceID)
 
 	p := &FSPPageWrapper{
@@ -70,8 +70,8 @@ func NewFSPPageWrapper(id uint32, spaceID uint32, bp *buffer_pool.BufferPool) *F
 	}
 
 	// 初始化默认值
-	p.size = uint64(16384)
-	p.pageSize = uint32(16384)
+	p.size = uint64(common.PageSize)
+	p.pageSize = uint32(common.PageSize)
 	p.extentSize = 1048576
 
 	return p
@@ -101,11 +101,11 @@ func (p *FSPPageWrapper) ParseFromBytes(data []byte) error {
 	if len(data) >= common.PageSize {
 		// 基于现有的fspPage结构更新数据
 		// 这里可以添加更详细的解析逻辑
-		p.fspPage.LoadFileHeader(data[:pages.FileHeaderSize])
+		p.fspPage.LoadFileHeader(data[:common.FileHeaderSize])
 	}
 
 	// 解析FSP页面特定字段
-	offset := pages.FileHeaderSize
+	offset := common.FileHeaderSize
 
 	// 跳过各种字段，这里简化处理
 	if len(data) > offset+32 {

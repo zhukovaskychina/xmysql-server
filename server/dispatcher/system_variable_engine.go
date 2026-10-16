@@ -1169,12 +1169,9 @@ func (e *SystemVariableEngine) executeShowCharset() *SQLResult {
 	logger.Debugf(" [executeShowCharset] 执行SHOW CHARSET")
 
 	columns := []string{"Charset", "Description", "Default collation", "Maxlen"}
-	rows := [][]interface{}{
-		{"utf8", "UTF-8 Unicode", "utf8_general_ci", 3},
-		{"utf8mb4", "UTF-8 Unicode", "utf8mb4_0900_ai_ci", 4},
-		{"latin1", "cp1252 West European", "latin1_swedish_ci", 1},
-		{"ascii", "US ASCII", "ascii_general_ci", 1},
-		{"binary", "Binary pseudo charset", "binary", 1},
+	rows := make([][]interface{}, 0, 5)
+	for _, charset := range common.DispatcherCharsets() {
+		rows = append(rows, []interface{}{charset.Name, charset.Description, charset.MetadataCollationName(), int(charset.MaxLen)})
 	}
 
 	return &SQLResult{
@@ -1190,13 +1187,13 @@ func (e *SystemVariableEngine) executeShowCollation() *SQLResult {
 	logger.Debugf(" [executeShowCollation] 执行SHOW COLLATION")
 
 	columns := []string{"Collation", "Charset", "Id", "Default", "Compiled", "Sortlen", "Pad_attribute"}
-	rows := [][]interface{}{
-		{"utf8mb4_0900_ai_ci", "utf8mb4", 255, "Yes", "Yes", 0, "NO PAD"},
-		{"utf8mb4_general_ci", "utf8mb4", 45, "", "Yes", 1, "PAD SPACE"},
-		{"utf8_general_ci", "utf8", 33, "Yes", "Yes", 1, "PAD SPACE"},
-		{"latin1_swedish_ci", "latin1", 8, "Yes", "Yes", 1, "PAD SPACE"},
-		{"ascii_general_ci", "ascii", 11, "Yes", "Yes", 1, "PAD SPACE"},
-		{"binary", "binary", 63, "Yes", "Yes", 1, "NO PAD"},
+	rows := make([][]interface{}, 0, 6)
+	for _, collation := range common.DispatcherCollations() {
+		isDefault := ""
+		if collation.IsDefault {
+			isDefault = "Yes"
+		}
+		rows = append(rows, []interface{}{collation.Name, collation.Charset, int(collation.ID), isDefault, "Yes", int(collation.SortLen), collation.PadAttribute})
 	}
 
 	return &SQLResult{

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 )
 
 // ============================================================================
@@ -165,7 +167,7 @@ func EncodeColumnDefinitionPacket(def *ColumnDefinition, seq byte) []byte {
 	// 10. type (1 byte)
 	colType := def.ColumnType
 	if colType == 0 {
-		colType = MYSQL_TYPE_VAR_STRING // 默认 VARCHAR
+		colType = common.COLUMN_TYPE_VAR_STRING // 默认 VARCHAR
 	}
 	payload = append(payload, colType)
 

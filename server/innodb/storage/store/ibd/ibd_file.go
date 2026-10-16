@@ -56,6 +56,7 @@ package ibd
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"os"
 	"path/filepath"
 	"sync"
@@ -66,11 +67,11 @@ import (
 
 // Page size constants
 const (
-	PageSize = 16 * 1024 // 16KB per page
+	PageSize = common.PageSize // 16KB per page
 
 	// File header constants
-	HeaderSize  = 38 // Space header size
-	TrailerSize = 8  // Page trailer size
+	HeaderSize  = common.FileHeaderSize  // Space header size
+	TrailerSize = common.FileTrailerSize // Page trailer size
 )
 
 // IBD_File represents a physical InnoDB tablespace file
@@ -136,7 +137,7 @@ func (f *IBD_File) Create() error {
 	observabilitymetrics.DefaultRuntimeRecorder().RecordFileOpen(f.filePath)
 
 	// Initialize FSP header page (page 0)
-	header := make([]byte, PageSize)
+	header := make([]byte, common.PageSize)
 	// Write space ID and other metadata
 	if err := f.writePageUnsafe(0, header); err != nil {
 		f.file.Close()
@@ -145,7 +146,7 @@ func (f *IBD_File) Create() error {
 	}
 
 	// Initialize IBUF bitmap page (page 1)
-	bitmap := make([]byte, PageSize)
+	bitmap := make([]byte, common.PageSize)
 	if err := f.writePageUnsafe(1, bitmap); err != nil {
 		f.file.Close()
 		f.file = nil
@@ -161,12 +162,12 @@ func (f *IBD_File) writePageUnsafe(pageNo uint32, page []byte) error {
 		return fmt.Errorf("file not open")
 	}
 
-	if len(page) != PageSize {
+	if len(page) != common.PageSize {
 		return fmt.Errorf("invalid page size: %d", len(page))
 	}
 
 	// Calculate page offset
-	offset := int64(pageNo) * int64(PageSize)
+	offset := int64(pageNo) * int64(common.PageSize)
 
 	// Write page data
 	startedAt := time.Now()
@@ -175,7 +176,7 @@ func (f *IBD_File) writePageUnsafe(pageNo uint32, page []byte) error {
 	if err != nil {
 		return fmt.Errorf("failed to write page: %v", err)
 	}
-	if n != PageSize {
+	if n != common.PageSize {
 		return fmt.Errorf("incomplete page write: %d bytes", n)
 	}
 
@@ -192,10 +193,10 @@ func (f *IBD_File) ReadPage(pageNo uint32) ([]byte, error) {
 	}
 
 	// Allocate page buffer
-	page := make([]byte, PageSize)
+	page := make([]byte, common.PageSize)
 
 	// Calculate page offset
-	offset := int64(pageNo) * int64(PageSize)
+	offset := int64(pageNo) * int64(common.PageSize)
 
 	// Read page data
 	startedAt := time.Now()
@@ -204,7 +205,7 @@ func (f *IBD_File) ReadPage(pageNo uint32) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read page: %v", err)
 	}
-	if n != PageSize {
+	if n != common.PageSize {
 		return nil, fmt.Errorf("incomplete page read: %d bytes", n)
 	}
 
@@ -220,12 +221,12 @@ func (f *IBD_File) WritePage(pageNo uint32, page []byte) error {
 		return fmt.Errorf("file not open")
 	}
 
-	if len(page) != PageSize {
+	if len(page) != common.PageSize {
 		return fmt.Errorf("invalid page size: %d", len(page))
 	}
 
 	// Calculate page offset
-	offset := int64(pageNo) * int64(PageSize)
+	offset := int64(pageNo) * int64(common.PageSize)
 
 	// Write page data
 	startedAt := time.Now()
@@ -234,7 +235,7 @@ func (f *IBD_File) WritePage(pageNo uint32, page []byte) error {
 	if err != nil {
 		return fmt.Errorf("failed to write page: %v", err)
 	}
-	if n != PageSize {
+	if n != common.PageSize {
 		return fmt.Errorf("incomplete page write: %d bytes", n)
 	}
 
@@ -358,7 +359,7 @@ func (f *IBD_File) EnsurePageCount(pageCount uint32) error {
 	if err != nil {
 		return fmt.Errorf("failed to get file info: %v", err)
 	}
-	targetSize := int64(pageCount) * PageSize
+	targetSize := int64(pageCount) * common.PageSize
 	if targetSize <= info.Size() {
 		return nil
 	}
@@ -389,7 +390,7 @@ func (f *IBD_File) TruncateToPages(pageCount uint32) error {
 	if err != nil {
 		return fmt.Errorf("failed to get file info: %v", err)
 	}
-	targetSize := int64(pageCount) * PageSize
+	targetSize := int64(pageCount) * common.PageSize
 	if targetSize >= info.Size() {
 		return nil
 	}

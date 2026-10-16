@@ -585,32 +585,7 @@ func informationSchemaGrantable(privileges []string) string {
 // account file's compact grant representation and its independent grant-option
 // bit.
 func informationSchemaPrivilegeRows(privileges []string, scope string) []string {
-	var all []string
-	switch strings.ToLower(strings.TrimSpace(scope)) {
-	case "column":
-		all = []string{"SELECT", "INSERT", "UPDATE", "REFERENCES"}
-	case "table":
-		all = []string{
-			"SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "REFERENCES", "INDEX", "ALTER",
-			"CREATE VIEW", "SHOW VIEW", "TRIGGER",
-		}
-	case "schema":
-		all = []string{
-			"SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "REFERENCES", "INDEX", "ALTER",
-			"CREATE TEMPORARY TABLES", "LOCK TABLES", "EXECUTE", "CREATE VIEW", "SHOW VIEW", "CREATE ROUTINE",
-			"ALTER ROUTINE", "EVENT", "TRIGGER",
-		}
-	case "routine":
-		all = []string{"EXECUTE", "ALTER ROUTINE"}
-	case "global":
-		all = []string{
-			"SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "RELOAD", "SHUTDOWN", "PROCESS", "FILE",
-			"REFERENCES", "INDEX", "ALTER", "SHOW DATABASES", "SUPER", "CREATE TEMPORARY TABLES", "LOCK TABLES",
-			"EXECUTE", "REPLICATION SLAVE", "REPLICATION CLIENT", "CREATE VIEW", "SHOW VIEW", "CREATE ROLE",
-			"DROP ROLE", "CREATE USER", "CREATE TABLESPACE", "TRIGGER", "EVENT", "CREATE ROUTINE", "ALTER ROUTINE",
-			"PROXY",
-		}
-	}
+	all := common.InformationSchemaAllPrivileges(scope)
 	rows := make([]string, 0, len(privileges))
 	for _, raw := range privileges {
 		privilege := strings.ToUpper(strings.TrimSpace(raw))
@@ -694,16 +669,7 @@ func (e *XMySQLExecutor) executeMySQLUserSelect(query string) *SelectResult {
 	if err != nil {
 		return newInformationSchemaSelectResult("mysql.user", columns, nil)
 	}
-	globalPrivilegeColumns := map[string]string{
-		"SELECT_PRIV": "SELECT", "INSERT_PRIV": "INSERT", "UPDATE_PRIV": "UPDATE", "DELETE_PRIV": "DELETE",
-		"CREATE_PRIV": "CREATE", "DROP_PRIV": "DROP", "GRANT_PRIV": "GRANT OPTION", "INDEX_PRIV": "INDEX", "ALTER_PRIV": "ALTER",
-		"RELOAD_PRIV": "RELOAD", "SHUTDOWN_PRIV": "SHUTDOWN", "PROCESS_PRIV": "PROCESS", "FILE_PRIV": "FILE",
-		"REFERENCES_PRIV": "REFERENCES", "SHOW_DB_PRIV": "SHOW DATABASES", "SUPER_PRIV": "SUPER",
-		"CREATE_TMP_TABLE_PRIV": "CREATE TEMPORARY TABLES", "LOCK_TABLES_PRIV": "LOCK TABLES", "EXECUTE_PRIV": "EXECUTE",
-		"REPL_SLAVE_PRIV": "REPLICATION SLAVE", "REPL_CLIENT_PRIV": "REPLICATION CLIENT", "CREATE_VIEW_PRIV": "CREATE VIEW",
-		"SHOW_VIEW_PRIV": "SHOW VIEW", "CREATE_ROUTINE_PRIV": "CREATE ROUTINE", "ALTER_ROUTINE_PRIV": "ALTER ROUTINE",
-		"EVENT_PRIV": "EVENT", "TRIGGER_PRIV": "TRIGGER", "CREATE_TABLESPACE_PRIV": "CREATE TABLESPACE",
-	}
+	globalPrivilegeColumns := common.MySQLUserPrivilegeColumns()
 	for _, account := range file.Accounts {
 		if !mysqlSystemTableFieldMatches(query, "host", account.Host, filters) || !mysqlSystemTableFieldMatches(query, "user", account.User, filters) {
 			continue
@@ -748,9 +714,7 @@ func (e *XMySQLExecutor) executeMySQLUserSelect(query string) *SelectResult {
 		for column, privilege := range globalPrivilegeColumns {
 			values[column] = mysqlPrivilegeFlag(globalPrivileges, privilege)
 		}
-		values["CREATE_USER_PRIV"] = mysqlPrivilegeFlag(globalPrivileges, "CREATE USER")
-		values["CREATE_ROLE_PRIV"] = mysqlPrivilegeFlag(globalPrivileges, "CREATE ROLE")
-		values["DROP_ROLE_PRIV"] = mysqlPrivilegeFlag(globalPrivileges, "DROP ROLE")
+
 		rows = append(rows, projectInformationSchemaRow(columns, values))
 	}
 	return newInformationSchemaSelectResult("mysql.user", columns, rows)

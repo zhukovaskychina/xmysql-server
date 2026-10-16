@@ -1,5 +1,7 @@
 package manager
 
+import "github.com/zhukovaskychina/xmysql-server/server/common"
+
 import (
 	"bytes"
 	"encoding/binary"
@@ -15,7 +17,7 @@ func TestTransactionCommitPersistsStableIdentityInRedoRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	trx, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+	trx, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	if err != nil {
 		_ = tm.Close()
 		t.Fatal(err)

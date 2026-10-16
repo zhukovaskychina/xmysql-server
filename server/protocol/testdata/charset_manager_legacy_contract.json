@@ -1,0 +1,886 @@
+{
+  "charsets": {
+    "1": {
+      "ID": 1,
+      "Name": "big5",
+      "Collation": "big5_chinese_ci",
+      "MaxLen": 2,
+      "Description": "Big5 Traditional Chinese"
+    },
+    "10": {
+      "ID": 10,
+      "Name": "swe7",
+      "Collation": "swe7_swedish_ci",
+      "MaxLen": 1,
+      "Description": "7bit Swedish"
+    },
+    "11": {
+      "ID": 11,
+      "Name": "ascii",
+      "Collation": "ascii_general_ci",
+      "MaxLen": 1,
+      "Description": "US ASCII"
+    },
+    "12": {
+      "ID": 12,
+      "Name": "ujis",
+      "Collation": "ujis_japanese_ci",
+      "MaxLen": 3,
+      "Description": "EUC-JP Japanese"
+    },
+    "13": {
+      "ID": 13,
+      "Name": "sjis",
+      "Collation": "sjis_japanese_ci",
+      "MaxLen": 2,
+      "Description": "Shift-JIS Japanese"
+    },
+    "16": {
+      "ID": 16,
+      "Name": "hebrew",
+      "Collation": "hebrew_general_ci",
+      "MaxLen": 1,
+      "Description": "ISO 8859-8 Hebrew"
+    },
+    "18": {
+      "ID": 18,
+      "Name": "tis620",
+      "Collation": "tis620_thai_ci",
+      "MaxLen": 1,
+      "Description": "TIS620 Thai"
+    },
+    "19": {
+      "ID": 19,
+      "Name": "euckr",
+      "Collation": "euckr_korean_ci",
+      "MaxLen": 2,
+      "Description": "EUC-KR Korean"
+    },
+    "2": {
+      "ID": 2,
+      "Name": "latin2",
+      "Collation": "latin2_czech_cs",
+      "MaxLen": 1,
+      "Description": "Central European"
+    },
+    "22": {
+      "ID": 22,
+      "Name": "koi8u",
+      "Collation": "koi8u_general_ci",
+      "MaxLen": 1,
+      "Description": "KOI8-U Ukrainian"
+    },
+    "224": {
+      "ID": 224,
+      "Name": "utf8mb4",
+      "Collation": "utf8mb4_unicode_ci",
+      "MaxLen": 4,
+      "Description": "UTF-8 Unicode"
+    },
+    "24": {
+      "ID": 24,
+      "Name": "gb2312",
+      "Collation": "gb2312_chinese_ci",
+      "MaxLen": 2,
+      "Description": "GB2312 Simplified Chinese"
+    },
+    "25": {
+      "ID": 25,
+      "Name": "greek",
+      "Collation": "greek_general_ci",
+      "MaxLen": 1,
+      "Description": "ISO 8859-7 Greek"
+    },
+    "255": {
+      "ID": 255,
+      "Name": "utf8mb4",
+      "Collation": "utf8mb4_0900_ai_ci",
+      "MaxLen": 4,
+      "Description": "UTF-8 Unicode"
+    },
+    "26": {
+      "ID": 26,
+      "Name": "cp1250",
+      "Collation": "cp1250_general_ci",
+      "MaxLen": 1,
+      "Description": "Windows Central European"
+    },
+    "28": {
+      "ID": 28,
+      "Name": "gbk",
+      "Collation": "gbk_chinese_ci",
+      "MaxLen": 2,
+      "Description": "GBK Simplified Chinese"
+    },
+    "3": {
+      "ID": 3,
+      "Name": "dec8",
+      "Collation": "dec8_swedish_ci",
+      "MaxLen": 1,
+      "Description": "DEC West European"
+    },
+    "30": {
+      "ID": 30,
+      "Name": "latin5",
+      "Collation": "latin5_turkish_ci",
+      "MaxLen": 1,
+      "Description": "ISO 8859-9 Turkish"
+    },
+    "32": {
+      "ID": 32,
+      "Name": "armscii8",
+      "Collation": "armscii8_general_ci",
+      "MaxLen": 1,
+      "Description": "ARMSCII-8 Armenian"
+    },
+    "33": {
+      "ID": 33,
+      "Name": "utf8",
+      "Collation": "utf8_general_ci",
+      "MaxLen": 3,
+      "Description": "UTF-8 Unicode"
+    },
+    "35": {
+      "ID": 35,
+      "Name": "ucs2",
+      "Collation": "ucs2_general_ci",
+      "MaxLen": 2,
+      "Description": "UCS-2 Unicode"
+    },
+    "36": {
+      "ID": 36,
+      "Name": "cp866",
+      "Collation": "cp866_general_ci",
+      "MaxLen": 1,
+      "Description": "DOS Russian"
+    },
+    "37": {
+      "ID": 37,
+      "Name": "keybcs2",
+      "Collation": "keybcs2_general_ci",
+      "MaxLen": 1,
+      "Description": "DOS Kamenicky Czech-Slovak"
+    },
+    "38": {
+      "ID": 38,
+      "Name": "macce",
+      "Collation": "macce_general_ci",
+      "MaxLen": 1,
+      "Description": "Mac Central European"
+    },
+    "39": {
+      "ID": 39,
+      "Name": "macroman",
+      "Collation": "macroman_general_ci",
+      "MaxLen": 1,
+      "Description": "Mac West European"
+    },
+    "4": {
+      "ID": 4,
+      "Name": "cp850",
+      "Collation": "cp850_general_ci",
+      "MaxLen": 1,
+      "Description": "DOS West European"
+    },
+    "40": {
+      "ID": 40,
+      "Name": "cp852",
+      "Collation": "cp852_general_ci",
+      "MaxLen": 1,
+      "Description": "DOS Central European"
+    },
+    "41": {
+      "ID": 41,
+      "Name": "latin7",
+      "Collation": "latin7_general_ci",
+      "MaxLen": 1,
+      "Description": "ISO 8859-13 Baltic"
+    },
+    "45": {
+      "ID": 45,
+      "Name": "utf8mb4",
+      "Collation": "utf8mb4_general_ci",
+      "MaxLen": 4,
+      "Description": "UTF-8 Unicode"
+    },
+    "46": {
+      "ID": 46,
+      "Name": "utf8mb4",
+      "Collation": "utf8mb4_bin",
+      "MaxLen": 4,
+      "Description": "UTF-8 Unicode"
+    },
+    "5": {
+      "ID": 5,
+      "Name": "latin1",
+      "Collation": "latin1_german1_ci",
+      "MaxLen": 1,
+      "Description": "West European"
+    },
+    "51": {
+      "ID": 51,
+      "Name": "cp1251",
+      "Collation": "cp1251_general_ci",
+      "MaxLen": 1,
+      "Description": "Windows Cyrillic"
+    },
+    "54": {
+      "ID": 54,
+      "Name": "utf16",
+      "Collation": "utf16_general_ci",
+      "MaxLen": 4,
+      "Description": "UTF-16 Unicode"
+    },
+    "56": {
+      "ID": 56,
+      "Name": "utf16le",
+      "Collation": "utf16le_general_ci",
+      "MaxLen": 4,
+      "Description": "UTF-16LE Unicode"
+    },
+    "57": {
+      "ID": 57,
+      "Name": "cp1256",
+      "Collation": "cp1256_general_ci",
+      "MaxLen": 1,
+      "Description": "Windows Arabic"
+    },
+    "59": {
+      "ID": 59,
+      "Name": "cp1257",
+      "Collation": "cp1257_general_ci",
+      "MaxLen": 1,
+      "Description": "Windows Baltic"
+    },
+    "6": {
+      "ID": 6,
+      "Name": "hp8",
+      "Collation": "hp8_english_ci",
+      "MaxLen": 1,
+      "Description": "HP West European"
+    },
+    "60": {
+      "ID": 60,
+      "Name": "utf32",
+      "Collation": "utf32_general_ci",
+      "MaxLen": 4,
+      "Description": "UTF-32 Unicode"
+    },
+    "63": {
+      "ID": 63,
+      "Name": "binary",
+      "Collation": "binary",
+      "MaxLen": 1,
+      "Description": "Binary pseudo charset"
+    },
+    "7": {
+      "ID": 7,
+      "Name": "koi8r",
+      "Collation": "koi8r_general_ci",
+      "MaxLen": 1,
+      "Description": "KOI8-R Relcom Russian"
+    },
+    "8": {
+      "ID": 8,
+      "Name": "latin1",
+      "Collation": "latin1_swedish_ci",
+      "MaxLen": 1,
+      "Description": "West European"
+    },
+    "83": {
+      "ID": 83,
+      "Name": "utf8",
+      "Collation": "utf8_bin",
+      "MaxLen": 3,
+      "Description": "UTF-8 Unicode"
+    },
+    "9": {
+      "ID": 9,
+      "Name": "latin2",
+      "Collation": "latin2_general_ci",
+      "MaxLen": 1,
+      "Description": "Central European"
+    },
+    "92": {
+      "ID": 92,
+      "Name": "geostd8",
+      "Collation": "geostd8_general_ci",
+      "MaxLen": 1,
+      "Description": "GEOSTD8 Georgian"
+    },
+    "95": {
+      "ID": 95,
+      "Name": "cp932",
+      "Collation": "cp932_japanese_ci",
+      "MaxLen": 2,
+      "Description": "SJIS for Windows Japanese"
+    },
+    "97": {
+      "ID": 97,
+      "Name": "eucjpms",
+      "Collation": "eucjpms_japanese_ci",
+      "MaxLen": 3,
+      "Description": "UJIS for Windows Japanese"
+    }
+  },
+  "collations": {
+    "1": {
+      "ID": 1,
+      "Name": "big5_chinese_ci",
+      "Charset": "big5",
+      "IsDefault": true
+    },
+    "11": {
+      "ID": 11,
+      "Name": "ascii_general_ci",
+      "Charset": "ascii",
+      "IsDefault": true
+    },
+    "13": {
+      "ID": 13,
+      "Name": "sjis_japanese_ci",
+      "Charset": "sjis",
+      "IsDefault": true
+    },
+    "19": {
+      "ID": 19,
+      "Name": "euckr_korean_ci",
+      "Charset": "euckr",
+      "IsDefault": true
+    },
+    "224": {
+      "ID": 224,
+      "Name": "utf8mb4_unicode_ci",
+      "Charset": "utf8mb4",
+      "IsDefault": false
+    },
+    "24": {
+      "ID": 24,
+      "Name": "gb2312_chinese_ci",
+      "Charset": "gb2312",
+      "IsDefault": true
+    },
+    "25": {
+      "ID": 25,
+      "Name": "greek_general_ci",
+      "Charset": "greek",
+      "IsDefault": true
+    },
+    "255": {
+      "ID": 255,
+      "Name": "utf8mb4_0900_ai_ci",
+      "Charset": "utf8mb4",
+      "IsDefault": true
+    },
+    "26": {
+      "ID": 26,
+      "Name": "cp1250_general_ci",
+      "Charset": "cp1250",
+      "IsDefault": true
+    },
+    "28": {
+      "ID": 28,
+      "Name": "gbk_chinese_ci",
+      "Charset": "gbk",
+      "IsDefault": true
+    },
+    "33": {
+      "ID": 33,
+      "Name": "utf8_general_ci",
+      "Charset": "utf8",
+      "IsDefault": true
+    },
+    "45": {
+      "ID": 45,
+      "Name": "utf8mb4_general_ci",
+      "Charset": "utf8mb4",
+      "IsDefault": false
+    },
+    "46": {
+      "ID": 46,
+      "Name": "utf8mb4_bin",
+      "Charset": "utf8mb4",
+      "IsDefault": false
+    },
+    "63": {
+      "ID": 63,
+      "Name": "binary",
+      "Charset": "binary",
+      "IsDefault": true
+    },
+    "8": {
+      "ID": 8,
+      "Name": "latin1_swedish_ci",
+      "Charset": "latin1",
+      "IsDefault": true
+    },
+    "83": {
+      "ID": 83,
+      "Name": "utf8_bin",
+      "Charset": "utf8",
+      "IsDefault": false
+    },
+    "9": {
+      "ID": 9,
+      "Name": "latin2_general_ci",
+      "Charset": "latin2",
+      "IsDefault": true
+    }
+  },
+  "conversion": {
+    "1": [
+      "中文",
+      "a4a4a4e5",
+      "\u003cnil\u003e",
+      "中文",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "10": [
+      "abc",
+      "",
+      "unsupported target charset \"swe7\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"swe7\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "11": [
+      "abc",
+      "616263",
+      "\u003cnil\u003e",
+      "abc",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "12": [
+      "abc",
+      "",
+      "unsupported target charset \"ujis\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"ujis\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "13": [
+      "日本",
+      "93fa967b",
+      "\u003cnil\u003e",
+      "日本",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "16": [
+      "abc",
+      "",
+      "unsupported target charset \"hebrew\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"hebrew\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "18": [
+      "abc",
+      "",
+      "unsupported target charset \"tis620\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"tis620\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "19": [
+      "한국",
+      "c7d1b1b9",
+      "\u003cnil\u003e",
+      "한국",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "2": [
+      "abc",
+      "616263",
+      "\u003cnil\u003e",
+      "abc",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "22": [
+      "abc",
+      "",
+      "unsupported target charset \"koi8u\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"koi8u\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "224": [
+      "中文",
+      "e4b8ade69687",
+      "\u003cnil\u003e",
+      "中文",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "24": [
+      "中文",
+      "7e7b56504e44",
+      "\u003cnil\u003e",
+      "中文",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "25": [
+      "abc",
+      "",
+      "unsupported target charset \"greek\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"greek\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "255": [
+      "中文",
+      "e4b8ade69687",
+      "\u003cnil\u003e",
+      "中文",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "26": [
+      "abc",
+      "616263",
+      "\u003cnil\u003e",
+      "abc",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "28": [
+      "中文",
+      "d6d0cec4",
+      "\u003cnil\u003e",
+      "中文",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "3": [
+      "abc",
+      "",
+      "unsupported target charset \"dec8\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"dec8\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "30": [
+      "abc",
+      "",
+      "unsupported target charset \"latin5\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"latin5\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "32": [
+      "abc",
+      "",
+      "unsupported target charset \"armscii8\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"armscii8\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "33": [
+      "中文",
+      "e4b8ade69687",
+      "\u003cnil\u003e",
+      "中文",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "35": [
+      "abc",
+      "",
+      "unsupported target charset \"ucs2\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"ucs2\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "36": [
+      "abc",
+      "",
+      "unsupported target charset \"cp866\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"cp866\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "37": [
+      "abc",
+      "",
+      "unsupported target charset \"keybcs2\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"keybcs2\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "38": [
+      "abc",
+      "",
+      "unsupported target charset \"macce\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"macce\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "39": [
+      "abc",
+      "",
+      "unsupported target charset \"macroman\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"macroman\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "4": [
+      "abc",
+      "616263",
+      "\u003cnil\u003e",
+      "abc",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "40": [
+      "abc",
+      "",
+      "unsupported target charset \"cp852\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"cp852\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "41": [
+      "abc",
+      "",
+      "unsupported target charset \"latin7\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"latin7\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "45": [
+      "中文",
+      "e4b8ade69687",
+      "\u003cnil\u003e",
+      "中文",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "46": [
+      "中文",
+      "e4b8ade69687",
+      "\u003cnil\u003e",
+      "中文",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "5": [
+      "café",
+      "636166e9",
+      "\u003cnil\u003e",
+      "café",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "51": [
+      "Привет",
+      "cff0e8e2e5f2",
+      "\u003cnil\u003e",
+      "Привет",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "54": [
+      "abc",
+      "",
+      "unsupported target charset \"utf16\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"utf16\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "56": [
+      "abc",
+      "",
+      "unsupported target charset \"utf16le\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"utf16le\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "57": [
+      "abc",
+      "616263",
+      "\u003cnil\u003e",
+      "abc",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "59": [
+      "abc",
+      "616263",
+      "\u003cnil\u003e",
+      "abc",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "6": [
+      "abc",
+      "",
+      "unsupported target charset \"hp8\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"hp8\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "60": [
+      "abc",
+      "",
+      "unsupported target charset \"utf32\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"utf32\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "63": [
+      "abc",
+      "616263",
+      "\u003cnil\u003e",
+      "abc",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "7": [
+      "abc",
+      "",
+      "unsupported target charset \"koi8r\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"koi8r\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "8": [
+      "café",
+      "636166e9",
+      "\u003cnil\u003e",
+      "café",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "83": [
+      "中文",
+      "e4b8ade69687",
+      "\u003cnil\u003e",
+      "中文",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "9": [
+      "abc",
+      "616263",
+      "\u003cnil\u003e",
+      "abc",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "92": [
+      "abc",
+      "",
+      "unsupported target charset \"geostd8\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"geostd8\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ],
+    "95": [
+      "日本",
+      "93fa967b",
+      "\u003cnil\u003e",
+      "日本",
+      "\u003cnil\u003e",
+      "\u003cnil\u003e"
+    ],
+    "97": [
+      "abc",
+      "",
+      "unsupported target charset \"eucjpms\": no Go encoding mapping",
+      "",
+      "unsupported source charset \"eucjpms\": no Go encoding mapping",
+      "no Go encoding mapping"
+    ]
+  },
+  "defaults": {
+    "armscii8": "no default collation found for charset 'armscii8'",
+    "ascii": "uint16:11",
+    "big5": "uint16:1",
+    "binary": "uint16:63",
+    "cp1250": "uint16:26",
+    "cp1251": "no default collation found for charset 'cp1251'",
+    "cp1256": "no default collation found for charset 'cp1256'",
+    "cp1257": "no default collation found for charset 'cp1257'",
+    "cp850": "no default collation found for charset 'cp850'",
+    "cp852": "no default collation found for charset 'cp852'",
+    "cp866": "no default collation found for charset 'cp866'",
+    "cp932": "no default collation found for charset 'cp932'",
+    "dec8": "no default collation found for charset 'dec8'",
+    "eucjpms": "no default collation found for charset 'eucjpms'",
+    "euckr": "uint16:19",
+    "gb2312": "uint16:24",
+    "gbk": "uint16:28",
+    "geostd8": "no default collation found for charset 'geostd8'",
+    "greek": "uint16:25",
+    "hebrew": "no default collation found for charset 'hebrew'",
+    "hp8": "no default collation found for charset 'hp8'",
+    "keybcs2": "no default collation found for charset 'keybcs2'",
+    "koi8r": "no default collation found for charset 'koi8r'",
+    "koi8u": "no default collation found for charset 'koi8u'",
+    "latin1": "uint16:8",
+    "latin2": "uint16:9",
+    "latin5": "no default collation found for charset 'latin5'",
+    "latin7": "no default collation found for charset 'latin7'",
+    "macce": "no default collation found for charset 'macce'",
+    "macroman": "no default collation found for charset 'macroman'",
+    "sjis": "uint16:13",
+    "swe7": "no default collation found for charset 'swe7'",
+    "tis620": "no default collation found for charset 'tis620'",
+    "ucs2": "no default collation found for charset 'ucs2'",
+    "ujis": "no default collation found for charset 'ujis'",
+    "utf16": "no default collation found for charset 'utf16'",
+    "utf16le": "no default collation found for charset 'utf16le'",
+    "utf32": "no default collation found for charset 'utf32'",
+    "utf8": "uint16:33",
+    "utf8mb4": "uint16:255"
+  },
+  "fieldTypes": "uint8 uint8 uint16",
+  "getterIDs": "If8/CA==",
+  "names": {
+    "armscii8": 32,
+    "ascii": 11,
+    "big5": 1,
+    "binary": 63,
+    "cp1250": 26,
+    "cp1251": 51,
+    "cp1256": 57,
+    "cp1257": 59,
+    "cp850": 4,
+    "cp852": 40,
+    "cp866": 36,
+    "cp932": 95,
+    "dec8": 3,
+    "eucjpms": 97,
+    "euckr": 19,
+    "gb2312": 24,
+    "gbk": 28,
+    "geostd8": 92,
+    "greek": 25,
+    "hebrew": 16,
+    "hp8": 6,
+    "keybcs2": 37,
+    "koi8r": 7,
+    "koi8u": 22,
+    "latin1": 5,
+    "latin2": 2,
+    "latin5": 30,
+    "latin7": 41,
+    "macce": 38,
+    "macroman": 39,
+    "sjis": 13,
+    "swe7": 10,
+    "tis620": 18,
+    "ucs2": 35,
+    "ujis": 12,
+    "utf16": 54,
+    "utf16le": 56,
+    "utf32": 60,
+    "utf8": 33,
+    "utf8mb4": 45
+  }
+}

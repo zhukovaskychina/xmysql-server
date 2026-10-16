@@ -4,6 +4,7 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -607,7 +608,7 @@ func (sched *IOScheduler) processNextRequest() {
 	go func() {
 		var result IOResult
 		if req.Type == "read" {
-			result.Data = make([]byte, 16384)
+			result.Data = make([]byte, common.PageSize)
 		}
 		req.ResultChan <- &result
 	}()

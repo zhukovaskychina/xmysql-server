@@ -5,6 +5,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/encoding/ianaindex"
@@ -56,53 +58,9 @@ func NewCharsetManager() *CharsetManager {
 
 // initCharsets 初始化字符集
 func (cm *CharsetManager) initCharsets() {
-	charsets := []*CharsetInfo{
-		{ID: 1, Name: "big5", Collation: "big5_chinese_ci", MaxLen: 2, Description: "Big5 Traditional Chinese"},
-		{ID: 2, Name: "latin2", Collation: "latin2_czech_cs", MaxLen: 1, Description: "Central European"},
-		{ID: 3, Name: "dec8", Collation: "dec8_swedish_ci", MaxLen: 1, Description: "DEC West European"},
-		{ID: 4, Name: "cp850", Collation: "cp850_general_ci", MaxLen: 1, Description: "DOS West European"},
-		{ID: 5, Name: "latin1", Collation: "latin1_german1_ci", MaxLen: 1, Description: "West European"},
-		{ID: 6, Name: "hp8", Collation: "hp8_english_ci", MaxLen: 1, Description: "HP West European"},
-		{ID: 7, Name: "koi8r", Collation: "koi8r_general_ci", MaxLen: 1, Description: "KOI8-R Relcom Russian"},
-		{ID: 8, Name: "latin1", Collation: "latin1_swedish_ci", MaxLen: 1, Description: "West European"},
-		{ID: 9, Name: "latin2", Collation: "latin2_general_ci", MaxLen: 1, Description: "Central European"},
-		{ID: 10, Name: "swe7", Collation: "swe7_swedish_ci", MaxLen: 1, Description: "7bit Swedish"},
-		{ID: 11, Name: "ascii", Collation: "ascii_general_ci", MaxLen: 1, Description: "US ASCII"},
-		{ID: 12, Name: "ujis", Collation: "ujis_japanese_ci", MaxLen: 3, Description: "EUC-JP Japanese"},
-		{ID: 13, Name: "sjis", Collation: "sjis_japanese_ci", MaxLen: 2, Description: "Shift-JIS Japanese"},
-		{ID: 16, Name: "hebrew", Collation: "hebrew_general_ci", MaxLen: 1, Description: "ISO 8859-8 Hebrew"},
-		{ID: 18, Name: "tis620", Collation: "tis620_thai_ci", MaxLen: 1, Description: "TIS620 Thai"},
-		{ID: 19, Name: "euckr", Collation: "euckr_korean_ci", MaxLen: 2, Description: "EUC-KR Korean"},
-		{ID: 22, Name: "koi8u", Collation: "koi8u_general_ci", MaxLen: 1, Description: "KOI8-U Ukrainian"},
-		{ID: 24, Name: "gb2312", Collation: "gb2312_chinese_ci", MaxLen: 2, Description: "GB2312 Simplified Chinese"},
-		{ID: 25, Name: "greek", Collation: "greek_general_ci", MaxLen: 1, Description: "ISO 8859-7 Greek"},
-		{ID: 26, Name: "cp1250", Collation: "cp1250_general_ci", MaxLen: 1, Description: "Windows Central European"},
-		{ID: 28, Name: "gbk", Collation: "gbk_chinese_ci", MaxLen: 2, Description: "GBK Simplified Chinese"},
-		{ID: 30, Name: "latin5", Collation: "latin5_turkish_ci", MaxLen: 1, Description: "ISO 8859-9 Turkish"},
-		{ID: 32, Name: "armscii8", Collation: "armscii8_general_ci", MaxLen: 1, Description: "ARMSCII-8 Armenian"},
-		{ID: 33, Name: "utf8", Collation: "utf8_general_ci", MaxLen: 3, Description: "UTF-8 Unicode"},
-		{ID: 35, Name: "ucs2", Collation: "ucs2_general_ci", MaxLen: 2, Description: "UCS-2 Unicode"},
-		{ID: 36, Name: "cp866", Collation: "cp866_general_ci", MaxLen: 1, Description: "DOS Russian"},
-		{ID: 37, Name: "keybcs2", Collation: "keybcs2_general_ci", MaxLen: 1, Description: "DOS Kamenicky Czech-Slovak"},
-		{ID: 38, Name: "macce", Collation: "macce_general_ci", MaxLen: 1, Description: "Mac Central European"},
-		{ID: 39, Name: "macroman", Collation: "macroman_general_ci", MaxLen: 1, Description: "Mac West European"},
-		{ID: 40, Name: "cp852", Collation: "cp852_general_ci", MaxLen: 1, Description: "DOS Central European"},
-		{ID: 41, Name: "latin7", Collation: "latin7_general_ci", MaxLen: 1, Description: "ISO 8859-13 Baltic"},
-		{ID: 45, Name: "utf8mb4", Collation: "utf8mb4_general_ci", MaxLen: 4, Description: "UTF-8 Unicode"},
-		{ID: 46, Name: "utf8mb4", Collation: "utf8mb4_bin", MaxLen: 4, Description: "UTF-8 Unicode"},
-		{ID: 51, Name: "cp1251", Collation: "cp1251_general_ci", MaxLen: 1, Description: "Windows Cyrillic"},
-		{ID: 54, Name: "utf16", Collation: "utf16_general_ci", MaxLen: 4, Description: "UTF-16 Unicode"},
-		{ID: 56, Name: "utf16le", Collation: "utf16le_general_ci", MaxLen: 4, Description: "UTF-16LE Unicode"},
-		{ID: 57, Name: "cp1256", Collation: "cp1256_general_ci", MaxLen: 1, Description: "Windows Arabic"},
-		{ID: 59, Name: "cp1257", Collation: "cp1257_general_ci", MaxLen: 1, Description: "Windows Baltic"},
-		{ID: 60, Name: "utf32", Collation: "utf32_general_ci", MaxLen: 4, Description: "UTF-32 Unicode"},
-		{ID: 63, Name: "binary", Collation: "binary", MaxLen: 1, Description: "Binary pseudo charset"},
-		{ID: 83, Name: "utf8", Collation: "utf8_bin", MaxLen: 3, Description: "UTF-8 Unicode"},
-		{ID: 92, Name: "geostd8", Collation: "geostd8_general_ci", MaxLen: 1, Description: "GEOSTD8 Georgian"},
-		{ID: 95, Name: "cp932", Collation: "cp932_japanese_ci", MaxLen: 2, Description: "SJIS for Windows Japanese"},
-		{ID: 97, Name: "eucjpms", Collation: "eucjpms_japanese_ci", MaxLen: 3, Description: "UJIS for Windows Japanese"},
-		{ID: 224, Name: "utf8mb4", Collation: "utf8mb4_unicode_ci", MaxLen: 4, Description: "UTF-8 Unicode"},
-		{ID: 255, Name: "utf8mb4", Collation: "utf8mb4_0900_ai_ci", MaxLen: 4, Description: "UTF-8 Unicode"},
+	charsets := make([]*CharsetInfo, 0)
+	for _, record := range common.ProtocolManagerCharsets() {
+		charsets = append(charsets, &CharsetInfo{ID: record.ID, Name: record.Name, Collation: record.Collation, MaxLen: record.MaxLen, Description: record.Description})
 	}
 
 	for _, cs := range charsets {
@@ -116,24 +74,9 @@ func (cm *CharsetManager) initCharsets() {
 
 // initCollations 初始化校对规则
 func (cm *CharsetManager) initCollations() {
-	collations := []*CollationInfo{
-		{ID: 1, Name: "big5_chinese_ci", Charset: "big5", IsDefault: true},
-		{ID: 8, Name: "latin1_swedish_ci", Charset: "latin1", IsDefault: true},
-		{ID: 9, Name: "latin2_general_ci", Charset: "latin2", IsDefault: true},
-		{ID: 11, Name: "ascii_general_ci", Charset: "ascii", IsDefault: true},
-		{ID: 13, Name: "sjis_japanese_ci", Charset: "sjis", IsDefault: true},
-		{ID: 19, Name: "euckr_korean_ci", Charset: "euckr", IsDefault: true},
-		{ID: 24, Name: "gb2312_chinese_ci", Charset: "gb2312", IsDefault: true},
-		{ID: 25, Name: "greek_general_ci", Charset: "greek", IsDefault: true},
-		{ID: 26, Name: "cp1250_general_ci", Charset: "cp1250", IsDefault: true},
-		{ID: 28, Name: "gbk_chinese_ci", Charset: "gbk", IsDefault: true},
-		{ID: 33, Name: "utf8_general_ci", Charset: "utf8", IsDefault: true},
-		{ID: 45, Name: "utf8mb4_general_ci", Charset: "utf8mb4", IsDefault: false},
-		{ID: 46, Name: "utf8mb4_bin", Charset: "utf8mb4", IsDefault: false},
-		{ID: 63, Name: "binary", Charset: "binary", IsDefault: true},
-		{ID: 83, Name: "utf8_bin", Charset: "utf8", IsDefault: false},
-		{ID: 224, Name: "utf8mb4_unicode_ci", Charset: "utf8mb4", IsDefault: false},
-		{ID: 255, Name: "utf8mb4_0900_ai_ci", Charset: "utf8mb4", IsDefault: true},
+	collations := make([]*CollationInfo, 0)
+	for _, record := range common.ProtocolManagerCollations() {
+		collations = append(collations, &CollationInfo{ID: record.ID, Name: record.Name, Charset: record.Charset, IsDefault: record.IsDefault})
 	}
 
 	for _, col := range collations {
@@ -238,20 +181,7 @@ func (cm *CharsetManager) GetCollationsByCharset(charsetName string) []*Collatio
 
 // ConvertCharsetName 转换字符集名称（处理别名）
 func (cm *CharsetManager) ConvertCharsetName(name string) string {
-	name = strings.ToLower(name)
-
-	// 处理常见别名
-	aliases := map[string]string{
-		"utf-8":    "utf8",
-		"utf8mb3":  "utf8",
-		"utf-8mb4": "utf8mb4",
-	}
-
-	if alias, exists := aliases[name]; exists {
-		return alias
-	}
-
-	return name
+	return common.NormalizeProtocolCharsetName(name)
 }
 
 // GetCharsetMaxLength 获取字符集的最大字节长度
@@ -274,22 +204,22 @@ func (cm *CharsetManager) IsMultiByteCharset(id uint8) bool {
 
 // GetUTF8CharsetID 获取UTF-8字符集ID
 func (cm *CharsetManager) GetUTF8CharsetID() uint8 {
-	return 33 // utf8_general_ci
+	return common.ProtocolPreferredCharsetID(common.UTF8Charset)
 }
 
 // GetUTF8MB4CharsetID 获取UTF-8MB4字符集ID
 func (cm *CharsetManager) GetUTF8MB4CharsetID() uint8 {
-	return 255 // utf8mb4_0900_ai_ci (MySQL 8.0默认)
+	return common.ProtocolPreferredCharsetID(common.UTF8MB4Charset)
 }
 
 // GetBinaryCharsetID 获取Binary字符集ID
 func (cm *CharsetManager) GetBinaryCharsetID() uint8 {
-	return 63 // binary
+	return common.ProtocolPreferredCharsetID("binary")
 }
 
 // GetLatin1CharsetID 获取Latin1字符集ID
 func (cm *CharsetManager) GetLatin1CharsetID() uint8 {
-	return 8 // latin1_swedish_ci
+	return common.ProtocolPreferredCharsetID(common.Latin1Charset)
 }
 
 // CharsetConverter 字符集转换器

@@ -41,19 +41,19 @@ func NewBasePageWrapperWithStorage(id, spaceID, pageNo uint32, pageType uint16, 
 		SpaceID:  spaceID,
 		PageNo:   pageNo,
 		PageType: pageType,
-		Content:  make([]byte, 16384), // Default InnoDB page size
+		Content:  make([]byte, common.PageSize), // Default InnoDB page size
 		storage:  storage,
 	}
 }
 
 // GetFileHeader implements IPageWrapper
 func (bp *BasePageWrapper) GetFileHeader() []byte {
-	return bp.Content[:38]
+	return bp.Content[:common.FileHeaderSize]
 }
 
 // GetFileTrailer implements IPageWrapper
 func (bp *BasePageWrapper) GetFileTrailer() []byte {
-	return bp.Content[16376:]
+	return bp.Content[common.PageSize-common.FileTrailerSize:]
 }
 
 // GetSpaceID implements IPageWrapper

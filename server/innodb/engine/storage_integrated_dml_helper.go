@@ -1,5 +1,7 @@
 package engine
 
+import "github.com/zhukovaskychina/xmysql-server/server/common"
+
 import (
 	"context"
 	"encoding/binary"
@@ -374,7 +376,7 @@ func (dml *StorageIntegratedDMLExecutor) beginStorageTransaction(ctx context.Con
 	}
 
 	// 从上下文中获取隔离级别，默认为可重复读
-	isolationLevel := manager.TRX_ISO_REPEATABLE_READ
+	isolationLevel := common.TRX_ISO_REPEATABLE_READ
 	if level, ok := ctx.Value("isolation_level").(uint8); ok {
 		isolationLevel = level
 	}

@@ -23,6 +23,7 @@ package extents
 import (
 	"encoding/binary"
 	"errors"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 )
 
 // Extent状态常量
@@ -35,10 +36,10 @@ const (
 
 // 基本常量定义
 const (
-	EXTENT_SIZE      = 1024 * 1024 // 1MB
-	PAGES_PER_EXTENT = 64          // 每个Extent包含64个页
-	PAGE_SIZE        = 16 * 1024   // 16KB
-	BITMAP_SIZE      = 16          // 16字节的位图(128位，每页2位)
+	EXTENT_SIZE      = 1024 * 1024     // 1MB
+	PAGES_PER_EXTENT = 64              // 每个Extent包含64个页
+	PAGE_SIZE        = common.PageSize // 16KB
+	BITMAP_SIZE      = 16              // 16字节的位图(128位，每页2位)
 )
 
 // ExtentEntry 表示区描述符条目

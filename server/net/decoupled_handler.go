@@ -372,7 +372,7 @@ func (h *DecoupledMySQLMessageHandler) sendErrorResponse(session Session, code u
 func (h *DecoupledMySQLMessageHandler) sendGoErrorResponse(session Session, err error) error {
 	sqlErr := protocol.ClassifyGoError(err)
 	if sqlErr == nil {
-		return h.sendErrorResponse(session, common.ER_UNKNOWN_ERROR, common.DefaultMySQLState, "unknown error")
+		return h.sendErrorResponse(session, common.ErrUnknown, common.DefaultMySQLState, "unknown error")
 	}
 	return h.sendErrorResponse(session, sqlErr.Code, sqlErr.State, sqlErr.Message)
 }
@@ -461,7 +461,7 @@ func (h *DecoupledMySQLMessageHandler) addPacketHeader(payload []byte, sequenceI
 func (h *DecoupledMySQLMessageHandler) sendMySQLOKPacket(session Session, affectedRows, lastInsertId uint64, seqId byte) error {
 	logger.Debugf("发送OK包")
 
-	okData := protocol.EncodeOKPacketWithSeq(affectedRows, lastInsertId, protocol.SERVER_STATUS_AUTOCOMMIT, 0, seqId)
+	okData := protocol.EncodeOKPacketWithSeq(affectedRows, lastInsertId, common.SERVER_STATUS_AUTOCOMMIT, 0, seqId)
 	err := session.WriteBytes(okData)
 	if err == nil {
 		advanceQueryResponseSequence(session, seqId+1)
@@ -512,22 +512,22 @@ func advanceQueryResponseSequence(session Session, next byte) {
 func mysqlResponseStatusFlags(session Session, mysqlSession server.MySQLServerSession) uint16 {
 	status := mysqlSessionStatusFlags(mysqlSession)
 	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
-	if more, ok := session.GetAttribute("__more_results__").(bool); ok && more && capabilities&(protocol.CLIENT_MULTI_RESULTS|protocol.CLIENT_PS_MULTI_RESULTS) != 0 {
-		status |= protocol.SERVER_MORE_RESULTS_EXISTS
+	if more, ok := session.GetAttribute("__more_results__").(bool); ok && more && capabilities&(common.CLIENT_MULTI_RESULTS|common.CLIENT_PS_MULTI_RESULTS) != 0 {
+		status |= common.SERVER_MORE_RESULTS_EXISTS
 	}
 	return status
 }
 
 func mysqlSessionStatusFlags(mysqlSession server.MySQLServerSession) uint16 {
 	if mysqlSession == nil {
-		return protocol.SERVER_STATUS_AUTOCOMMIT
+		return common.SERVER_STATUS_AUTOCOMMIT
 	}
 	var flags uint16
 	if sessionAutocommitEnabled(mysqlSession.GetParamByName("autocommit")) {
-		flags |= protocol.SERVER_STATUS_AUTOCOMMIT
+		flags |= common.SERVER_STATUS_AUTOCOMMIT
 	}
 	if inTxn, ok := mysqlSession.GetParamByName("in_transaction").(bool); ok && inTxn {
-		flags |= protocol.SERVER_STATUS_IN_TRANS
+		flags |= common.SERVER_STATUS_IN_TRANS
 	}
 	return flags
 }
@@ -954,7 +954,7 @@ func (h *DecoupledMySQLMessageHandler) handleRefresh(session Session, body []byt
 	if len(body) < 2 {
 		return h.sendErrorResponse(session, 1105, "42000", "Invalid COM_REFRESH packet")
 	}
-	return session.WriteBytes(protocol.EncodeOKPacketWithSeq(0, 0, protocol.SERVER_STATUS_AUTOCOMMIT, 0, 1))
+	return session.WriteBytes(protocol.EncodeOKPacketWithSeq(0, 0, common.SERVER_STATUS_AUTOCOMMIT, 0, 1))
 }
 
 // handleStatistics implements the text response expected by COM_STATISTICS.
@@ -1142,7 +1142,7 @@ func (h *DecoupledMySQLMessageHandler) handleDatabaseCommand(session Session, cu
 	if !ok || queryResponse.Result == nil {
 		return h.sendErrorResponse(session, 1105, "42000", "database command returned no result")
 	}
-	statusFlags := uint16(protocol.SERVER_STATUS_AUTOCOMMIT)
+	statusFlags := uint16(common.SERVER_STATUS_AUTOCOMMIT)
 	if currentMysqlSession != nil {
 		statusFlags = mysqlResponseStatusFlags(session, *currentMysqlSession)
 	}
@@ -1162,7 +1162,7 @@ func (h *DecoupledMySQLMessageHandler) handleSetOption(session Session, body []b
 	default:
 		return h.sendErrorResponse(session, 1105, "42000", fmt.Sprintf("unsupported COM_SET_OPTION value %d", option))
 	}
-	return session.WriteBytes(protocol.EncodeOKPacketWithSeq(0, 0, protocol.SERVER_STATUS_AUTOCOMMIT, 0, 1))
+	return session.WriteBytes(protocol.EncodeOKPacketWithSeq(0, 0, common.SERVER_STATUS_AUTOCOMMIT, 0, 1))
 }
 
 // handleFieldList implements COM_FIELD_LIST using the engine's authoritative
@@ -1225,7 +1225,7 @@ func (h *DecoupledMySQLMessageHandler) handleFieldList(session Session, currentM
 		}
 		sequenceID++
 	}
-	statusFlags := uint16(protocol.SERVER_STATUS_AUTOCOMMIT)
+	statusFlags := uint16(common.SERVER_STATUS_AUTOCOMMIT)
 	if currentMysqlSession != nil {
 		statusFlags = mysqlResponseStatusFlags(session, *currentMysqlSession)
 	}
@@ -1266,20 +1266,20 @@ func fieldListColumnDefinition(encoder *protocol.MySQLResultSetEncoder, table st
 	definition.OrgTable = table
 	definition.OrgName = name
 	if len(row) > 3 && strings.EqualFold(strings.TrimSpace(fmt.Sprint(row[3])), "NO") {
-		definition.Flags |= protocol.FLAG_NOT_NULL
+		definition.Flags |= uint16(common.NotNullFlag)
 	}
 	if len(row) > 4 {
 		switch strings.ToUpper(strings.TrimSpace(fmt.Sprint(row[4]))) {
 		case "PRI":
-			definition.Flags |= protocol.FLAG_PRI_KEY
+			definition.Flags |= uint16(common.PriKeyFlag)
 		case "UNI":
-			definition.Flags |= protocol.FLAG_UNIQUE_KEY
+			definition.Flags |= uint16(common.UniqueKeyFlag)
 		case "MUL":
-			definition.Flags |= protocol.FLAG_MULTIPLE_KEY
+			definition.Flags |= uint16(common.MultipleKeyFlag)
 		}
 	}
 	if len(row) > 6 && strings.Contains(strings.ToLower(fmt.Sprint(row[6])), "auto_increment") {
-		definition.Flags |= protocol.FLAG_AUTO_INCREMENT
+		definition.Flags |= uint16(common.AutoIncrementFlag)
 	}
 	return definition
 }
@@ -1544,7 +1544,7 @@ func multiStatementsEnabled(session Session) bool {
 		return enabled
 	}
 	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
-	return capabilities&protocol.CLIENT_MULTI_STATEMENTS != 0
+	return capabilities&common.CLIENT_MULTI_STATEMENTS != 0
 }
 
 const expiredPasswordRestrictedAttribute = "password_expired_restricted"
@@ -1714,7 +1714,7 @@ func (h *DecoupledMySQLMessageHandler) handleAuthentication(session Session, cur
 	// authentication-plugin fields. Keep the parsed map on the server session
 	// so Performance Schema consumers can observe the same handshake data that
 	// MySQL exposes through session_connect_attrs.
-	if clientFlags&protocol.CLIENT_CONNECT_ATTRS != 0 {
+	if clientFlags&common.CLIENT_CONNECT_ATTRS != 0 {
 		attributesOffset := offset
 		if attributesOffset < len(payload) {
 			for attributesOffset < len(payload) && payload[attributesOffset] != 0 {
@@ -1723,7 +1723,7 @@ func (h *DecoupledMySQLMessageHandler) handleAuthentication(session Session, cur
 			if attributesOffset < len(payload) {
 				attributesOffset++
 			}
-			if clientFlags&protocol.CLIENT_PLUGIN_AUTH != 0 {
+			if clientFlags&common.CLIENT_PLUGIN_AUTH != 0 {
 				for attributesOffset < len(payload) && payload[attributesOffset] != 0 {
 					attributesOffset++
 				}
@@ -1980,7 +1980,7 @@ func (h *DecoupledMySQLMessageHandler) completeAuthentication(session Session, c
 func (h *DecoupledMySQLMessageHandler) completeAuthenticationWithSequence(session Session, currentMysqlSession *server.MySQLServerSession, username, database, host string, activeRoles []string, privileges []common.PrivilegeType, dynamicPrivileges []string, sequence byte) error {
 	session.SetAttribute("auth_status", "success")
 	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
-	compressionEnabled := capabilities&protocol.CLIENT_COMPRESS != 0
+	compressionEnabled := capabilities&common.CLIENT_COMPRESS != 0
 	session.SetAttribute("mysql_compression_enabled", compressionEnabled)
 	if compressionEnabled {
 		session.SetAttribute("mysql_compression_write_sequence", uint8(0))
@@ -2479,7 +2479,7 @@ func (h *DecoupledMySQLMessageHandler) resetConnectionState(session Session, cur
 	// override back to the handshake baseline so pooled connections do not
 	// retain a previous user's multi-statement setting.
 	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
-	session.SetAttribute("client_multi_statements", capabilities&protocol.CLIENT_MULTI_STATEMENTS != 0)
+	session.SetAttribute("client_multi_statements", capabilities&common.CLIENT_MULTI_STATEMENTS != 0)
 	session.SetAttribute("__more_results__", false)
 	if currentMysqlSession != nil && *currentMysqlSession != nil {
 		if h.xmysqlEngine != nil {
@@ -2530,7 +2530,7 @@ func (h *DecoupledMySQLMessageHandler) handleComChangeUser(session Session, curr
 	}
 	offset = next
 	requestedCharset, requestedCollation := "", ""
-	if capabilities&protocol.CLIENT_PROTOCOL_41 != 0 && offset < len(body) {
+	if capabilities&common.CLIENT_PROTOCOL_41 != 0 && offset < len(body) {
 		if offset+2 > len(body) {
 			return h.sendErrorResponse(session, 1045, "28000", "Invalid COM_CHANGE_USER character set")
 		}
@@ -2796,10 +2796,10 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	encoder := h.resultSetEncoder
 
 	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
-	useDeprecatedEOF := capabilities&protocol.CLIENT_DEPRECATE_EOF == 0
-	statusFlags := uint16(protocol.SERVER_STATUS_AUTOCOMMIT)
-	if more, ok := session.GetAttribute("__more_results__").(bool); ok && more && capabilities&(protocol.CLIENT_MULTI_RESULTS|protocol.CLIENT_PS_MULTI_RESULTS) != 0 {
-		statusFlags |= protocol.SERVER_MORE_RESULTS_EXISTS
+	useDeprecatedEOF := capabilities&common.CLIENT_DEPRECATE_EOF == 0
+	statusFlags := uint16(common.SERVER_STATUS_AUTOCOMMIT)
+	if more, ok := session.GetAttribute("__more_results__").(bool); ok && more && capabilities&(common.CLIENT_MULTI_RESULTS|common.CLIENT_PS_MULTI_RESULTS) != 0 {
+		statusFlags |= common.SERVER_MORE_RESULTS_EXISTS
 	}
 
 	// ========================================================================
@@ -2807,7 +2807,7 @@ func (h *DecoupledMySQLMessageHandler) sendQueryResultSet(session Session, resul
 	// ========================================================================
 	columnCount := uint64(len(result.Columns))
 	columnCountData := encoder.WriteLenEncInt(columnCount)
-	if capabilities&protocol.CLIENT_OPTIONAL_RESULTSET_METADATA != 0 {
+	if capabilities&common.CLIENT_OPTIONAL_RESULTSET_METADATA != 0 {
 		// RESULTSET_METADATA_FULL: metadata follows the column count.
 		columnCountData = append([]byte{1}, columnCountData...)
 	}
@@ -2951,7 +2951,7 @@ func (h *DecoupledMySQLMessageHandler) resultColumnDefinitions(result *protocol.
 			definition = encoder.CreateColumnDefinitionFromValue(name, result.Rows[0][index])
 		}
 		if definition == nil {
-			definition = encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_VAR_STRING, 0)
+			definition = encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_VAR_STRING, 0)
 		}
 		definitions = append(definitions, definition)
 	}
@@ -2964,7 +2964,7 @@ func (h *DecoupledMySQLMessageHandler) sendCursorMetadata(session Session, resul
 	}
 	definitions := h.resultColumnDefinitions(result)
 	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
-	statusFlags := uint16(protocol.SERVER_STATUS_AUTOCOMMIT | protocol.SERVER_STATUS_CURSOR_EXISTS)
+	statusFlags := uint16(common.SERVER_STATUS_AUTOCOMMIT | common.SERVER_STATUS_CURSOR_EXISTS)
 	if err := session.WriteBytes(h.createMySQLPacket(h.resultSetEncoder.WriteLenEncInt(uint64(len(definitions))), seqID)); err != nil {
 		return err
 	}
@@ -2991,11 +2991,11 @@ func (h *DecoupledMySQLMessageHandler) sendBinaryCursorRows(session Session, res
 		seqID++
 	}
 	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
-	statusFlags := uint16(protocol.SERVER_STATUS_AUTOCOMMIT)
+	statusFlags := uint16(common.SERVER_STATUS_AUTOCOMMIT)
 	if done {
-		statusFlags |= protocol.SERVER_STATUS_LAST_ROW_SENT
+		statusFlags |= common.SERVER_STATUS_LAST_ROW_SENT
 	} else {
-		statusFlags |= protocol.SERVER_STATUS_CURSOR_EXISTS
+		statusFlags |= common.SERVER_STATUS_CURSOR_EXISTS
 	}
 	return h.sendResultTerminator(session, seqID, capabilities, statusFlags, result.WarningCount)
 }
@@ -3020,7 +3020,7 @@ func (h *DecoupledMySQLMessageHandler) sendBinaryPreparedResultSet(session Sessi
 		seqID++
 	}
 	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
-	statusFlags := uint16(protocol.SERVER_STATUS_AUTOCOMMIT | protocol.SERVER_STATUS_LAST_ROW_SENT)
+	statusFlags := uint16(common.SERVER_STATUS_AUTOCOMMIT | common.SERVER_STATUS_LAST_ROW_SENT)
 	if err := h.sendResultTerminator(session, seqID, capabilities, statusFlags, result.WarningCount); err != nil {
 		return err
 	}
@@ -3035,7 +3035,7 @@ func (h *DecoupledMySQLMessageHandler) sendBinaryPreparedResultSet(session Sessi
 }
 
 func (h *DecoupledMySQLMessageHandler) sendResultTerminator(session Session, seqID byte, capabilities uint32, statusFlags uint16, warnings uint16) error {
-	if capabilities&protocol.CLIENT_DEPRECATE_EOF == 0 {
+	if capabilities&common.CLIENT_DEPRECATE_EOF == 0 {
 		return session.WriteBytes(protocol.EncodeEOFPacketWithSeq(warnings, statusFlags, seqID))
 	}
 	return session.WriteBytes(protocol.EncodeResultsetOKPacketWithSeq(0, 0, statusFlags, warnings, seqID))
@@ -3088,110 +3088,47 @@ func createColumnDefinitionForType(encoder *protocol.MySQLResultSetEncoder, name
 	}
 	switch typeName {
 	case "tinyint":
-		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_TINY, 0)
+		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_TINY, 0)
 	case "smallint":
-		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_SHORT, 0)
+		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_SHORT, 0)
 	case "mediumint":
-		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_INT24, 0)
+		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_INT24, 0)
 	case "int", "integer":
-		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_LONG, 0)
+		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_LONG, 0)
 	case "bigint":
-		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_LONGLONG, 0)
+		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_LONGLONG, 0)
 	case "float":
-		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_FLOAT, 0)
+		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_FLOAT, 0)
 	case "double":
-		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_DOUBLE, 0)
+		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_DOUBLE, 0)
 	case "decimal":
-		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_NEWDECIMAL, 0)
+		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_NEWDECIMAL, 0)
 	case "date":
-		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_DATE, 0)
+		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_DATE, 0)
 	case "time":
-		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_TIME, 0)
+		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_TIME, 0)
 	case "datetime":
-		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_DATETIME, 0)
+		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_DATETIME, 0)
 	case "timestamp":
-		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_TIMESTAMP, 0)
+		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_TIMESTAMP, 0)
 	case "year":
-		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_YEAR, 0)
+		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_YEAR, 0)
 	case "bool", "boolean":
-		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_TINY, 0)
+		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_TINY, 0)
 	case "binary", "varbinary", "blob", "tinyblob", "mediumblob", "longblob":
-		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_BLOB, 0)
+		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_BLOB, 0)
 	default:
-		return encoder.CreateColumnDefinition(name, protocol.MYSQL_TYPE_VAR_STRING, 0)
+		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_VAR_STRING, 0)
 	}
 }
 
 // getCommandName 获取命令名称
 func (h *DecoupledMySQLMessageHandler) getCommandName(cmd byte) string {
-	switch cmd {
-	case 0x00:
-		return "COM_SLEEP"
-	case 0x01:
-		return "COM_QUIT"
-	case 0x02:
-		return "COM_INIT_DB"
-	case 0x03:
-		return "COM_QUERY"
-	case 0x04:
-		return "COM_FIELD_LIST"
-	case 0x05:
-		return "COM_CREATE_DB"
-	case 0x06:
-		return "COM_DROP_DB"
-	case 0x07:
-		return "COM_REFRESH"
-	case 0x08:
-		return "COM_SHUTDOWN"
-	case 0x09:
-		return "COM_STATISTICS"
-	case 0x0a:
-		return "COM_PROCESS_INFO"
-	case 0x0b:
-		return "COM_CONNECT"
-	case 0x0c:
-		return "COM_PROCESS_KILL"
-	case 0x0d:
-		return "COM_DEBUG"
-	case 0x0e:
-		return "COM_PING"
-	case 0x0f:
-		return "COM_TIME"
-	case 0x10:
-		return "COM_DELAYED_INSERT"
-	case 0x11:
-		return "COM_CHANGE_USER"
-	case 0x12:
-		return "COM_BINLOG_DUMP"
-	case 0x13:
-		return "COM_TABLE_DUMP"
-	case 0x14:
-		return "COM_CONNECT_OUT"
-	case 0x15:
-		return "COM_REGISTER_SLAVE"
-	case 0x16:
-		return "COM_STMT_PREPARE"
-	case 0x17:
-		return "COM_STMT_EXECUTE"
-	case 0x18:
-		return "COM_STMT_SEND_LONG_DATA"
-	case 0x19:
-		return "COM_STMT_CLOSE"
-	case 0x1a:
-		return "COM_STMT_RESET"
-	case 0x1b:
-		return "COM_SET_OPTION"
-	case 0x1c:
-		return "COM_STMT_FETCH"
-	case 0x1d:
-		return "COM_DAEMON"
-	case 0x1e:
-		return "COM_BINLOG_DUMP_GTID"
-	case 0x1f:
-		return "COM_RESET_CONNECTION"
-	default:
+	name := common.CommandString(cmd)
+	if name == "UNKNOWN" {
 		return fmt.Sprintf("UNKNOWN(0x%02X)", cmd)
 	}
+	return name
 }
 
 // getCommandDetail 获取命令详情
@@ -3202,7 +3139,7 @@ func (h *DecoupledMySQLMessageHandler) getCommandDetail(body []byte) string {
 
 	cmd := body[0]
 	switch cmd {
-	case 0x03: // COM_QUERY
+	case common.COM_QUERY: // COM_QUERY
 		if len(body) > 1 {
 			query := string(body[1:])
 			if len(query) > 100 {
@@ -3211,12 +3148,12 @@ func (h *DecoupledMySQLMessageHandler) getCommandDetail(body []byte) string {
 			return query
 		}
 		return "empty query"
-	case 0x02: // COM_INIT_DB
+	case common.COM_INIT_DB: // COM_INIT_DB
 		if len(body) > 1 {
 			return string(body[1:])
 		}
 		return "empty db"
-	case 0x16: // COM_STMT_PREPARE
+	case common.COM_STMT_PREPARE: // COM_STMT_PREPARE
 		if len(body) > 1 {
 			query := string(body[1:])
 			if len(query) > 100 {
@@ -3225,21 +3162,21 @@ func (h *DecoupledMySQLMessageHandler) getCommandDetail(body []byte) string {
 			return query
 		}
 		return "empty prepare"
-	case 0x17: // COM_STMT_EXECUTE
+	case common.COM_STMT_EXECUTE: // COM_STMT_EXECUTE
 		if len(body) >= 5 {
 			stmtID := uint32(body[1]) | uint32(body[2])<<8 | uint32(body[3])<<16 | uint32(body[4])<<24
 			return fmt.Sprintf("stmt_id=%d", stmtID)
 		}
 		return "invalid execute"
-	case 0x19: // COM_STMT_CLOSE
+	case common.COM_STMT_CLOSE: // COM_STMT_CLOSE
 		if len(body) >= 5 {
 			stmtID := uint32(body[1]) | uint32(body[2])<<8 | uint32(body[3])<<16 | uint32(body[4])<<24
 			return fmt.Sprintf("stmt_id=%d", stmtID)
 		}
 		return "invalid close"
-	case 0x01: // COM_QUIT
+	case common.COM_QUIT: // COM_QUIT
 		return "quit"
-	case 0x0e: // COM_PING
+	case common.COM_PING: // COM_PING
 		return "ping"
 	default:
 		return fmt.Sprintf("cmd=0x%02X", cmd)

@@ -1,5 +1,7 @@
 package engine
 
+import "github.com/zhukovaskychina/xmysql-server/server/common"
+
 import (
 	"fmt"
 	"regexp"
@@ -98,10 +100,10 @@ func informationSchemaUint64Filter(query, column string) (uint64, bool) {
 }
 
 func innodbTransactionState(state uint8) string {
-	if state == manager.TRX_STATE_PREPARED {
+	if state == common.TRX_STATE_PREPARED {
 		return "PREPARED"
 	}
-	if state == manager.TRX_STATE_ACTIVE {
+	if state == common.TRX_STATE_ACTIVE {
 		return "RUNNING"
 	}
 	return fmt.Sprintf("STATE_%d", state)
@@ -109,11 +111,11 @@ func innodbTransactionState(state uint8) string {
 
 func innodbIsolationLevel(level uint8) string {
 	switch level {
-	case manager.TRX_ISO_READ_UNCOMMITTED:
+	case common.TRX_ISO_READ_UNCOMMITTED:
 		return "READ UNCOMMITTED"
-	case manager.TRX_ISO_READ_COMMITTED:
+	case common.TRX_ISO_READ_COMMITTED:
 		return "READ COMMITTED"
-	case manager.TRX_ISO_SERIALIZABLE:
+	case common.TRX_ISO_SERIALIZABLE:
 		return "SERIALIZABLE"
 	default:
 		return "REPEATABLE READ"

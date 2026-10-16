@@ -468,7 +468,7 @@ func encodeParamDefinition(param *ParamMetadata, seqID byte) []byte {
 	// flags
 	flags := uint16(0)
 	if param.Unsigned {
-		flags |= 0x0020 // UNSIGNED_FLAG
+		flags |= uint16(common.UnsignedFlag)
 	}
 	data = append(data, byte(flags), byte(flags>>8))
 

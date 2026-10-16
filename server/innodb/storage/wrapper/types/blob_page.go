@@ -16,17 +16,17 @@ var (
 
 // BLOB page header offsets (20 bytes total)
 const (
-	BLOB_HDR_LENGTH     = 0  // Total BLOB length (4 bytes)
-	BLOB_HDR_NEXT_PAGE  = 4  // Next BLOB page number (4 bytes)
-	BLOB_HDR_OFFSET     = 8  // Offset in total BLOB (4 bytes)
-	BLOB_HDR_SEGMENT_ID = 12 // Segment ID (8 bytes)
-	BLOB_HEADER_SIZE    = 20 // Total BLOB header size
+	BLOB_HDR_LENGTH     = 0                     // Total BLOB length (4 bytes)
+	BLOB_HDR_NEXT_PAGE  = 4                     // Next BLOB page number (4 bytes)
+	BLOB_HDR_OFFSET     = 8                     // Offset in total BLOB (4 bytes)
+	BLOB_HDR_SEGMENT_ID = 12                    // Segment ID (8 bytes)
+	BLOB_HEADER_SIZE    = common.BlobHeaderSize // Total BLOB header size
 )
 
 // BLOB data constants
 const (
 	// Maximum BLOB data per page = PageSize - FileHeader - BlobHeader - FileTrailer
-	MAX_BLOB_DATA_SIZE = DefaultPageSize - FileHeaderSize - BLOB_HEADER_SIZE - FileTrailerSize // 16318 bytes
+	MAX_BLOB_DATA_SIZE = common.BlobDataSize // 16318 bytes
 )
 
 // BlobHeader represents the BLOB page header structure
@@ -52,7 +52,7 @@ type BlobPage struct {
 func NewBlobPage(spaceID, pageNo uint32, segmentID uint64) *BlobPage {
 	bp := &BlobPage{
 		UnifiedPage: NewUnifiedPage(spaceID, pageNo, common.FIL_PAGE_TYPE_BLOB),
-		data:        make([]byte, 0, MAX_BLOB_DATA_SIZE),
+		data:        make([]byte, 0, common.BlobDataSize),
 	}
 
 	// Initialize BLOB header
@@ -72,7 +72,7 @@ func NewBlobPage(spaceID, pageNo uint32, segmentID uint64) *BlobPage {
 // serializeBlobHeader serializes the BLOB header to the page body
 func (bp *BlobPage) serializeBlobHeader() {
 	body := bp.GetBody()
-	if len(body) < BLOB_HEADER_SIZE {
+	if len(body) < common.BlobHeaderSize {
 		return
 	}
 
@@ -83,7 +83,7 @@ func (bp *BlobPage) serializeBlobHeader() {
 
 	// Copy BLOB data after header
 	if len(bp.data) > 0 {
-		copy(body[BLOB_HEADER_SIZE:], bp.data)
+		copy(body[common.BlobHeaderSize:], bp.data)
 	}
 
 	bp.SetBody(body)
@@ -92,7 +92,7 @@ func (bp *BlobPage) serializeBlobHeader() {
 // deserializeBlobHeader deserializes the BLOB header from the page body
 func (bp *BlobPage) deserializeBlobHeader() {
 	body := bp.GetBody()
-	if len(body) < BLOB_HEADER_SIZE {
+	if len(body) < common.BlobHeaderSize {
 		return
 	}
 
@@ -102,16 +102,16 @@ func (bp *BlobPage) deserializeBlobHeader() {
 	bp.blobHeader.SegmentID = binary.BigEndian.Uint64(body[BLOB_HDR_SEGMENT_ID:])
 
 	// Extract BLOB data
-	dataSize := len(body) - BLOB_HEADER_SIZE
-	if dataSize > 0 && dataSize <= MAX_BLOB_DATA_SIZE {
+	dataSize := len(body) - common.BlobHeaderSize
+	if dataSize > 0 && dataSize <= common.BlobDataSize {
 		bp.data = make([]byte, dataSize)
-		copy(bp.data, body[BLOB_HEADER_SIZE:])
+		copy(bp.data, body[common.BlobHeaderSize:])
 	}
 }
 
 // SetBlobData sets the BLOB data for this page
 func (bp *BlobPage) SetBlobData(data []byte, totalLength, offset, nextPage uint32) error {
-	if len(data) > MAX_BLOB_DATA_SIZE {
+	if len(data) > common.BlobDataSize {
 		return ErrBlobTooLarge
 	}
 
@@ -184,12 +184,12 @@ func (bp *BlobPage) GetDataSize() int {
 
 // GetAvailableSpace returns the available space for BLOB data
 func (bp *BlobPage) GetAvailableSpace() int {
-	return MAX_BLOB_DATA_SIZE - len(bp.data)
+	return common.BlobDataSize - len(bp.data)
 }
 
 // AppendData appends data to the BLOB page
 func (bp *BlobPage) AppendData(data []byte) error {
-	if len(bp.data)+len(data) > MAX_BLOB_DATA_SIZE {
+	if len(bp.data)+len(data) > common.BlobDataSize {
 		return ErrBlobTooLarge
 	}
 
@@ -202,7 +202,7 @@ func (bp *BlobPage) AppendData(data []byte) error {
 
 // ClearData clears the BLOB data
 func (bp *BlobPage) ClearData() {
-	bp.data = make([]byte, 0, MAX_BLOB_DATA_SIZE)
+	bp.data = make([]byte, 0, common.BlobDataSize)
 	bp.blobHeader.Length = 0
 	bp.blobHeader.Offset = 0
 	bp.blobHeader.NextPage = 0

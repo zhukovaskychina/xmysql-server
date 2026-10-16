@@ -37,6 +37,7 @@ package space
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/ibd"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/extent"
@@ -94,7 +95,7 @@ func (s *IBDSpace) GetFragmentCount() uint32 {
 func (s *IBDSpace) GetUsedSpace() uint64 {
 	s.RLock()
 	defer s.RUnlock()
-	return uint64(s.pageCount) * PageSize
+	return uint64(s.pageCount) * common.PageSize
 }
 
 // IsActive returns whether the tablespace is active
@@ -147,8 +148,8 @@ func (s *IBDSpace) RecoverAllocationsFromFileSize() error {
 		return nil
 	}
 
-	pageCount := uint32(size / PageSize)
-	if size%PageSize != 0 {
+	pageCount := uint32(size / common.PageSize)
+	if size%common.PageSize != 0 {
 		pageCount++
 	}
 
@@ -338,8 +339,8 @@ func (s *IBDSpace) FlushToDisk(pageNo uint32, content []byte) error {
 	}
 
 	// Validate content size
-	if len(content) != PageSize {
-		return fmt.Errorf("invalid page size: got %d, want %d", len(content), PageSize)
+	if len(content) != common.PageSize {
+		return fmt.Errorf("invalid page size: got %d, want %d", len(content), common.PageSize)
 	}
 
 	// Write to file
@@ -371,8 +372,8 @@ func (s *IBDSpace) LoadPageByPageNumber(pageNo uint32) ([]byte, error) {
 	}
 
 	// Validate content size
-	if len(content) != PageSize {
-		return nil, fmt.Errorf("invalid page size: got %d, want %d", len(content), PageSize)
+	if len(content) != common.PageSize {
+		return nil, fmt.Errorf("invalid page size: got %d, want %d", len(content), common.PageSize)
 	}
 
 	return content, nil
@@ -507,7 +508,7 @@ func (s *IBDSpace) GetTotalSize() uint64 {
 
 	// Total size = next page number * page size
 	// This represents the allocated space (not necessarily all used)
-	return uint64(s.nextPage) * PageSize
+	return uint64(s.nextPage) * common.PageSize
 }
 
 // GetFreeSpace returns the free space in bytes
@@ -520,7 +521,7 @@ func (s *IBDSpace) GetFreeSpace() uint64 {
 	usedPages := s.pageCount
 
 	if allocatedPages > usedPages {
-		return uint64(allocatedPages-usedPages) * PageSize
+		return uint64(allocatedPages-usedPages) * common.PageSize
 	}
 	return 0
 }
@@ -629,8 +630,8 @@ func (s *IBDSpace) GetDetailedStats() *SpaceDetailedStats {
 		FreeExtents:    0,
 		PartialExtents: 0,
 		FullExtents:    0,
-		TotalSize:      uint64(s.nextPage) * PageSize,
-		UsedSize:       uint64(s.pageCount) * PageSize,
+		TotalSize:      uint64(s.nextPage) * common.PageSize,
+		UsedSize:       uint64(s.pageCount) * common.PageSize,
 		FreeSize:       0,
 		FragmentCount:  s.fragmentCount,
 	}
@@ -648,7 +649,7 @@ func (s *IBDSpace) GetDetailedStats() *SpaceDetailedStats {
 
 	// Calculate free size
 	if stats.TotalPages > stats.AllocatedPages {
-		stats.FreeSize = uint64(stats.TotalPages-stats.AllocatedPages) * PageSize
+		stats.FreeSize = uint64(stats.TotalPages-stats.AllocatedPages) * common.PageSize
 	}
 
 	return stats

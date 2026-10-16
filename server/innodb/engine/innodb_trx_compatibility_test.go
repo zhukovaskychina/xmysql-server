@@ -81,7 +81,7 @@ func TestInformationSchemaInnoDBTrxProjectsHeldLockCounts(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	txManager, err := executor.QueryExecutor.getTransactionManager()
 	require.NoError(t, err)
-	trx, err := txManager.Begin(false, manager.TRX_ISO_REPEATABLE_READ)
+	trx, err := txManager.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, txManager.Rollback(trx)) })
 
@@ -1265,7 +1265,7 @@ func TestInformationSchemaInnoDBMetricsExposeActiveRollbacks(t *testing.T) {
 		release: make(chan struct{}),
 	}
 	txManager.GetUndoLogManager().SetRollbackExecutor(rollbackExecutor)
-	trx, err := txManager.Begin(false, manager.TRX_ISO_REPEATABLE_READ)
+	trx, err := txManager.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	require.NoError(t, err)
 	require.NoError(t, txManager.GetUndoLogManager().Append(&manager.UndoLogEntry{
 		LSN:      1,

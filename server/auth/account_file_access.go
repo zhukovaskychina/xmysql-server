@@ -324,14 +324,7 @@ func grantNamesToPrivileges(names []string) []common.PrivilegeType {
 			result = append(result, common.AllGlobalPrivs...)
 			continue
 		}
-		mapping := map[string]common.PrivilegeType{
-			"SELECT": common.SelectPriv, "INSERT": common.InsertPriv, "UPDATE": common.UpdatePriv, "DELETE": common.DeletePriv,
-			"CREATE": common.CreatePriv, "DROP": common.DropPriv, "ALTER": common.AlterPriv, "INDEX": common.IndexPriv,
-			"EXECUTE": common.ExecutePriv, "CREATE VIEW": common.CreateViewPriv, "SHOW VIEW": common.ShowViewPriv,
-			"CREATE USER": common.CreateUserPriv, "GRANT OPTION": common.GrantPriv, "TRIGGER": common.TriggerPriv,
-			"EVENT": common.EventPriv, "REFERENCES": common.ReferencesPriv, "USAGE": common.UsagePriv,
-		}
-		if privilege, ok := mapping[name]; ok {
+		if privilege, ok := common.AuthGrantPrivilege(name); ok {
 			result = append(result, privilege)
 		}
 	}

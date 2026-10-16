@@ -15,6 +15,7 @@ import (
 	"path"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
@@ -886,16 +887,7 @@ func (m *SchemaManager) loadSingleDatabase(name, dbPath string) {
 // validateCharsetAndCollation 验证字符集和排序规则
 func (m *SchemaManager) validateCharsetAndCollation(charset, collation string) error {
 	// MySQL标准字符集验证
-	validCharsets := map[string][]string{
-		"utf8mb4": {"utf8mb4_general_ci", "utf8mb4_unicode_ci", "utf8mb4_bin", "utf8mb4_0900_ai_ci"},
-		"utf8":    {"utf8_general_ci", "utf8_unicode_ci", "utf8_bin"},
-		"latin1":  {"latin1_swedish_ci", "latin1_general_ci", "latin1_bin"},
-		"ascii":   {"ascii_general_ci", "ascii_bin"},
-		"binary":  {"binary"},
-	}
-
-	// 检查字符集是否支持
-	collations, exists := validCharsets[charset]
+	collations, exists := common.SchemaCharsetCollations(charset)
 	if !exists {
 		return fmt.Errorf("unsupported charset '%s'", charset)
 	}

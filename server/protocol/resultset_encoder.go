@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 )
 
 // MySQLResultSetEncoder MySQL ResultSet 协议编码器
@@ -97,51 +99,51 @@ func (e *MySQLResultSetEncoder) WriteLenEncNullString(str *string) []byte {
 //	Decimals     byte   // 小数位数（数值类型使用）
 //}
 
-// MySQLFieldType MySQL 字段类型常量
+// MySQLFieldType preserves the public byte aliases. New consumers use common.COLUMN_TYPE_*.
 const (
-	MYSQL_TYPE_DECIMAL     byte = 0x00
-	MYSQL_TYPE_TINY        byte = 0x01 // TINYINT
-	MYSQL_TYPE_SHORT       byte = 0x02 // SMALLINT
-	MYSQL_TYPE_LONG        byte = 0x03 // INT
-	MYSQL_TYPE_FLOAT       byte = 0x04 // FLOAT
-	MYSQL_TYPE_DOUBLE      byte = 0x05 // DOUBLE
-	MYSQL_TYPE_NULL        byte = 0x06
-	MYSQL_TYPE_TIMESTAMP   byte = 0x07
-	MYSQL_TYPE_LONGLONG    byte = 0x08 // BIGINT
-	MYSQL_TYPE_INT24       byte = 0x09 // MEDIUMINT
-	MYSQL_TYPE_DATE        byte = 0x0A
-	MYSQL_TYPE_TIME        byte = 0x0B
-	MYSQL_TYPE_DATETIME    byte = 0x0C
-	MYSQL_TYPE_YEAR        byte = 0x0D
-	MYSQL_TYPE_NEWDATE     byte = 0x0E
-	MYSQL_TYPE_VARCHAR     byte = 0x0F
-	MYSQL_TYPE_BIT         byte = 0x10
-	MYSQL_TYPE_NEWDECIMAL  byte = 0xF6
-	MYSQL_TYPE_ENUM        byte = 0xF7
-	MYSQL_TYPE_SET         byte = 0xF8
-	MYSQL_TYPE_TINY_BLOB   byte = 0xF9
-	MYSQL_TYPE_MEDIUM_BLOB byte = 0xFA
-	MYSQL_TYPE_LONG_BLOB   byte = 0xFB
-	MYSQL_TYPE_BLOB        byte = 0xFC
-	MYSQL_TYPE_VAR_STRING  byte = 0xFD // VARCHAR/TEXT
-	MYSQL_TYPE_STRING      byte = 0xFE // CHAR
-	MYSQL_TYPE_GEOMETRY    byte = 0xFF
+	MYSQL_TYPE_DECIMAL     byte = common.COLUMN_TYPE_DECIMAL
+	MYSQL_TYPE_TINY        byte = common.COLUMN_TYPE_TINY   // TINYINT
+	MYSQL_TYPE_SHORT       byte = common.COLUMN_TYPE_SHORT  // SMALLINT
+	MYSQL_TYPE_LONG        byte = common.COLUMN_TYPE_LONG   // INT
+	MYSQL_TYPE_FLOAT       byte = common.COLUMN_TYPE_FLOAT  // FLOAT
+	MYSQL_TYPE_DOUBLE      byte = common.COLUMN_TYPE_DOUBLE // DOUBLE
+	MYSQL_TYPE_NULL        byte = common.COLUMN_TYPE_NULL
+	MYSQL_TYPE_TIMESTAMP   byte = common.COLUMN_TYPE_TIMESTAMP
+	MYSQL_TYPE_LONGLONG    byte = common.COLUMN_TYPE_LONGLONG // BIGINT
+	MYSQL_TYPE_INT24       byte = common.COLUMN_TYPE_INT24    // MEDIUMINT
+	MYSQL_TYPE_DATE        byte = common.COLUMN_TYPE_DATE
+	MYSQL_TYPE_TIME        byte = common.COLUMN_TYPE_TIME
+	MYSQL_TYPE_DATETIME    byte = common.COLUMN_TYPE_DATETIME
+	MYSQL_TYPE_YEAR        byte = common.COLUMN_TYPE_YEAR
+	MYSQL_TYPE_NEWDATE     byte = common.COLUMN_TYPE_NEWDATE
+	MYSQL_TYPE_VARCHAR     byte = common.COLUMN_TYPE_VARCHAR
+	MYSQL_TYPE_BIT         byte = common.COLUMN_TYPE_BIT
+	MYSQL_TYPE_NEWDECIMAL  byte = common.COLUMN_TYPE_NEWDECIMAL
+	MYSQL_TYPE_ENUM        byte = common.COLUMN_TYPE_ENUM
+	MYSQL_TYPE_SET         byte = common.COLUMN_TYPE_SET
+	MYSQL_TYPE_TINY_BLOB   byte = common.COLUMN_TYPE_TINY_BLOB
+	MYSQL_TYPE_MEDIUM_BLOB byte = common.COLUMN_TYPE_MEDIUM_BLOB
+	MYSQL_TYPE_LONG_BLOB   byte = common.COLUMN_TYPE_LONG_BLOB
+	MYSQL_TYPE_BLOB        byte = common.COLUMN_TYPE_BLOB
+	MYSQL_TYPE_VAR_STRING  byte = common.COLUMN_TYPE_VAR_STRING // VARCHAR/TEXT
+	MYSQL_TYPE_STRING      byte = common.COLUMN_TYPE_STRING     // CHAR
+	MYSQL_TYPE_GEOMETRY    byte = common.COLUMN_TYPE_GEOMETRY
 )
 
-// ColumnFlags 列标志常量
+// ColumnFlags preserves the public uint16 aliases. New consumers use common's field flags.
 const (
-	FLAG_NOT_NULL       uint16 = 0x0001
-	FLAG_PRI_KEY        uint16 = 0x0002
-	FLAG_UNIQUE_KEY     uint16 = 0x0004
-	FLAG_MULTIPLE_KEY   uint16 = 0x0008
-	FLAG_BLOB           uint16 = 0x0010
-	FLAG_UNSIGNED       uint16 = 0x0020
-	FLAG_ZEROFILL       uint16 = 0x0040
-	FLAG_BINARY         uint16 = 0x0080
-	FLAG_ENUM           uint16 = 0x0100
-	FLAG_AUTO_INCREMENT uint16 = 0x0200
-	FLAG_TIMESTAMP      uint16 = 0x0400
-	FLAG_SET            uint16 = 0x0800
+	FLAG_NOT_NULL       uint16 = uint16(common.NotNullFlag)
+	FLAG_PRI_KEY        uint16 = uint16(common.PriKeyFlag)
+	FLAG_UNIQUE_KEY     uint16 = uint16(common.UniqueKeyFlag)
+	FLAG_MULTIPLE_KEY   uint16 = uint16(common.MultipleKeyFlag)
+	FLAG_BLOB           uint16 = uint16(common.BlobFlag)
+	FLAG_UNSIGNED       uint16 = uint16(common.UnsignedFlag)
+	FLAG_ZEROFILL       uint16 = uint16(common.ZerofillFlag)
+	FLAG_BINARY         uint16 = uint16(common.BinaryFlag)
+	FLAG_ENUM           uint16 = uint16(common.EnumFlag)
+	FLAG_AUTO_INCREMENT uint16 = uint16(common.AutoIncrementFlag)
+	FLAG_TIMESTAMP      uint16 = uint16(common.TimestampFlag)
+	FLAG_SET            uint16 = uint16(common.SetFlag)
 )
 
 // WriteColumnDefinitionPacket 编码列定义包
@@ -221,20 +223,20 @@ func (e *MySQLResultSetEncoder) WriteEOFPacket(warnings uint16, statusFlags uint
 	return data
 }
 
-// ServerStatus 服务器状态标志
+// ServerStatus preserves the public uint16 aliases. New consumers use common's status flags.
 const (
-	SERVER_STATUS_IN_TRANS             uint16 = 0x0001
-	SERVER_STATUS_AUTOCOMMIT           uint16 = 0x0002
-	SERVER_MORE_RESULTS_EXISTS         uint16 = 0x0008
-	SERVER_STATUS_NO_GOOD_INDEX_USED   uint16 = 0x0010
-	SERVER_STATUS_NO_INDEX_USED        uint16 = 0x0020
-	SERVER_STATUS_CURSOR_EXISTS        uint16 = 0x0040
-	SERVER_STATUS_LAST_ROW_SENT        uint16 = 0x0080
-	SERVER_STATUS_DB_DROPPED           uint16 = 0x0100
-	SERVER_STATUS_NO_BACKSLASH_ESCAPES uint16 = 0x0200
-	SERVER_STATUS_METADATA_CHANGED     uint16 = 0x0400
-	SERVER_QUERY_WAS_SLOW              uint16 = 0x0800
-	SERVER_PS_OUT_PARAMS               uint16 = 0x1000
+	SERVER_STATUS_IN_TRANS             uint16 = common.SERVER_STATUS_IN_TRANS
+	SERVER_STATUS_AUTOCOMMIT           uint16 = common.SERVER_STATUS_AUTOCOMMIT
+	SERVER_MORE_RESULTS_EXISTS         uint16 = common.SERVER_MORE_RESULTS_EXISTS
+	SERVER_STATUS_NO_GOOD_INDEX_USED   uint16 = common.SERVER_STATUS_NO_GOOD_INDEX_USED
+	SERVER_STATUS_NO_INDEX_USED        uint16 = common.SERVER_STATUS_NO_INDEX_USED
+	SERVER_STATUS_CURSOR_EXISTS        uint16 = common.SERVER_STATUS_CURSOR_EXISTS
+	SERVER_STATUS_LAST_ROW_SENT        uint16 = common.SERVER_STATUS_LAST_ROW_SENT
+	SERVER_STATUS_DB_DROPPED           uint16 = common.SERVER_STATUS_DB_DROPPED
+	SERVER_STATUS_NO_BACKSLASH_ESCAPES uint16 = common.SERVER_STATUS_NO_BACKSLASH_ESCAPES
+	SERVER_STATUS_METADATA_CHANGED     uint16 = common.SERVER_STATUS_METADATA_CHANGED
+	SERVER_QUERY_WAS_SLOW              uint16 = common.SERVER_QUERY_WAS_SLOW
+	SERVER_PS_OUT_PARAMS               uint16 = common.SERVER_PS_OUT_PARAMS
 )
 
 // ============================================================================
@@ -344,11 +346,11 @@ func (e *MySQLResultSetEncoder) EncodeBinaryRowPacket(values []interface{}, colu
 			payload[1+bit/8] |= 1 << (bit % 8)
 			continue
 		}
-		fieldType := MYSQL_TYPE_VAR_STRING
+		fieldType := byte(common.COLUMN_TYPE_VAR_STRING)
 		unsigned := false
 		if column != nil {
 			fieldType = column.ColumnType
-			unsigned = column.Flags&FLAG_UNSIGNED != 0
+			unsigned = column.Flags&uint16(common.UnsignedFlag) != 0
 		}
 		payload = append(payload, encodeBinaryValue(value, fieldType, unsigned)...)
 	}
@@ -358,12 +360,12 @@ func (e *MySQLResultSetEncoder) EncodeBinaryRowPacket(values []interface{}, colu
 func encodeBinaryValue(value interface{}, fieldType byte, unsigned bool) []byte {
 	var output []byte
 	switch fieldType {
-	case MYSQL_TYPE_TINY:
+	case common.COLUMN_TYPE_TINY:
 		if unsigned {
 			return []byte{byte(binaryUnsignedValue(value))}
 		}
 		return []byte{byte(int8(binarySignedValue(value)))}
-	case MYSQL_TYPE_SHORT:
+	case common.COLUMN_TYPE_SHORT:
 		output = make([]byte, 2)
 		if unsigned {
 			binary.LittleEndian.PutUint16(output, uint16(binaryUnsignedValue(value)))
@@ -371,7 +373,7 @@ func encodeBinaryValue(value interface{}, fieldType byte, unsigned bool) []byte 
 			binary.LittleEndian.PutUint16(output, uint16(binarySignedValue(value)))
 		}
 		return output
-	case MYSQL_TYPE_INT24:
+	case common.COLUMN_TYPE_INT24:
 		output = make([]byte, 4)
 		if unsigned {
 			binary.LittleEndian.PutUint32(output, uint32(binaryUnsignedValue(value)))
@@ -379,7 +381,7 @@ func encodeBinaryValue(value interface{}, fieldType byte, unsigned bool) []byte 
 			binary.LittleEndian.PutUint32(output, uint32(binarySignedValue(value)))
 		}
 		return output[:3]
-	case MYSQL_TYPE_LONG:
+	case common.COLUMN_TYPE_LONG:
 		output = make([]byte, 4)
 		if unsigned {
 			binary.LittleEndian.PutUint32(output, uint32(binaryUnsignedValue(value)))
@@ -387,7 +389,7 @@ func encodeBinaryValue(value interface{}, fieldType byte, unsigned bool) []byte 
 			binary.LittleEndian.PutUint32(output, uint32(binarySignedValue(value)))
 		}
 		return output
-	case MYSQL_TYPE_LONGLONG:
+	case common.COLUMN_TYPE_LONGLONG:
 		output = make([]byte, 8)
 		if unsigned {
 			binary.LittleEndian.PutUint64(output, binaryUnsignedValue(value))
@@ -395,19 +397,19 @@ func encodeBinaryValue(value interface{}, fieldType byte, unsigned bool) []byte 
 			binary.LittleEndian.PutUint64(output, uint64(binarySignedValue(value)))
 		}
 		return output
-	case MYSQL_TYPE_FLOAT:
+	case common.COLUMN_TYPE_FLOAT:
 		output = make([]byte, 4)
 		binary.LittleEndian.PutUint32(output, math.Float32bits(float32(binaryFloatValue(value))))
 		return output
-	case MYSQL_TYPE_DOUBLE:
+	case common.COLUMN_TYPE_DOUBLE:
 		output = make([]byte, 8)
 		binary.LittleEndian.PutUint64(output, math.Float64bits(binaryFloatValue(value)))
 		return output
-	case MYSQL_TYPE_DATE, MYSQL_TYPE_NEWDATE:
+	case common.COLUMN_TYPE_DATE, common.COLUMN_TYPE_NEWDATE:
 		return encodeBinaryDate(value)
-	case MYSQL_TYPE_DATETIME, MYSQL_TYPE_TIMESTAMP:
+	case common.COLUMN_TYPE_DATETIME, common.COLUMN_TYPE_TIMESTAMP:
 		return encodeBinaryDateTime(value)
-	case MYSQL_TYPE_TIME:
+	case common.COLUMN_TYPE_TIME:
 		return encodeBinaryTime(value)
 	default:
 		return WriteLenEncString(binaryStringValue(value))
@@ -606,65 +608,65 @@ func (e *MySQLResultSetEncoder) valueToString(value interface{}) string {
 // InferMySQLType 根据 Go 值类型推断 MySQL 字段类型
 func (e *MySQLResultSetEncoder) InferMySQLType(value interface{}) byte {
 	if value == nil {
-		return MYSQL_TYPE_NULL
+		return common.COLUMN_TYPE_NULL
 	}
 
 	switch value.(type) {
 	case bool:
-		return MYSQL_TYPE_TINY
+		return common.COLUMN_TYPE_TINY
 	case int8:
-		return MYSQL_TYPE_SHORT
+		return common.COLUMN_TYPE_SHORT
 	case uint8:
-		return MYSQL_TYPE_SHORT
+		return common.COLUMN_TYPE_SHORT
 	case int16:
-		return MYSQL_TYPE_SHORT
+		return common.COLUMN_TYPE_SHORT
 	case uint16:
-		return MYSQL_TYPE_SHORT
+		return common.COLUMN_TYPE_SHORT
 	case int, int32:
-		return MYSQL_TYPE_LONG
+		return common.COLUMN_TYPE_LONG
 	case uint, uint32:
-		return MYSQL_TYPE_LONG
+		return common.COLUMN_TYPE_LONG
 	case int64:
-		return MYSQL_TYPE_LONGLONG
+		return common.COLUMN_TYPE_LONGLONG
 	case uint64:
-		return MYSQL_TYPE_LONGLONG
+		return common.COLUMN_TYPE_LONGLONG
 	case float32:
-		return MYSQL_TYPE_FLOAT
+		return common.COLUMN_TYPE_FLOAT
 	case float64:
-		return MYSQL_TYPE_DOUBLE
+		return common.COLUMN_TYPE_DOUBLE
 	case []byte:
-		return MYSQL_TYPE_BLOB
+		return common.COLUMN_TYPE_BLOB
 	case string:
-		return MYSQL_TYPE_VAR_STRING
+		return common.COLUMN_TYPE_VAR_STRING
 	default:
-		return MYSQL_TYPE_VAR_STRING
+		return common.COLUMN_TYPE_VAR_STRING
 	}
 }
 
 // InferColumnLength 根据类型推断列长度
 func (e *MySQLResultSetEncoder) InferColumnLength(fieldType byte) uint32 {
 	switch fieldType {
-	case MYSQL_TYPE_TINY:
+	case common.COLUMN_TYPE_TINY:
 		return 4 // TINYINT 最大 4 字符 (-128)
-	case MYSQL_TYPE_SHORT:
+	case common.COLUMN_TYPE_SHORT:
 		return 6 // SMALLINT 最大 6 字符 (-32768)
-	case MYSQL_TYPE_LONG:
+	case common.COLUMN_TYPE_LONG:
 		return 11 // INT 最大 11 字符 (-2147483648)
-	case MYSQL_TYPE_LONGLONG:
+	case common.COLUMN_TYPE_LONGLONG:
 		return 20 // BIGINT 最大 20 字符
-	case MYSQL_TYPE_FLOAT:
+	case common.COLUMN_TYPE_FLOAT:
 		return 12 // FLOAT
-	case MYSQL_TYPE_DOUBLE:
+	case common.COLUMN_TYPE_DOUBLE:
 		return 22 // DOUBLE
-	case MYSQL_TYPE_DATE:
+	case common.COLUMN_TYPE_DATE:
 		return 10 // YYYY-MM-DD
-	case MYSQL_TYPE_TIME:
+	case common.COLUMN_TYPE_TIME:
 		return 10 // HH:MM:SS
-	case MYSQL_TYPE_DATETIME, MYSQL_TYPE_TIMESTAMP:
+	case common.COLUMN_TYPE_DATETIME, common.COLUMN_TYPE_TIMESTAMP:
 		return 19 // YYYY-MM-DD HH:MM:SS
-	case MYSQL_TYPE_VAR_STRING, MYSQL_TYPE_STRING:
+	case common.COLUMN_TYPE_VAR_STRING, common.COLUMN_TYPE_STRING:
 		return 255 // VARCHAR 默认长度
-	case MYSQL_TYPE_BLOB:
+	case common.COLUMN_TYPE_BLOB:
 		return 65535 // BLOB
 	default:
 		return 255
@@ -700,9 +702,9 @@ func (e *MySQLResultSetEncoder) CreateColumnDefinitionFromValue(name string, val
 	// 对于数值类型，可以设置 NOT_NULL 标志（如果值不为 nil）
 	if value != nil {
 		switch fieldType {
-		case MYSQL_TYPE_TINY, MYSQL_TYPE_SHORT, MYSQL_TYPE_LONG,
-			MYSQL_TYPE_LONGLONG, MYSQL_TYPE_FLOAT, MYSQL_TYPE_DOUBLE:
-			flags = FLAG_NOT_NULL
+		case common.COLUMN_TYPE_TINY, common.COLUMN_TYPE_SHORT, common.COLUMN_TYPE_LONG,
+			common.COLUMN_TYPE_LONGLONG, common.COLUMN_TYPE_FLOAT, common.COLUMN_TYPE_DOUBLE:
+			flags = uint16(common.NotNullFlag)
 		}
 	}
 
@@ -738,7 +740,7 @@ func (e *MySQLResultSetEncoder) SendResultSetPackets(data *ResultSetData) [][]by
 			colDef = e.CreateColumnDefinitionFromValue(colName, data.Rows[0][i])
 		} else {
 			// 没有数据，默认为 VARCHAR
-			colDef = e.CreateColumnDefinition(colName, MYSQL_TYPE_VAR_STRING, 0)
+			colDef = e.CreateColumnDefinition(colName, common.COLUMN_TYPE_VAR_STRING, 0)
 		}
 
 		packets = append(packets, e.WriteColumnDefinitionPacket(colDef))
@@ -746,7 +748,7 @@ func (e *MySQLResultSetEncoder) SendResultSetPackets(data *ResultSetData) [][]by
 
 	// 3. EOF Packet (after column definitions)
 	// status_flags: SERVER_STATUS_AUTOCOMMIT
-	packets = append(packets, e.WriteEOFPacket(0, SERVER_STATUS_AUTOCOMMIT))
+	packets = append(packets, e.WriteEOFPacket(0, common.SERVER_STATUS_AUTOCOMMIT))
 
 	// 4. Row Data Packets
 	for _, row := range data.Rows {
@@ -754,7 +756,7 @@ func (e *MySQLResultSetEncoder) SendResultSetPackets(data *ResultSetData) [][]by
 	}
 
 	// 5. EOF Packet (after rows)
-	packets = append(packets, e.WriteEOFPacket(0, SERVER_STATUS_AUTOCOMMIT))
+	packets = append(packets, e.WriteEOFPacket(0, common.SERVER_STATUS_AUTOCOMMIT))
 
 	return packets
 }

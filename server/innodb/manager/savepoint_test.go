@@ -1,5 +1,7 @@
 package manager
 
+import "github.com/zhukovaskychina/xmysql-server/server/common"
+
 import (
 	"fmt"
 	"os"
@@ -47,7 +49,7 @@ func TestSavepoint_BasicOperations(t *testing.T) {
 
 	t.Run("CreateSavepoint", func(t *testing.T) {
 		// 开始事务
-		trx, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+		trx, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 		if err != nil {
 			t.Fatalf("Failed to begin transaction: %v", err)
 		}
@@ -71,7 +73,7 @@ func TestSavepoint_BasicOperations(t *testing.T) {
 
 	t.Run("MultipleSavepoints", func(t *testing.T) {
 		// 开始事务
-		trx, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+		trx, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 		if err != nil {
 			t.Fatalf("Failed to begin transaction: %v", err)
 		}
@@ -110,7 +112,7 @@ func TestSavepoint_BasicOperations(t *testing.T) {
 
 	t.Run("ReleaseSavepoint", func(t *testing.T) {
 		// 开始事务
-		trx, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+		trx, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 		if err != nil {
 			t.Fatalf("Failed to begin transaction: %v", err)
 		}
@@ -140,7 +142,7 @@ func TestSavepoint_BasicOperations(t *testing.T) {
 
 	t.Run("ReleaseNonExistentSavepoint", func(t *testing.T) {
 		// 开始事务
-		trx, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+		trx, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 		if err != nil {
 			t.Fatalf("Failed to begin transaction: %v", err)
 		}
@@ -179,7 +181,7 @@ func TestSavepoint_RollbackToSavepoint(t *testing.T) {
 		tm.undoManager.SetRollbackExecutor(&mockRollbackExecutor{})
 
 		// 开始事务
-		trx, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+		trx, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 		if err != nil {
 			t.Fatalf("Failed to begin transaction: %v", err)
 		}
@@ -256,7 +258,7 @@ func TestSavepoint_RollbackToSavepoint(t *testing.T) {
 
 	t.Run("RollbackToNonExistentSavepoint", func(t *testing.T) {
 		// 开始事务
-		trx, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+		trx, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 		if err != nil {
 			t.Fatalf("Failed to begin transaction: %v", err)
 		}
@@ -294,7 +296,7 @@ func TestSavepoint_NestedSavepoints(t *testing.T) {
 	tm.undoManager.SetRollbackExecutor(&mockRollbackExecutor{})
 
 	// 开始事务
-	trx, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+	trx, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	if err != nil {
 		t.Fatalf("Failed to begin transaction: %v", err)
 	}

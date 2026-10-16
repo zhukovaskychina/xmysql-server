@@ -1,5 +1,7 @@
 package manager
 
+import "github.com/zhukovaskychina/xmysql-server/server/common"
+
 import (
 	"testing"
 
@@ -13,7 +15,7 @@ func TestTransactionManagerRegistersAndUnregistersReadViewsWithUndoPurger(t *tes
 	purger := NewUndoPurger(nil)
 	tm.SetUndoPurger(purger)
 
-	trx, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+	trx, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	require.NoError(t, err)
 	require.NotNil(t, trx.ReadView)
 	require.Len(t, purger.activeReadViews, 1)
@@ -29,7 +31,7 @@ func TestTransactionManagerMovesReadViewsWhenUndoPurgerChanges(t *testing.T) {
 	newPurger := NewUndoPurger(nil)
 	tm.SetUndoPurger(oldPurger)
 
-	trx, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+	trx, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	require.NoError(t, err)
 	require.Len(t, oldPurger.activeReadViews, 1)
 

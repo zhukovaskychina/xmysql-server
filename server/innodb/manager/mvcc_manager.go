@@ -1,5 +1,7 @@
 package manager
 
+import "github.com/zhukovaskychina/xmysql-server/server/common"
+
 import (
 	"errors"
 	"sync"
@@ -69,7 +71,7 @@ func NewMVCCManager(config *MVCCConfig) *MVCCManager {
 // BeginTransaction 开始事务
 // 修复MVCC-001: 确保ReadView创建时正确捕获所有活跃事务ID
 func (m *MVCCManager) BeginTransaction() (uint64, error) {
-	return m.BeginTransactionWithIsolation(TRX_ISO_REPEATABLE_READ)
+	return m.BeginTransactionWithIsolation(common.TRX_ISO_REPEATABLE_READ)
 }
 
 // BeginTransactionWithIsolation starts a transaction with MySQL-compatible
@@ -178,10 +180,10 @@ func (m *MVCCManager) IsVisible(txID uint64, version uint64) (bool, error) {
 	if !ok {
 		return false, ErrTransactionNotFound
 	}
-	if tx.IsolationLevel == TRX_ISO_READ_UNCOMMITTED {
+	if tx.IsolationLevel == common.TRX_ISO_READ_UNCOMMITTED {
 		return true, nil
 	}
-	if tx.IsolationLevel == TRX_ISO_READ_COMMITTED {
+	if tx.IsolationLevel == common.TRX_ISO_READ_COMMITTED {
 		// A read view is statement-scoped under RC.
 		activeIDs := make([]uint64, 0, len(m.activeTxs)-1)
 		for id, other := range m.activeTxs {

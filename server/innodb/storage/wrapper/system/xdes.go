@@ -3,6 +3,7 @@ package system
 import (
 	"encoding/binary"
 	"errors"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"sync/atomic"
 	"time"
 
@@ -14,9 +15,9 @@ var (
 )
 
 const (
-	MaxDescriptorsPerPage = 256   // 每页最多256个区描述符
-	ExtentSize            = 64    // 每个区64页
-	PageSize              = 16384 // 16KB页面大小
+	MaxDescriptorsPerPage = 256             // 每页最多256个区描述符
+	ExtentSize            = 64              // 每个区64页
+	PageSize              = common.PageSize // 16KB页面大小
 )
 
 // ExtentState 区状态

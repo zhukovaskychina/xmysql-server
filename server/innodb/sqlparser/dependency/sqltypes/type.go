@@ -19,6 +19,7 @@ package sqltypes
 import (
 	"fmt"
 
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	querypb "github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/querypb"
 )
 
@@ -152,41 +153,32 @@ const (
 	Expression = querypb.Type_EXPRESSION
 )
 
-// bit-shift the mysql flags by two byte so we
-// can merge them with the mysql or vitess types.
-const (
-	mysqlUnsigned = 32
-	mysqlBinary   = 128
-	mysqlEnum     = 256
-	mysqlSet      = 2048
-)
-
 // If you add to this map, make sure you add a test_simple_protocol case
 // in tabletserver/endtoend.
 var mysqlToType = map[int64]querypb.Type{
-	1:   Int8,
-	2:   Int16,
-	3:   Int32,
-	4:   Float32,
-	5:   Float64,
-	6:   Null,
-	7:   Timestamp,
-	8:   Int64,
-	9:   Int24,
-	10:  Date,
-	11:  Time,
-	12:  Datetime,
-	13:  Year,
-	16:  Bit,
-	245: TypeJSON,
-	246: Decimal,
-	249: Text,
-	250: Text,
-	251: Text,
-	252: Text,
-	253: VarChar,
-	254: Char,
-	255: Geometry,
+	common.COLUMN_TYPE_TINY:        Int8,
+	common.COLUMN_TYPE_SHORT:       Int16,
+	common.COLUMN_TYPE_LONG:        Int32,
+	common.COLUMN_TYPE_FLOAT:       Float32,
+	common.COLUMN_TYPE_DOUBLE:      Float64,
+	common.COLUMN_TYPE_NULL:        Null,
+	common.COLUMN_TYPE_TIMESTAMP:   Timestamp,
+	common.COLUMN_TYPE_LONGLONG:    Int64,
+	common.COLUMN_TYPE_INT24:       Int24,
+	common.COLUMN_TYPE_DATE:        Date,
+	common.COLUMN_TYPE_TIME:        Time,
+	common.COLUMN_TYPE_DATETIME:    Datetime,
+	common.COLUMN_TYPE_YEAR:        Year,
+	common.COLUMN_TYPE_BIT:         Bit,
+	common.COLUMN_TYPE_JSON:        TypeJSON,
+	common.COLUMN_TYPE_NEWDECIMAL:  Decimal,
+	common.COLUMN_TYPE_TINY_BLOB:   Text,
+	common.COLUMN_TYPE_MEDIUM_BLOB: Text,
+	common.COLUMN_TYPE_LONG_BLOB:   Text,
+	common.COLUMN_TYPE_BLOB:        Text,
+	common.COLUMN_TYPE_VAR_STRING:  VarChar,
+	common.COLUMN_TYPE_STRING:      Char,
+	common.COLUMN_TYPE_GEOMETRY:    Geometry,
 }
 
 // modifyType modifies the vitess type based on the
@@ -196,48 +188,48 @@ var mysqlToType = map[int64]querypb.Type{
 func modifyType(typ querypb.Type, flags int64) querypb.Type {
 	switch typ {
 	case Int8:
-		if flags&mysqlUnsigned != 0 {
+		if flags&int64(common.UnsignedFlag) != 0 {
 			return Uint8
 		}
 		return Int8
 	case Int16:
-		if flags&mysqlUnsigned != 0 {
+		if flags&int64(common.UnsignedFlag) != 0 {
 			return Uint16
 		}
 		return Int16
 	case Int32:
-		if flags&mysqlUnsigned != 0 {
+		if flags&int64(common.UnsignedFlag) != 0 {
 			return Uint32
 		}
 		return Int32
 	case Int64:
-		if flags&mysqlUnsigned != 0 {
+		if flags&int64(common.UnsignedFlag) != 0 {
 			return Uint64
 		}
 		return Int64
 	case Int24:
-		if flags&mysqlUnsigned != 0 {
+		if flags&int64(common.UnsignedFlag) != 0 {
 			return Uint24
 		}
 		return Int24
 	case Text:
-		if flags&mysqlBinary != 0 {
+		if flags&int64(common.BinaryFlag) != 0 {
 			return Blob
 		}
 		return Text
 	case VarChar:
-		if flags&mysqlBinary != 0 {
+		if flags&int64(common.BinaryFlag) != 0 {
 			return VarBinary
 		}
 		return VarChar
 	case Char:
-		if flags&mysqlBinary != 0 {
+		if flags&int64(common.BinaryFlag) != 0 {
 			return Binary
 		}
-		if flags&mysqlEnum != 0 {
+		if flags&int64(common.EnumFlag) != 0 {
 			return Enum
 		}
-		if flags&mysqlSet != 0 {
+		if flags&int64(common.SetFlag) != 0 {
 			return Set
 		}
 		return Char
@@ -259,36 +251,36 @@ var typeToMySQL = map[querypb.Type]struct {
 	typ   int64
 	flags int64
 }{
-	Int8:      {typ: 1},
-	Uint8:     {typ: 1, flags: mysqlUnsigned},
-	Int16:     {typ: 2},
-	Uint16:    {typ: 2, flags: mysqlUnsigned},
-	Int32:     {typ: 3},
-	Uint32:    {typ: 3, flags: mysqlUnsigned},
-	Float32:   {typ: 4},
-	Float64:   {typ: 5},
-	Null:      {typ: 6, flags: mysqlBinary},
-	Timestamp: {typ: 7},
-	Int64:     {typ: 8},
-	Uint64:    {typ: 8, flags: mysqlUnsigned},
-	Int24:     {typ: 9},
-	Uint24:    {typ: 9, flags: mysqlUnsigned},
-	Date:      {typ: 10, flags: mysqlBinary},
-	Time:      {typ: 11, flags: mysqlBinary},
-	Datetime:  {typ: 12, flags: mysqlBinary},
-	Year:      {typ: 13, flags: mysqlUnsigned},
-	Bit:       {typ: 16, flags: mysqlUnsigned},
-	TypeJSON:  {typ: 245},
-	Decimal:   {typ: 246},
-	Text:      {typ: 252},
-	Blob:      {typ: 252, flags: mysqlBinary},
-	VarChar:   {typ: 253},
-	VarBinary: {typ: 253, flags: mysqlBinary},
-	Char:      {typ: 254},
-	Binary:    {typ: 254, flags: mysqlBinary},
-	Enum:      {typ: 254, flags: mysqlEnum},
-	Set:       {typ: 254, flags: mysqlSet},
-	Geometry:  {typ: 255},
+	Int8:      {typ: common.COLUMN_TYPE_TINY},
+	Uint8:     {typ: common.COLUMN_TYPE_TINY, flags: int64(common.UnsignedFlag)},
+	Int16:     {typ: common.COLUMN_TYPE_SHORT},
+	Uint16:    {typ: common.COLUMN_TYPE_SHORT, flags: int64(common.UnsignedFlag)},
+	Int32:     {typ: common.COLUMN_TYPE_LONG},
+	Uint32:    {typ: common.COLUMN_TYPE_LONG, flags: int64(common.UnsignedFlag)},
+	Float32:   {typ: common.COLUMN_TYPE_FLOAT},
+	Float64:   {typ: common.COLUMN_TYPE_DOUBLE},
+	Null:      {typ: common.COLUMN_TYPE_NULL, flags: int64(common.BinaryFlag)},
+	Timestamp: {typ: common.COLUMN_TYPE_TIMESTAMP},
+	Int64:     {typ: common.COLUMN_TYPE_LONGLONG},
+	Uint64:    {typ: common.COLUMN_TYPE_LONGLONG, flags: int64(common.UnsignedFlag)},
+	Int24:     {typ: common.COLUMN_TYPE_INT24},
+	Uint24:    {typ: common.COLUMN_TYPE_INT24, flags: int64(common.UnsignedFlag)},
+	Date:      {typ: common.COLUMN_TYPE_DATE, flags: int64(common.BinaryFlag)},
+	Time:      {typ: common.COLUMN_TYPE_TIME, flags: int64(common.BinaryFlag)},
+	Datetime:  {typ: common.COLUMN_TYPE_DATETIME, flags: int64(common.BinaryFlag)},
+	Year:      {typ: common.COLUMN_TYPE_YEAR, flags: int64(common.UnsignedFlag)},
+	Bit:       {typ: common.COLUMN_TYPE_BIT, flags: int64(common.UnsignedFlag)},
+	TypeJSON:  {typ: common.COLUMN_TYPE_JSON},
+	Decimal:   {typ: common.COLUMN_TYPE_NEWDECIMAL},
+	Text:      {typ: common.COLUMN_TYPE_BLOB},
+	Blob:      {typ: common.COLUMN_TYPE_BLOB, flags: int64(common.BinaryFlag)},
+	VarChar:   {typ: common.COLUMN_TYPE_VAR_STRING},
+	VarBinary: {typ: common.COLUMN_TYPE_VAR_STRING, flags: int64(common.BinaryFlag)},
+	Char:      {typ: common.COLUMN_TYPE_STRING},
+	Binary:    {typ: common.COLUMN_TYPE_STRING, flags: int64(common.BinaryFlag)},
+	Enum:      {typ: common.COLUMN_TYPE_STRING, flags: int64(common.EnumFlag)},
+	Set:       {typ: common.COLUMN_TYPE_STRING, flags: int64(common.SetFlag)},
+	Geometry:  {typ: common.COLUMN_TYPE_GEOMETRY},
 }
 
 // TypeToMySQL returns the equivalent mysql type and flag for a vitess type.

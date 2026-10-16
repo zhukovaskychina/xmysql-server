@@ -2474,54 +2474,7 @@ func displayGrantPrivileges(privileges []string) []string {
 }
 
 func (e *XMySQLExecutor) executeShowPrivileges(ctx *ExecutionContext) {
-	rows := make([][]interface{}, 0, len(common.Priv2SetStr)+len(common.RegisteredDynamicPrivileges()))
-	static := []struct {
-		name    string
-		context string
-		comment string
-	}{
-		{"ALL", "Server administration", "All privileges available at a given privilege level"},
-		{"Alter", "Tables", "To alter existing tables"},
-		{"Alter routine", "Functions,Procedures", "To alter or drop stored functions/procedures"},
-		{"Create", "Databases, tables, or indexes", "To create new databases and tables"},
-		{"Create role", "Server Admin", "To create new roles"},
-		{"Create routine", "Databases", "To use CREATE FUNCTION/PROCEDURE"},
-		{"Create tablespace", "Server Admin", "To create, alter, or drop tablespaces and log file groups"},
-		{"Create temporary tables", "Databases", "To use CREATE TEMPORARY TABLE"},
-		{"Create User", "Server Admin", "To create new users"},
-		{"Create view", "Tables", "To create new views"},
-		{"Delete", "Tables", "To delete existing rows"},
-		{"Drop", "Databases, tables", "To drop databases, tables, and views"},
-		{"Drop role", "Server Admin", "To drop roles"},
-		{"Execute", "Server Admin", "To execute stored routines"},
-		{"Event", "Databases", "To create events for the Event Scheduler"},
-		{"File", "File access on server", "To read and write files on the server"},
-		{"Grant Option", "Databases, tables, and routines", "To give to other users those privileges you possess"},
-		{"Index", "Tables", "To create or drop indexes"},
-		{"Insert", "Tables", "To insert data into tables"},
-		{"Lock Tables", "Databases", "To use LOCK TABLES"},
-		{"Process", "Server Admin", "To view the plain text of currently executing queries"},
-		{"Proxy", "Server Admin", "To make proxy users possible"},
-		{"References", "Databases, tables", "To have references on tables"},
-		{"Reload", "Server Admin", "To reload or refresh tables, logs and privileges"},
-		{"Replication client", "Server Admin", "To ask where the source or replica is"},
-		{"Replication slave", "Server Admin", "To read binary logs from the source"},
-		{"Select", "Tables", "To retrieve rows from table"},
-		{"Show Databases", "Server Admin", "To see all databases"},
-		{"Show View", "Tables", "To see views"},
-		{"Shutdown", "Server Admin", "To shut down the server"},
-		{"Super", "Server Admin", "To use KILL thread, SET GLOBAL, and other admin commands"},
-		{"Trigger", "Tables", "To use triggers"},
-		{"Update", "Tables", "To update existing rows"},
-		{"Usage", "Server Admin", "Synonym for no privileges"},
-	}
-	for _, privilege := range static {
-		rows = append(rows, []interface{}{privilege.name, privilege.context, privilege.comment})
-	}
-	for _, privilege := range common.RegisteredDynamicPrivileges() {
-		rows = append(rows, []interface{}{privilege, "Global", "Dynamic privilege"})
-	}
-	sort.Slice(rows, func(i, j int) bool { return fmt.Sprint(rows[i][0]) < fmt.Sprint(rows[j][0]) })
+	rows := common.ShowPrivilegeRows()
 	accountResult(ctx, []string{"Privilege", "Context", "Comment"}, rows, "SHOW PRIVILEGES completed")
 }
 
@@ -2542,17 +2495,7 @@ func validateGrantPrivileges(scope string, privileges []string) error {
 }
 
 func isStaticGrantPrivilege(privilege string) bool {
-	switch privilege {
-	case "ALL", "ALL PRIVILEGES", "GRANT OPTION", "USAGE",
-		"SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "RELOAD", "SHUTDOWN",
-		"PROCESS", "FILE", "REFERENCES", "INDEX", "ALTER", "SHOW DATABASES", "SUPER",
-		"CREATE TEMPORARY TABLES", "LOCK TABLES", "EXECUTE", "REPLICATION SLAVE", "REPLICATION CLIENT",
-		"CREATE VIEW", "SHOW VIEW", "CREATE ROLE", "DROP ROLE", "CREATE USER", "CREATE TABLESPACE",
-		"TRIGGER", "EVENT", "CREATE ROUTINE", "ALTER ROUTINE", "PROXY":
-		return true
-	default:
-		return false
-	}
+	return common.IsStaticGrantPrivilege(privilege)
 }
 
 func splitGrantPrivileges(raw string) []string {

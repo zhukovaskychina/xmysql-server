@@ -177,7 +177,7 @@ func NewBasePageWrapper(id, spaceID, pageNo uint32, pageType common.PageType) *B
 		SpaceID:  spaceID,
 		PageNo:   pageNo,
 		PageType: pageType,
-		Content:  make([]byte, 16384), // Default InnoDB page size
+		Content:  make([]byte, common.PageSize), // Default InnoDB page size
 	}
 }
 
@@ -285,43 +285,43 @@ func (b *BasePageWrapper) GetStats() *basic.PageStats {
 
 // GetFileHeader implements IPageWrapper
 func (b *BasePageWrapper) GetFileHeader() []byte {
-	if len(b.Content) >= 38 {
-		return b.Content[:38]
+	if len(b.Content) >= common.FileHeaderSize {
+		return b.Content[:common.FileHeaderSize]
 	}
-	return make([]byte, 38)
+	return make([]byte, common.FileHeaderSize)
 }
 
 // GetFileTrailer implements IPageWrapper
 func (b *BasePageWrapper) GetFileTrailer() []byte {
-	if len(b.Content) >= 8 {
-		return b.Content[len(b.Content)-8:]
+	if len(b.Content) >= common.FileTrailerSize {
+		return b.Content[len(b.Content)-common.FileTrailerSize:]
 	}
-	return make([]byte, 8)
+	return make([]byte, common.FileTrailerSize)
 }
 
 // GetFileHeaderStruct implements IPageWrapper
 func (b *BasePageWrapper) GetFileHeaderStruct() *pages.FileHeader {
-	if b.fileHeader == nil && len(b.Content) >= 38 {
+	if b.fileHeader == nil && len(b.Content) >= common.FileHeaderSize {
 		b.fileHeader = &pages.FileHeader{}
 		// 手动复制文件头数据
-		copy(b.fileHeader.FilePageSpaceOrCheckSum[:], b.Content[0:4])
-		copy(b.fileHeader.FilePageOffset[:], b.Content[4:8])
-		copy(b.fileHeader.FilePagePrev[:], b.Content[8:12])
-		copy(b.fileHeader.FilePageNext[:], b.Content[12:16])
-		copy(b.fileHeader.FilePageLSN[:], b.Content[16:24])
-		copy(b.fileHeader.FilePageType[:], b.Content[24:26])
-		copy(b.fileHeader.FilePageFileFlushLSN[:], b.Content[26:34])
-		copy(b.fileHeader.FilePageArch[:], b.Content[34:38])
+		copy(b.fileHeader.FilePageSpaceOrCheckSum[:], b.Content[common.InnoDBFileHeaderChecksumOffset:common.InnoDBFileHeaderPageNoOffset])
+		copy(b.fileHeader.FilePageOffset[:], b.Content[common.InnoDBFileHeaderPageNoOffset:common.InnoDBFileHeaderPrevOffset])
+		copy(b.fileHeader.FilePagePrev[:], b.Content[common.InnoDBFileHeaderPrevOffset:common.InnoDBFileHeaderNextOffset])
+		copy(b.fileHeader.FilePageNext[:], b.Content[common.InnoDBFileHeaderNextOffset:common.InnoDBFileHeaderLSNOffset])
+		copy(b.fileHeader.FilePageLSN[:], b.Content[common.InnoDBFileHeaderLSNOffset:common.InnoDBFileHeaderPageTypeOffset])
+		copy(b.fileHeader.FilePageType[:], b.Content[common.InnoDBFileHeaderPageTypeOffset:common.InnoDBFileHeaderFlushLSNOffset])
+		copy(b.fileHeader.FilePageFileFlushLSN[:], b.Content[common.InnoDBFileHeaderFlushLSNOffset:common.InnoDBFileHeaderSpaceIDOffset])
+		copy(b.fileHeader.FilePageArch[:], b.Content[common.InnoDBFileHeaderSpaceIDOffset:common.FileHeaderSize])
 	}
 	return b.fileHeader
 }
 
 // GetFileTrailerStruct implements IPageWrapper
 func (b *BasePageWrapper) GetFileTrailerStruct() *pages.FileTrailer {
-	if b.fileTrailer == nil && len(b.Content) >= 8 {
+	if b.fileTrailer == nil && len(b.Content) >= common.FileTrailerSize {
 		b.fileTrailer = &pages.FileTrailer{}
 		// 手动复制文件尾数据
-		copy(b.fileTrailer.FileTrailer[:], b.Content[len(b.Content)-8:])
+		copy(b.fileTrailer.FileTrailer[:], b.Content[len(b.Content)-common.FileTrailerSize:])
 	}
 	return b.fileTrailer
 }
@@ -349,7 +349,7 @@ func (b *BasePageWrapper) ReadContent(fn func([]byte)) {
 
 // ParseFromBytes implements IPageWrapper
 func (b *BasePageWrapper) ParseFromBytes(data []byte) error {
-	if len(data) != 16384 {
+	if len(data) != common.PageSize {
 		return ErrInvalidPageSize
 	}
 	b.Content = make([]byte, len(data))

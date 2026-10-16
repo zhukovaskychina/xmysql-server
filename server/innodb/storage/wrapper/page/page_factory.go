@@ -6,7 +6,6 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/types"
 )
 
@@ -51,7 +50,7 @@ func (f *PageFactory) CreatePageWithStorage(pageType common.PageType, id, spaceI
 		// backed unified wrapper here instead of returning a value that would
 		// fail the old runtime type assertion.
 		return types.NewUnifiedPageWithStorage(spaceID, id, pageType, storage)
-	case common.FIL_PAGE_FSP_HDR:
+	case common.FIL_PAGE_TYPE_FSP_HDR:
 		return NewFSPPageWrapperWithStorage(id, spaceID, bufferPool, storage)
 	case common.FIL_PAGE_INODE:
 		return types.NewUnifiedPageWithStorage(spaceID, id, pageType, storage)
@@ -108,7 +107,7 @@ func (f *PageFactory) ParsePage(data []byte) (IPageWrapper, error) {
 // ParsePageWithStorage parses a page and retains the supplied provider for
 // subsequent Read/Write/Flush operations.
 func (f *PageFactory) ParsePageWithStorage(data []byte, storage basic.StorageProvider) (IPageWrapper, error) {
-	if len(data) < pages.FileHeaderSize {
+	if len(data) < common.FileHeaderSize {
 		return nil, ErrInvalidPageData
 	}
 

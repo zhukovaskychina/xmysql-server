@@ -65,15 +65,15 @@ func (rpw *RollbackPageWrapper) ParseFromBytes(data []byte) error {
 		rpw.rollbackPage = &pages.RollBackPage{}
 	}
 
-	offset := pages.FileHeaderSize
-	bodyEnd := common.PageSize - pages.FileTrailerSize
-	requiredLen := pages.FileHeaderSize +
+	offset := common.FileHeaderSize
+	bodyEnd := common.PageSize - common.FileTrailerSize
+	requiredLen := common.FileHeaderSize +
 		rollbackPageMaxSizeFieldSize +
 		rollbackPageHistorySizeFieldSize +
 		rollbackPageHistoryOffsetFieldSize +
 		rollbackPageFsegHeaderFieldSize +
 		rollbackPageUndoSlotsFieldSize +
-		pages.FileTrailerSize
+		common.FileTrailerSize
 	if len(data) < requiredLen {
 		return ErrInvalidRollbackData
 	}
@@ -118,7 +118,7 @@ func (rpw *RollbackPageWrapper) ToBytes() ([]byte, error) {
 		return data, nil
 	}
 
-	offset := pages.FileHeaderSize
+	offset := common.FileHeaderSize
 	copy(data[offset:offset+rollbackPageMaxSizeFieldSize], rpw.rollbackPage.TrxRsegMaxSize)
 	offset += rollbackPageMaxSizeFieldSize
 	copy(data[offset:offset+rollbackPageHistorySizeFieldSize], rpw.rollbackPage.TrxRsegHistorySize)
@@ -129,7 +129,7 @@ func (rpw *RollbackPageWrapper) ToBytes() ([]byte, error) {
 	offset += rollbackPageFsegHeaderFieldSize
 	copy(data[offset:offset+rollbackPageUndoSlotsFieldSize], rpw.rollbackPage.TrxRsegUndoSlots)
 	offset += rollbackPageUndoSlotsFieldSize
-	bodyEnd := common.PageSize - pages.FileTrailerSize
+	bodyEnd := common.PageSize - common.FileTrailerSize
 	copy(data[offset:bodyEnd], rpw.rollbackPage.EmptySpace)
 	return data, nil
 }

@@ -812,7 +812,7 @@ func (e *XMySQLExecutor) executeStoredProcedureCall(ctx *ExecutionContext, query
 	statements := splitStoredObjectStatements(body)
 	statementSummaryBefore := e.performanceSchemaStoredProgramStatementSummarySnapshot(ctx.Session)
 	if err := e.executeStoredRoutineStatements(ctx, databaseName, statements, state); err != nil {
-		if signal, ok := err.(*routineControlSignal); !ok || signal.kind != "handler_exit" {
+		if signal, ok := err.(*routineControlSignal); !ok || signal.kind != routineControlHandlerExit {
 			return err
 		}
 	}
@@ -961,7 +961,7 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 			body = append(body, statements[index+1:end]...)
 			child := cloneStoredRoutineState(state)
 			if err := e.executeStoredRoutineStatements(ctx, databaseName, body, child); err != nil {
-				if signal, ok := err.(*routineControlSignal); !ok || signal.kind != "handler_exit" || signal.targetDepth != child.scopeDepth {
+				if signal, ok := err.(*routineControlSignal); !ok || signal.kind != routineControlHandlerExit || signal.targetDepth != child.scopeDepth {
 					return err
 				}
 			}
@@ -1003,13 +1003,13 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 			for _, handler := range handlers {
 				state.handlers = append(state.handlers, handler)
 				switch handler.condition {
-				case "not found":
+				case common.RoutineConditionNotFound:
 					state.notFound = handler.statements
 					state.notFoundKind = handler.action
-				case "sqlexception":
+				case common.RoutineConditionException:
 					state.sqlException = handler.statements
 					state.sqlExceptionKind = handler.action
-				case "sqlwarning":
+				case common.RoutineConditionWarning:
 					state.sqlWarning = handler.statements
 					state.sqlWarningKind = handler.action
 				}
@@ -1025,20 +1025,20 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 			}
 			assignments := splitTopLevelComma(diagnosticsMatch[2])
 			for _, assignment := range assignments {
-				assignmentMatch := regexp.MustCompile(`(?is)^\s*([@a-zA-Z0-9_$]+)\s*=\s*(returned_sqlstate|message_text|mysql_errno)\s*$`).FindStringSubmatch(assignment)
+				assignmentMatch := regexp.MustCompile(`(?is)^\s*([@a-zA-Z0-9_$]+)\s*=\s*(` + common.RoutineDiagnosticReturnedSQLState + `|` + common.RoutineDiagnosticMessageText + `|` + common.RoutineDiagnosticMySQLErrno + `)\s*$`).FindStringSubmatch(assignment)
 				if len(assignmentMatch) != 3 {
 					return fmt.Errorf("unsupported routine GET DIAGNOSTICS item %q", strings.TrimSpace(assignment))
 				}
 				value := ""
 				switch strings.ToLower(assignmentMatch[2]) {
-				case "returned_sqlstate":
+				case common.RoutineDiagnosticReturnedSQLState:
 					value = state.activeCondition.sqlState
-				case "message_text":
+				case common.RoutineDiagnosticMessageText:
 					value = state.activeCondition.messageText
 					if value == "" {
 						value = state.activeCondition.message
 					}
-				case "mysql_errno":
+				case common.RoutineDiagnosticMySQLErrno:
 					value = fmt.Sprint(state.activeCondition.mysqlErrno)
 					if state.activeCondition.mysqlErrno == 0 {
 						value = "1644"
@@ -1209,20 +1209,20 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 				}
 			}
 			if cursor.position >= len(cursor.rows) {
-				handler := findStoredRoutineHandler(state, "not found", nil)
+				handler := findStoredRoutineHandler(state, common.RoutineConditionNotFound, nil)
 				if handler != nil {
 					if err := e.executeStoredRoutineStatements(ctx, databaseName, handler.statements, state); err != nil {
 						return err
 					}
-					if handler.action == "exit" {
+					if handler.action == common.RoutineHandlerExit {
 						return routineHandlerExitSignal(handler)
 					}
 				} else if len(state.notFound) > 0 {
 					if err := e.executeStoredRoutineStatements(ctx, databaseName, state.notFound, state); err != nil {
 						return err
 					}
-					if state.notFoundKind == "exit" {
-						return &routineControlSignal{kind: "handler_exit", targetDepth: state.scopeDepth}
+					if state.notFoundKind == common.RoutineHandlerExit {
+						return &routineControlSignal{kind: routineControlHandlerExit, targetDepth: state.scopeDepth}
 					}
 				}
 				continue
@@ -1270,7 +1270,7 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 		}
 		statement = substituteStoredRoutineValues(statement, state.vars)
 		lower = strings.ToLower(statement)
-		if controlMatch := regexp.MustCompile(`(?is)^(leave|iterate)\s+([a-zA-Z0-9_$]+)$`).FindStringSubmatch(statement); len(controlMatch) == 3 {
+		if controlMatch := regexp.MustCompile(`(?is)^(` + routineControlLeave + `|` + routineControlIterate + `)\s+([a-zA-Z0-9_$]+)$`).FindStringSubmatch(statement); len(controlMatch) == 3 {
 			return &routineControlSignal{kind: strings.ToLower(controlMatch[1]), label: strings.ToLower(controlMatch[2])}
 		}
 		if loopMatch := regexp.MustCompile(`(?is)^(?:([a-zA-Z0-9_$]+)\s*:\s*)?loop(?:\s+(.*))?$`).FindStringSubmatch(rawStatement); len(loopMatch) == 3 {
@@ -1296,7 +1296,7 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 				if !ok || (signal.label != "" && signal.label != label) {
 					return err
 				}
-				if signal.kind == "leave" {
+				if signal.kind == routineControlLeave {
 					break
 				}
 			}
@@ -1515,12 +1515,12 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 				message += ": " + messageText
 			}
 			conditionErr := fmt.Errorf("%s", message)
-			conditionClass := "sqlexception"
-			if strings.HasPrefix(strings.ToUpper(signalState), "01") {
-				conditionClass = "sqlwarning"
+			conditionClass := common.RoutineConditionException
+			if strings.HasPrefix(strings.ToUpper(signalState), common.SQLStateClassWarning) {
+				conditionClass = common.RoutineConditionWarning
 			}
 			if handler := findStoredRoutineHandler(state, conditionClass, conditionErr); handler != nil {
-				if conditionClass == "sqlexception" {
+				if conditionClass == common.RoutineConditionException {
 					// SIGNAL is raised directly by the routine interpreter rather
 					// than through a child executeQuery call. Account for it at the
 					// handler boundary so SUM_ERROR_RAISED and SUM_ERROR_HANDLED
@@ -1536,7 +1536,7 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 					return err
 				}
 				state.activeCondition = previousCondition
-				if handler.action == "exit" {
+				if handler.action == common.RoutineHandlerExit {
 					return routineHandlerExitSignal(handler)
 				}
 				continue
@@ -1563,7 +1563,7 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 			if strings.TrimSpace(assignments) != "" {
 				for _, assignment := range splitTopLevelComma(assignments) {
 					assignment = strings.TrimSpace(assignment)
-					if messageMatch := regexp.MustCompile(`(?is)^message_text\s*=\s*'([^']*)'$`).FindStringSubmatch(assignment); len(messageMatch) == 2 {
+					if messageMatch := regexp.MustCompile(`(?is)^` + common.RoutineDiagnosticMessageText + `\s*=\s*'([^']*)'$`).FindStringSubmatch(assignment); len(messageMatch) == 2 {
 						message = messageMatch[1]
 						continue
 					}
@@ -1614,25 +1614,25 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 			state.accounting.rowsSent += resultAccounting.rowsSent
 			state.accounting.warnings += resultAccounting.warnings
 			if len(result.Warnings) > 0 {
-				handler := findStoredRoutineHandler(state, "sqlwarning", nil)
+				handler := findStoredRoutineHandler(state, common.RoutineConditionWarning, nil)
 				if handler != nil {
 					if handlerErr := e.executeStoredRoutineStatements(ctx, databaseName, handler.statements, state); handlerErr != nil {
 						return handlerErr
 					}
-					if handler.action == "exit" {
+					if handler.action == common.RoutineHandlerExit {
 						return routineHandlerExitSignal(handler)
 					}
 				} else if len(state.sqlWarning) > 0 {
 					if handlerErr := e.executeStoredRoutineStatements(ctx, databaseName, state.sqlWarning, state); handlerErr != nil {
 						return handlerErr
 					}
-					if state.sqlWarningKind == "exit" {
-						return &routineControlSignal{kind: "handler_exit", targetDepth: state.scopeDepth}
+					if state.sqlWarningKind == common.RoutineHandlerExit {
+						return &routineControlSignal{kind: routineControlHandlerExit, targetDepth: state.scopeDepth}
 					}
 				}
 			}
 			if result.Err != nil {
-				if handler := findStoredRoutineHandler(state, "sqlexception", result.Err); handler != nil {
+				if handler := findStoredRoutineHandler(state, common.RoutineConditionException, result.Err); handler != nil {
 					e.recordQueryErrorForSession(ctx.Session, databaseName, result.Err)
 					e.recordQueryErrorHandledForSession(ctx.Session, result.Err)
 					previousCondition := state.activeCondition
@@ -1642,7 +1642,7 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 					if handlerErr != nil {
 						return handlerErr
 					}
-					if handler.action == "exit" {
+					if handler.action == common.RoutineHandlerExit {
 						return routineHandlerExitSignal(handler)
 					}
 					continue
@@ -1657,8 +1657,8 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 					if handlerErr != nil {
 						return handlerErr
 					}
-					if state.sqlExceptionKind == "exit" {
-						return &routineControlSignal{kind: "handler_exit", targetDepth: state.scopeDepth}
+					if state.sqlExceptionKind == common.RoutineHandlerExit {
+						return &routineControlSignal{kind: routineControlHandlerExit, targetDepth: state.scopeDepth}
 					}
 					continue
 				}
@@ -1730,7 +1730,7 @@ func parseStoredRoutineSignal(statement string) (string, string, int, bool) {
 	}
 	for _, assignment := range splitTopLevelComma(match[2]) {
 		assignment = strings.TrimSpace(assignment)
-		if messageMatch := regexp.MustCompile(`(?is)^message_text\s*=\s*'([^']*)'$`).FindStringSubmatch(assignment); len(messageMatch) == 2 {
+		if messageMatch := regexp.MustCompile(`(?is)^` + common.RoutineDiagnosticMessageText + `\s*=\s*'([^']*)'$`).FindStringSubmatch(assignment); len(messageMatch) == 2 {
 			messageText = messageMatch[1]
 			continue
 		}
@@ -1812,11 +1812,11 @@ func routineHandlerExitSignal(handler *storedRoutineHandler) *routineControlSign
 	if handler != nil {
 		targetDepth = handler.scopeDepth
 	}
-	return &routineControlSignal{kind: "handler_exit", targetDepth: targetDepth}
+	return &routineControlSignal{kind: routineControlHandlerExit, targetDepth: targetDepth}
 }
 
 func parseStoredRoutineHandlerDeclaration(statement string, state *storedRoutineState) ([]storedRoutineHandler, bool) {
-	match := regexp.MustCompile(`(?is)^declare\s+(continue|exit)\s+handler\s+for\s+(.+)$`).FindStringSubmatch(strings.TrimSpace(statement))
+	match := regexp.MustCompile(`(?is)^declare\s+(` + common.RoutineHandlerContinue + `|` + common.RoutineHandlerExit + `)\s+handler\s+for\s+(.+)$`).FindStringSubmatch(strings.TrimSpace(statement))
 	if len(match) != 3 {
 		return nil, false
 	}
@@ -1851,7 +1851,7 @@ func parseStoredRoutineHandlerDeclaration(statement string, state *storedRoutine
 func consumeStoredRoutineHandlerCondition(input string) (string, string, bool) {
 	input = strings.TrimSpace(input)
 	lower := strings.ToLower(input)
-	for _, keyword := range []string{"not found", "sqlexception", "sqlwarning"} {
+	for _, keyword := range []string{common.RoutineConditionNotFound, common.RoutineConditionException, common.RoutineConditionWarning} {
 		if strings.HasPrefix(lower, keyword) && routineHandlerConditionBoundary(input, len(keyword)) {
 			return keyword, input[len(keyword):], true
 		}
@@ -2020,7 +2020,7 @@ func findStoredRoutineHandler(state *storedRoutineState, condition string, err e
 			if matchesState {
 				rank = 2
 			}
-		case handlerCondition == condition || (handlerCondition == "sqlexception" && condition == "sqlexception"):
+		case handlerCondition == condition || (handlerCondition == common.RoutineConditionException && condition == common.RoutineConditionException):
 			rank = 1
 		}
 		if rank > bestRank {
@@ -2037,7 +2037,7 @@ func parseStoredRoutineHandlerErrorCode(condition string) int {
 }
 
 func storedRoutineConditionFromError(err error) *storedRoutineCondition {
-	return storedRoutineConditionFromErrorWithState("HY000", err)
+	return storedRoutineConditionFromErrorWithState(common.SQLStateHY000, err)
 }
 
 func storedRoutineConditionFromErrorWithState(sqlState string, err error) *storedRoutineCondition {
@@ -2056,7 +2056,7 @@ func storedRoutineConditionFromErrorWithState(sqlState string, err error) *store
 		return condition
 	}
 	condition.mysqlErrno = inferStoredRoutineMySQLErrorNumber(err)
-	if condition.sqlState == "HY000" && condition.mysqlErrno != 0 {
+	if condition.sqlState == common.SQLStateHY000 && condition.mysqlErrno != 0 {
 		if mappedState, exists := common.MySQLState[uint16(condition.mysqlErrno)]; exists {
 			condition.sqlState = mappedState
 		}
@@ -2143,11 +2143,11 @@ func (e *XMySQLExecutor) executeStoredRoutineSelectInto(ctx *ExecutionContext, d
 		return true, fmt.Errorf("routine SELECT INTO did not produce a result set")
 	}
 	if len(selected.Records) == 0 {
-		if handler := findStoredRoutineHandler(state, "not found", nil); handler != nil {
+		if handler := findStoredRoutineHandler(state, common.RoutineConditionNotFound, nil); handler != nil {
 			if err := e.executeStoredRoutineStatements(ctx, databaseName, handler.statements, state); err != nil {
 				return true, err
 			}
-			if handler.action == "exit" {
+			if handler.action == common.RoutineHandlerExit {
 				return true, routineHandlerExitSignal(handler)
 			}
 			return true, nil
@@ -2156,8 +2156,8 @@ func (e *XMySQLExecutor) executeStoredRoutineSelectInto(ctx *ExecutionContext, d
 			if err := e.executeStoredRoutineStatements(ctx, databaseName, state.notFound, state); err != nil {
 				return true, err
 			}
-			if state.notFoundKind == "exit" {
-				return true, &routineControlSignal{kind: "handler_exit", targetDepth: state.scopeDepth}
+			if state.notFoundKind == common.RoutineHandlerExit {
+				return true, &routineControlSignal{kind: routineControlHandlerExit, targetDepth: state.scopeDepth}
 			}
 			return true, nil
 		}
@@ -2165,29 +2165,29 @@ func (e *XMySQLExecutor) executeStoredRoutineSelectInto(ctx *ExecutionContext, d
 	}
 	if len(selected.Records) > 1 {
 		conditionErr := fmt.Errorf("routine SELECT INTO returned more than one row")
-		if handler := findStoredRoutineHandler(state, "sqlexception", conditionErr); handler != nil {
+		if handler := findStoredRoutineHandler(state, common.RoutineConditionException, conditionErr); handler != nil {
 			previousCondition := state.activeCondition
-			state.activeCondition = storedRoutineConditionFromErrorWithState("21000", conditionErr)
+			state.activeCondition = storedRoutineConditionFromErrorWithState(common.SQLState21000, conditionErr)
 			handlerErr := e.executeStoredRoutineStatements(ctx, databaseName, handler.statements, state)
 			state.activeCondition = previousCondition
 			if handlerErr != nil {
 				return true, handlerErr
 			}
-			if handler.action == "exit" {
+			if handler.action == common.RoutineHandlerExit {
 				return true, routineHandlerExitSignal(handler)
 			}
 			return true, nil
 		}
 		if len(state.sqlException) > 0 {
 			previousCondition := state.activeCondition
-			state.activeCondition = storedRoutineConditionFromErrorWithState("21000", conditionErr)
+			state.activeCondition = storedRoutineConditionFromErrorWithState(common.SQLState21000, conditionErr)
 			handlerErr := e.executeStoredRoutineStatements(ctx, databaseName, state.sqlException, state)
 			state.activeCondition = previousCondition
 			if handlerErr != nil {
 				return true, handlerErr
 			}
-			if state.sqlExceptionKind == "exit" {
-				return true, &routineControlSignal{kind: "handler_exit", targetDepth: state.scopeDepth}
+			if state.sqlExceptionKind == common.RoutineHandlerExit {
+				return true, &routineControlSignal{kind: routineControlHandlerExit, targetDepth: state.scopeDepth}
 			}
 			return true, nil
 		}

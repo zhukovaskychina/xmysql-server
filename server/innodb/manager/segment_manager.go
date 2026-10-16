@@ -2,6 +2,7 @@ package manager
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"sync"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
@@ -71,8 +72,8 @@ const (
 
 // Fragment分配常量
 const (
-	FragmentPageCount = 32    // Fragment页面数量
-	PageSize          = 16384 // 页面大小16KB
+	FragmentPageCount = 32              // Fragment页面数量
+	PageSize          = common.PageSize // 页面大小16KB
 )
 
 // NewSegmentManager 创建段管理器
@@ -112,7 +113,7 @@ func (sm *SegmentManager) CreateSegment(spaceID uint32, segType uint8, isTemp bo
 	case SEGMENT_TYPE_DATA:
 		// 数据段：使用Fragment页面，不立即分配Extent
 		seg.PageCount = 0
-		seg.FreeSpace = FragmentPageCount * PageSize
+		seg.FreeSpace = FragmentPageCount * common.PageSize
 
 	case SEGMENT_TYPE_INDEX:
 		// 索引段：优先分配完整Extent
@@ -124,7 +125,7 @@ func (sm *SegmentManager) CreateSegment(spaceID uint32, segType uint8, isTemp bo
 		seg.LastExtent = ext
 		seg.ExtentCount = 1
 		seg.PageCount = PagesPerExtent
-		seg.FreeSpace = uint64(PagesPerExtent * PageSize)
+		seg.FreeSpace = uint64(PagesPerExtent * common.PageSize)
 
 	case SEGMENT_TYPE_UNDO:
 		// Undo段：分配固定大小的Extent
@@ -136,7 +137,7 @@ func (sm *SegmentManager) CreateSegment(spaceID uint32, segType uint8, isTemp bo
 		seg.LastExtent = ext
 		seg.ExtentCount = 1
 		seg.PageCount = PagesPerExtent
-		seg.FreeSpace = uint64(PagesPerExtent * PageSize)
+		seg.FreeSpace = uint64(PagesPerExtent * common.PageSize)
 
 	case SEGMENT_TYPE_BLOB:
 		// BLOB段：按需分配
@@ -239,7 +240,7 @@ func (sm *SegmentManager) allocatePageForDataSegment(seg *SegmentImpl) (uint32, 
 				seg.FragmentPages[i] = true
 				seg.FragmentUsed++
 				seg.PageCount++
-				seg.FreeSpace -= PageSize
+				seg.FreeSpace -= common.PageSize
 
 				if seg.FragmentUsed >= FragmentPageCount {
 					seg.FragmentFull = true
@@ -247,7 +248,7 @@ func (sm *SegmentManager) allocatePageForDataSegment(seg *SegmentImpl) (uint32, 
 
 				// 更新统计
 				sm.stats.TotalPages++
-				sm.stats.FreeSpace -= PageSize
+				sm.stats.FreeSpace -= common.PageSize
 
 				return uint32(i), nil
 			}
@@ -280,9 +281,9 @@ func (sm *SegmentManager) allocatePageForUndoSegment(seg *SegmentImpl) (uint32, 
 		}
 
 		seg.PageCount++
-		seg.FreeSpace -= PageSize
+		seg.FreeSpace -= common.PageSize
 		sm.stats.TotalPages++
-		sm.stats.FreeSpace -= PageSize
+		sm.stats.FreeSpace -= common.PageSize
 
 		return pageNo, nil
 	}
@@ -311,9 +312,9 @@ func (sm *SegmentManager) allocatePageFromExtent(seg *SegmentImpl) (uint32, erro
 			}
 
 			seg.PageCount++
-			seg.FreeSpace -= PageSize
+			seg.FreeSpace -= common.PageSize
 			sm.stats.TotalPages++
-			sm.stats.FreeSpace -= PageSize
+			sm.stats.FreeSpace -= common.PageSize
 
 			return pageNo, nil
 		}
@@ -330,9 +331,9 @@ func (sm *SegmentManager) allocatePageFromExtent(seg *SegmentImpl) (uint32, erro
 			seg.LastExtent = ext
 
 			seg.PageCount++
-			seg.FreeSpace -= PageSize
+			seg.FreeSpace -= common.PageSize
 			sm.stats.TotalPages++
-			sm.stats.FreeSpace -= PageSize
+			sm.stats.FreeSpace -= common.PageSize
 
 			return pageNo, nil
 		}
@@ -361,9 +362,9 @@ func (sm *SegmentManager) allocatePageFromExtent(seg *SegmentImpl) (uint32, erro
 	// by this allocation. Keep segment and manager statistics in sync with the
 	// existing-extent allocation paths above.
 	seg.PageCount++
-	seg.FreeSpace += uint64((PagesPerExtent - 1) * PageSize)
+	seg.FreeSpace += uint64((PagesPerExtent - 1) * common.PageSize)
 	sm.stats.TotalPages++
-	sm.stats.FreeSpace += uint64((PagesPerExtent - 1) * PageSize)
+	sm.stats.FreeSpace += uint64((PagesPerExtent - 1) * common.PageSize)
 
 	return pageNo, nil
 }
@@ -402,9 +403,9 @@ func (sm *SegmentManager) FreePage(segID uint32, pageNo uint32) error {
 			seg.FragmentUsed--
 			seg.FragmentFull = false
 			seg.PageCount--
-			seg.FreeSpace += PageSize
+			seg.FreeSpace += common.PageSize
 			sm.stats.TotalPages--
-			sm.stats.FreeSpace += PageSize
+			sm.stats.FreeSpace += common.PageSize
 			return nil
 		}
 		return fmt.Errorf("fragment page %d is not allocated", pageNo)
@@ -430,9 +431,9 @@ func (sm *SegmentManager) FreePage(segID uint32, pageNo uint32) error {
 
 	// 更新统计
 	seg.PageCount--
-	seg.FreeSpace += PageSize
+	seg.FreeSpace += common.PageSize
 	sm.stats.TotalPages--
-	sm.stats.FreeSpace += PageSize
+	sm.stats.FreeSpace += common.PageSize
 
 	// 更新Extent链表
 	isEmpty := extent.IsEmpty()
@@ -573,7 +574,7 @@ func (sm *SegmentManager) tryFreeExtent(seg *SegmentImpl, ext basic.Extent) {
 		if err := sm.extentManager.FreeExtent(ext.GetID()); err != nil {
 			return
 		}
-		const extentBytes = uint64(PagesPerExtent * PageSize)
+		const extentBytes = uint64(PagesPerExtent * common.PageSize)
 		if seg.FreeSpace >= extentBytes {
 			seg.FreeSpace -= extentBytes
 		} else {

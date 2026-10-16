@@ -47,14 +47,14 @@ func (a *Allocated) ParseFromBytes(data []byte) error {
 		return errors.New("invalid allocated page size")
 	}
 
-	if err := a.FileHeader.ParseFileHeader(data[:pages.FileHeaderSize]); err != nil {
+	if err := a.FileHeader.ParseFileHeader(data[:common.FileHeaderSize]); err != nil {
 		return err
 	}
 
-	bodyLen := common.PageSize - pages.FileHeaderSize - pages.FileTrailerSize
+	bodyLen := common.PageSize - common.FileHeaderSize - common.FileTrailerSize
 	a.body = make([]byte, bodyLen)
-	copy(a.body, data[pages.FileHeaderSize:common.PageSize-pages.FileTrailerSize])
-	copy(a.FileTrailer.FileTrailer[:], data[common.PageSize-pages.FileTrailerSize:])
+	copy(a.body, data[common.FileHeaderSize:common.PageSize-common.FileTrailerSize])
+	copy(a.FileTrailer.FileTrailer[:], data[common.PageSize-common.FileTrailerSize:])
 
 	return nil
 }
@@ -187,7 +187,7 @@ func (a *Allocated) Read() error {
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if len(a.body) != common.PageSize-pages.FileHeaderSize-pages.FileTrailerSize {
+	if len(a.body) != common.PageSize-common.FileHeaderSize-common.FileTrailerSize {
 		return errors.New("invalid allocated page body size")
 	}
 	now := uint64(time.Now().UnixNano())
@@ -227,7 +227,7 @@ func (a *Allocated) Write() error {
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if len(a.body) != common.PageSize-pages.FileHeaderSize-pages.FileTrailerSize {
+	if len(a.body) != common.PageSize-common.FileHeaderSize-common.FileTrailerSize {
 		return errors.New("invalid allocated page body size")
 	}
 	now := uint64(time.Now().UnixNano())
@@ -253,7 +253,7 @@ func NewAllocatedPage(pageNumber uint32) IPageWrapper {
 // provider. Without a provider it retains the historical in-memory behavior.
 func NewAllocatedPageWithStorage(spaceId uint32, pageNumber uint32, storage basic.StorageProvider) IPageWrapper {
 	var allocated = new(Allocated)
-	allocated.body = make([]byte, 16384-38-8)
+	allocated.body = make([]byte, common.PageSize-common.FileHeaderSize-common.FileTrailerSize)
 	allocated.FileHeader = pages.NewFileHeader()
 	allocated.FileHeader.WritePageFileType(int16(common.FIL_PAGE_TYPE_ALLOCATED))
 	allocated.FileHeader.WritePageOffset(pageNumber)

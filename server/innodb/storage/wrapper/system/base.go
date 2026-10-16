@@ -170,7 +170,7 @@ func (sp *BaseSystemPage) Restore() error {
 func (sp *BaseSystemPage) validateChecksum() bool {
 	// 鑾峰彇椤甸潰鏁版嵁锛堜娇鐢℅etContent鏂规硶锛?
 	content := sp.GetContent()
-	if len(content) < pages.FileHeaderSize+8 {
+	if len(content) < common.FileHeaderSize+8 {
 		return false
 	}
 
@@ -186,7 +186,7 @@ func (sp *BaseSystemPage) validateChecksum() bool {
 func (sp *BaseSystemPage) updateChecksum() {
 	// 鑾峰彇椤甸潰鏁版嵁锛堜娇鐢℅etContent鏂规硶锛?
 	content := sp.GetContent()
-	if len(content) < pages.FileHeaderSize+8 {
+	if len(content) < common.FileHeaderSize+8 {
 		sp.header.Checksum = 0
 		return
 	}
@@ -212,7 +212,7 @@ func (sp *BaseSystemPage) updateChecksum() {
 }
 
 func (sp *BaseSystemPage) normalizeSystemContent(content []byte) {
-	if len(content) < pages.FileHeaderSize {
+	if len(content) < common.FileHeaderSize {
 		return
 	}
 

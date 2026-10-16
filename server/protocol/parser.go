@@ -209,7 +209,7 @@ func (p *AuthPacketParser) parseClientAuthResponse(payload []byte, sessionID str
 
 	if offset < len(payload) {
 		// 检查是否有认证响应长度字段
-		if clientFlags&CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA != 0 {
+		if clientFlags&common.CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA != 0 {
 			// 长度编码的认证数据
 			authLen, lenBytes := p.readLengthEncodedInteger(payload[offset:])
 			offset += lenBytes
@@ -217,7 +217,7 @@ func (p *AuthPacketParser) parseClientAuthResponse(payload []byte, sessionID str
 				authResponse = payload[offset : offset+int(authLen)]
 				offset += int(authLen)
 			}
-		} else if clientFlags&CLIENT_SECURE_CONNECTION != 0 {
+		} else if clientFlags&common.CLIENT_SECURE_CONNECTION != 0 {
 			// 固定长度的认证数据
 			if offset < len(payload) {
 				authLen := int(payload[offset])
@@ -243,7 +243,7 @@ func (p *AuthPacketParser) parseClientAuthResponse(payload []byte, sessionID str
 	logger.Debugf("[AuthPacketParser] 认证响应长度: %d, 数据: %x, 当前偏移: %d\n", len(authResponse), authResponse, offset)
 
 	// 7. 数据库名（如果指定）
-	if offset < len(payload) && clientFlags&CLIENT_CONNECT_WITH_DB != 0 {
+	if offset < len(payload) && clientFlags&common.CLIENT_CONNECT_WITH_DB != 0 {
 		dbEnd := offset
 		for dbEnd < len(payload) && payload[dbEnd] != 0 {
 			dbEnd++
@@ -305,34 +305,35 @@ func (p *AuthPacketParser) readLengthEncodedInteger(data []byte) (uint64, int) {
 	}
 }
 
-// MySQL客户端能力标志常量
+// MySQL客户端能力标志兼容名称。保留原来的无类型整数API；
+// 新代码使用common.CLIENT_*，数值由common.Capability*统一定义。
 const (
-	CLIENT_LONG_PASSWORD                  = 0x00000001
-	CLIENT_FOUND_ROWS                     = 0x00000002
-	CLIENT_LONG_FLAG                      = 0x00000004
-	CLIENT_CONNECT_WITH_DB                = 0x00000008
-	CLIENT_NO_SCHEMA                      = 0x00000010
-	CLIENT_COMPRESS                       = 0x00000020
-	CLIENT_ODBC                           = 0x00000040
-	CLIENT_LOCAL_FILES                    = 0x00000080
-	CLIENT_IGNORE_SPACE                   = 0x00000100
-	CLIENT_PROTOCOL_41                    = 0x00000200
-	CLIENT_INTERACTIVE                    = 0x00000400
-	CLIENT_SSL                            = 0x00000800
-	CLIENT_IGNORE_SIGPIPE                 = 0x00001000
-	CLIENT_TRANSACTIONS                   = 0x00002000
-	CLIENT_RESERVED                       = 0x00004000
-	CLIENT_SECURE_CONNECTION              = 0x00008000
-	CLIENT_MULTI_STATEMENTS               = 0x00010000
-	CLIENT_MULTI_RESULTS                  = 0x00020000
-	CLIENT_PS_MULTI_RESULTS               = 0x00040000
-	CLIENT_PLUGIN_AUTH                    = 0x00080000
-	CLIENT_CONNECT_ATTRS                  = 0x00100000
-	CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA = 0x00200000
-	CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS   = 0x00400000
-	CLIENT_SESSION_TRACK                  = 0x00800000
-	CLIENT_DEPRECATE_EOF                  = 0x01000000
-	CLIENT_OPTIONAL_RESULTSET_METADATA    = 0x02000000
+	CLIENT_LONG_PASSWORD                  = common.CapabilityLongPassword
+	CLIENT_FOUND_ROWS                     = common.CapabilityFoundRows
+	CLIENT_LONG_FLAG                      = common.CapabilityLongFlag
+	CLIENT_CONNECT_WITH_DB                = common.CapabilityConnectWithDb
+	CLIENT_NO_SCHEMA                      = common.CapabilityNoSchema
+	CLIENT_COMPRESS                       = common.CapabilityCompress
+	CLIENT_ODBC                           = common.CapabilityOdbc
+	CLIENT_LOCAL_FILES                    = common.CapabilityLocalFiles
+	CLIENT_IGNORE_SPACE                   = common.CapabilityIgnoreSpace
+	CLIENT_PROTOCOL_41                    = common.CapabilityProtocol41
+	CLIENT_INTERACTIVE                    = common.CapabilityInteractive
+	CLIENT_SSL                            = common.CapabilitySsl
+	CLIENT_IGNORE_SIGPIPE                 = common.CapabilityIgnoreSigpipe
+	CLIENT_TRANSACTIONS                   = common.CapabilityTransactions
+	CLIENT_RESERVED                       = common.CapabilityReserved
+	CLIENT_SECURE_CONNECTION              = common.CapabilitySecureConnection
+	CLIENT_MULTI_STATEMENTS               = common.CapabilityMultiStatements
+	CLIENT_MULTI_RESULTS                  = common.CapabilityMultiResults
+	CLIENT_PS_MULTI_RESULTS               = common.CapabilityPsMultiResults
+	CLIENT_PLUGIN_AUTH                    = common.CapabilityPluginAuth
+	CLIENT_CONNECT_ATTRS                  = common.CapabilityConnectAttrs
+	CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA = common.CapabilityPluginAuthLenencClientData
+	CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS   = common.CapabilityCanHandleExpiredPasswords
+	CLIENT_SESSION_TRACK                  = common.CapabilitySessionTrack
+	CLIENT_DEPRECATE_EOF                  = common.CapabilityDeprecateEof
+	CLIENT_OPTIONAL_RESULTSET_METADATA    = common.CapabilityOptionalResultsetMetadata
 )
 
 // min 返回两个整数中的较小值

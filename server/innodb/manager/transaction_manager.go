@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	formatmvcc "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/format/mvcc"
 )
 
@@ -16,27 +17,29 @@ var (
 	ErrInvalidTrxState = errors.New("invalid transaction state")
 )
 
+// 以下事务常量保留原名称以兼容现有调用方，数值统一由common定义。
+// 全部调用方迁移并确认工程外兼容要求后，再移除这些转发名称。
 // 长事务告警级别
 const (
-	LONG_TXN_LEVEL_WARNING  = "WARNING"  // 警告级别
-	LONG_TXN_LEVEL_CRITICAL = "CRITICAL" // 严重级别
+	LONG_TXN_LEVEL_WARNING  = common.LONG_TXN_LEVEL_WARNING  // 警告级别
+	LONG_TXN_LEVEL_CRITICAL = common.LONG_TXN_LEVEL_CRITICAL // 严重级别
 )
 
 // 事务状态
 const (
-	TRX_STATE_NOT_STARTED uint8 = iota
-	TRX_STATE_ACTIVE
-	TRX_STATE_PREPARED
-	TRX_STATE_COMMITTED
-	TRX_STATE_ROLLED_BACK
+	TRX_STATE_NOT_STARTED = common.TRX_STATE_NOT_STARTED
+	TRX_STATE_ACTIVE      = common.TRX_STATE_ACTIVE
+	TRX_STATE_PREPARED    = common.TRX_STATE_PREPARED
+	TRX_STATE_COMMITTED   = common.TRX_STATE_COMMITTED
+	TRX_STATE_ROLLED_BACK = common.TRX_STATE_ROLLED_BACK
 )
 
 // 事务隔离级别
 const (
-	TRX_ISO_READ_UNCOMMITTED uint8 = iota
-	TRX_ISO_READ_COMMITTED
-	TRX_ISO_REPEATABLE_READ
-	TRX_ISO_SERIALIZABLE
+	TRX_ISO_READ_UNCOMMITTED = common.TRX_ISO_READ_UNCOMMITTED
+	TRX_ISO_READ_COMMITTED   = common.TRX_ISO_READ_COMMITTED
+	TRX_ISO_REPEATABLE_READ  = common.TRX_ISO_REPEATABLE_READ
+	TRX_ISO_SERIALIZABLE     = common.TRX_ISO_SERIALIZABLE
 )
 
 // Transaction 表示一个事务
@@ -188,7 +191,7 @@ func NewTransactionManager(redoDir, undoDir string) (*TransactionManager, error)
 		rollbackInProgress:    make(map[int64]bool),
 		redoManager:           redoManager,
 		undoManager:           undoManager,
-		defaultIsolationLevel: TRX_ISO_REPEATABLE_READ,
+		defaultIsolationLevel: common.TRX_ISO_REPEATABLE_READ,
 		defaultTimeout:        time.Hour,
 		longTxnConfig:         longTxnConfig,
 		longTxnStats: &LongTransactionStats{
@@ -225,7 +228,7 @@ func (tm *TransactionManager) Begin(isReadOnly bool, isolationLevel uint8) (*Tra
 	// 创建事务对象
 	trx := &Transaction{
 		ID:             trxID,
-		State:          TRX_STATE_ACTIVE,
+		State:          common.TRX_STATE_ACTIVE,
 		IsolationLevel: isolationLevel,
 		StartTime:      time.Now(),
 		LastActiveTime: time.Now(),
@@ -235,7 +238,7 @@ func (tm *TransactionManager) Begin(isReadOnly bool, isolationLevel uint8) (*Tra
 	tm.transactionAllocations++
 
 	// 创建ReadView（对于RR和RC隔离级别）
-	if isolationLevel >= TRX_ISO_READ_COMMITTED {
+	if isolationLevel >= common.TRX_ISO_READ_COMMITTED {
 		trx.ReadView = tm.createReadView(trxID)
 		if tm.undoPurger != nil && trx.ReadView != nil {
 			trx.purgeReadViewToken = tm.undoPurger.RegisterActiveReadView(trx.ReadView)
@@ -278,7 +281,7 @@ func (tm *TransactionManager) Commit(trx *Transaction) error {
 	defer tm.mu.Unlock()
 
 	// 检查事务状态
-	if trx.State != TRX_STATE_ACTIVE {
+	if trx.State != common.TRX_STATE_ACTIVE {
 		return ErrInvalidTrxState
 	}
 	if tm.rollbackInProgress[trx.ID] {
@@ -308,7 +311,7 @@ func (tm *TransactionManager) Commit(trx *Transaction) error {
 	}
 
 	// 更新事务状态
-	trx.State = TRX_STATE_COMMITTED
+	trx.State = common.TRX_STATE_COMMITTED
 	trx.LastActiveTime = time.Now()
 
 	// 清理Undo日志
@@ -324,7 +327,7 @@ func (tm *TransactionManager) Commit(trx *Transaction) error {
 // Rollback 回滚事务
 func (tm *TransactionManager) Rollback(trx *Transaction) error {
 	tm.mu.Lock()
-	if trx.State != TRX_STATE_ACTIVE || tm.rollbackInProgress[trx.ID] {
+	if trx.State != common.TRX_STATE_ACTIVE || tm.rollbackInProgress[trx.ID] {
 		tm.mu.Unlock()
 		return ErrInvalidTrxState
 	}
@@ -342,7 +345,7 @@ func (tm *TransactionManager) Rollback(trx *Transaction) error {
 		return err
 	}
 
-	trx.State = TRX_STATE_ROLLED_BACK
+	trx.State = common.TRX_STATE_ROLLED_BACK
 	trx.LastActiveTime = time.Now()
 	delete(tm.activeTransactions, trx.ID)
 	tm.unregisterPurgeReadViewLocked(trx)
@@ -352,7 +355,7 @@ func (tm *TransactionManager) Rollback(trx *Transaction) error {
 // rollbackLocked 回滚事务（调用者必须持有锁）
 func (tm *TransactionManager) rollbackLocked(trx *Transaction) error {
 	// 检查事务状态
-	if trx.State != TRX_STATE_ACTIVE {
+	if trx.State != common.TRX_STATE_ACTIVE {
 		return ErrInvalidTrxState
 	}
 	if tm.rollbackInProgress[trx.ID] {
@@ -372,7 +375,7 @@ func (tm *TransactionManager) rollbackLocked(trx *Transaction) error {
 	}
 
 	// 更新事务状态
-	trx.State = TRX_STATE_ROLLED_BACK
+	trx.State = common.TRX_STATE_ROLLED_BACK
 	trx.LastActiveTime = time.Now()
 
 	// 清理事务记录
@@ -424,7 +427,7 @@ func (tm *TransactionManager) Savepoint(trx *Transaction, name string) error {
 	defer tm.mu.Unlock()
 
 	// 检查事务状态
-	if trx.State != TRX_STATE_ACTIVE {
+	if trx.State != common.TRX_STATE_ACTIVE {
 		return ErrInvalidTrxState
 	}
 
@@ -454,7 +457,7 @@ func (tm *TransactionManager) RollbackToSavepoint(trx *Transaction, name string)
 	defer tm.mu.Unlock()
 
 	// 检查事务状态
-	if trx.State != TRX_STATE_ACTIVE {
+	if trx.State != common.TRX_STATE_ACTIVE {
 		return ErrInvalidTrxState
 	}
 	if tm.rollbackInProgress[trx.ID] {
@@ -509,7 +512,7 @@ func (tm *TransactionManager) ReleaseSavepoint(trx *Transaction, name string) er
 	defer tm.mu.Unlock()
 
 	// 检查事务状态
-	if trx.State != TRX_STATE_ACTIVE {
+	if trx.State != common.TRX_STATE_ACTIVE {
 		return ErrInvalidTrxState
 	}
 
@@ -540,7 +543,7 @@ func (tm *TransactionManager) createReadView(trxID int64) *formatmvcc.ReadView {
 	activeIDs := make([]uint64, 0, capacity)
 
 	for id, trx := range tm.activeTransactions {
-		if trx.State == TRX_STATE_ACTIVE && id != trxID {
+		if trx.State == common.TRX_STATE_ACTIVE && id != trxID {
 			activeIDs = append(activeIDs, uint64(id))
 		}
 	}
@@ -607,17 +610,17 @@ func (tm *TransactionManager) GetActiveTransactionSnapshots() []TransactionSnaps
 // IsVisible 判断数据版本是否对事务可见
 func (tm *TransactionManager) IsVisible(trx *Transaction, version int64) bool {
 	// 读未提交：总是可见
-	if trx.IsolationLevel == TRX_ISO_READ_UNCOMMITTED {
+	if trx.IsolationLevel == common.TRX_ISO_READ_UNCOMMITTED {
 		return true
 	}
 
 	// 读已提交：每次可见性判断时创建新的ReadView（语句级快照）
-	if trx.IsolationLevel == TRX_ISO_READ_COMMITTED {
+	if trx.IsolationLevel == common.TRX_ISO_READ_COMMITTED {
 		// 使用读锁快照当前活跃事务，避免与Begin时的写锁冲突
 		tm.mu.RLock()
 		activeIDs := make([]uint64, 0, len(tm.activeTransactions))
 		for id, t := range tm.activeTransactions {
-			if t.State == TRX_STATE_ACTIVE && id != trx.ID {
+			if t.State == common.TRX_STATE_ACTIVE && id != trx.ID {
 				activeIDs = append(activeIDs, uint64(id))
 			}
 		}
@@ -663,7 +666,7 @@ func (tm *TransactionManager) Close() error {
 
 	// 回滚所有未完成事务
 	for _, trx := range tm.activeTransactions {
-		if trx.State == TRX_STATE_ACTIVE {
+		if trx.State == common.TRX_STATE_ACTIVE {
 			tm.rollbackLocked(trx)
 		}
 	}
@@ -736,7 +739,7 @@ func (tm *TransactionManager) checkLongTransactions() {
 	longTxns := make([]*Transaction, 0)
 
 	for _, trx := range tm.activeTransactions {
-		if trx.State == TRX_STATE_ACTIVE {
+		if trx.State == common.TRX_STATE_ACTIVE {
 			duration := now.Sub(trx.StartTime)
 
 			// 检查是否超过阈值
@@ -772,9 +775,9 @@ func (tm *TransactionManager) handleLongTransaction(trx *Transaction, now time.T
 	tm.mu.RUnlock()
 
 	// 确定告警级别
-	level := LONG_TXN_LEVEL_WARNING
+	level := common.LONG_TXN_LEVEL_WARNING
 	if duration >= criticalThreshold {
-		level = LONG_TXN_LEVEL_CRITICAL
+		level = common.LONG_TXN_LEVEL_CRITICAL
 	}
 
 	// 检查是否超过锁数量阈值
@@ -819,7 +822,7 @@ func (tm *TransactionManager) handleLongTransaction(trx *Transaction, now time.T
 
 	// 更新统计
 	tm.longTxnStats.Lock()
-	if level == LONG_TXN_LEVEL_WARNING {
+	if level == common.LONG_TXN_LEVEL_WARNING {
 		tm.longTxnStats.TotalWarnings++
 	} else {
 		tm.longTxnStats.TotalCritical++
@@ -831,7 +834,7 @@ func (tm *TransactionManager) handleLongTransaction(trx *Transaction, now time.T
 	tm.longTxnStats.Unlock()
 
 	// 自动回滚（如果配置启用且达到严重级别）
-	if autoRollback && level == LONG_TXN_LEVEL_CRITICAL {
+	if autoRollback && level == common.LONG_TXN_LEVEL_CRITICAL {
 		tm.mu.Lock()
 		err := tm.rollbackLocked(trx)
 		tm.mu.Unlock()
@@ -914,7 +917,7 @@ func (tm *TransactionManager) GetLongTransactions(threshold time.Duration) []*Tr
 	longTxns := make([]*Transaction, 0)
 
 	for _, trx := range tm.activeTransactions {
-		if trx.State == TRX_STATE_ACTIVE {
+		if trx.State == common.TRX_STATE_ACTIVE {
 			duration := now.Sub(trx.StartTime)
 			if duration >= threshold {
 				longTxns = append(longTxns, cloneTransaction(trx))
@@ -934,7 +937,7 @@ func (tm *TransactionManager) GetLongTransactionSnapshots(threshold time.Duratio
 	now := time.Now()
 	result := make([]LongTransactionSnapshot, 0)
 	for _, trx := range tm.activeTransactions {
-		if trx.State != TRX_STATE_ACTIVE || now.Sub(trx.StartTime) < threshold {
+		if trx.State != common.TRX_STATE_ACTIVE || now.Sub(trx.StartTime) < threshold {
 			continue
 		}
 		result = append(result, transactionSnapshot(trx, now))

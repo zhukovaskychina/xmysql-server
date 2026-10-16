@@ -355,7 +355,7 @@ type FspHrdBinaryPage struct {
 func NewFspHrdPage(spaceId uint32) *FspHrdBinaryPage {
 	var fileHeader = new(FileHeader)
 	//写入FSP文件头
-	bytes := util.ConvertInt2Bytes(int32(common.FILE_PAGE_TYPE_FSP_HDR))
+	bytes := util.ConvertInt2Bytes(int32(common.FIL_PAGE_TYPE_FSP_HDR))
 	copy(fileHeader.FilePageType[:], bytes)
 
 	prevBytes := util.ConvertInt4Bytes(0)
@@ -366,7 +366,7 @@ func NewFspHrdPage(spaceId uint32) *FspHrdBinaryPage {
 
 	fileHeader.WritePageOffset(0)
 	fileHeader.WritePagePrev(0)
-	fileHeader.WritePageFileType(int16(common.FILE_PAGE_TYPE_FSP_HDR))
+	fileHeader.WritePageFileType(int16(common.FIL_PAGE_TYPE_FSP_HDR))
 	fileHeader.WritePageNext(1)
 	fileHeader.WritePageLSN(0)
 	fileHeader.WritePageFileFlushLSN(0)

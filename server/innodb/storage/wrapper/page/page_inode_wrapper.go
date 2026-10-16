@@ -6,7 +6,6 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/segment"
 	"sync"
 )
@@ -388,11 +387,11 @@ func (ip *InodePageWrapper) parseFromBytesLocked(data []byte) error {
 	ip.mu.Lock()
 	defer ip.mu.Unlock()
 
-	if len(data) < pages.FileHeaderSize+16 { // 至少需要基本头信息
+	if len(data) < common.FileHeaderSize+16 { // 至少需要基本头信息
 		return errors.New("insufficient data for inode page")
 	}
 
-	offset := pages.FileHeaderSize
+	offset := common.FileHeaderSize
 
 	// 解析链表指针
 	ip.nextPage = binary.BigEndian.Uint32(data[offset : offset+4])
@@ -437,7 +436,7 @@ func (ip *InodePageWrapper) toBytesLocked() ([]byte, error) {
 	defer ip.mu.RUnlock()
 
 	// 计算需要的总大小
-	size := 16384 // 标准页面大小
+	size := common.PageSize // 标准页面大小
 
 	data := make([]byte, size)
 
@@ -448,7 +447,7 @@ func (ip *InodePageWrapper) toBytesLocked() ([]byte, error) {
 	}
 	copy(data, baseData)
 
-	offset := pages.FileHeaderSize
+	offset := common.FileHeaderSize
 
 	// 写入链表指针
 	binary.BigEndian.PutUint32(data[offset:offset+4], ip.nextPage)

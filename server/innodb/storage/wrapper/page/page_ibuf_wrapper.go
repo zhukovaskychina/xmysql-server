@@ -48,8 +48,8 @@ func NewIBufByLoadBytes(content []byte) *IBuf {
 
 	iBufBitMapPage.LoadFileHeader(content[0:38])
 	iBufBitMapPage.ChangeBufferBitMap = content[38 : 38+9192]
-	iBufBitMapPage.EmptySpace = content[16384-8-8146 : 16384-8]
-	iBufBitMapPage.LoadFileTrailer(content[16384-8 : 16384])
+	iBufBitMapPage.EmptySpace = content[common.PageSize-common.FileTrailerSize-8146 : common.PageSize-common.FileTrailerSize]
+	iBufBitMapPage.LoadFileTrailer(content[common.PageSize-common.FileTrailerSize : common.PageSize])
 
 	return &IBuf{
 		iBufPage: *iBufBitMapPage,

@@ -1,5 +1,7 @@
 package engine
 
+import "github.com/zhukovaskychina/xmysql-server/server/common"
+
 import (
 	"context"
 	"os"
@@ -232,10 +234,10 @@ func TestTransactionIsolationLevel(t *testing.T) {
 		name  string
 		level uint8
 	}{
-		{"READ_UNCOMMITTED", manager.TRX_ISO_READ_UNCOMMITTED},
-		{"READ_COMMITTED", manager.TRX_ISO_READ_COMMITTED},
-		{"REPEATABLE_READ", manager.TRX_ISO_REPEATABLE_READ},
-		{"SERIALIZABLE", manager.TRX_ISO_SERIALIZABLE},
+		{"READ_UNCOMMITTED", common.TRX_ISO_READ_UNCOMMITTED},
+		{"READ_COMMITTED", common.TRX_ISO_READ_COMMITTED},
+		{"REPEATABLE_READ", common.TRX_ISO_REPEATABLE_READ},
+		{"SERIALIZABLE", common.TRX_ISO_SERIALIZABLE},
 	}
 
 	for _, il := range isolationLevels {

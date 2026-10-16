@@ -39,9 +39,9 @@ import (
 
 // BLOB页面常量
 const (
-	BlobHeaderSize  = 20    // BLOB头部大小
-	BlobDataSize    = 16318 // BLOB数据区大小 (16384 - 38 - 20 - 8)
-	FileTrailerSize = 8     // 文件尾部大小
+	BlobHeaderSize  = common.BlobHeaderSize  // BLOB头部大小
+	BlobDataSize    = common.BlobDataSize    // BLOB数据区大小 (16384 - 38 - 20 - 8)
+	FileTrailerSize = common.FileTrailerSize // 文件尾部大小
 )
 
 // BLOB页面错误定义
@@ -77,7 +77,7 @@ func NewBlobPage(spaceID, pageNo uint32, segmentID uint64) *BlobPage {
 			Offset:    0,
 			SegmentID: segmentID,
 		},
-		Data:        make([]byte, BlobDataSize),
+		Data:        make([]byte, common.BlobDataSize),
 		FileTrailer: NewFileTrailer(),
 	}
 
@@ -91,7 +91,7 @@ func NewBlobPage(spaceID, pageNo uint32, segmentID uint64) *BlobPage {
 
 // SetBlobData 设置BLOB数据
 func (bp *BlobPage) SetBlobData(data []byte, totalLength uint32, offset uint32, nextPage uint32) error {
-	if len(data) > BlobDataSize {
+	if len(data) > common.BlobDataSize {
 		return ErrInvalidBlobSize
 	}
 
@@ -112,8 +112,8 @@ func (bp *BlobPage) SetBlobData(data []byte, totalLength uint32, offset uint32, 
 func (bp *BlobPage) GetBlobData() []byte {
 	// 计算实际数据长度
 	remainingLength := bp.BlobHeader.Length - bp.BlobHeader.Offset
-	if remainingLength > BlobDataSize {
-		remainingLength = BlobDataSize
+	if remainingLength > common.BlobDataSize {
+		remainingLength = common.BlobDataSize
 	}
 
 	return bp.Data[:remainingLength]
@@ -151,15 +151,15 @@ func (bp *BlobPage) Serialize() []byte {
 
 	// 序列化文件头部
 	copy(data[offset:], bp.serializeFileHeader())
-	offset += FileHeaderSize
+	offset += common.FileHeaderSize
 
 	// 序列化BLOB头部
 	copy(data[offset:], bp.serializeBlobHeader())
-	offset += BlobHeaderSize
+	offset += common.BlobHeaderSize
 
 	// 序列化BLOB数据
 	copy(data[offset:], bp.Data)
-	offset += BlobDataSize
+	offset += common.BlobDataSize
 
 	// 序列化文件尾部
 	copy(data[offset:], bp.serializeFileTrailer())
@@ -176,23 +176,23 @@ func (bp *BlobPage) Deserialize(data []byte) error {
 	offset := 0
 
 	// 反序列化文件头部
-	if err := bp.deserializeFileHeader(data[offset : offset+FileHeaderSize]); err != nil {
+	if err := bp.deserializeFileHeader(data[offset : offset+common.FileHeaderSize]); err != nil {
 		return err
 	}
-	offset += FileHeaderSize
+	offset += common.FileHeaderSize
 
 	// 反序列化BLOB头部
-	if err := bp.deserializeBlobHeader(data[offset : offset+BlobHeaderSize]); err != nil {
+	if err := bp.deserializeBlobHeader(data[offset : offset+common.BlobHeaderSize]); err != nil {
 		return err
 	}
-	offset += BlobHeaderSize
+	offset += common.BlobHeaderSize
 
 	// 反序列化BLOB数据
-	copy(bp.Data, data[offset:offset+BlobDataSize])
-	offset += BlobDataSize
+	copy(bp.Data, data[offset:offset+common.BlobDataSize])
+	offset += common.BlobDataSize
 
 	// 反序列化文件尾部
-	if err := bp.deserializeFileTrailer(data[offset : offset+FileTrailerSize]); err != nil {
+	if err := bp.deserializeFileTrailer(data[offset : offset+common.FileTrailerSize]); err != nil {
 		return err
 	}
 
@@ -206,7 +206,7 @@ func (bp *BlobPage) serializeFileHeader() []byte {
 
 // serializeBlobHeader 序列化BLOB头部
 func (bp *BlobPage) serializeBlobHeader() []byte {
-	data := make([]byte, BlobHeaderSize)
+	data := make([]byte, common.BlobHeaderSize)
 
 	binary.LittleEndian.PutUint32(data[0:], bp.BlobHeader.Length)
 	binary.LittleEndian.PutUint32(data[4:], bp.BlobHeader.NextPage)
@@ -228,7 +228,7 @@ func (bp *BlobPage) deserializeFileHeader(data []byte) error {
 
 // deserializeBlobHeader 反序列化BLOB头部
 func (bp *BlobPage) deserializeBlobHeader(data []byte) error {
-	if len(data) < BlobHeaderSize {
+	if len(data) < common.BlobHeaderSize {
 		return ErrInvalidPageSize
 	}
 

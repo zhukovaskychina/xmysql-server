@@ -2,7 +2,6 @@ package protocol
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/auth"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
@@ -169,112 +168,7 @@ func (e *QueryResponseEncoder) encodeColumnDefinitionWithType(columnName string,
 
 // getColumnTypeInfo 根据列类型字符串返回MySQL类型信息
 func (e *QueryResponseEncoder) getColumnTypeInfo(columnType string) (mysqlType byte, columnLength uint32, flags uint16, decimals byte) {
-	// 默认值
-	mysqlType = common.COLUMN_TYPE_VAR_STRING
-	columnLength = 255
-	flags = 0
-	decimals = 0
-
-	if columnType == "" {
-		return
-	}
-
-	// 转换为小写进行匹配
-	columnType = strings.ToLower(columnType)
-
-	// 根据类型字符串确定MySQL类型码
-	switch {
-	case strings.HasPrefix(columnType, "tinyint"):
-		mysqlType = common.COLUMN_TYPE_TINY
-		columnLength = 4
-	case strings.HasPrefix(columnType, "smallint"):
-		mysqlType = common.COLUMN_TYPE_SHORT
-		columnLength = 6
-	case strings.HasPrefix(columnType, "mediumint"):
-		mysqlType = common.COLUMN_TYPE_INT24
-		columnLength = 9
-	case strings.HasPrefix(columnType, "int"):
-		mysqlType = common.COLUMN_TYPE_LONG
-		columnLength = 11
-	case strings.HasPrefix(columnType, "bigint"):
-		mysqlType = common.COLUMN_TYPE_LONGLONG
-		columnLength = 20
-	case strings.HasPrefix(columnType, "float"):
-		mysqlType = common.COLUMN_TYPE_FLOAT
-		columnLength = 12
-		decimals = 31
-	case strings.HasPrefix(columnType, "double"):
-		mysqlType = common.COLUMN_TYPE_DOUBLE
-		columnLength = 22
-		decimals = 31
-	case strings.HasPrefix(columnType, "decimal"):
-		mysqlType = common.COLUMN_TYPE_NEWDECIMAL
-		columnLength = 10
-		decimals = 0
-	case strings.HasPrefix(columnType, "datetime"):
-		mysqlType = common.COLUMN_TYPE_DATETIME
-		columnLength = 19
-	case strings.HasPrefix(columnType, "timestamp"):
-		mysqlType = common.COLUMN_TYPE_TIMESTAMP
-		columnLength = 19
-	case strings.HasPrefix(columnType, "date"):
-		mysqlType = common.COLUMN_TYPE_DATE
-		columnLength = 10
-	case strings.HasPrefix(columnType, "time"):
-		mysqlType = common.COLUMN_TYPE_TIME
-		columnLength = 10
-	case strings.HasPrefix(columnType, "year"):
-		mysqlType = common.COLUMN_TYPE_YEAR
-		columnLength = 4
-	case strings.HasPrefix(columnType, "char"):
-		mysqlType = common.COLUMN_TYPE_STRING
-		columnLength = 255
-	case strings.HasPrefix(columnType, "varchar"):
-		mysqlType = common.COLUMN_TYPE_VAR_STRING
-		columnLength = 255
-	case strings.HasPrefix(columnType, "binary"):
-		mysqlType = common.COLUMN_TYPE_STRING
-		columnLength = 255
-		flags = uint16(common.BinaryFlag)
-	case strings.HasPrefix(columnType, "varbinary"):
-		mysqlType = common.COLUMN_TYPE_VAR_STRING
-		columnLength = 255
-		flags = uint16(common.BinaryFlag)
-	case strings.HasPrefix(columnType, "tinyblob"), strings.HasPrefix(columnType, "tinytext"):
-		mysqlType = common.COLUMN_TYPE_TINY_BLOB
-		columnLength = 255
-	case strings.HasPrefix(columnType, "blob"), strings.HasPrefix(columnType, "text"):
-		mysqlType = common.COLUMN_TYPE_BLOB
-		columnLength = 65535
-	case strings.HasPrefix(columnType, "mediumblob"), strings.HasPrefix(columnType, "mediumtext"):
-		mysqlType = common.COLUMN_TYPE_MEDIUM_BLOB
-		columnLength = 16777215
-	case strings.HasPrefix(columnType, "longblob"), strings.HasPrefix(columnType, "longtext"):
-		mysqlType = common.COLUMN_TYPE_LONG_BLOB
-		columnLength = 4294967295
-	case strings.HasPrefix(columnType, "enum"):
-		mysqlType = common.COLUMN_TYPE_ENUM
-		columnLength = 1
-	case strings.HasPrefix(columnType, "set"):
-		mysqlType = common.COLUMN_TYPE_SET
-		columnLength = 1
-	case strings.HasPrefix(columnType, "json"):
-		mysqlType = common.COLUMN_TYPE_JSON
-		columnLength = 4294967295
-	case strings.HasPrefix(columnType, "bit"):
-		mysqlType = common.COLUMN_TYPE_BIT
-		columnLength = 1
-	case strings.HasPrefix(columnType, "geometry"), strings.HasPrefix(columnType, "point"),
-		strings.HasPrefix(columnType, "linestring"), strings.HasPrefix(columnType, "polygon"):
-		mysqlType = common.COLUMN_TYPE_GEOMETRY
-		columnLength = 4294967295
-	default:
-		// 默认使用VAR_STRING
-		mysqlType = common.COLUMN_TYPE_VAR_STRING
-		columnLength = 255
-	}
-
-	return
+	return common.GetProtocolColumnTypeInfo(columnType)
 }
 
 func (e *QueryResponseEncoder) encodeRowData(row []interface{}, sequenceId byte) []byte {
@@ -331,7 +225,7 @@ func (e *AuthResponseEncoder) encodeOKResponse(authResult *auth.AuthResult) ([]b
 	buf = append(buf, 0x00)
 
 	// status_flags (SERVER_STATUS_AUTOCOMMIT)
-	buf = append(buf, 0x02, 0x00)
+	buf = append(buf, byte(common.SERVER_STATUS_AUTOCOMMIT), byte(common.SERVER_STATUS_AUTOCOMMIT>>8))
 
 	// warnings (0)
 	buf = append(buf, 0x00, 0x00)

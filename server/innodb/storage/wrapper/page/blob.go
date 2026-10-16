@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
-	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
 )
 
 var (
@@ -14,9 +13,9 @@ var (
 )
 
 const (
-	BlobHeaderSize = 20                         // BLOB页面头大小
-	MaxBlobSize    = 16384 - BlobHeaderSize - 8 // 最大BLOB数据大小
-	PageTypeBlob   = common.FIL_PAGE_TYPE_BLOB  // BLOB页面类型
+	BlobHeaderSize = common.BlobHeaderSize     // BLOB页面头大小
+	MaxBlobSize    = common.LegacyBlobMaxSize  // 最大BLOB数据大小
+	PageTypeBlob   = common.FIL_PAGE_TYPE_BLOB // BLOB页面类型
 )
 
 // BlobPage BLOB页面实现
@@ -52,7 +51,7 @@ func NewBlobPage(spaceID, pageNo uint32) IPageWrapper {
 // in-memory callers while direct legacy users can now perform real I/O.
 func NewBlobPageWithStorage(spaceID, pageNo uint32, storage basic.StorageProvider) *BlobPage {
 	bp := &BlobPage{
-		BasePageWrapper: NewBasePageWrapperWithStorage(pageNo, spaceID, PageTypeBlob, storage),
+		BasePageWrapper: NewBasePageWrapperWithStorage(pageNo, spaceID, common.FIL_PAGE_TYPE_BLOB, storage),
 	}
 
 	// 初始化BLOB页面体
@@ -75,7 +74,7 @@ func (bp *BlobPage) SetData(data []byte, tableID uint64, columnID uint32, partNu
 	defer bp.Unlock()
 
 	// 检查数据大小
-	if len(data) > MaxBlobSize {
+	if len(data) > common.LegacyBlobMaxSize {
 		return ErrBlobTooLarge
 	}
 
@@ -157,13 +156,13 @@ func (bp *BlobPage) ParseFromBytes(content []byte) error {
 	}
 
 	// 验证页面类型
-	if bp.GetPageType() != PageTypeBlob {
+	if bp.GetPageType() != common.FIL_PAGE_TYPE_BLOB {
 		return ErrBlobInvalid
 	}
 
 	// 解析BLOB数据
-	if len(content) > pages.FileHeaderSize+BlobHeaderSize {
-		offset := pages.FileHeaderSize
+	if len(content) > common.FileHeaderSize+common.BlobHeaderSize {
+		offset := common.FileHeaderSize
 		body := &BlobPageBody{
 			PartNumber:   binary.LittleEndian.Uint32(content[offset:]),
 			NextPartPage: binary.LittleEndian.Uint32(content[offset+4:]),
@@ -197,7 +196,7 @@ func (bp *BlobPage) ToBytes() ([]byte, error) {
 
 	// 写入BLOB数据
 	body := bp.deserializeBlobBody()
-	offset := pages.FileHeaderSize
+	offset := common.FileHeaderSize
 
 	if len(content) > offset+12 {
 		binary.LittleEndian.PutUint32(content[offset:], body.PartNumber)
@@ -221,11 +220,11 @@ func (bp *BlobPage) serializeBlobBody(body *BlobPageBody) {
 	// which made BasePageWrapper serialization slice past the short buffer and
 	// prevented provider-backed persistence.
 	pageSize := int(bp.size)
-	if pageSize < pages.FileHeaderSize+pages.FileTrailerSize {
+	if pageSize < common.FileHeaderSize+common.FileTrailerSize {
 		pageSize = common.PageSize
 	}
 	buff := make([]byte, pageSize)
-	offset := pages.FileHeaderSize
+	offset := common.FileHeaderSize
 
 	// 写入头部信息
 	binary.LittleEndian.PutUint32(buff[offset:], body.PartNumber)
@@ -243,7 +242,7 @@ func (bp *BlobPage) serializeBlobBody(body *BlobPageBody) {
 func (bp *BlobPage) deserializeBlobBody() *BlobPageBody {
 	// 获取页面体内容
 	content := bp.content
-	offset := pages.FileHeaderSize
+	offset := common.FileHeaderSize
 
 	if len(content) < offset+12 {
 		return &BlobPageBody{
@@ -284,14 +283,14 @@ func (bp *BlobPage) Write() error {
 
 // GetPageType 实现IPageWrapper接口
 func (bp *BlobPage) GetPageType() common.PageType {
-	return PageTypeBlob
+	return common.FIL_PAGE_TYPE_BLOB
 }
 
 // GetFreeSpace 获取空闲空间
 func (bp *BlobPage) GetFreeSpace() uint32 {
 	body := bp.deserializeBlobBody()
 	used := 12 + len(body.Data) // 头部 + 数据
-	return uint32(16384 - used)
+	return uint32(common.PageSize - used)
 }
 
 // GetUsedSpace 获取已使用空间
@@ -302,7 +301,7 @@ func (bp *BlobPage) GetUsedSpace() uint32 {
 
 // CanStoreBlobData 判断是否能存储指定大小的BLOB数据
 func (bp *BlobPage) CanStoreBlobData(size uint32) bool {
-	return size <= MaxBlobSize
+	return size <= common.LegacyBlobMaxSize
 }
 
 // GetIndexEntries 实现Page接口

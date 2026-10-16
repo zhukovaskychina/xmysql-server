@@ -1,6 +1,9 @@
 package protocol
 
-import "github.com/zhukovaskychina/xmysql-server/util"
+import (
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/util"
+)
 
 type OK struct {
 	MySQLPacket
@@ -44,7 +47,7 @@ func EncodeOK(buff []byte, affectedRows int64, insertId int64, message []byte) [
 
 	// 服务器状态标志 (2字节，小端序)
 	// SERVER_STATUS_AUTOCOMMIT = 0x0002
-	buff = util.WriteUB2(buff, 2)
+	buff = util.WriteUB2(buff, common.SERVER_STATUS_AUTOCOMMIT)
 
 	// 警告数量 (2字节，小端序)
 	buff = util.WriteUB2(buff, 0)

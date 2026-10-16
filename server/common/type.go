@@ -13,38 +13,39 @@
 
 package common
 
-// MySQL type information.
+// MySQL type information. Type* names preserve the parser's byte API while
+// COLUMN_TYPE_* is the single source for MySQL wire type numbers.
 const (
 	TypeUnspecified byte = 0
-	TypeTiny        byte = 1 // TINYINT
-	TypeShort       byte = 2 // SMALLINT
-	TypeLong        byte = 3 // INT
-	TypeFloat       byte = 4
-	TypeDouble      byte = 5
-	TypeNull        byte = 6
-	TypeTimestamp   byte = 7
-	TypeLonglong    byte = 8 // BIGINT
-	TypeInt24       byte = 9 // MEDIUMINT
-	TypeDate        byte = 10
+	TypeTiny        byte = COLUMN_TYPE_TINY  // TINYINT
+	TypeShort       byte = COLUMN_TYPE_SHORT // SMALLINT
+	TypeLong        byte = COLUMN_TYPE_LONG  // INT
+	TypeFloat       byte = COLUMN_TYPE_FLOAT
+	TypeDouble      byte = COLUMN_TYPE_DOUBLE
+	TypeNull        byte = COLUMN_TYPE_NULL
+	TypeTimestamp   byte = COLUMN_TYPE_TIMESTAMP
+	TypeLonglong    byte = COLUMN_TYPE_LONGLONG // BIGINT
+	TypeInt24       byte = COLUMN_TYPE_INT24    // MEDIUMINT
+	TypeDate        byte = COLUMN_TYPE_DATE
 	/* TypeDuration original name was TypeTime, renamed to TypeDuration to resolve the conflict with Go type Time.*/
-	TypeDuration byte = 11
-	TypeDatetime byte = 12
-	TypeYear     byte = 13
-	TypeNewDate  byte = 14
-	TypeVarchar  byte = 15
-	TypeBit      byte = 16
+	TypeDuration byte = COLUMN_TYPE_TIME
+	TypeDatetime byte = COLUMN_TYPE_DATETIME
+	TypeYear     byte = COLUMN_TYPE_YEAR
+	TypeNewDate  byte = COLUMN_TYPE_NEWDATE
+	TypeVarchar  byte = COLUMN_TYPE_VARCHAR
+	TypeBit      byte = COLUMN_TYPE_BIT
 
-	TypeJSON       byte = 0xf5
-	TypeNewDecimal byte = 0xf6
-	TypeEnum       byte = 0xf7
-	TypeSet        byte = 0xf8
-	TypeTinyBlob   byte = 0xf9
-	TypeMediumBlob byte = 0xfa
-	TypeLongBlob   byte = 0xfb
-	TypeBlob       byte = 0xfc
-	TypeVarString  byte = 0xfd
-	TypeString     byte = 0xfe /* TypeString is char type */
-	TypeGeometry   byte = 0xff
+	TypeJSON       byte = COLUMN_TYPE_JSON
+	TypeNewDecimal byte = COLUMN_TYPE_NEWDECIMAL
+	TypeEnum       byte = COLUMN_TYPE_ENUM
+	TypeSet        byte = COLUMN_TYPE_SET
+	TypeTinyBlob   byte = COLUMN_TYPE_TINY_BLOB
+	TypeMediumBlob byte = COLUMN_TYPE_MEDIUM_BLOB
+	TypeLongBlob   byte = COLUMN_TYPE_LONG_BLOB
+	TypeBlob       byte = COLUMN_TYPE_BLOB
+	TypeVarString  byte = COLUMN_TYPE_VAR_STRING
+	TypeString     byte = COLUMN_TYPE_STRING /* TypeString is char type */
+	TypeGeometry   byte = COLUMN_TYPE_GEOMETRY
 )
 
 // Flag information.

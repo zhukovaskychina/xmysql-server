@@ -115,7 +115,7 @@ func (bp *BufferPage) Reset() {
 	bp.modifyCount = 0
 	bp.dirty = false
 	atomic.StoreInt32(&bp.pinCount, 0)
-	bp.content = make([]byte, common.UNIV_PAGE_SIZE)
+	bp.content = make([]byte, common.PageSize)
 }
 
 // Release drops the page frame owned by a buffer pool that is being closed.
@@ -156,7 +156,7 @@ func (bp *BufferPage) Init(spaceID uint32, pageNo uint32, content []byte) {
 	// Copy content
 	if len(content) > 0 {
 		if bp.content == nil {
-			bp.content = make([]byte, common.UNIV_PAGE_SIZE)
+			bp.content = make([]byte, common.PageSize)
 		}
 		copy(bp.content, content)
 	}
@@ -234,7 +234,7 @@ func NewBufferPage(spaceID uint32, pageNo uint32) *BufferPage {
 		pageState: BUF_BLOCK_NOT_USED,
 		flushType: BUF_FLUSH_NONE,
 		iofix:     BUF_IO_NONE,
-		content:   make([]byte, common.UNIV_PAGE_SIZE),
+		content:   make([]byte, common.PageSize),
 	}
 	return bp
 }

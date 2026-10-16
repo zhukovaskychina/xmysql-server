@@ -3,6 +3,7 @@ package extent
 import (
 	_ "encoding/binary"
 	"errors"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 
 	"sync"
@@ -75,7 +76,7 @@ func NewBaseExtent(spaceID, extentID uint32, extType basic.ExtentType) *BaseExte
 		Type:       extType,
 		FirstPage:  firstPage,
 		PageCount:  0,
-		FreeSpace:  64 * 16 * 1024, // 64页 * 16KB
+		FreeSpace:  64 * common.PageSize, // 64页 * 16KB
 		CreateTime: time.Now().UnixNano(),
 	}
 
@@ -129,7 +130,7 @@ func (be *BaseExtent) AllocatePage() (uint32, error) {
 			be.pages[pageNo+i] = true
 			be.pageList = append(be.pageList, pageNo+i)
 			be.header.PageCount++
-			be.header.FreeSpace -= 16 * 1024 // 减少16KB空闲空间
+			be.header.FreeSpace -= common.PageSize // 减少16KB空闲空间
 
 			// 更新状态
 			if be.header.PageCount == 64 {
@@ -175,7 +176,7 @@ func (be *BaseExtent) FreePage(pageNo uint32) error {
 	}
 
 	be.header.PageCount--
-	be.header.FreeSpace += 16 * 1024 // 增加16KB空闲空间
+	be.header.FreeSpace += common.PageSize // 增加16KB空闲空间
 
 	// 更新状态
 	if be.header.PageCount == 0 {
@@ -302,7 +303,7 @@ func (be *BaseExtent) Reset() error {
 	// 重置区头
 	be.header.State = basic.ExtentStateFree
 	be.header.PageCount = 0
-	be.header.FreeSpace = 64 * 16 * 1024
+	be.header.FreeSpace = 64 * common.PageSize
 
 	// 重置统计信息
 	be.stats = basic.ExtentStats{}

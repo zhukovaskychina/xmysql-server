@@ -168,7 +168,7 @@ func AddRow(sr **SlotRows, row basic.Row) {
 	*sr = psr
 
 	//计算heapNo和
-	var heapNo uint16 = 38 + 56 + 26
+	var heapNo uint16 = common.FileHeaderSize + common.PageHeaderSize + common.InfimumSupremumSize
 	for i := 0; i < (*sr).GetNDirs(); i++ {
 		slotRow := (*sr).GetDirRows(uint16(i))
 
@@ -414,7 +414,7 @@ func (sr *SlotRows) search(row basic.Row) int {
 func NewPageIndex(pageNumber uint32) basic.IIndexPage {
 	slotRowData := NewSlotRows()
 	return &Index{
-		BasePageWrapper: basic.NewBasePageWrapper(0, 0, pageNumber, uint16(basic.PageTypeIndex)),
+		BasePageWrapper: basic.NewBasePageWrapper(0, 0, pageNumber, uint16(common.FIL_PAGE_INDEX)),
 		SlotRowData:     &slotRowData,
 		IndexPage:       pages2.NewIndexPage(pageNumber, 0),
 	}
@@ -446,10 +446,10 @@ func NewPageIndexByLoadBytes(content []byte) basic.IIndexPage {
 	indexPage.FileTrailer = pages2.NewFileTrailer()
 
 	indexPage.LoadFileHeader(content[0:38])
-	indexPage.LoadFileTrailer(content[16384-8 : 16384])
+	indexPage.LoadFileTrailer(content[common.PageSize-common.FileTrailerSize : common.PageSize])
 
 	indexPage.ParsePageHeader(content[38 : 38+56])
-	indexPage.ParseInfimumSupermum(content[38+56 : 38+56+26])
+	indexPage.ParseInfimumSupermum(content[38+56 : common.FileHeaderSize+common.PageHeaderSize+common.InfimumSupremumSize])
 	indexPage.ParsePageSlots(content)
 	indexPage.ParseUserRecordsAndFreeSpace(content)
 
@@ -474,10 +474,10 @@ func NewPageIndexByLoadBytesWithTuple(content []byte, tuple metadata.TableRowTup
 	indexPage.FileTrailer = pages2.NewFileTrailer()
 
 	indexPage.LoadFileHeader(content[0:38])
-	indexPage.LoadFileTrailer(content[16384-8 : 16384])
+	indexPage.LoadFileTrailer(content[common.PageSize-common.FileTrailerSize : common.PageSize])
 
 	indexPage.ParsePageHeader(content[38 : 38+56])
-	indexPage.ParseInfimumSupermum(content[38+56 : 38+56+26])
+	indexPage.ParseInfimumSupermum(content[38+56 : common.FileHeaderSize+common.PageHeaderSize+common.InfimumSupremumSize])
 	indexPage.ParsePageSlots(content)
 	indexPage.ParseUserRecordsAndFreeSpace(content)
 
@@ -534,9 +534,9 @@ func (i *Index) AddRow(row basic.Row) {
 		//解析supreRow
 		supremumRow := record.NewSupremumRowByContent(i.IndexPage.InfimumSupermum[13:26])
 
-		infimumRow.SetHeapNo(38 + 56 + 26)
+		infimumRow.SetHeapNo(common.FileHeaderSize + common.PageHeaderSize + common.InfimumSupremumSize)
 		infimumRow.SetNextRowOffset(13)
-		supremumRow.SetHeapNo(38 + 56 + 26 + 13)
+		supremumRow.SetHeapNo(common.FileHeaderSize + common.PageHeaderSize + common.InfimumSupremumSize + 13)
 
 		i.SlotRowData.setInfimumMaxRow(infimumRow)
 
@@ -651,7 +651,7 @@ func (i *Index) parseIndexBytes2SlotRows(content []byte, pageType string) {
 		if startOffset == endOffset {
 			break
 		}
-		if startOffset == uint16(16384) {
+		if startOffset == uint16(common.PageSize) {
 			break
 		}
 

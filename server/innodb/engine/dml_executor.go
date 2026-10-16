@@ -1,5 +1,7 @@
 package engine
 
+import "github.com/zhukovaskychina/xmysql-server/server/common"
+
 import (
 	"context"
 	"encoding/json"
@@ -563,7 +565,7 @@ func (dml *DMLExecutor) beginTransaction(ctx context.Context) (interface{}, erro
 		return nil, fmt.Errorf("transaction manager not initialized")
 	}
 
-	tx, err := dml.txManager.Begin(false, manager.TRX_ISO_REPEATABLE_READ)
+	tx, err := dml.txManager.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	if err != nil {
 		return nil, err
 	}

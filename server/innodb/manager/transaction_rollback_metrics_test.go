@@ -1,5 +1,7 @@
 package manager
 
+import "github.com/zhukovaskychina/xmysql-server/server/common"
+
 import (
 	"sync"
 	"testing"
@@ -39,7 +41,7 @@ func TestTransactionManagerReportsActiveRollbacks(t *testing.T) {
 	}
 	tm.GetUndoLogManager().SetRollbackExecutor(executor)
 
-	trx, err := tm.Begin(false, TRX_ISO_REPEATABLE_READ)
+	trx, err := tm.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	require.NoError(t, err)
 	require.NoError(t, tm.GetUndoLogManager().Append(&UndoLogEntry{
 		LSN:      1,
